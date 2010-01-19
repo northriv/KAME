@@ -264,10 +264,10 @@ public:
 	bool operator!() const {return !this->m_ref;}
 	operator bool() const {return this->m_ref;}
 
-	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == x._pref());}
+	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {return (this->_pref() == x._pref());}
 	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == x._pref());}
-	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != x._pref());}
-	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != _pref());}
+	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {return (this->_pref() != x._pref());}
+	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != x._pref());}
 protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;

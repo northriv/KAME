@@ -20,19 +20,24 @@ XListNodeBase::XListNodeBase(const char *name, bool runtime) :
 void
 XListNodeBase::clearChildren()
 {
-	NodeList old_list;
-	old_list.swap(m_children);
-
-	if(!old_list) return;
-	for(;;)
-	{
-		if(old_list->empty())
-			break;
-		onRelease().talk(old_list->back());
-        
-		old_list->pop_back();
+	NodeList::reader rd(m_children);
+	if(!rd || rd->empty())
+		return;
+	for(;;) {
+		NodeList::writer tr(m_children);
+		if(!tr || tr->empty()) {
+			onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
+			return;
+		}
+		shared_ptr<XNode> node(tr->back());
+		tr->pop_back();
+		if(tr->empty())
+			tr.reset();
+		if(tr.commit()) {
+			onRelease().talk(node);
+			continue;
+		}
 	}
-	onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
 int
 XListNodeBase::releaseChild(const shared_ptr<XNode> &node)

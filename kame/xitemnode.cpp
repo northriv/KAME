@@ -81,12 +81,12 @@ XComboNode::value(const XString &s)
 }
 
 XComboNode::operator int() const {
-	atomic_shared_ptr<std::pair<XString, int> > var(m_var);
+	local_shared_ptr<std::pair<XString, int> > var(m_var);
     return var->second;
 }
 XString
 XComboNode::to_str() const {
-	atomic_shared_ptr<std::pair<XString, int> > var(m_var);
+	local_shared_ptr<std::pair<XString, int> > var(m_var);
 	return var->first;
 }
 

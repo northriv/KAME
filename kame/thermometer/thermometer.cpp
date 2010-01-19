@@ -208,7 +208,7 @@ double
 XApproxThermometer
 ::getTemp(double res) const
 {
-    atomic_shared_ptr<CSplineApprox> approx(m_approx);
+    local_shared_ptr<CSplineApprox> approx(m_approx);
     if(!approx) {
         std::map<double, double> pts;
       XNode::NodeList::reader res_list(m_resList->children());
@@ -232,7 +232,7 @@ double
 XApproxThermometer
 ::getRawValue(double temp) const
 {
-    atomic_shared_ptr<CSplineApprox> approx(m_approx_inv);
+    local_shared_ptr<CSplineApprox> approx(m_approx_inv);
     if(!approx) {
         std::map<double, double> pts;
       XNode::NodeList::reader res_list(m_resList->children());

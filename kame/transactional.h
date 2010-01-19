@@ -39,27 +39,27 @@
 template <typename X>
 class transactional : public atomic_shared_ptr<X> {
 public:
-	typedef atomic_shared_ptr<X> shared_ptr;
-	typedef atomic_shared_ptr<const X> shared_const_ptr;
-	typedef atomic_shared_ptr<const X> reader;
+	typedef local_shared_ptr<X> shared_ptr;
+	typedef local_shared_ptr<const X> shared_const_ptr;
+	typedef local_shared_ptr<const X> reader;
 
-	class writer : public atomic_shared_ptr<X> {
+	class writer : public local_shared_ptr<X> {
 	public:
 		writer(transactional &x) :
-			atomic_shared_ptr<X>(),
+			local_shared_ptr<X>(),
 			m_target(x),
 			m_old_var(x) {
 			reset_unsafe(m_old_var ? (new X(*m_old_var)) : (new X()));
 		}
 		~writer() {}
 		bool commit() {
-			return (compareAndSet(m_old_var, m_target));
+			return (m_target.compareAndSet(m_old_var, *this));
 		}
 	protected:
 		writer();
 	private:
 		transactional &m_target;
-		const shared_ptr m_old_var;
+		const local_shared_ptr<X> m_old_var;
 	};
 
 	transactional() : atomic_shared_ptr<X>() {}

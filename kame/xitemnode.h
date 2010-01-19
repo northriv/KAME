@@ -66,7 +66,9 @@ public:
 		else
 			return XString();
 	}
-	operator shared_ptr<XNode>() const {return m_var->lock();}
+	operator shared_ptr<XNode>() const {
+		return local_shared_ptr<weak_ptr<XNode> >(m_var)->lock();
+	}
 	virtual void value(const shared_ptr<XNode> &t) = 0;
 protected:
 	virtual void _str(const XString &var) throw (XKameError &)
@@ -93,7 +95,7 @@ private:
 	void onItemReleased(const shared_ptr<XNode>& node)
 	{
 		XScopedLock<XRecursiveMutex> lock(m_write_mutex);
-		if(node == m_var->lock())
+		if(node == (shared_ptr<XNode>)*this)
 			value(shared_ptr<XNode>());
 	}
 	void lsnOnListChanged(const shared_ptr<XListNodeBase>&)
@@ -114,7 +116,7 @@ protected:
 public:
 	virtual ~_XItemNode() {}
 	operator shared_ptr<T1>() const {
-        return dynamic_pointer_cast<T1>(this->m_var->lock());
+        return dynamic_pointer_cast<T1>(shared_ptr<XNode>(*this));
 	}
 	virtual void value(const shared_ptr<XNode> &t) {
 		shared_ptr<XValueNodeBase> ptr = 
@@ -137,7 +139,7 @@ protected:
 public:
 	virtual ~XItemNode() {}
 	operator shared_ptr<T2>() const {
-        return dynamic_pointer_cast<T2>(this->m_var->lock());
+        return dynamic_pointer_cast<T2>((shared_ptr<XNode>)*this);
 	}
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const
 	{

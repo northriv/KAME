@@ -240,7 +240,7 @@ XStringNode::XStringNode(const char *name, bool runtime)
 XString
 XStringNode::to_str() const
 {
-	atomic_shared_ptr<XString> var(m_var);
+	local_shared_ptr<XString> var(m_var);
     return var ? (*var) : XString();
 }
 void

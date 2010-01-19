@@ -230,9 +230,8 @@ XTalker<tArg>::connect(const shared_ptr<XListener> &lx) {
 template <class tArg>
 void
 XTalker<tArg>::connect(const shared_ptr<Listener> &lx) {
-	for(;;) {
-		atomic_shared_ptr<ListenerList> old_list(m_listeners);
-		atomic_shared_ptr<ListenerList> new_list(
+	for(local_shared_ptr<ListenerList> old_list(m_listeners);;) {
+		local_shared_ptr<ListenerList> new_list(
 			old_list ? (new ListenerList(*old_list)) : (new ListenerList));
 		// clean-up dead listeners.
 		for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
@@ -242,15 +241,14 @@ XTalker<tArg>::connect(const shared_ptr<Listener> &lx) {
 				it++;
 		}
 		new_list->push_back(lx);
-		if(new_list.compareAndSet(old_list, m_listeners)) break;
+		if(m_listeners.compareAndSwap(old_list, new_list)) break;
 	}
 }
 template <class tArg>
 void
 XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
-	for(;;) {
-		atomic_shared_ptr<ListenerList> old_list(m_listeners);
-		atomic_shared_ptr<ListenerList> new_list(
+	for(local_shared_ptr<ListenerList> old_list(m_listeners);;) {
+		local_shared_ptr<ListenerList> new_list(
 			old_list ? (new ListenerList(*old_list)) : (new ListenerList));
 		for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
 			if(shared_ptr<Listener> listener = it->lock()) {
@@ -263,7 +261,7 @@ XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
 			it++;
 		}
 		if(new_list->empty()) new_list.reset();
-		if(new_list.compareAndSet(old_list, m_listeners)) break;
+		if(m_listeners.compareAndSwap(old_list, new_list)) break;
 	}
 }
 
@@ -272,7 +270,7 @@ void
 XTalker<tArg>::talk(const tArg &arg) {
 	if(m_bMasked) return;  
 	if(empty()) return;
-	atomic_shared_ptr<ListenerList> list(m_listeners);
+	local_shared_ptr<ListenerList> list(m_listeners);
 	if(!list) return;
 	for(ListenerList_it it = list->begin(); it != list->end(); it++) {
 		if(shared_ptr<Listener> listener = it->lock()) {
