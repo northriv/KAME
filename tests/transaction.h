@@ -170,7 +170,8 @@ private:
 	void snapshot(local_shared_ptr<Packet> &target) const;
 	bool trySnapshotSuper(local_shared_ptr<Packet> &target) const;
 	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
-	bool bundle(local_shared_ptr<Packet> &target);
+	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
+	BundledStatus bundle(local_shared_ptr<Packet> &target);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
