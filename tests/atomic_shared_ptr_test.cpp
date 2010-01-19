@@ -3,6 +3,7 @@
 //#include "xtime.h"
 
 #include "support.h"
+//#include "allocator.h"
 
 #include <stdint.h>
 
@@ -53,7 +54,7 @@ atomic_shared_ptr<A> gp1, gp2, gp3;
 void *
 start_routine(void *) {
 	printf("start\n");
-	for(int i = 0; i < 1000000; i++) {
+	for(int i = 0; i < 400000; i++) {
     	local_shared_ptr<A> p1(new A(4));
     	ASSERT(p1);
     	local_shared_ptr<A> p2(new B(9));

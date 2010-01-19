@@ -91,7 +91,7 @@ Node::insert(const shared_ptr<Node> &var) {
 		packet->subnodes()->push_back(var);
 		ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
 		packet->setBundled(false);
-		printf("i");
+//		printf("i");
 		if(commit(oldpacket, packet)) {
 			local_shared_ptr<LookupHint> hint(new LookupHint);
 			hint->m_index = packet->size() - 1;
@@ -144,17 +144,17 @@ Node::release(const shared_ptr<Node> &var) {
 		local_shared_ptr<Packet> nullpacket(*var->m_packet);
 		if(nullpacket->isHere())
 			continue;
-		printf("r");
+//		printf("r");
 		Node::UnbundledStatus ret = unbundle(*m_packet, *var->m_packet,
 			nullpacket, &oldsubpacket, &newsubpacket, &oldpacket, &packet);
 		if(ret == UNBUNDLE_W_NEW_VALUES) {
-			printf("%d", (int)packet->size());
+//			printf("%d", (int)packet->size());
 			var->m_lookupHint.reset();
 			break;
 		}
 	}
 }
-local_shared_ptr<Node::Packet>*
+inline local_shared_ptr<Node::Packet>*
 Node::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) {
 	local_shared_ptr<Node::Packet> *foundpacket;
 	if(packet->subnodes().get() == this) {
@@ -215,7 +215,7 @@ Node::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_s
 				}
 			}
 		}
-		printf("!");
+//		printf("!");
 		bool ret = forwardLookup(packet, hint);
 		ASSERT(ret);
 		m_lookupHint = hint;
@@ -263,7 +263,7 @@ Node::snapshot(local_shared_ptr<Packet> &target) const {
 			return;
 	}
 }
-bool
+inline bool
 Node::trySnapshotSuper(atomic_shared_ptr<Packet> &bundlepoint, local_shared_ptr<Packet> &target) {
 	local_shared_ptr<Packet> oldpacket(target);
 	ASSERT( ! target->isHere());
@@ -293,9 +293,10 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 	//copying all sub-packets from nodes to the new packet.
 	prebundled->subpackets().reset(new PacketList(*prebundled->subpackets()));
 	shared_ptr<PacketList> &packets(prebundled->subpackets());
-	std::vector<local_shared_ptr<Packet> > packets_onnode(target->size());
+	std::vector<local_shared_ptr<Packet> > subpacket_org(target->size());
 	for(unsigned int i = 0; i < packets->size(); ++i) {
 		shared_ptr<Node> child(prebundled->subnodes()->at(i));
+		local_shared_ptr<Packet> &subpacket_new(packets->at(i));
 		for(;;) {
 			local_shared_ptr<Packet> packetonnode(*child->m_packet);
 			if(packetonnode->isHere()) {
@@ -307,38 +308,38 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 					if(status != BUNDLE_SUCCESS)
 						return BUNDLE_DISTURBED;
 				}
-				packets->at(i) = packetonnode;
+				subpacket_new = packetonnode;
 				ASSERT(packetonnode->isBundled());
 			}
-			if( ! packets->at(i)) {
-				printf("?");
+			if( ! subpacket_new) {
+//				printf("?");
 				ASSERT(target != *m_packet);
 				//m_packet has changed, bundled by the other thread.
 				return BUNDLE_DISTURBED;
 			}
-			packets_onnode[i] = packetonnode;
-			if(packets->at(i)->bundlepoint() != m_packet) {
-				packets->at(i).reset(new Packet(*packets->at(i)));
-				packets->at(i)->m_bundlepoint = m_packet;
+			subpacket_org[i] = packetonnode;
+			if(subpacket_new->bundlepoint() != m_packet) {
+				subpacket_new.reset(new Packet(*subpacket_new));
+				subpacket_new->m_bundlepoint = m_packet;
 			}
-			if(packets->at(i)->size()) {
-				if((packets->at(i)->subnodes()->m_superNodeList.lock() != prebundled->subnodes()) ||
-					(packets->at(i)->subnodes()->m_index != i)) {
-					packets->at(i).reset(new Packet(*packets->at(i)));
-					packets->at(i)->subpackets().reset(new PacketList(*packets->at(i)->subpackets()));
-					packets->at(i)->subnodes().reset(new NodeList(*packets->at(i)->subnodes()));
-					packets->at(i)->subnodes()->m_superNodeList = prebundled->subnodes();
-					packets->at(i)->subnodes()->m_index = i;
+			if(subpacket_new->size()) {
+				if((subpacket_new->subnodes()->m_superNodeList.lock() != prebundled->subnodes()) ||
+					(subpacket_new->subnodes()->m_index != i)) {
+					subpacket_new.reset(new Packet(*subpacket_new));
+					subpacket_new->subpackets().reset(new PacketList(*subpacket_new->subpackets()));
+					subpacket_new->subnodes().reset(new NodeList(*subpacket_new->subnodes()));
+					subpacket_new->subnodes()->m_superNodeList = prebundled->subnodes();
+					subpacket_new->subnodes()->m_index = i;
 				}
 			}
-			ASSERT(&packets->at(i)->node() == child.get());
+			ASSERT(&subpacket_new->node() == child.get());
 			break;
 		}
-		ASSERT(packets->at(i));
-		ASSERT(packets->at(i)->isBundled());
-		if(packets->at(i)->size()) {
-			ASSERT(packets->at(i)->subnodes()->m_superNodeList.lock() == prebundled->subnodes());
-			ASSERT(packets->at(i)->subnodes()->m_index == i);
+		ASSERT(subpacket_new);
+		ASSERT(subpacket_new->isBundled());
+		if(subpacket_new->size()) {
+			ASSERT(subpacket_new->subnodes()->m_superNodeList.lock() == prebundled->subnodes());
+			ASSERT(subpacket_new->subnodes()->m_index == i);
 		}
 	}
 	//First checkpoint.
@@ -350,7 +351,7 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 		shared_ptr<Node> child(prebundled->subnodes()->at(i));
 		local_shared_ptr<Packet> nullpacket(new NullPacket(m_packet));
 		//Second checkpoint, the written bundle is valid or not.
-		if( ! child->m_packet->compareAndSet(packets_onnode[i], nullpacket)) {
+		if( ! child->m_packet->compareAndSet(subpacket_org[i], nullpacket)) {
 			return BUNDLE_DISTURBED;
 		}
 	}
@@ -416,6 +417,8 @@ Node::unbundle(atomic_shared_ptr<Packet> &bundlepoint,
 		ASSERT(copied);
 	}
 	else {
+		if( ! packet->size())
+			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		copied.reset(new Packet(*packet));
 		copied->setBundled(false);
 		if(newsuperpacket)
@@ -453,7 +456,7 @@ Node::unbundle(atomic_shared_ptr<Packet> &bundlepoint,
 		newsubpacket_copied = subpacket;
 		if(newsubpacket_copied->size()) {
 			newsubpacket_copied.reset(new Packet(*newsubpacket_copied));
-			newsubpacket_copied->setBundled(false);
+//			newsubpacket_copied->setBundled(false);
 		}
 	}
 

@@ -55,7 +55,7 @@
 //! Transactional accesses will be made on the top branch in the tree.
 //! \sa Snapshot, Transaction, XNode
 
-#include <deque>
+#include <vector>
 #include <map>
 #include <boost/utility/enable_if.hpp>
 #include <boost/type_traits.hpp>
@@ -71,8 +71,8 @@ public:
 
 	class Packet;
 	struct PacketList;
-	struct NodeList : public std::deque<shared_ptr<Node> > {
-		NodeList() : std::deque<shared_ptr<Node> >(), m_superNodeList(), m_index(0), m_serial(-1) {}
+	struct NodeList : public std::vector<shared_ptr<Node> > {
+		NodeList() : std::vector<shared_ptr<Node> >(), m_superNodeList(), m_index(0), m_serial(-1) {}
 		//! Reverse address to the super nodes in the bundle.
 		weak_ptr<NodeList> m_superNodeList;
 		int m_index;
@@ -81,12 +81,12 @@ public:
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
 	private:
 	};
-	struct PacketList : public std::deque<local_shared_ptr<Packet> > {
+	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::deque<local_shared_ptr<Packet> >(), m_serial(-1) {}
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(-1) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
@@ -168,7 +168,7 @@ private:
 	friend class Snapshot;
 	friend class Transaction;
 	void snapshot(local_shared_ptr<Packet> &target) const;
-	static bool trySnapshotSuper(atomic_shared_ptr<Packet> &bundlepoint, local_shared_ptr<Packet> &target);
+	static inline bool trySnapshotSuper(atomic_shared_ptr<Packet> &bundlepoint, local_shared_ptr<Packet> &target);
 	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<Packet> &target);

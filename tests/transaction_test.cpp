@@ -6,6 +6,7 @@
  */
 
 #include "support.h"
+//#include "allocator.h"
 
 #include <stdint.h>
 
@@ -54,7 +55,7 @@ start_routine(void *) {
 	printf("start\n");
 	shared_ptr<LongNode> p1(new LongNode);
 	shared_ptr<LongNode> p2(new LongNode);
-	for(int i = 0; i < 1000; i++) {
+	for(int i = 0; i < 6000; i++) {
 		if((i % 10) == 0)
 			gn2->insert(p2);
 		for(Transaction tr1(*gn1); ; ++tr1){
@@ -97,7 +98,7 @@ main(int argc, char **argv)
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 100; k++) {
+    for(int k = 0; k < 5; k++) {
 		gn1.reset(new LongNode);
 		gn2.reset(new LongNode);
 		gn3.reset(new LongNode);
@@ -153,7 +154,7 @@ main(int argc, char **argv)
 			printf("failed total=%ld\n", (long)total);
 			return -1;
 		}
-		printf("succeeded\n");
     }
+	printf("succeeded\n");
 	return 0;
 }
