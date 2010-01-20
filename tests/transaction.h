@@ -90,19 +90,19 @@ public:
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
+
+	typedef NodeList::iterator iterator;
+	typedef NodeList::const_iterator const_iterator;
+
 	//! Data holder.
-	enum FLAG {NODE_UI_ENABLED = 0x1, NODE_READONLY = 0x2};
 	struct Payload {
-		Payload(Node &node) : m_flags(NODE_UI_ENABLED), m_node(&node), m_serial(-1) {ASSERT(&node);}
+		Payload(Node &node) : m_node(&node), m_serial(-1) {ASSERT(&node);}
 		virtual ~Payload() {}
-		bool isUIEnabled() const {return m_flags & NODE_UI_ENABLED;}
-		void setUIEnabled(bool var) {m_flags = (m_flags & ~NODE_UI_ENABLED) | (var ? NODE_UI_ENABLED : 0);}
 	private:
 		Payload();
 		friend class Node;
 		friend class Packet;
 		friend class Transaction;
-		int m_flags;
 		Node &node() {return *m_node;}
 		const Node &node() const {return *m_node;}
 		Node *m_node;
@@ -110,7 +110,7 @@ public:
 	};
 
 	struct Packet {
-		Packet(const shared_ptr<atomic_shared_ptr<Packet> > &bundlepoint);
+		Packet(const shared_ptr<atomic_shared_ptr<Packet> > &branchpoint);
 		~Packet();
 	private:
 		Packet();
@@ -133,7 +133,7 @@ public:
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
 		const shared_ptr<PacketList> &subpackets() const {return m_subpackets;}
 
-		shared_ptr<atomic_shared_ptr<Packet> > bundlepoint() {return m_bundlepoint.lock();}
+		shared_ptr<atomic_shared_ptr<Packet> > branchpoint() {return m_branchpoint.lock();}
 		//! points to the node.
 		Node &node() {return payload()->node();}
 		//! points to the node.
@@ -151,32 +151,36 @@ public:
 			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2, PACKET_NOT_HERE = 0x3};
 		shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		weak_ptr<atomic_shared_ptr<Packet> > m_bundlepoint;
+		weak_ptr<atomic_shared_ptr<Packet> > m_branchpoint;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
 	struct NullPacket : public Packet {
-		NullPacket(const shared_ptr<atomic_shared_ptr<Packet> > &bundlepoint) : Packet(bundlepoint) {
+		NullPacket(const shared_ptr<atomic_shared_ptr<Packet> > &branchpoint) : Packet(branchpoint) {
 			m_state = PACKET_NOT_HERE;
 		}
 	private:
 		NullPacket();
 	};
+	bool insert(const Snapshot &snapshot, const shared_ptr<Node> &var);
 	void insert(const shared_ptr<Node> &var);
+	bool release(const Snapshot &snapshot, const shared_ptr<Node> &var);
 	void release(const shared_ptr<Node> &var);
+	void releaseAll();
+	bool swap(const Snapshot &snapshot, const shared_ptr<Node> &x, const shared_ptr<Node> &y);
 private:
 	friend class Snapshot;
 	friend class Transaction;
 	void snapshot(local_shared_ptr<Packet> &target) const;
-	static inline bool trySnapshotSuper(atomic_shared_ptr<Packet> &bundlepoint, local_shared_ptr<Packet> &target);
+	static inline bool trySnapshotSuper(atomic_shared_ptr<Packet> &branchpoint, local_shared_ptr<Packet> &target);
 	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<Packet> &target);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
-	static UnbundledStatus unbundle(atomic_shared_ptr<Packet> &bundlepoint,
-		atomic_shared_ptr<Packet> &subbundlepoint, const local_shared_ptr<Packet> &nullpacket,
+	static UnbundledStatus unbundle(atomic_shared_ptr<Packet> &branchpoint,
+		atomic_shared_ptr<Packet> &subbranchpoint, const local_shared_ptr<Packet> &nullpacket,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newsubpacket = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<Packet> *newsuperpacket = NULL);
 	shared_ptr<atomic_shared_ptr<Packet> > m_packet;
@@ -227,18 +231,109 @@ public:
 		return dynamic_cast<const typename T::Payload&>(*node.reverseLookup(m_packet)->payload());
 	}
 	int size() const {return m_packet->size();}
-	//! Check \a size() in advance.
-	const shared_ptr<Node::NodeList> &subnodes() const {
-		ASSERT(size());
+	const shared_ptr<const Node::NodeList> list() const {
+		if( ! size())
+			return shared_ptr<Node::NodeList>();
 		return m_packet->subnodes();
+	}
+	int size(const shared_ptr<Node> &node) const {
+		return node->reverseLookup(m_packet)->size();
+	}
+	shared_ptr<const Node::NodeList> list(const shared_ptr<Node> &node) const {
+		local_shared_ptr<Node::Packet> const &packet(node->reverseLookup(m_packet));
+		if( ! packet->size() )
+			return shared_ptr<Node::NodeList>();
+		return packet->subnodes();
 	}
 	void print() {
 		m_packet->print();
 	}
 protected:
+	friend class Node;
 	//! The snapshot.
 	local_shared_ptr<Node::Packet> m_packet;
 };
+
+//! Transactional writing for a monitored data set.
+//! The revision will be committed implicitly on leaving the scope.
+class Transaction : public Snapshot {
+public:
+	Transaction(const Transaction &tr) : Snapshot(tr), m_oldpacket(tr.m_oldpacket) {}
+	//! Be sure to the persistence of the \a node.
+	template <class T>
+	explicit Transaction(T&node) :
+		Snapshot(node), m_oldpacket(m_packet) {
+		ASSERT(&m_packet->node() == &node);
+		for(;;) {
+			m_serial = s_serial;
+			if(s_serial.compareAndSet(m_serial, m_serial + 1))
+				break;
+		}
+		m_serial++;
+	}
+	virtual ~Transaction() {}
+	//! Explicitly commits.
+	bool commit() {
+		if(!isModified())
+			return true;
+		return m_packet->node().commit(m_oldpacket, m_packet);
+	}
+	//! Explicitly commits.
+	bool commitOrNext() {
+		if(m_packet->node().commit(m_oldpacket, m_packet))
+			return true;
+		++(*this);
+		return false;
+	}
+
+	bool isModified() const {
+		return (m_packet->m_serial == m_serial);
+	}
+
+	Transaction &operator++() {
+		m_packet->node().snapshot(m_oldpacket);
+		m_packet = m_oldpacket;
+		return *this;
+	}
+
+	template <class T>
+	typename T::Payload &operator[](const shared_ptr<T> &node) {
+		return operator[](*node);
+	}
+	template <class T>
+	typename T::Payload &operator[](T &node) {
+		shared_ptr<Node::Payload> *payload;
+		if(&node == &m_packet->node()) {
+			if(m_packet->m_serial != m_serial) {
+				m_packet.reset(new Node::Packet(*m_oldpacket));
+				m_packet->m_serial = m_serial;
+			}
+			payload = &m_packet->payload();
+		}
+		else {
+			payload = &node.reverseLookup(m_packet, true, m_serial)->payload();
+		}
+		if((*payload)->m_serial != m_serial) {
+			typename T::Payload *newpayload =
+				new typename T::Payload(dynamic_cast<typename T::Payload&>(**payload));
+			payload->reset(newpayload);
+			(*payload)->m_serial = m_serial;
+			return *newpayload;
+		}
+		return dynamic_cast<typename T::Payload&>(**payload);
+	}
+private:
+	friend class Node;
+	shared_ptr<Node::PacketList> &subpackets() {return m_packet->subpackets();}
+	const shared_ptr<Node::PacketList> &subpackets() const {return m_packet->subpackets();}
+	local_shared_ptr<Node::Packet> m_oldpacket;
+	int64_t m_serial;
+	static atomic<int> s_serial;
+};
+
+inline Snapshot::Snapshot(const Transaction&x) : m_packet(x.m_packet) {}
+
+#define trans(node) for(Transaction __implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
 struct _implicitReader : Snapshot {
@@ -256,80 +351,5 @@ typename boost::enable_if<boost::is_base_of<Node, T>, const _implicitReader<T> >
  operator*(T &node) {
 	return _implicitReader<T>(node);
 }
-
-//! Transactional writing for a monitored data set.
-//! The revision will be committed implicitly on leaving the scope.
-class Transaction : public Snapshot {
-public:
-	Transaction(const Transaction &tr) : Snapshot(tr), m_oldpacket(tr.m_oldpacket) {}
-	//! Be sure to the persistence of the \a node.
-	template <class T>
-	explicit Transaction(T&node) :
-		Snapshot(node), m_oldpacket(new Node::Packet(*m_packet)) {
-		m_oldpacket.swap(m_packet);
-		ASSERT(&m_packet->node() == &node);
-		for(;;) {
-			m_serial = s_serial;
-			if(s_serial.compareAndSet(m_serial, m_serial + 1))
-				break;
-		}
-		m_serial++;
-		m_packet->m_serial = m_serial;
-	}
-	virtual ~Transaction() {}
-	//! Explicitly commits.
-	bool commit() {
-		return m_packet->node().commit(m_oldpacket, m_packet);
-	}
-
-	Transaction &operator++() {
-		m_packet->node().snapshot(m_oldpacket);
-		m_packet.reset(new Node::Packet(*m_oldpacket));
-		m_packet->m_serial = m_serial;
-		return *this;
-	}
-	template <class T>
-	typename T::Payload &operator[](const shared_ptr<T> &node) {
-		return operator[](*node);
-	}
-	template <class T>
-	typename T::Payload &operator[](T &node) {
-		shared_ptr<Node::Payload> *payload;
-		if(&node == &m_packet->node())
-			payload = &m_packet->payload();
-		else {
-			payload = &node.reverseLookup(m_packet, true, m_serial)->payload();
-		}
-		if((*payload)->m_serial != m_serial) {
-			typename T::Payload *newpayload =
-				new typename T::Payload(dynamic_cast<typename T::Payload&>(**payload));
-			payload->reset(newpayload);
-			(*payload)->m_serial = m_serial;
-			return *newpayload;
-		}
-		return dynamic_cast<typename T::Payload&>(**payload);
-	}
-
-	int size() const {return m_packet->size();}
-	//! Check \a size() in advance.
-	shared_ptr<Node::NodeList> &subnodes() {
-		ASSERT(size());
-		return m_packet->subnodes();
-	}
-	//! Check \a size() in advance.
-	const shared_ptr<Node::NodeList> &subnodes() const {
-		ASSERT(size());
-		return m_packet->subnodes();
-	}
-private:
-	friend class Node;
-	shared_ptr<Node::PacketList> &subpackets() {return m_packet->subpackets();}
-	const shared_ptr<Node::PacketList> &subpackets() const {return m_packet->subpackets();}
-	local_shared_ptr<Node::Packet> m_oldpacket;
-	int64_t m_serial;
-	static atomic<int> s_serial;
-};
-
-inline Snapshot::Snapshot(const Transaction&x) : m_packet(x.m_packet) {}
 
 #endif /*TRANSACTION_H*/
