@@ -342,8 +342,8 @@ Node::bundle(local_shared_ptr<Packet> &target) {
 					//bundled by another node.
 					UnbundledStatus status = unbundle(*branchpoint, *child->m_packet,
 							packetonnode, NULL, &subpacket_new);
-					if((status == UNBUNDLE_DISTURBED) &&
-						(target == *m_packet))
+					if((status == UNBUNDLE_SUCCESS) || (status == UNBUNDLE_DISTURBED))
+						if(target == *m_packet)
 							continue;
 					if((status != UNBUNDLE_W_NEW_SUBVALUE) && (status != UNBUNDLE_W_NEW_VALUES))
 						return BUNDLE_DISTURBED;
@@ -417,8 +417,8 @@ Node::commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet>
 		shared_ptr<atomic_shared_ptr<Packet> > branchpoint_super(packet->branchpoint());
 		if( ! branchpoint_super)
 			continue; //Supernode has been destroyed.
-		UnbundledStatus ret = unbundle(*branchpoint_super, *m_packet, packet, &oldpacket, &newpacket);
-		switch(ret) {
+		UnbundledStatus status = unbundle(*branchpoint_super, *m_packet, packet, &oldpacket, &newpacket);
+		switch(status) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
 		case UNBUNDLE_W_NEW_VALUES:
 			return true;

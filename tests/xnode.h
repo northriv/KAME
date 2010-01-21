@@ -70,7 +70,7 @@ public:
 	shared_ptr<XNode> getChild(const XString &var) const;
 	shared_ptr<XNode> getParent() const;
 
-	shared_ptr<const XNodeList> children() const {
+	shared_ptr<const NodeList> children() const {
 		Snapshot shot(*this);
 		return shot.list();
 	}
