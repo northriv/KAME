@@ -18,8 +18,7 @@
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
-
-class LongNode : public Node {
+class LongNode : public Transactional::Node<LongNode> {
 public:
 	LongNode() {
 		initPayload(new Payload(*this));
@@ -30,9 +29,9 @@ public:
 	}
 
 	//! Data holder.
-	struct Payload : public Node::Payload {
-		Payload(Node &node) : Node::Payload(node), m_x(0) {}
-		Payload(const Payload &x) : Node::Payload(x), m_x(x.m_x) {
+	struct Payload : public Transactional::Node<LongNode>::Payload {
+		Payload(LongNode &node) : Transactional::Node<LongNode>::Payload(node), m_x(0) {}
+		Payload(const Payload &x) : Transactional::Node<LongNode>::Payload(x), m_x(x.m_x) {
 			total += m_x;
 		}
 		virtual ~Payload() {
@@ -48,6 +47,20 @@ public:
 	};
 };
 
+typedef Transactional::Snapshot<LongNode> Snapshot;
+typedef Transactional::Transaction<LongNode> Transaction;
+
+#define trans(node) for(Transaction __implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+
+template <class T>
+typename boost::enable_if<boost::is_base_of<LongNode, T>, const typename Transactional::_implicitReader<T, LongNode> >::type
+ operator*(T &node) {
+	return Transactional::_implicitReader<T, LongNode>(node);
+}
+
+#include "transaction_impl.h"
+template class Transactional::Node<LongNode>;
+
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void *
@@ -59,6 +72,7 @@ start_routine(void *) {
 		if((i % 10) == 0) {
 			gn2->insert(p2);
 			p1->insert(p2);
+			gn2->swap(p2, gn3);
 		}
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
@@ -122,6 +136,7 @@ main(int argc, char **argv)
 
 		shared_ptr<LongNode> p1(new LongNode);
 		gn1->insert(p1);
+		gn1->swap(p1, gn2);
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
