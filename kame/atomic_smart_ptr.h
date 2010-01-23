@@ -76,8 +76,7 @@ private:
 //! \sa atomic_shared_ptr
 template <typename T>
 struct _atomic_shared_ptr_gref {
-	template <class Y>
-	_atomic_shared_ptr_gref(Y *p) : ptr(p), refcnt(1) {}
+	_atomic_shared_ptr_gref(T *p) : ptr(p), refcnt(1) {}
 	~_atomic_shared_ptr_gref() { ASSERT(refcnt == 0); delete ptr; }
 	//! The pointer to the object.
 	T *ptr;
@@ -168,10 +167,10 @@ public:
 	bool operator!() const {readBarrier(); return !m_ref;}
 	operator bool() const {readBarrier(); return m_ref;}
 
-	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == x._pref());}
-	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == x._pref());}
-	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {readBarrier(); return (_pref() != x._pref());}
-	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (_pref() != x._pref());}
+	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == (Ref*)x._pref());}
+	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (_pref() == (Ref*)x._pref());}
+	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {readBarrier(); return (_pref() != (Ref*)x._pref());}
+	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (_pref() != (Ref*)x._pref());}
 protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;
@@ -200,7 +199,7 @@ protected:
 	//! Never use this function for a shared instance.
 	//! \sa reset()
 	template<typename Y> void reset_unsafe(Y *y) {
-		m_ref = (_RefLocal)new Ref(y);
+		m_ref = (_RefLocal)new _atomic_shared_ptr_gref<Y>(y);
 	}
 };
 
@@ -264,10 +263,10 @@ public:
 	bool operator!() const {return !this->m_ref;}
 	operator bool() const {return this->m_ref;}
 
-	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {return (this->_pref() == x._pref());}
-	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == x._pref());}
-	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {return (this->_pref() != x._pref());}
-	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != x._pref());}
+	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {return (this->_pref() == (Ref*)x._pref());}
+	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() == (Ref*)x._pref());}
+	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {return (this->_pref() != (Ref*)x._pref());}
+	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {readBarrier(); return (this->_pref() != (Ref*)x._pref());}
 protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;
