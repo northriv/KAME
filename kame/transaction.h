@@ -82,6 +82,14 @@ public:
 	static T *create(A1 a1, A2 a2);
 	template <class T, typename A1, typename A2, typename A3>
 	static T *create(A1 a1, A2 a2, A3 a3);
+	template <class T, typename A1, typename A2, typename A3, typename A4>
+	static T *create(A1 a1, A2 a2, A3 a3, A4 a4);
+	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5>
+	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5);
+	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6);
+	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7);
 
 	virtual ~Node();
 
@@ -110,16 +118,11 @@ public:
 	typedef typename NodeList::iterator iterator;
 	typedef typename NodeList::const_iterator const_iterator;
 
-	//! Data holder.
-	struct Payload {
-		Payload() {}
-		virtual ~Payload() {}
-	};
 	struct PayloadWrapperBase {
 		PayloadWrapperBase(Node &node) : m_node(&node), m_serial(-1) {}
 		PayloadWrapperBase(const PayloadWrapperBase& x) : m_node(x.m_node), m_serial(x.m_serial) {}
 		virtual ~PayloadWrapperBase() {}
-		virtual Payload *clone() = 0;
+		virtual PayloadWrapperBase *clone() = 0;
 		//! points to the node.
 		Node &node() {return *m_node;}
 		//! points to the node.
@@ -129,10 +132,18 @@ public:
 	};
 	template <class P>
 	struct PayloadWrapper : public PayloadWrapperBase, public P {
-		PayloadWrapper(Node &node) : PayloadWrapperBase(node), P() {}
-		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P(x) {}
 		virtual PayloadWrapper *clone() { return new PayloadWrapper(*this);}
 		static PayloadWrapperBase *funcPayloadCreator(Node &node) { return new PayloadWrapper<P>(node); }
+	private:
+		PayloadWrapper();
+		PayloadWrapper(Node &node) : PayloadWrapperBase(node), P() {}
+		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P(x) {}
+		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
+	};
+	//! Data holder.
+	struct Payload {
+		Payload() {}
+		virtual ~Payload() {}
 	};
 
 	struct PacketBase {
@@ -236,26 +247,50 @@ private:
 template <class XN>
 template <class T>
 T *Node<XN>::create() {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename XN::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
 	return new T();
 }
 template <class XN>
 template <class T, typename A1>
 T *Node<XN>::create(A1 a1) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename XN::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
 	return new T(a1);
 }
 template <class XN>
 template <class T, typename A1, typename A2>
 T *Node<XN>::create(A1 a1, A2 a2) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename XN::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
 	return new T(a1, a2);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename XN::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
 	return new T(a1, a2, a3);
+}
+template <class XN>
+template <class T, typename A1, typename A2, typename A3, typename A4>
+T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4) {
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	return new T(a1, a2, a3, a4);
+}
+template <class XN>
+template <class T, typename A1, typename A2, typename A3, typename A4, typename A5>
+T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5) {
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	return new T(a1, a2, a3, a4, a5);
+}
+template <class XN>
+template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6) {
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	return new T(a1, a2, a3, a4, a5, a6);
+}
+template <class XN>
+template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
+T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
+	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	return new T(a1, a2, a3, a4, a5, a6, a7);
 }
 
 //! This class takes a snapshot for a monitored data set.
@@ -278,7 +313,8 @@ public:
 	const typename T::Payload &operator[](const T &node) const {
 		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
 		const shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(packet->payload());
-		const typename T::Payload *payload_t(dynamic_cast<const typename T::Payload*>(payload.get()));
+		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		const typename T::Payload *payload_t(static_cast<const Payload*>(payload.get()));
 		return *payload_t;
 	}
 	int size() const {return m_packet->size();}
@@ -356,7 +392,7 @@ public:
 		shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
-		Payload *payload_t(dynamic_cast<Payload*>(payload.get()));
+		Payload *payload_t(static_cast<Payload*>(payload.get()));
 		if(payload->m_serial != this->m_serial) {
 			payload_t = payload_t->clone();
 			payload.reset(payload_t);

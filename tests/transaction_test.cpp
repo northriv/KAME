@@ -20,9 +20,9 @@ atomic<long> total = 0;
 
 class LongNode : public Transactional::Node<LongNode> {
 public:
-	LongNode() {
-		initPayload(new Payload(*this));
+	LongNode() : Transactional::Node<LongNode>() {
 		++objcnt;
+	//	trans(*this) = 0;
 	}
 	virtual ~LongNode() {
 		--objcnt;
@@ -30,7 +30,7 @@ public:
 
 	//! Data holder.
 	struct Payload : public Transactional::Node<LongNode>::Payload {
-		Payload(LongNode &node) : Transactional::Node<LongNode>::Payload(node), m_x(0) {}
+		Payload() : Transactional::Node<LongNode>::Payload(), m_x(0) {}
 		Payload(const Payload &x) : Transactional::Node<LongNode>::Payload(x), m_x(x.m_x) {
 			total += m_x;
 		}
@@ -66,8 +66,8 @@ shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 void *
 start_routine(void *) {
 	printf("start\n");
-	shared_ptr<LongNode> p1(new LongNode);
-	shared_ptr<LongNode> p2(new LongNode);
+	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
+	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
 	for(int i = 0; i < 6000; i++) {
 		if((i % 10) == 0) {
 			gn2->insert(p2);
@@ -116,11 +116,11 @@ main(int argc, char **argv)
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 5; k++) {
-		gn1.reset(new LongNode);
-		gn2.reset(new LongNode);
-		gn3.reset(new LongNode);
-		gn4.reset(new LongNode);
+    for(int k = 0; k < 10; k++) {
+		gn1.reset(LongNode::create<LongNode>());
+		gn2.reset(LongNode::create<LongNode>());
+		gn3.reset(LongNode::create<LongNode>());
+		gn4.reset(LongNode::create<LongNode>());
 
 		gn1->insert(gn2);
 		gn2->insert(gn3);
@@ -134,7 +134,7 @@ main(int argc, char **argv)
 		long x = **gn3;
 		printf("2:%ld\n", x);
 
-		shared_ptr<LongNode> p1(new LongNode);
+		shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 		gn1->insert(p1);
 		gn1->swap(p1, gn2);
 		for(Transaction tr1(*gn1); ; ++tr1){

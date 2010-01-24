@@ -39,10 +39,10 @@ Node<XN>::PacketBase::print() const {
 	printf("Packet: ");
 	if( ! isHere()) {
 		printf("Not here, ");
-		printf("Bundler:%llx, ", (uintptr_t)reinterpret_cast<const NullPacket*>(this)->branchpoint().get());
+		printf("Bundler:%llx, ", (uintptr_t)static_cast<const NullPacket*>(this)->branchpoint().get());
 	}
 	else {
-		const Packet &packet = reinterpret_cast<const Packet&>(*this);
+		const Packet &packet = static_cast<const Packet&>(*this);
 		printf("Node:%llx, ", (uintptr_t)&packet.node());
 
 		if(packet.isBundled())
@@ -66,6 +66,7 @@ Node<XN>::Node() : m_packet(new atomic_shared_ptr<PacketBase>()) {
 	m_packet->reset(packet);
 	//Use create() for this hack.
 	packet->m_payload.reset((*stl_funcPayloadCreator)(*this));
+	*stl_funcPayloadCreator = NULL;
 }
 template <class XN>
 Node<XN>::~Node() {
@@ -171,7 +172,7 @@ Node<XN>::release(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var) {
 	else {
 		packet->setBundled(false);
 	}
-	local_shared_ptr<Packet> nullpacket(*var->m_packet);
+	local_shared_ptr<PacketBase> nullpacket(*var->m_packet);
 	if(nullpacket->isHere())
 		return false;
 //		printf("r");
@@ -360,13 +361,13 @@ Node<XN>::snapshot(local_shared_ptr<Packet> &target) const {
 	for(;;) {
 		local_shared_ptr<PacketBase> packet = *m_packet;
 		if(packet->isBundled()) {
-			target = reinterpret_cast<local_shared_ptr<Packet> &>(packet);
+			target = packet;
 			return;
 		}
 		if( ! packet->isHere()) {
 			shared_ptr<atomic_shared_ptr<PacketBase> > branchpoint(m_packet);
 			if(trySnapshotSuper(*branchpoint, packet)) {
-				target = reinterpret_cast<local_shared_ptr<Packet> &>(packet);
+				target = packet;
 				if( ! target->size())
 					continue;
 				target = const_cast<Node*>(this)->reverseLookup(target);
@@ -375,7 +376,7 @@ Node<XN>::snapshot(local_shared_ptr<Packet> &target) const {
 			}
 			continue;
 		}
-		target = reinterpret_cast<local_shared_ptr<Packet> &>(packet);
+		target = packet;
 		BundledStatus status = const_cast<Node*>(this)->bundle(target);
 		if(status == BUNDLE_SUCCESS)
 			return;
@@ -386,8 +387,7 @@ inline bool
 Node<XN>::trySnapshotSuper(atomic_shared_ptr<PacketBase> &branchpoint, local_shared_ptr<PacketBase> &target) {
 	local_shared_ptr<PacketBase> oldpacket(target);
 	ASSERT( ! target->isHere());
-	shared_ptr<atomic_shared_ptr<PacketBase> > branchpoint_super(
-		reinterpret_cast<local_shared_ptr<NullPacket> &>(target)->branchpoint());
+	shared_ptr<atomic_shared_ptr<PacketBase> > branchpoint_super(static_cast<NullPacket&>(*target).branchpoint());
 	if( ! branchpoint_super)
 		return false; //Supernode has been destroyed.
 	target = *branchpoint_super;
@@ -397,7 +397,7 @@ Node<XN>::trySnapshotSuper(atomic_shared_ptr<PacketBase> &branchpoint, local_sha
 		if( ! trySnapshotSuper(*branchpoint_super, target))
 			return false;
 	}
-	ASSERT(reinterpret_cast<local_shared_ptr<Packet> &>(target)->size());
+	ASSERT(static_cast<Packet&>(*target).size());
 	if(branchpoint == oldpacket) {
 		ASSERT( ! oldpacket->isHere());
 		return true; //Up-to-date unbundled packet w/o local packet.
@@ -603,7 +603,7 @@ Node<XN>::unbundle(atomic_shared_ptr<PacketBase> &branchpoint,
 	}
 
 	if( ! subbranchpoint.compareAndSet(nullpacket, newsubpacket_copied)) {
-		if( ! local_shared_ptr<Packet>(subbranchpoint)->isHere())
+		if( ! local_shared_ptr<PacketBase>(subbranchpoint)->isHere())
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		return UNBUNDLE_SUCCESS;
 	}
@@ -619,7 +619,7 @@ Node<XN>::unbundle(atomic_shared_ptr<PacketBase> &branchpoint,
 		typename NodeList::iterator nit = copied2->subnodes()->begin();
 		for(typename PacketList::iterator pit = copied2->subpackets()->begin(); pit != copied2->subpackets()->end();) {
 			if(*pit) {
-				local_shared_ptr<Packet> subpacket(*(*nit)->m_packet);
+				local_shared_ptr<PacketBase> subpacket(*(*nit)->m_packet);
 				if(subpacket->isHere()) {
 					//Touch (*nit)->m_packet once before erasing.
 					if(((*nit)->m_packet.get() == &subbranchpoint) ||
