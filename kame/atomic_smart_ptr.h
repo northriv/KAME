@@ -279,9 +279,9 @@ protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;
 
-	typedef typename local_shared_ptr<T>::_RefLocal _RefLocal;
-	typedef typename local_shared_ptr<T>::Refcnt Refcnt;
-	typedef typename local_shared_ptr<T>::Ref Ref;
+	typedef typename atomic_shared_ptr<T>::_RefLocal _RefLocal;
+	typedef typename atomic_shared_ptr<T>::Refcnt Refcnt;
+	typedef typename atomic_shared_ptr<T>::Ref Ref;
 	//! A pointer to global reference struct.
 	Ref* _pref() const {return (Ref*)(this->m_ref);}
 };
