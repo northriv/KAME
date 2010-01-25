@@ -17,6 +17,7 @@
 #include "support.h"
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
+#include "recycler.h"
 
 //! \todo virtual copyPayload();
 
@@ -59,8 +60,6 @@
 //! \sa Snapshot, Transaction, XNode
 
 #include <vector>
-#include <boost/utility/enable_if.hpp>
-#include <boost/type_traits.hpp>
 #include "atomic.h"
 
 namespace Transactional {
@@ -93,6 +92,7 @@ public:
 	virtual ~Node();
 
 	class Packet;
+
 	struct PacketList;
 	struct NodeList : public std::vector<shared_ptr<XN> > {
 		NodeList() : std::vector<shared_ptr<XN> >(), m_superNodeList(), m_index(0), m_serial(-1) {}
@@ -117,7 +117,7 @@ public:
 	typedef typename NodeList::iterator iterator;
 	typedef typename NodeList::const_iterator const_iterator;
 
-	struct PayloadWrapperBase {
+	struct PayloadWrapperBase : public atomic_countable {
 		PayloadWrapperBase(Node &node) : m_node(&node), m_serial(-1) {}
 		PayloadWrapperBase(const PayloadWrapperBase& x) : m_node(x.m_node), m_serial(x.m_serial) {}
 		virtual ~PayloadWrapperBase() {}
@@ -145,36 +145,11 @@ public:
 		virtual ~Payload() {}
 	};
 
-	struct PacketBase {
-		PacketBase() : m_state(0) {}
-		virtual ~PacketBase() {}
-		//! \return If true, the content is a snapshot, and is up-to-date for the watchpoint.\n
-		//! The subnodes must not have their own payloads.
-		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
-		//! \sa isHere().
-		bool isBundled() const {return (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
-		//! \sa NullPacket.
-		bool isHere() const {return (m_state & PACKET_BUNDLE_STATE) != PACKET_NOT_HERE;}
-		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
-			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
-		}
-		void print() const;
-
-		int m_state;
-		enum STATE {
-			PACKET_BUNDLE_STATE = 0xf,
-			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2, PACKET_NOT_HERE = 0x3};
-	};
-	struct NullPacket : public PacketBase {
-		NullPacket(const shared_ptr<atomic_shared_ptr<PacketBase> > &branchpoint);
-		shared_ptr<atomic_shared_ptr<PacketBase> > branchpoint() const {return m_branchpoint.lock();}
-		weak_ptr<atomic_shared_ptr<PacketBase> > m_branchpoint;
-	};
-	struct Packet : public PacketBase {
+	struct Packet : public atomic_countable {
 		Packet();
 		int size() const {return subpackets() ? subpackets()->size() : 0;}
-		shared_ptr<PayloadWrapperBase> &payload() {return m_payload;}
-		const shared_ptr<PayloadWrapperBase> &payload() const {return m_payload;}
+		local_shared_ptr<PayloadWrapperBase> &payload() {return m_payload;}
+		const local_shared_ptr<PayloadWrapperBase> &payload() const {return m_payload;}
 		shared_ptr<NodeList> &subnodes() {return subpackets()->m_subnodes;}
 		shared_ptr<PacketList> &subpackets() {return m_subpackets;}
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
@@ -185,11 +160,41 @@ public:
 		//! points to the node.
 		const Node &node() const {return payload()->node();}
 
-		shared_ptr<PayloadWrapperBase> m_payload;
+		void print() const;
+
+		local_shared_ptr<PayloadWrapperBase> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
+	struct PacketWrapper : public atomic_countable {
+		PacketWrapper() : m_branchpoint(), m_packet(), m_state(0) { setBundled(true); }
+		PacketWrapper(const PacketWrapper &x) : m_branchpoint(x.m_branchpoint), m_packet(x.m_packet), m_state(x.m_state) {}
+		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
+		explicit PacketWrapper(const shared_ptr<atomic_shared_ptr<PacketWrapper> > &bp);
+		 ~PacketWrapper() {}
+		//! \return If true, the content is a snapshot, and is up-to-date for the watchpoint.\n
+		//! The subnodes must not have their own payloads.
+		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
+		//! \sa isHere().
+		bool isBundled() const {return (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
+		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
+			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
+		}
+		void print() const;
+
+		shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint() const {return m_branchpoint.lock();}
+		const local_shared_ptr<Packet> &packet() const {return m_packet;}
+		local_shared_ptr<Packet> &packet() {return m_packet;}
+
+		weak_ptr<atomic_shared_ptr<PacketWrapper> > const m_branchpoint;
+		local_shared_ptr<Packet> m_packet;
+		int m_state;
+		enum STATE {
+			PACKET_BUNDLE_STATE = 0xf,
+			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2};
+	};
+
 	bool insert(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var);
 	void insert(const shared_ptr<XN> &var);
 	bool release(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var);
@@ -200,21 +205,22 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(local_shared_ptr<Packet> &target) const;
-	static inline bool trySnapshotSuper(atomic_shared_ptr<PacketBase> &branchpoint, local_shared_ptr<PacketBase> &target);
-	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket);
+	void snapshot(local_shared_ptr<PacketWrapper> &target) const;
+	static bool trySnapshotSuper(shared_ptr<atomic_shared_ptr<PacketWrapper> > &branchpoint,
+		local_shared_ptr<PacketWrapper> &target);
+	bool commit(const local_shared_ptr<PacketWrapper> &oldwrapper, local_shared_ptr<PacketWrapper> &newwrapper);
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<Packet> &target);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
-	static UnbundledStatus unbundle(atomic_shared_ptr<PacketBase> &branchpoint,
-		atomic_shared_ptr<PacketBase> &subbranchpoint, const local_shared_ptr<NullPacket> &nullpacket,
-		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<Packet> *newsubpacket = NULL,
-		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<Packet> *newsuperpacket = NULL);
-	shared_ptr<atomic_shared_ptr<PacketBase> > m_packet;
+	static UnbundledStatus unbundle(atomic_shared_ptr<PacketWrapper> &branchpoint,
+		atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
+		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
+		const local_shared_ptr<PacketWrapper> *oldsuperwrapper = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL);
+	shared_ptr<atomic_shared_ptr<PacketWrapper> > m_packet;
 
-	struct LookupHint {
+	struct LookupHint : public atomic_countable {
 		weak_ptr<NodeList> m_superNodeList;
 		//! The node is expected to be found at the (super_node_list)[\a m_index], unless the list has altered.
 		int m_index;
@@ -310,23 +316,23 @@ public:
 	}
 	template <class T>
 	const typename T::Payload &operator[](const T &node) const {
-		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
-		const shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(packet->payload());
+		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet->packet()));
+		const local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(packet->payload());
 		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
 		const typename T::Payload *payload_t(static_cast<const Payload*>(payload.get()));
 		return *payload_t;
 	}
-	int size() const {return m_packet->size();}
+	int size() const {return m_packet->packet()->size();}
 	const shared_ptr<const typename Node<XN>::NodeList> list() const {
 		if( ! size())
 			return shared_ptr<typename Node<XN>::NodeList>();
-		return m_packet->subnodes();
+		return m_packet->packet()->subnodes();
 	}
 	int size(const shared_ptr<Node<XN> > &node) const {
-		return node->reverseLookup(m_packet)->size();
+		return node->reverseLookup(m_packet->packet())->size();
 	}
 	shared_ptr<const typename Node<XN>::NodeList> list(const shared_ptr<Node<XN> > &node) const {
-		local_shared_ptr<typename Node<XN>::Packet> const &packet(node->reverseLookup(m_packet));
+		local_shared_ptr<typename Node<XN>::Packet> const &packet(node->reverseLookup(m_packet->packet()));
 		if( ! packet->size() )
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return packet->subnodes();
@@ -337,7 +343,7 @@ public:
 protected:
 	friend class Node<XN>;
 	//! The snapshot.
-	local_shared_ptr<typename Node<XN>::Packet> m_packet;
+	local_shared_ptr<typename Node<XN>::PacketWrapper> m_packet;
 };
 
 //! Transactional writing for a monitored data set.
@@ -349,7 +355,8 @@ public:
 	//! Be sure to the persistence of the \a node.
 	explicit Transaction(const Node<XN>&node) :
 		Snapshot<XN>(node), m_oldpacket(this->m_packet) {
-		ASSERT(&this->m_packet->node() == &node);
+		this->m_packet.reset(new typename Node<XN>::PacketWrapper(this->m_packet->packet(), true));
+		ASSERT(&this->m_packet->packet()->node() == &node);
 		for(;;) {
 			m_serial = s_serial;
 			if(s_serial.compareAndSet(m_serial, m_serial + 1))
@@ -362,23 +369,24 @@ public:
 	bool commit() {
 		if( ! isModified())
 			return true;
-		return this->m_packet->node().commit(m_oldpacket, this->m_packet);
+		return this->m_packet->packet()->node().commit(m_oldpacket, this->m_packet);
 	}
 	//! Explicitly commits.
 	bool commitOrNext() {
-		if(this->m_packet->node().commit(m_oldpacket, this->m_packet))
+		if(commit())
 			return true;
 		++(*this);
 		return false;
 	}
 
 	bool isModified() const {
-		return (this->m_packet->m_serial == this->m_serial);
+		return (this->m_packet->packet()->m_serial == this->m_serial);
 	}
 
 	Transaction &operator++() {
-		this->m_packet->node().snapshot(m_oldpacket);
+		this->m_packet->packet()->node().snapshot(m_oldpacket);
 		this->m_packet = m_oldpacket;
+		this->m_packet.reset(new typename Node<XN>::PacketWrapper(this->m_packet->packet(), true));
 		return *this;
 	}
 
@@ -388,8 +396,8 @@ public:
 	}
 	template <class T>
 	typename T::Payload &operator[](T &node) {
-		shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
-			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
+		local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
+			node.reverseLookup(this->m_packet->packet(), true, this->m_serial)->payload());
 		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
 		Payload *payload_t(static_cast<Payload*>(payload.get()));
 		if(payload->m_serial != this->m_serial) {
@@ -403,9 +411,7 @@ public:
 	}
 private:
 	friend class Node<XN>;
-	shared_ptr<typename Node<XN>::PacketList> &subpackets() {return this->m_packet->subpackets();}
-	const shared_ptr<typename Node<XN>::PacketList> &subpackets() const {return this->m_packet->subpackets();}
-	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
+	local_shared_ptr<typename Node<XN>::PacketWrapper> m_oldpacket;
 	int64_t m_serial;
 	static atomic<int> s_serial;
 };
@@ -418,10 +424,10 @@ struct _implicitReader : public Snapshot<XN> {
 	_implicitReader(const T &node) : Snapshot<XN>(node) {
 	}
 	const typename T::Payload *operator->() const {
-		return &dynamic_cast<typename T::Payload&>(*this->m_packet->payload());
+		return &dynamic_cast<typename T::Payload&>(*this->m_packet->packet()->payload());
 	}
 	template <class X>
-	operator X() const {(X)dynamic_cast<typename T::Payload&>(*this->m_packet->payload());}
+	operator X() const {(X)dynamic_cast<const typename T::Payload&>(*this->m_packet->packet()->payload());}
 };
 
 } //namespace Transactional
