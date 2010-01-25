@@ -138,26 +138,26 @@ public:
 
 	//! \param t This instance is atomically replaced with \a t.
 	atomic_shared_ptr &operator=(const atomic_shared_ptr &t) {
-		local_shared_ptr<T>(t).swap(*this);
+		atomic_shared_ptr<T>(t).swap(*this);
 		return *this;
 	}
 	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> atomic_shared_ptr &operator=(const local_shared_ptr<Y> &y) {
-		local_shared_ptr<T>(y).swap(*this);
+		atomic_shared_ptr<T>(y).swap(*this);
 		return *this;
 	}
 	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> atomic_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
-		local_shared_ptr<T>(y).swap(*this);
+		atomic_shared_ptr<T>(y).swap(*this);
 		return *this;
 	}
 	//! This instance is atomically reset to null pointer.
 	void reset() {
-		local_shared_ptr<T>().swap(*this);
+		atomic_shared_ptr<T>().swap(*this);
 	}
 	//! This instance is atomically reset with a pointer \a y.
 	template<typename Y> void reset(Y *y) {
-		local_shared_ptr<T>(y).swap(*this);
+		atomic_shared_ptr<T>(y).swap(*this);
 	}
 
 	//! \return true if succeeded.
@@ -206,6 +206,9 @@ protected:
 	template<typename Y> void reset_unsafe(Y *y) {
 		m_ref = (_RefLocal)new Ref(static_cast<T*>(y));
 	}
+
+	//! \param x \p x is atomically swapped with this instance.
+	void swap(atomic_shared_ptr<T> &x);
 };
 
 template <typename T>
@@ -245,7 +248,7 @@ public:
 	//! \param x \p x is swapped with this instance.
 	void swap(local_shared_ptr &x);
 	//! \param x \p x is atomically swapped with this instance.
-	void swap(atomic_shared_ptr<T> &x);
+	void swap(atomic_shared_ptr<T> &x) {atomic_shared_ptr<T>::swap(x);}
 
 	//! This instance is atomically reset to null pointer.
 	void reset() {
@@ -436,7 +439,7 @@ local_shared_ptr<T>::swap(local_shared_ptr &r) {
 
 template <typename T>
 void
-local_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
+atomic_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 	Ref *pref;
 	ASSERT(this->_refcnt() == 0);
 	writeBarrier();
