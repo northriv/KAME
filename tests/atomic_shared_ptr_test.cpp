@@ -13,7 +13,7 @@
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
-class A {
+class A : public atomic_countable {
 public:
 	A(long x) : m_x(x) {
 //		fprintf(stdout, "c", x);
