@@ -55,6 +55,9 @@ public:
 		readBarrier();
 	}
 
+	bool operator!() const {readBarrier(); return !m_ptr;}
+	operator bool() const {readBarrier(); return m_ptr;}
+
 	//! These functions must be called while writing is blocked.
 	T &operator*() const { ASSERT(m_ptr); return (T&)*m_ptr;}
 
@@ -70,8 +73,6 @@ private:
 	t_ptr m_ptr;
 };
 
-#define ATOMIC_SHARED_REF_ALIGNMENT 8
-
 //! This is an internal class holding a global reference counter and a pointer to the object.
 //! \sa atomic_shared_ptr
 template <typename T>
@@ -85,7 +86,9 @@ struct _atomic_shared_ptr_gref {
 	Refcnt refcnt;
 private:
 	_atomic_shared_ptr_gref(const _atomic_shared_ptr_gref &);
-} __attribute__((aligned(ATOMIC_SHARED_REF_ALIGNMENT)));;
+};
+
+#define ATOMIC_SHARED_REF_ALIGNMENT (sizeof(uintptr_t))
 
 template <typename T>
 class local_shared_ptr;
@@ -108,6 +111,7 @@ public:
 	atomic_shared_ptr() : m_ref(0) {}
 
 	template<typename Y> explicit atomic_shared_ptr(Y *y) {
+		ASSERT(static_cast<T*>(y));
 		reset_unsafe(y);
 	}
 
@@ -116,7 +120,8 @@ public:
 		readBarrier();
 	}
 	template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) {
-		m_ref = (_RefLocal)(typename atomic_shared_ptr::Ref*)y._scan_();
+		Ref *pref = y,_scan_();
+		m_ref = (_RefLocal)pref;
 		readBarrier();
 	}
 	atomic_shared_ptr(const local_shared_ptr<T> &t) : m_ref(t.m_ref) {
@@ -199,7 +204,7 @@ protected:
 	//! Never use this function for a shared instance.
 	//! \sa reset()
 	template<typename Y> void reset_unsafe(Y *y) {
-		m_ref = (_RefLocal)new _atomic_shared_ptr_gref<Y>(y);
+		m_ref = (_RefLocal)new Ref(static_cast<T*>(y));
 	}
 };
 
