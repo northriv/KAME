@@ -169,9 +169,6 @@ Node<XN>::release(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var) {
 		packet->subpackets().reset();
 		ASSERT(packet->isBundled());
 	}
-	else {
-		packet->setBundled(false);
-	}
 	local_shared_ptr<PacketBase> nullpacket(*var->m_packet);
 	if(nullpacket->isHere())
 		return false;
@@ -596,10 +593,6 @@ Node<XN>::unbundle(atomic_shared_ptr<PacketBase> &branchpoint,
 		if( ! subpacket)
 			return UNBUNDLE_DISTURBED;
 		newsubpacket_copied = subpacket;
-		if(newsubpacket_copied->size()) {
-			newsubpacket_copied.reset(new Packet(*newsubpacket_copied));
-//			newsubpacket_copied->setBundled(false);
-		}
 	}
 
 	if( ! subbranchpoint.compareAndSet(nullpacket, newsubpacket_copied)) {

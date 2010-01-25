@@ -59,7 +59,6 @@
 //! \sa Snapshot, Transaction, XNode
 
 #include <vector>
-#include <map>
 #include <boost/utility/enable_if.hpp>
 #include <boost/type_traits.hpp>
 #include "atomic.h"
@@ -228,7 +227,7 @@ private:
 	//! \arg tr_serial The serial number associated with the transaction.
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0) const;
 	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
-		reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
+		return reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
 	//! finds this node in the (un)bundled \a packet.
 	//! \arg hint The information for reverseLookup() will be returned.
