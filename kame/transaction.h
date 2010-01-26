@@ -104,7 +104,7 @@ public:
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial, int tr_serial);
+		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
 	private:
 	};
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
@@ -168,7 +168,7 @@ public:
 		int64_t m_serial;
 	};
 	struct PacketWrapper : public atomic_countable {
-		PacketWrapper() : m_branchpoint(), m_packet(), m_state(0) { setBundled(true); }
+		PacketWrapper() : m_branchpoint(), m_packet(), m_state(0) { setBundled(true); setCommitBundled(true); }
 		PacketWrapper(const PacketWrapper &x) : m_branchpoint(x.m_branchpoint), m_packet(x.m_packet), m_state(x.m_state) {}
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
 		explicit PacketWrapper(const shared_ptr<atomic_shared_ptr<PacketWrapper> > &bp);
@@ -181,6 +181,10 @@ public:
 		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
 			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
 		}
+		bool isCommitBundled() const {return (m_state & PACKET_COMMIT_INFO) == PACKET_COMMIT_BUNDLED;}
+		void setCommitBundled(bool x) {m_state = (m_state & ~PACKET_COMMIT_INFO) |
+			(x ? PACKET_COMMIT_BUNDLED : PACKET_COMMIT_UNBUNDLED);
+		}
 		void print() const;
 
 		shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint() const {return m_branchpoint.lock();}
@@ -192,28 +196,32 @@ public:
 		int m_state;
 		enum STATE {
 			PACKET_BUNDLE_STATE = 0xf,
-			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2};
+			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2,
+			PACKET_COMMIT_INFO = 0xf0,
+			PACKET_COMMIT_UNBUNDLED = 0x10, PACKET_COMMIT_BUNDLED= 0x20
+		};
 	};
 
-	bool insert(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var);
+	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void insert(const shared_ptr<XN> &var);
-	bool release(const Snapshot<XN> &snapshot, const shared_ptr<XN> &var);
+	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void release(const shared_ptr<XN> &var);
 	void releaseAll();
-	bool swap(const Snapshot<XN> &snapshot, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+	bool swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(local_shared_ptr<Packet> &target) const;
+	void snapshot(Snapshot<XN> &target) const;
 	static bool trySnapshotSuper(shared_ptr<atomic_shared_ptr<PacketWrapper> > &branchpoint,
 		local_shared_ptr<PacketWrapper> &target);
-	bool commit(const local_shared_ptr<Packet> &oldpacket, local_shared_ptr<Packet> &newpacket, bool new_bundle_state = true);
+	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
+
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
-		UNBUNDLE_SUCCESS, UNBUNDLE_DISTURBED};
+		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
 	static UnbundledStatus unbundle(atomic_shared_ptr<PacketWrapper> &branchpoint,
 		atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -231,7 +239,7 @@ private:
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial = false, int tr_serial = 0) const;
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0) const;
 	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
 		return reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
@@ -305,7 +313,7 @@ public:
 	Snapshot(const Snapshot&x) : m_packet(x.m_packet) {}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node) {
-		node.snapshot(m_packet);
+		node.snapshot(*this);
 	}
 	virtual ~Snapshot() {}
 
@@ -343,6 +351,8 @@ protected:
 	friend class Node<XN>;
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
+	local_shared_ptr<typename Node<XN>::Packet> m_packet_at_branchpoint;
+	shared_ptr<atomic_shared_ptr<typename Node<XN>::PacketWrapper> > m_branchpoint;
 };
 
 //! Transactional writing for a monitored data set.
@@ -367,7 +377,7 @@ public:
 	bool commit() {
 		if( ! isModified())
 			return true;
-		return this->m_packet->node().commit(m_oldpacket, this->m_packet);
+		return this->m_packet->node().commit(*this);
 	}
 	//! Explicitly commits.
 	bool commitOrNext() {
@@ -382,8 +392,8 @@ public:
 	}
 
 	Transaction &operator++() {
-		this->m_packet->node().snapshot(m_oldpacket);
-		this->m_packet = m_oldpacket;
+		this->m_packet->node().snapshot(*this);
+		this->m_oldpacket = this->m_packet;
 		return *this;
 	}
 
@@ -394,7 +404,7 @@ public:
 	template <class T>
 	typename T::Payload &operator[](T &node) {
 		local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
-			node.reverseLookup(this->m_packet, true, true, this->m_serial)->payload());
+			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
 		Payload *payload_t(static_cast<Payload*>(payload.get()));
 		if(payload->m_serial != this->m_serial) {
