@@ -256,7 +256,7 @@ Node<XN>::swap(const Snapshot<XN> &snapshot, const shared_ptr<XN> &x, const shar
 
 template <class XN>
 inline local_shared_ptr<typename Node<XN>::Packet>*
-Node<XN>::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) {
+Node<XN>::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial, int tr_serial) {
 	local_shared_ptr<Packet> *foundpacket;
 	if(packet->subnodes().get() == this) {
 		foundpacket = &packet;
@@ -266,7 +266,7 @@ Node<XN>::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_br
 		if( ! superlist)
 			return NULL;
 		foundpacket =
-			superlist->reverseLookup(packet, copy_branch, tr_serial);
+			superlist->reverseLookup(packet, copy_branch, check_serial, tr_serial);
 		if( ! foundpacket)
 			return NULL;
 		if((*foundpacket)->size() <= m_index)
@@ -276,21 +276,23 @@ Node<XN>::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_br
 			return NULL;
 	}
 	if(copy_branch) {
-		if( ! tr_serial || ((*foundpacket)->subpackets()->m_serial != tr_serial)) {
-			if( ! tr_serial || ((*foundpacket)->m_serial != tr_serial)) {
+		if( ! check_serial || ((*foundpacket)->subpackets()->m_serial != tr_serial)) {
+			if( ! check_serial || ((*foundpacket)->m_serial != tr_serial)) {
 				foundpacket->reset(new Packet(**foundpacket));
-				(*foundpacket)->m_serial = tr_serial;
+				if(check_serial)
+					(*foundpacket)->m_serial = tr_serial;
 			}
 			(*foundpacket)->subpackets().reset(new PacketList(*(*foundpacket)->subpackets()));
-			(*foundpacket)->subpackets()->m_serial = tr_serial;
+			if(check_serial)
+				(*foundpacket)->subpackets()->m_serial = tr_serial;
 		}
-		ASSERT((*foundpacket)->m_serial == tr_serial);
+//		ASSERT((*foundpacket)->m_serial == tr_serial);
 	}
 	return foundpacket;
 }
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>&
-Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial) const {
+Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial, int tr_serial) const {
 	local_shared_ptr<Packet> *foundpacket;
 	if(&packet->node() == this) {
 		foundpacket = &packet;
@@ -305,7 +307,7 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int 
 				if(supernodelist &&
 					((hint->m_index < supernodelist->size()) &&
 						(supernodelist->at(hint->m_index).get() == this))) {
-					local_shared_ptr<Packet>* superpacket = supernodelist->reverseLookup(packet, copy_branch, tr_serial);
+					local_shared_ptr<Packet>* superpacket = supernodelist->reverseLookup(packet, copy_branch, check_serial, tr_serial);
 					if(superpacket &&
 						((*superpacket)->size() > hint->m_index) ) {
 						foundpacket = &(*superpacket)->subpackets()->at(hint->m_index);
@@ -322,9 +324,10 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int 
 		}
 	}
 
-	if(copy_branch && ( !tr_serial || ((*foundpacket)->m_serial != tr_serial))) {
+	if(copy_branch && ( !check_serial || ((*foundpacket)->m_serial != tr_serial))) {
 		foundpacket->reset(new Packet(**foundpacket));
-		(*foundpacket)->m_serial = tr_serial;
+		if(check_serial)
+			(*foundpacket)->m_serial = tr_serial;
 	}
 //						printf("#");
 	return *foundpacket;
@@ -516,7 +519,7 @@ Node<XN>::commit(const local_shared_ptr<Packet> &oldpacket,
 				return true;
 			continue;
 		}
-		if(retry % 2 == 0) {
+		if(retry % 4 == 3) {
 			shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint_super(wrapper->branchpoint());
 			if( ! branchpoint_super)
 				continue; //Supernode has been destroyed.
@@ -534,8 +537,7 @@ Node<XN>::commit(const local_shared_ptr<Packet> &oldpacket,
 				break;
 			}
 		}
-		continue;
-		if(newwrapper->isBundled()) {
+		if(new_bundle_state) {
 			shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint(m_packet);
 			if(trySnapshotSuper(branchpoint, wrapper)) {
 				if( ! wrapper->isBundled())
@@ -545,8 +547,7 @@ Node<XN>::commit(const local_shared_ptr<Packet> &oldpacket,
 				if(reverseLookup(wrapper->packet()) != oldpacket)
 					return false;
 				local_shared_ptr<PacketWrapper> newwrapper_super(new PacketWrapper(wrapper->packet(), true));
-				local_shared_ptr<Packet> &newp(reverseLookup(wrapper->packet(), true));
-				newp = newwrapper->packet();
+				reverseLookup(newwrapper_super->packet(), true, false) = newpacket;
 				if(branchpoint->compareAndSet(wrapper, newwrapper_super))
 					return true;
 			}

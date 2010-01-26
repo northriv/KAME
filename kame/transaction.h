@@ -104,7 +104,7 @@ public:
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
-		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial, int tr_serial);
 	private:
 	};
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
@@ -231,7 +231,7 @@ private:
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0) const;
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, bool check_serial = false, int tr_serial = 0) const;
 	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
 		return reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
@@ -394,7 +394,7 @@ public:
 	template <class T>
 	typename T::Payload &operator[](T &node) {
 		local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
-			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
+			node.reverseLookup(this->m_packet, true, true, this->m_serial)->payload());
 		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
 		Payload *payload_t(static_cast<Payload*>(payload.get()));
 		if(payload->m_serial != this->m_serial) {
