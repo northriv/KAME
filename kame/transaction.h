@@ -225,7 +225,8 @@ private:
 		atomic_shared_ptr<PacketWrapper> &branchpoint,
 		atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL);
+		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL,
+		bool new_sub_bunlde_state = true);
 	shared_ptr<atomic_shared_ptr<PacketWrapper> > m_packet;
 
 	struct LookupHint : public atomic_countable {

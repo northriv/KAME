@@ -613,7 +613,8 @@ typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const atomic_shared_ptr<PacketWrapper> *bundleroot, atomic_shared_ptr<PacketWrapper> &branchpoint,
 	atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper,
-	const local_shared_ptr<Packet> *oldsuperpacket, const local_shared_ptr<PacketWrapper> *newsuperwrapper) {
+	const local_shared_ptr<Packet> *oldsuperpacket, const local_shared_ptr<PacketWrapper> *newsuperwrapper,
+	bool new_sub_bunlde_state) {
 	ASSERT( ! nullwrapper->packet());
 	local_shared_ptr<PacketWrapper> wrapper(branchpoint);
 	local_shared_ptr<PacketWrapper> copied;
@@ -631,11 +632,11 @@ Node<XN>::unbundle(const atomic_shared_ptr<PacketWrapper> *bundleroot, atomic_sh
 			copied.reset(new PacketWrapper((*oldsuperpacket), false));
 		}
 		UnbundledStatus status = unbundle(bundleroot, *branchpoint_super, branchpoint, wrapper,
-			oldsuperpacket ? &(*oldsuperpacket) : NULL, &copied);
+			oldsuperpacket ? &(*oldsuperpacket) : NULL, &copied, NULL, NULL, false);
 		switch(status) {
-		case UNBUNDLE_W_NEW_SUBVALUE:
 		case UNBUNDLE_W_NEW_VALUES:
-//			break;
+		case UNBUNDLE_W_NEW_SUBVALUE:
+			break;
 		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_PARTIALLY:
 			return UNBUNDLE_PARTIALLY;
@@ -685,7 +686,7 @@ Node<XN>::unbundle(const atomic_shared_ptr<PacketWrapper> *bundleroot, atomic_sh
 	else {
 		if( ! subpacket)
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
-		newsubwrapper_copied.reset(new PacketWrapper(subpacket, true));
+		newsubwrapper_copied.reset(new PacketWrapper(subpacket, new_sub_bunlde_state));
 	}
 
 	if( ! subbranchpoint.compareAndSet(nullwrapper, newsubwrapper_copied)) {
