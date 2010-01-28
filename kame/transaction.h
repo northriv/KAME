@@ -211,8 +211,10 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target) const;
-	void snapshot(Transaction<XN> &target) const;
+	void snapshot(Snapshot<XN> &target, Transaction<XN> *tr = NULL) const;
+	void snapshot(Transaction<XN> &target) const {
+		snapshot(target, &target);
+	}
 	static bool trySnapshotSuper(shared_ptr<atomic_shared_ptr<PacketWrapper> > &branchpoint,
 		local_shared_ptr<PacketWrapper> &target);
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
