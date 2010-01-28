@@ -163,6 +163,7 @@ public:
 		shared_ptr<PacketList> m_subpackets;
 		//! Serial number of the transaction.
 		int64_t m_serial;
+		bool m_hasCollision;
 	};
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper() : m_branchpoint(), m_packet(), m_state(0) { setBundled(true); setCommitBundled(true); }
@@ -217,11 +218,11 @@ private:
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(const local_shared_ptr<PacketWrapper> &rootwrapper, local_shared_ptr<PacketWrapper> &target);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const local_shared_ptr<Packet> *rootpacket = NULL);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
-	static UnbundledStatus unbundle(const atomic_shared_ptr<PacketWrapper> *bundleroot,
+	static UnbundledStatus unbundle(const atomic_shared_ptr<PacketWrapper> *rootpoint,
 		atomic_shared_ptr<PacketWrapper> &branchpoint,
 		atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -312,7 +313,8 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 template <class XN>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_packet(x.m_packet) {}
+	Snapshot(const Snapshot&x) : m_packet(x.m_packet) {
+	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node) {
 		node.snapshot(*this);
@@ -351,7 +353,8 @@ public:
 	}
 protected:
 	friend class Node<XN>;
-	Snapshot() : m_packet() {}
+	Snapshot() : m_packet() {
+	}
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
 };
@@ -423,11 +426,11 @@ private:
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
-	int64_t m_serial;
-	static atomic<int> s_serial;
 	local_shared_ptr<typename Node<XN>::Packet> m_packet_at_branchpoint;
 	shared_ptr<atomic_shared_ptr<typename Node<XN>::PacketWrapper> > m_branchpoint;
 	int m_trial_count;
+	int64_t m_serial;
+	static atomic<int> s_serial;
 };
 
 template <class XN>
