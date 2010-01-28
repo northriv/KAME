@@ -242,11 +242,11 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 	packet->subpackets()->at(y_idx) = px;
 	packet->subnodes()->at(x_idx) = y;
 	packet->subnodes()->at(y_idx) = x;
-	if(px->size()) {
+	if(px && px->size()) {
 		px->subnodes()->m_index = y_idx;
 		ASSERT(px->subnodes()->m_superNodeList.lock() == packet->subnodes());
 	}
-	if(py->size()) {
+	if(py && py->size()) {
 		py->subnodes()->m_index = x_idx;
 		ASSERT(py->subnodes()->m_superNodeList.lock() == packet->subnodes());
 	}
@@ -382,6 +382,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 			break;
 		}
 		if( ! target->packet()) {
+			// Taking a snapshot at the super node.
 			shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint(m_packet);
 			if(!trySnapshotSuper(branchpoint, target))
 				continue;
@@ -402,6 +403,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 				}
 				return;
 			}
+			// The packet is imperfect, and then re-bundling the subpackets.
 			target = *m_packet;
 			if( target->packet())
 				continue;
