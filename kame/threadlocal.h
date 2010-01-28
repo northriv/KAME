@@ -69,7 +69,7 @@ XThreadLocal<T>::~XThreadLocal() {
 template <typename T>
 void
 XThreadLocal<T>::delete_tls(void *var) {
-	delete reinterpret_cast<T*>(var);
+	delete static_cast<T*>(var);
 }
 template <typename T>
 T &XThreadLocal<T>::operator*() const {
@@ -83,7 +83,7 @@ T &XThreadLocal<T>::operator*() const {
 #endif
 		ASSERT(!ret);
 	}
-    return *reinterpret_cast<T*>(p);
+    return *static_cast<T*>(p);
 }
 template <typename T>
 T *XThreadLocal<T>::operator->() const {
