@@ -7,7 +7,6 @@
 
 #include "support.h"
 //#include "allocator.h"
-
 #include <stdint.h>
 
 #include "transaction.h"
@@ -69,41 +68,54 @@ start_routine(void *) {
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
 	for(int i = 0; i < 6000; i++) {
+		p1->insert(p2);
 		if((i % 10) == 0) {
 			gn2->insert(p2);
-			p1->insert(p2);
 			gn2->swap(p2, gn3);
+			gn1->insert(p1);
 		}
 		for(Transaction tr1(*gn1); ; ++tr1){
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
+			tr1[gn3] = ctr1[gn3] + 1;
 			Snapshot str1(tr1);
-			tr1[gn1] = str1[gn1] + 1;
-			tr1[gn3] = str1[gn3] + 1;
-			if((i % 10) == 0)
+			tr1[gn1] = str1[gn1] - 1;
+			tr1[gn2] = str1[gn2] + 1;
+			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] + 1;
+			}
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		for(Transaction tr1(*gn4); ; ++tr1){
+			tr1[gn4] = tr1[gn4] + 1;
+			tr1[gn4] = tr1[gn4] - 1;
+			if(tr1.commit()) break;
+			printf("f");
+		}
+		p1->release(p2);
 		for(Transaction tr1(*gn2); ; ++tr1){
 			Snapshot str1(tr1);
-			tr1[gn2] = str1[gn2] + 1;
+			tr1[gn2] = tr1[gn2] - 1;
+			tr1[gn3] = str1[gn3] - 1;
+			if((i % 10) == 0) {
+				tr1[p2] = str1[p2] - 1;
+			}
 			if(tr1.commit()) break;
 			printf("f");
 		}
 		if((i % 10) == 0) {
-			p1->release(p2);
 			gn2->release(p2);
-		}
-		for(Transaction tr1(*gn4); ; ++tr1){
-			Snapshot str1(tr1);
-			tr1[gn4] = str1[gn4] + 1;
-			if(tr1.commit()) break;
-			printf("f");
+			gn1->release(p1);
 		}
 	}
-	long y = **gn1;
-	printf("finish\n");
+	long y = **p2;
+	if(y != 0) {
+		printf("Error! P2=%ld\n", y);
+		abort();
+	}
+	else
+		printf("finish\n");
     return 0;
 }
 
@@ -128,23 +140,40 @@ main(int argc, char **argv)
 			Snapshot shot1(*gn1);
 			shot1.print();
 			long x = shot1[*gn3];
-			printf("1:%ld\n", x);
+			printf("Gn3:%ld\n", x);
 		}
 		trans(*gn3) = 3;
 		long x = **gn3;
-		printf("2:%ld\n", x);
+		printf("Gn3:%ld\n", x);
+		trans(*gn3) = 0;
 
 		shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 		gn1->insert(p1);
 		gn1->swap(p1, gn2);
-		for(Transaction tr1(*gn1); ; ++tr1){
-			Snapshot &ctr1(tr1); // For reading.
-			tr1[gn1] = ctr1[gn1] + 1;
-			Snapshot str1(tr1);
-			tr1[gn1] = str1[gn1] + 1;
-			tr1[gn3] = str1[gn3] + 1;
-			if(tr1.commit()) break;
-			printf("f");
+		gn3->insert(p1);
+		trans(*gn1) = 3;
+		trans(*gn1) = 0;
+
+		{
+			shared_ptr<LongNode> p2(LongNode::create<LongNode>());
+			shared_ptr<LongNode> p21(LongNode::create<LongNode>());
+			shared_ptr<LongNode> p22(LongNode::create<LongNode>());
+			shared_ptr<LongNode> p211(LongNode::create<LongNode>());
+			p2->insert(p21);
+			p21->insert(p211);
+			p2->insert(p211);
+			long x = **p2;
+
+			for(Transaction tr1(*gn1); ; ++tr1){
+				Snapshot &ctr1(tr1); // For reading.
+				tr1[gn1] = ctr1[gn1] + 1;
+				tr1[gn3] = ctr1[gn3] + 1;
+				Snapshot str1(tr1);
+				tr1[gn1] = str1[gn1] - 1;
+				tr1[gn3] = str1[gn3] - 1;
+				if(tr1.commit()) break;
+				printf("f");
+			}
 		}
 		gn1->release(p1);
 
@@ -162,6 +191,16 @@ main(int argc, char **argv)
 			pthread_join(threads[i], NULL);
 		}
 		printf("join\n");
+
+		if(**gn1 || **gn2 || **gn3 || **gn4) {
+			printf("failed1\n");
+			printf("Gn1:%ld\n", (long)**gn1);
+			printf("Gn2:%ld\n", (long)**gn2);
+			printf("Gn3:%ld\n", (long)**gn3);
+			printf("Gn4:%ld\n", (long)**gn4);
+			return -1;
+		}
+
 		gn1.reset();
 		gn2.reset();
 		gn3.reset();

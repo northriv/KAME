@@ -92,12 +92,10 @@ public:
 
 	struct PacketList;
 	struct NodeList : public std::vector<shared_ptr<XN> > {
-		NodeList() : std::vector<shared_ptr<XN> >(), m_superNodeList(), m_index(0), m_serial(-1) {}
+		NodeList() : std::vector<shared_ptr<XN> >(), m_superNodeList(), m_index(0) {}
 		//! Reverse address to the super nodes in the bundle.
 		weak_ptr<NodeList> m_superNodeList;
 		int m_index;
-		//! Serial number of the transaction.
-		int64_t m_serial;
 		//! finds packet for this.
 		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
 		//! \sa Node::reverseLookup().
@@ -116,7 +114,6 @@ public:
 
 	struct PayloadWrapperBase : public atomic_countable {
 		PayloadWrapperBase(Node &node) : m_node(&node), m_serial(-1) {}
-		PayloadWrapperBase(const PayloadWrapperBase& x) : m_node(x.m_node), m_serial(x.m_serial) {}
 		virtual ~PayloadWrapperBase() {}
 		virtual PayloadWrapperBase *clone() = 0;
 		//! points to the node.
@@ -124,6 +121,7 @@ public:
 		//! points to the node.
 		const Node &node() const {return *m_node;}
 		Node * const m_node;
+		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
 	template <class P>
@@ -161,15 +159,11 @@ public:
 
 		local_shared_ptr<PayloadWrapperBase> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		//! Serial number of the transaction.
-		int64_t m_serial;
 		bool m_hasCollision;
 		static atomic<int64_t> s_serial;
 	};
 	struct BranchPoint;
 	struct PacketWrapper : public atomic_countable {
-		PacketWrapper(const PacketWrapper &x) : m_branchpoint(x.m_branchpoint),
-			m_packet(x.m_packet), m_state(x.m_state) {  }
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
 		explicit PacketWrapper(const shared_ptr<BranchPoint> &bp);
 		 ~PacketWrapper() {}
@@ -202,6 +196,7 @@ public:
 		};
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
+		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(-1) {}
 		atomic<int64_t> m_bundle_serial;
 	};
 
@@ -255,7 +250,7 @@ private:
 	//! \arg hint The information for reverseLookup() will be returned.
 	local_shared_ptr<Packet> *forwardLookup(const local_shared_ptr<Packet> &packet,
 		local_shared_ptr<LookupHint> &hint) const;
-	static void recreateNodeTree(local_shared_ptr<Packet> &packet);
+	static void recreateNodeTree(local_shared_ptr<Packet> &packet, bool recreate_root = true);
 protected:
 	//! Use \a create().
 	Node();
@@ -401,7 +396,7 @@ public:
 	}
 
 	bool isModified() const {
-		return (this->m_packet->m_serial == this->m_serial);
+		return (this->m_packet != this->m_oldpacket);
 	}
 
 	Transaction &operator++() {

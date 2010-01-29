@@ -23,7 +23,7 @@ template <class XN>
 atomic<int64_t> Node<XN>::Packet::s_serial = 0;
 
 template <class XN>
-Node<XN>::Packet::Packet() : m_serial(-1), m_hasCollision(false) {}
+Node<XN>::Packet::Packet() : m_hasCollision(false) {}
 
 template <class XN>
 void
@@ -98,11 +98,13 @@ Node<XN>::_print() const {
 
 template <class XN>
 void
-Node<XN>::recreateNodeTree(local_shared_ptr<Packet> &packet) {
+Node<XN>::recreateNodeTree(local_shared_ptr<Packet> &packet, bool recreate_root) {
 	unsigned int idx = 0;
-	packet.reset(new Packet(*packet));
-	packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
-	packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
+	if(recreate_root) {
+		packet.reset(new Packet(*packet));
+		packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
+		packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
+	}
 	for(typename PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
 		if(*pit && (*pit)->size()) {
 			pit->reset(new Packet(**pit));
@@ -110,7 +112,7 @@ Node<XN>::recreateNodeTree(local_shared_ptr<Packet> &packet) {
 			(*pit)->subnodes().reset(new NodeList(*(*pit)->subnodes()));
 			(*pit)->subnodes()->m_superNodeList = packet->subnodes();
 			ASSERT((*pit)->subnodes()->m_index == idx);
-			recreateNodeTree(*pit);
+			recreateNodeTree(*pit, false);
 		}
 		++pit;
 		++idx;
@@ -132,6 +134,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	recreateNodeTree(packet);
 	packet->subpackets()->resize(packet->size() + 1);
 	ASSERT(packet->subnodes());
+	ASSERT(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
 	packet->subnodes()->push_back(var);
 	ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
 //		printf("i");
@@ -187,15 +190,13 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 						packet->m_hasCollision = true;
 				}
 			}
-			else {
+			else
 				packet->m_hasCollision = true;
-			}
 			++nit;
 			++pit;
 			++idx;
 		}
 	}
-//	ASSERT(newsubwrapper->packet());
 
 	if( !packet->size()) {
 		packet->subpackets().reset();
@@ -222,7 +223,7 @@ void
 Node<XN>::releaseAll() {
 	for(;;) {
 		Transaction<XN> tr(*this);
-		if( ! tr.size())
+		if( !tr.size())
 			break;
 		shared_ptr<const NodeList> list(tr.list());
 		release(tr, list->front());
@@ -308,10 +309,7 @@ Node<XN>::NodeList::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_br
 	}
 	if(copy_branch) {
 		if((*foundpacket)->subpackets()->m_serial != tr_serial) {
-			if((*foundpacket)->m_serial != tr_serial) {
-				foundpacket->reset(new Packet(**foundpacket));
-				(*foundpacket)->m_serial = tr_serial;
-			}
+			foundpacket->reset(new Packet(**foundpacket));
 			(*foundpacket)->subpackets().reset(new PacketList(*(*foundpacket)->subpackets()));
 			(*foundpacket)->subpackets()->m_serial = tr_serial;
 		}
@@ -329,7 +327,8 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int 
 	else {
 		ASSERT(packet->size());
 		local_shared_ptr<LookupHint> hint(m_lookupHint);
-		for(;;) {
+		for(int retry = 0;; ++retry) {
+			ASSERT(retry < 2);
 			if(hint) {
 				shared_ptr<NodeList> supernodelist = hint->m_superNodeList.lock();
 				if(supernodelist &&
@@ -350,13 +349,11 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int 
 			ASSERT(foundpacket);
 			ASSERT(&(*foundpacket)->node() == this);
 			m_lookupHint = hint;
-			break;
 		}
 	}
 
-	if(copy_branch && ((*foundpacket)->m_serial != tr_serial)) {
+	if(copy_branch) {
 		foundpacket->reset(new Packet(**foundpacket));
-		(*foundpacket)->m_serial = tr_serial;
 	}
 //						printf("#");
 	return *foundpacket;
@@ -474,7 +471,7 @@ Node<XN>::trySnapshotSuper(shared_ptr<BranchPoint > &branchpoint,
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_serial) {
-	ASSERT( ! target->isBundled() && target->packet());
+	ASSERT( !target->isBundled() && target->packet());
 	ASSERT(target->packet()->size());
 	local_shared_ptr<Packet> packet(new Packet( *target->packet()));
 	packet->m_hasCollision = false;
@@ -549,7 +546,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_
 					}
 				}
 				else {
-					if( ! subpacket_new) {
+					if( !subpacket_new) {
 		//				printf("?");
 						ASSERT(target != *m_packet);
 						//m_packet has changed, bundled by the other thread.
@@ -595,7 +592,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_
 		else
 			nullwrapper.reset(new PacketWrapper(*subwrappers_org[i]));
 		//Second checkpoint, the written bundle is valid or not.
-		if( ! child->m_packet->compareAndSet(subwrappers_org[i], nullwrapper)) {
+		if( !child->m_packet->compareAndSet(subwrappers_org[i], nullwrapper)) {
 			return BUNDLE_DISTURBED;
 		}
 	}
@@ -614,6 +611,7 @@ bool
 Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 	ASSERT( !tr.m_packet->m_hasCollision);
 	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, new_bundle_state));
+	ASSERT( tr.m_packet->size() || newwrapper->isBundled());
 	bool unbundled = false;
 	for(int retry = 0;; ++retry) {
 		local_shared_ptr<PacketWrapper> wrapper( *m_packet);
@@ -678,6 +676,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial,
 	ASSERT( ! nullwrapper->packet());
 	local_shared_ptr<PacketWrapper> wrapper(branchpoint);
 	if(bundle_serial && (branchpoint.m_bundle_serial == *bundle_serial)) {
+		//The node has been already bundled in the same snapshot.
 		printf("C");
 		return UNBUNDLE_COLLIDED;
 	}
@@ -748,8 +747,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial,
 		if( ! subpacket)
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		newsubwrapper_copied.reset(new PacketWrapper(subpacket,
-			new_sub_bunlde_state && !subpacket->m_hasCollision));
+			!subpacket->size() || (new_sub_bunlde_state && !subpacket->m_hasCollision)));
 	}
+	ASSERT(newsubwrapper_copied->isBundled() || newsubwrapper_copied->packet()->size());
 
 	if( ! subbranchpoint.compareAndSet(nullwrapper, newsubwrapper_copied)) {
 		if( ! local_shared_ptr<PacketWrapper>(subbranchpoint)->packet())
@@ -790,6 +790,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial,
 			++nit;
 		}
 	}
+	ASSERT(copied2->isBundled() || copied2->packet()->size());
 	if(branchpoint.compareAndSet(copied, copied2))
 		return UNBUNDLE_W_NEW_VALUES;
 	else
