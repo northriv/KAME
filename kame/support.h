@@ -69,7 +69,7 @@ public:
 #define C_ASSERT(expr)
 #else
 #define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)
-#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 1 : -1 ]))
+#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
 void my_assert(const char *file, int line);
 inline void _my_assert(bool var, const char *file, int line) {
 	if (!var) my_assert(file, line);

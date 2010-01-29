@@ -157,20 +157,21 @@ public:
 		//! points to the node.
 		const Node &node() const {return payload()->node();}
 
-		void print() const;
+		void _print() const;
 
 		local_shared_ptr<PayloadWrapperBase> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 		bool m_hasCollision;
+		static atomic<int64_t> s_serial;
 	};
+	struct BranchPoint;
 	struct PacketWrapper : public atomic_countable {
-		PacketWrapper() : m_branchpoint(), m_packet(), m_state(0) { setBundled(true); setCommitBundled(true); }
-		PacketWrapper(const PacketWrapper &x) : m_branchpoint(x.m_branchpoint), m_packet(x.m_packet),
-			m_state(x.m_state) {  }
+		PacketWrapper(const PacketWrapper &x) : m_branchpoint(x.m_branchpoint),
+			m_packet(x.m_packet), m_state(x.m_state) {  }
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
-		explicit PacketWrapper(const shared_ptr<atomic_shared_ptr<PacketWrapper> > &bp);
+		explicit PacketWrapper(const shared_ptr<BranchPoint> &bp);
 		 ~PacketWrapper() {}
 		//! \return If true, the content is a snapshot, and is up-to-date for the watchpoint.\n
 		//! The subnodes must not have their own payloads.
@@ -184,13 +185,13 @@ public:
 		void setCommitBundled(bool x) {m_state = (m_state & ~PACKET_COMMIT_INFO) |
 			(x ? PACKET_COMMIT_BUNDLED : PACKET_COMMIT_UNBUNDLED);
 		}
-		void print() const;
+		void _print() const;
 
-		shared_ptr<atomic_shared_ptr<PacketWrapper> > branchpoint() const {return m_branchpoint.lock();}
+		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
 		const local_shared_ptr<Packet> &packet() const {return m_packet;}
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
-		weak_ptr<atomic_shared_ptr<PacketWrapper> > const m_branchpoint;
+		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
 		int m_state;
 		enum STATE {
@@ -199,6 +200,9 @@ public:
 			PACKET_COMMIT_INFO = 0xf0,
 			PACKET_COMMIT_UNBUNDLED = 0x10, PACKET_COMMIT_BUNDLED= 0x20
 		};
+	};
+	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
+		atomic<int64_t> m_bundle_serial;
 	};
 
 	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
@@ -215,22 +219,22 @@ private:
 	void snapshot(Transaction<XN> &target) const {
 		snapshot(target, &target);
 	}
-	static bool trySnapshotSuper(shared_ptr<atomic_shared_ptr<PacketWrapper> > &branchpoint,
+	static bool trySnapshotSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &target);
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const local_shared_ptr<Packet> *rootpacket = NULL);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_serial = NULL);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
-	static UnbundledStatus unbundle(const atomic_shared_ptr<PacketWrapper> *rootpoint,
-		atomic_shared_ptr<PacketWrapper> &branchpoint,
-		atomic_shared_ptr<PacketWrapper> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
+	static UnbundledStatus unbundle(const int64_t *bundle_serial,
+		BranchPoint &branchpoint,
+		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL,
 		bool new_sub_bunlde_state = true);
-	shared_ptr<atomic_shared_ptr<PacketWrapper> > m_packet;
+	shared_ptr<BranchPoint > m_packet;
 
 	struct LookupHint : public atomic_countable {
 		weak_ptr<NodeList> m_superNodeList;
@@ -260,6 +264,7 @@ private:
 	Node &operator=(const Node &); //non-copyable.
 	typedef PayloadWrapperBase *(*FuncPayloadCreator)(Node &);
 	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
+	void _print() const;
 };
 
 template <class XN>
@@ -351,7 +356,7 @@ public:
 		return packet->subnodes();
 	}
 	void print() {
-		m_packet->print();
+		m_packet->_print();
 	}
 protected:
 	friend class Node<XN>;
@@ -373,8 +378,8 @@ public:
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
 		for(;;) {
-			m_serial = s_serial;
-			if(s_serial.compareAndSet(m_serial, m_serial + 1))
+			m_serial = Node<XN>::Packet::s_serial;
+			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
 				break;
 		}
 		m_serial++;
@@ -432,7 +437,6 @@ private:
 	shared_ptr<atomic_shared_ptr<typename Node<XN>::PacketWrapper> > m_branchpoint;
 	int m_trial_count;
 	int64_t m_serial;
-	static atomic<int> s_serial;
 };
 
 template <class XN>
