@@ -92,14 +92,7 @@ public:
 
 	struct PacketList;
 	struct NodeList : public std::vector<shared_ptr<XN> > {
-		NodeList() : std::vector<shared_ptr<XN> >(), m_superNodeList(), m_index(0) {}
-		//! Reverse address to the super nodes in the bundle.
-		weak_ptr<NodeList> m_superNodeList;
-		int m_index;
-		//! finds packet for this.
-		//! \arg copy_branch If true, all packets between the root and this will be copy-constructed unless the serial numbers are the same.
-		//! \sa Node::reverseLookup().
-		inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial);
+		NodeList() : std::vector<shared_ptr<XN> >() {}
 	private:
 	};
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
@@ -165,29 +158,32 @@ public:
 	struct BranchPoint;
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
-		explicit PacketWrapper(const shared_ptr<BranchPoint> &bp);
+		PacketWrapper(const shared_ptr<BranchPoint> &bp, int reverse_index);
 		 ~PacketWrapper() {}
 		//! \return If true, the content is a snapshot, and is up-to-date for the watchpoint.\n
 		//! The subnodes must not have their own payloads.
 		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
 		//! \sa isHere().
-		bool isBundled() const {return (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
+		bool isBundled() const {return packet() && (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
 		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
 			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
 		}
-		bool isCommitBundled() const {return (m_state & PACKET_COMMIT_INFO) == PACKET_COMMIT_BUNDLED;}
+		bool isCommitBundled() const {return packet() && (m_state & PACKET_COMMIT_INFO) == PACKET_COMMIT_BUNDLED;}
 		void setCommitBundled(bool x) {m_state = (m_state & ~PACKET_COMMIT_INFO) |
 			(x ? PACKET_COMMIT_BUNDLED : PACKET_COMMIT_UNBUNDLED);
 		}
-		void _print() const;
-
-		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
 		const local_shared_ptr<Packet> &packet() const {return m_packet;}
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
+		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
+		int reverseIndex() const {return m_state;}
+		void setReverseIndex(int i) {m_state = i;}
+
+		void _print() const;
+
 		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
-		int m_state;
+		int m_state; //!< is also used for reverseIndex().
 		enum STATE {
 			PACKET_BUNDLE_STATE = 0xf,
 			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2,
@@ -214,7 +210,7 @@ private:
 	void snapshot(Transaction<XN> &target) const {
 		snapshot(target, &target);
 	}
-	static bool trySnapshotSuper(shared_ptr<BranchPoint > &branchpoint,
+	static local_shared_ptr<Packet> *snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &target);
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
@@ -229,28 +225,29 @@ private:
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL,
 		bool new_sub_bunlde_state = true);
-	shared_ptr<BranchPoint > m_packet;
+	shared_ptr<BranchPoint> m_wrapper;
 
-	struct LookupHint : public atomic_countable {
-		weak_ptr<NodeList> m_superNodeList;
-		//! The node is expected to be found at the (super_node_list)[\a m_index], unless the list has altered.
-		int m_index;
+	struct Cache : public atomic_countable {
+		weak_ptr<PacketList> subpackets;
+		int index;
 	};
-	//! A clue for reverseLookup().
-	mutable atomic_shared_ptr<LookupHint> m_lookupHint;
+	atomic_shared_ptr<Cache> m_packet_cache;
 	//! finds the packet for this node in the (un)bundled \a packet.
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial = 0) const;
-	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const {
-		return reverseLookup(const_cast<local_shared_ptr<Packet> &>(packet), false);
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
+		bool copy_branch, int tr_serial = 0);
+	const local_shared_ptr<Packet> &reverseLookup(
+		const local_shared_ptr<Packet> &packet) const {
+		return const_cast<Node*>(this)->reverseLookup(
+			const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
+	static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
+		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, Cache *cache);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
-	//! \arg hint The information for reverseLookup() will be returned.
-	local_shared_ptr<Packet> *forwardLookup(const local_shared_ptr<Packet> &packet,
-		local_shared_ptr<LookupHint> &hint) const;
-	static void recreateNodeTree(local_shared_ptr<Packet> &packet, bool recreate_root = true);
+	local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
+		bool copy_branch, int tr_serial, Cache *cache) const;
 protected:
 	//! Use \a create().
 	Node();
@@ -401,6 +398,12 @@ public:
 
 	Transaction &operator++() {
 		this->m_packet->node().snapshot(*this);
+		for(;;) {
+			m_serial = Node<XN>::Packet::s_serial;
+			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
+				break;
+		}
+		m_serial++;
 		return *this;
 	}
 
