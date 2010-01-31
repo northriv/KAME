@@ -350,14 +350,35 @@ public:
 	void print() {
 		m_packet->_print();
 	}
+	virtual bool isMultiNode() const {return true;}
 protected:
 	friend class Node<XN>;
-	Snapshot() : m_packet() {
-	}
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
+	Snapshot() : m_packet() {}
 };
 
+template <class XN, typename T>
+class SingleSnapshot : protected Snapshot<XN> {
+public:
+	explicit SingleSnapshot(const T&node) : Snapshot<XN>(node) {}
+	virtual ~SingleSnapshot() {}
+
+	const typename T::Payload *operator->() const {
+		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		return &static_cast<const typename T::Payload&>(
+			*static_cast<const Payload *>(this->m_packet->payload().get()));
+	}
+	template <class X>
+	operator X() const {
+		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		return (X)static_cast<const typename T::Payload&>(
+			*static_cast<const Payload *>(this->m_packet->payload().get()));
+	}
+
+	virtual bool isMultiNode() const {return false;}
+protected:
+};
 //! Transactional writing for a monitored data set.
 //! The revision will be committed implicitly on leaving the scope.
 template <class XN>
@@ -366,15 +387,15 @@ public:
 	//! Be sure to the persistence of the \a node.
 	explicit Transaction(const Node<XN>&node) :
 		Snapshot<XN>(), m_oldpacket(), m_trial_count(0) {
-		node.snapshot(*this);
-		ASSERT(&this->m_packet->node() == &node);
-		ASSERT(&this->m_oldpacket->node() == &node);
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
 				break;
 		}
 		m_serial++;
+		node.snapshot(*this);
+		ASSERT(&this->m_packet->node() == &node);
+		ASSERT(&this->m_oldpacket->node() == &node);
 	}
 	virtual ~Transaction() {}
 	//! Explicitly commits.
@@ -397,13 +418,13 @@ public:
 	}
 
 	Transaction &operator++() {
-		this->m_packet->node().snapshot(*this);
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
 				break;
 		}
 		m_serial++;
+		this->m_packet->node().snapshot(*this);
 		return *this;
 	}
 
@@ -438,24 +459,17 @@ private:
 };
 
 template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet) {}
+class SingleTransaction : public Transaction<XN> {
+public:
+	explicit SingleTransaction(const Node<XN>&node) : Transaction<XN>(node) {}
+	virtual ~SingleTransaction() {}
 
-template <class T, class XN>
-struct _implicitReader : public Snapshot<XN> {
-	_implicitReader(const T &node) : Snapshot<XN>(node) {
-	}
-	const typename T::Payload *operator->() const {
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
-		return &static_cast<const typename T::Payload&>(
-			*static_cast<const Payload *>(this->m_packet->payload().get()));
-	}
-	template <class X>
-	operator X() const {
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
-		return (X)static_cast<const typename T::Payload&>(
-			*static_cast<const Payload *>(this->m_packet->payload().get()));
-	}
+	virtual bool isMultiNode() const {return false;}
+protected:
 };
+
+template <class XN>
+inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet) {}
 
 } //namespace Transactional
 

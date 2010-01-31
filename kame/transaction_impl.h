@@ -377,7 +377,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 			local_shared_ptr<Packet> *foundpacket = snapshotFromSuper(branchpoint, target);
 			if( !foundpacket)
 				continue;
-			if( !(*foundpacket)->m_hasCollision) {
+			if( !(*foundpacket)->m_hasCollision || !snapshot.isMultiNode()) {
 				snapshot.m_packet = *foundpacket;
 				if(tr) {
 					tr->m_oldpacket = tr->m_packet;
@@ -402,7 +402,8 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 			unbundle(NULL, *branchpoint_super, *m_wrapper, target);
 			continue;
 		}
-
+		if( !snapshot.isMultiNode())
+			break;
 		BundledStatus status = const_cast<Node*>(this)->bundle(target);
 		if(status == BUNDLE_SUCCESS) {
 			ASSERT( !target->packet()->m_hasCollision);
@@ -415,6 +416,10 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 		tr->m_packet_at_branchpoint.reset();
 		tr->m_branchpoint.reset();
 		tr->m_oldpacket = tr->m_packet;
+		if( !target->isBundled()) {
+			tr->m_packet.reset(new Packet(*tr->m_packet));
+			tr->m_packet->m_hasCollision = true;
+		}
 	}
 }
 
@@ -585,17 +590,31 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
-	ASSERT( !tr.m_packet->m_hasCollision);
+	if(tr.m_packet->m_hasCollision) {
+		ASSERT( !tr.isMultiNode());
+		new_bundle_state = false;
+	}
 	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, new_bundle_state));
 	ASSERT( tr.m_packet->size() || newwrapper->isBundled());
 	bool unbundled = false;
 	for(int retry = 0;; ++retry) {
 		local_shared_ptr<PacketWrapper> wrapper( *m_wrapper);
 		if(wrapper->packet()) {
-			if(wrapper->packet() != tr.m_oldpacket)
-				return false;
-			if( !wrapper->isBundled())
-				return false;
+			if(wrapper->packet() != tr.m_oldpacket) {
+				if( !tr.isMultiNode() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
+					newwrapper->packet()->subpackets() = wrapper->packet()->subpackets();
+					if(wrapper->packet()->m_hasCollision)
+						newwrapper->setBundled(false);
+				}
+				else
+					return false;
+			}
+			if( !wrapper->isBundled()) {
+				if( !tr.isMultiNode())
+					newwrapper->setBundled(false);
+				else
+					return false;
+			}
 			if(m_wrapper->compareAndSet(wrapper, newwrapper))
 				return true;
 			continue;
