@@ -363,7 +363,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, Transaction<XN> *tr) const {
 	local_shared_ptr<PacketWrapper> target;
 	for(;;) {
 		target = *m_wrapper;
@@ -377,8 +377,9 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 			local_shared_ptr<Packet> *foundpacket = snapshotFromSuper(branchpoint, target);
 			if( !foundpacket)
 				continue;
-			if( !(*foundpacket)->m_hasCollision || !snapshot.isMultiNode()) {
+			if( !(*foundpacket)->m_hasCollision || !multi_nodal) {
 				snapshot.m_packet = *foundpacket;
+				snapshot.m_bundled = !(*foundpacket)->m_hasCollision;
 				if(tr) {
 					tr->m_oldpacket = tr->m_packet;
 					if(target->isBundled() && target->isCommitBundled()) {
@@ -402,7 +403,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 			unbundle(NULL, *branchpoint_super, *m_wrapper, target);
 			continue;
 		}
-		if( !snapshot.isMultiNode())
+		if( !multi_nodal)
 			break;
 		BundledStatus status = const_cast<Node*>(this)->bundle(target);
 		if(status == BUNDLE_SUCCESS) {
@@ -412,14 +413,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, Transaction<XN> *tr) const {
 		}
 	}
 	snapshot.m_packet = target->packet();
+	snapshot.m_bundled = target->isBundled();
 	if(tr) {
 		tr->m_packet_at_branchpoint.reset();
 		tr->m_branchpoint.reset();
 		tr->m_oldpacket = tr->m_packet;
-		if( !target->isBundled()) {
-			tr->m_packet.reset(new Packet(*tr->m_packet));
-			tr->m_packet->m_hasCollision = true;
-		}
 	}
 }
 
@@ -590,8 +588,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
-	if(tr.m_packet->m_hasCollision) {
-		ASSERT( !tr.isMultiNode());
+	if( !tr.isBundled()) {
+		ASSERT( !tr.isMultiNodal());
 		new_bundle_state = false;
 	}
 	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, new_bundle_state));
@@ -601,7 +599,7 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 		local_shared_ptr<PacketWrapper> wrapper( *m_wrapper);
 		if(wrapper->packet()) {
 			if(wrapper->packet() != tr.m_oldpacket) {
-				if( !tr.isMultiNode() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
+				if( !tr.isMultiNodal() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
 					newwrapper->packet()->subpackets() = wrapper->packet()->subpackets();
 					if(wrapper->packet()->m_hasCollision)
 						newwrapper->setBundled(false);
@@ -610,7 +608,7 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 					return false;
 			}
 			if( !wrapper->isBundled()) {
-				if( !tr.isMultiNode())
+				if( !tr.isMultiNodal())
 					newwrapper->setBundled(false);
 				else
 					return false;
@@ -642,15 +640,16 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 		if( !branchpoint_super)
 			continue; //Supernode has been destroyed.
 		UnbundledStatus status = unbundle(NULL, *branchpoint_super, *m_wrapper, wrapper,
-			&tr.m_oldpacket, &newwrapper);
+			tr.isMultiNodal() ? &tr.m_oldpacket : NULL, tr.isMultiNodal() ? &newwrapper : NULL);
 		switch(status) {
+		case UNBUNDLE_W_NEW_SUBVALUE:
+		case UNBUNDLE_W_NEW_VALUES:
+			if(tr.isMultiNodal())
+				return true;
 		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_PARTIALLY:
 			unbundled = true;
 			continue;
-		case UNBUNDLE_W_NEW_SUBVALUE:
-		case UNBUNDLE_W_NEW_VALUES:
-			return true;
 		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
 			return false;
 		case UNBUNDLE_DISTURBED:

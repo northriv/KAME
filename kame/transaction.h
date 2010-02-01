@@ -206,9 +206,9 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target, Transaction<XN> *tr = NULL) const;
-	void snapshot(Transaction<XN> &target) const {
-		snapshot(target, &target);
+	void snapshot(Snapshot<XN> &target, bool multi_nodal, Transaction<XN> *tr = NULL) const;
+	void snapshot(Transaction<XN> &target, bool multi_nodal) const {
+		snapshot(target, multi_nodal, &target);
 	}
 	static local_shared_ptr<Packet> *snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &target);
@@ -312,11 +312,11 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 template <class XN>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_packet(x.m_packet) {
+	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_bundled(x.m_bundled) {
 	}
 	Snapshot(const Transaction<XN>&x);
-	explicit Snapshot(const Node<XN>&node) {
-		node.snapshot(*this);
+	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
+		node.snapshot(*this, multi_nodal);
 	}
 	virtual ~Snapshot() {}
 
@@ -350,18 +350,19 @@ public:
 	void print() {
 		m_packet->_print();
 	}
-	virtual bool isMultiNode() const {return true;}
+	bool isBundled() const {return m_bundled;}
 protected:
 	friend class Node<XN>;
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
+	bool m_bundled;
 	Snapshot() : m_packet() {}
 };
 
 template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
 public:
-	explicit SingleSnapshot(const T&node) : Snapshot<XN>(node) {}
+	explicit SingleSnapshot(const T&node) : Snapshot<XN>(node, false) {}
 	virtual ~SingleSnapshot() {}
 
 	const typename T::Payload *operator->() const {
@@ -375,8 +376,6 @@ public:
 		return (X)static_cast<const typename T::Payload&>(
 			*static_cast<const Payload *>(this->m_packet->payload().get()));
 	}
-
-	virtual bool isMultiNode() const {return false;}
 protected:
 };
 //! Transactional writing for a monitored data set.
@@ -385,15 +384,15 @@ template <class XN>
 class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure to the persistence of the \a node.
-	explicit Transaction(const Node<XN>&node) :
-		Snapshot<XN>(), m_oldpacket(), m_trial_count(0) {
+	explicit Transaction(const Node<XN>&node, bool multi_nodal = true) :
+		Snapshot<XN>(), m_oldpacket(), m_trial_count(0), m_multi_nodal(multi_nodal) {
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
 				break;
 		}
 		m_serial++;
-		node.snapshot(*this);
+		node.snapshot(*this, multi_nodal);
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
@@ -424,7 +423,7 @@ public:
 				break;
 		}
 		m_serial++;
-		this->m_packet->node().snapshot(*this);
+		this->m_packet->node().snapshot(*this, m_multi_nodal);
 		return *this;
 	}
 
@@ -447,6 +446,7 @@ public:
 		ASSERT(payload_t);
 		return *payload_t;
 	}
+	bool isMultiNodal() const {return m_multi_nodal;}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
@@ -456,15 +456,14 @@ private:
 	shared_ptr<atomic_shared_ptr<typename Node<XN>::PacketWrapper> > m_branchpoint;
 	int m_trial_count;
 	int64_t m_serial;
+	bool m_multi_nodal;
 };
 
 template <class XN>
 class SingleTransaction : public Transaction<XN> {
 public:
-	explicit SingleTransaction(const Node<XN>&node) : Transaction<XN>(node) {}
+	explicit SingleTransaction(const Node<XN>&node) : Transaction<XN>(node, false) {}
 	virtual ~SingleTransaction() {}
-
-	virtual bool isMultiNode() const {return false;}
 protected:
 };
 
