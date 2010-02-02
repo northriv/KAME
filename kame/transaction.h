@@ -18,43 +18,28 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 
+//! \desc
+//! Lock-free software transactional memory for treed objects. \n
+//! Transactional accesses for data (implemented in Payload and derived classes), and\n
+//! (multiple) insertion/removal of objects to the tree can be performed atomically. \n
+//! \n
 //! Example 1\n
-//! shared_ptr<Subscriber> ss1 = monitor1->monitorData();\n
-//! sleep(1);\n
-//! if(Snapshot<NodeA> shot1(monitor1)) { // checking consistency (i.e. requiring at least one transaction).\n
-//! double x = shot1[node1]; //implicit conversion defined in Node1::Payload.\n
+//! { Snapshot<NodeA> shot1(node1); \n
+//! double x = shot1[node1]; //implicit conversion defined in NodeA::Payload.\n
 //! double y = shot1[node1].y(); }\n
 //!\n
 //! Example 2\n
-//! double x = *node1; // for an immediate access.\n
-//!\n
-//! Example 3\n
-//! for(;;) { Transaction<NodeA> tr1(monitor1);\n
+//! for(Transaction<NodeA> tr1(node1);; ++tr1) { \n
 //! tr1[node1] = tr1[node1] * 2.0;\n
 //! if(tr1.commit()) break;}\n
 //! \n
-//! Example 5\n
-//! //Obsolete, for backward compatibility.\n
-//! monitor1.readLock(); // or use lock(), a snapshot will be copied to TLS.\n
-//! double x = (*node1).y();\n
-//! monitor1.readUnock(); // or use unlock()\n
-//! \n
-//! Example 6\n
-//! //Obsolete, for backward compatibility.\n
-//! monitor1.writeLock(); // a transaction will be prepared in TLS.\n
-//! (*node1).value(1.0);\n
-//! monitor1.writeUnock(); // commit the transaction.\n
-
-//! Watch point for transactional memory access.\n
-//! The list of the pointers to data is atomically read/written.
-/*!
- * Criteria during the transaction:\n
- * 	a) When a conflicting writing to the same node is detected, the \a commit() will fail.
- * 	b) Writing to listed nodes not by the this context but by another thread will be included in the final result.
- */
-//! A node which carries data sets for itself and subnodes.
-//! Transactional accesses will be made on the top branch in the tree.
-//! \sa Snapshot, Transaction, XNode
+//! Example 3\n
+//! for(Transaction<NodeA> tr1(node1);; ++tr1) { \n
+//! if(tr1.insert(node2)) break;}\n
+//! { Snapshot<NodeA> shot1(node1); \n
+//! double x = shot1[node1]; \n
+//! double y = shot1[node2]; }\n
+//! Other examples can be seen in transaction_test.cpp\n
 
 #include <vector>
 #include "atomic.h"
@@ -66,6 +51,12 @@ class Snapshot;
 template <class XN>
 class Transaction;
 
+
+//! A node which carries data sets for itself and for subnodes.\n
+//! The data is held by \a *this or packed by the "bundled" data in the super node.\n
+//! If the packed data (packet) is tagged as "unbundled" (not up-to-date),
+//! readers must check data held by the subnodes.
+//! \sa Snapshot, Transaction, XNode
 template <class XN>
 class Node {
 public:
@@ -127,12 +118,14 @@ public:
 		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
 	};
-	//! Data holder.
+	//! Data and accessor linked to the node.
+	//! Re-implement members in its subclasses.
 	struct Payload {
 		Payload() {}
 		virtual ~Payload() {}
 	};
 
+	//! A package containing \a Payload, subpackages, and a list of subnodes.
 	struct Packet : public atomic_countable {
 		Packet();
 		int size() const {return subpackets() ? subpackets()->size() : 0;}
@@ -143,27 +136,32 @@ public:
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
 		const shared_ptr<PacketList> &subpackets() const {return m_subpackets;}
 
-		//! points to the node.
+		//! points to the linked node.
 		Node &node() {return payload()->node();}
-		//! points to the node.
+		//! points to the linked node.
 		const Node &node() const {return payload()->node();}
 
 		void _print() const;
 
 		local_shared_ptr<PayloadWrapperBase> m_payload;
 		shared_ptr<PacketList> m_subpackets;
+		//! indicates whether the subpackage misses a payload for a subnode or not.
+		//! A "collision" may happen if a node is inserted twice or more.
 		bool m_hasCollision;
+		//! generates a serial number for bundling or transaction.
 		static atomic<int64_t> s_serial;
 	};
 	struct BranchPoint;
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
+		//! creates a wrapper not containing a packet but pointing to the super node.
+		//! \arg bp \a m_wrapper of the super node.
+		//! \arg reverse_index The index for this node in the list of the super node.
 		PacketWrapper(const shared_ptr<BranchPoint> &bp, int reverse_index);
 		 ~PacketWrapper() {}
-		//! \return If true, the content is a snapshot, and is up-to-date for the watchpoint.\n
-		//! The subnodes must not have their own payloads.
+		//! \return If true, the content is a snapshot, and is up-to-date.\n
+		//! The subnodes must not hold their own packets.
 		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
-		//! \sa isHere().
 		bool isBundled() const {return packet() && (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
 		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
 			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
@@ -172,11 +170,12 @@ public:
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
 		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
+		//! The index for this node in the list of the super node.
 		int reverseIndex() const {return m_state;}
 		void setReverseIndex(int i) {m_state = i;}
 
 		void _print() const;
-
+		//! If a packet is absent at this node, it points to \a m_wrapper of the super node.
 		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
 		int m_state; //!< is also used for reverseIndex().
@@ -216,18 +215,30 @@ private:
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
+	//! Unloads a subpacket to \a subbranchpoint. If a packet for \a branchpoint has been already bundled by a super node,
+	//! it performs unbundling for all the super nodes.
+	//! \arg bundle_serial If not zero, consistency/collision wil be checked.
+	//! \arg nullwrapper The current value of \a subbranchpoint and should not contain \a packet().
+	//! \arg oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
+	//! \arg newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
+	//! If \a oldsubpacket is zero, unloaded value  of \a subbranchpoint will be substituted to \a newsubwrapper.
+	//! \arg oldsuperpacket If not zero, the packet will be compared with the value of \a branchpoint.
+	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
+	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
 	static UnbundledStatus unbundle(const int64_t *bundle_serial,
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
 		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL,
-		bool new_sub_bunlde_state = true);
+		bool new_sub_bundle_state = true);
+	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;
 
 	struct Cache : public atomic_countable {
-		weak_ptr<PacketList> subpackets;
-		int index;
+		weak_ptr<PacketList> subpackets; //!< a weak pointer to the packet list of the super node.
+		int index; //!< a index pointing this node and packet.
 	};
+	//! for \a reverseLookup().
 	atomic_shared_ptr<Cache> m_packet_cache;
 	mutable atomic<int> m_transaction_count;
 
