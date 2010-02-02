@@ -168,10 +168,6 @@ public:
 		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
 			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
 		}
-		bool isCommitBundled() const {return packet() && (m_state & PACKET_COMMIT_INFO) == PACKET_COMMIT_BUNDLED;}
-		void setCommitBundled(bool x) {m_state = (m_state & ~PACKET_COMMIT_INFO) |
-			(x ? PACKET_COMMIT_BUNDLED : PACKET_COMMIT_UNBUNDLED);
-		}
 		const local_shared_ptr<Packet> &packet() const {return m_packet;}
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
@@ -186,9 +182,7 @@ public:
 		int m_state; //!< is also used for reverseIndex().
 		enum STATE {
 			PACKET_BUNDLE_STATE = 0xf,
-			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2,
-			PACKET_COMMIT_INFO = 0xf0,
-			PACKET_COMMIT_UNBUNDLED = 0x10, PACKET_COMMIT_BUNDLED= 0x20
+			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2
 		};
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
@@ -206,12 +200,15 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target, bool multi_nodal, Transaction<XN> *tr = NULL) const;
+	void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
 	void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-		snapshot(target, multi_nodal, &target);
+		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
+		target.m_oldpacket = target.m_packet;
 	}
-	static local_shared_ptr<Packet> *snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<PacketWrapper> &target);
+	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED, SNAPSHOT_STRUCTURE_HAS_CHANGED};
+	static SnapshotStatus snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
+		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
+		shared_ptr<BranchPoint > *branchpoint_2nd = NULL);
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
@@ -232,6 +229,8 @@ private:
 		int index;
 	};
 	atomic_shared_ptr<Cache> m_packet_cache;
+	mutable atomic<int> m_transaction_count;
+
 	//! finds the packet for this node in the (un)bundled \a packet.
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
@@ -317,8 +316,11 @@ public:
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
 		node.snapshot(*this, multi_nodal);
+		++node.m_transaction_count;
 	}
-	virtual ~Snapshot() {}
+	virtual ~Snapshot() {
+		--this->m_packet->node().m_transaction_count;
+	}
 
 	template <class T>
 	const typename T::Payload &operator[](const shared_ptr<T> &node) const {
@@ -384,7 +386,7 @@ template <class XN>
 class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure to the persistence of the \a node.
-	explicit Transaction(const Node<XN>&node, bool multi_nodal = true) :
+	explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
 		Snapshot<XN>(), m_oldpacket(), m_trial_count(0), m_multi_nodal(multi_nodal) {
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
@@ -396,7 +398,8 @@ public:
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
-	virtual ~Transaction() {}
+	virtual ~Transaction() {
+	}
 	//! Explicitly commits.
 	bool commit() {
 		++m_trial_count;
@@ -452,17 +455,15 @@ private:
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
-	local_shared_ptr<typename Node<XN>::Packet> m_packet_at_branchpoint;
-	shared_ptr<atomic_shared_ptr<typename Node<XN>::PacketWrapper> > m_branchpoint;
 	int m_trial_count;
 	int64_t m_serial;
-	bool m_multi_nodal;
+	const bool m_multi_nodal;
 };
 
 template <class XN>
 class SingleTransaction : public Transaction<XN> {
 public:
-	explicit SingleTransaction(const Node<XN>&node) : Transaction<XN>(node, false) {}
+	explicit SingleTransaction(Node<XN>&node) : Transaction<XN>(node, false) {}
 	virtual ~SingleTransaction() {}
 protected:
 };

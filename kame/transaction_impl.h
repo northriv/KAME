@@ -52,7 +52,6 @@ Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, bool b
 	m_branchpoint(), m_packet(x), m_state(0) {
 	ASSERT( !bundled || !x->m_hasCollision);
 	setBundled(bundled);
-	setCommitBundled(true);
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<BranchPoint > &bp, int reverse_index) :
@@ -71,15 +70,13 @@ Node<XN>::PacketWrapper::_print() const {
 	else {
 		if(isBundled())
 			printf("Bundled, ");
-		if(isCommitBundled())
-			printf("CommitBundled, ");
 		packet()->_print();
 	}
 	printf("\n");
 }
 
 template <class XN>
-Node<XN>::Node() : m_wrapper(new BranchPoint()), m_packet_cache(new Cache) {
+Node<XN>::Node() : m_wrapper(new BranchPoint()), m_packet_cache(new Cache), m_transaction_count(0) {
 	local_shared_ptr<Packet> packet(new Packet());
 	m_wrapper->reset(new PacketWrapper(packet, true));
 	//Use create() for this hack.
@@ -363,7 +360,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, Transaction<XN> *tr) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal) const {
 	local_shared_ptr<PacketWrapper> target;
 	for(;;) {
 		target = *m_wrapper;
@@ -372,25 +369,15 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, Transaction<XN> *tr
 			break;
 		}
 		if( !target->packet()) {
-			// Taking a snapshot at the super node.
+			// Taking a snapshot inside the super packet.
 			shared_ptr<BranchPoint > branchpoint(m_wrapper);
-			local_shared_ptr<Packet> *foundpacket = snapshotFromSuper(branchpoint, target);
-			if( !foundpacket)
+			local_shared_ptr<Packet> *foundpacket;
+			SnapshotStatus status = snapshotFromSuper(branchpoint, target, &foundpacket);
+			if(status != SNAPSHOT_SUCCESS)
 				continue;
 			if( !(*foundpacket)->m_hasCollision || !multi_nodal) {
 				snapshot.m_packet = *foundpacket;
 				snapshot.m_bundled = !(*foundpacket)->m_hasCollision;
-				if(tr) {
-					tr->m_oldpacket = tr->m_packet;
-					if(target->isBundled() && target->isCommitBundled()) {
-						tr->m_packet_at_branchpoint = target->packet();
-						tr->m_branchpoint = branchpoint;
-					}
-					else {
-						tr->m_packet_at_branchpoint.reset();
-						tr->m_branchpoint.reset();
-					}
-				}
 				return;
 			}
 			// The packet is imperfect, and then re-bundling the subpackets.
@@ -414,50 +401,48 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, Transaction<XN> *tr
 	}
 	snapshot.m_packet = target->packet();
 	snapshot.m_bundled = target->isBundled();
-	if(tr) {
-		tr->m_packet_at_branchpoint.reset();
-		tr->m_branchpoint.reset();
-		tr->m_oldpacket = tr->m_packet;
-	}
 }
 
 template <class XN>
-local_shared_ptr<typename Node<XN>::Packet> *
+typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
-	local_shared_ptr<PacketWrapper> &target) {
-	local_shared_ptr<PacketWrapper> oldwrapper(target);
-	ASSERT( !target->packet());
-	shared_ptr<BranchPoint > branchpoint_super(target->branchpoint());
+	local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
+	shared_ptr<BranchPoint > *branchpoint_2nd) {
+	local_shared_ptr<PacketWrapper> oldwrapper(shot);
+	ASSERT( !shot->packet());
+	shared_ptr<BranchPoint > branchpoint_super(shot->branchpoint());
 	if( !branchpoint_super)
-		return NULL; //Supernode has been destroyed.
-	int ridx = target->reverseIndex();
-	BranchPoint &branchpoint_this(*branchpoint);
-	branchpoint = branchpoint_super;
-	target = *branchpoint;
+		return SNAPSHOT_STRUCTURE_HAS_CHANGED; //Supernode has been destroyed.
+	int ridx = shot->reverseIndex();
+	shot = *branchpoint_super;
 	local_shared_ptr<Packet> *foundpacket;
-	if(target->packet()) {
-		foundpacket = &target->packet();
+	if(shot->packet()) {
+		foundpacket = &shot->packet();
+		if(branchpoint_2nd)
+			*branchpoint_2nd = branchpoint;
 	}
 	else {
-		foundpacket = snapshotFromSuper(branchpoint, target);
-		if( !foundpacket)
-			return NULL;
+		 SnapshotStatus status = snapshotFromSuper(branchpoint_super, shot, &foundpacket, branchpoint_2nd);
+		if(status != SNAPSHOT_SUCCESS)
+			return status;
 	}
 	//Checking if it is up-to-date.
-	if(branchpoint_this == oldwrapper) {
+	if(*branchpoint == oldwrapper) {
 		ASSERT( (*foundpacket)->size());
 		//The index might be modified by swap().
 		for(int i = ridx; ;) {
 			if(i >= (*foundpacket)->size())
 				i = 0;
 			local_shared_ptr<Packet> &p((*foundpacket)->subpackets()->at(i));
-			if( p && (p->node().m_wrapper.get() == &branchpoint_this)) {
-				return &p; //Bundled packet or unbundled packet w/o local packet.
+			if( p && (p->node().m_wrapper == branchpoint)) {
+				*subpacket = &p; //Bundled packet or unbundled packet w/o local packet.
+				branchpoint = branchpoint_super;
+				return SNAPSHOT_SUCCESS;
 			}
 			++i;
 		}
 	}
-	return NULL;
+	return SNAPSHOT_DISTURBED;
 }
 
 
@@ -594,13 +579,14 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 	}
 	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, new_bundle_state));
 	ASSERT( tr.m_packet->size() || newwrapper->isBundled());
-	bool unbundled = false;
 	for(int retry = 0;; ++retry) {
 		local_shared_ptr<PacketWrapper> wrapper( *m_wrapper);
 		if(wrapper->packet()) {
+			//Committing directly to the node.
 			if(wrapper->packet() != tr.m_oldpacket) {
 				if( !tr.isMultiNodal() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
-					newwrapper->packet()->subpackets() = wrapper->packet()->subpackets();
+					//Single-node mode, the payload in the snapshot is unchanged.
+					tr.m_packet->subpackets() = wrapper->packet()->subpackets();
 					if(wrapper->packet()->m_hasCollision)
 						newwrapper->setBundled(false);
 				}
@@ -617,25 +603,51 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 				return true;
 			continue;
 		}
-		if( !unbundled && new_bundle_state && tr.m_branchpoint) {
-			//Commiting to the super node at which the snapshot was taken.
-			local_shared_ptr<PacketWrapper> wrapper_super = *tr.m_branchpoint;
-			if(wrapper_super->isBundled()) {
-				if((wrapper_super->packet() == tr.m_packet_at_branchpoint) ||
-					((wrapper_super->isCommitBundled() &&
-						(reverseLookup(wrapper_super->packet()) == tr.m_oldpacket)))) {
-					ASSERT( !wrapper_super->packet()->m_hasCollision);
-					local_shared_ptr<PacketWrapper> newwrapper_super(
-						new PacketWrapper(wrapper_super->packet(), true));
-					newwrapper_super->setCommitBundled(false);
-					reverseLookup(newwrapper_super->packet(), true, tr.m_serial) = tr.m_packet;
-					if(tr.m_branchpoint->compareAndSet(wrapper_super, newwrapper_super))
-						return true;
-					continue;
-				}
+		if(new_bundle_state || tr.m_packet->m_hasCollision) {
+			//Committing to the super node at which the snapshot was taken.
+			shared_ptr<BranchPoint > branchpoint(m_wrapper);
+			shared_ptr<BranchPoint > branchpoint_2nd;
+			local_shared_ptr<Packet> *packet;
+			int index_at_top;
+			SnapshotStatus status = snapshotFromSuper(branchpoint, wrapper, &packet, &branchpoint_2nd);
+			switch(status) {
+			case SNAPSHOT_SUCCESS:
+				break;
+			case SNAPSHOT_DISTURBED:
+			case SNAPSHOT_STRUCTURE_HAS_CHANGED:
+				continue;
+			default:
+				return false;
 			}
+			//The super packet has to be bundled.
+			if( !wrapper->isBundled() ||
+				((wrapper->packet().use_count() < 3) && !m_transaction_count)) {
+				//Unbundling the packet if it is partially unbundled or
+				//is not actively held by other threads.
+				local_shared_ptr<PacketWrapper> wrapper_2nd(*branchpoint_2nd);
+				if(wrapper_2nd->packet())
+					continue;
+				UnbundledStatus status = unbundle(NULL, *branchpoint,
+					*branchpoint_2nd, wrapper_2nd, NULL, &wrapper);
+				continue;
+			}
+			if( *packet != tr.m_oldpacket) {
+				if( !tr.isMultiNodal() && ((*packet)->payload() == tr.m_oldpacket->payload()) &&
+					(tr.m_packet->m_hasCollision == (*packet)->m_hasCollision)) {
+					//Single-node mode, the payload in the snapshot is unchanged.
+					tr.m_packet->subpackets() = (*packet)->subpackets();
+				}
+				else
+					return false;
+			}
+			local_shared_ptr<PacketWrapper> newsuper(new PacketWrapper(*wrapper));
+			reverseLookup(newsuper->packet(), true, tr.m_serial) = tr.m_packet;
+			if(branchpoint->compareAndSet(wrapper, newsuper)) {
+				return true;
+			}
+			continue;
 		}
-		//Unbundling this node.
+		//Unbundling this node from the super packet.
 		shared_ptr<BranchPoint > branchpoint_super(wrapper->branchpoint());
 		if( !branchpoint_super)
 			continue; //Supernode has been destroyed.
@@ -648,7 +660,6 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 				return true;
 		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_PARTIALLY:
-			unbundled = true;
 			continue;
 		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
 			return false;
@@ -703,7 +714,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial,
 	else {
 		if( ! wrapper->packet()->size())
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
-		if(newsuperwrapper)
+		if(oldsuperpacket)
 			if( !wrapper->isBundled() || (wrapper->packet() != *oldsuperpacket))
 				return UNBUNDLE_DISTURBED;
 		//Tagging as unbundled.
@@ -757,7 +768,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial,
 		copied2 = *newsuperwrapper;
 	}
 	else {
-		//Erasing out-of-date subpackets on the unbundled superpacket.
+//		//Erasing out-of-date subpackets on the unbundled superpacket.
 //		copied2.reset(new PacketWrapper(*copied));
 //		copied2->packet().reset(new Packet(*copied2->packet()));
 //		copied2->packet()->subpackets().reset(new PacketList(*copied2->packet()->subpackets()));

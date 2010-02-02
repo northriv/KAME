@@ -12,8 +12,10 @@
 
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
+atomic<int> xxx = 0;
 
-class A : public atomic_countable {
+//class A : public atomic_countable {
+class A {
 public:
 	A(long x) : m_x(x) {
 //		fprintf(stdout, "c", x);
@@ -57,6 +59,7 @@ start_routine(void *) {
 	for(int i = 0; i < 400000; i++) {
     	local_shared_ptr<A> p1(new A(4));
     	ASSERT(p1);
+    	ASSERT(p1.use_count() == 1);
     	local_shared_ptr<A> p2(new B(9));
     	local_shared_ptr<A> p3;
     	ASSERT(!p3);
@@ -73,13 +76,17 @@ start_routine(void *) {
 
     	for(;;) {
     		local_shared_ptr<A> p(gp1);
+    		if(p)
+    			xxx = p->x();
 	    	if(gp1.compareAndSet(p, p1)) {
 	    		break;
 	    	}
     		printf("f");
     	}
-    	for(local_shared_ptr<A> p(gp2);;) {
-	    	if(gp2.compareAndSwap(p, p1)) {
+    	for(local_shared_ptr<A> p(gp3);;) {
+    		if(p)
+    			xxx = p->x();
+	    	if(gp3.compareAndSwap(p, p1)) {
 	    		break;
 	    	}
     		printf("f");
@@ -109,7 +116,7 @@ pthread_t threads[NUM_THREADS];
 	gp1.reset();
 	gp2.reset();
 	gp3.reset();
-    if(objcnt != 0) {
+	if(objcnt != 0) {
     	printf("failed\n");
     	return -1;
     }

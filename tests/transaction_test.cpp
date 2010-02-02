@@ -41,6 +41,10 @@ public:
 			total += x - m_x;
 			m_x = x;
 		}
+		Payload &operator+=(const long &x) {
+			total += x;
+			m_x += x;
+		}
 	private:
 		long m_x;
 	};
@@ -49,12 +53,14 @@ public:
 typedef Transactional::Snapshot<LongNode> Snapshot;
 typedef Transactional::Transaction<LongNode> Transaction;
 
-#define trans(node) for(Transaction __implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+#define trans(node) for(Transactional::SingleTransaction<LongNode> \
+	__implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
-typename boost::enable_if<boost::is_base_of<LongNode, T>, const typename Transactional::_implicitReader<T, LongNode> >::type
+typename boost::enable_if<boost::is_base_of<LongNode, T>,
+	const typename Transactional::SingleSnapshot<LongNode, T> >::type
  operator*(T &node) {
-	return Transactional::_implicitReader<T, LongNode>(node);
+	return Transactional::SingleSnapshot<LongNode, T>(node);
 }
 
 #include "transaction_impl.h"
@@ -87,6 +93,7 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		trans(*gn3) += 1;
 		for(Transaction tr1(*gn4); ; ++tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
@@ -104,6 +111,7 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 			printf("f");
 		}
+		trans(*gn3) += -1;
 		if((i % 10) == 0) {
 			gn2->release(p2);
 			gn1->release(p1);
@@ -162,7 +170,17 @@ main(int argc, char **argv)
 			p2->insert(p21);
 			p21->insert(p211);
 			p2->insert(p211);
+			p21->insert(p22);
+			p211->insert(p22);
 			long x = **p2;
+			trans(*p22) = 1;
+			trans(*p22) = 0;
+			trans(*p21) = 1;
+			trans(*p21) = 0;
+			trans(*p211) = 1;
+			trans(*p211) = 0;
+			trans(*p2) = 1;
+			trans(*p2) = 0;
 
 			for(Transaction tr1(*gn1); ; ++tr1){
 				Snapshot &ctr1(tr1); // For reading.
