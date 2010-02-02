@@ -17,6 +17,9 @@
 #include "support.h"
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
+#include <vector>
+#include "atomic.h"
+#include "xtime.h"
 
 //! \desc
 //! Lock-free software transactional memory for treed objects. \n
@@ -40,9 +43,6 @@
 //! double x = shot1[node1]; \n
 //! double y = shot1[node2]; }\n
 //! Other examples can be seen in transaction_test.cpp\n
-
-#include <vector>
-#include "atomic.h"
 
 namespace Transactional {
 
@@ -187,6 +187,7 @@ public:
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
 		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(-1) {}
 		atomic<int64_t> m_bundle_serial;
+		atomic<XTime> m_transaction_started_time;
 	};
 
 	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
@@ -199,9 +200,9 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target, bool multi_nodal) const;
+	void snapshot(Snapshot<XN> &target, bool multi_nodal, XTime started_time = XTime::now()) const;
 	void snapshot(Transaction<XN> &target, bool multi_nodal) const {
-		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal);
+		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
 		target.m_oldpacket = target.m_packet;
 	}
 	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED, SNAPSHOT_STRUCTURE_HAS_CHANGED};
@@ -211,7 +212,7 @@ private:
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const int64_t *bundle_serial = NULL);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const XTime &started_time, const int64_t *bundle_serial = NULL);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
@@ -225,7 +226,7 @@ private:
 	//! \arg oldsuperpacket If not zero, the packet will be compared with the value of \a branchpoint.
 	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
 	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
-	static UnbundledStatus unbundle(const int64_t *bundle_serial,
+	static UnbundledStatus unbundle(const int64_t *bundle_serial, const XTime *time_started,
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -398,7 +399,8 @@ class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure to the persistence of the \a node.
 	explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
-		Snapshot<XN>(), m_oldpacket(), m_trial_count(0), m_multi_nodal(multi_nodal) {
+		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal),
+		m_started_time(XTime::now()) {
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
@@ -413,10 +415,20 @@ public:
 	}
 	//! Explicitly commits.
 	bool commit() {
-		++m_trial_count;
 		if( ! isModified())
 			return true;
-		return this->m_packet->node().commit(*this);
+		Node<XN> &node(this->m_packet->node());
+		if(node.commit(*this)) {
+			if((XTime)node.m_wrapper->m_transaction_started_time == m_started_time) {
+				node.m_wrapper->m_transaction_started_time = XTime();
+			}
+			return true;
+		}
+		if( !(XTime)node.m_wrapper->m_transaction_started_time ||
+			((XTime)node.m_wrapper->m_transaction_started_time > m_started_time)) {
+			node.m_wrapper->m_transaction_started_time = m_started_time;
+		}
+		return false;
 	}
 	//! Explicitly commits.
 	bool commitOrNext() {
@@ -466,9 +478,9 @@ private:
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
-	int m_trial_count;
 	int64_t m_serial;
 	const bool m_multi_nodal;
+	XTime m_started_time;
 };
 
 template <class XN>
