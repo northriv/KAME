@@ -212,7 +212,7 @@ private:
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, const XTime &started_time, const int64_t *bundle_serial = NULL);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, XTime &started_time, const int64_t *bundle_serial = NULL);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
@@ -226,7 +226,7 @@ private:
 	//! \arg oldsuperpacket If not zero, the packet will be compared with the value of \a branchpoint.
 	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
 	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
-	static UnbundledStatus unbundle(const int64_t *bundle_serial, const XTime *time_started,
+	static UnbundledStatus unbundle(const int64_t *bundle_serial, XTime *time_started,
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -424,10 +424,6 @@ public:
 			}
 			return true;
 		}
-		if( !(XTime)node.m_wrapper->m_transaction_started_time ||
-			((XTime)node.m_wrapper->m_transaction_started_time > m_started_time)) {
-			node.m_wrapper->m_transaction_started_time = m_started_time;
-		}
 		return false;
 	}
 	//! Explicitly commits.
@@ -443,6 +439,13 @@ public:
 	}
 
 	Transaction &operator++() {
+		Node<XN> &node(this->m_packet->node());
+		if(isMultiNodal()) {
+			XTime time(node.m_wrapper->m_transaction_started_time);
+			if( !time || (time > m_started_time)) {
+				node.m_wrapper->m_transaction_started_time = m_started_time;
+			}
+		}
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))

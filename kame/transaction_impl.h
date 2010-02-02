@@ -448,7 +448,7 @@ Node<XN>::snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 
 template <class XN>
 typename Node<XN>::BundledStatus
-Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, const XTime &started_time,
+Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, XTime &started_time,
 	const int64_t *bundle_serial) {
 	ASSERT( !target->isBundled() && target->packet());
 	ASSERT(target->packet()->size());
@@ -602,7 +602,9 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 			}
 			XTime transaction_started_time = m_wrapper->m_transaction_started_time;
 			if(transaction_started_time && (transaction_started_time < tr.m_started_time)) {
-				msecsleep(tr.m_started_time.diff_msec(transaction_started_time));
+				int ms = tr.m_started_time.diff_msec(transaction_started_time);
+				if(ms) msecsleep(ms);
+				tr.m_started_time = transaction_started_time;
 			}
 			if(m_wrapper->compareAndSet(wrapper, newwrapper)) {
 				return true;
@@ -651,7 +653,9 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 
 			XTime transaction_started_time = branchpoint->m_transaction_started_time;
 			if(transaction_started_time && (transaction_started_time < tr.m_started_time)) {
-				msecsleep(tr.m_started_time.diff_msec(transaction_started_time));
+				int ms = tr.m_started_time.diff_msec(transaction_started_time);
+				if(ms) msecsleep(ms);
+				tr.m_started_time = transaction_started_time;
 			}
 			if(branchpoint->compareAndSet(wrapper, newsuper)) {
 				return true;
@@ -683,7 +687,7 @@ Node<XN>::commit(Transaction<XN> &tr, bool new_bundle_state) {
 
 template <class XN>
 typename Node<XN>::UnbundledStatus
-Node<XN>::unbundle(const int64_t *bundle_serial, const XTime *time_started,
+Node<XN>::unbundle(const int64_t *bundle_serial, XTime *time_started,
 	BranchPoint &branchpoint,
 	BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper,
@@ -694,7 +698,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, const XTime *time_started,
 	ASSERT(time_started);
 	XTime transaction_started_time = branchpoint.m_transaction_started_time;
 	if(transaction_started_time && (transaction_started_time < *time_started)) {
-		msecsleep(time_started->diff_msec(transaction_started_time));
+		int ms = time_started->diff_msec(transaction_started_time);
+		if(ms) msecsleep(ms);
+		*time_started = transaction_started_time;
 	}
 
 	if(bundle_serial && (branchpoint.m_bundle_serial == *bundle_serial)) {
