@@ -69,6 +69,9 @@ template class Transactional::Node<LongNode>;
 
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
+#define NUM_SLOW_THREADS 2
+#define NUM_THREADS 6
+
 void *
 start_routine(void *arg) {
 	printf("start\n");
@@ -76,7 +79,7 @@ start_routine(void *arg) {
 	int th_no = *(int*)arg;
 	int lps = 5000000;
 	bool wait = false;
-	if(th_no <= 1) {
+	if(th_no < NUM_SLOW_THREADS) {
 		++slow_threads;
 		lps = 10;
 		wait = true;
@@ -85,10 +88,8 @@ start_routine(void *arg) {
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
 	for(int i = 0; i < lps; i++) {
-		if(th_no > 1) {
-			if( !slow_threads)
-				break;
-		}
+		if( !slow_threads)
+			break;
 		p1->insert(p2);
 		if((i % 10) == 0) {
 			gn2->insert(p2);
@@ -142,13 +143,11 @@ start_routine(void *arg) {
 	}
 	else
 		printf("finish no=%d\n", th_no);
-	if(th_no <= 1) {
+	if(th_no < NUM_SLOW_THREADS) {
 		--slow_threads;
 	}
     return 0;
 }
-
-#define NUM_THREADS 4
 
 int
 main(int argc, char **argv)

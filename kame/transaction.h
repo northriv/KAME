@@ -416,16 +416,22 @@ public:
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
 	virtual ~Transaction() {
+		Node<XN> &node(this->m_packet->node());
+		//Do not leave the time stamp.
+		if(m_started_time) {
+			if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
+				node.m_wrapper->m_transaction_started_time = 0;
+			}
+		}
 	}
 	//! Explicitly commits.
 	bool commit() {
-		if( ! isModified())
-			return true;
 		Node<XN> &node(this->m_packet->node());
-		if(node.commit(*this)) {
-			if(node.m_wrapper->m_transaction_started_time == m_started_time) {
+		if( !isModified() || node.commit(*this)) {
+			if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
 				node.m_wrapper->m_transaction_started_time = 0;
 			}
+			m_started_time = 0;
 			return true;
 		}
 		return false;
@@ -446,7 +452,7 @@ public:
 		Node<XN> &node(this->m_packet->node());
 		if(isMultiNodal()) {
 			uint64_t time(node.m_wrapper->m_transaction_started_time);
-			if( !time)
+			if( !time || (time > m_started_time))
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
 		for(;;) {

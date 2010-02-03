@@ -82,12 +82,15 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 	if(transaction_started_time) {
 		int ms = ((int64_t)started_time - transaction_started_time);
 		if(ms > 0) {
-			msecsleep(ms);
-			started_time = transaction_started_time;
-//			started_time -= ms;
+			XTime t0 = XTime::now();
+			t0 += ms * 1e-3;
+			while(t0 > XTime::now()) {
+				msecsleep(1);
+				if( !m_transaction_started_time)
+					break;
+			}
+			started_time -= ms;
 		}
-//		if(ms == 0)
-//			started_time = transaction_started_time;
 	}
 }
 
