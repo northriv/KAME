@@ -187,7 +187,8 @@ public:
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
 		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(-1) {}
 		atomic<int64_t> m_bundle_serial;
-		atomic<XTime> m_transaction_started_time;
+		atomic<uint64_t> m_transaction_started_time;
+		inline void negotiate(uint64_t &started_time);
 	};
 
 	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
@@ -200,7 +201,7 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target, bool multi_nodal, XTime started_time = XTime::now()) const;
+	void snapshot(Snapshot<XN> &target, bool multi_nodal, uint64_t &started_time) const;
 	void snapshot(Transaction<XN> &target, bool multi_nodal) const {
 		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
 		target.m_oldpacket = target.m_packet;
@@ -212,7 +213,7 @@ private:
 	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, XTime &started_time, const int64_t *bundle_serial = NULL);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time, const int64_t *bundle_serial = NULL);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
@@ -226,7 +227,7 @@ private:
 	//! \arg oldsuperpacket If not zero, the packet will be compared with the value of \a branchpoint.
 	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
 	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
-	static UnbundledStatus unbundle(const int64_t *bundle_serial, XTime *time_started,
+	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -327,7 +328,9 @@ public:
 	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-		node.snapshot(*this, multi_nodal);
+		XTime time(XTime::now());
+		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
+		node.snapshot(*this, multi_nodal, ms);
 		++node.m_transaction_count;
 	}
 	virtual ~Snapshot() {
@@ -348,7 +351,7 @@ public:
 	}
 	int size() const {return m_packet->size();}
 	const shared_ptr<const typename Node<XN>::NodeList> list() const {
-		if( ! size())
+		if( !size())
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return m_packet->subnodes();
 	}
@@ -399,8 +402,9 @@ class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure to the persistence of the \a node.
 	explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
-		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal),
-		m_started_time(XTime::now()) {
+		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
+		XTime time(XTime::now());
+		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
 			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
@@ -419,8 +423,8 @@ public:
 			return true;
 		Node<XN> &node(this->m_packet->node());
 		if(node.commit(*this)) {
-			if((XTime)node.m_wrapper->m_transaction_started_time == m_started_time) {
-				node.m_wrapper->m_transaction_started_time = XTime();
+			if(node.m_wrapper->m_transaction_started_time == m_started_time) {
+				node.m_wrapper->m_transaction_started_time = 0;
 			}
 			return true;
 		}
@@ -441,10 +445,9 @@ public:
 	Transaction &operator++() {
 		Node<XN> &node(this->m_packet->node());
 		if(isMultiNodal()) {
-			XTime time(node.m_wrapper->m_transaction_started_time);
-			if( !time || (time > m_started_time)) {
+			uint64_t time(node.m_wrapper->m_transaction_started_time);
+			if( !time)
 				node.m_wrapper->m_transaction_started_time = m_started_time;
-			}
 		}
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
@@ -483,7 +486,7 @@ private:
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	int64_t m_serial;
 	const bool m_multi_nodal;
-	XTime m_started_time;
+	uint64_t m_started_time;
 };
 
 template <class XN>

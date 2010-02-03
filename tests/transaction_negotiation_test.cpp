@@ -14,6 +14,7 @@
 
 #include "thread.cpp"
 
+atomic<int> slow_threads = 0;
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
@@ -69,11 +70,25 @@ template class Transactional::Node<LongNode>;
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void *
-start_routine(void *) {
+start_routine(void *arg) {
 	printf("start\n");
+
+	int th_no = *(int*)arg;
+	int lps = 5000000;
+	bool wait = false;
+	if(th_no <= 1) {
+		++slow_threads;
+		lps = 10;
+		wait = true;
+	}
+
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
-	for(int i = 0; i < 2500; i++) {
+	for(int i = 0; i < lps; i++) {
+		if(th_no > 1) {
+			if( !slow_threads)
+				break;
+		}
 		p1->insert(p2);
 		if((i % 10) == 0) {
 			gn2->insert(p2);
@@ -90,6 +105,7 @@ start_routine(void *) {
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] + 1;
 			}
+			if(wait) msecsleep(10);
 			if(tr1.commit()) break;
 //			printf("f");
 		}
@@ -97,6 +113,7 @@ start_routine(void *) {
 		for(Transaction tr1(*gn4); ; ++tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
+			if(wait) msecsleep(30);
 			if(tr1.commit()) break;
 //			printf("f");
 		}
@@ -108,6 +125,7 @@ start_routine(void *) {
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] - 1;
 			}
+			if(wait) msecsleep(60);
 			if(tr1.commit()) break;
 //			printf("f");
 		}
@@ -123,7 +141,10 @@ start_routine(void *) {
 		abort();
 	}
 	else
-		printf("finish\n");
+		printf("finish no=%d\n", th_no);
+	if(th_no <= 1) {
+		--slow_threads;
+	}
     return 0;
 }
 
@@ -136,7 +157,7 @@ main(int argc, char **argv)
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 5; k++) {
+    for(int k = 0; k < 1; k++) {
 		gn1.reset(LongNode::create<LongNode>());
 		gn2.reset(LongNode::create<LongNode>());
 		gn3.reset(LongNode::create<LongNode>());
@@ -197,7 +218,7 @@ main(int argc, char **argv)
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {
-			pthread_create(&threads[i], NULL, start_routine, NULL);
+			pthread_create(&threads[i], NULL, start_routine, new int(i));
 		}
 		{
 			usleep(1000);
