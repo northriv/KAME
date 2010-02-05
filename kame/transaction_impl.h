@@ -85,11 +85,12 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 			XTime t0 = XTime::now();
 			t0 += ms * 1e-3;
 			while(t0 > XTime::now()) {
+//				usleep(std::min(ms * 1000 / 50, 1000));
 				msecsleep(1);
 				if( !m_transaction_started_time)
 					break;
 			}
-			started_time -= ms;
+			started_time -= XTime::now().diff_msec(t0) + ms;
 		}
 	}
 }

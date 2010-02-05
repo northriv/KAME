@@ -109,20 +109,24 @@ public:
 		int64_t m_serial;
 	};
 	template <class P>
-	struct PayloadWrapper : public PayloadWrapperBase, public P {
+	struct PayloadWrapper : public PayloadWrapperBase, public P::Payload {
 		virtual PayloadWrapper *clone() { return new PayloadWrapper(*this);}
 		static PayloadWrapperBase *funcPayloadCreator(Node &node) { return new PayloadWrapper<P>(node); }
 	private:
 		PayloadWrapper();
-		PayloadWrapper(Node &node) : PayloadWrapperBase(node), P() {}
-		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P(x) {}
+		PayloadWrapper(Node &node) : PayloadWrapperBase(node), P::Payload() {}
+		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P::Payload(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
+		virtual Node &node() { return *this->m_node;}
+		virtual const Node &node() const { return *this->m_node;}
 	};
 	//! Data and accessor linked to the node.
 	//! Re-implement members in its subclasses.
 	struct Payload {
 		Payload() {}
 		virtual ~Payload() {}
+		virtual Node &node() = 0;
+		virtual const Node &node() const = 0;
 	};
 
 	//! A package containing \a Payload, subpackages, and a list of subnodes.
@@ -274,49 +278,49 @@ private:
 template <class XN>
 template <class T>
 T *Node<XN>::create() {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T();
 }
 template <class XN>
 template <class T, typename A1>
 T *Node<XN>::create(A1 a1) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1);
 }
 template <class XN>
 template <class T, typename A1, typename A2>
 T *Node<XN>::create(A1 a1, A2 a2) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2, a3);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3, typename A4>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2, a3, a4);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3, typename A4, typename A5>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2, a3, a4, a5);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2, a3, a4, a5, a6);
 }
 template <class XN>
 template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
 T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<typename T::Payload>::funcPayloadCreator;
+	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
 	return new T(a1, a2, a3, a4, a5, a6, a7);
 }
 
@@ -345,7 +349,7 @@ public:
 	const typename T::Payload &operator[](const T &node) const {
 		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
 		const local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(packet->payload());
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		const typename T::Payload *payload_t(static_cast<const Payload*>(payload.get()));
 		return *payload_t;
 	}
@@ -383,13 +387,13 @@ public:
 	virtual ~SingleSnapshot() {}
 
 	const typename T::Payload *operator->() const {
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		return &static_cast<const typename T::Payload&>(
 			*static_cast<const Payload *>(this->m_packet->payload().get()));
 	}
 	template <class X>
 	operator X() const {
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
+		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		return (X)static_cast<const typename T::Payload&>(
 			*static_cast<const Payload *>(this->m_packet->payload().get()));
 	}
@@ -473,16 +477,12 @@ public:
 	typename T::Payload &operator[](T &node) {
 		local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
-		typedef typename Node<XN>::template PayloadWrapper<typename T::Payload> Payload;
-		Payload *payload_t(static_cast<Payload*>(payload.get()));
+		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		if(payload->m_serial != this->m_serial) {
-			payload_t = payload_t->clone();
-			payload.reset(payload_t);
-			payload_t->m_serial = this->m_serial;
-			return *payload_t;
+			payload.reset(payload->clone());
+			payload->m_serial = this->m_serial;
 		}
-		ASSERT(payload_t);
-		return *payload_t;
+		return *static_cast<Payload*>(payload.get());
 	}
 	bool isMultiNodal() const {return m_multi_nodal;}
 private:
@@ -495,11 +495,24 @@ private:
 	uint64_t m_started_time;
 };
 
-template <class XN>
+template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
 public:
-	explicit SingleTransaction(Node<XN>&node) : Transaction<XN>(node, false) {}
+	explicit SingleTransaction(T&node) : Transaction<XN>(node, false) {}
 	virtual ~SingleTransaction() {}
+
+	typename T::Payload &operator*() {
+		return (*this)[static_cast<T&>(this->m_packet->node())];
+	}
+	typename T::Payload *operator->() {
+		return &(**this);
+	}
+	template <class X>
+	operator X() const {
+		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
+		return (X)static_cast<const typename T::Payload&>(
+			*static_cast<const Payload *>(this->m_packet->payload().get()));
+	}
 protected:
 };
 
