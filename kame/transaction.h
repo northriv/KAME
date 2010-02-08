@@ -51,7 +51,6 @@ class Snapshot;
 template <class XN>
 class Transaction;
 
-
 //! A node which carries data sets for itself and for subnodes.\n
 //! The data is held by \a *this or packed by the "bundled" data in the super node.\n
 //! If the packed data (packet) is tagged as "unbundled" (not up-to-date),
@@ -97,36 +96,47 @@ public:
 	typedef typename NodeList::const_iterator const_iterator;
 
 	struct PayloadWrapperBase : public atomic_countable {
-		PayloadWrapperBase(Node &node) : m_node(&node), m_serial(-1) {}
+		PayloadWrapperBase(XN &node) : m_node(&node), m_serial(-1), m_tr(0) {}
 		virtual ~PayloadWrapperBase() {}
-		virtual PayloadWrapperBase *clone() = 0;
+		virtual PayloadWrapperBase *clone(Transaction<XN> &tr, int64_t serial) = 0;
 		//! points to the node.
-		Node &node() {return *m_node;}
+		XN &node() {return *m_node;}
 		//! points to the node.
-		const Node &node() const {return *m_node;}
-		Node * const m_node;
+		const XN &node() const {return *m_node;}
+		XN * const m_node;
 		//! Serial number of the transaction.
 		int64_t m_serial;
+		Transaction<XN> *m_tr;
 	};
 	template <class P>
 	struct PayloadWrapper : public PayloadWrapperBase, public P::Payload {
-		virtual PayloadWrapper *clone() { return new PayloadWrapper(*this);}
-		static PayloadWrapperBase *funcPayloadCreator(Node &node) { return new PayloadWrapper<P>(node); }
+		virtual PayloadWrapper *clone(Transaction<XN> &tr, int64_t serial) {
+			PayloadWrapper *p = new PayloadWrapper(*this);
+			p->m_tr = &tr;
+			p->m_serial = serial;
+			return p;
+		}
+		static PayloadWrapperBase *funcPayloadCreator(XN &node) { return new PayloadWrapper<P>(node); }
+		virtual XN &node() { return *this->m_node;}
+		virtual const XN &node() const { return *this->m_node;}
+		virtual int64_t serial() const {return this->m_serial;}
+		virtual Transaction<XN> &tr() { return *this->m_tr;}
 	private:
 		PayloadWrapper();
-		PayloadWrapper(Node &node) : PayloadWrapperBase(node), P::Payload() {}
+		PayloadWrapper(XN &node) : PayloadWrapperBase(node), P::Payload() {}
 		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P::Payload(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
-		virtual Node &node() { return *this->m_node;}
-		virtual const Node &node() const { return *this->m_node;}
 	};
 	//! Data and accessor linked to the node.
 	//! Re-implement members in its subclasses.
 	struct Payload {
 		Payload() {}
 		virtual ~Payload() {}
-		virtual Node &node() = 0;
-		virtual const Node &node() const = 0;
+		virtual XN &node() = 0;
+		virtual const XN &node() const = 0;
+		virtual int64_t serial() const = 0;
+		virtual Transaction<XN> &tr() = 0;
+		virtual void touch() {}
 	};
 
 	//! A package containing \a Payload, subpackages, and a list of subnodes.
@@ -270,7 +280,7 @@ protected:
 private:
 	Node(const Node &); //non-copyable.
 	Node &operator=(const Node &); //non-copyable.
-	typedef PayloadWrapperBase *(*FuncPayloadCreator)(Node &);
+	typedef PayloadWrapperBase *(*FuncPayloadCreator)(XN &);
 	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
 	void _print() const;
 };
@@ -337,6 +347,8 @@ public:
 		node.snapshot(*this, multi_nodal, ms);
 		++node.m_transaction_count;
 	}
+	Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet, bool bundled) :
+		m_packet(packet), m_bundled(bundled) {}
 	virtual ~Snapshot() {
 		--this->m_packet->node().m_transaction_count;
 	}
@@ -399,6 +411,11 @@ public:
 	}
 protected:
 };
+
+}
+#include "transaction_signal.h"
+namespace Transactional {
+
 //! Transactional writing for a monitored data set.
 //! The revision will be committed implicitly on leaving the scope.
 template <class XN>
@@ -419,6 +436,9 @@ public:
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
+//	Transaction(const Transaction &x) : Snapshot<XN>(x),
+//		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
+//		m_started_time(x.m_started_time), m_talkers_marked() {}
 	virtual ~Transaction() {
 		Node<XN> &node(this->m_packet->node());
 		//Do not leave the time stamp.
@@ -432,6 +452,10 @@ public:
 	bool commit() {
 		Node<XN> &node(this->m_packet->node());
 		if( !isModified() || node.commit(*this)) {
+			Snapshot<XN> before(m_oldpacket, this->m_bundled);
+			for(typename TalkerList::iterator it = m_talkers_marked.begin(); it != m_talkers_marked.end(); ++it) {
+				(*it)->talk(before, *this);
+			}
 			if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
 				node.m_wrapper->m_transaction_started_time = 0;
 			}
@@ -466,6 +490,7 @@ public:
 		}
 		m_serial++;
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
+		m_talkers_marked.clear();
 		return *this;
 	}
 
@@ -479,12 +504,22 @@ public:
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		if(payload->m_serial != this->m_serial) {
-			payload.reset(payload->clone());
-			payload->m_serial = this->m_serial;
+			payload.reset(payload->clone(*this, this->m_serial));
 		}
-		return *static_cast<Payload*>(payload.get());
+		Payload &p(*static_cast<Payload*>(payload.get()));
+		p.touch();
+		return p;
 	}
 	bool isMultiNodal() const {return m_multi_nodal;}
+
+	template <typename tArg>
+	void mark(Talker<XN, tArg> &talker, const tArg &arg) {
+		talker.mark(arg);
+		m_talkers_marked.push_back(&talker);
+	}
+	void unmark(Talker<XN, tArg> &talker) {
+		m_talkers_marked.erase(std::find(m_talkers_marked.begin(), m_talkers_marked.end(), talker));
+	}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
@@ -493,6 +528,8 @@ private:
 	int64_t m_serial;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
+	typedef std::deque<_TalkerBase<XN>*> TalkerList;
+	TalkerList m_talkers_marked;
 };
 
 template <class XN, typename T>
@@ -517,7 +554,7 @@ protected:
 };
 
 template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet) {}
+inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet), m_bundled(x.m_bundled) {}
 
 } //namespace Transactional
 

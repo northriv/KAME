@@ -100,7 +100,7 @@ Node<XN>::Node() : m_wrapper(new BranchPoint()), m_packet_cache(new Cache), m_tr
 	local_shared_ptr<Packet> packet(new Packet());
 	m_wrapper->reset(new PacketWrapper(packet, true));
 	//Use create() for this hack.
-	packet->m_payload.reset((*stl_funcPayloadCreator)(*this));
+	packet->m_payload.reset((*stl_funcPayloadCreator)(static_cast<XN&>(*this)));
 	*stl_funcPayloadCreator = NULL;
 
 	if(this == (Node*)0x1)
