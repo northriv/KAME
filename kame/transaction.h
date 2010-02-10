@@ -442,17 +442,10 @@ public:
 		}
 	}
 	//! Explicitly commits.
-	bool commit() {
+	bool commit(bool new_bundle_state = true) {
 		Node<XN> &node(this->m_packet->node());
-		if( !isModified() || node.commit(*this)) {
-			Snapshot<XN> before(m_oldpacket, this->m_bundled);
-			for(typename TalkerList::iterator it = m_talkers_marked.begin(); it != m_talkers_marked.end(); ++it) {
-				(*it)->talk(before, *this);
-			}
-			if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
-				node.m_wrapper->m_transaction_started_time = 0;
-			}
-			m_started_time = 0;
+		if( !isModified() || node.commit(*this, new_bundle_state)) {
+			finalizeCommitment();
 			return true;
 		}
 		return false;
@@ -512,8 +505,6 @@ private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
-	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
-	int64_t m_serial;
 	void setSerial() {
 		for(;;) {
 			m_serial = Node<XN>::Packet::s_serial;
@@ -522,6 +513,20 @@ private:
 		}
 		m_serial++;
 	}
+	void finalizeCommitment() {
+		Snapshot<XN> before(m_oldpacket, this->m_bundled);
+		for(typename TalkerList::iterator it = m_talkers_marked.begin(); it != m_talkers_marked.end(); ++it) {
+			(*it)->talk(before, *this);
+		}
+		Node<XN> &node(this->m_packet->node());
+		if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
+			node.m_wrapper->m_transaction_started_time = 0;
+		}
+		m_started_time = 0;
+	}
+
+	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
+	int64_t m_serial;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
 	typedef std::deque<_TalkerBase<XN>*> TalkerList;

@@ -143,10 +143,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	tr[*this].catchEvent(var);
 	tr[*this].listChangeEvent();
 //		printf("i");
-	if(commit(tr, false)) {
-		return true;
-	}
-	return false;
+	return tr.commit(false);
 }
 template <class XN>
 void
@@ -164,9 +161,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<Packet> oldsubpacket(
 		var->reverseLookup(packet));
 	packet.reset(new Packet(*packet));
-	packet->subpackets().reset(packet->size() ? (new PacketList(*packet->subpackets())) : (new PacketList));
+	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
 	packet->subpackets()->m_serial = tr.m_serial;
-	packet->subnodes().reset(packet->size() ? (new NodeList(*packet->subnodes())) : (new NodeList));
+	packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
 	local_shared_ptr<PacketWrapper> newsubwrapper;
 	packet->m_hasCollision = false;
 	unsigned int idx = 0;
@@ -204,7 +201,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	tr[*this].releaseEvent(var);
 	tr[*this].listChangeEvent();
 	if( !newsubwrapper) {
-		return commit(tr, !packet->m_hasCollision);
+		return tr.commit( !packet->m_hasCollision);
 	}
 	local_shared_ptr<PacketWrapper> nullwrapper( *var->m_wrapper);
 	if(nullwrapper->packet())
@@ -215,6 +212,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		nullwrapper, &oldsubpacket, &newsubwrapper, &tr.m_oldpacket, &newwrapper);
 	if(ret == UNBUNDLE_W_NEW_VALUES) {
 //			printf("%d", (int)packet->size());
+		tr.finalizeCommitment();
 		return true;
 	}
 	return false;
@@ -266,10 +264,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 	packet->subnodes()->at(y_idx) = x;
 	tr[*this].moveEvent(x_idx, y_idx);
 	tr[*this].listChangeEvent();
-	if(commit(tr, false)) {
-		return true;
-	}
-	return false;
+	return tr.commit(false);
 }
 
 template <class XN>
