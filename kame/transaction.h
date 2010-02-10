@@ -95,56 +95,54 @@ public:
 	typedef typename NodeList::iterator iterator;
 	typedef typename NodeList::const_iterator const_iterator;
 
-	struct PayloadWrapperBase : public atomic_countable {
-		PayloadWrapperBase(XN &node) : m_node(&node), m_serial(-1), m_tr(0) {}
-		virtual ~PayloadWrapperBase() {}
-		virtual PayloadWrapperBase *clone(Transaction<XN> &tr, int64_t serial) = 0;
+	//! Data and accessor linked to the node.
+	//! Re-implement members in its subclasses.
+	struct Payload : public atomic_countable {
+		Payload() : m_node(0), m_serial(-1), m_tr(0) {}
+		virtual ~Payload() {}
 		//! points to the node.
 		XN &node() {return *m_node;}
 		//! points to the node.
 		const XN &node() const {return *m_node;}
-		XN * const m_node;
+		int64_t serial() const {return this->m_serial;}
+		Transaction<XN> &tr() { return *this->m_tr;}
+		virtual Payload *clone(Transaction<XN> &tr, int64_t serial) = 0;
+
+		virtual void catchEvent(const shared_ptr<XN>&) {}
+		virtual void releaseEvent(const shared_ptr<XN>&) {}
+		virtual void moveEvent(unsigned int src_idx, unsigned int dst_idx) {}
+		virtual void listChangeEvent() {}
+
+		XN *m_node;
 		//! Serial number of the transaction.
 		int64_t m_serial;
 		Transaction<XN> *m_tr;
 	};
 	template <class P>
-	struct PayloadWrapper : public PayloadWrapperBase, public P::Payload {
+	struct PayloadWrapper : public P::Payload {
 		virtual PayloadWrapper *clone(Transaction<XN> &tr, int64_t serial) {
 			PayloadWrapper *p = new PayloadWrapper(*this);
 			p->m_tr = &tr;
 			p->m_serial = serial;
 			return p;
 		}
-		static PayloadWrapperBase *funcPayloadCreator(XN &node) { return new PayloadWrapper<P>(node); }
-		virtual XN &node() { return *this->m_node;}
-		virtual const XN &node() const { return *this->m_node;}
-		virtual int64_t serial() const {return this->m_serial;}
-		virtual Transaction<XN> &tr() { return *this->m_tr;}
+		static Payload *funcPayloadCreator(XN &node) {
+			Payload *p = new PayloadWrapper(node);
+			return p;
+		}
 	private:
 		PayloadWrapper();
-		PayloadWrapper(XN &node) : PayloadWrapperBase(node), P::Payload() {}
-		PayloadWrapper(const PayloadWrapper &x) : PayloadWrapperBase(x), P::Payload(x) {}
+		PayloadWrapper(XN &node) : P::Payload() {this->m_node = &node;}
+		PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
-	};
-	//! Data and accessor linked to the node.
-	//! Re-implement members in its subclasses.
-	struct Payload {
-		Payload() {}
-		virtual ~Payload() {}
-		virtual XN &node() = 0;
-		virtual const XN &node() const = 0;
-		virtual int64_t serial() const = 0;
-		virtual Transaction<XN> &tr() = 0;
-		virtual void touch() {}
 	};
 
 	//! A package containing \a Payload, subpackages, and a list of subnodes.
 	struct Packet : public atomic_countable {
 		Packet();
 		int size() const {return subpackets() ? subpackets()->size() : 0;}
-		local_shared_ptr<PayloadWrapperBase> &payload() {return m_payload;}
-		const local_shared_ptr<PayloadWrapperBase> &payload() const {return m_payload;}
+		local_shared_ptr<Payload> &payload() {return m_payload;}
+		const local_shared_ptr<Payload> &payload() const {return m_payload;}
 		shared_ptr<NodeList> &subnodes() {return subpackets()->m_subnodes;}
 		shared_ptr<PacketList> &subpackets() {return m_subpackets;}
 		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
@@ -157,7 +155,7 @@ public:
 
 		void _print() const;
 
-		local_shared_ptr<PayloadWrapperBase> m_payload;
+		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		//! indicates whether the subpackage misses a payload for a subnode or not.
 		//! A "collision" may happen if a node is inserted twice or more.
@@ -280,7 +278,7 @@ protected:
 private:
 	Node(const Node &); //non-copyable.
 	Node &operator=(const Node &); //non-copyable.
-	typedef PayloadWrapperBase *(*FuncPayloadCreator)(XN &);
+	typedef Payload *(*FuncPayloadCreator)(XN &);
 	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
 	void _print() const;
 };
@@ -360,10 +358,8 @@ public:
 	template <class T>
 	const typename T::Payload &operator[](const T &node) const {
 		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
-		const local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(packet->payload());
-		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
-		const typename T::Payload *payload_t(static_cast<const Payload*>(payload.get()));
-		return *payload_t;
+		const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
+		return *static_cast<const typename T::Payload*>(payload.get());
 	}
 	int size() const {return m_packet->size();}
 	const shared_ptr<const typename Node<XN>::NodeList> list() const {
@@ -376,7 +372,7 @@ public:
 	}
 	shared_ptr<const typename Node<XN>::NodeList> list(const shared_ptr<Node<XN> > &node) const {
 		local_shared_ptr<typename Node<XN>::Packet> const &packet(node->reverseLookup(m_packet));
-		if( ! packet->size() )
+		if( !packet->size() )
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return packet->subnodes();
 	}
@@ -399,15 +395,11 @@ public:
 	virtual ~SingleSnapshot() {}
 
 	const typename T::Payload *operator->() const {
-		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
-		return &static_cast<const typename T::Payload&>(
-			*static_cast<const Payload *>(this->m_packet->payload().get()));
+		return static_cast<const typename T::Payload *>(this->m_packet->payload().get());
 	}
 	template <class X>
 	operator X() const {
-		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
-		return (X)static_cast<const typename T::Payload&>(
-			*static_cast<const Payload *>(this->m_packet->payload().get()));
+		return (X)( *operator->());
 	}
 protected:
 };
@@ -426,15 +418,16 @@ public:
 		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		for(;;) {
-			m_serial = Node<XN>::Packet::s_serial;
-			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
-				break;
-		}
-		m_serial++;
+		setSerial();
 		node.snapshot(*this, multi_nodal);
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
+	}
+	explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) : Snapshot<XN>(x),
+		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal && this->isBundled()) {
+		XTime time(XTime::now());
+		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
+		setSerial();
 	}
 //	Transaction(const Transaction &x) : Snapshot<XN>(x),
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
@@ -483,12 +476,7 @@ public:
 			if( !time || (time > m_started_time))
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
-		for(;;) {
-			m_serial = Node<XN>::Packet::s_serial;
-			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
-				break;
-		}
-		m_serial++;
+		setSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
 		m_talkers_marked.clear();
 		return *this;
@@ -500,24 +488,24 @@ public:
 	}
 	template <class T>
 	typename T::Payload &operator[](T &node) {
-		local_shared_ptr<typename Node<XN>::PayloadWrapperBase> &payload(
+		local_shared_ptr<typename Node<XN>::Payload> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
-		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
 		if(payload->m_serial != this->m_serial) {
 			payload.reset(payload->clone(*this, this->m_serial));
+			typename T::Payload &p( *static_cast<typename T::Payload *>(payload.get()));
+			return p;
 		}
-		Payload &p(*static_cast<Payload*>(payload.get()));
-		p.touch();
+		typename T::Payload &p( *static_cast<typename T::Payload *>(payload.get()));
 		return p;
 	}
 	bool isMultiNodal() const {return m_multi_nodal;}
 
-	template <typename tArg>
-	void mark(Talker<XN, tArg> &talker, const tArg &arg) {
+	template <typename T, typename tArgRef>
+	void mark(T &talker, tArgRef arg) {
 		talker.mark(arg);
 		m_talkers_marked.push_back(&talker);
 	}
-	void unmark(Talker<XN, tArg> &talker) {
+	void unmark(_TalkerBase<XN> &talker) {
 		m_talkers_marked.erase(std::find(m_talkers_marked.begin(), m_talkers_marked.end(), talker));
 	}
 private:
@@ -526,6 +514,14 @@ private:
 	friend class Node<XN>;
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	int64_t m_serial;
+	void setSerial() {
+		for(;;) {
+			m_serial = Node<XN>::Packet::s_serial;
+			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
+				break;
+		}
+		m_serial++;
+	}
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
 	typedef std::deque<_TalkerBase<XN>*> TalkerList;
@@ -546,9 +542,7 @@ public:
 	}
 	template <class X>
 	operator X() const {
-		typedef typename Node<XN>::template PayloadWrapper<T> Payload;
-		return (X)static_cast<const typename T::Payload&>(
-			*static_cast<const Payload *>(this->m_packet->payload().get()));
+		return (X)( *static_cast<const typename T::Payload *>(this->m_packet->payload().get()));
 	}
 protected:
 };

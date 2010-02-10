@@ -103,6 +103,7 @@ private:
 	template <typename X, typename E> friend class atomic_shared_ptr_base;
 	template <typename X> friend class atomic_shared_ptr;
 	template <typename X> friend class local_shared_ptr;
+	atomic_countable& operator=(const atomic_countable &); //inhibited.
 	typedef uintptr_t Refcnt;
 	//! Global reference counter.
 	Refcnt refcnt;
@@ -124,38 +125,51 @@ private:
  */
 template <typename T, typename Enable = void>
 struct atomic_shared_ptr_base {
+protected:
 	//! Non-atomic access to the internal pointer.
 	//! Never use this function for a shared instance.
 	//! \sa reset()
-	template<typename Y> void reset_unsafe(Y *y) {
-		m_ref = (_RefLocal)new Ref(static_cast<T*>(y));
-	}
-	T *get() { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
-	const T *get() const { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
 
 	typedef _atomic_shared_ptr_gref<T> Ref;
 	typedef typename Ref::Refcnt Refcnt;
 	typedef uintptr_t _RefLocal;
+
+	static int deleter(Ref *p) { delete p; return 1; }
+
+	template<typename Y> void reset_unsafe(Y *y) {
+		m_ref = (_RefLocal)new Ref(static_cast<T*>(y));
+	}
+	T *get() { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
+	const T *get() const { return this->m_ref ? ((const Ref*)this->m_ref)->ptr : NULL; }
+
+	int _use_count() const {readBarrier(); return ((const Ref*)this->m_ref)->refcnt;}
+
 	_RefLocal m_ref;
 };
 template <typename T>
 struct atomic_shared_ptr_base<T, typename boost::enable_if<boost::is_base_of<atomic_countable, T> >::type > {
+protected:
 	//! Non-atomic access to the internal pointer.
 	//! Never use this function for a shared instance.
 	//! \sa reset()
+	typedef T Ref;
+	typedef typename atomic_countable::Refcnt Refcnt;
+	typedef uintptr_t _RefLocal;
+
+	static int deleter(T *p) { delete p; return 1;}
+
 	template<typename Y> void reset_unsafe(Y *y) {
 		m_ref = (_RefLocal)static_cast<T*>(y);
 	}
 	T *get() { return (T*)this->m_ref; }
 	const T *get() const { return (const T*)this->m_ref; }
 
-	typedef T Ref;
-	typedef typename atomic_countable::Refcnt Refcnt;
-	typedef uintptr_t _RefLocal;
+	int _use_count() const {readBarrier(); return ((const T*)this->m_ref)->refcnt;}
+
 	_RefLocal m_ref;
 };
 template <typename T>
-class atomic_shared_ptr : protected atomic_shared_ptr_base<T> {
+class atomic_shared_ptr : public atomic_shared_ptr_base<T> {
 public:
 	atomic_shared_ptr() { this->m_ref = 0; }
 
@@ -335,6 +349,9 @@ public:
 	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {
 		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
 		readBarrier(); return (this->_pref() != (const Ref*)x._pref());}
+
+	int use_count() const {readBarrier(); return this->_use_count();}
+	bool unique() const {return use_count() == 1;}
 protected:
 	template <typename Y> friend class local_shared_ptr;
 	template <typename Y> friend class atomic_shared_ptr;
@@ -354,7 +371,7 @@ atomic_shared_ptr<T>::~atomic_shared_ptr() {
 	// decreasing global reference counter.
 	if(atomicDecAndTest(&pref->refcnt)) {
 		readBarrier();
-		delete pref;
+		deleter(pref);
 	}
 }
 
@@ -427,7 +444,7 @@ atomic_shared_ptr<T>::_leave_scan_(Ref *pref) const {
 		// local reference has released by other processes.
 		if(atomicDecAndTest(&pref->refcnt)) {
 			readBarrier();
-			delete pref;
+			deleter(pref);
 		}
 		break;
 	}
@@ -460,7 +477,7 @@ atomic_shared_ptr<T>::compareAndSwap(local_shared_ptr<T> &oldr, const local_shar
 				if(oldr._pref()) {
 					// decreasing global reference counter.
 					if(atomicDecAndTest(&oldr._pref()->refcnt)) {
-						delete oldr._pref();
+						deleter(oldr._pref());
 					}
 				}
 				oldr.m_ref = (_RefLocal)pref;
