@@ -140,7 +140,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	ASSERT(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
 	packet->subnodes()->push_back(var);
 	ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
-	tr[*this].catchEvent(var);
+	tr[*this].catchEvent(var, packet->size() - 1);
 	tr[*this].listChangeEvent();
 //		printf("i");
 	return tr.commit(false);
@@ -167,6 +167,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<PacketWrapper> newsubwrapper;
 	packet->m_hasCollision = false;
 	unsigned int idx = 0;
+	int old_idx = -1;
 	typename NodeList::iterator nit = packet->subnodes()->begin();
 	for(typename PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
 		ASSERT(nit != packet->subnodes()->end());
@@ -179,6 +180,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 			}
 			pit = packet->subpackets()->erase(pit);
 			nit = packet->subnodes()->erase(nit);
+			old_idx = idx;
 		}
 		else {
 			if(*pit) {
@@ -198,7 +200,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	if( !packet->size()) {
 		packet->subpackets().reset();
 	}
-	tr[*this].releaseEvent(var);
+	tr[*this].releaseEvent(var, old_idx);
 	tr[*this].listChangeEvent();
 	if( !newsubwrapper) {
 		return tr.commit( !packet->m_hasCollision);

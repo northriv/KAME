@@ -108,8 +108,8 @@ public:
 		Transaction<XN> &tr() { return *this->m_tr;}
 		virtual Payload *clone(Transaction<XN> &tr, int64_t serial) = 0;
 
-		virtual void catchEvent(const shared_ptr<XN>&) {}
-		virtual void releaseEvent(const shared_ptr<XN>&) {}
+		virtual void catchEvent(const shared_ptr<XN>&, int) {}
+		virtual void releaseEvent(const shared_ptr<XN>&, int) {}
 		virtual void moveEvent(unsigned int src_idx, unsigned int dst_idx) {}
 		virtual void listChangeEvent() {}
 
@@ -380,6 +380,9 @@ public:
 		m_packet->_print();
 	}
 	bool isBundled() const {return m_bundled;}
+
+	template <typename T, typename tArgRef>
+	void talk(T &talker, tArgRef arg) const { talker.talk(*this, arg); }
 protected:
 	friend class Node<XN>;
 	//! The snapshot.
@@ -431,7 +434,7 @@ public:
 	}
 //	Transaction(const Transaction &x) : Snapshot<XN>(x),
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
-//		m_started_time(x.m_started_time), m_talkers_marked() {}
+//		m_started_time(x.m_started_time), m_messages() {}
 	virtual ~Transaction() {
 		Node<XN> &node(this->m_packet->node());
 		//Do not leave the time stamp.
@@ -471,7 +474,7 @@ public:
 		}
 		setSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
-		m_talkers_marked.clear();
+		m_messages.clear();
 		return *this;
 	}
 
@@ -495,11 +498,9 @@ public:
 
 	template <typename T, typename tArgRef>
 	void mark(T &talker, tArgRef arg) {
-		talker.mark(arg);
-		m_talkers_marked.push_back(&talker);
-	}
-	void unmark(_TalkerBase<XN> &talker) {
-		m_talkers_marked.erase(std::find(m_talkers_marked.begin(), m_talkers_marked.end(), talker));
+		_Message<XN> *m = talker.message(arg);
+		if(m)
+			m_messages.push_back(shared_ptr<_Message<XN> >(m));
 	}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
@@ -514,10 +515,12 @@ private:
 		m_serial++;
 	}
 	void finalizeCommitment() {
-		Snapshot<XN> before(m_oldpacket, this->m_bundled);
-		for(typename TalkerList::iterator it = m_talkers_marked.begin(); it != m_talkers_marked.end(); ++it) {
-			(*it)->talk(before, *this);
+		if(m_messages.size()) {
+			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
+				(*it)->talk(*this);
+			}
 		}
+		m_messages.clear();
 		Node<XN> &node(this->m_packet->node());
 		if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
 			node.m_wrapper->m_transaction_started_time = 0;
@@ -529,8 +532,8 @@ private:
 	int64_t m_serial;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
-	typedef std::deque<_TalkerBase<XN>*> TalkerList;
-	TalkerList m_talkers_marked;
+	typedef std::deque<shared_ptr<_Message<XN> > > MessageList;
+	MessageList m_messages;
 };
 
 template <class XN, typename T>
