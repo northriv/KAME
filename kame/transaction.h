@@ -261,17 +261,17 @@ private:
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial = 0);
+		bool copy_branch, int tr_serial = 0, bool has_collision = false);
 	const local_shared_ptr<Packet> &reverseLookup(
 		const local_shared_ptr<Packet> &packet) const {
 		return const_cast<Node*>(this)->reverseLookup(
 			const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
 	static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, Cache *cache);
+		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool has_collision, Cache *cache);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
 	local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial, Cache *cache) const;
+		bool copy_branch, int tr_serial, bool has_collision, Cache *cache) const;
 protected:
 	//! Use \a create().
 	Node();
