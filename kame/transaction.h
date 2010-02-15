@@ -204,12 +204,12 @@ public:
 		inline void negotiate(uint64_t &started_time);
 	};
 
-	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
+	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void insert(const shared_ptr<XN> &var);
 	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void release(const shared_ptr<XN> &var);
 	void releaseAll();
-	bool swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+	void swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 private:
 	friend class Snapshot<XN>;

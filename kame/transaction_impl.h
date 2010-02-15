@@ -120,14 +120,14 @@ Node<XN>::_print() const {
 template <class XN>
 void
 Node<XN>::insert(const shared_ptr<XN> &var) {
-	for(;;) {
-		Transaction<XN> tr( *this);
-		if(insert(tr, var))
+	for(Transaction<XN> tr( *this);; ++tr) {
+		insert(tr, var);
+		if(tr.commit())
 			break;
 	}
 }
 template <class XN>
-bool
+void
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
@@ -142,14 +142,14 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	tr[ *this].catchEvent(var, packet->size() - 1);
 	tr[ *this].listChangeEvent();
 //		printf("i");
-	return tr.commit();
 }
 template <class XN>
 void
 Node<XN>::release(const shared_ptr<XN> &var) {
-	for(;;) {
-		Transaction<XN> tr(*this);
-		if(release(tr, var))
+	for(Transaction<XN> tr( *this);; ++tr) {
+		if( !release(tr, var))
+			continue;
+		if(tr.commit())
 			break;
 	}
 }
@@ -159,10 +159,11 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<Packet> oldsubpacket(
 		var->reverseLookup(tr.m_oldpacket));
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
+	ASSERT(packet->size());
+	packet->subpackets().reset(new PacketList( *packet->subpackets()));
 	packet->subpackets()->m_serial = tr.m_serial;
 	packet->subpackets()->m_missing = true;
-	packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
+	packet->subnodes().reset(new NodeList( *packet->subnodes()));
 	local_shared_ptr<PacketWrapper> newsubwrapper;
 	unsigned int idx = 0;
 	int old_idx = -1;
@@ -195,13 +196,13 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		}
 	}
 
-	if( !packet->size()) {
+	if( !packet->subpackets()->size()) {
 		packet->subpackets().reset();
 	}
 	tr[ *this].releaseEvent(var, old_idx);
 	tr[ *this].listChangeEvent();
 	if( !newsubwrapper) {
-		return tr.commit();
+		return true;
 	}
 	local_shared_ptr<PacketWrapper> nullwrapper( *var->m_wrapper);
 	if(nullwrapper->packet() || (nullwrapper->branchpoint() != m_wrapper))
@@ -210,24 +211,17 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<Packet> newpacket(tr.m_packet);
 	tr.m_packet = tr.m_oldpacket;
 	var->reverseLookup(tr.m_packet, true, tr.m_serial, true);
-	if( !tr.m_packet->node().commit(tr))
+	if( !tr.m_packet->node().commit(tr)) {
+		tr.m_oldpacket = tr.m_packet;
+		tr.m_packet = newpacket;
 		return false;
-	if( !var->m_wrapper->compareAndSet(nullwrapper, newsubwrapper))
-		return false;
+	}
 	tr.m_oldpacket = tr.m_packet;
 	tr.m_packet = newpacket;
-	tr.m_bundled = true;
-	return tr.commit();
-//
-//	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(packet, !packet->missing()));
-//	UnbundledStatus ret = unbundle(NULL, tr.m_started_time, *m_wrapper, *var->m_wrapper,
-//		nullwrapper, &oldsubpacket, &newsubwrapper, &tr.m_oldpacket, &newwrapper);
-//	if(ret == UNBUNDLE_W_NEW_VALUES) {
-////			printf("%d", (int)packet->size());
-//		tr.finalizeCommitment();
-//		return true;
-//	}
-//	return false;
+	if( !var->m_wrapper->compareAndSet(nullwrapper, newsubwrapper)) {
+		return false;
+	}
+	return true;
 }
 template <class XN>
 void
@@ -237,20 +231,25 @@ Node<XN>::releaseAll() {
 		if( !tr.size())
 			break;
 		shared_ptr<const NodeList> list(tr.list());
-		release(tr, list->front());
+		if( !release(tr, list->front()))
+			continue;
+		if( !tr.commit())
+			continue;
+		if( !tr.size())
+			break;
 	}
 }
 template <class XN>
 void
 Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
-	for(;;) {
-		Transaction<XN> tr( *this);
-		if(swap(tr, x, y))
+	for(Transaction<XN> tr( *this);; ++tr) {
+		swap(tr, x, y);
+		if(tr.commit())
 			break;
 	}
 }
 template <class XN>
-bool
+void
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
@@ -276,7 +275,6 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 	packet->subnodes()->at(y_idx) = x;
 	tr[ *this].moveEvent(x_idx, y_idx);
 	tr[ *this].listChangeEvent();
-	return tr.commit();
 }
 
 template <class XN>
@@ -415,7 +413,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 				continue;
 			if( !( *foundpacket)->missing() || !multi_nodal) {
 				snapshot.m_packet = *foundpacket;
-				snapshot.m_bundled = !( *foundpacket)->missing();
+				snapshot.m_bundled = true;
 				return;
 			}
 			// The packet is imperfect, and then re-bundling the subpackets.
@@ -631,8 +629,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 				if( !tr.isMultiNodal() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
 					//Single-node mode, the payload in the snapshot is unchanged.
 					tr.m_packet->subpackets() = wrapper->packet()->subpackets();
-					if(wrapper->packet()->missing())
-						newwrapper->setBundled(false);
 				}
 				else
 					return false;
@@ -648,7 +644,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 			}
 			continue;
 		}
-		if(new_bundle_state || tr.m_packet->missing()) {
+		if(new_bundle_state && !tr.m_packet->missing()) {
 			//Committing to the super node at which the snapshot was taken.
 			shared_ptr<BranchPoint > branchpoint(m_wrapper);
 			shared_ptr<BranchPoint > branchpoint_2nd;
@@ -677,8 +673,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 				continue;
 			}
 			if( *packet != tr.m_oldpacket) {
-				if( !tr.isMultiNodal() && (( *packet)->payload() == tr.m_oldpacket->payload()) &&
-					(tr.m_packet->missing() == ( *packet)->missing())) {
+				if( !tr.isMultiNodal() && (( *packet)->payload() == tr.m_oldpacket->payload())) {
 					//Single-node mode, the payload in the snapshot is unchanged.
 					tr.m_packet->subpackets() = ( *packet)->subpackets();
 				}

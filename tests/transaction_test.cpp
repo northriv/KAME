@@ -17,6 +17,10 @@
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
+class LongNode;
+typedef Transactional::Snapshot<LongNode> Snapshot;
+typedef Transactional::Transaction<LongNode> Transaction;
+
 class LongNode : public Transactional::Node<LongNode> {
 public:
 	LongNode() : Transactional::Node<LongNode>() {
@@ -50,11 +54,8 @@ public:
 	};
 };
 
-typedef Transactional::Snapshot<LongNode> Snapshot;
-typedef Transactional::Transaction<LongNode> Transaction;
-
-#define trans(node) for(Transactional::SingleTransaction<LongNode> \
-	__implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+#define trans(node) for(Transaction \
+	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,
@@ -76,7 +77,10 @@ start_routine(void *) {
 	for(int i = 0; i < 2500; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
-			gn2->insert(p2);
+			for(Transaction tr1(*gn1); ; ++tr1){
+				gn2->insert(tr1, p2);
+				if(tr1.commit()) break;
+			}
 			gn2->swap(p2, gn3);
 			gn1->insert(p1);
 		}
@@ -113,7 +117,11 @@ start_routine(void *) {
 		}
 		trans(*gn3) += -1;
 		if((i % 10) == 0) {
-			gn2->release(p2);
+			for(Transaction tr1(*gn1); ; ++tr1){
+				if( !gn2->release(tr1, p2))
+					continue;
+				if(tr1.commit()) break;
+			}
 			gn1->release(p1);
 		}
 	}

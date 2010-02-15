@@ -54,8 +54,8 @@ public:
 typedef Transactional::Snapshot<LongNode> Snapshot;
 typedef Transactional::Transaction<LongNode> Transaction;
 
-#define trans(node) for(Transactional::SingleTransaction<LongNode> \
-	__implicit_tr(node); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+#define trans(node) for(Transaction \
+	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,
