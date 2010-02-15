@@ -227,7 +227,7 @@ private:
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time, const int64_t *bundle_serial = NULL);
-	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE, UNBUNDLE_W_NEW_VALUES,
+	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
 	//! Unloads a subpacket to \a subbranchpoint. If a packet for \a branchpoint has been already bundled by a super node,
@@ -244,7 +244,6 @@ private:
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-		const local_shared_ptr<Packet> *oldsuperpacket = NULL, const local_shared_ptr<PacketWrapper> *newsuperwrapper = NULL,
 		bool new_sub_bundle_state = true);
 	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;

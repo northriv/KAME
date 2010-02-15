@@ -542,7 +542,6 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time
 						subpackets->m_missing = true;
 						break;
 					case UNBUNDLE_W_NEW_SUBVALUE:
-					case UNBUNDLE_W_NEW_VALUES:
 						subwrapper = subwrapper_new;
 						subpacket_new = subwrapper_new->packet();
 						ASSERT(subwrapper->packet());
@@ -689,7 +688,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 			tr.isMultiNodal() ? &tr.m_oldpacket : NULL, tr.isMultiNodal() ? &newwrapper : NULL);
 		switch(status) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
-		case UNBUNDLE_W_NEW_VALUES:
 			if(tr.isMultiNodal())
 				return true;
 		case UNBUNDLE_SUCCESS:
@@ -710,7 +708,6 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	BranchPoint &branchpoint,
 	BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper,
-	const local_shared_ptr<Packet> *oldsuperpacket, const local_shared_ptr<PacketWrapper> *newsuperwrapper,
 	bool new_sub_bunlde_state) {
 	ASSERT( !nullwrapper->packet());
 
@@ -730,13 +727,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		shared_ptr<BranchPoint > branchpoint_super(wrapper->branchpoint());
 		if( !branchpoint_super)
 			return UNBUNDLE_DISTURBED; //Supernode has been destroyed.
-		if(oldsuperpacket) {
-			copied.reset(new PacketWrapper(( *oldsuperpacket), false));
-		}
 		UnbundledStatus status = unbundle(bundle_serial, time_started, *branchpoint_super, branchpoint, wrapper,
-			oldsuperpacket ? &( *oldsuperpacket) : NULL, &copied, NULL, NULL, false);
+			NULL, &copied, false);
 		switch(status) {
-		case UNBUNDLE_W_NEW_VALUES:
 		case UNBUNDLE_W_NEW_SUBVALUE:
 			break;
 		case UNBUNDLE_SUCCESS:
@@ -752,12 +745,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	else {
 		if( !wrapper->packet()->size())
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
-		if(oldsuperpacket)
-			if( !wrapper->isBundled() || (wrapper->packet() != *oldsuperpacket))
-				return UNBUNDLE_DISTURBED;
 		//Tagging as unbundled.
 		copied.reset(new PacketWrapper(wrapper->packet(), false));
-		if( ! branchpoint.compareAndSet(wrapper, copied)) {
+		if( !branchpoint.compareAndSet(wrapper, copied)) {
 			return UNBUNDLE_DISTURBED;
 		}
 	}
@@ -789,7 +779,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		if( !subpacket)
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		newsubwrapper_copied.reset(new PacketWrapper(subpacket,
-			!subpacket->size() || (new_sub_bunlde_state && !subpacket->missing())));
+			!subpacket->size() || new_sub_bunlde_state));
 	}
 	ASSERT(newsubwrapper_copied->isBundled() || newsubwrapper_copied->packet()->size());
 
@@ -800,11 +790,6 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	}
 	if(newsubwrapper)
 		*newsubwrapper = newsubwrapper_copied;
-	local_shared_ptr<PacketWrapper> copied2;
-	if(newsuperwrapper) {
-		copied2 = *newsuperwrapper;
-	}
-	else {
 //		//Erasing out-of-date subpackets on the unbundled superpacket.
 //		copied2.reset(new PacketWrapper(*copied));
 //		copied2->packet().reset(new Packet(*copied2->packet()));
@@ -831,12 +816,6 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 //			++pit;
 //			++nit;
 //		}
-		return UNBUNDLE_W_NEW_SUBVALUE;
-	}
-	ASSERT(copied2->isBundled() || copied2->packet()->size());
-	if(branchpoint.compareAndSet(copied, copied2))
-		return UNBUNDLE_W_NEW_VALUES;
-	else
 		return UNBUNDLE_W_NEW_SUBVALUE;
 }
 
