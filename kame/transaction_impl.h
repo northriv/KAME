@@ -175,21 +175,13 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 				if( !( *pit)->size()) {
 					pit->reset(new Packet( **pit));
 				}
-				newsubwrapper.reset(new PacketWrapper( *pit, !( *pit)->missing()));
+				newsubwrapper.reset(new PacketWrapper( *pit, true));
 			}
 			pit = packet->subpackets()->erase(pit);
 			nit = packet->subnodes()->erase(nit);
 			old_idx = idx;
 		}
 		else {
-			if( *pit) {
-				if(( *pit)->size()) {
-					if(( *pit)->missing())
-						packet->subpackets()->m_missing = true;
-				}
-			}
-			else
-				packet->subpackets()->m_missing = true;
 			++nit;
 			++pit;
 			++idx;
@@ -601,7 +593,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time
 	oldwrapper = target;
 	if(is_bundle_root)
 		subpackets->m_missing = false;
-	target.reset(new PacketWrapper(packet, !packet->missing()));
+	target.reset(new PacketWrapper(packet, true));
 	//Finally, tagging as bundled.
 	if( !m_wrapper->compareAndSet(oldwrapper, target))
 		return BUNDLE_DISTURBED;
