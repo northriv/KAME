@@ -87,9 +87,12 @@ public:
 	};
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(-1) {}
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(-1), m_missing(false) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
+		//! indicates whether the bundle misses any sub-packet or not.
+		//! This case may happen if a node is inserted twice or more, or if the bundle is collapsed.
+		bool m_missing;
 	};
 
 	typedef typename NodeList::iterator iterator;
@@ -141,12 +144,12 @@ public:
 	struct Packet : public atomic_countable {
 		Packet();
 		int size() const {return subpackets() ? subpackets()->size() : 0;}
-		local_shared_ptr<Payload> &payload() {return m_payload;}
-		const local_shared_ptr<Payload> &payload() const {return m_payload;}
-		shared_ptr<NodeList> &subnodes() {return subpackets()->m_subnodes;}
-		shared_ptr<PacketList> &subpackets() {return m_subpackets;}
-		const shared_ptr<NodeList> &subnodes() const {return subpackets()->m_subnodes;}
-		const shared_ptr<PacketList> &subpackets() const {return m_subpackets;}
+		local_shared_ptr<Payload> &payload() { return m_payload;}
+		const local_shared_ptr<Payload> &payload() const { return m_payload;}
+		shared_ptr<NodeList> &subnodes() { return subpackets()->m_subnodes;}
+		shared_ptr<PacketList> &subpackets() { return m_subpackets;}
+		const shared_ptr<NodeList> &subnodes() const { return subpackets()->m_subnodes;}
+		const shared_ptr<PacketList> &subpackets() const { return m_subpackets;}
 
 		//! points to the linked node.
 		Node &node() {return payload()->node();}
@@ -154,12 +157,10 @@ public:
 		const Node &node() const {return payload()->node();}
 
 		void _print() const;
+		bool missing() const { return size() ? subpackets()->m_missing : false;}
 
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		//! indicates whether the subpackage misses a payload for a subnode or not.
-		//! A "collision" may happen if a node is inserted twice or more.
-		bool m_hasCollision;
 		//! generates a serial number for bundling or transaction.
 		static atomic<int64_t> s_serial;
 	};
@@ -261,17 +262,17 @@ private:
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial = 0, bool has_collision = false);
+		bool copy_branch, int tr_serial = 0, bool set_missing = false);
 	const local_shared_ptr<Packet> &reverseLookup(
 		const local_shared_ptr<Packet> &packet) const {
 		return const_cast<Node*>(this)->reverseLookup(
 			const_cast<local_shared_ptr<Packet> &>(packet), false);
 	}
 	static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool has_collision, Cache *cache);
+		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing, Cache *cache);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
 	local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial, bool has_collision, Cache *cache) const;
+		bool copy_branch, int tr_serial, bool set_missing, Cache *cache) const;
 protected:
 	//! Use \a create().
 	Node();
