@@ -223,7 +223,7 @@ private:
 	static SnapshotStatus snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		shared_ptr<BranchPoint > *branchpoint_2nd = NULL);
-	bool commit(Transaction<XN> &tr, bool new_bundle_state = true);
+	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time, const int64_t *bundle_serial = NULL);
@@ -446,9 +446,9 @@ public:
 		}
 	}
 	//! Explicitly commits.
-	bool commit(bool new_bundle_state = true) {
+	bool commit() {
 		Node<XN> &node(this->m_packet->node());
-		if( !isModified() || node.commit(*this, new_bundle_state)) {
+		if( !isModified() || node.commit(*this)) {
 			finalizeCommitment();
 			return true;
 		}
