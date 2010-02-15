@@ -295,7 +295,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
 		if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
 			foundpacket->reset(new Packet( **foundpacket));
 			( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
-			( *foundpacket)->subpackets()->m_missing = set_missing;
+			( *foundpacket)->subpackets()->m_missing = ( *foundpacket)->subpackets()->m_missing || set_missing;
 			( *foundpacket)->subpackets()->m_serial = tr_serial;
 		}
 	}
@@ -359,7 +359,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 			packet.reset(new Packet( *packet));
 			packet->subpackets().reset(new PacketList( *packet->subpackets()));
 			packet->subpackets()->m_serial = tr_serial;
-			packet->subpackets()->m_missing = set_missing;
+			packet->subpackets()->m_missing = packet->subpackets()->m_missing || set_missing;
 		}
 	}
 	for(unsigned int i = 0; i < packet->subnodes()->size(); i++) {
