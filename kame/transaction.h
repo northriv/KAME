@@ -78,6 +78,17 @@ public:
 
 	virtual ~Node();
 
+
+	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
+	void insert(const shared_ptr<XN> &var);
+	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
+	void release(const shared_ptr<XN> &var);
+	void releaseAll();
+	void swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+
+	XN &superNode(Snapshot<XN> &shot);
+
 	class Packet;
 
 	struct PacketList;
@@ -203,14 +214,6 @@ public:
 		atomic<uint64_t> m_transaction_started_time;
 		inline void negotiate(uint64_t &started_time);
 	};
-
-	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
-	void insert(const shared_ptr<XN> &var);
-	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
-	void release(const shared_ptr<XN> &var);
-	void releaseAll();
-	void swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
-	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
@@ -260,18 +263,18 @@ private:
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
+	inline local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
+		bool copy_branch, int tr_serial, bool set_missing, XN** supernode);
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
 		bool copy_branch, int tr_serial = 0, bool set_missing = false);
-	const local_shared_ptr<Packet> &reverseLookup(
-		const local_shared_ptr<Packet> &packet) const {
-		return const_cast<Node*>(this)->reverseLookup(
-			const_cast<local_shared_ptr<Packet> &>(packet), false);
-	}
-	static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing, Cache *cache);
+	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const;
+	inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
+		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing,
+		local_shared_ptr<Packet> *superpacket, int *index);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
-	local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial, bool set_missing, Cache *cache) const;
+	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
+		bool copy_branch, int tr_serial, bool set_missing,
+		local_shared_ptr<Packet> *superpacket, int *index) const;
 protected:
 	//! Use \a create().
 	Node();

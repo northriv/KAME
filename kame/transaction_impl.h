@@ -272,7 +272,8 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 template <class XN>
 local_shared_ptr<typename Node<XN>::Packet>*
 Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
-	local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing, Cache *cache) {
+	local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing,
+	local_shared_ptr<Packet> *superpacket, int *index) {
 	ASSERT(packet->size());
 	local_shared_ptr<PacketWrapper> wrapper( *branchpoint);
 	if(wrapper->packet())
@@ -285,7 +286,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
 		foundpacket = &packet;
 	else {
 		foundpacket = reverseLookupWithHint(branchpoint_super,
-			packet, copy_branch, tr_serial, set_missing, NULL);
+			packet, copy_branch, tr_serial, set_missing, NULL, NULL);
 		if( !foundpacket)
 			return NULL;
 	}
@@ -304,54 +305,18 @@ Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
 	if( !p || (p->node().m_wrapper != branchpoint)) {
 		return NULL;
 	}
-	if(cache) {
-		cache->subpackets = ( *foundpacket)->subpackets();
-		cache->index = ridx;
+	if(superpacket) {
+		*superpacket = *foundpacket;
+		*index = ridx;
 	}
 	return &p;
 }
+
 template <class XN>
-local_shared_ptr<typename Node<XN>::Packet>&
-Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet,
-	bool copy_branch, int tr_serial, bool set_missing) {
-	local_shared_ptr<Packet> *foundpacket;
-	if( &packet->node() == this) {
-		foundpacket = &packet;
-	}
-	else {
-		local_shared_ptr<Cache> cached(m_packet_cache);
-		shared_ptr<PacketList> subpackets_cached(cached->subpackets.lock());
-		if(subpackets_cached && ( !copy_branch || (packet->subpackets()->m_serial == tr_serial)) &&
-			(subpackets_cached->m_serial == packet->subpackets()->m_serial)) {
-				foundpacket = &subpackets_cached->at(cached->index);
-//				printf("%%");
-		}
-		else {
-			local_shared_ptr<Cache> newcache(new Cache);
-			foundpacket = reverseLookupWithHint(m_wrapper, packet,
-				copy_branch, tr_serial, set_missing, newcache.get());
-			if(foundpacket) {
-//				printf("$");
-			}
-			else {
-//				printf("!");
-				foundpacket = forwardLookup(packet, copy_branch, tr_serial, set_missing, newcache.get());
-				ASSERT(foundpacket);
-			}
-			m_packet_cache = newcache;
-		}
-		ASSERT( &( *foundpacket)->node() == this);
-	}
-	if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
-		foundpacket->reset(new Packet( **foundpacket));
-	}
-//						printf("#");
-	return *foundpacket;
-}
-template <class XN>
-local_shared_ptr<typename Node<XN>::Packet>*
+inline local_shared_ptr<typename Node<XN>::Packet>*
 Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
-	bool copy_branch, int tr_serial, bool set_missing, Cache *cache) const {
+	bool copy_branch, int tr_serial, bool set_missing,
+	local_shared_ptr<Packet> *superpacket, int *index) const {
 	ASSERT(packet);
 	if( !packet->subpackets())
 		return NULL;
@@ -367,10 +332,8 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 		if(packet->subnodes()->at(i).get() == this) {
 			local_shared_ptr<Packet> &subpacket(packet->subpackets()->at(i));
 			if(subpacket) {
-				if(cache) {
-					cache->subpackets = packet->subpackets();
-					cache->index = i;
-				}
+				*superpacket = packet;
+				*index = i;
 				return &subpacket;
 			}
 		}
@@ -379,12 +342,80 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 		local_shared_ptr<Packet> &subpacket(packet->subpackets()->at(i));
 		if(subpacket) {
 			if(local_shared_ptr<Packet> *p =
-				forwardLookup(subpacket, copy_branch, tr_serial, set_missing, cache)) {
+				forwardLookup(subpacket, copy_branch, tr_serial, set_missing, superpacket, index)) {
 				return p;
 			}
 		}
 	}
 	return NULL;
+}
+
+template <class XN>
+inline local_shared_ptr<typename Node<XN>::Packet>&
+Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet,
+	bool copy_branch, int tr_serial, bool set_missing, XN **supernode) {
+	local_shared_ptr<Packet> *foundpacket;
+	if( &packet->node() == this) {
+		foundpacket = &packet;
+	}
+	else {
+		local_shared_ptr<Cache> cached(m_packet_cache);
+		shared_ptr<PacketList> subpackets_cached(cached->subpackets.lock());
+		if(subpackets_cached && ( !copy_branch || (packet->subpackets()->m_serial == tr_serial)) &&
+			(subpackets_cached->m_serial == packet->subpackets()->m_serial) && !supernode) {
+			foundpacket = &subpackets_cached->at(cached->index);
+//				printf("%%");
+		}
+		else {
+			local_shared_ptr<Packet> superpacket;
+			int index;
+			foundpacket = reverseLookupWithHint(m_wrapper, packet,
+				copy_branch, tr_serial, set_missing, &superpacket, &index);
+			if(foundpacket) {
+//				printf("$");
+			}
+			else {
+//				printf("!");
+				foundpacket = forwardLookup(packet, copy_branch, tr_serial, set_missing,
+					&superpacket, &index);
+				ASSERT(foundpacket);
+			}
+			local_shared_ptr<Cache> newcache(new Cache);
+			newcache->subpackets = superpacket->subpackets();
+			newcache->index = index;
+			m_packet_cache = newcache;
+			if(supernode)
+				*supernode = static_cast<XN*>(&superpacket->node());
+		}
+		ASSERT( &( *foundpacket)->node() == this);
+	}
+	if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
+		foundpacket->reset(new Packet( **foundpacket));
+	}
+//						printf("#");
+	return *foundpacket;
+}
+
+template <class XN>
+local_shared_ptr<typename Node<XN>::Packet>&
+Node<XN>::reverseLookup(local_shared_ptr<Packet> &packet,
+	bool copy_branch, int tr_serial, bool set_missing) {
+	return reverseLookup(packet, copy_branch, tr_serial, set_missing, 0);
+}
+
+template <class XN>
+const local_shared_ptr<typename Node<XN>::Packet> &
+Node<XN>::reverseLookup(const local_shared_ptr<Packet> &packet) const {
+	return const_cast<Node*>(this)->reverseLookup(
+		const_cast<local_shared_ptr<Packet> &>(packet), false, 0, false, 0);
+}
+
+template <class XN>
+XN &
+Node<XN>::superNode(Snapshot<XN> &shot) {
+	XN *supernode = 0;
+	reverseLookup(shot.m_packet, false, 0, false, &supernode);
+	return *supernode;
 }
 
 template <class XN>
