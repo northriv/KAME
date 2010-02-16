@@ -150,8 +150,19 @@ main(int argc, char **argv)
 		gn3.reset(LongNode::create<LongNode>());
 		gn4.reset(LongNode::create<LongNode>());
 
-		gn1->insert(gn2);
-		gn2->insert(gn3);
+		for(Transaction tr1(*gn1); ; ++tr1){
+			gn1->insert(tr1, gn2, true);
+			tr1[ *gn2] = tr1[ *gn2] + 1;
+			gn2->insert(tr1, gn3);
+			if(tr1.commit())
+				break;
+		}
+		for(Transaction tr1(*gn2); ; ++tr1){
+			tr1[ *gn2] = tr1[ *gn2] - 1;
+			tr1[ *gn3] = 0;
+			if(tr1.commit())
+				break;
+		}
 		{
 			Snapshot shot1(*gn1);
 			shot1.print();
@@ -201,7 +212,9 @@ main(int argc, char **argv)
 				printf("f");
 			}
 		}
+		gn1->_print();
 		gn1->release(p1);
+		gn1->_print();
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {

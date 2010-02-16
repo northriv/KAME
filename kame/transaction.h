@@ -78,8 +78,7 @@ public:
 
 	virtual ~Node();
 
-
-	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var);
+	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion = false);
 	void insert(const shared_ptr<XN> &var);
 	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void release(const shared_ptr<XN> &var);
@@ -87,7 +86,7 @@ public:
 	void swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 
-	XN &superNode(Snapshot<XN> &shot);
+	XN *superNode(Snapshot<XN> &shot);
 
 	class Packet;
 
@@ -186,10 +185,9 @@ public:
 		//! \return If true, the content is a snapshot, and is up-to-date.\n
 		//! The subnodes must not hold their own packets.
 		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
-		bool isBundled() const {return packet() && (m_state & PACKET_BUNDLE_STATE) == PACKET_BUNDLED;}
-		void setBundled(bool x) {m_state = (m_state & ~PACKET_BUNDLE_STATE) |
-			(x ? PACKET_BUNDLED : PACKET_UNBUNDLED);
-		}
+		bool isBundled() const { return m_state == PACKET_BUNDLED;}
+		void setBundled(bool x) { m_state = (x ? PACKET_BUNDLED : PACKET_UNBUNDLED);}
+		bool hasPriority() const { return m_state < 0; }
 		const local_shared_ptr<Packet> &packet() const {return m_packet;}
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
@@ -203,10 +201,7 @@ public:
 		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
 		int m_state; //!< is also used for reverseIndex().
-		enum STATE {
-			PACKET_BUNDLE_STATE = 0xf,
-			PACKET_UNBUNDLED = 0x1, PACKET_BUNDLED = 0x2
-		};
+		enum STATE { PACKET_UNBUNDLED = -1, PACKET_BUNDLED = -2 };
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
 		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(-1) {}
@@ -214,6 +209,9 @@ public:
 		atomic<uint64_t> m_transaction_started_time;
 		inline void negotiate(uint64_t &started_time);
 	};
+
+	void _print() const;
+
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
@@ -222,7 +220,8 @@ private:
 		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
 		target.m_oldpacket = target.m_packet;
 	}
-	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED, SNAPSHOT_STRUCTURE_HAS_CHANGED};
+	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
+		SNAPSHOT_STRUCTURE_HAS_CHANGED, SNAPSHOT_NOT_FOUND};
 	static SnapshotStatus snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		shared_ptr<BranchPoint > *branchpoint_2nd = NULL);
@@ -275,6 +274,7 @@ private:
 	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
 		bool copy_branch, int tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *superpacket, int *index) const;
+
 protected:
 	//! Use \a create().
 	Node();
@@ -283,7 +283,6 @@ private:
 	Node &operator=(const Node &); //non-copyable.
 	typedef Payload *(*FuncPayloadCreator)(XN &);
 	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
-	void _print() const;
 };
 
 template <class XN>
