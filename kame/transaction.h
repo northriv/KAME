@@ -447,9 +447,9 @@ public:
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
 //		m_started_time(x.m_started_time), m_messages() {}
 	virtual ~Transaction() {
-		Node<XN> &node(this->m_packet->node());
 		//Do not leave the time stamp.
 		if(m_started_time) {
+			Node<XN> &node(this->m_packet->node());
 			if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
 				node.m_wrapper->m_transaction_started_time = 0;
 			}
@@ -518,17 +518,20 @@ private:
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
 	void finalizeCommitment() {
+		//Clears the time stamp linked to this object.
+		Node<XN> &node(this->m_packet->node());
+		if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
+			node.m_wrapper->m_transaction_started_time = 0;
+		}
+		m_started_time = 0;
+
+		//Messaging.
 		if(m_messages.size()) {
 			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
 				(*it)->talk(*this);
 			}
 		}
 		m_messages.clear();
-		Node<XN> &node(this->m_packet->node());
-		if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
-			node.m_wrapper->m_transaction_started_time = 0;
-		}
-		m_started_time = 0;
 	}
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;

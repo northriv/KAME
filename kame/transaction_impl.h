@@ -626,6 +626,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 							break;
 						case UNBUNDLE_SUBVALUE_HAS_CHANGED:
 							if(subwrapper == *child->m_wrapper) {
+								//The node has been released from the supernode.
 								subpacket_new = subwrapper->packet();
 								ASSERT(subpacket_new);
 								break;
@@ -812,18 +813,24 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 			NULL, &copied, false);
 		switch(status) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
+			ASSERT(copied);
 			break;
 		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_PARTIALLY:
 			return UNBUNDLE_PARTIALLY;
 		case UNBUNDLE_COLLIDED:
 			return UNBUNDLE_COLLIDED;
+		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
+			if(wrapper == branchpoint) {
+				//The node has been released from the supernode.
+				ASSERT(wrapper->packet());
+				break;
+			}
 		default:
 			return UNBUNDLE_DISTURBED;
 		}
-		ASSERT(copied);
 	}
-	else {
+	if( !copied) {
 		if( !wrapper->packet()->size())
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		//Tagging as unbundled.
