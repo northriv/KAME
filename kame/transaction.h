@@ -215,7 +215,8 @@ public:
 private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
-	void snapshot(Snapshot<XN> &target, bool multi_nodal, uint64_t &started_time) const;
+	void snapshot(Snapshot<XN> &target, bool multi_nodal,
+		uint64_t &started_time) const;
 	void snapshot(Transaction<XN> &target, bool multi_nodal) const {
 		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
 		target.m_oldpacket = target.m_packet;
@@ -228,7 +229,8 @@ private:
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, uint64_t &started_time, const int64_t *bundle_serial = NULL);
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
+		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
@@ -250,19 +252,13 @@ private:
 	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;
 
-	struct Cache : public atomic_countable {
-		weak_ptr<PacketList> subpackets; //!< a weak pointer to the packet list of the super node.
-		int index; //!< a index pointing this node and packet.
-	};
-	//! for \a reverseLookup().
-	atomic_shared_ptr<Cache> m_packet_cache;
 	mutable atomic<int> m_transaction_count;
 
 	//! finds the packet for this node in the (un)bundled \a packet.
 	//! \arg packet The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	inline local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
+	inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet,
 		bool copy_branch, int tr_serial, bool set_missing, XN** supernode);
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
 		bool copy_branch, int tr_serial = 0, bool set_missing = false);
@@ -338,17 +334,20 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 template <class XN>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_bundled(x.m_bundled) {
+	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_bundled(x.m_bundled), m_serial(x.m_serial) {
 	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
+		setSerial();
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot(*this, multi_nodal, ms);
 		++node.m_transaction_count;
 	}
 	Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet, bool bundled) :
-		m_packet(packet), m_bundled(bundled) {}
+		m_packet(packet), m_bundled(bundled) {
+		setSerial();
+	}
 	virtual ~Snapshot() {
 		--this->m_packet->node().m_transaction_count;
 	}
@@ -390,7 +389,18 @@ protected:
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
 	bool m_bundled;
-	Snapshot() : m_packet() {}
+	int64_t m_serial;
+	Snapshot() : m_packet() {
+		setSerial();
+	}
+	void setSerial() {
+		for(;;) {
+			m_serial = Node<XN>::Packet::s_serial;
+			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
+				break;
+		}
+		m_serial++;
+	}
 };
 
 template <class XN, typename T>
@@ -423,7 +433,6 @@ public:
 		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		setSerial();
 		node.snapshot(*this, multi_nodal);
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
@@ -432,7 +441,7 @@ public:
 		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal && this->isBundled()) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		setSerial();
+		this->setSerial();
 	}
 //	Transaction(const Transaction &x) : Snapshot<XN>(x),
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
@@ -474,7 +483,7 @@ public:
 			if( !time || (time > m_started_time))
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
-		setSerial();
+		this->setSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
 		m_messages.clear();
 		return *this;
@@ -508,14 +517,6 @@ private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
-	void setSerial() {
-		for(;;) {
-			m_serial = Node<XN>::Packet::s_serial;
-			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
-				break;
-		}
-		m_serial++;
-	}
 	void finalizeCommitment() {
 		if(m_messages.size()) {
 			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
@@ -531,7 +532,6 @@ private:
 	}
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
-	int64_t m_serial;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
 	typedef std::deque<shared_ptr<_Message<XN> > > MessageList;
@@ -558,7 +558,7 @@ protected:
 };
 
 template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet), m_bundled(x.m_bundled) {}
+inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet), m_bundled(x.m_bundled), m_serial(x.m_serial) {}
 
 } //namespace Transactional
 

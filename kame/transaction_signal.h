@@ -52,6 +52,7 @@ struct _Message {
 //! \sa XListener, XSignalStore
 //! \p tArg: value which will be derivered
 //! \p tArgWrapper: copied argument, will be released by GC someday
+//!\todo abandon tArgRef, use const tArg&.
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 class Talker {
 public:
