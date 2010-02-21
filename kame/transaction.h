@@ -18,6 +18,7 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <vector>
+#include <deque>
 #include "atomic.h"
 #include "xtime.h"
 
@@ -149,7 +150,7 @@ public:
 		PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
 	};
-
+	class PacketWrapper;
 	//! A package containing \a Payload, subpackages, and a list of subnodes.
 	struct Packet : public atomic_countable {
 		Packet();
@@ -168,6 +169,12 @@ public:
 
 		void _print() const;
 		bool missing() const { return size() ? subpackets()->m_missing : false;}
+
+		bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
+		void fixBrokenLinkage(const std::deque<shared_ptr<XN> > &released,
+			const local_shared_ptr<Packet> &packet,
+			local_shared_ptr<PacketWrapper> &newsubwrapper, int64_t serial);
+		void listSubnodes(std::deque<shared_ptr<XN> > &list);
 
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
@@ -222,7 +229,7 @@ private:
 		target.m_oldpacket = target.m_packet;
 	}
 	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
-		SNAPSHOT_STRUCTURE_HAS_CHANGED, SNAPSHOT_NOT_FOUND};
+		SNAPSHOT_STRUCTURE_HAS_CHANGED, SNAPSHOT_NOT_FOUND, SNAPSHOT_VOID_PACKET};
 	static SnapshotStatus snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		shared_ptr<BranchPoint > *branchpoint_2nd = NULL);
@@ -231,6 +238,9 @@ private:
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
+	bool bundle_subpacket(const shared_ptr<Node> &subnode,
+		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
+		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
 		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
