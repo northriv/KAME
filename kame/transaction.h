@@ -79,12 +79,12 @@ public:
 
 	virtual ~Node();
 
-	void insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion = false);
+	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion = false);
 	void insert(const shared_ptr<XN> &var);
 	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
 	void release(const shared_ptr<XN> &var);
 	void releaseAll();
-	void swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+	bool swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 
 	XN *superNode(Snapshot<XN> &shot);
@@ -98,7 +98,7 @@ public:
 	};
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(-1), m_missing(false) {}
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL), m_missing(false) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 		//! indicates whether the bundle misses any sub-packet or not.
@@ -151,6 +151,7 @@ public:
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
 	};
 	class PacketWrapper;
+	struct BranchPoint;
 	//! A package containing \a Payload, subpackages, and a list of subnodes.
 	struct Packet : public atomic_countable {
 		Packet();
@@ -171,17 +172,25 @@ public:
 		bool missing() const { return size() ? subpackets()->m_missing : false;}
 
 		bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
-		void fixBrokenLinkage(const std::deque<shared_ptr<XN> > &released,
-			const local_shared_ptr<Packet> &packet,
-			local_shared_ptr<PacketWrapper> &newsubwrapper, int64_t serial);
-		void listSubnodes(std::deque<shared_ptr<XN> > &list);
 
+		//! Generates a serial number for bundling or transaction.
+		static int64_t newSerial() {
+			int64_t newserial;
+			for(;;) {
+				int64_t oldserial;
+				oldserial = s_serial;
+				newserial = oldserial + 1;
+				if(newserial == SERIAL_NULL) newserial++;
+				if(s_serial.compareAndSet(oldserial, newserial))
+					break;
+			}
+			return newserial;
+		}
+		enum {SERIAL_NULL = 0};
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
-		//! generates a serial number for bundling or transaction.
 		static atomic<int64_t> s_serial;
 	};
-	struct BranchPoint;
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
 		//! creates a wrapper not containing a packet but pointing to the super node.
@@ -211,7 +220,7 @@ public:
 		enum STATE { PACKET_UNBUNDLED = -1, PACKET_BUNDLED = -2 };
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
-		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(-1) {}
+		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(Packet::SERIAL_NULL) {}
 		atomic<int64_t> m_bundle_serial;
 		atomic<uint64_t> m_transaction_started_time;
 		inline void negotiate(uint64_t &started_time);
@@ -238,7 +247,7 @@ private:
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
-	bool bundle_subpacket(const shared_ptr<Node> &subnode,
+	BundledStatus bundle_subpacket(const shared_ptr<Node> &subnode,
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
@@ -348,7 +357,7 @@ public:
 	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-		setSerial();
+		m_serial = Node<XN>::Packet::newSerial();
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot(*this, multi_nodal, ms);
@@ -356,7 +365,7 @@ public:
 	}
 	Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet, bool bundled) :
 		m_packet(packet), m_bundled(bundled) {
-		setSerial();
+		m_serial = Node<XN>::Packet::newSerial();
 	}
 	virtual ~Snapshot() {
 		--this->m_packet->node().m_transaction_count;
@@ -401,15 +410,7 @@ protected:
 	bool m_bundled;
 	int64_t m_serial;
 	Snapshot() : m_packet() {
-		setSerial();
-	}
-	void setSerial() {
-		for(;;) {
-			m_serial = Node<XN>::Packet::s_serial;
-			if(Node<XN>::Packet::s_serial.compareAndSet(m_serial, m_serial + 1))
-				break;
-		}
-		m_serial++;
+		m_serial = Node<XN>::Packet::newSerial();
 	}
 };
 
@@ -451,7 +452,7 @@ public:
 		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal && this->isBundled()) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		this->setSerial();
+		this->m_serial = Node<XN>::Packet::newSerial();
 	}
 //	Transaction(const Transaction &x) : Snapshot<XN>(x),
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
@@ -493,7 +494,7 @@ public:
 			if( !time || (time > m_started_time))
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
-		this->setSerial();
+		this->m_serial = Node<XN>::Packet::newSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
 		m_messages.clear();
 		return *this;

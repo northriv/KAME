@@ -36,19 +36,19 @@ template <class XN>
 void
 Node<XN>::Packet::_print() const {
 	printf("Packet: ");
-	printf("Node:%llx, ", (unsigned long long)(uintptr_t)&node());
-	printf("Branchpoint:%llx, ", (unsigned long long)(uintptr_t)node().m_wrapper.get());
+	printf("node:%llx, ", (unsigned long long)(uintptr_t)&node());
+	printf("branchpoint:%llx, ", (unsigned long long)(uintptr_t)node().m_wrapper.get());
 	if(missing())
 		printf("missing, ");
 	if(size()) {
 		printf("%d subnodes : [ \n", (int)size());
-		for(unsigned int i = 0; i < size(); i++) {
+		for(int i = 0; i < size(); i++) {
 			if(subpackets()->at(i)) {
 				subpackets()->at(i)->_print();
 				printf("; ");
 			}
 			else {
-				printf("Node:%llx, [void]; ", (unsigned long long)(uintptr_t)subnodes()->at(i).get());
+				printf("node:%llx w/o packet; ", (unsigned long long)(uintptr_t)subnodes()->at(i).get());
 			}
 		}
 		printf("]\n");
@@ -64,7 +64,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 			if( !(payload()->m_serial - subpackets()->m_serial < 0x7fffffffffffffffLL))
 				throw __LINE__;
 		}
-		for(unsigned int i = 0; i < size(); i++) {
+		for(int i = 0; i < size(); i++) {
 			if( !subpackets()->at(i)) {
 				if( !rootpacket->missing()) {
 					if( !subnodes()->at(i)->reverseLookup(
@@ -110,15 +110,16 @@ void
 Node<XN>::PacketWrapper::_print() const {
 	printf("PacketWrapper: ");
 	if( !hasPriority()) {
-		printf("Bundled by:%llx, ", (unsigned long long)(uintptr_t)branchpoint().get());
+		printf("referred to :%llx, ", (unsigned long long)(uintptr_t)branchpoint().get());
 	}
 	if(packet()) {
-		if(isBundled())
-			printf("Bundled, ");
+		if(isBundled()) {
+			printf("correctly bundled, ");
+		}
 		packet()->_print();
 	}
 	else {
-		printf("Not here, ");
+		printf("absent, ");
 	}
 	printf("\n");
 }
@@ -150,9 +151,6 @@ Node<XN>::Node() : m_wrapper(new BranchPoint()), m_transaction_count(0) {
 	//Use create() for this hack.
 	packet->m_payload.reset(( *stl_funcPayloadCreator)(static_cast<XN&>( *this)));
 	*stl_funcPayloadCreator = NULL;
-
-	if(this == (Node*)0x1)
-		_print(); //Do not strip out the debug function, _print() please.
 }
 template <class XN>
 Node<XN>::~Node() {
@@ -170,13 +168,14 @@ template <class XN>
 void
 Node<XN>::insert(const shared_ptr<XN> &var) {
 	for(Transaction<XN> tr( *this);; ++tr) {
-		insert(tr, var);
+		if( !insert(tr, var))
+			continue;
 		if(tr.commit())
 			break;
 	}
 }
 template <class XN>
-void
+bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
@@ -188,26 +187,52 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	ASSERT(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
 	packet->subnodes()->push_back(var);
 	ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
+
+	local_shared_ptr<PacketWrapper> monwrapper( *m_wrapper);
 	for(;;) {
 		local_shared_ptr<Packet> subpacket_new;
 		local_shared_ptr<PacketWrapper> subwrapper;
-		if( !bundle_subpacket(var, subwrapper, subpacket_new, tr.m_started_time, tr.m_serial)) {
-			continue;
+		BundledStatus status = bundle_subpacket(var, subwrapper, subpacket_new, tr.m_started_time, tr.m_serial);
+		if(status != BUNDLE_SUCCESS) {
+			if(monwrapper == *m_wrapper)
+				continue;
+			else {
+				tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+				return false;
+			}
 		}
 		if( !subpacket_new)
+			//Inserted twice inside the package.
 			break;
+
+		//Marks for writing at subnode.
+		local_shared_ptr<Packet> newpacket(tr.m_packet);
+		tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+		if( !tr.m_packet->node().commit(tr)) {
+			tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+			tr.m_packet = newpacket;
+			return false;
+		}
+		tr.m_oldpacket = tr.m_packet;
+		tr.m_packet = newpacket;
+
+		local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(m_wrapper, packet->size() - 1));
 		if(online_after_insertion) {
 			packet->subpackets()->back() = subpacket_new;
 		}
-		local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(m_wrapper, packet->size() - 1));
-		newwrapper->packet() = subpacket_new;
-		ASSERT( !newwrapper->hasPriority());
-		if(var->m_wrapper->compareAndSet(subwrapper, newwrapper))
-			break;
+		else {
+			newwrapper->packet() = subpacket_new;
+		}
+		if( !var->m_wrapper->compareAndSet(subwrapper, newwrapper)) {
+			tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+			return false;
+		}
+		break;
 	}
 	tr[ *this].catchEvent(var, packet->size() - 1);
 	tr[ *this].listChangeEvent();
 	STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
+	return true;
 //		printf("i");
 }
 template <class XN>
@@ -220,60 +245,18 @@ Node<XN>::release(const shared_ptr<XN> &var) {
 			break;
 	}
 }
-template <class XN>
-void
-Node<XN>::Packet::listSubnodes(std::deque<shared_ptr<XN> > &list) {
-	for(int i = 0; i < size(); ++i) {
-		local_shared_ptr<Packet> &subpacket(subpackets()->at(i));
-		if(subpacket) {
-			list.push_back(subnodes()->at(i));
-			subpacket->listSubnodes(list);
-		}
-	}
-}
-template <class XN>
-void
-Node<XN>::Packet::fixBrokenLinkage(const std::deque<shared_ptr<XN> > &released,
-	const local_shared_ptr<Packet> &newpacket,
-	local_shared_ptr<PacketWrapper> &newsubwrapper, int64_t serial) {
-	for(int i = 0; i < size(); ++i) {
-		local_shared_ptr<Packet> &subpacket(subpackets()->at(i));
-		typename std::deque<shared_ptr<XN> >::const_iterator it_found =
-			std::find(released.begin(), released.end(), subnodes()->at(i));
-		if( !subpacket && (it_found != released.end())) {
-			subpacket = ( *it_found)->reverseLookup(newpacket);
-			if( &newpacket->node() == &node()) {
-				newsubwrapper.reset(new PacketWrapper(node().m_wrapper , i));
-				newsubwrapper->packet() = newpacket;
-			}
-			continue;
-		}
-		if( !subpacket || !subpacket->missing())
-			continue;
-		if( !subpacket->size())
-			continue;
-		if(subpacket->subpackets()->m_serial != serial) {
-			subpacket.reset(new Packet( *subpacket));
-			subpacket->subpackets().reset(new PacketList( *subpacket->subpackets()));
-			subpacket->subpackets()->m_serial = serial;
-		}
-		subpacket->fixBrokenLinkage(released, newpacket, newsubwrapper, serial);
-	}
-}
 
 template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
-	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, false);
+	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	ASSERT(packet->size());
 	packet->subpackets().reset(new PacketList( *packet->subpackets()));
 	packet->subpackets()->m_serial = tr.m_serial;
-//	packet->subpackets()->m_missing = true;
 	packet->subnodes().reset(new NodeList( *packet->subnodes()));
-	local_shared_ptr<PacketWrapper> newsubwrapper;
-	local_shared_ptr<PacketWrapper> nullwrapper;
 	unsigned int idx = 0;
 	int old_idx = -1;
+	local_shared_ptr<PacketWrapper> nullsubwrapper, newsubwrapper;
 	typename NodeList::iterator nit = packet->subnodes()->begin();
 	for(typename PacketList::iterator pit = packet->subpackets()->begin(); pit != packet->subpackets()->end();) {
 		ASSERT(nit != packet->subnodes()->end());
@@ -282,12 +265,12 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 				if( !( *pit)->size()) {
 					pit->reset(new Packet( **pit));
 				}
-				nullwrapper = *var->m_wrapper;
-				if(nullwrapper->hasPriority()) {
+				nullsubwrapper = *var->m_wrapper;
+				if(nullsubwrapper->hasPriority() || (nullsubwrapper->branchpoint() != m_wrapper)) {
 					tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
 					return false;
 				}
-				newsubwrapper.reset(new PacketWrapper( *nullwrapper));
+				newsubwrapper.reset(new PacketWrapper(m_wrapper, idx));
 				newsubwrapper->packet() = *pit;
 			}
 			pit = packet->subpackets()->erase(pit);
@@ -306,30 +289,37 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	}
 	tr[ *this].releaseEvent(var, old_idx);
 	tr[ *this].listChangeEvent();
-	if( !newsubwrapper) {
+	if( !nullsubwrapper) {
+		//Packet of the released node is held by the other point inside the tr.m_packet.
 		return true;
 	}
-	std::deque<shared_ptr<XN> > released_nodes;
-	newsubwrapper->packet()->listSubnodes(released_nodes);
-	released_nodes.push_back(var);
-	tr.m_packet->fixBrokenLinkage(released_nodes, newsubwrapper->packet(), newsubwrapper, tr.m_serial);
-	STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
+	if(tr.m_packet->size()) {
+		tr.m_packet->subpackets()->m_missing = true;
+	}
 
-//		printf("r");
+	//Marks as missing.
 	local_shared_ptr<Packet> newpacket(tr.m_packet);
 	tr.m_packet = tr.m_oldpacket;
 	local_shared_ptr<Packet> *p = var->reverseLookup(tr.m_packet, true, tr.m_serial, true, 0);
-	if(p && !tr.m_packet->node().commit(tr)) {
+	if( !p)
+		tr.m_packet.reset(new Packet( *tr.m_packet));
+	if( !tr.m_packet->node().commit(tr)) {
 		tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
 		tr.m_packet = newpacket;
 		return false;
 	}
 	tr.m_oldpacket = tr.m_packet;
 	tr.m_packet = newpacket;
-	if( !var->m_wrapper->compareAndSet(nullwrapper, newsubwrapper)) {
+
+	//Sets temporary packet on the released node.
+	if( !var->m_wrapper->compareAndSet(nullsubwrapper, newsubwrapper)) {
 		tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
 		return false;
 	}
+//		printf("r");
+	STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
+
+	m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
 	return true;
 }
 template <class XN>
@@ -364,13 +354,14 @@ template <class XN>
 void
 Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 	for(Transaction<XN> tr( *this);; ++tr) {
-		swap(tr, x, y);
+		if( !swap(tr, x, y))
+			continue;
 		if(tr.commit())
 			break;
 	}
 }
 template <class XN>
-void
+bool
 Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
@@ -397,6 +388,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 	tr[ *this].moveEvent(x_idx, y_idx);
 	tr[ *this].listChangeEvent();
 	STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
+	return true;
 }
 
 template <class XN>
@@ -617,8 +609,9 @@ Node<XN>::snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 	shared_ptr<BranchPoint > branchpoint_super(shot->branchpoint());
 	if( !branchpoint_super) {
 		//Checking if it is up-to-date.
-		if( *branchpoint == oldwrapper)
+		if( *branchpoint == oldwrapper) {
 			return SNAPSHOT_NOT_FOUND;
+		}
 		return SNAPSHOT_STRUCTURE_HAS_CHANGED; //Supernode has been destroyed.
 	}
 	int ridx = shot->reverseIndex();
@@ -664,18 +657,13 @@ Node<XN>::snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
 }
 
 template <class XN>
-bool
+typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(const shared_ptr<Node> &subnode,
 	local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 	uint64_t &started_time, int64_t bundle_serial) {
 
 	subwrapper = *subnode->m_wrapper;
-	bool use_local_wrapper = false;
-	bool confused = false;
-	if(subwrapper->hasPriority()) {
-		use_local_wrapper = true;
-	}
-	else {
+	if( !subwrapper->hasPriority()) {
 		shared_ptr<BranchPoint > branchpoint(subwrapper->branchpoint());
 		bool need_for_unbundle = false;
 		bool detect_collision = false;
@@ -683,21 +671,21 @@ Node<XN>::bundle_subpacket(const shared_ptr<Node> &subnode,
 			if(subpacket_new) {
 				if(subpacket_new->missing())
 					need_for_unbundle = true;
+				else
+					return BUNDLE_SUCCESS;
 			}
 			else {
 				if(subwrapper->packet()) {
 					//Re-inserted.
-					use_local_wrapper = true;
 				}
 				else
-					confused = true;
+					return BUNDLE_DISTURBED;
 			}
 		}
 		else {
 			if( !branchpoint) {
 				//Supernode has been destroyed.
 				ASSERT(subwrapper->packet());
-				use_local_wrapper = true;
 			}
 			else {
 				//bundled by another node.
@@ -706,46 +694,41 @@ Node<XN>::bundle_subpacket(const shared_ptr<Node> &subnode,
 			}
 		}
 		if(need_for_unbundle) {
+			local_shared_ptr<PacketWrapper> superwrapper( *branchpoint);
 			local_shared_ptr<PacketWrapper> subwrapper_new;
 			UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : NULL, started_time,
 				*branchpoint, *subnode->m_wrapper, subwrapper, NULL, &subwrapper_new);
 			switch(status) {
+			case UNBUNDLE_W_NEW_SUBVALUE:
+				subwrapper = subwrapper_new;
+				break;
 			case UNBUNDLE_COLLIDED:
 				//The subpacket has already been included in the snapshot.
 				subpacket_new.reset();
-				break;
-			case UNBUNDLE_W_NEW_SUBVALUE:
-				subwrapper = subwrapper_new;
-				use_local_wrapper = true;
-				break;
+				return BUNDLE_SUCCESS;
 			case UNBUNDLE_SUBVALUE_HAS_CHANGED:
-				if(subwrapper == *subnode->m_wrapper) {
+				if((subwrapper == *subnode->m_wrapper) && (superwrapper == *branchpoint)) {
 					//The node has been released from the supernode.
-					use_local_wrapper = true;
 					break;
 				}
 			default:
-				confused = true;
-				break;
+				return BUNDLE_DISTURBED;
 			}
 		}
 	}
-	if(use_local_wrapper) {
-		if(subwrapper->packet()->size() && ( !subwrapper->isBundled() || subwrapper->packet()->missing()) ) {
-			BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
-			switch(status) {
-			case BUNDLE_SUCCESS:
+	if(subwrapper->packet()->size() && ( !subwrapper->isBundled() || subwrapper->packet()->missing()) ) {
+		BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
+		switch(status) {
+		case BUNDLE_SUCCESS:
 //						ASSERT(subwrapper->isBundled());
-				break;
-			case BUNDLE_DISTURBED:
-			default:
-				confused = true;
-				break;
-			}
+			break;
+		case BUNDLE_DISTURBED:
+		default:
+			return BUNDLE_DISTURBED;
 		}
-		subpacket_new = subwrapper->packet();
 	}
-	return !confused;
+	subpacket_new = subwrapper->packet();
+	return BUNDLE_SUCCESS;
 }
 
 template <class XN>
@@ -772,7 +755,8 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 		local_shared_ptr<Packet> &subpacket_new(subpackets->at(i));
 		for(;;) {
 			local_shared_ptr<PacketWrapper> subwrapper;
-			if( !bundle_subpacket(child, subwrapper, subpacket_new, started_time, bundle_serial)) {
+			BundledStatus status = bundle_subpacket(child, subwrapper, subpacket_new, started_time, bundle_serial);
+			if(status != BUNDLE_SUCCESS) {
 				if(target == *m_wrapper)
 					continue;
 				else
@@ -938,6 +922,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	if( !wrapper->hasPriority()) {
 		//Unbundle all supernodes.
 		shared_ptr<BranchPoint > branchpoint_super(wrapper->branchpoint());
+		local_shared_ptr<PacketWrapper> wrapper_super( *branchpoint_super);
 		if( !branchpoint_super)
 			return UNBUNDLE_DISTURBED; //Supernode has been destroyed.
 		UnbundledStatus status = unbundle(bundle_serial, time_started, *branchpoint_super, branchpoint, wrapper,
@@ -953,9 +938,10 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		case UNBUNDLE_COLLIDED:
 			return UNBUNDLE_COLLIDED;
 		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
-			if(wrapper == branchpoint) {
+			if((wrapper == branchpoint) && (wrapper_super == *branchpoint_super)) {
 				//The node has been released from the supernode.
-				ASSERT(wrapper->packet());
+				if( !wrapper->packet())
+					return UNBUNDLE_COLLIDED;
 				break;
 			}
 		default:
