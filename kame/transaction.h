@@ -289,7 +289,10 @@ private:
 	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
 		bool copy_branch, int tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *superpacket, int *index) const;
-
+	static void eraseBundleSerials(const local_shared_ptr<Packet> &packet);
+//	bool hasAnyBundleSerial(const local_shared_ptr<Packet> &packet);
+	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
+		const local_shared_ptr<Packet> &packet);
 protected:
 	//! Use \a create().
 	Node();

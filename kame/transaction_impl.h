@@ -17,8 +17,10 @@
 #ifdef TRANSACTIONAL_STRICT_ASSERT
 	#undef STRICT_ASSERT
 	#define STRICT_ASSERT(expr) ASSERT(expr)
+	#define STRICT_TEST(expr) expr
 #else
 	#define STRICT_ASSERT(expr)
+	#define STRICT_TEST(expr)
 #endif
 
 namespace Transactional {
@@ -247,6 +249,29 @@ Node<XN>::release(const shared_ptr<XN> &var) {
 }
 
 template <class XN>
+void
+Node<XN>::eraseBundleSerials(const local_shared_ptr<Packet> &packet) {
+	packet->node().m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
+	for(int i = 0; i < packet->size(); ++i) {
+		const local_shared_ptr<Packet> &subpacket(packet->subpackets()->at(i));
+		if(subpacket)
+			eraseBundleSerials(subpacket);
+	}
+}
+//template <class XN>
+//bool
+//Node<XN>::hasAnyBundleSerial(const local_shared_ptr<Packet> &packet) {
+//	if(m_wrapper->m_bundle_serial != Packet::SERIAL_NULL)
+//		return true;
+//	for(int i = 0; i < packet->size(); ++i) {
+//		const local_shared_ptr<Packet> &subpacket(packet->subpackets()->at(i));
+//		if(subpacket)
+//			if(packet->subnodes()->at(i)->hasAnyBundleSerial(subpacket))
+//				return true;
+//	}
+//	return false;
+//}
+template <class XN>
 bool
 Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
@@ -289,6 +314,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	}
 	tr[ *this].releaseEvent(var, old_idx);
 	tr[ *this].listChangeEvent();
+
 	if( !nullsubwrapper) {
 		//Packet of the released node is held by the other point inside the tr.m_packet.
 		return true;
@@ -311,6 +337,15 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	tr.m_oldpacket = tr.m_packet;
 	tr.m_packet = newpacket;
 
+	m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
+	eraseBundleSerials(newsubwrapper->packet());
+
+//	if(var->hasAnyBundleSerial(newsubwrapper->packet()) || (m_wrapper->m_bundle_serial != Packet::SERIAL_NULL)) {
+//		//Being bundled by another thread.
+//		tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+//		return false;
+//	}
+
 	//Sets temporary packet on the released node.
 	if( !var->m_wrapper->compareAndSet(nullsubwrapper, newsubwrapper)) {
 		tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -318,8 +353,6 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	}
 //		printf("r");
 	STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
-
-	m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
 	return true;
 }
 template <class XN>
@@ -795,12 +828,25 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 		}
 	}
 	oldwrapper = target;
-	STRICT_ASSERT(packet->checkConsistensy(packet));
 	target.reset(new PacketWrapper(packet, true));
 	//Finally, tagging as bundled.
 	if( !m_wrapper->compareAndSet(oldwrapper, target))
 		return BUNDLE_DISTURBED;
+
+	STRICT_ASSERT(packet->checkConsistensy(packet));
 	return BUNDLE_SUCCESS;
+}
+
+template <class XN>
+void
+Node<XN>::fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> > &subwrappers,
+	const local_shared_ptr<Packet> &packet) {
+	for(int i = 0; i < packet->size(); ++i) {
+		const local_shared_ptr<Packet> &subpacket(packet->subpackets()->at(i));
+		subwrappers.push_back( *packet->subnodes()->at(i)->m_wrapper);
+		if(subpacket)
+			fetchSubpackets(subwrappers, subpacket);
+	}
 }
 
 template <class XN>
@@ -834,8 +880,14 @@ Node<XN>::commit(Transaction<XN> &tr) {
 				else
 					return false;
 			}
+			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
+			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
 			STRICT_ASSERT(tr.m_packet->checkConsistensy(tr.m_packet));
 			if(m_wrapper->compareAndSet(wrapper, newwrapper)) {
+				STRICT_TEST(if(wrapper->isBundled())
+					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
+					it = subwrappers.begin(); it != subwrappers.end(); ++it)
+					ASSERT( !( *it)->hasPriority()));
 				return true;
 			}
 			continue;
@@ -923,10 +975,10 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		//Unbundle all supernodes.
 		shared_ptr<BranchPoint > branchpoint_super(wrapper->branchpoint());
 		local_shared_ptr<PacketWrapper> wrapper_super( *branchpoint_super);
-		if( !branchpoint_super)
-			return UNBUNDLE_DISTURBED; //Supernode has been destroyed.
-		UnbundledStatus status = unbundle(bundle_serial, time_started, *branchpoint_super, branchpoint, wrapper,
-			NULL, &copied, false);
+		UnbundledStatus status = UNBUNDLE_SUBVALUE_HAS_CHANGED;
+		if(branchpoint_super)
+			status = unbundle(bundle_serial, time_started, *branchpoint_super, branchpoint, wrapper,
+				NULL, &copied, false);
 		switch(status) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
 			ASSERT(copied);
