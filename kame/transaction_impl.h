@@ -735,15 +735,16 @@ Node<XN>::bundle_subpacket(const shared_ptr<Node> &subnode,
 			case UNBUNDLE_W_NEW_SUBVALUE:
 				subwrapper = subwrapper_new;
 				break;
+			case UNBUNDLE_SUBVALUE_NOT_FOUND:
+				if(subwrapper->packet()) {
+					//The node has been released from the supernode.
+					break;
+				}
 			case UNBUNDLE_COLLIDED:
 				//The subpacket has already been included in the snapshot.
 				subpacket_new.reset();
 				return BUNDLE_SUCCESS;
 			case UNBUNDLE_SUBVALUE_HAS_CHANGED:
-				if((subwrapper == *subnode->m_wrapper) && (superwrapper == *branchpoint)) {
-					//The node has been released from the supernode.
-					break;
-				}
 			default:
 				return BUNDLE_DISTURBED;
 			}
@@ -809,7 +810,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 	}
 	if(is_bundle_root)
 		subpackets->m_missing = false;
-	STRICT_ASSERT(packet->checkConsistensy(packet));
+
 	//First checkpoint.
 	if( !m_wrapper->compareAndSet(oldwrapper, target)) {
 		return BUNDLE_DISTURBED;
@@ -947,14 +948,14 @@ Node<XN>::commit(Transaction<XN> &tr) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
 			if(tr.isMultiNodal())
 				return true;
-		case UNBUNDLE_SUCCESS:
-		case UNBUNDLE_PARTIALLY:
 			continue;
 		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
 			return false;
+		case UNBUNDLE_SUBVALUE_NOT_FOUND:
+		case UNBUNDLE_PARTIALLY:
 		case UNBUNDLE_DISTURBED:
 		default:
-			break;
+			continue;
 		}
 	}
 }
@@ -971,29 +972,31 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	local_shared_ptr<PacketWrapper> wrapper(branchpoint);
 	local_shared_ptr<PacketWrapper> copied;
 //	printf("u");
+	UnbundledStatus status = UNBUNDLE_W_NEW_SUBVALUE;
 	if( !wrapper->hasPriority()) {
 		//Unbundle all supernodes.
 		shared_ptr<BranchPoint > branchpoint_super(wrapper->branchpoint());
 		local_shared_ptr<PacketWrapper> wrapper_super( *branchpoint_super);
-		UnbundledStatus status = UNBUNDLE_SUBVALUE_HAS_CHANGED;
 		if(branchpoint_super)
 			status = unbundle(bundle_serial, time_started, *branchpoint_super, branchpoint, wrapper,
 				NULL, &copied, false);
+		else
+			status = UNBUNDLE_SUBVALUE_NOT_FOUND;
+
 		switch(status) {
 		case UNBUNDLE_W_NEW_SUBVALUE:
 			ASSERT(copied);
 			wrapper = copied;
 			break;
-		case UNBUNDLE_SUCCESS:
 		case UNBUNDLE_PARTIALLY:
 			return UNBUNDLE_PARTIALLY;
 		case UNBUNDLE_COLLIDED:
-			return UNBUNDLE_COLLIDED;
-		case UNBUNDLE_SUBVALUE_HAS_CHANGED:
-			if((wrapper == branchpoint) && (wrapper_super == *branchpoint_super)) {
+			break;
+		case UNBUNDLE_SUBVALUE_NOT_FOUND:
+			if(wrapper == branchpoint) {
 				//The node has been released from the supernode.
 				if( !wrapper->packet())
-					return UNBUNDLE_COLLIDED;
+					return UNBUNDLE_SUBVALUE_NOT_FOUND;
 				break;
 			}
 		default:
@@ -1012,10 +1015,14 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 //		++pit;
 //		++nit;
 //	}
-	{
+	if(wrapper->packet()) {
 		int size = wrapper->packet()->size();
-		if( !size)
-			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
+		if( !size) {
+			if(wrapper == branchpoint)
+				return UNBUNDLE_SUBVALUE_NOT_FOUND;
+			else
+				return UNBUNDLE_DISTURBED;
+		}
 		PacketList &subpackets( *wrapper->packet()->subpackets());
 		int i = nullwrapper->reverseIndex();
 		for(int cnt = 0; cnt < size; ++cnt) {
@@ -1029,9 +1036,18 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 			//The index might be modified by swap().
 			++i;
 		}
+		if( !subpacket) {
+			if(wrapper == branchpoint)
+				return UNBUNDLE_SUBVALUE_NOT_FOUND;
+			else
+				return UNBUNDLE_DISTURBED;
+		}
 	}
-	if( ! subpacket)
-		return UNBUNDLE_SUBVALUE_HAS_CHANGED;
+	else {
+		ASSERT(status == UNBUNDLE_COLLIDED);
+	}
+	if(status == UNBUNDLE_COLLIDED)
+		return UNBUNDLE_COLLIDED;
 
 	if(bundle_serial && (branchpoint.m_bundle_serial == *bundle_serial)) {
 		//The node has been already bundled in the same snapshot.
@@ -1040,13 +1056,13 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	}
 	branchpoint.negotiate(time_started);
 
-//	if( !copied) {
-		//Tagging as unbundled.
+	if(status != UNBUNDLE_SUBVALUE_NOT_FOUND) {
+		//Tagging superpacket as unbundled.
 		copied.reset(new PacketWrapper(wrapper->packet(), false));
 		if( !branchpoint.compareAndSet(wrapper, copied)) {
 			return UNBUNDLE_DISTURBED;
 		}
-//	}
+	}
 
 	local_shared_ptr<PacketWrapper> newsubwrapper_copied;
 	if(oldsubpacket) {
@@ -1065,7 +1081,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	if( !subbranchpoint.compareAndSet(nullwrapper, newsubwrapper_copied)) {
 		if( !local_shared_ptr<PacketWrapper>(subbranchpoint)->packet())
 			return UNBUNDLE_SUBVALUE_HAS_CHANGED;
-		return UNBUNDLE_SUCCESS;
+		return UNBUNDLE_PARTIALLY;
 	}
 	if(newsubwrapper)
 		*newsubwrapper = newsubwrapper_copied;

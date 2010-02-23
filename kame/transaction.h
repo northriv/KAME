@@ -251,8 +251,9 @@ private:
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
-		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_COLLIDED,
-		UNBUNDLE_SUCCESS, UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
+		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_SUBVALUE_NOT_FOUND,
+		UNBUNDLE_COLLIDED,
+		UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
 	//! Unloads a subpacket to \a subbranchpoint. If a packet for \a branchpoint has been already bundled by a super node,
 	//! it performs unbundling for all the super nodes.
 	//! \arg bundle_serial If not zero, consistency/collision wil be checked.
