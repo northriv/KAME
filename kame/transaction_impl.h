@@ -190,30 +190,23 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	packet->subnodes()->push_back(var);
 	ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
 
-	local_shared_ptr<PacketWrapper> monwrapper( *m_wrapper);
 	for(;;) {
 		local_shared_ptr<Packet> subpacket_new;
 		local_shared_ptr<PacketWrapper> subwrapper;
 		BundledStatus status = bundle_subpacket(var, subwrapper, subpacket_new, tr.m_started_time, tr.m_serial);
 		if(status != BUNDLE_SUCCESS) {
-			if(monwrapper == *m_wrapper)
-				continue;
-			else {
-				tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-				return false;
-			}
+			continue;
 		}
 		if( !subpacket_new)
 			//Inserted twice inside the package.
 			break;
 
+		bool has_failed = false;
 		//Marks for writing at subnode.
 		local_shared_ptr<Packet> newpacket(tr.m_packet);
 		tr.m_packet.reset(new Packet( *tr.m_oldpacket));
 		if( !tr.m_packet->node().commit(tr)) {
-			tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-			tr.m_packet = newpacket;
-			return false;
+			has_failed = true;
 		}
 		tr.m_oldpacket = tr.m_packet;
 		tr.m_packet = newpacket;
@@ -225,6 +218,8 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 		else {
 			newwrapper->packet() = subpacket_new;
 		}
+		if(has_failed)
+			return false;
 		if( !var->m_wrapper->compareAndSet(subwrapper, newwrapper)) {
 			tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
 			return false;
