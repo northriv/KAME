@@ -89,26 +89,6 @@ public:
 
 	XN *superNode(Snapshot<XN> &shot);
 
-	class Packet;
-
-	struct PacketList;
-	struct NodeList : public std::vector<shared_ptr<XN> > {
-		NodeList() : std::vector<shared_ptr<XN> >() {}
-	private:
-	};
-	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
-		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL), m_missing(false) {}
-		//! Serial number of the transaction.
-		int64_t m_serial;
-		//! indicates whether the bundle misses any sub-packet or not.
-		//! This case may happen if a node is inserted twice or more, or if the bundle is collapsed.
-		bool m_missing;
-	};
-
-	typedef typename NodeList::iterator iterator;
-	typedef typename NodeList::const_iterator const_iterator;
-
 	//! Data and accessor linked to the node.
 	//! Re-implement members in its subclasses.
 	struct Payload : public atomic_countable {
@@ -132,6 +112,30 @@ public:
 		int64_t m_serial;
 		Transaction<XN> *m_tr;
 	};
+
+	void _print() const;
+
+private:
+	class Packet;
+
+	struct PacketList;
+	struct NodeList : public std::vector<shared_ptr<XN> > {
+		NodeList() : std::vector<shared_ptr<XN> >() {}
+	private:
+	};
+	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
+		shared_ptr<NodeList> m_subnodes;
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL), m_missing(false) {}
+		//! Serial number of the transaction.
+		int64_t m_serial;
+		//! indicates whether the bundle misses any sub-packet or not.
+		//! This case may happen if a node is inserted twice or more, or if the bundle is collapsed.
+		bool m_missing;
+	};
+
+	typedef typename NodeList::iterator iterator;
+	typedef typename NodeList::const_iterator const_iterator;
+
 	template <class P>
 	struct PayloadWrapper : public P::Payload {
 		virtual PayloadWrapper *clone(Transaction<XN> &tr, int64_t serial) {
@@ -226,9 +230,6 @@ public:
 		inline void negotiate(uint64_t &started_time);
 	};
 
-	void _print() const;
-
-private:
 	friend class Snapshot<XN>;
 	friend class Transaction<XN>;
 	void snapshot(Snapshot<XN> &target, bool multi_nodal,
