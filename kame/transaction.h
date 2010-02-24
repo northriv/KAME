@@ -234,10 +234,10 @@ private:
 	}
 	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
 		SNAPSHOT_NODE_MISSING, SNAPSHOT_VOID_PACKET, SNAPSHOT_COLLIDED};
-	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
+	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint> &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		shared_ptr<BranchPoint > *branchpoint_super = NULL, bool copy_branch = false,
-		int serial = Packet::SERIAL_NULL, bool set_missing = false);
+		int serial = Packet::SERIAL_NULL, bool set_missing = false, local_shared_ptr<Packet> *newsuperpacket = 0);
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
@@ -248,8 +248,7 @@ private:
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_SUBVALUE_NOT_FOUND,
-		UNBUNDLE_COLLIDED,
-		UNBUNDLE_PARTIALLY, UNBUNDLE_DISTURBED};
+		UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
 	//! Unloads a subpacket to \a subbranchpoint. If a packet for \a branchpoint has been already bundled by a super node,
 	//! it performs unbundling for all the super nodes.
 	//! \arg bundle_serial If not zero, consistency/collision wil be checked.
@@ -261,8 +260,7 @@ private:
 	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
 	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
 	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
-		BranchPoint &branchpoint,
-		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
+		const shared_ptr<BranchPoint> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL,
 		local_shared_ptr<PacketWrapper> *newsubwrapper = NULL);
 	//! The point where the packet is held.
