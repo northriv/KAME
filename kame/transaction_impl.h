@@ -32,7 +32,7 @@ template <class XN>
 atomic<int64_t> Node<XN>::Packet::s_serial = 0;
 
 template <class XN>
-Node<XN>::Packet::Packet() {}
+Node<XN>::Packet::Packet() : m_missing(false) {}
 
 template <class XN>
 void
@@ -178,7 +178,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
 	packet->subpackets()->m_serial = tr.m_serial;
-	packet->subpackets()->m_missing = true;
+	packet->m_missing = true;
 	packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
 	packet->subpackets()->resize(packet->size() + 1);
 	ASSERT(packet->subnodes());
@@ -302,6 +302,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 
 	if( !packet->subpackets()->size()) {
 		packet->subpackets().reset();
+		packet->m_missing = false;
 	}
 	tr[ *this].releaseEvent(var, old_idx);
 	tr[ *this].listChangeEvent();
@@ -311,7 +312,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		return true;
 	}
 	if(tr.m_packet->size()) {
-		tr.m_packet->subpackets()->m_missing = true;
+		tr.m_packet->m_missing = true;
 	}
 
 	//Marks as missing.
@@ -390,7 +391,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
 	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
 	packet->subpackets()->m_serial = tr.m_serial;
-	packet->subpackets()->m_missing = true;
+	packet->m_missing = true;
 	packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
 	unsigned int idx = 0;
 	int x_idx = -1, y_idx = -1;
@@ -444,7 +445,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
 		if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
 			foundpacket->reset(new Packet( **foundpacket));
 			( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
-			( *foundpacket)->subpackets()->m_missing = ( *foundpacket)->subpackets()->m_missing || set_missing;
+			( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
 			( *foundpacket)->subpackets()->m_serial = tr_serial;
 		}
 	}
@@ -472,7 +473,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 			packet.reset(new Packet( *packet));
 			packet->subpackets().reset(new PacketList( *packet->subpackets()));
 			packet->subpackets()->m_serial = tr_serial;
-			packet->subpackets()->m_missing = packet->subpackets()->m_missing || set_missing;
+			packet->m_missing = packet->m_missing || set_missing;
 		}
 	}
 	for(unsigned int i = 0; i < packet->subnodes()->size(); i++) {
@@ -624,8 +625,8 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 						foundpacket->reset(new Packet( **foundpacket));
 						( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
 						( *foundpacket)->subpackets()->m_serial = serial;
-						( *foundpacket)->subpackets()->m_missing =
-							( *foundpacket)->subpackets()->m_missing || set_missing;
+						( *foundpacket)->m_missing =
+							( *foundpacket)->m_missing || set_missing;
 					}
 				}
 				ASSERT((status == SNAPSHOT_COLLIDED) || (status == SNAPSHOT_SUCCESS));
@@ -793,7 +794,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 	//copying all sub-packets from nodes to the new packet.
 	packet->subpackets().reset(new PacketList( *packet->subpackets()));
 	shared_ptr<PacketList> &subpackets(packet->subpackets());
-	subpackets->m_missing = false;
+	packet->m_missing = false;
 	shared_ptr<NodeList> &subnodes(packet->subnodes());
 	std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(subpackets->size());
 	for(unsigned int i = 0; i < subpackets->size(); ++i) {
@@ -811,19 +812,19 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 			subwrappers_org[i] = subwrapper;
 			if(subpacket_new) {
 				if(subpacket_new->missing()) {
-					subpackets->m_missing = true;
+					packet->m_missing = true;
 				}
 				ASSERT(&subpacket_new->node() == child.get());
 			}
 			else
-				subpackets->m_missing = true;
+				packet->m_missing = true;
 			break;
 		}
 	}
 	if(is_bundle_root)
-		subpackets->m_missing = false;
-	bool missing = subpackets->m_missing;
-	subpackets->m_missing = true;
+		packet->m_missing = false;
+	bool missing = packet->missing();
+	packet->m_missing = true;
 
 	//First checkpoint.
 	if( !m_wrapper->compareAndSet(oldwrapper, target)) {
@@ -847,8 +848,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 	if( !missing) {
 		packet.reset(new Packet( *packet));
 		target->packet() = packet;
-		packet->subpackets().reset(new PacketList( *packet->subpackets()));
-		packet->subpackets()->m_missing = missing;
+		packet->m_missing = missing;
 	}
 
 	//Finally, tagging as bundled.
@@ -1065,8 +1065,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		//Tagging superpacket as missing.
 		copied.reset(new PacketWrapper(wrapper->packet()));
 		copied->packet().reset(new Packet( *copied->packet()));
-		copied->packet()->subpackets().reset(new PacketList( *copied->packet()->subpackets()));
-		copied->packet()->subpackets()->m_missing = true;
+		copied->packet()->m_missing = true;
 		if( !branchpoint.compareAndSet(wrapper, copied)) {
 			return UNBUNDLE_DISTURBED;
 		}

@@ -128,12 +128,9 @@ private:
 	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL), m_missing(false) {}
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
-		//! indicates whether the bundle misses any sub-packet or not.
-		//! This case may happen if a node is inserted twice or more, or if the bundle is collapsed.
-		bool m_missing;
 	};
 
 	template <class P>
@@ -173,7 +170,7 @@ private:
 		const Node &node() const {return payload()->node();}
 
 		void _print() const;
-		bool missing() const { return size() ? subpackets()->m_missing : false;}
+		bool missing() const { return m_missing;}
 
 		bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
 
@@ -194,6 +191,8 @@ private:
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		static atomic<int64_t> s_serial;
+		//! indicates whether the bundle contains the up-to-date subpackets or not.
+		bool m_missing;
 	};
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x);
