@@ -115,14 +115,17 @@ public:
 
 	void _print() const;
 
-private:
-	class Packet;
-
-	struct PacketList;
 	struct NodeList : public std::vector<shared_ptr<XN> > {
 		NodeList() : std::vector<shared_ptr<XN> >() {}
 	private:
 	};
+	typedef typename NodeList::iterator iterator;
+	typedef typename NodeList::const_iterator const_iterator;
+
+private:
+	class Packet;
+
+	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
 		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL), m_missing(false) {}
@@ -132,9 +135,6 @@ private:
 		//! This case may happen if a node is inserted twice or more, or if the bundle is collapsed.
 		bool m_missing;
 	};
-
-	typedef typename NodeList::iterator iterator;
-	typedef typename NodeList::const_iterator const_iterator;
 
 	template <class P>
 	struct PayloadWrapper : public P::Payload {
@@ -196,32 +196,27 @@ private:
 		static atomic<int64_t> s_serial;
 	};
 	struct PacketWrapper : public atomic_countable {
-		PacketWrapper(const local_shared_ptr<Packet> &x, bool bundled);
+		PacketWrapper(const local_shared_ptr<Packet> &x);
 		//! creates a wrapper not containing a packet but pointing to the super node.
 		//! \arg bp \a m_wrapper of the super node.
 		//! \arg reverse_index The index for this node in the list of the super node.
 		PacketWrapper(const shared_ptr<BranchPoint> &bp, int reverse_index);
 		 ~PacketWrapper() {}
-		//! \return If true, the content is a snapshot, and is up-to-date.\n
-		//! The subnodes must not hold their own packets.
-		//! If false, the content may be out-of-date and ones should fetch those on subnodes.
-		bool isBundled() const { return m_state == PACKET_BUNDLED;}
-		void setBundled(bool x) { m_state = (x ? PACKET_BUNDLED : PACKET_UNBUNDLED);}
-		bool hasPriority() const { return m_state < 0; }
+		bool hasPriority() const { return m_ridx == PACKET_HAS_PRIORITY; }
 		const local_shared_ptr<Packet> &packet() const {return m_packet;}
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
 		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
 		//! The index for this node in the list of the super node.
-		int reverseIndex() const {return m_state;}
-		void setReverseIndex(int i) {m_state = i;}
+		int reverseIndex() const {return m_ridx;}
+		void setReverseIndex(int i) {m_ridx = i;}
 
 		void _print() const;
 		//! If a packet is absent at this node, it points to \a m_wrapper of the super node.
 		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
-		int m_state; //!< is also used for reverseIndex().
-		enum STATE { PACKET_UNBUNDLED = -1, PACKET_BUNDLED = -2 };
+		int m_ridx;
+		enum PACKET_STATE { PACKET_HAS_PRIORITY = -1};
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
 		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(Packet::SERIAL_NULL) {}
@@ -239,10 +234,11 @@ private:
 		target.m_oldpacket = target.m_packet;
 	}
 	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
-		SNAPSHOT_STRUCTURE_HAS_CHANGED, SNAPSHOT_NOT_FOUND, SNAPSHOT_VOID_PACKET};
-	static SnapshotStatus snapshotFromSuper(shared_ptr<BranchPoint > &branchpoint,
+		SNAPSHOT_NODE_MISSING, SNAPSHOT_VOID_PACKET, SNAPSHOT_COLLIDED};
+	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-		shared_ptr<BranchPoint > *branchpoint_2nd = NULL);
+		shared_ptr<BranchPoint > *branchpoint_super = NULL, bool copy_branch = false,
+		int serial = Packet::SERIAL_NULL, bool set_missing = false);
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
@@ -268,8 +264,8 @@ private:
 	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		BranchPoint &branchpoint,
 		BranchPoint &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
-		const local_shared_ptr<Packet> *oldsubpacket = NULL, local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
-		bool new_sub_bundle_state = true);
+		const local_shared_ptr<Packet> *oldsubpacket = NULL,
+		local_shared_ptr<PacketWrapper> *newsubwrapper = NULL);
 	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;
 
@@ -358,7 +354,7 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 template <class XN>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_bundled(x.m_bundled), m_serial(x.m_serial) {
+	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_serial(x.m_serial) {
 	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
@@ -368,8 +364,8 @@ public:
 		node.snapshot(*this, multi_nodal, ms);
 		++node.m_transaction_count;
 	}
-	Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet, bool bundled) :
-		m_packet(packet), m_bundled(bundled) {
+	explicit Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet) :
+		m_packet(packet) {
 		m_serial = Node<XN>::Packet::newSerial();
 	}
 	virtual ~Snapshot() {
@@ -404,7 +400,6 @@ public:
 	void print() {
 		m_packet->_print();
 	}
-	bool isBundled() const {return m_bundled;}
 
 	template <typename T, typename tArgRef>
 	void talk(T &talker, tArgRef arg) const { talker.talk(*this, arg); }
@@ -412,7 +407,6 @@ protected:
 	friend class Node<XN>;
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
-	bool m_bundled;
 	int64_t m_serial;
 	Snapshot() : m_packet() {
 		m_serial = Node<XN>::Packet::newSerial();
@@ -454,7 +448,7 @@ public:
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
 	explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) : Snapshot<XN>(x),
-		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal && this->isBundled()) {
+		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		this->m_serial = Node<XN>::Packet::newSerial();
@@ -577,7 +571,7 @@ protected:
 };
 
 template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet), m_bundled(x.m_bundled), m_serial(x.m_serial) {}
+inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) : m_packet(x.m_packet), m_serial(x.m_serial) {}
 
 } //namespace Transactional
 
