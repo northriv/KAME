@@ -176,16 +176,15 @@ private:
 
 		//! Generates a serial number for bundling or transaction.
 		static int64_t newSerial() {
-			int64_t newserial;
 			for(;;) {
 				int64_t oldserial;
+				int64_t newserial;
 				oldserial = s_serial;
 				newserial = oldserial + 1;
 				if(newserial == SERIAL_NULL) newserial++;
 				if(s_serial.compareAndSet(oldserial, newserial))
-					break;
+					return newserial;
 			}
-			return newserial;
 		}
 		enum {SERIAL_NULL = 0, SERIAL_FIRST = 1, SERIAL_INIT = -1};
 		local_shared_ptr<Payload> m_payload;
@@ -265,8 +264,6 @@ private:
 		local_shared_ptr<PacketWrapper> *newsubwrapper = NULL);
 	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;
-
-	mutable atomic<int> m_transaction_count;
 
 	//! finds the packet for this node in the (un)bundled \a packet.
 	//! \arg packet The bundled packet.
@@ -360,15 +357,12 @@ public:
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot(*this, multi_nodal, ms);
-		++node.m_transaction_count;
 	}
 	explicit Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet) :
 		m_packet(packet) {
 		m_serial = Node<XN>::Packet::newSerial();
 	}
-	virtual ~Snapshot() {
-		--this->m_packet->node().m_transaction_count;
-	}
+	virtual ~Snapshot() {}
 
 	template <class T>
 	const typename T::Payload &operator[](const shared_ptr<T> &node) const {
@@ -491,9 +485,9 @@ public:
 			if( !time || (time > m_started_time))
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
+		m_messages.clear();
 		this->m_serial = Node<XN>::Packet::newSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
-		m_messages.clear();
 		return *this;
 	}
 

@@ -143,7 +143,7 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 }
 
 template <class XN>
-Node<XN>::Node() : m_wrapper(new BranchPoint()), m_transaction_count(0) {
+Node<XN>::Node() : m_wrapper(new BranchPoint()) {
 	local_shared_ptr<Packet> packet(new Packet());
 	m_wrapper->reset(new PacketWrapper(packet));
 	//Use create() for this hack.
@@ -328,13 +328,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		tr.m_packet->m_missing = true;
 	}
 
-	m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
-	eraseBundleSerials(newsubwrapper->packet());
-
 	//Marks as missing.
 	local_shared_ptr<Packet> newpacket(tr.m_packet);
 	tr.m_packet = tr.m_oldpacket;
-	local_shared_ptr<Packet> *p = var->reverseLookup(tr.m_packet, true, Packet::SERIAL_NULL, true, 0);
+	local_shared_ptr<Packet> *p = var->reverseLookup(tr.m_packet, true, Packet::newSerial(), true, 0);
 	if( !p) {
 		tr.m_packet.reset(new Packet( *tr.m_packet));
 		tr.m_packet->m_missing = true;
@@ -346,6 +343,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 	}
 	tr.m_oldpacket = tr.m_packet;
 	tr.m_packet = newpacket;
+
+	m_wrapper->m_bundle_serial = Packet::SERIAL_NULL;
+	eraseBundleSerials(newsubwrapper->packet());
 
 	if(var->hasAnyBundleSerial(newsubwrapper->packet()) || (m_wrapper->m_bundle_serial != Packet::SERIAL_NULL)) {
 		//Being bundled by another thread.
@@ -463,8 +463,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<BranchPoint> &branchpoint,
 			foundpacket->reset(new Packet( **foundpacket));
 			( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
 			( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
-			if(tr_serial != Packet::SERIAL_NULL)
-				( *foundpacket)->subpackets()->m_serial = tr_serial;
+			( *foundpacket)->subpackets()->m_serial = tr_serial;
 		}
 	}
 	local_shared_ptr<Packet> &p(( *foundpacket)->subpackets()->at(ridx));
@@ -490,8 +489,7 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &packet,
 		if(packet->subpackets()->m_serial != tr_serial) {
 			packet.reset(new Packet( *packet));
 			packet->subpackets().reset(new PacketList( *packet->subpackets()));
-			if(tr_serial != Packet::SERIAL_NULL)
-				packet->subpackets()->m_serial = tr_serial;
+			packet->subpackets()->m_serial = tr_serial;
 			packet->m_missing = packet->m_missing || set_missing;
 		}
 	}
@@ -794,11 +792,11 @@ Node<XN>::bundle_subpacket(const shared_ptr<Node> &subnode,
 			}
 		}
 	}
-	if(subwrapper->packet()->size() && subwrapper->packet()->missing() ) {
+	if(subwrapper->packet()->missing() ) {
+		ASSERT(subwrapper->packet()->size());
 		BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
 		switch(status) {
 		case BUNDLE_SUCCESS:
-//						ASSERT(subwrapper->isBundled());
 			break;
 		case BUNDLE_DISTURBED:
 		default:
@@ -905,6 +903,7 @@ Node<XN>::fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> > &subwrapp
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr) {
+	ASSERT(tr.m_oldpacket != tr.m_packet);
 
 	m_wrapper->negotiate(tr.m_started_time);
 
