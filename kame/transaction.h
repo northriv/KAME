@@ -128,7 +128,7 @@ private:
 	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_NULL) {}
+		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
@@ -187,7 +187,7 @@ private:
 			}
 			return newserial;
 		}
-		enum {SERIAL_NULL = 0};
+		enum {SERIAL_NULL = 0, SERIAL_FIRST = 1, SERIAL_INIT = -1};
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		static atomic<int64_t> s_serial;
@@ -218,7 +218,7 @@ private:
 		enum PACKET_STATE { PACKET_HAS_PRIORITY = -1};
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
-		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(Packet::SERIAL_NULL) {}
+		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_bundle_serial(Packet::SERIAL_INIT) {}
 		atomic<int64_t> m_bundle_serial;
 		atomic<uint64_t> m_transaction_started_time;
 		inline void negotiate(uint64_t &started_time);
@@ -285,7 +285,8 @@ private:
 		bool copy_branch, int tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *superpacket, int *index) const;
 	static void eraseBundleSerials(const local_shared_ptr<Packet> &packet);
-//	bool hasAnyBundleSerial(const local_shared_ptr<Packet> &packet);
+	static void eraseTransactionSerials(local_shared_ptr<Packet> &packet, int64_t tr_serial);
+	bool hasAnyBundleSerial(const local_shared_ptr<Packet> &packet);
 	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
 		const local_shared_ptr<Packet> &packet);
 protected:
