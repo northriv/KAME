@@ -18,6 +18,8 @@ atomic<int> slow_threads = 0;
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
+#define TRANSACTIONAL_STRICT_ASSERT
+
 class LongNode : public Transactional::Node<LongNode> {
 public:
 	LongNode() : Transactional::Node<LongNode>() {
@@ -163,6 +165,7 @@ main(int argc, char **argv)
 		gn4.reset(LongNode::create<LongNode>());
 
 		gn1->insert(gn2);
+		Snapshot shot1(*gn2);
 		gn2->insert(gn3);
 		{
 			Snapshot shot1(*gn1);
@@ -189,9 +192,18 @@ main(int argc, char **argv)
 			shared_ptr<LongNode> p211(LongNode::create<LongNode>());
 			p2->insert(p21);
 			p21->insert(p211);
+			p2->_print();
+			p21->_print();
+			p211->_print();
 			p2->insert(p211);
 			p21->insert(p22);
 			p211->insert(p22);
+			{
+				Snapshot shot1(*p21);
+				shot1[ *p21];
+				shot1[ *p22];
+				shot1[ *p211];
+			}
 			long x = **p2;
 			trans(*p22) = 1;
 			trans(*p22) = 0;

@@ -70,12 +70,23 @@ typename boost::enable_if<boost::is_base_of<LongNode, T>,
 template class Transactional::Node<LongNode>;
 
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
-atomic<long> gn1_counter, gn2_counter, gn3_counter, gn4_counter;
 
 void *
 start_routine(void *) {
 	printf("start\n");
+	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
+	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
 	for(int i = 0; i < 2500; i++) {
+		p1->insert(p2);
+		if((i % 10) == 0) {
+			for(Transaction tr1(*gn1); ; ++tr1){
+				if( !gn2->insert(tr1, p2))
+					continue;
+				if(tr1.commit()) break;
+			}
+			gn2->swap(p2, gn3);
+			gn1->insert(p1);
+		}
 		//		gn1->_print();
 		for(Transaction tr1(*gn1); ; ++tr1){
 //			tr1.print();
@@ -85,38 +96,47 @@ start_routine(void *) {
 			Snapshot str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
+			if((i % 10) == 0) {
+				tr1[p2] = str1[p2] + 1;
+			}
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		++gn2_counter;
-		ASSERT( (long)**gn2 >= (long)gn2_counter);
-		++gn3_counter;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
 		trans(*gn3) += 1;
-		++gn3_counter;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
 		for(Transaction tr1(*gn4); ; ++tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		--gn2_counter;
-		--gn3_counter;
+		p1->release(p2);
 		for(Transaction tr1(*gn2); ; ++tr1){
 			Snapshot str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
+			if((i % 10) == 0) {
+				tr1[p2] = str1[p2] - 1;
+			}
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
-		ASSERT( (long)**gn2 >= (long)gn2_counter);
-		--gn3_counter;
 		trans(*gn3) += -1;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
+		if((i % 10) == 0) {
+			for(Transaction tr1(*gn1); ; ++tr1){
+				if( !gn2->release(tr1, p2))
+					continue;
+				if(tr1.commit()) break;
+			}
+			gn1->release(p1);
+		}
 	}
-	printf("finish\n");
+	long y = **p2;
+	if(y != 0) {
+		printf("Error! P2=%ld\n", y);
+		abort();
+	}
+	else
+		printf("finish\n");
     return 0;
 }
 
@@ -255,6 +275,12 @@ main(int argc, char **argv)
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_create(&threads[i], NULL, start_routine, NULL);
+		}
+		{
+			usleep(1000);
+			gn3->insert(gn4);
+			usleep(1000);
+			gn3->release(gn4);
 		}
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_join(threads[i], NULL);
