@@ -87,7 +87,7 @@ public:
 	bool swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 
-	XN *superNode(Snapshot<XN> &shot);
+	XN *upperNode(Snapshot<XN> &shot);
 
 	//! Data and accessor linked to the node.
 	//! Re-implement members in its subclasses.
@@ -195,9 +195,9 @@ private:
 	};
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x);
-		//! creates a wrapper not containing a packet but pointing to the super node.
-		//! \arg bp \a m_wrapper of the super node.
-		//! \arg reverse_index The index for this node in the list of the super node.
+		//! creates a wrapper not containing a packet but pointing to the upper node.
+		//! \arg bp \a m_wrapper of the upper node.
+		//! \arg reverse_index The index for this node in the list of the upper node.
 		PacketWrapper(const shared_ptr<BranchPoint> &bp, int reverse_index);
 		 ~PacketWrapper() {}
 		bool hasPriority() const { return m_ridx == PACKET_HAS_PRIORITY; }
@@ -205,12 +205,12 @@ private:
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
 		shared_ptr<BranchPoint> branchpoint() const {return m_branchpoint.lock();}
-		//! The index for this node in the list of the super node.
+		//! The index for this node in the list of the upper node.
 		int reverseIndex() const {return m_ridx;}
 		void setReverseIndex(int i) {m_ridx = i;}
 
 		void _print() const;
-		//! If a packet is absent at this node, it points to \a m_wrapper of the super node.
+		//! If a packet is absent at this node, it points to \a m_wrapper of the upper node.
 		weak_ptr<BranchPoint> const m_branchpoint;
 		local_shared_ptr<Packet> m_packet;
 		int m_ridx;
@@ -235,8 +235,8 @@ private:
 		SNAPSHOT_NODE_MISSING, SNAPSHOT_VOID_PACKET, SNAPSHOT_COLLIDED};
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint> &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-		shared_ptr<BranchPoint > *branchpoint_super = NULL, bool copy_branch = false,
-		int serial = Packet::SERIAL_NULL, bool set_missing = false, local_shared_ptr<Packet> *newsuperpacket = 0);
+		shared_ptr<BranchPoint > *branchpoint_super = NULL, bool make_unbundled_branch = false,
+		int serial = Packet::SERIAL_NULL, local_shared_ptr<Packet> *newsuperpacket = 0);
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
@@ -248,16 +248,13 @@ private:
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_SUBVALUE_NOT_FOUND,
 		UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
-	//! Unloads a subpacket to \a subbranchpoint. If a packet for \a branchpoint has been already bundled by a super node,
+	//! Unloads a subpacket to \a subbranchpoint.
 	//! it performs unbundling for all the super nodes.
 	//! \arg bundle_serial If not zero, consistency/collision wil be checked.
 	//! \arg nullwrapper The current value of \a subbranchpoint and should not contain \a packet().
 	//! \arg oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
 	//! \arg newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
 	//! If \a oldsubpacket is zero, unloaded value  of \a subbranchpoint will be substituted to \a newsubwrapper.
-	//! \arg oldsuperpacket If not zero, the packet will be compared with the value of \a branchpoint.
-	//! \arg newsuperwrapper If not zero, this will be a new value for \a branchpoint.
-	//! \arg new_sub_bundle_state This determines whether an unloaded value of \a subbranchpoint will be bundled or not.
 	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		const shared_ptr<BranchPoint> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL,
@@ -266,21 +263,21 @@ private:
 	shared_ptr<BranchPoint> m_wrapper;
 
 	//! finds the packet for this node in the (un)bundled \a packet.
-	//! \arg packet The bundled packet.
+	//! \arg superpacket The bundled packet.
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
-	inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &packet,
-		bool copy_branch, int tr_serial, bool set_missing, XN** supernode);
-	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &packet,
+	inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &superpacket,
+		bool copy_branch, int tr_serial, bool set_missing, XN** uppernode);
+	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
 		bool copy_branch, int tr_serial = 0, bool set_missing = false);
-	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &packet) const;
+	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &superpacket) const;
 	inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<Packet> &packet, bool copy_branch, int tr_serial, bool set_missing,
-		local_shared_ptr<Packet> *superpacket, int *index);
+		local_shared_ptr<Packet> &superpacket, bool copy_branch, int tr_serial, bool set_missing,
+		local_shared_ptr<Packet> *upperpacket, int *index);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
-	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &packet,
+	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &superpacket,
 		bool copy_branch, int tr_serial, bool set_missing,
-		local_shared_ptr<Packet> *superpacket, int *index) const;
+		local_shared_ptr<Packet> *upperpacket, int *index) const;
 	static void eraseBundleSerials(const local_shared_ptr<Packet> &packet);
 	static void eraseTransactionSerials(local_shared_ptr<Packet> &packet, int64_t tr_serial);
 	bool hasAnyBundleSerial(const local_shared_ptr<Packet> &packet);
