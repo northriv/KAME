@@ -233,10 +233,16 @@ private:
 	}
 	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
 		SNAPSHOT_NODE_MISSING, SNAPSHOT_VOID_PACKET, SNAPSHOT_COLLIDED};
+	struct CASInfo {
+		CASInfo(const shared_ptr<BranchPoint> &b, const local_shared_ptr<PacketWrapper> &o,
+			const local_shared_ptr<PacketWrapper> &n) : branchpoint(b), old_wrapper(o), new_wrapper(n) {}
+		shared_ptr<BranchPoint> branchpoint;
+		local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
+	};
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint> &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-		shared_ptr<BranchPoint > *branchpoint_super = NULL, bool make_unbundled_branch = false,
-		int serial = Packet::SERIAL_NULL, local_shared_ptr<Packet> *newsuperpacket = 0);
+		bool make_unbundled_branch = false,
+		int serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};

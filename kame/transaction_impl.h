@@ -581,18 +581,13 @@ template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-	shared_ptr<BranchPoint > *branchpoint_super, bool make_unbundled_branch,
-	int serial, local_shared_ptr<Packet> *newsuperpacket) {
+	bool make_unbundled_branch, int serial, std::deque<CASInfo> *cas_infos) {
 	local_shared_ptr<PacketWrapper> oldwrapper(shot);
 	ASSERT( !shot->hasPriority());
 	shared_ptr<BranchPoint > branchpoint_upper(shot->branchpoint());
 	if( !branchpoint_upper) {
-		//Checking if it is up-to-date.
-		if( *branchpoint == oldwrapper) {
-			//Supernode has been destroyed.
-			return SNAPSHOT_NODE_MISSING;
-		}
-		return SNAPSHOT_DISTURBED;
+		//Supernode has been destroyed.
+		return SNAPSHOT_NODE_MISSING;
 	}
 	int reverse_index = shot->reverseIndex();
 
@@ -602,7 +597,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	local_shared_ptr<Packet> *upperpacket;
 	if( !shot_upper->hasPriority()) {
 		status = snapshotSupernode(branchpoint_upper, shot, &upperpacket,
-			branchpoint_super, make_unbundled_branch, serial, newsuperpacket);
+			make_unbundled_branch, serial, cas_infos);
 	}
 	switch(status) {
 	case SNAPSHOT_DISTURBED:
@@ -612,18 +607,15 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	case SNAPSHOT_NODE_MISSING:
 		shot = shot_upper;
 		upperpacket = &shot->packet();
-		if(branchpoint_super)
-			*branchpoint_super = branchpoint_upper;
-		if(newsuperpacket)
-			newsuperpacket->reset();
 		status = SNAPSHOT_SUCCESS;
 		break;
 	case SNAPSHOT_COLLIDED:
+		return SNAPSHOT_COLLIDED;
 	case SNAPSHOT_SUCCESS:
 		break;
 	}
 	//Checking if it is up-to-date.
-	if(shot->packet()->missing()) {
+	if(shot->packet()->missing() || make_unbundled_branch) {
 		if( *branchpoint != oldwrapper)
 				return SNAPSHOT_DISTURBED;
 	}
@@ -632,8 +624,10 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	int size = ( *upperpacket)->size();
 	int i = reverse_index;
 	for(int cnt = 0;; ++cnt) {
-		if(cnt >= size)
-			return SNAPSHOT_NODE_MISSING;
+		if(cnt >= size) {
+			status = SNAPSHOT_NODE_MISSING;
+			break;
+		}
 		if(i >= size)
 			i = 0;
 		if(( *upperpacket)->subnodes()->at(i)->m_wrapper == branchpoint) {
@@ -647,39 +641,34 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	}
 
 	if( !**subpacket) {
-//					printf("V\n");
+		if(make_unbundled_branch) {
+			cas_infos->clear();
+		}
+//		printf("V\n");
 		ASSERT(( *upperpacket)->missing());
 		return SNAPSHOT_VOID_PACKET;
 	}
-	if((status == SNAPSHOT_COLLIDED) ||
-		(serial != Packet::SERIAL_NULL) && (branchpoint_upper->m_bundle_serial == serial)) {
+	if((serial != Packet::SERIAL_NULL) && (branchpoint_upper->m_bundle_serial == serial)) {
 		//The node has been already bundled in the same snapshot.
 //					printf("C\n");
 		return SNAPSHOT_COLLIDED;
 	}
 	if(make_unbundled_branch) {
-		if(shot->packet()->missing() && (shot != shot_upper)) {
-			//Tags upper node to prevent upper from unbundling by others.
-			local_shared_ptr<PacketWrapper> newnullwrapper(new PacketWrapper( *shot_upper));
-			ASSERT( !newnullwrapper->hasPriority());
-			newnullwrapper->packet().reset();
-			if( !branchpoint_upper->compareAndSet(shot_upper, newnullwrapper))
-				return SNAPSHOT_DISTURBED;
+		local_shared_ptr<PacketWrapper> newwrapper;
+		if(status == SNAPSHOT_SUCCESS) {
+			newwrapper.reset(new PacketWrapper( *upperpacket));
+			newwrapper->packet().reset(new Packet( *newwrapper->packet()));
+			newwrapper->packet()->subpackets().reset(new PacketList( *newwrapper->packet()->subpackets()));
+			newwrapper->packet()->m_missing = true;
+			*subpacket = &newwrapper->packet()->subpackets()->at(reverse_index);
 		}
-		local_shared_ptr<Packet> *foundpacket(upperpacket);
-		if( !*newsuperpacket) {
-			*newsuperpacket = *upperpacket;
-			foundpacket = newsuperpacket;
+		else {
+			newwrapper.reset(new PacketWrapper( *shot_upper));
 		}
-		foundpacket->reset(new Packet( **foundpacket));
-		( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
-		( *foundpacket)->m_missing = true;
-		*subpacket = &( *foundpacket)->subpackets()->at(reverse_index);
-		ASSERT( &shot->packet()->node() == &( *newsuperpacket)->node());
+		cas_infos->push_back(CASInfo(branchpoint_upper, shot_upper, newwrapper));
 	}
-	ASSERT(status == SNAPSHOT_SUCCESS);
-	ASSERT( !branchpoint_super || (shot->packet()->node().m_wrapper == *branchpoint_super));
-	ASSERT(( **subpacket)->node().m_wrapper == branchpoint);
+	if(status == SNAPSHOT_NODE_MISSING)
+		return status;
 	return status;
 }
 
@@ -976,28 +965,19 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	ASSERT( !nullwrapper->hasPriority());
 
 // Taking a snapshot inside the super packet.
-	shared_ptr<BranchPoint > branchpoint_super;
 	local_shared_ptr<PacketWrapper> superwrapper(nullwrapper);
-	local_shared_ptr<Packet> newsuperpacket;
 	local_shared_ptr<Packet> *newsubpacket;
-	local_shared_ptr<PacketWrapper>  newsuperwrapper;
+	std::deque<CASInfo> cas_infos;
 	SnapshotStatus status = snapshotSupernode(subbranchpoint, superwrapper, &newsubpacket,
-		&branchpoint_super, true, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &newsuperpacket);
+		true, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &cas_infos);
 	switch(status) {
 	case SNAPSHOT_SUCCESS:
-		newsuperwrapper.reset(new PacketWrapper(newsuperpacket));
-		STRICT_ASSERT(s_serial_abandoned != newsuperpacket->subpackets()->m_serial);
 		break;
 	case SNAPSHOT_DISTURBED:
 		return UNBUNDLE_DISTURBED;
 	case SNAPSHOT_VOID_PACKET:
 	case SNAPSHOT_NODE_MISSING:
-//		newsuperwrapper.reset(new PacketWrapper( *superwrapper));
-//		newsuperwrapper->packet().reset(new Packet( *newsuperwrapper->packet()));
-//		newsuperwrapper->packet()->m_missing = true;
-		branchpoint_super.reset();
-		newsubpacket = const_cast<local_shared_ptr<Packet> *>( &nullwrapper->packet());
-		ASSERT( *newsubpacket);
+		newsubpacket = const_cast<local_shared_ptr<Packet> *>(&nullwrapper->packet());
 		break;
 	case SNAPSHOT_COLLIDED:
 		return UNBUNDLE_COLLIDED;
@@ -1006,13 +986,9 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	if(oldsubpacket && ( *newsubpacket != *oldsubpacket))
 		return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 
-	if(branchpoint_super) {
-		branchpoint_super->negotiate(time_started);
-		ASSERT(superwrapper->packet() != newsuperwrapper->packet());
-		ASSERT(newsuperwrapper->packet()->missing());
-		ASSERT(superwrapper->packet()->node().m_wrapper == branchpoint_super);
-		ASSERT(newsuperwrapper->packet()->node().m_wrapper == branchpoint_super);
-		if( !branchpoint_super->compareAndSet(superwrapper, newsuperwrapper))
+	for(typename std::deque<CASInfo>::iterator it = cas_infos.begin(); it != cas_infos.end(); ++it) {
+		it->branchpoint->negotiate(time_started);
+		if( !it->branchpoint->compareAndSet(it->old_wrapper, it->new_wrapper))
 			return UNBUNDLE_DISTURBED;
 	}
 
