@@ -586,8 +586,10 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	ASSERT( !shot->hasPriority());
 	shared_ptr<BranchPoint > branchpoint_upper(shot->branchpoint());
 	if( !branchpoint_upper) {
-		//Supernode has been destroyed.
-		return SNAPSHOT_NODE_MISSING;
+		if( *branchpoint == oldwrapper)
+			//Supernode has been destroyed.
+			return SNAPSHOT_NODE_MISSING;
+		return SNAPSHOT_DISTURBED;
 	}
 	int reverse_index = shot->reverseIndex();
 
@@ -634,26 +636,26 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 			//Requested node is found.
 			*subpacket = &( *upperpacket)->subpackets()->at(i);
 			reverse_index = i;
+			if( !**subpacket) {
+				if(make_unbundled_branch) {
+					cas_infos->clear();
+				}
+		//		printf("V\n");
+				ASSERT(( *upperpacket)->missing());
+				return SNAPSHOT_VOID_PACKET;
+			}
 			break;
 		}
 		//The index might be modified by swap().
 		++i;
 	}
 
-	if( !**subpacket) {
-		if(make_unbundled_branch) {
-			cas_infos->clear();
-		}
-//		printf("V\n");
-		ASSERT(( *upperpacket)->missing());
-		return SNAPSHOT_VOID_PACKET;
-	}
 	if((serial != Packet::SERIAL_NULL) && (branchpoint_upper->m_bundle_serial == serial)) {
 		//The node has been already bundled in the same snapshot.
 //					printf("C\n");
 		return SNAPSHOT_COLLIDED;
 	}
-	if(make_unbundled_branch) {
+	if(make_unbundled_branch) {// && ( shot->packet()->missing() || ( &shot->packet() == upperpacket))) {
 		local_shared_ptr<PacketWrapper> newwrapper;
 		if(status == SNAPSHOT_SUCCESS) {
 			newwrapper.reset(new PacketWrapper( *upperpacket));
@@ -706,20 +708,13 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 			case SNAPSHOT_DISTURBED:
 			default:
 				continue;
-			case SNAPSHOT_NODE_MISSING: {
-					local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(target->packet()));
-					if( !m_wrapper->compareAndSet(target, newwrapper))
-						continue;
-		//			printf("n\n");
+			case SNAPSHOT_NODE_MISSING:
+			case SNAPSHOT_VOID_PACKET:
+				if( !target->packet()->missing() || !multi_nodal) {
 					snapshot.m_packet = target->packet();
-					STRICT_ASSERT(snapshot.m_packet->checkConsistensy(snapshot.m_packet));
 					return;
 				}
-			case SNAPSHOT_VOID_PACKET:
-//				printf("V\n");
-				//Just after the node was inserted.
-				superwrapper->packet()->node().bundle(superwrapper, started_time, snapshot.m_serial, true);
-				continue;
+				break;
 			}
 		}
 		BundledStatus status = const_cast<Node *>(this)->bundle(target, started_time, snapshot.m_serial, true);
@@ -821,7 +816,6 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 	m_wrapper->m_bundle_serial = bundle_serial;
 
 	local_shared_ptr<PacketWrapper> oldwrapper(target);
-	target.reset(new PacketWrapper(packet));
 	//copying all sub-packets from nodes to the new packet.
 	packet->subpackets().reset(new PacketList( *packet->subpackets()));
 	shared_ptr<PacketList> &subpackets(packet->subpackets());
@@ -856,6 +850,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 		packet->m_missing = false;
 	bool missing = packet->missing();
 	packet->m_missing = true;
+	target.reset(new PacketWrapper(packet));
 
 	//First checkpoint.
 	if( !m_wrapper->compareAndSet(oldwrapper, target)) {
@@ -879,7 +874,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &target,
 	if( !missing) {
 		packet.reset(new Packet( *packet));
 		target->packet() = packet;
-		packet->m_missing = missing;
+		packet->m_missing = false;
 	}
 
 	//Finally, tagging as bundled.
