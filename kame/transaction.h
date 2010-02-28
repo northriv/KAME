@@ -248,7 +248,7 @@ private:
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
-	BundledStatus bundle_subpacket(const shared_ptr<Node> &subnode,
+	BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper, const shared_ptr<Node> &subnode,
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
