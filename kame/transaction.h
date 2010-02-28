@@ -252,7 +252,7 @@ private:
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
-		UNBUNDLE_SUBVALUE_HAS_CHANGED, UNBUNDLE_SUBVALUE_NOT_FOUND,
+		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
 	//! Unloads a subpacket to \a subbranchpoint.
 	//! it performs unbundling for all the super nodes.
@@ -356,14 +356,10 @@ public:
 	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-		m_serial = Node<XN>::Packet::newSerial();
+//		m_serial = Node<XN>::Packet::newSerial();
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot(*this, multi_nodal, ms);
-	}
-	explicit Snapshot(const local_shared_ptr<typename Node<XN>::Packet> &packet) :
-		m_packet(packet) {
-		m_serial = Node<XN>::Packet::newSerial();
 	}
 	virtual ~Snapshot() {}
 
@@ -404,7 +400,7 @@ protected:
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
 	int64_t m_serial;
 	Snapshot() : m_packet() {
-		m_serial = Node<XN>::Packet::newSerial();
+//		m_serial = Node<XN>::Packet::newSerial();
 	}
 };
 
@@ -446,7 +442,8 @@ public:
 		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		this->m_serial = Node<XN>::Packet::newSerial();
+		if(this->m_serial == Node<XN>::Packet::SERIAL_NULL)
+			this->m_serial = Node<XN>::Packet::newSerial();
 	}
 //	Transaction(const Transaction &x) : Snapshot<XN>(x),
 //		m_oldpacket(x.m_oldpacket), m_serial(x.m_serial), m_multi_nodal(x.m_multi_nodal),
@@ -489,7 +486,7 @@ public:
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
 		m_messages.clear();
-		this->m_serial = Node<XN>::Packet::newSerial();
+//		this->m_serial = Node<XN>::Packet::newSerial();
 		this->m_packet->node().snapshot(*this, m_multi_nodal);
 		return *this;
 	}
@@ -530,6 +527,7 @@ private:
 		}
 		m_started_time = 0;
 
+		this->m_serial = Node<XN>::Packet::SERIAL_NULL;
 		//Messaging.
 		if(m_messages.size()) {
 			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
