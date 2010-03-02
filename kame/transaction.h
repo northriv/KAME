@@ -249,7 +249,7 @@ private:
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, local_shared_ptr<PacketWrapper> &nullwrapper,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
 	BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper, const shared_ptr<Node> &subnode,
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
