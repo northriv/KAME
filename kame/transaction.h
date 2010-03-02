@@ -249,9 +249,9 @@ private:
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target, local_shared_ptr<PacketWrapper> &nullwrapper,
+	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
-	BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper, const shared_ptr<Node> &subnode,
+	BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
 		local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 		uint64_t &started_time, int64_t bundle_serial);
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
@@ -267,7 +267,8 @@ private:
 	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		const shared_ptr<BranchPoint> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
 		const local_shared_ptr<Packet> *oldsubpacket = NULL,
-		local_shared_ptr<PacketWrapper> *newsubwrapper = NULL);
+		local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
+		local_shared_ptr<PacketWrapper> *superwrapper = NULL);
 	//! The point where the packet is held.
 	shared_ptr<BranchPoint> m_wrapper;
 

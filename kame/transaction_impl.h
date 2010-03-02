@@ -208,7 +208,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	for(;;) {
 		local_shared_ptr<Packet> subpacket_new;
 		local_shared_ptr<PacketWrapper> subwrapper;
-		BundledStatus status = bundle_subpacket(subwrapper, var, subwrapper, subpacket_new,
+		BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
 			tr.m_started_time, tr.m_serial);
 		if(status != BUNDLE_SUCCESS) {
 			continue;
@@ -700,7 +700,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 			}
 		}
 		BundledStatus status = const_cast<Node *>(this)->bundle(
-			target, target, started_time, snapshot.m_serial, true);
+			target, started_time, snapshot.m_serial, true);
 		switch (status) {
 		case BUNDLE_SUCCESS:
 			ASSERT( !target->packet()->missing());
@@ -715,7 +715,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 
 template <class XN>
 typename Node<XN>::BundledStatus
-Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper,
+Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 	const shared_ptr<Node> &subnode,
 	local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
 	uint64_t &started_time, int64_t bundle_serial) {
@@ -728,17 +728,17 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper,
 		if(branchpoint == m_wrapper) {
 			if(subpacket_new) {
 				if(subpacket_new->missing()) {
-					BundledStatus status = subnode->bundle(superwrapper, subwrapper,
-						started_time, bundle_serial, false);
-					switch(status) {
-					case BUNDLE_SUCCESS:
-						subpacket_new = subnode->reverseLookup(superwrapper->packet());
-						ASSERT(subpacket_new);
-						return BUNDLE_SUCCESS;
-					default:
-						return status;
-					}
-//					need_for_unbundle = true;
+//					ASSERT(superwrapper);
+//					BundledStatus status = subnode->bundle( *superwrapper, started_time, bundle_serial, false);
+//					switch(status) {
+//					case BUNDLE_SUCCESS:
+//						subpacket_new = subnode->reverseLookup( ( *superwrapper)->packet());
+//						ASSERT(subpacket_new);
+//						return BUNDLE_SUCCESS;
+//					default:
+//						return status;
+//					}
+					need_for_unbundle = true;
 				}
 				else
 					return BUNDLE_SUCCESS;
@@ -756,10 +756,9 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper,
 			detect_collision = true;
 		}
 		if(need_for_unbundle) {
-			local_shared_ptr<PacketWrapper> superwrapper( *branchpoint);
 			local_shared_ptr<PacketWrapper> subwrapper_new;
 			UnbundledStatus status = unbundle(detect_collision ? &bundle_serial : NULL, started_time,
-				subnode->m_wrapper, subwrapper, NULL, &subwrapper_new);
+				subnode->m_wrapper, subwrapper, NULL, &subwrapper_new, superwrapper);
 			switch(status) {
 			case UNBUNDLE_W_NEW_SUBVALUE:
 				subwrapper = subwrapper_new;
@@ -776,7 +775,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper,
 	}
 	if(subwrapper->packet()->missing()) {
 		ASSERT(subwrapper->packet()->size());
-		BundledStatus status = subnode->bundle(subwrapper, subwrapper, started_time, bundle_serial, false);
+		BundledStatus status = subnode->bundle(subwrapper, started_time, bundle_serial, false);
 		switch(status) {
 		case BUNDLE_SUCCESS:
 			break;
@@ -792,7 +791,6 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> &superwrapper,
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
-	local_shared_ptr<PacketWrapper> &nullwrapper,
 	uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root) {
 
 	ASSERT(oldsuperwrapper->packet());
@@ -832,7 +830,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 			local_shared_ptr<Packet> &subpacket_new(subpackets->at(i));
 			for(;;) {
 				local_shared_ptr<PacketWrapper> subwrapper;
-				BundledStatus status = bundle_subpacket(oldsuperwrapper,
+				BundledStatus status = bundle_subpacket( &oldsuperwrapper,
 					child, subwrapper, subpacket_new, started_time, bundle_serial);
 				switch(status) {
 				case BUNDLE_SUCCESS:
@@ -861,13 +859,6 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 		}
 		newpacket->m_missing = true;
 
-		if( &supernode != this) {
-			ASSERT( !nullwrapper->hasPriority());
-			local_shared_ptr<PacketWrapper> newnullwrapper(new PacketWrapper( *nullwrapper, bundle_serial));
-			if( !m_wrapper->compareAndSet(nullwrapper, newnullwrapper))
-				return BUNDLE_DISTURBED;
-			nullwrapper = newnullwrapper;
-		}
 		//First checkpoint.
 		if( !supernode.m_wrapper->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_wrapper;
@@ -985,7 +976,8 @@ template <class XN>
 typename Node<XN>::UnbundledStatus
 Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	const shared_ptr<BranchPoint> &subbranchpoint, const local_shared_ptr<PacketWrapper> &nullwrapper,
-	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned) {
+	const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
+	local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
 
 	ASSERT( !nullwrapper->hasPriority());
 
@@ -1028,6 +1020,14 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 
 	if(newsubwrapper_returned)
 		*newsubwrapper_returned = newsubwrapper;
+
+	if(oldsuperwrapper) {
+		if( &( *oldsuperwrapper)->packet()->node().m_wrapper != &cas_infos.front().branchpoint)
+			return UNBUNDLE_DISTURBED;
+		if( *oldsuperwrapper != cas_infos.front().old_wrapper)
+		*oldsuperwrapper = cas_infos.front().new_wrapper;
+	}
+
 	return UNBUNDLE_W_NEW_SUBVALUE;
 }
 
