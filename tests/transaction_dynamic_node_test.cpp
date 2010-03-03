@@ -156,6 +156,7 @@ main(int argc, char **argv)
 		gn4.reset(LongNode::create<LongNode>());
 
 		for(Transaction tr1(*gn1); ; ++tr1){
+			printf("1");
 			if( !gn1->insert(tr1, gn2, true))
 				continue;
 			tr1[ *gn2] = tr1[ *gn2] + 1;
@@ -177,6 +178,7 @@ main(int argc, char **argv)
 		gn1->insert(gn2);
 		gn1->_print();
 		for(Transaction tr1(*gn2); ; ++tr1){
+			printf("2");
 			tr1[ *gn2] = tr1[ *gn2] - 1;
 			tr1[ *gn3] = 0;
 			if(tr1.commit())
@@ -194,9 +196,9 @@ main(int argc, char **argv)
 		trans(*gn3) = 0;
 
 		shared_ptr<LongNode> p1(LongNode::create<LongNode>());
+		gn3->insert(p1);
 		gn1->insert(p1);
 		gn1->swap(p1, gn2);
-		gn3->insert(p1);
 		trans(*gn1) = 3;
 		trans(*gn1) = 0;
 
@@ -218,7 +220,19 @@ main(int argc, char **argv)
 			trans(*p211) = 1;
 			p21->insert(p22);
 			p211->insert(p22);
+
+			gn1->insert(p2);
+			gn3->insert(p2);
+			gn3->insert(p2112);
+			gn3->insert(p2113);
+			gn3->release(p2112);
+			gn3->release(p2113);
+			gn1->release(p2);
+			gn3->release(p2);
+
+
 			for(Transaction tr1(*gn3); ; ++tr1){
+				printf("3");
 				if( !p1->insert(tr1, p22, true))
 					continue;
 				if( !gn3->insert(tr1, p2, true))
@@ -229,7 +243,22 @@ main(int argc, char **argv)
 					continue;
 				tr1[*p22] = 1;
 				if(tr1.commit()) break;
-				printf("f");
+			}
+			for(Transaction tr1(*gn1); ; ++tr1){
+				printf("4");
+				if( !gn3->insert(tr1, gn4, true))
+					continue;
+				if( !gn2->insert(tr1, gn4, true))
+					continue;
+				if(tr1.commit()) break;
+			}
+			for(Transaction tr1(*gn1); ; ++tr1){
+				printf("5");
+				if( !gn3->release(tr1, gn4))
+					continue;
+				if( !gn2->release(tr1, gn4))
+					continue;
+				if(tr1.commit()) break;
 			}
 			{
 				Snapshot shot1(*gn3);

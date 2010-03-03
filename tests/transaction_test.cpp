@@ -70,7 +70,6 @@ typename boost::enable_if<boost::is_base_of<LongNode, T>,
 template class Transactional::Node<LongNode>;
 
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
-atomic<long> gn1_counter, gn2_counter, gn3_counter, gn4_counter;
 
 void *
 start_routine(void *) {
@@ -88,21 +87,21 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		++gn2_counter;
-		ASSERT( (long)**gn2 >= (long)gn2_counter);
-		++gn3_counter;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
+		{
+			Snapshot shot(*gn1);
+			ASSERT(shot[*gn2] <= shot[*gn3]);
+		}
 		trans(*gn3) += 1;
-		++gn3_counter;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
 		for(Transaction tr1(*gn4); ; ++tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		--gn2_counter;
-		--gn3_counter;
+		{
+			Snapshot shot(*gn2);
+			ASSERT(shot[*gn2] <= shot[*gn3]);
+		}
 		for(Transaction tr1(*gn2); ; ++tr1){
 			Snapshot str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
@@ -110,11 +109,7 @@ start_routine(void *) {
 			if(tr1.commit()) break;
 //			printf("f");
 		}
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
-		ASSERT( (long)**gn2 >= (long)gn2_counter);
-		--gn3_counter;
 		trans(*gn3) += -1;
-		ASSERT( (long)**gn3 >= (long)gn3_counter);
 	}
 	printf("finish\n");
     return 0;
