@@ -139,6 +139,8 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 		if(ms > 0) {
 			XTime t0 = XTime::now();
 			t0 += ms * 1e-3;
+			if(ms > 1000)
+				fprintf(stderr, "negotiate: ms = %d\n", ms);
 			while(t0 > XTime::now()) {
 //				usleep(std::min(ms * 1000 / 50, 1000));
 				msecsleep(1);
@@ -196,49 +198,51 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	packet->subnodes()->push_back(var);
 	ASSERT(packet->subpackets()->size() == packet->subnodes()->size());
 
-	bool has_failed = false;
-	//Tags serial.
-	local_shared_ptr<Packet> newpacket(tr.m_packet);
-	tr.m_packet.reset(new Packet( *tr.m_oldpacket));
-	if( !tr.m_packet->node().commit(tr)) {
-		has_failed = true;
-	}
-	tr.m_oldpacket = tr.m_packet;
-	tr.m_packet = newpacket;
-	for(;;) {
-		local_shared_ptr<Packet> subpacket_new;
-		local_shared_ptr<PacketWrapper> subwrapper;
-		subwrapper = *var->m_wrapper;
-		BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
-			tr.m_started_time, tr.m_serial);
-		if(status != BUNDLE_SUCCESS) {
-			continue;
-		}
-		if( !subpacket_new)
-			//Inserted twice inside the package.
-			break;
-
-		//Marks for writing at subnode.
+	if(online_after_insertion) {
+		bool has_failed = false;
+		//Tags serial.
+		local_shared_ptr<Packet> newpacket(tr.m_packet);
 		tr.m_packet.reset(new Packet( *tr.m_oldpacket));
 		if( !tr.m_packet->node().commit(tr)) {
+			printf("*\n");
 			has_failed = true;
 		}
 		tr.m_oldpacket = tr.m_packet;
 		tr.m_packet = newpacket;
+		for(;;) {
+			local_shared_ptr<Packet> subpacket_new;
+			local_shared_ptr<PacketWrapper> subwrapper;
+			subwrapper = *var->m_wrapper;
+			BundledStatus status = bundle_subpacket(0, var, subwrapper, subpacket_new,
+				tr.m_started_time, tr.m_serial);
+			if(status != BUNDLE_SUCCESS) {
+				continue;
+			}
+			if( !subpacket_new)
+				//Inserted twice inside the package.
+				break;
 
-//		if(online_after_insertion) {
+			//Marks for writing at subnode.
+			tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+			if( !tr.m_packet->node().commit(tr)) {
+				printf("&\n");
+				has_failed = true;
+			}
+			tr.m_oldpacket = tr.m_packet;
+			tr.m_packet = newpacket;
+
+			local_shared_ptr<PacketWrapper> newwrapper(
+				new PacketWrapper(m_wrapper, packet->size() - 1, tr.m_serial));
+			newwrapper->packet() = subpacket_new;
 			packet->subpackets()->back() = subpacket_new;
-//		}
-		local_shared_ptr<PacketWrapper> newwrapper(
-			new PacketWrapper(m_wrapper, packet->size() - 1, tr.m_serial));
-		newwrapper->packet() = subpacket_new;
-		if(has_failed)
-			return false;
-		if( !var->m_wrapper->compareAndSet(subwrapper, newwrapper)) {
-			tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
-			return false;
+			if(has_failed)
+				return false;
+			if( !var->m_wrapper->compareAndSet(subwrapper, newwrapper)) {
+				tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
+				return false;
+			}
+			break;
 		}
-		break;
 	}
 	tr[ *this].catchEvent(var, packet->size() - 1);
 	tr[ *this].listChangeEvent();
@@ -619,7 +623,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 				if(make_unbundled_branch) {
 					cas_infos->clear();
 				}
-				printf("V\n");
+//				printf("V\n");
 				ASSERT(( *upperpacket)->missing());
 				return SNAPSHOT_VOID_PACKET;
 			}
