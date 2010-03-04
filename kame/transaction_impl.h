@@ -230,7 +230,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 			packet->subpackets()->back() = subpacket_new;
 //		}
 		local_shared_ptr<PacketWrapper> newwrapper(
-			new PacketWrapper(m_wrapper, packet->size() - 1, Packet::SERIAL_NULL));
+			new PacketWrapper(m_wrapper, packet->size() - 1, tr.m_serial));
 		newwrapper->packet() = subpacket_new;
 		if(has_failed)
 			return false;
@@ -318,6 +318,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		return true;
 	}
 
+	//\todo erase serials instead.
 	//New serial.
 	tr.m_serial = Packet::newSerial();
 	local_shared_ptr<Packet> newpacket(tr.m_packet);
@@ -585,6 +586,11 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 		upperpacket = &shot->packet();
 		status = SNAPSHOT_SUCCESS;
 		break;
+	case SNAPSHOT_NODE_MISSING_AND_COLLIDED:
+		shot = shot_upper;
+		upperpacket = &shot->packet();
+		status = SNAPSHOT_COLLIDED;
+		break;
 	case SNAPSHOT_COLLIDED:
 	case SNAPSHOT_SUCCESS:
 		break;
@@ -613,7 +619,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 				if(make_unbundled_branch) {
 					cas_infos->clear();
 				}
-		//		printf("V\n");
+				printf("V\n");
 				ASSERT(( *upperpacket)->missing());
 				return SNAPSHOT_VOID_PACKET;
 			}
@@ -623,36 +629,43 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 		++i;
 	}
 
+	ASSERT( !shot_upper->packet() || (shot_upper->packet()->node().m_wrapper == branchpoint_upper));
+	ASSERT(( *upperpacket)->node().m_wrapper == branchpoint_upper);
 	if(make_unbundled_branch) {
-		if((serial != Packet::SERIAL_NULL) && (shot_upper->m_bundle_serial == serial)) {
-			if(status == SNAPSHOT_NODE_MISSING)
-				return SNAPSHOT_NODE_MISSING;
-			//The node has been already bundled in the same snapshot.
-			return SNAPSHOT_COLLIDED;
-		}
-		local_shared_ptr<Packet> *p(upperpacket);
-		if(shot->packet()->missing() || (shot == shot_upper)) {
-			local_shared_ptr<PacketWrapper> newwrapper(
-				new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
-			if(shot == shot_upper) {
-				p = &newwrapper->packet();
-			}
-			cas_infos->push_back(CASInfo(branchpoint_upper, shot_upper, newwrapper));
-		}
 		if(status == SNAPSHOT_COLLIDED) {
 			return SNAPSHOT_COLLIDED;
 		}
-		if(status == SNAPSHOT_SUCCESS) {
-			p->reset(new Packet( **upperpacket));
-			( *p)->subpackets().reset(new PacketList( *( *p)->subpackets()));
-			( *p)->m_missing = true;
-			*subpacket = &( *p)->subpackets()->at(reverse_index);
-		}
-		if((serial != Packet::SERIAL_NULL) &&
-			((oldwrapper->m_bundle_serial == serial))) {
+		if((serial != Packet::SERIAL_NULL) && (shot_upper->m_bundle_serial == serial)) {
+			//The node has been already bundled in the same snapshot.
 			if(status == SNAPSHOT_NODE_MISSING)
 				return SNAPSHOT_NODE_MISSING;
 			return SNAPSHOT_COLLIDED;
+		}
+		local_shared_ptr<Packet> *p(upperpacket);
+		local_shared_ptr<PacketWrapper> newwrapper;
+		if(shot == shot_upper) {
+			newwrapper.reset(
+				new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
+		}
+		else if(shot->packet()->missing()) {
+			newwrapper.reset(
+				new PacketWrapper( *upperpacket, shot->m_bundle_serial));
+		}
+		if(newwrapper) {
+			cas_infos->push_back(CASInfo(branchpoint_upper, shot_upper, newwrapper));
+			p = &newwrapper->packet();
+		}
+		p->reset(new Packet( **upperpacket));
+		if(size) {
+			( *p)->subpackets().reset(new PacketList( *( *p)->subpackets()));
+			( *p)->m_missing = true;
+			if(status == SNAPSHOT_SUCCESS)
+				*subpacket = &( *p)->subpackets()->at(reverse_index);
+		}
+		if((status == SNAPSHOT_NODE_MISSING) && (serial != Packet::SERIAL_NULL) &&
+			(( !oldwrapper->hasPriority()) && (oldwrapper->m_bundle_serial == serial))) {
+			printf("!");
+			return SNAPSHOT_NODE_MISSING_AND_COLLIDED;
 		}
 	}
 	return status;
@@ -809,10 +822,11 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
 	Node &supernode(oldsuperwrapper->packet()->node());
 
-	if(oldsuperwrapper->m_bundle_serial != bundle_serial) {
+	if( !oldsuperwrapper->hasPriority() ||
+		(oldsuperwrapper->m_bundle_serial != bundle_serial)) {
 		//Tags serial.
 		local_shared_ptr<PacketWrapper> superwrapper(
-			new PacketWrapper( *oldsuperwrapper, bundle_serial));
+			new PacketWrapper( oldsuperwrapper->packet(), bundle_serial));
 		if( !supernode.m_wrapper->compareAndSet(oldsuperwrapper, superwrapper)) {
 			return BUNDLE_DISTURBED;
 		}
@@ -1015,8 +1029,13 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		newsubpacket = const_cast<local_shared_ptr<Packet> *>(&nullwrapper->packet());
 		ASSERT(newsubpacket);
 		break;
+	case SNAPSHOT_NODE_MISSING_AND_COLLIDED:
+		newsubpacket = const_cast<local_shared_ptr<Packet> *>(&nullwrapper->packet());
+		ASSERT(newsubpacket);
+		status = SNAPSHOT_COLLIDED;
+		break;
 	case SNAPSHOT_COLLIDED:
-		return UNBUNDLE_COLLIDED;
+		break;
 	}
 
 	if(oldsubpacket && ( *newsubpacket != *oldsubpacket))
@@ -1035,6 +1054,8 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 			}
 		}
 	}
+	if(status == SNAPSHOT_COLLIDED)
+		return UNBUNDLE_COLLIDED;
 
 	local_shared_ptr<PacketWrapper> newsubwrapper;
 	if(oldsubpacket)

@@ -234,8 +234,9 @@ private:
 		snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
 		target.m_oldpacket = target.m_packet;
 	}
-	enum SnapshotStatus {SNAPSHOT_SUCCESS, SNAPSHOT_DISTURBED,
-		SNAPSHOT_NODE_MISSING, SNAPSHOT_VOID_PACKET, SNAPSHOT_COLLIDED};
+	enum SnapshotStatus {SNAPSHOT_SUCCESS = 0, SNAPSHOT_DISTURBED = 1,
+		SNAPSHOT_VOID_PACKET = 2, SNAPSHOT_NODE_MISSING = 4,
+		SNAPSHOT_COLLIDED = 8, SNAPSHOT_NODE_MISSING_AND_COLLIDED = 12};
 	struct CASInfo {
 		CASInfo(const shared_ptr<BranchPoint> &b, const local_shared_ptr<PacketWrapper> &o,
 			const local_shared_ptr<PacketWrapper> &n) : branchpoint(b), old_wrapper(o), new_wrapper(n) {}
