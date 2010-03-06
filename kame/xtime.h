@@ -51,7 +51,7 @@ public:
         long usec = (lrint(1e6 * (tv_sec - sec + sec_d) + tv_usec));
         tv_sec = sec;
         tv_usec = usec;
-        ASSERT((tv_usec >= 0) && (tv_usec < 1000000u));
+        ASSERT((tv_usec >= 0) && (tv_usec < 1000000));
         return *this;
     }
     XTime &operator-=(double sec) {

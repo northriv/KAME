@@ -72,13 +72,11 @@ XComboNode::value(int t) {
 void
 XComboNode::add(const XString &str) {
 	trans(*this).add(str);
-	onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 }
 
 void
 XComboNode::clear() {
 	trans(*this).clear();
-	onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 }
 
 void

@@ -26,7 +26,6 @@ public:
 	struct Item { XString name, label; };
 	virtual shared_ptr<const std::deque<Item> > itemStrings(const Snapshot &shot_of_list) const = 0;
 
-	XTalker<shared_ptr<XItemNodeBase> >  &onListChanged() {return m_tlkOnListChanged;}
 	bool autoSetAny() const {return m_lsnTryAutoSet;}
 
 	struct Payload : public XValueNodeBase::Payload {
@@ -37,7 +36,6 @@ public:
 		TalkerSingleton<XItemNodeBase*, XItemNodeBase*> m_tlkOnListChanged;
 	};
 private:
-	XTalker<shared_ptr<XItemNodeBase> > m_tlkOnListChanged;
 	shared_ptr<XListener> m_lsnTryAutoSet;
 	void onTryAutoSet(const Snapshot &shot, XItemNodeBase *);
 };
@@ -107,7 +105,6 @@ private:
 	}
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
 		if(shared_ptr<TL> list = m_list.lock()) {
-			onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
 			ASSERT(node == list.get());
 			shot.talk(( **this)->onListChanged(), this);
 		}

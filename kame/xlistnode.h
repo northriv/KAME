@@ -23,30 +23,6 @@ public:
 	explicit XListNodeBase(const char *name, bool runtime = false);
 	virtual ~XListNodeBase() {}
 
-	virtual void clearChildren();
-	virtual int releaseChild(const shared_ptr<XNode> &node);
-        
-	//! called after creation, moving, deleting.
-	XTalker<shared_ptr<XListNodeBase> > &onListChanged() {return m_tlkOnListChanged;}
-
-	//! called after moving.
-	struct MoveEvent {
-		unsigned int src_idx, dst_idx;
-		shared_ptr<XListNodeBase> emitter;
-	};
-	XTalker<MoveEvent> &onMove() {return m_tlkOnMove;}
-
-	//! called after creating a child
-	XTalker<shared_ptr<XNode> > &onCatch() {return m_tlkOnCatch;}
-	//! called before deleting a child
-	XTalker<shared_ptr<XNode> > &onRelease() {return m_tlkOnRelease;}
-  
-	//! append new item.
-	virtual void insert(const shared_ptr<XNode> &ptr);
-	virtual bool insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion = false);
-
-	void move(unsigned int src_idx, unsigned int dest_idx);
-  
 	//! Create a object, whose class is determined from \a type.
 	//! Scripting only. Use XNode::create for coding instead.
 	virtual shared_ptr<XNode> createByTypename(
@@ -86,9 +62,6 @@ public:
 		virtual void listChangeEvent();
 	};
 protected:    
-	XTalker<shared_ptr<XListNodeBase> > m_tlkOnListChanged;
-	XTalker<MoveEvent> m_tlkOnMove;
-	XTalker<shared_ptr<XNode> > m_tlkOnCatch, m_tlkOnRelease;
 };
 
 template <class NT>
