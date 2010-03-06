@@ -30,7 +30,7 @@
 #include <ltdl.h>
 
 int load_module(const char *filename, lt_ptr data) {
-	reinterpret_cast<std::deque<std::string> *>(data)->push_back(filename);
+	static_cast<std::deque<std::string> *>(data)->push_back(filename);
 	return 0;
 }
 

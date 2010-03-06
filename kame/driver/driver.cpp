@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,36 +16,33 @@
 
 DECLARE_TYPE_HOLDER(XDriverList)
 
+XDriverList::XDriverList(const char *name, bool runtime,
+						 const shared_ptr<XMeasure> &measure) :
+	XCustomTypeListNode<XDriver>(name, runtime),
+	m_measure(measure) {
+}
+
 shared_ptr<XNode>
 XDriverList::createByTypename(const XString &type, const XString& name) {
-    shared_ptr<XNode> ptr = (*creator(type))
-        (name.c_str(), false, m_scalarentries, m_interfaces, m_thermometers,
-		 dynamic_pointer_cast<XDriverList>(shared_from_this()));
-    if(ptr) insert(ptr);
+	shared_ptr<XMeasure> measure(m_measure.lock());
+	shared_ptr<XNode> ptr;
+	for(Transaction tr( *measure);; ++tr) {
+		ptr = creator(type)
+			(name.c_str(), false, ref(tr), measure);
+		if(ptr)
+			if( !insert(tr, ptr))
+				continue;
+		if(tr.commit())
+			break;
+	}
     return ptr;
 }
 
 XDriver::XBufferUnderflowRecordError::XBufferUnderflowRecordError(const char *file, int line) : 
     XRecordError(i18n("Buffer Underflow."), file, line) {}
 
-XDriverList::XDriverList(const char *name, bool runtime,
-						 const shared_ptr<XScalarEntryList> &scalarentries,
-						 const shared_ptr<XInterfaceList> &interfaces,
-						 const shared_ptr<XThermometerList> &thermometers) :
-	XCustomTypeListNode<XDriver>(name, runtime), 
-	m_scalarentries(scalarentries),
-	m_interfaces(interfaces),
-	m_thermometers(thermometers)
-{
-}
-
-XDriver::XDriver(const char *name, bool runtime, 
-				 const shared_ptr<XScalarEntryList> &,
-				 const shared_ptr<XInterfaceList> &,
-				 const shared_ptr<XThermometerList> &,
-				 const shared_ptr<XDriverList> &) :
-    XNode(name, runtime)
-{
+XDriver::XDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XNode(name, runtime) {
 }
 
 void

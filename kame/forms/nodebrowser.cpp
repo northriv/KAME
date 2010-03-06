@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -24,20 +24,19 @@
 
 XNodeBrowser::XNodeBrowser
 (const shared_ptr<XNode> &root, FrmNodeBrowser *form)
-: XQConnector(root, form),
-m_root(root),
-m_pForm(form),
-m_desc(createOrphan<XStringNode>("Desc", true)),
-m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc))
-{
+	: XQConnector(root, form),
+	m_root(root),
+	m_pForm(form),
+	m_desc(XNode::createOrphan<XStringNode>("Desc", true)),
+	m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc)) {
+
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
 	m_pTimer->start(500);
 	form->m_txtDesc->setTextFormat(Qt::RichText);
 }
 
-XNodeBrowser::~XNodeBrowser()
-{
+XNodeBrowser::~XNodeBrowser() {
 	m_pTimer->stop();
 }
 shared_ptr<XNode>
@@ -55,20 +54,20 @@ XNodeBrowser::process() {
 	shared_ptr<XNode> node;
 	//	widget = KApplication::kApplication()->focusWidget();
 	//		node = connectedNode(widget);
-	if(!node) {
+	if( !node) {
 		widget = KApplication::widgetAt(QCursor::pos());
 		node = connectedNode(widget);
-		if(!node && widget) {
+		if( !node && widget) {
 			widget = widget->parentWidget();
 			node = connectedNode(widget);
-			if(!node && widget) {
+			if( !node && widget) {
 				widget = widget->parentWidget();
 				node = connectedNode(widget);
 			}
 		}
 	}
 
-	if(!node)
+	if( !node)
 		node = m_lastPointed;
 	if((node != m_lastPointed) && node) {
 		shared_ptr<XValueNodeBase> valuenode(dynamic_pointer_cast<XValueNodeBase>(node));
@@ -89,10 +88,12 @@ XNodeBrowser::process() {
 		str += node->getTypename().c_str();
 		str += "<br>";
 		XString rbpath;
-		shared_ptr<XNode> cnode = node;
+		XNode *cnode = node.get();
+		shared_ptr<XNode> rootnode(m_root);
+		Snapshot rootshot( *rootnode);
 		while(cnode) {
 			if((rbpath.length() > 64) ||
-				(cnode == m_root.lock())) {
+				(cnode == m_root.lock().get())) {
 				str += "<font color=#550000>Ruby object:</font><br> Measurement";
 				str += rbpath.c_str();
 				str += "<br><font color=#550000>Supported Ruby methods:</font>"
@@ -109,18 +110,18 @@ XNodeBrowser::process() {
 				break;
 			}
 			rbpath = formatString("[\"%s\"]%s", cnode->getName().c_str(), rbpath.c_str());
-			cnode = cnode->getParent();
+			cnode = cnode->upperNode(rootshot);
 		}
-		if(!cnode) {
+		if( !cnode) {
 			//			str += rbpath;
 			str += "Inaccessible from the root.<br>";		
 		}
-		XNode::NodeList::reader list(node->children());
-		if(list) { 
-			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)list->size()).c_str();
-			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+		Snapshot shot( *node);
+		if(shot.size()) {
+			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)shot.list()->size()).c_str();
+			for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
 				str += " ";
-				str += (*it)->getName().c_str();
+				str += ( *it)->getName().c_str();
 			}
 			str += "<br>";
 		}

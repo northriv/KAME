@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,12 +24,9 @@
 
 #define MAX_RAW_RECORD_SIZE 1000000
 
-class XRawStream : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XRawStream(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
+class XRawStream : public XNode {
 public:
+	XRawStream(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
 	virtual ~XRawStream();
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}  
 protected:
@@ -41,12 +38,9 @@ private:
 	shared_ptr<XStringNode> m_filename;
 
 };
-class XRawStreamRecorder : public XRawStream
-{
-	XNODE_OBJECT
-protected:
-	XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
+class XRawStreamRecorder : public XRawStream {
 public:
+	XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
 	virtual ~XRawStreamRecorder() {}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
 protected:
@@ -69,13 +63,10 @@ private:
 
 class XScalarEntryList;
 
-class XTextWriter : public XNode
-{
-	XNODE_OBJECT
-protected:
+class XTextWriter : public XNode {
+public:
 	XTextWriter(const char *name, bool runtime,
 				const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist);
-public:
 	virtual ~XTextWriter() {}
 
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}

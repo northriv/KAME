@@ -302,6 +302,7 @@ public:
 		this->reset();
 		this->m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)t._scan_();
 		readBarrier();
+		return *this;
 	}
 	//! \param y This instance is atomically replaced with \a t.
 	template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
@@ -309,6 +310,7 @@ public:
 		this->reset();
 		this->m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)y._scan_();
 		readBarrier();
+		return *this;
 	}
 
 	//! \param x \p x is swapped with this instance.

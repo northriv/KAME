@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,13 +21,10 @@ class QDialog;
 class Ui_DlgGraphSetup;
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
-class XQGraphDialogConnector : public XQConnector
-{
+class XQGraphDialogConnector : public XQConnector {
     Q_OBJECT
-    XQCON_OBJECT
-protected:
-	XQGraphDialogConnector(const shared_ptr<XGraph> &graph, DlgGraphSetup* item);
 public:
+	XQGraphDialogConnector(const shared_ptr<XGraph> &graph, DlgGraphSetup* item);
 	virtual ~XQGraphDialogConnector();
 private:
 	DlgGraphSetup *const m_pItem;

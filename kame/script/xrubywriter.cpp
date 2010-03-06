@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,9 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "xrubywriter.h"
 #include <fstream>
-#include "config.h"
+#include "xrubywriter.h"
 #include "xitemnode.h"
 #include "xlistnode.h"
 
@@ -38,18 +37,19 @@ XRubyWriter::write()
     m_ofs << "x << " 
 		  << name
 		  << std::endl;
-    XNode::NodeList::reader list = m_root->children();
-    write(m_root, list, false, 0);
+	Snapshot shot( *m_root);
+    write(m_root, shot, false, 0);
 }
 void 
 XRubyWriter::write(
-    const shared_ptr<XNode> &node, const XNode::NodeList::reader &list,
+    const shared_ptr<XNode> &node, const Snapshot &shot,
     bool ghost, int level)
 {
+	int size = shot.size(node);
     ghost = ghost || node->isRunTime();
     shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
-        if(list) {
+        if(size) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
@@ -70,7 +70,7 @@ XRubyWriter::write(
 			  << std::endl;
     }
     else
-        if(!list) {m_ofs << std::endl;}
+        if( ! size) {m_ofs << std::endl;}
         
     shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     bool write_typename = false;
@@ -81,14 +81,15 @@ XRubyWriter::write(
         if(lnode->getTypename().find("XAliasListNode") == 0) lnode.reset();
     }
     unsigned idx = 0;
-    if(list) {
-        for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+    if(size) {
+    	const XNode::NodeList &list( *shot.list(node));
+        for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
             shared_ptr<XNode> child = *it;
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)
                 m_ofs << "# ";
-            XNode::NodeList::reader child_list = child->children();
-            if(child_list) {
+            int child_size = shot.size(child);
+            if(child_size) {
                 m_ofs << "x << ";
             }
             if(lnode) {
@@ -117,11 +118,11 @@ XRubyWriter::write(
 						  <<  "]";
                 }
             }
-            if(child_list) {
+            if(child_size) {
                 m_ofs << std::endl;
             }
-            write(child, child_list, ghost, level + 1);
-            if(child_list) {
+            write(child, shot, ghost, level + 1);
+            if(child_size) {
                 for(int j = 0; j < level; j++) m_ofs << "\t";
                 if(ghost)
                     m_ofs << "# ";

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,16 +19,10 @@
 #include "oxforddriver.h"
 //---------------------------------------------------------------------------
 //OXFORD PS120 Magnet Power Supply
-class XPS120 : public XOxfordDriver<XMagnetPS>
-{
-	XNODE_OBJECT
-protected:
-	XPS120(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers);
+class XPS120 : public XOxfordDriver<XMagnetPS> {
 public:
+	XPS120(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XPS120() {}
 
 protected:
@@ -63,18 +57,11 @@ private:
 };
 
 //OXFORD IPS120 Magnet Power Supply
-class XIPS120 : public XPS120
-{
+class XIPS120 : public XPS120 {
 public:
-	XNODE_OBJECT
-protected:
 	XIPS120(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers) :
-		XPS120(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
-public:
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+		XPS120(name, runtime, ref(tr_meas), meas) {}
 	virtual ~XIPS120() {}
 	virtual double fieldResolution() {return 0.0001;}
 protected:

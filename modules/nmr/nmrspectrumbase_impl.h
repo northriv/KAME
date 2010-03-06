@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,12 +27,10 @@
 //---------------------------------------------------------------------------
 template <class FRM>
 XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
-						   const shared_ptr<XScalarEntryList> &scalarentries,
-						   const shared_ptr<XInterfaceList> &interfaces,
-						   const shared_ptr<XThermometerList> &thermometers,
-						   const shared_ptr<XDriverList> &drivers)
-	: XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	  m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >("PulseAnalyzer", false, drivers, true)),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+	: XSecondaryDriver(name, runtime, ref(tr_meas), meas),
+	  m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >(
+		  "PulseAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
 	  m_bandWidth(create<XDoubleNode>("BandWidth", false)),
 	  m_bwList(create<XComboNode>("BandWidthList", false, true)),
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
@@ -52,52 +50,54 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
     
 	connect(pulse());
 
-	{
+	for(Transaction tr( *m_spectrum);; ++tr) {
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
-		m_spectrum->setColCount(6, labels);
-		m_spectrum->insertPlot(labels[4], 0, 4, -1, 3);
-		m_spectrum->insertPlot(labels[1], 0, 1, -1, 3);
-		m_spectrum->insertPlot(labels[2], 0, 2, -1, 3);
-		m_spectrum->insertPlot(labels[5], 0, 5, -1, 3);
-		m_spectrum->axisy()->label()->value(i18n("Intens. [V]"));
-		m_spectrum->plot(1)->label()->value(i18n("real part"));
-		m_spectrum->plot(1)->drawPoints()->value(false);
-		m_spectrum->plot(1)->lineColor()->value(clRed);
-		m_spectrum->plot(2)->label()->value(i18n("imag. part"));
-		m_spectrum->plot(2)->drawPoints()->value(false);
-		m_spectrum->plot(2)->lineColor()->value(clGreen);
-		m_spectrum->plot(0)->label()->value(i18n("abs."));
-		m_spectrum->plot(0)->drawPoints()->value(false);
-		m_spectrum->plot(0)->drawLines()->value(true);
-		m_spectrum->plot(0)->drawBars()->value(true);
-		m_spectrum->plot(0)->barColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
-		m_spectrum->plot(0)->lineColor()->value(QColor(0x60, 0x60, 0xc0).rgb());
-		m_spectrum->plot(0)->intensity()->value(0.5);
-		m_spectrum->plot(3)->label()->value(i18n("dark"));
-		m_spectrum->plot(3)->drawBars()->value(false);
-		m_spectrum->plot(3)->drawLines()->value(true);
-		m_spectrum->plot(3)->lineColor()->value(QColor(0xa0, 0xa0, 0x00).rgb());
-		m_spectrum->plot(3)->drawPoints()->value(false);
-		m_spectrum->plot(3)->intensity()->value(0.5);
-		m_spectrum->clear();
+		tr[ *m_spectrum].setColCount(6, labels);
+		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
+		tr[ *m_spectrum].insertPlot(labels[1], 0, 1, -1, 3);
+		tr[ *m_spectrum].insertPlot(labels[2], 0, 2, -1, 3);
+		tr[ *m_spectrum].insertPlot(labels[5], 0, 5, -1, 3);
+		tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens. [V]");
+		tr[ *tr[ *m_spectrum].plot(1)->label()] = i18n("real part");
+		tr[ *tr[ *m_spectrum].plot(1)->drawPoints()] = false;
+		tr[ *tr[ *m_spectrum].plot(1)->lineColor()] = clRed;
+		tr[ *tr[ *m_spectrum].plot(2)->label()] = i18n("imag. part");
+		tr[ *tr[ *m_spectrum].plot(2)->drawPoints()] = false;
+		tr[ *tr[ *m_spectrum].plot(2)->lineColor()] = clGreen;
+		tr[ *tr[ *m_spectrum].plot(0)->label()] = i18n("abs.");
+		tr[ *tr[ *m_spectrum].plot(0)->drawPoints()] = false;
+		tr[ *tr[ *m_spectrum].plot(0)->drawLines()] = true;
+		tr[ *tr[ *m_spectrum].plot(0)->drawBars()] = true;
+		tr[ *tr[ *m_spectrum].plot(0)->barColor()] = QColor(0x60, 0x60, 0xc0).rgb();
+		tr[ *tr[ *m_spectrum].plot(0)->lineColor()] = QColor(0x60, 0x60, 0xc0).rgb();
+		tr[ *tr[ *m_spectrum].plot(0)->intensity()] = 0.5;
+		tr[ *tr[ *m_spectrum].plot(3)->label()] = i18n("dark");
+		tr[ *tr[ *m_spectrum].plot(3)->drawBars()] = false;
+		tr[ *tr[ *m_spectrum].plot(3)->drawLines()] = true;
+		tr[ *tr[ *m_spectrum].plot(3)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
+		tr[ *tr[ *m_spectrum].plot(3)->drawPoints()] = false;
+		tr[ *tr[ *m_spectrum].plot(3)->intensity()] = 0.5;
 		{
 			shared_ptr<XXYPlot> plot = m_spectrum->graph()->plots()->create<XXYPlot>(
-				"Peaks", true, m_spectrum->graph());
+				tr, "Peaks", true, ref(tr), m_spectrum->graph());
 			m_peakPlot = plot;
-			plot->label()->value(i18n("Peaks"));
-			plot->axisX()->value(m_spectrum->axisx());
-			plot->axisY()->value(m_spectrum->axisy());
-			plot->drawPoints()->value(false);
-			plot->drawLines()->value(false);
-			plot->drawBars()->value(true);
-			plot->intensity()->value(2.0);
-			plot->displayMajorGrid()->value(false);
-			plot->pointColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
-			plot->barColor()->value(QColor(0xa0, 0x00, 0xa0).rgb());
-			plot->clearPoints()->setUIEnabled(false);
-			plot->maxCount()->setUIEnabled(false);
+			tr[ *plot->label()] = i18n("Peaks");
+			tr[ *plot->axisX()] = tr[ *m_spectrum].axisx();
+			tr[ *plot->axisY()] = tr[ *m_spectrum].axisy();
+			tr[ *plot->drawPoints()] = false;
+			tr[ *plot->drawLines()] = false;
+			tr[ *plot->drawBars()] = true;
+			tr[ *plot->intensity()] = 2.0;
+			tr[ *plot->displayMajorGrid()] = false;
+			tr[ *plot->pointColor()] = QColor(0xa0, 0x00, 0xa0).rgb();
+			tr[ *plot->barColor()] = QColor(0xa0, 0x00, 0xa0).rgb();
+			tr[ *plot->clearPoints()].setUIEnabled(false);
+			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
+		if(tr.commit())
+			break;
 	}
+	m_spectrum->clear();
   
 	bandWidth()->value(50);
 	bwList()->add("50%");
@@ -110,18 +110,18 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	windowWidth()->value(100.0);
 
 	m_conBandWidth = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
-	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList);
+	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList, Snapshot( *m_bwList));
 	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
 	m_form->m_numPhase->setRange(-360.0, 360.0, 10.0, true);
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
-	m_conPulse = xqcon_create<XQComboBoxConnector>(m_pulse, m_form->m_cmbPulse);
+	m_conPulse = xqcon_create<XQComboBoxConnector>(m_pulse, m_form->m_cmbPulse, ref(tr_meas));
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
-	m_conSolverList = xqcon_create<XQComboBoxConnector>(m_solverList, m_form->m_cmbSolver);
+	m_conSolverList = xqcon_create<XQComboBoxConnector>(m_solverList, m_form->m_cmbSolver, Snapshot( *m_solverList));
 	m_conWindowWidth = xqcon_create<XKDoubleNumInputConnector>(m_windowWidth,
 		m_form->m_numWindowWidth);
 	m_form->m_numWindowWidth->setRange(0.1, 200.0, 1.0, true);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc,
-		m_form->m_cmbWindowFunc);
+		m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
 
 	m_lsnOnClear = m_clear->onTouch().connectWeak(
 		shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);
@@ -270,8 +270,7 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::visualize()
-{
+XNMRSpectrumBase<FRM>::visualize() {
 	if(!time()) {
 		m_spectrum->clear();
 		m_peakPlot->maxCount()->value(0);
@@ -282,19 +281,19 @@ XNMRSpectrumBase<FRM>::visualize()
 	std::vector<double> values;
 	getValues(values);
 	ASSERT(values.size() == length);
-	{   XScopedWriteLock<XWaveNGraph> lock(*m_spectrum);
+	for(Transaction tr( *m_spectrum);; ++tr) {
 		double th = FFT::windowFuncHamming(0.1);
-		m_spectrum->setRowCount(length);
+		tr[ *m_spectrum].setRowCount(length);
 		for(int i = 0; i < length; i++) {
-			m_spectrum->cols(0)[i] = values[i];
-			m_spectrum->cols(1)[i] = std::real(wave()[i]);
-			m_spectrum->cols(2)[i] = std::imag(wave()[i]);
-			m_spectrum->cols(3)[i] = (weights()[i] > th) ? weights()[i] : 0.0;
-			m_spectrum->cols(4)[i] = std::abs(wave()[i]);
-			m_spectrum->cols(5)[i] = sqrt(darkPSD()[i]);
+			tr[ *m_spectrum].cols(0)[i] = values[i];
+			tr[ *m_spectrum].cols(1)[i] = std::real(wave()[i]);
+			tr[ *m_spectrum].cols(2)[i] = std::imag(wave()[i]);
+			tr[ *m_spectrum].cols(3)[i] = (weights()[i] > th) ? weights()[i] : 0.0;
+			tr[ *m_spectrum].cols(4)[i] = std::abs(wave()[i]);
+			tr[ *m_spectrum].cols(5)[i] = sqrt(darkPSD()[i]);
 		}
-		m_peakPlot->maxCount()->value(m_peaks.size());
-		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
+		tr[ *m_peakPlot->maxCount()] = m_peaks.size();
+		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
 		points.resize(m_peaks.size());
 		for(int i = 0; i < m_peaks.size(); i++) {
 			double x = m_peaks[i].second;
@@ -303,13 +302,16 @@ XNMRSpectrumBase<FRM>::visualize()
 			double a = values[j] + (values[j + 1] - values[j]) * (x - j);
 			points[i] = XGraph::ValPoint(a, m_peaks[i].first);
 		}
+		m_spectrum->drawGraph(tr);
+		if(tr.commit()) {
+			break;
+		}
 	}
 }
 
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::fssum()
-{
+XNMRSpectrumBase<FRM>::fssum() {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 
 	int len = _pulse->ftWidth();

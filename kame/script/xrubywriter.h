@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,15 +16,14 @@
 
 #include "xnode.h"
 
-class XRubyWriter 
-{
+class XRubyWriter  {
 public:
     XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs);
     ~XRubyWriter();
     void write();
 private:
     void write(const shared_ptr<XNode> &node,
-			   const XNode::NodeList::reader &list, bool ghost, int level);
+			   const Snapshot &shot, bool ghost, int level);
     shared_ptr<XNode> m_root;
     std::ofstream &m_ofs;    
 };

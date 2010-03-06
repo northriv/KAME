@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,13 +18,11 @@
 
 #include "xnode.h"
 #include "xlistnode.h"
+#include "cspline.h"
 
-class XThermometer : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XThermometer(const char *name, bool runtime);
+class XThermometer : public XNode {
 public:
+	XThermometer(const char *name, bool runtime);
 	virtual ~XThermometer() {}
 
 	virtual double getTemp(double res) const = 0;
@@ -36,31 +34,25 @@ private:
 	const shared_ptr<XDoubleNode> m_tempMin, m_tempMax;
 };
 
-class XThermometerList : public XCustomTypeListNode<XThermometer>
-{
-	XNODE_OBJECT
-protected:
-	XThermometerList(const char *name, bool runtime);
+class XThermometerList : public XCustomTypeListNode<XThermometer> {
 public:
+	XThermometerList(const char *name, bool runtime);
 	virtual ~XThermometerList() {}
 
 	DEFINE_TYPE_HOLDER
 protected:
 	virtual shared_ptr<XNode> createByTypename(
         const XString &type, const XString &name) {
-		shared_ptr<XNode> ptr = (*creator(type))(name.c_str(), false);
+		shared_ptr<XNode> ptr = (creator(type))(name.c_str(), false);
 		if(ptr) insert(ptr);
 		return ptr;
 	}
 };
 
 //chebichev polynominal
-class XLakeShore : public XThermometer
-{
-	XNODE_OBJECT
-protected:
-	XLakeShore(const char *name, bool runtime);
+class XLakeShore : public XThermometer {
 public:
+	XLakeShore(const char *name, bool runtime);
 	virtual ~XLakeShore() {}
   
 	double getTemp(double res) const;
@@ -80,8 +72,7 @@ private:
 
 };
 
-class XScientificInstruments : public XThermometer
-{
+class XScientificInstruments : public XThermometer {
 public:
 	XScientificInstruments(const char *name, bool runtime);
 	virtual ~XScientificInstruments() {}
@@ -101,10 +92,8 @@ private:
 	const shared_ptr<XDoubleNode> m_rCrossover;    
 };
 
-class CSplineApprox;
 //! Cubic (natural) spline approximation.
-class XApproxThermometer : public XThermometer
-{
+class XApproxThermometer : public XThermometer {
 public:
 	XApproxThermometer(const char *name, bool runtime);
 

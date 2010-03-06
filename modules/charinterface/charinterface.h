@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,12 +20,9 @@ class XPort;
 //#include <stdarg.h>
 
 //! Standard interface for character devices. e.g. GPIB, serial port, ....
-class XCharInterface : public XInterface
-{
-	XNODE_OBJECT
-protected:
-	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+class XCharInterface : public XInterface {
 public:
+	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XCharInterface() {}
    
 	//! Buffer is Thread-Local-Strage.

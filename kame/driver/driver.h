@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,6 +16,8 @@
 
 #include "xnode.h"
 #include "xlistnode.h"
+#include "rwlock.h"
+#include "measure.h"
 #include <vector>
 #include <set>
 
@@ -26,16 +28,9 @@ class XThermometerList;
 class XDriverList;
 
 //! Base class for all instrument drivers
-class XDriver : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XDriver(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers);
+class XDriver : public XNode {
 public:
+	XDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDriver() {}
 
 	//! Shows all forms belonging to the driver.
@@ -103,8 +98,7 @@ private:
 };
 
 //! When a record depends on other records, multiple delegations may cause a confilct of time stamps. This class can detect it.
-class XRecordDependency
-{
+class XRecordDependency {
 public:
     XRecordDependency();
     XRecordDependency(const shared_ptr<XRecordDependency> &);
@@ -129,26 +123,17 @@ private:
 };
 
 
-class XDriverList : public XCustomTypeListNode<XDriver>
-{
-	XNODE_OBJECT
-protected:
-	XDriverList(const char *name, bool runtime,
-				const shared_ptr<XScalarEntryList> &scalarentries,
-				const shared_ptr<XInterfaceList> &interfaces,
-				const shared_ptr<XThermometerList> &thermometers);
+class XDriverList : public XCustomTypeListNode<XDriver> {
 public:
-	DEFINE_TYPE_HOLDER_EXTRA_PARAMS_4(
-		const shared_ptr<XScalarEntryList> &,
-		const shared_ptr<XInterfaceList> &,
-		const shared_ptr<XThermometerList> &,
-		const shared_ptr<XDriverList> &
+	XDriverList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
+
+	DEFINE_TYPE_HOLDER_EXTRA_PARAMS_2(
+		reference_wrapper<Transaction>,
+		const shared_ptr<XMeasure> &
 		)
 		virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name);
 private:
-	const shared_ptr<XScalarEntryList> m_scalarentries;
-	const shared_ptr<XInterfaceList> m_interfaces;
-	const shared_ptr<XThermometerList> m_thermometers;
+	const weak_ptr<XMeasure> m_measure;
 };
 //---------------------------------------------------------------------------
 #endif

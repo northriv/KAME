@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,11 +19,8 @@
 #include <QStatusBar>
 
 XMagnetPS::XMagnetPS(const char *name, bool runtime, 
-					 const shared_ptr<XScalarEntryList> &scalarentries,
-					 const shared_ptr<XInterfaceList> &interfaces,
-					 const shared_ptr<XThermometerList> &thermometers,
-					 const shared_ptr<XDriverList> &drivers) :
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_field(create<XScalarEntry>("Field", false,
 								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_current(create<XScalarEntry>("Current", false, 
@@ -39,10 +36,9 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
     m_pcsHeater(create<XBoolNode>("PCSHeater", true)),
     m_persistent(create<XBoolNode>("Persistent", true)),
     m_form(new FrmMagnetPS(g_pFrmMain)),
-    m_statusPrinter(XStatusPrinter::create(m_form.get()))
-{
-	scalarentries->insert(m_field);
-	scalarentries->insert(m_current);
+    m_statusPrinter(XStatusPrinter::create(m_form.get())) {
+	meas->scalarEntries()->insert(tr_meas, m_field);
+	meas->scalarEntries()->insert(tr_meas, m_current);
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(XString("Magnet Power Supply - " + getLabel() ));
   

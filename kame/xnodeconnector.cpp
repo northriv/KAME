@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -83,15 +83,19 @@ _XQConnectorHolder::destroyed () {
 
 XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 	: QObject(),
-	  m_pWidget(item) 
-{
+	  m_pWidget(item)  {
+
     ASSERT(node);
     ASSERT(item);
     s_conCreating.push_back(shared_ptr<XQConnector>(this));
-    m_lsnUIEnabled = node->onUIEnabled().connectWeak
-        (shared_from_this(), &XQConnector::onUIEnabled,
-		 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-    onUIEnabled(node);
+
+    for(Transaction tr( *node);; ++tr) {
+    	m_lsnUIEnabled = tr[ *node].onUIFlagsChanged().connect(*this, &XQConnector::onUIFlagsChanged,
+    		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+    	if(tr.commit())
+    		break;
+    }
+    onUIFlagsChanged(Snapshot(*node), node.get());
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
 			 .arg(node->getName())
 			 .arg((uintptr_t)this, 0, 16)
@@ -99,7 +103,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     
     std::pair<std::map<const QWidget*, weak_ptr<XNode> >::iterator, bool> ret = 
     	s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
-    if(!ret.second)
+    if( !ret.second)
     	gErrPrint("Connection to Widget Duplicated!");
 #ifdef HAVE_LIBGCCPP
     GC_gcollect();
@@ -130,14 +134,14 @@ XQConnector::connectedNode(const QWidget *item) {
 }
 
 void
-XQConnector::onUIEnabled(const shared_ptr<XNode> &node) {
-    m_pWidget->setEnabled(node->isUIEnabled());
+XQConnector::onUIFlagsChanged(const Snapshot &shot, XNode *node) {
+    m_pWidget->setEnabled(shot[*node].isUIEnabled());
 }
 
 XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QAbstractButton *item)
 	: XQConnector(node, item),
-	  m_node(node), m_pItem(item) 
-{
+	  m_node(node), m_pItem(item) {
+
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
     m_lsnTouch = node->onTouch().connectWeak
         (shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
@@ -300,7 +304,7 @@ XKDoubleNumInputConnector::onChange(double val) {
 void
 XKDoubleNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(true);
-	m_pItem->setValue((double)*m_node);
+	m_pItem->setValue((double) *m_node);
 	m_pItem->blockSignals(false);
 }
 
@@ -423,13 +427,17 @@ XQToggleButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item)
 	: XQConnector(node, item),
 	  m_pItem(item), m_list(node) {
-    m_lsnMove = node->onMove().connectWeak
-        (shared_from_this(),
-         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
-    m_lsnCatch = node->onCatch().connectWeak
-		(shared_from_this(), &XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
-    m_lsnRelease = node->onRelease().connectWeak
-		(shared_from_this(), &XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
+
+	for(Transaction tr( *node);; ++tr) {
+	    m_lsnMove = tr[ *node].onMove().connect( *this,
+	         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
+	    m_lsnCatch = tr[ *node].onCatch().connect( *this,
+			&XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
+	    m_lsnRelease = tr[ *node].onRelease().connect( *this,
+	    	&XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
     m_pItem->setReadOnly(true);
 
     m_pItem->setSelectionMode(Q3Table::SingleRow);
@@ -449,13 +457,12 @@ XListQConnector::~XListQConnector() {
     }
 }
 void
-XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
-{
+XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
     unsigned int src = fromIndex;
     unsigned int dst = toIndex;
     
-    XNode::NodeList::reader list(m_list->children());
-    if(!list || src > list->size() || (dst > list->size())) {
+    Snapshot shot(*m_list);
+    if(! shot.size() || src > shot.size() || (dst > shot.size())) {
         throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
     }
     m_lsnMove->mask();
@@ -463,8 +470,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex )
     m_lsnMove->unmask();
 }
 void
-XListQConnector::onMove(const XListNodeBase::MoveEvent &e)
-{
+XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
     int dir = (e.src_idx - e.dst_idx) ? 1 : -1;
     for(unsigned int idx = e.dst_idx; idx != e.src_idx; idx += dir) {
         m_pItem->swapRows(idx, idx + dir);
@@ -474,19 +480,23 @@ XListQConnector::onMove(const XListNodeBase::MoveEvent &e)
 
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
 	: XValueQConnector(node, item) {
-    m_lsnListChanged = node->onListChanged().connectWeak
-        (shared_from_this(), &XItemQConnector::onListChanged,
-		 XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+	for(Transaction tr( *node);; ++tr) {
+	    m_lsnListChanged = tr[ *node].onListChanged().connect( *this,
+	    	&XItemQConnector::onListChanged,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+		if(tr.commit())
+			break;
+	}
 }
 XItemQConnector::~XItemQConnector() {
 }
 
 XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
-										 QComboBox *item)
+										 QComboBox *item, const Snapshot &shot_of_list)
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
-    onListChanged(node);
+    onListChanged(shot_of_list, node.get());
 }
 void
 XQComboBoxConnector::onSelect(int idx) {
@@ -547,9 +557,8 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(false);
 }
 void
-XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
-{
-	m_itemStrings = m_node->itemStrings();
+XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *) {
+	m_itemStrings = m_node->itemStrings(shot);
 	m_pItem->clear();
 	bool exist = false;
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
@@ -567,12 +576,13 @@ XQComboBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
 	onValueChanged(m_node);
 }
 
-XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node, Q3ListBox *item)
+XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
+	Q3ListBox *item, const Snapshot &shot_of_list)
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL(highlighted(int) ), this, SLOT( onSelect(int) ) );
     connect(item, SIGNAL(selected(int) ), this, SLOT( onSelect(int) ) );
-    onListChanged(node);
+    onListChanged(shot_of_list, node.get());
 }
 void
 XQListBoxConnector::onSelect(int idx) {
@@ -600,9 +610,8 @@ XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(false);
 }
 void
-XQListBoxConnector::onListChanged(const shared_ptr<XItemNodeBase> &)
-{
-	m_itemStrings = m_node->itemStrings();
+XQListBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *) {
+	m_itemStrings = m_node->itemStrings(shot);
 	m_pItem->clear();
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
 		it != m_itemStrings->end(); it++) {

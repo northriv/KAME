@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,11 +29,10 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 										 QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
-    m_newGraph(createOrphan<XNode>("NewGraph", true)),
-    m_deleteGraph(createOrphan<XNode>("DeleteGraph", true)),
+    m_newGraph(XNode::createOrphan<XNode>("NewGraph", true)),
+    m_deleteGraph(XNode::createOrphan<XNode>("DeleteGraph", true)),
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
-    m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete))
-{
+    m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete)) {
     KIconLoader *loader = KIconLoader::global();
 	btnnew->setIcon( loader->loadIcon("filenew",
 																				KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
@@ -55,10 +54,15 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 	labels += i18n("Axis Z");
 	m_pItem->setColumnLabels(labels);
 
-	XNode::NodeList::reader list(node->children());
-	if(list) {  
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-			onCatch(*it);
+	Snapshot shot(*node);
+	if(shot.size()) {
+		for(int idx = 0; idx < shot.size(); ++idx) {
+			XListNodeBase::Payload::CatchEvent e;
+			e.emitter = node.get();
+			e.caught = shot.list()->at(idx);
+			e.index = idx;
+			onCatch(shot, e);
+		}
 	}
 
   
@@ -76,10 +80,10 @@ XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
 	int n = m_pItem->currentRow();
-	XNode::NodeList::reader list(m_graphlist->children());
-	if(list) {    
-		if((n >= 0) && (n < (int)list->size())) {
-			shared_ptr<XNode> node = list->at(n);
+	Snapshot shot(*m_graphlist);
+	if(shot.size()) {
+		if((n >= 0) && (n < (int)shot.list()->size())) {
+			shared_ptr<XNode> node = shot.list()->at(n);
 			m_graphlist->releaseChild(node);
 		}
 	}
@@ -89,10 +93,10 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
 	switch(col) {
 	case 0:
 	{
-		XNode::NodeList::reader list(m_graphlist->children());
-		if(list) { 
-			if((row >= 0) && (row < (int)list->size())) {
-				dynamic_pointer_cast<XValGraph>(list->at(row))->showGraph();
+		Snapshot shot(*m_graphlist);
+		if(shot.size()) {
+			if((row >= 0) && (row < (int)shot.list()->size())) {
+				dynamic_pointer_cast<XValGraph>(shot.list()->at(row))->showGraph();
 			}
 		}
 	}
@@ -102,42 +106,36 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
 	}
 }
 void
-XGraphListConnector::onRelease(const shared_ptr<XNode> &node)
-{
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-	{
-		if(it->node == node)
-		{
-			for(int i = 0; i < m_pItem->numRows(); i++)
-			{
+XGraphListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
+		if(it->node == e.released) {
+			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->widget) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
 		}
-		else
-		{
+		else {
 			it++;
 		}
 	}
 }
 void
-XGraphListConnector::onCatch(const shared_ptr<XNode> &node)
-{
-	shared_ptr<XValGraph> graph = dynamic_pointer_cast<XValGraph>(node);
+XGraphListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+	shared_ptr<XValGraph> graph = static_pointer_cast<XValGraph>(e.caught);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, graph->getLabel().c_str());
 
 	struct tcons con;
-	con.node = node;
+	con.node = e.caught;
 	QComboBox *cmbX = new QComboBox(m_pItem);
-	con.conx = xqcon_create<XQComboBoxConnector>(graph->axisX(), cmbX);
+	con.conx = xqcon_create<XQComboBoxConnector>(graph->axisX(), cmbX, Snapshot( *graph));
 	m_pItem->setCellWidget(i, 1, cmbX);
 	QComboBox *cmbY1 = new QComboBox(m_pItem);
-	con.cony1 = xqcon_create<XQComboBoxConnector>(graph->axisY1(), cmbY1);
+	con.cony1 = xqcon_create<XQComboBoxConnector>(graph->axisY1(), cmbY1, Snapshot( *graph));
 	m_pItem->setCellWidget(i, 2, cmbY1);
 	QComboBox *cmbZ = new QComboBox(m_pItem);
-	con.conz = xqcon_create<XQComboBoxConnector>(graph->axisZ(), cmbZ);
+	con.conz = xqcon_create<XQComboBoxConnector>(graph->axisZ(), cmbZ, Snapshot( *graph));
 	m_pItem->setCellWidget(i, 3, cmbZ);
 
 	con.widget = m_pItem->cellWidget(i, 1);

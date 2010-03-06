@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@ public:
     ~XDotWriter();
     void write();
 private:
-    void write(const shared_ptr<XNode> &node);
+    void write(const shared_ptr<XNode> &node, const Snapshot &shot);
     shared_ptr<XNode> m_root;
     std::ofstream &m_ofs;    
     std::deque<shared_ptr<XNode> > m_nodes;

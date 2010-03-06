@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,16 +19,10 @@
 
 class XScalarEntry;
 
-class XLevelMeter : public XPrimaryDriver
-{
-	XNODE_OBJECT
-protected:
-	XLevelMeter(const char *name, bool runtime,
-			  const shared_ptr<XScalarEntryList> &scalarentries,
-			  const shared_ptr<XInterfaceList> &interfaces,
-			  const shared_ptr<XThermometerList> &thermometers,
-			  const shared_ptr<XDriverList> &drivers);
+class XLevelMeter : public XPrimaryDriver {
 public:
+	XLevelMeter(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XLevelMeter() {}
 	//! show all forms belonging to driver
@@ -56,7 +50,7 @@ protected:
 protected:
 	//! register channel names in your constructor
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
-	void createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
+	void createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
 						const char **channel_names);
 
 	virtual double getLevel(unsigned int ch) = 0;

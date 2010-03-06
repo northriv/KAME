@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -69,11 +69,8 @@ XPulser::pulseFunc(const XString &str) const {
 }
 
 XPulser::XPulser(const char *name, bool runtime, 
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers) :
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_output(create<XBoolNode>("Output", true)),
     m_combMode(create<XComboNode>("CombMode", false, true)),
     m_rtMode(create<XComboNode>("RTMode", false, true)),
@@ -118,8 +115,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_moreConfigShow(create<XNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
-    m_formMore(new FrmPulserMore(g_pFrmMain))
-{
+    m_formMore(new FrmPulserMore(g_pFrmMain)) {
 	{
 		QComboBox*const combo[] = {
 			m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
@@ -135,7 +131,7 @@ XPulser::XPulser(const char *name, bool runtime,
   		};
 		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 			m_portSel[i] = create<XComboNode>(formatString("PortSel%u", i).c_str(), false);
-			m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i]);
+			m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], Snapshot( *m_portSel[i]));
 			for(const char **p = &desc[0]; *p; p++)
 				m_portSel[i]->add(*p);
 //			m_portSel[i]->setUIEnabled(false);
@@ -242,8 +238,8 @@ XPulser::XPulser(const char *name, bool runtime,
 		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
   
 	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
-	m_conCombMode = xqcon_create<XQComboBoxConnector>(m_combMode, m_form->m_cmbCombMode);
-	m_conRTMode = xqcon_create<XQComboBoxConnector>(m_rtMode, m_form->m_cmbRTMode);
+	m_conCombMode = xqcon_create<XQComboBoxConnector>(m_combMode, m_form->m_cmbCombMode, Snapshot( *m_combMode));
+	m_conRTMode = xqcon_create<XQComboBoxConnector>(m_rtMode, m_form->m_cmbRTMode, Snapshot( *m_rtMode));
 	m_conRT = xqcon_create<XQLineEditConnector>(m_rt, m_form->m_edRT);
 	m_conTau = xqcon_create<XQLineEditConnector>(m_tau, m_form->m_edTau);
 	m_conCombPW = xqcon_create<XQLineEditConnector>(m_combPW, m_form->m_edCombPW);
@@ -259,13 +255,13 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conG2Setup = xqcon_create<XQLineEditConnector>(m_g2Setup, m_formMore->m_edG2Setup);
 	m_conEchoNum = xqcon_create<XQSpinBoxConnector>(m_echoNum, m_formMore->m_numEcho);
 	m_conDrivenEquilibrium = xqcon_create<XQToggleButtonConnector>(m_drivenEquilibrium, m_formMore->m_ckbDrivenEquilibrium);
-	m_conNumPhaseCycle = xqcon_create<XQComboBoxConnector>(m_numPhaseCycle, m_formMore->m_cmbPhaseCycle);
+	m_conNumPhaseCycle = xqcon_create<XQComboBoxConnector>(m_numPhaseCycle, m_formMore->m_cmbPhaseCycle, Snapshot( *m_numPhaseCycle));
 	m_conCombOffRes = xqcon_create<XQLineEditConnector>(m_combOffRes, m_form->m_edCombOffRes);
 	m_conInvertPhase = xqcon_create<XQToggleButtonConnector>(m_invertPhase, m_formMore->m_ckbInvertPhase);
 	m_conConserveStEPhase = xqcon_create<XQToggleButtonConnector>(m_conserveStEPhase, m_formMore->m_ckbStEPhase);
-	m_conP1Func = xqcon_create<XQComboBoxConnector>(m_p1Func, m_form->m_cmbP1Func);
-	m_conP2Func = xqcon_create<XQComboBoxConnector>(m_p2Func, m_form->m_cmbP2Func);
-	m_conCombFunc = xqcon_create<XQComboBoxConnector>(m_combFunc, m_form->m_cmbCombFunc);
+	m_conP1Func = xqcon_create<XQComboBoxConnector>(m_p1Func, m_form->m_cmbP1Func, Snapshot( *m_p1Func));
+	m_conP2Func = xqcon_create<XQComboBoxConnector>(m_p2Func, m_form->m_cmbP2Func, Snapshot( *m_p2Func));
+	m_conCombFunc = xqcon_create<XQComboBoxConnector>(m_combFunc, m_form->m_cmbCombFunc, Snapshot( *m_combFunc));
 	m_form->m_dblP1Level->setRange(-20.0, 3.0, 1.0, false);
 	m_conP1Level = xqcon_create<XKDoubleNumInputConnector>(m_p1Level, m_form->m_dblP1Level);
 	m_form->m_dblP2Level->setRange(-20.0, 3.0, 1.0, false);
@@ -769,9 +765,10 @@ XPulser::rawToRelPat() throw (XRecordError&)
 		0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2
 	};
 	//pi pulse phases
-	const uint32_t p2[MAX_NUM_PHASE_CYCLE] = {
+	const uint32_t _p2[MAX_NUM_PHASE_CYCLE] = {
 		0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3
 	};
+	const uint32_t *p2 = _conserve_ste_phase ? p1 : _p2;
 
 	//subsequent pi pulse phases for multiple echoes or for st.e.
 	const uint32_t p2multi[MAX_NUM_PHASE_CYCLE] = {
@@ -889,7 +886,7 @@ XPulser::rawToRelPat() throw (XRecordError&)
 			}
 		}
 		//for pi pulses
-		patterns.insert(tpat(pos + _pw1/2, qpsk[_conserve_ste_phase ? p1[j] : p2[j]], qpskmask));
+		patterns.insert(tpat(pos + _pw1/2, qpsk[p2[j]], qpskmask));
 		patterns.insert(tpat(pos + _pw1/2, ~(uint32_t)0, pulse2mask));
      
 		//2tau

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,11 +23,9 @@ class XQGraph;
 class XXYPlot;
 class XGraph;
 
-class XQPulserDriverConnector : public XQConnector
-{
+class XQPulserDriverConnector : public XQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
+public:
 	XQPulserDriverConnector(const shared_ptr<XPulser> &node, Q3Table *item, XQGraph *graph);
 public:
 	virtual ~XQPulserDriverConnector();

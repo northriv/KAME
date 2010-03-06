@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,12 +22,9 @@
 class XDriver;
 //! virtual class for communication devices.
 //! \sa XCharInterface
-class XInterface : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+class XInterface : public XNode {
 public:
+	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XInterface() {}
  
 	struct XInterfaceError : public XKameError {
@@ -90,11 +87,9 @@ private:
 	XString m_label;
 };
 
-class XInterfaceList : public XAliasListNode<XInterface>
-{
-	XNODE_OBJECT
-protected:
-    XInterfaceList(const char *name, bool runtime) : XAliasListNode<XInterface>(name, runtime) {}
+class XInterfaceList : public XAliasListNode<XInterface> {
+public:
+	XInterfaceList(const char *name, bool runtime) : XAliasListNode<XInterface>(name, runtime) {}
 };
 
 #endif /*INTERFACE_H_*/

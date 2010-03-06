@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,16 +19,10 @@
 class XCharInterface;
 
 template<class tDriver, class tInterface = XCharInterface>
-class XCharDeviceDriver : public tDriver
-{
-	XNODE_OBJECT
-protected:
-	XCharDeviceDriver(const char *name, bool runtime, 
-					  const shared_ptr<XScalarEntryList> &scalarentries,
-					  const shared_ptr<XInterfaceList> &interfaces,
-					  const shared_ptr<XThermometerList> &thermometers,
-					  const shared_ptr<XDriverList> &drivers);
+class XCharDeviceDriver : public tDriver {
 public:
+	XCharDeviceDriver(const char *name, bool runtime, 
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XCharDeviceDriver() {}
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
@@ -48,15 +42,12 @@ private:
 
 template<class tDriver, class tInterface>
 XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime, 
-														  const shared_ptr<XScalarEntryList> &scalarentries,
-														  const shared_ptr<XInterfaceList> &interfaces,
-														  const shared_ptr<XThermometerList> &thermometers,
-														  const shared_ptr<XDriverList> &drivers) :
-    tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    tDriver(name, runtime, ref(tr_meas), meas),
 	m_interface(XNode::create<tInterface>("Interface", false,
-										  dynamic_pointer_cast<XDriver>(this->shared_from_this())))
-{
-    interfaces->insert(m_interface);
+										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+
+    meas->interfaces()->insert(tr_meas, m_interface);
     m_lsnOnOpen = interface()->onOpen().connectWeak(
 		this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
     m_lsnOnClose = interface()->onClose().connectWeak( 
@@ -64,8 +55,7 @@ XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &)
-{
+XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &) {
 	try {
 		open();
 	}
@@ -76,8 +66,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &)
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver, tInterface>::onClose(const shared_ptr<XInterface> &)
-{
+XCharDeviceDriver<tDriver, tInterface>::onClose(const shared_ptr<XInterface> &) {
 	try {
 		this->stop();
 	}

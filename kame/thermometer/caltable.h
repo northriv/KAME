@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,13 +26,10 @@ class Ui_FrmGraphNURL;
 typedef QForm<QMainWindow, Ui_FrmGraphNURL> FrmGraphNURL;
 class XWaveNGraph;
 
-class XConCalTable : public XQConnector
-{
+class XConCalTable : public XQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
-	XConCalTable(const shared_ptr<XThermometerList> &list, FrmCalTable *form);
 public:
+	XConCalTable(const shared_ptr<XThermometerList> &list, FrmCalTable *form);
 	virtual ~XConCalTable() {}
 
 	const shared_ptr<XNode> &display() const {return m_display;}
@@ -46,7 +43,7 @@ private:
  
 	const shared_ptr<XNode> m_display;
 	const shared_ptr<XDoubleNode> m_temp, m_value;
-	const shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
+	shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
 	xqcon_ptr m_conThermo, m_conTemp, m_conValue, m_conDisplay;
   
 	shared_ptr<XListener> m_lsnTemp, m_lsnValue;

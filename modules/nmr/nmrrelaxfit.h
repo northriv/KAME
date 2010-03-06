@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,12 +21,9 @@
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
 
-class XRelaxFunc : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XRelaxFunc(const char *name, bool runtime) : XNode(name, runtime) {}
+class XRelaxFunc : public XNode {
 public:
+	XRelaxFunc(const char *name, bool runtime) : XNode(name, runtime) {}
 	virtual ~XRelaxFunc() {}
 	//! called during fitting
 	//! \param f f(t, it1) will be passed
@@ -44,12 +41,9 @@ public:
 						  gsl_vector * f, gsl_matrix * J);   
 }; 
 
-class XRelaxFuncList : public XAliasListNode<XRelaxFunc>
-{
-	XNODE_OBJECT
-protected:
-	XRelaxFuncList(const char *name, bool runtime);
+class XRelaxFuncList : public XAliasListNode<XRelaxFunc> {
 public:
+	XRelaxFuncList(const char *name, bool runtime);
 	virtual ~XRelaxFuncList() {}
 };
 

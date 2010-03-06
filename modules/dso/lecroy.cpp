@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,11 +19,8 @@ REGISTER_TYPE(XDriverList, LecroyDSO, "Lecroy/Iwatsu DSO");
 
 //---------------------------------------------------------------------------
 XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) :
-	XCharDeviceDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XDSO>(name, runtime, ref(tr_meas), meas) {
 	const char* ch[] = {"C1", "C2", "C3", "C4", "M1", "M2", "M3", "M4", 0L};
 	for(int i = 0; ch[i]; i++) {
 		trace1()->add(ch[i]);
@@ -33,16 +30,14 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 	}
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
-	for(int i = 0; sc[i]; i++)
-	{
+	for(int i = 0; sc[i]; i++) {
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
 		vFullScale3()->add(sc[i]);
 		vFullScale4()->add(sc[i]);
 	}
 	const char* tr[] = {"C1", "C2", "C3", "C4", "LINE", "EX", "EX10", "PA", "ETM10", 0L};
-	for(int i = 0; tr[i]; i++)
-	{
+	for(int i = 0; tr[i]; i++) {
 		trigSource()->add(tr[i]);
 	}
 
@@ -54,8 +49,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 }
 
 void
-XLecroyDSO::open() throw (XInterface::XInterfaceError &)
-{
+XLecroyDSO::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.

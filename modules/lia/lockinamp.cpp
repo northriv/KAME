@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,11 +20,8 @@
 #include <QStatusBar>
 
 XLIA::XLIA(const char *name, bool runtime, 
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) : 
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_valueX(create<XScalarEntry>("ValueX", false, 
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_valueY(create<XScalarEntry>("ValueY", false, 
@@ -36,12 +33,11 @@ XLIA::XLIA(const char *name, bool runtime,
     m_autoScaleX(create<XBoolNode>("AutoScaleX", false)),
     m_autoScaleY(create<XBoolNode>("AutoScaleY", false)),
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
-    m_form(new FrmLIA(g_pFrmMain))
-{
+    m_form(new FrmLIA(g_pFrmMain)) {
 	fetchFreq()->value(1);
   
-	scalarentries->insert(m_valueX);
-	scalarentries->insert(m_valueY);
+	meas->scalarEntries()->insert(tr_meas, m_valueX);
+	meas->scalarEntries()->insert(tr_meas, m_valueY);
 
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Lock-in-Amp - ") + getLabel() );
@@ -54,8 +50,8 @@ XLIA::XLIA(const char *name, bool runtime,
 	m_autoScaleY->setUIEnabled(false);
 	m_fetchFreq->setUIEnabled(false);
 
-	m_conSens = xqcon_create<XQComboBoxConnector>(m_sensitivity, m_form->m_cmbSens);
-	m_conTimeConst = xqcon_create<XQComboBoxConnector>(m_timeConst, m_form->m_cmbTimeConst);
+	m_conSens = xqcon_create<XQComboBoxConnector>(m_sensitivity, m_form->m_cmbSens, Snapshot( *m_sensitivity));
+	m_conTimeConst = xqcon_create<XQComboBoxConnector>(m_timeConst, m_form->m_cmbTimeConst, Snapshot( *m_timeConst));
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_frequency, m_form->m_edFreq);
 	m_conOutput = xqcon_create<XQLineEditConnector>(m_output, m_form->m_edOutput);
 	m_conAutoScaleX = xqcon_create<XQToggleButtonConnector>(m_autoScaleX, m_form->m_ckbAutoScaleX);

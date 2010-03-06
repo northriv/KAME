@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,25 +21,26 @@ REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measureme
 
 //---------------------------------------------------------------------------
 XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
-							 const shared_ptr<XScalarEntryList> &scalarentries,
-							 const shared_ptr<XInterfaceList> &interfaces,
-							 const shared_ptr<XThermometerList> &thermometers,
-							 const shared_ptr<XDriverList> &drivers)
-	: XNMRSpectrumBase<FrmNMRFSpectrum>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	  m_sg1(create<XItemNode<XDriverList, XSG> >("SG1", false, drivers, true)),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+	: XNMRSpectrumBase<FrmNMRFSpectrum>(name, runtime, ref(tr_meas), meas),
+	  m_sg1(create<XItemNode<XDriverList, XSG> >(
+		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
 	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_burstCount(create<XUIntNode>("BurstCount", false)),
-	  m_active(create<XBoolNode>("Active", true))
-{
+	  m_active(create<XBoolNode>("Active", true)) {
 	connect(sg1(), true);
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
-	m_spectrum->setLabel(0, "Freq [MHz]");
-	m_spectrum->axisx()->label()->value(i18n("Freq [MHz]"));
+	for(Transaction tr( *m_spectrum);; ++tr) {
+		tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
+		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
+		if(tr.commit())
+			break;
+	}
   
 	centerFreq()->value(20);
 	sg1FreqOffset()->value(700);
@@ -50,7 +51,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
 	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
 	m_conFreqStep = xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep);
-	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1);
+	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas));
 	m_form->m_numBurstCount->setRange(0, 15);
 	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,12 +18,8 @@ REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
 REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source");
 
 XYK7651::XYK7651(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) 
-   : XCharDeviceDriver<XDCSource>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+   : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
   function()->add("F1");
   function()->add("F5");
   channel()->disable();
@@ -31,14 +27,12 @@ XYK7651::XYK7651(const char *name, bool runtime,
   interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
-XYK7651::open() throw (XInterface::XInterfaceError &)
-{
+XYK7651::open() throw (XInterface::XInterfaceError &) {
 	this->start();
 	msecsleep(3000); // wait for instrumental reset.
 }
 void
-XYK7651::changeFunction(int /*ch*/, int )
-{
+XYK7651::changeFunction(int /*ch*/, int ) {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
 	if(*function() == 0) {
@@ -58,15 +52,13 @@ XYK7651::changeFunction(int /*ch*/, int )
 	interface()->send(function()->to_str() + "E");
 }
 void
-XYK7651::changeOutput(int /*ch*/, bool x)
-{
+XYK7651::changeOutput(int /*ch*/, bool x) {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
 	interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
-XYK7651::changeValue(int /*ch*/, double x, bool autorange)
-{
+XYK7651::changeValue(int /*ch*/, double x, bool autorange) {
 	XScopedLock<XInterface> lock(*interface());
 	if(!interface()->isOpened()) return;
 	if(autorange)
@@ -75,8 +67,7 @@ XYK7651::changeValue(int /*ch*/, double x, bool autorange)
 		interface()->sendf("S%.10fE", x);
 }
 double
-XYK7651::max(int /*ch*/, bool autorange) const
-{
+XYK7651::max(int /*ch*/, bool autorange) const {
 	int ran = *range();
 	if(*function() == 0) {
 		if(autorange || (ran == -1))
@@ -90,8 +81,7 @@ XYK7651::max(int /*ch*/, bool autorange) const
 	}
 }
 void
-XYK7651::changeRange(int /*ch*/, int ran)
-{
+XYK7651::changeRange(int /*ch*/, int ran) {
 	{
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
@@ -111,12 +101,8 @@ XYK7651::changeRange(int /*ch*/, int ran)
 
 
 XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) 
-   : XCharDeviceDriver<XDCSource>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+   : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\n");
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(2);
@@ -130,8 +116,7 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	range()->add("99mA");
 }
 void
-XMicroTaskTCS::queryStatus(int ch)
-{
+XMicroTaskTCS::queryStatus(int ch) {
 	unsigned int ran[3];
 	unsigned int v[3];
 	unsigned int o[3];
@@ -150,8 +135,7 @@ XMicroTaskTCS::queryStatus(int ch)
 	range()->value(ran[ch] - 1);
 }
 void
-XMicroTaskTCS::changeOutput(int ch, bool x)
-{
+XMicroTaskTCS::changeOutput(int ch, bool x) {
 	{
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
@@ -172,8 +156,7 @@ XMicroTaskTCS::changeOutput(int ch, bool x)
 	updateStatus();
 }
 void
-XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
-{
+XMicroTaskTCS::changeValue(int ch, double x, bool autorange) {
 	{
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
@@ -198,8 +181,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange)
 	updateStatus();
 }
 void
-XMicroTaskTCS::changeRange(int ch, int newran)
-{
+XMicroTaskTCS::changeRange(int ch, int newran) {
 	{
 		XScopedLock<XInterface> lock(*interface());
 		if(!interface()->isOpened()) return;
@@ -220,8 +202,7 @@ XMicroTaskTCS::changeRange(int ch, int newran)
 	updateStatus();	
 }
 double
-XMicroTaskTCS::max(int ch, bool autorange) const
-{
+XMicroTaskTCS::max(int ch, bool autorange) const {
 	if(autorange) return 0.099;
 	{
 		XScopedLock<XInterface> lock(*interface());
@@ -235,8 +216,7 @@ XMicroTaskTCS::max(int ch, bool autorange) const
 	}
 ;}
 void
-XMicroTaskTCS::open() throw (XInterface::XInterfaceError &)
-{
+XMicroTaskTCS::open() throw (XInterface::XInterfaceError &) {
 	this->start();
 	interface()->query("ID?");
 	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);

@@ -37,36 +37,25 @@ public:
     double operator-(const XTime &x) const {
         return (tv_sec - x.tv_sec) + (tv_usec - x.tv_usec) * 1e-6;
     }
+    long diff_usec(const XTime &x) const {
+        return (tv_sec - x.tv_sec) * 1000000L + ((tv_usec - x.tv_usec));
+    }
     long diff_msec(const XTime &x) const {
         return (tv_sec - x.tv_sec) * 1000L + ((tv_usec - x.tv_usec) / 1000L);
     }
     long diff_sec(const XTime &x) const {
         return tv_sec - x.tv_sec;
     }
-    XTime &operator+=(double x) {
-        long sec = (lrint(x));
-        long usec = (lrint(1e6 * (x - sec)));
-        sec += tv_sec;
-        usec += tv_usec;
-        if(usec >= 1000000L) {
-            sec += 1;
-            usec -= 1000000L;
-        }
+    XTime &operator+=(double sec_d) {
+        long sec = floor(sec_d + tv_sec + 1e-6 * tv_usec);
+        long usec = (lrint(1e6 * (tv_sec - sec + sec_d) + tv_usec));
         tv_sec = sec;
         tv_usec = usec;
+        ASSERT((tv_usec >= 0) && (tv_usec < 1000000u));
         return *this;
     }
-    XTime &operator-=(double x) {
-        long sec = (lrint(x));
-        long usec = (lrint(1e6 * (x - sec)));
-        sec = tv_sec - sec;
-        usec = tv_usec - usec;
-        if(usec < 0) {
-            sec -= 1;
-            usec += 1000000L;
-        }
-        tv_sec = sec;
-        tv_usec = usec;
+    XTime &operator-=(double sec) {
+        *this += -sec;
         return *this;
     }
     bool operator==(const XTime &x) const {

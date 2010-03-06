@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,15 +19,10 @@
 //---------------------------------------------------------------------------
 
 //! Tektronix DSO
-class XTDS : public XCharDeviceDriver<XDSO>
-{
-	XNODE_OBJECT
-protected:
+class XTDS : public XCharDeviceDriver<XDSO> {
+public:
 	XTDS(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers);
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XTDS() {}
 	//! convert raw to record
 	virtual void convertRaw() throw (XRecordError&);

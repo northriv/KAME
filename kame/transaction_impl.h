@@ -40,8 +40,8 @@ template <class XN>
 void
 Node<XN>::Packet::_print() const {
 	printf("Packet: ");
-	printf("node:%llx, ", (unsigned long long)(uintptr_t)&node());
-	printf("branchpoint:%llx, ", (unsigned long long)(uintptr_t)node().m_wrapper.get());
+	printf("%s@0x%llx, ", typeid(*this).name(), (unsigned long long)(uintptr_t)&node());
+	printf("BP@0x%llx, ", (unsigned long long)(uintptr_t)node().m_wrapper.get());
 	if(missing())
 		printf("missing, ");
 	if(size()) {
@@ -52,7 +52,7 @@ Node<XN>::Packet::_print() const {
 				printf("; ");
 			}
 			else {
-				printf("node:%llx w/o packet; ", (unsigned long long)(uintptr_t)subnodes()->at(i).get());
+				printf("%s@0x%llx, w/o packet, ", typeid(*this).name(), (unsigned long long)(uintptr_t)subnodes()->at(i).get());
 			}
 		}
 		printf("]\n");
@@ -91,7 +91,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 		}
 	}
 	catch (int &line) {
-		fprintf(stderr, "Line %d, losing consistensy on node %llx:\n", line, (unsigned long long)&node());
+		fprintf(stderr, "Line %d, losing consistensy on node 0x%llx:\n", line, (unsigned long long)&node());
 		rootpacket->_print();
 		throw *this;
 	}
@@ -118,7 +118,7 @@ void
 Node<XN>::PacketWrapper::_print() const {
 	printf("PacketWrapper: ");
 	if( !hasPriority()) {
-		printf("referred to :%llx, ", (unsigned long long)(uintptr_t)branchpoint().get());
+		printf("referred to BP@0x%llx, ", (unsigned long long)(uintptr_t)branchpoint().get());
 	}
 	printf("serial:%lld, ", (long long)m_bundle_serial);
 	if(packet()) {
@@ -138,9 +138,12 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 		int ms = ((int64_t)started_time - transaction_started_time);
 		if(ms > 0) {
 			XTime t0 = XTime::now();
+			if(ms > 1000) {
+				fprintf(stderr, "Negotiating, %f sec. requested, limited to 1 sec.", ms*1e-3);
+				fprintf(stderr, "for BP@0x%llx\n", (unsigned long long)(uintptr_t)this);
+				ms = 1000;
+			}
 			t0 += ms * 1e-3;
-			if(ms > 1000)
-				fprintf(stderr, "negotiate: ms = %d\n", ms);
 			while(t0 > XTime::now()) {
 //				usleep(std::min(ms * 1000 / 50, 1000));
 				msecsleep(1);
@@ -168,9 +171,9 @@ template <class XN>
 void
 Node<XN>::_print() const {
 	local_shared_ptr<PacketWrapper> packet( *m_wrapper);
-	printf("Node:%llx, ", (unsigned long long)(uintptr_t)this);
-	printf("branchpoint:%llx, ", (unsigned long long)(uintptr_t)m_wrapper.get());
-	printf(" packet: ");
+//	printf("Node:0x%llx, ", (unsigned long long)(uintptr_t)this);
+//	printf("BP:0x%llx, ", (unsigned long long)(uintptr_t)m_wrapper.get());
+//	printf(" packet: ");
 	packet->_print();
 }
 
@@ -560,7 +563,7 @@ template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-	bool make_unbundled_branch, int serial, std::deque<CASInfo> *cas_infos) {
+	SnapshotMode mode, int serial, std::deque<CASInfo> *cas_infos) {
 	local_shared_ptr<PacketWrapper> oldwrapper(shot);
 	ASSERT( !shot->hasPriority());
 	shared_ptr<BranchPoint > branchpoint_upper(shot->branchpoint());
@@ -578,7 +581,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 	local_shared_ptr<Packet> *upperpacket;
 	if( !shot_upper->hasPriority()) {
 		status = snapshotSupernode(branchpoint_upper, shot, &upperpacket,
-			make_unbundled_branch, serial, cas_infos);
+			mode, serial, cas_infos);
 	}
 	switch(status) {
 	case SNAPSHOT_DISTURBED:
@@ -600,7 +603,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 		break;
 	}
 	//Checking if it is up-to-date.
-	if(shot->packet()->missing() || make_unbundled_branch) {
+	if(shot->packet()->missing() || (mode == SNAPSHOT_FOR_UNBUNDLE)) {
 		if( *branchpoint != oldwrapper)
 				return SNAPSHOT_DISTURBED;
 	}
@@ -620,7 +623,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 			*subpacket = &( *upperpacket)->subpackets()->at(i);
 			reverse_index = i;
 			if( !**subpacket) {
-				if(make_unbundled_branch) {
+				if(mode == SNAPSHOT_FOR_UNBUNDLE) {
 					cas_infos->clear();
 				}
 //				printf("V\n");
@@ -635,7 +638,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 
 	ASSERT( !shot_upper->packet() || (shot_upper->packet()->node().m_wrapper == branchpoint_upper));
 	ASSERT(( *upperpacket)->node().m_wrapper == branchpoint_upper);
-	if(make_unbundled_branch) {
+	if(mode == SNAPSHOT_FOR_UNBUNDLE) {
 		if(status == SNAPSHOT_COLLIDED) {
 			return SNAPSHOT_COLLIDED;
 		}
@@ -695,7 +698,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 			shared_ptr<BranchPoint > branchpoint(m_wrapper);
 			local_shared_ptr<PacketWrapper> superwrapper(target);
 			local_shared_ptr<Packet> *foundpacket;
-			SnapshotStatus status = snapshotSupernode(branchpoint, superwrapper, &foundpacket);
+			SnapshotStatus status = snapshotSupernode(branchpoint, superwrapper, &foundpacket, SNAPSHOT_FOR_BUNDLE);
 			switch(status) {
 			case SNAPSHOT_SUCCESS: {
 					if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -1022,7 +1025,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 	local_shared_ptr<Packet> *newsubpacket;
 	std::deque<CASInfo> cas_infos;
 	SnapshotStatus status = snapshotSupernode(subbranchpoint, superwrapper, &newsubpacket,
-		true, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &cas_infos);
+		SNAPSHOT_FOR_UNBUNDLE, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &cas_infos);
 	switch(status) {
 	case SNAPSHOT_SUCCESS:
 		break;

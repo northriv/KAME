@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,16 +21,10 @@
 #include "chardevicedriver.h"
 //---------------------------------------------------------------------------
 //!ITC503 Oxford
-class XITC503 : public XOxfordDriver<XTempControl>
-{
-	XNODE_OBJECT
-protected:
-	XITC503(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers);
+class XITC503 : public XOxfordDriver<XTempControl> {
 public:
+	XITC503(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XITC503() {}
 
 protected:
@@ -61,16 +55,10 @@ private:
 
 //!Picowatt/Oxford AVS47-IB
 //!AVS47 and TS530A
-class XAVS47IB:public XCharDeviceDriver<XTempControl>
-{
-	XNODE_OBJECT
-protected:
-	XAVS47IB(const char *name, bool runtime,
-			 const shared_ptr<XScalarEntryList> &scalarentries,
-			 const shared_ptr<XInterfaceList> &interfaces,
-			 const shared_ptr<XThermometerList> &thermometers,
-			 const shared_ptr<XDriverList> &drivers);
+class XAVS47IB:public XCharDeviceDriver<XTempControl> {
 public:
+	XAVS47IB(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XAVS47IB() {}
 
 protected:
@@ -116,16 +104,10 @@ private:
 };
 
 //!Cryo-con base class
-class XCryocon : public XCharDeviceDriver<XTempControl>
-{
-	XNODE_OBJECT
-protected:
-	XCryocon(const char *name, bool runtime,
-			 const shared_ptr<XScalarEntryList> &scalarentries,
-			 const shared_ptr<XInterfaceList> &interfaces,
-			 const shared_ptr<XThermometerList> &thermometers,
-			 const shared_ptr<XDriverList> &drivers);
+class XCryocon : public XCharDeviceDriver<XTempControl> {
 public:
+	XCryocon(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XCryocon() {}
 
 protected:
@@ -163,16 +145,10 @@ private:
 };
 
 //!Cryo-con Model 32 Cryogenic Inst.
-class XCryoconM32:public XCryocon
-{
-	XNODE_OBJECT
-protected:
-	XCryoconM32(const char *name, bool runtime,
-				const shared_ptr<XScalarEntryList> &scalarentries,
-				const shared_ptr<XInterfaceList> &interfaces,
-				const shared_ptr<XThermometerList> &thermometers,
-				const shared_ptr<XDriverList> &drivers);
+class XCryoconM32:public XCryocon {
 public:
+	XCryoconM32(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XCryoconM32() {}
 
 protected:
@@ -181,16 +157,10 @@ protected:
 };
 
 //!Cryo-con Model 62 Cryogenic Inst.
-class XCryoconM62:public XCryocon
-{
-	XNODE_OBJECT
-protected:
-	XCryoconM62(const char *name, bool runtime,
-				const shared_ptr<XScalarEntryList> &scalarentries,
-				const shared_ptr<XInterfaceList> &interfaces,
-				const shared_ptr<XThermometerList> &thermometers,
-				const shared_ptr<XDriverList> &drivers);
+class XCryoconM62 : public XCryocon {
 public:
+	XCryoconM62(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XCryoconM62() {}
 
 protected:
@@ -199,16 +169,10 @@ protected:
 };
 
 //!Neocera LTC-21.
-class XNeoceraLTC21:public XCharDeviceDriver<XTempControl>
-{
-	XNODE_OBJECT
-protected:
-	XNeoceraLTC21(const char *name, bool runtime,
-				  const shared_ptr<XScalarEntryList> &scalarentries,
-				  const shared_ptr<XInterfaceList> &interfaces,
-				  const shared_ptr<XThermometerList> &thermometers,
-				  const shared_ptr<XDriverList> &drivers);
+class XNeoceraLTC21 : public XCharDeviceDriver<XTempControl> {
 public:
+	XNeoceraLTC21(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XNeoceraLTC21() {}
 
 protected:
@@ -244,16 +208,10 @@ private:
 };
 
 //!LakeShore 340
-class XLakeShore340:public XCharDeviceDriver<XTempControl>
-{
-	XNODE_OBJECT
-protected:
-	XLakeShore340(const char *name, bool runtime,
-				  const shared_ptr<XScalarEntryList> &scalarentries,
-				  const shared_ptr<XInterfaceList> &interfaces,
-				  const shared_ptr<XThermometerList> &thermometers,
-				  const shared_ptr<XDriverList> &drivers);
+class XLakeShore340 : public XCharDeviceDriver<XTempControl> {
 public:
+	XLakeShore340(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XLakeShore340() {}
 
 protected:

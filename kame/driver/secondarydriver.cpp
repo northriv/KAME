@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,12 +15,9 @@
 
 static XThreadLocal<std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > > > stl_locked_connections;
 
-XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime, 
-								   const shared_ptr<XScalarEntryList> &scalarentries,
-								   const shared_ptr<XInterfaceList> &interfaces,
-								   const shared_ptr<XThermometerList> &thermometers,
-								   const shared_ptr<XDriverList> &drivers) :
-    XDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XDriver(name, runtime, ref(tr_meas), meas),
     m_dependency(new XRecordDependency())
 {
 }

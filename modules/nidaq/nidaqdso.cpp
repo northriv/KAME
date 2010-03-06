@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 						   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -32,21 +32,16 @@ REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 #define NUM_MAX_CH 2
 
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
-						 const shared_ptr<XScalarEntryList> &scalarentries,
-						 const shared_ptr<XInterfaceList> &interfaces,
-						 const shared_ptr<XThermometerList> &thermometers,
-						 const shared_ptr<XDriverList> &drivers) :
-	XNIDAQmxDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XNIDAQmxDriver<XDSO>(name, runtime, ref(tr_meas), meas),
 	m_dsoRawRecordBankLatest(0),
-	m_task(TASK_UNDEF)
-{
+	m_task(TASK_UNDEF) {
 	recordLength()->value(2000);
 	timeWidth()->value(1e-2);
 	average()->value(1);
 
 	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
-	for(int i = 0; sc[i]; i++)
-	{
+	for(int i = 0; sc[i]; i++) {
 		vFullScale1()->add(sc[i]);
 		vFullScale2()->add(sc[i]);
 		vFullScale3()->add(sc[i]);
@@ -69,8 +64,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	vOffset3()->disable();
 	vOffset4()->disable();
 }
-XNIDAQmxDSO::~XNIDAQmxDSO()
-{
+XNIDAQmxDSO::~XNIDAQmxDSO() {
 	clearAcquision();
 }
 void
@@ -126,8 +120,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 	}
 }
 void
-XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XInterface> lock(*interface());
 	m_running = false;
 	char buf[2048];
@@ -157,8 +150,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &)
 	createChannels();
 }
 void
-XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XInterface> lock(*interface());
 
 	m_lsnOnSoftTrigChanged.reset();
@@ -198,8 +190,7 @@ XNIDAQmxDSO::clearAcquision() {
 	m_task = TASK_UNDEF;
 }
 void
-XNIDAQmxDSO::disableTrigger()
-{
+XNIDAQmxDSO::disableTrigger() {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -227,8 +218,7 @@ XNIDAQmxDSO::disableTrigger()
 	m_softwareTrigger.reset();
 }
 void
-XNIDAQmxDSO::setupTrigger()
-{
+XNIDAQmxDSO::setupTrigger() {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -309,8 +299,7 @@ XNIDAQmxDSO::setupTrigger()
 	}
 }
 void
-XNIDAQmxDSO::setupSoftwareTrigger()
-{
+XNIDAQmxDSO::setupSoftwareTrigger() {
 	XString src = trigSource()->to_str();
 	//setup virtual trigger.
 	local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
@@ -328,8 +317,7 @@ XNIDAQmxDSO::setupSoftwareTrigger()
 	}
 }
 void
-XNIDAQmxDSO::setupTiming()
-{
+XNIDAQmxDSO::setupTiming() {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -402,8 +390,7 @@ XNIDAQmxDSO::setupTiming()
 	startSequence();
 }
 void
-XNIDAQmxDSO::createChannels()
-{
+XNIDAQmxDSO::createChannels() {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -544,7 +531,7 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 }
 int32
 XNIDAQmxDSO::_onTaskDone(TaskHandle task, int32 status, void *data) {
-	XNIDAQmxDSO *obj = reinterpret_cast<XNIDAQmxDSO*>(data);
+	XNIDAQmxDSO *obj = static_cast<XNIDAQmxDSO*>(data);
 	obj->onTaskDone(task, status);
 	return status;
 }
@@ -556,8 +543,7 @@ XNIDAQmxDSO::onTaskDone(TaskHandle /*task*/, int32 status) {
 	}
 }
 void
-XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &)
-{
+XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -588,8 +574,7 @@ XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 	return false;
 }
 void *
-XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
-{
+XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
 	while(!terminated) {
 		try {
 			acquire(terminated);
@@ -602,8 +587,7 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated)
 	return NULL;
 }
 void
-XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
-{
+XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 	while(!terminated) {
 
@@ -790,8 +774,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated)
 	}
 }
 void
-XNIDAQmxDSO::startSequence()
-{
+XNIDAQmxDSO::startSequence() {
 	XScopedLock<XInterface> lock(*interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -842,22 +825,19 @@ XNIDAQmxDSO::startSequence()
 }
 
 int
-XNIDAQmxDSO::acqCount(bool *seq_busy)
-{
+XNIDAQmxDSO::acqCount(bool *seq_busy) {
 	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
 	*seq_busy = ((unsigned int)rec.acqCount < *average());
 	return rec.acqCount;
 }
 
 double
-XNIDAQmxDSO::getTimeInterval()
-{
+XNIDAQmxDSO::getTimeInterval() {
 	return m_interval;
 }
 
 inline float64
-XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw)
-{
+XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw) {
 	float64 x = 1.0;
 	float64 y = 0.0;
 	for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
@@ -868,8 +848,7 @@ XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw)
 }
 
 void
-XNIDAQmxDSO::getWave(std::deque<XString> &)
-{
+XNIDAQmxDSO::getWave(std::deque<XString> &) {
 	XScopedLock<XInterface> lock(*interface());
 
 	int bank;
@@ -918,8 +897,7 @@ XNIDAQmxDSO::getWave(std::deque<XString> &)
 	rec.unlock();
 }
 void
-XNIDAQmxDSO::convertRaw() throw (XRecordError&)
-{
+XNIDAQmxDSO::convertRaw() throw (XRecordError&) {
 	const unsigned int num_ch = pop<uint32_t>();
 	const unsigned int pretrig = pop<uint32_t>();
 	const unsigned int len = pop<uint32_t>();

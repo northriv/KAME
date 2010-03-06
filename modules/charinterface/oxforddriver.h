@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -18,12 +18,10 @@
 #include "chardevicedriver.h"
 #include "primarydriver.h"
 
-class XOxfordInterface : public XCharInterface
-{
-	XNODE_OBJECT
-protected:
-	XOxfordInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+class XOxfordInterface : public XCharInterface {
 public:
+	XOxfordInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+
 	virtual void open() throw (XInterfaceError &);
 	virtual void close() throw (XInterfaceError &);
   
@@ -40,25 +38,17 @@ public:
 };
 
 template <class tDriver>
-class XOxfordDriver : public XCharDeviceDriver<tDriver, XOxfordInterface>
-{
-	XNODE_OBJECT
-protected:
+class XOxfordDriver : public XCharDeviceDriver<tDriver, XOxfordInterface> {
+public:
 	XOxfordDriver(const char *name, bool runtime, 
-				  const shared_ptr<XScalarEntryList> &scalarentries,
-				  const shared_ptr<XInterfaceList> &interfaces,
-				  const shared_ptr<XThermometerList> &thermometers,
-				  const shared_ptr<XDriverList> &drivers)
-		: XCharDeviceDriver<tDriver, XOxfordInterface>(name, runtime, scalarentries, interfaces, thermometers, drivers) {}
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+		: XCharDeviceDriver<tDriver, XOxfordInterface>(name, runtime, ref(tr_meas), meas) {}
 	double read(int arg) throw (XInterface::XInterfaceError &);
-protected:
-private:
 };
 
 template<class tDriver>
 double
-XOxfordDriver<tDriver>::read(int arg) throw (XInterface::XInterfaceError &)
-{
+XOxfordDriver<tDriver>::read(int arg) throw (XInterface::XInterfaceError &) {
 	double x;
 	this->interface()->queryf("R%d", arg);
 	int ret = this->interface()->scanf("R%lf", &x);

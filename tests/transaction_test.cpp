@@ -198,13 +198,23 @@ main(int argc, char **argv)
 					continue;
 				if( !gn3->insert(tr1, p2, true))
 					continue;
-				if( !p21->insert(tr1, p2111, true))
-					continue;
 				if( !gn3->insert(tr1, p2111, true))
 					continue;
+				if( !p21->insert(tr1, p2111, false))
+					continue;
 				tr1[*p22] = 1;
+				{ Snapshot shot1( *p211); shot1.list(); }
+				{ Snapshot shot1( *p1); shot1.list(); }
+				{ Snapshot shot1( *p2); shot1.list(); }
 				if(tr1.commit()) break;
 				printf("f");
+			}
+			{
+				Snapshot shot1(*p21);
+				shot1[ *p2111];
+				shot1[ *p2112];
+				shot1[ *p2113];
+				shot1[ *p2114];
 			}
 			{
 				Snapshot shot1(*gn3);

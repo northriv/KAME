@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,22 +13,23 @@
 ***************************************************************************/
 #include "xitemnode.h"
 
-
 XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) : 
-    XValueNodeBase(name, runtime)
-{
+    XValueNodeBase(name, runtime) {
 	if(auto_set_any) {
-	    m_lsnTryAutoSet = onListChanged().connectWeak(
-	        shared_from_this(), 
-	        &XItemNodeBase::onTryAutoSet);
+		for(Transaction tr( *this);; ++tr) {
+			m_lsnTryAutoSet = tr[ *this].onListChanged().connect( *this,
+				&XItemNodeBase::onTryAutoSet);
+			if(tr.commit())
+				break;
+		}
 	}
 }
 void
-XItemNodeBase::onTryAutoSet(const shared_ptr<XItemNodeBase>&) {
-	if(!autoSetAny()) return;
+XItemNodeBase::onTryAutoSet(const Snapshot &shot, XItemNodeBase *) {
+	if( !autoSetAny()) return;
 	XString var = to_str();
 	if(var.length()) return;
-	shared_ptr<const std::deque<Item> > items = itemStrings();
+	shared_ptr<const std::deque<Item> > items = itemStrings(shot);
 	if(items->size()) {
 		str(items->front().name);
 	}
@@ -40,38 +41,11 @@ _xpointeritemnode_throwConversionError() {
 }
 
 XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)
-	: XItemNodeBase(name, runtime, auto_set_any),
-	  m_var(new std::pair<XString, int>("", -1)) {
+	: XItemNodeBase(name, runtime, auto_set_any) {
 }
 
 void
-XComboNode::_str(const XString &var) throw (XKameError &)
-{
-    shared_ptr<XValueNodeBase> ptr = 
-        dynamic_pointer_cast<XValueNodeBase>(shared_from_this());
-    XScopedLock<XRecursiveMutex> lock(m_write_mutex);
-    m_tlkBeforeValueChanged.talk(ptr);
-	if(var.length()) {
-		atomic_list<XString>::reader strings(m_strings);
-		if(strings) {
-			unsigned int i = 0;
-			for(atomic_list<XString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-				if(*it == var) {
-					m_var.reset(new std::pair<XString, int>(var, i));
-					m_tlkOnValueChanged.talk(ptr);
-					return;
-				}
-				i++;
-			}
-		}
-	}
-	m_var.reset(new std::pair<XString, int>(var, -1));
-	m_tlkOnValueChanged.talk(ptr);
-}
-
-void
-XComboNode::value(const XString &s)
-{
+XComboNode::value(const XString &s) {
     try {
         str(s);
     }
@@ -80,49 +54,88 @@ XComboNode::value(const XString &s)
     }
 }
 
-XComboNode::operator int() const {
-	local_shared_ptr<std::pair<XString, int> > var(m_var);
-    return var->second;
-}
-XString
-XComboNode::to_str() const {
-	local_shared_ptr<std::pair<XString, int> > var(m_var);
-	return var->first;
-}
-
 void
-XComboNode::add(const XString &str)
-{
-	m_strings.push_back(str);
-    onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
-    XString var = to_str();
-    if(var == str) {
-		value(str);
-		onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
+XComboNode::value(int t) {
+    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
+        trans(*this) = t;
+    }
+    else {
+		shared_ptr<XValueNodeBase> ptr =
+			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
+        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
+        this->beforeValueChanged().talk(ptr);
+        trans(*this) = t;
+        this->onValueChanged().talk(ptr);
     }
 }
 
 void
-XComboNode::clear()
-{
-    m_strings.reset();
-    onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
-	value(to_str());
+XComboNode::add(const XString &str) {
+	trans(*this).add(str);
+	onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
+}
+
+void
+XComboNode::clear() {
+	trans(*this).clear();
+	onListChanged().talk(dynamic_pointer_cast<XItemNodeBase>(shared_from_this()));
+}
+
+void
+XComboNode::Payload::_str(const XString &var) {
+	*this = var;
+}
+
+XComboNode::Payload&
+XComboNode::Payload::operator=(const XString &var) {
+	int i = -1;
+	if(var.length()) {
+		for(i = 0; i < m_strings->size(); ++i) {
+			if(m_strings->at(i) == var) {
+				break;
+			}
+		}
+	}
+	if(i == m_strings->size())
+		i = -1;
+	m_var = std::pair<XString, int>(var, i);
+    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
+	return *this;
+}
+
+XComboNode::Payload&
+XComboNode::Payload::operator=(int t) {
+    if((t >= 0) && (t < (int)m_strings->size()))
+	    m_var = std::pair<XString, int>(m_strings->at(t), t);
+	else
+	    m_var = std::pair<XString, int>("", -1);
+    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
+	return *this;
+}
+
+void
+XComboNode::Payload::add(const XString &str) {
+	m_strings.reset(new std::deque<XString>(*m_strings));
+	m_strings->push_back(str);
+	tr().mark(onListChanged(), static_cast<XItemNodeBase*>(&node()));
+}
+
+void
+XComboNode::Payload::clear() {
+	m_strings.reset(new std::deque<XString>(*m_strings));
+    m_strings->clear();
+	tr().mark(onListChanged(), static_cast<XItemNodeBase*>(&node()));
 }
 
 shared_ptr<const std::deque<XItemNodeBase::Item> >
-XComboNode::itemStrings() const
-{
+XComboNode::Payload::itemStrings() const {
     shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-	atomic_list<XString>::reader strings(m_strings);
-	if(strings) {
-		for(atomic_list<XString>::const_iterator it = strings->begin(); it != strings->end(); it++) {
-			XItemNodeBase::Item item;
-			item.name = *it;
-			item.label = *it;
-			items->push_back(item);
-		}
-    }
+	for(std::deque<XString>::const_iterator it = m_strings->begin(); it != m_strings->end(); it++) {
+		XItemNodeBase::Item item;
+		item.name = *it;
+		item.label = *it;
+		items->push_back(item);
+	}
     if(*this < 0) {
 	    XItemNodeBase::Item item;
         item.name = to_str();
@@ -132,18 +145,4 @@ XComboNode::itemStrings() const
         }
     }
     return items;
-}
-
-void
-XComboNode::value(int t) {
-    shared_ptr<XValueNodeBase> ptr = 
-        dynamic_pointer_cast<XValueNodeBase>(shared_from_this());
-    XScopedLock<XRecursiveMutex> lock(m_write_mutex);
-    m_tlkBeforeValueChanged.talk(ptr);
-    atomic_list<XString>::reader strings(m_strings);
-    if(strings && (t >= 0) && (t < (int)strings->size()))
-	    m_var.reset(new std::pair<XString, int>(strings->at(t), t));
-	else
-	    m_var.reset(new std::pair<XString, int>("", -1));
-    m_tlkOnValueChanged.talk(ptr);
 }

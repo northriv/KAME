@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,31 +19,22 @@ REGISTER_TYPE(XDriverList, ILM, "Oxford ILM Helium Level Meter");
 REGISTER_TYPE(XDriverList, LM500, "LakeShore LM-500 Level Meter");
 
 XILM::XILM(const char *name, bool runtime,
-			   const shared_ptr<XScalarEntryList> &scalarentries,
-			   const shared_ptr<XInterfaceList> &interfaces,
-			   const shared_ptr<XThermometerList> &thermometers,
-			   const shared_ptr<XDriverList> &drivers) :
-    XOxfordDriver<XLevelMeter>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XOxfordDriver<XLevelMeter>(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = {"He", 0L};
-	createChannels(scalarentries, channels_create);
+	createChannels(ref(tr_meas), meas, channels_create);
 }
 
 double
-XILM::getLevel(unsigned int ch)
-{
+XILM::getLevel(unsigned int ch) {
 	return read(ch + 1) / 10.0;
 }
 
 XLM500::XLM500(const char *name, bool runtime,
-			   const shared_ptr<XScalarEntryList> &scalarentries,
-			   const shared_ptr<XInterfaceList> &interfaces,
-			   const shared_ptr<XThermometerList> &thermometers,
-			   const shared_ptr<XDriverList> &drivers) :
-    XCharDeviceDriver<XLevelMeter>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XLevelMeter>(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = {"1", "2", 0L};
-	createChannels(scalarentries, channels_create);
+	createChannels(ref(tr_meas), meas, channels_create);
 
 	interface()->setEOS("");
 	interface()->setGPIBUseSerialPollOnWrite(false);
@@ -54,8 +45,7 @@ XLM500::XLM500(const char *name, bool runtime,
 }
 
 double
-XLM500::getLevel(unsigned int ch)
-{
+XLM500::getLevel(unsigned int ch) {
 	interface()->queryf("MEAS? %u", ch + 1);
 	return interface()->toDouble();
 }

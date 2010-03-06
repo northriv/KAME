@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,16 +24,10 @@ class XWaveNGraph;
 class XXYPlot;
 
 template <class FRM>
-class XNMRSpectrumBase : public XSecondaryDriver
-{
-	XNODE_OBJECT
-protected:
-	XNMRSpectrumBase(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers);
+class XNMRSpectrumBase : public XSecondaryDriver {
 public:
+	XNMRSpectrumBase(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! ususally nothing to do
 	virtual ~XNMRSpectrumBase();
   

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,12 +30,9 @@ double XH8Pulser::minPulseWidth() const {
 }
 
 XH8Pulser::XH8Pulser(const char *name, bool runtime,
-					 const shared_ptr<XScalarEntryList> &scalarentries,
-					 const shared_ptr<XInterfaceList> &interfaces,
-					 const shared_ptr<XThermometerList> &thermometers,
-					 const shared_ptr<XDriverList> &drivers) :
-    XCharDeviceDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XPulser>(name, runtime, ref(tr_meas), meas) {
+
     interface()->setEOS("\r\n");
 	interface()->setSerialBaudRate(115200);
 	interface()->setSerialStopBits(2);
@@ -52,23 +49,19 @@ XH8Pulser::XH8Pulser(const char *name, bool runtime,
 
 }
 void
-XH8Pulser::open() throw (XInterface::XInterfaceError &)
-{  
+XH8Pulser::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 
 void
-XH8Pulser::createNativePatterns()
-{
+XH8Pulser::createNativePatterns() {
 	m_zippedPatterns.clear();
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-	{
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
 		pulseAdd(it->toappear, (uint16_t)(it->pattern & PAT_DO_MASK));
 	}
 }
 int
-XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern)
-{
+XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern) {
 	C_ASSERT(sizeof(long long) == 8);
 
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
@@ -76,8 +69,7 @@ XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern)
 	uint32_t ulen = (uint32_t)((term - 1) / 0x8000uLL);
 	uint32_t llen = (uint32_t)((term - 1) % 0x8000uLL);
 
-	switch(ulen)
-	{
+	switch(ulen) {
 		h8ushort x;
 	case 0:
 		x.msb = llen / 0x100;
@@ -104,8 +96,7 @@ XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern)
 	}
 	return 0;
 }
-static uint16_t makesum(unsigned char *start, uint32_t bytes)
-{
+static uint16_t makesum(unsigned char *start, uint32_t bytes) {
 	uint16_t sum = 0;
 
 	for(; bytes > 0; bytes--)
@@ -113,10 +104,8 @@ static uint16_t makesum(unsigned char *start, uint32_t bytes)
 	return sum;
 }
 void
-XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
-{
-	if(output)
-	{
+XH8Pulser::changeOutput(bool output, unsigned int blankpattern) {
+	if(output) {
 		if(m_zippedPatterns.empty() |
 		   (m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
@@ -130,8 +119,7 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 				interface()->receive();
 				interface()->write(">", 1);
 				msecsleep(1);
-				for(unsigned int j=0; j < size; j += pincr)
-				{
+				for(unsigned int j=0; j < size; j += pincr) {
 					interface()->write(
 						(char *)&m_zippedPatterns[j], pincr * 2);
 					uint16_t sum = 
@@ -156,8 +144,7 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern)
 			break;
 		}
 	}
-	else
-	{
+	else {
 		interface()->sendf("$poff %x", blankpattern);
 	}
 }

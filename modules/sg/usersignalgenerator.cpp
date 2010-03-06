@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,21 +22,15 @@ REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
 REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
 
 XSG7200::XSG7200(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers)
-    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
 {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
 }
 XSG7130::XSG7130(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers)
-    : XSG7200(name, runtime, scalarentries, interfaces, thermometers, drivers)
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XSG7200(name, runtime, ref(tr_meas), meas)
 {
 }
 void
@@ -58,11 +52,8 @@ XSG7200::onAMONChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 XHP8643::XHP8643(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers)
-    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
 {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 }
@@ -85,11 +76,8 @@ XHP8643::onAMONChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 XHP8648::XHP8648(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers)
-    : XHP8643(name, runtime, scalarentries, interfaces, thermometers, drivers)
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XHP8643(name, runtime, ref(tr_meas), meas)
 {
 }
 void
@@ -98,11 +86,8 @@ XHP8648::onOLevelChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 XHP8664::XHP8664(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers)
-    : XCharDeviceDriver<XSG>(name, runtime, scalarentries, interfaces, thermometers, drivers)
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
 {
 }
 void

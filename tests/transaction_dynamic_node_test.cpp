@@ -56,6 +56,32 @@ public:
 	};
 };
 
+class ComplexNode : public LongNode {
+public:
+	ComplexNode(Transaction &tr, shared_ptr<LongNode> &var) : LongNode(), m_var(var) {
+//		msecsleep(40);
+		m_1.reset(create<LongNode>());
+		insert(m_1);
+		var->insert(tr, m_1, false);
+//		msecsleep(40);
+//		m_2.reset(create<LongNode>());
+//		insert(m_2);
+//		m_3.reset(create<LongNode>());
+//		insert(m_3);
+//		m_4.reset(create<LongNode>());
+//		msecsleep(40);
+//		var->insert(tr, m_4);
+	}
+	virtual ~ComplexNode() {
+		m_var->release(m_1);
+//		m_var->release(m_4);
+	}
+	const shared_ptr<LongNode> &n1() const {return m_1;}
+private:
+	const shared_ptr<LongNode> m_var;
+	shared_ptr<LongNode> m_1, m_2, m_3, m_4;
+};
+
 #define trans(node) for(Transaction \
 	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
@@ -206,13 +232,6 @@ main(int argc, char **argv)
 			shared_ptr<LongNode> p2(LongNode::create<LongNode>());
 			shared_ptr<LongNode> p22(LongNode::create<LongNode>());
 			shared_ptr<LongNode> p211(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p2111(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p2112(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p2113(LongNode::create<LongNode>());
-			shared_ptr<LongNode> p2114(LongNode::create<LongNode>());
-			p2111->insert(p2112);
-			p2112->insert(p2113);
-			p2111->insert(p2114);
 			shared_ptr<LongNode> p21(LongNode::create<LongNode>());
 			p2->insert(p21);
 			p21->insert(p211);
@@ -223,13 +242,10 @@ main(int argc, char **argv)
 
 			gn1->insert(p2);
 			gn3->insert(p2);
-			gn3->insert(p2112);
-			gn3->insert(p2113);
-			gn3->release(p2112);
-			gn3->release(p2113);
 			gn1->release(p2);
 			gn3->release(p2);
 
+			shared_ptr<ComplexNode> p2111;
 
 			for(Transaction tr1(*gn3); ; ++tr1){
 				printf("3");
@@ -237,12 +253,31 @@ main(int argc, char **argv)
 					continue;
 				if( !gn3->insert(tr1, p2, true))
 					continue;
+
+				p2111.reset(LongNode::create<ComplexNode>(ref(tr1), gn3));
+				shared_ptr<LongNode> p2112(LongNode::create<LongNode>());
+				shared_ptr<LongNode> p2113(LongNode::create<LongNode>());
+				shared_ptr<LongNode> p2114(LongNode::create<LongNode>());
+				p2111->insert(p2112);
+				p2112->insert(p2113);
+				p2111->insert(p2114);
+				trans( *p2113) = 1;
+				trans( *p2114) = 1;
+
 				if( !p21->insert(tr1, p2111, true))
 					continue;
 				if( !gn3->insert(tr1, p2111, true))
 					continue;
+
+				tr1[ *p2113] = 0;
+				tr1[ *p2114] = 0;
+
 				tr1[*p22] = 1;
 				if(tr1.commit()) break;
+			}
+			{
+				Snapshot shot1(*gn3);
+				shot1[ *p2111->n1()];
 			}
 			for(Transaction tr1(*gn1); ; ++tr1){
 				printf("4");
@@ -265,13 +300,9 @@ main(int argc, char **argv)
 				shot1[ *p2];
 				shot1[ *p21];
 				shot1[ *p22];
-				shot1[ *p2111];
-				shot1[ *p2114];
 			}
 			trans(*p211) = 0;
 			for(Transaction tr1(*gn3); ; ++tr1){
-				tr1[ *p2113] = 1;
-				tr1[ *p2114] = 1;
 				if( !p1->release(tr1, p22))
 					continue;
 				if( !gn3->release(tr1, p2))
@@ -282,9 +313,6 @@ main(int argc, char **argv)
 				printf("f");
 			}
 			trans(*p22) = 0;
-			p2114->_print();
-			trans(*p2114) = 0;
-			trans(*p2113) = 0;
 
 			for(Transaction tr1(*gn1); ; ++tr1){
 				Snapshot &ctr1(tr1); // For reading.

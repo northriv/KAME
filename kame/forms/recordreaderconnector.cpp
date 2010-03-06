@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -33,8 +33,8 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_conNext(xqcon_create<XQButtonConnector>(reader->next(), form->btnNext)),
 	m_conBack(xqcon_create<XQButtonConnector>(reader->back(), form->btnBack)),
 	m_conPosString(xqcon_create<XQLineEditConnector>(reader->posString(), form->edTime)),
-	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed))
-{
+	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))) {
+
     KIconLoader *loader = KIconLoader::global();
     form->btnNext->setIcon( loader->loadIcon("forward",
 															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );

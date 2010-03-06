@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,8 +24,7 @@
 
 XInterfaceListConnector::XInterfaceListConnector(
     const shared_ptr<XInterfaceList> &node, Q3Table *item)
-	: XListQConnector(node, item), m_interfaceList(node)
-{
+	: XListQConnector(node, item), m_interfaceList(node) {
 	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
 			this, SLOT(clicked( int, int, int, const QPoint& )) );
 	item->setNumCols(5);
@@ -43,20 +42,22 @@ XInterfaceListConnector::XInterfaceListConnector(
 	labels += i18n("Addr");
 	item->setColumnLabels(labels);
 
-	XNode::NodeList::reader list(node->children());
-	if(list) { 
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-			onCatch(*it);
+	Snapshot shot(*node);
+	if(shot.size()) {
+		for(int idx = 0; idx < shot.size(); ++idx) {
+			XListNodeBase::Payload::CatchEvent e;
+			e.emitter = node.get();
+			e.caught = shot.list()->at(idx);
+			e.index = idx;
+			onCatch(shot, e);
+		}
 	}
 }
 
 void
-XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node)
-{
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if(it->interface->control() == node)
-		{
+XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+		if(it->interface->control() == node) {
 		    KIconLoader *loader = KIconLoader::global();
 			if(*it->interface->control()) {
 				it->btn->setIcon( loader->loadIcon("stop",
@@ -72,8 +73,8 @@ XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node
 	}
 }
 void
-XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
-	shared_ptr<XInterface> interface = dynamic_pointer_cast<XInterface>(node);
+XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+	shared_ptr<XInterface> interface = static_pointer_cast<XInterface>(e.caught);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, interface->getLabel().c_str());
@@ -86,7 +87,7 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
 	con.concontrol = xqcon_create<XQToggleButtonConnector>(interface->control(), con.btn);    
 	m_pItem->setCellWidget(i, 1, con.btn);
 	QComboBox *cmbdev(new QComboBox(m_pItem) );
-	con.condev = xqcon_create<XQComboBoxConnector>(interface->device(), cmbdev);
+	con.condev = xqcon_create<XQComboBoxConnector>(interface->device(), cmbdev, Snapshot( *interface->device()));
 	m_pItem->setCellWidget(i, 2, cmbdev);
 	QLineEdit *edPort(new QLineEdit(m_pItem) );
 	con.conport = xqcon_create<XQLineEditConnector>(interface->port(), edPort, false);
@@ -103,19 +104,15 @@ XInterfaceListConnector::onCatch(const shared_ptr<XNode> &node) {
 	onControlChanged(interface->control());
 }
 void
-XInterfaceListConnector::onRelease(const shared_ptr<XNode> &node) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-	{
-		if(it->interface == node)
-		{
-			for(int i = 0; i < m_pItem->numRows(); i++)
-			{
+XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
+		if(it->interface == e.released) {
+			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->btn) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
 		}
-		else
-		{
+		else {
 			it++;
 		}    
 	}  

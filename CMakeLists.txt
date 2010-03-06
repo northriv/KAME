@@ -173,7 +173,7 @@ add_definitions (-DQT3_SUPPORT -DQT3_SUPPORT_WARNINGS)
 #The stuff done in these files will have to be converted manually to cmake.
 
 set_property(GLOBAL PROPERTY ENABLE_EXPORTS TRUE)
-set (CMAKE_CXX_FLAGS "-fexceptions")
+set (CMAKE_CXX_FLAGS "-Wall -fexceptions")
 if(APPLE)
   set(CMAKE_MODULE_LINKER_FLAGS "-Wl,-undefined,dynamic_lookup" ) 
   set(CMAKE_EXE_LINKER_FLAGS "-Wl,-all_load -Wl,-dynamic")

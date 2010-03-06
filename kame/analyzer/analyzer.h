@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,13 +26,10 @@
 class XJournal;
 class XDriver;
 
-class XScalarEntry : public XNode
-{
-	XNODE_OBJECT
-protected:
+class XScalarEntry : public XNode {
+public:
 	XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
 				 const char *format = 0L);
-public:
 	virtual ~XScalarEntry() {}
 
 	//a criterion that determine a trigger of storing
@@ -70,9 +67,8 @@ private:
 class XDriverList;
 
 class XScalarEntryList : public XAliasListNode<XScalarEntry> {
-	XNODE_OBJECT
-protected:
-    XScalarEntryList(const char *name, bool runtime) : XAliasListNode<XScalarEntry>(name, runtime) {}
+public:
+	XScalarEntryList(const char *name, bool runtime) : XAliasListNode<XScalarEntry>(name, runtime) {}
 };
 
 class Ui_FrmGraph;
@@ -81,12 +77,9 @@ typedef QForm<QMainWindow, Ui_FrmGraph> FrmGraph;
 class XGraph;
 class XXYPlot;
 
-class XValChart : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
+class XValChart : public XNode {
 public:
+	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
 	virtual ~XValChart() {}
 	void showChart();
 	const shared_ptr<XScalarEntry> &entry() const {return m_entry;}
@@ -101,29 +94,23 @@ private:
 	shared_ptr<XXYPlot> m_chart;
 };
 
-class XChartList : public XAliasListNode<XValChart>
-{
-	XNODE_OBJECT
-protected:
-	XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
+class XChartList : public XAliasListNode<XValChart> {
 public:
+	XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
 	virtual ~XChartList() {}
 private:
 	shared_ptr<XListener> m_lsnOnCatchEntry;
 	shared_ptr<XListener> m_lsnOnReleaseEntry;
-	void onCatchEntry(const shared_ptr<XNode> &node);
-	void onReleaseEntry(const shared_ptr<XNode> &node);
+	void onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+	void onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 
 	const shared_ptr<XScalarEntryList> m_entries;
 };
 
-class XValGraph : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XValGraph(const char *name, bool runtime,
-			  const shared_ptr<XScalarEntryList> &entries);
+class XValGraph : public XNode {
 public:
+	XValGraph(const char *name, bool runtime,
+		Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries);
 	virtual ~XValGraph() {}
 
 	void showGraph();
@@ -150,17 +137,12 @@ private:
 	void onStoreChanged(const shared_ptr<XValueNodeBase> &node);
 };
 
-class XGraphList : public XCustomTypeListNode<XValGraph>
-{
-	XNODE_OBJECT
-protected:
-	XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
+class XGraphList : public XCustomTypeListNode<XValGraph> {
 public:
+	XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
 	virtual ~XGraphList() {}
 
-	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name)  {
-		return XNode::create<XValGraph>(name.c_str(), false, m_entries);
-	}
+	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 private:
 	const shared_ptr<XScalarEntryList> m_entries;
 };

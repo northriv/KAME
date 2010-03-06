@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,14 +21,11 @@ class XRuby;
 class Ui_FrmRubyThread;
 typedef QForm<QWidget, Ui_FrmRubyThread> FrmRubyThread;
 
-class XRubyThreadConnector : public XQConnector
-{
+class XRubyThreadConnector : public XQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
+public:
     XRubyThreadConnector(const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
 						 const shared_ptr<XRuby> &rbsupport);
-public: 
     virtual ~XRubyThreadConnector();
     
 	const   shared_ptr<XBoolNode> &resume() const {return m_resume;}

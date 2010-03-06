@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -31,12 +31,9 @@
 //---------------------------------------------------------------------------
 //! XRubyThread object is a communicator for Ruby thread.
 //! \sa XRubySupport
-class XRubyThread : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XRubyThread(const char *name, bool runtime, const XString &filename);
+class XRubyThread : public XNode {
 public:
+	XRubyThread(const char *name, bool runtime, const XString &filename);
 	virtual ~XRubyThread() {}
 
 	bool isRunning() const;

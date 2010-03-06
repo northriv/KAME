@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,15 +26,13 @@ class XDriver;
 class XEntryListConnector : public XListQConnector
 {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
+public:
 	XEntryListConnector
 	(const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist);
-public:
 	virtual ~XEntryListConnector() {}
 protected:
-	virtual void onCatch(const shared_ptr<XNode> &node);
-	virtual void onRelease(const shared_ptr<XNode> &node);
+	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
 void clicked ( int row, int col, int button, const QPoint& );
 private:

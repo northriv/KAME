@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,12 +16,9 @@
 
 #include "recorder.h"
 
-class XRawStreamRecordReader : public XRawStream
-{
-	XNODE_OBJECT
-protected:
-	XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
+class XRawStreamRecordReader : public XRawStream {
 public:
+	XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
 	virtual ~XRawStreamRecordReader() {}
   
 	void terminate();

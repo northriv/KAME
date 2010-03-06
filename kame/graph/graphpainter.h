@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -25,8 +25,7 @@ class XQGraph;
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
-class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
-{
+class XQGraphPainter : public enable_shared_from_this<XQGraphPainter> {
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -112,7 +111,7 @@ private:
 					XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
  
  shared_ptr<XListener> m_lsnRedraw;
- void onRedraw(const shared_ptr<XGraph> &);
+ void onRedraw(const Snapshot &shot, XGraph *graph);
  
  void repaintBuffer(int x1, int y1, int x2, int y2);
  //! do as possible as you can without screen.
@@ -120,16 +119,16 @@ private:
  void redrawOffScreen();
  
  //! draw plots, axes.
- void drawOffScreenStart();
- void drawOffScreenGrids();
- void drawOffScreenPlanes();
- void drawOffScreenPoints();
- void drawOffScreenAxes();
+ void drawOffScreenStart(const Snapshot &shot);
+ void drawOffScreenGrids(const Snapshot &shot);
+ void drawOffScreenPlanes(const Snapshot &shot);
+ void drawOffScreenPoints(const Snapshot &shot);
+ void drawOffScreenAxes(const Snapshot &shot);
  //! depends on viewpoint
- void drawOnScreenObj();
+ void drawOnScreenObj(const Snapshot &shot);
  //! independent of viewpoint. For coordinate, legend, hints. title,...
- void drawOnScreenViewObj();
- void drawOnScreenHelp();
+ void drawOnScreenViewObj(const Snapshot &shot);
+ void drawOnScreenHelp(const Snapshot &shot);
  
  const shared_ptr<XGraph> m_graph;
  XQGraph *const m_pItem;
@@ -138,8 +137,8 @@ private:
  shared_ptr<XAxis> m_foundPlaneAxis1, m_foundPlaneAxis2;
  shared_ptr<XAxis> m_foundAxis;
  
- shared_ptr<XAxis> findAxis(const XGraph::ScrPoint &s1);
- shared_ptr<XPlot> findPlane(const XGraph::ScrPoint &s1, 
+ shared_ptr<XAxis> findAxis(const Snapshot &shot, const XGraph::ScrPoint &s1);
+ shared_ptr<XPlot> findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,
 							 shared_ptr<XAxis> *axis1, shared_ptr<XAxis> *axis2);
  SelectionState m_selectionStateNow;
  SelectionMode m_selectionModeNow;

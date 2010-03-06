@@ -25,6 +25,9 @@ bool isMainThread();
 
 template <class tArg>
 class XTalker;
+namespace Transactional {
+template <class XN, typename tArg, typename tArgRef>
+class Talker;}
 
 //! Base class of listener, which holds pointers to object and function.
 //! Hold me by shared_ptr.
@@ -50,6 +53,8 @@ public:
 protected:
 	template <class tArg>
 	friend class XTalker;
+	template <class XN, typename tArg>
+	friend class Transactional::Talker;
 	XListener(FLAGS flags);
 	atomic<FLAGS> m_flags;
 };

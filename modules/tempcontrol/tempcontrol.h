@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,33 +23,25 @@ class XScalarEntry;
 class Ui_FrmTempControl;
 typedef QForm<QMainWindow, Ui_FrmTempControl> FrmTempControl;
 
-class XTempControl : public XPrimaryDriver
-{
-	XNODE_OBJECT
-protected:
-	XTempControl(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers);
+class XTempControl : public XPrimaryDriver {
 public:
+	XTempControl(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XTempControl() {}
 	//! show all forms belonging to driver
 	virtual void showForms();
   
-	class XChannel : public XNode
-	{
-		XNODE_OBJECT
-	protected:
-		XChannel(const char *name, bool runtime, const shared_ptr<XThermometerList> &list);
+	class XChannel : public XNode {
 	public:
-		shared_ptr<XItemNode<XThermometerList, XThermometer> > &thermometer() 
-		{return m_thermometer;}
+		XChannel(const char *name, bool runtime,
+			Transaction &tr_list, const shared_ptr<XThermometerList> &list);
+		const shared_ptr<XItemNode<XThermometerList, XThermometer> > &thermometer() const {return m_thermometer;}
+		const shared_ptr<XThermometerList> &thermometers() const {return m_thermometers;}
 		const   shared_ptr<XComboNode> &excitation() const {return m_excitation;}
 	private:
-		shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
-		shared_ptr<XComboNode> m_excitation;
+		const shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
+		const shared_ptr<XComboNode> m_excitation;
+		const shared_ptr<XThermometerList> m_thermometers;
 	};
   
 	typedef  XAliasListNode<XChannel> XChannelList;
@@ -88,8 +80,7 @@ protected:
 	//! register channel names in your constructor
 	//! \param multiread if true, simultaneous reading of multi channels.
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
-	void createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
-						const shared_ptr<XThermometerList> &thermometers, 
+	void createChannels(Transaction &tr, const shared_ptr<XMeasure> &meas,
 						bool multiread, const char **channel_names, const char **excitations);
   
 	//! reads sensor value from the instrument
@@ -124,8 +115,8 @@ private:
 	void onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &);
 
 	const shared_ptr<XChannelList> m_channels;
-	const shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
-	const shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
+	shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
+	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 	const shared_ptr<XDoubleNode> m_targetTemp;
 	const shared_ptr<XDoubleNode> m_manualPower;
 	const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;

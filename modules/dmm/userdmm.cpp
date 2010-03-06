@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,21 +26,18 @@ REGISTER_TYPE(XDriverList, SanwaPC500, "SANWA PC500/510/520M DMM");
 REGISTER_TYPE(XDriverList, SanwaPC5000, "SANWA PC5000 DMM");
 
 void
-XDMMSCPI::changeFunction()
-{
+XDMMSCPI::changeFunction() {
     XString func = function()->to_str();
     if(!func.empty())
         interface()->sendf(":CONF:%s", func.c_str());
 }
 double
-XDMMSCPI::fetch()
-{
+XDMMSCPI::fetch() {
     interface()->query(":FETC?");
     return interface()->toDouble();
 }
 double
-XDMMSCPI::oneShotRead()
-{
+XDMMSCPI::oneShotRead() {
     interface()->query(":READ?");
     return interface()->toDouble();
 }
@@ -54,12 +51,8 @@ XDMMSCPI::measure(const XString &func)
 */
 
 XHP3458A::XHP3458A(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers) :
-	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBMAVbit(0x80);
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	const char *funcs[] = {
@@ -70,33 +63,26 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 	}
 }
 void
-XHP3458A::changeFunction()
-{
+XHP3458A::changeFunction() {
     XString func = function()->to_str();
     if(!func.empty())
         interface()->sendf("FUNC %s;ARANGE ON", func.c_str());
 }
 double
-XHP3458A::fetch()
-{
+XHP3458A::fetch() {
     interface()->receive();
     return interface()->toDouble();
 }
 double
-XHP3458A::oneShotRead()
-{
+XHP3458A::oneShotRead() {
     interface()->query("END ALWAYS;OFORMAT ASCII;QFORMAT NUM;NRDGS 1;TRIG AUTO;TARM SGL");
     return interface()->toDouble();
 }
 
 
 XHP3478A::XHP3478A(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers) :
-	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBMAVbit(0x01);
 //	setEOS("\r\n");
@@ -108,8 +94,7 @@ XHP3478A::XHP3478A(const char *name, bool runtime,
 	}
 }
 void
-XHP3478A::changeFunction()
-{
+XHP3478A::changeFunction() {
     int func = *function();
     if(func < 0)
 		return;
@@ -117,25 +102,19 @@ XHP3478A::changeFunction()
     interface()->sendf("F%dRAZ1", func + 1);
 }
 double
-XHP3478A::fetch()
-{
+XHP3478A::fetch() {
     interface()->receive();
     return interface()->toDouble();
 }
 double
-XHP3478A::oneShotRead()
-{
+XHP3478A::oneShotRead() {
     interface()->query("T3");
     return interface()->toDouble();
 }
 
 XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers) :
-	XCharDeviceDriver<XDMM>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas) {
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(2);
 	
@@ -208,11 +187,8 @@ XSanwaPC500::requestData() {
 	interface()->write(bytes, sizeof(bytes));
 }
 XSanwaPC5000::XSanwaPC5000(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers) :
-		 XSanwaPC500(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+		 XSanwaPC500(name, runtime, ref(tr_meas), meas) {
 	
 }
 

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,17 +19,12 @@ REGISTER_TYPE(XDriverList, PS120, "Oxford PS-120 magnet power supply");
 REGISTER_TYPE(XDriverList, IPS120, "Oxford IPS-120 magnet power supply");
 
 XPS120::XPS120(const char *name, bool runtime,
-			   const shared_ptr<XScalarEntryList> &scalarentries,
-			   const shared_ptr<XInterfaceList> &interfaces,
-			   const shared_ptr<XThermometerList> &thermometers,
-			   const shared_ptr<XDriverList> &drivers) :
-    XOxfordDriver<XMagnetPS>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XOxfordDriver<XMagnetPS>(name, runtime, ref(tr_meas), meas) {
 }
 
 void
-XPS120::setActivity(int val) throw (XInterface::XInterfaceError&)
-{
+XPS120::setActivity(int val) throw (XInterface::XInterfaceError&) {
 	int ret;
 	interface()->lock();
 	try {
@@ -52,8 +47,7 @@ XPS120::setActivity(int val) throw (XInterface::XInterfaceError&)
 }
 
 void
-XPS120::toPersistent()
-{
+XPS120::toPersistent() {
 	interface()->lock();
 	try {
 		//Set to HOLD
@@ -70,8 +64,7 @@ XPS120::toPersistent()
 }
 
 void
-XPS120::toZero()
-{
+XPS120::toZero() {
 	interface()->lock();
 	try {
 		int ret;
@@ -96,13 +89,11 @@ XPS120::toZero()
 	interface()->unlock();
 }
 void
-XPS120::toNonPersistent()
-{
+XPS120::toNonPersistent() {
 	interface()->lock();
 	try {
 		int ret;
-		for(int i = 0; i < 3; i++)
-		{
+		for(int i = 0; i < 3; i++) {
 			msecsleep(100);
 			//query MODE
 			interface()->query("X");
@@ -126,8 +117,7 @@ XPS120::toNonPersistent()
 	interface()->unlock();
 }
 void
-XPS120::toSetPoint()
-{
+XPS120::toSetPoint() {
 	interface()->lock();
 	try {
 		int ret;
@@ -152,10 +142,8 @@ XPS120::toSetPoint()
 }
 
 void
-XPS120::setPoint(double field)
-{
-	for(int i = 0; i < 2; i++)
-	{
+XPS120::setPoint(double field) {
+	for(int i = 0; i < 2; i++) {
 		int df;
 		if(fabs(getTargetField() - field) < fieldResolution()) break;
 		msecsleep(100);
@@ -165,10 +153,8 @@ XPS120::setPoint(double field)
 	}
 }
 void
-XIPS120::setPoint(double field)
-{
-	for(int i = 0; i < 2; i++)
-	{
+XIPS120::setPoint(double field) {
+	for(int i = 0; i < 2; i++) {
 		if(fabs(getTargetField() - field) < fieldResolution()) break;
 		msecsleep(100);
 		interface()->sendf("J%f", field);
@@ -176,35 +162,28 @@ XIPS120::setPoint(double field)
 }
 
 double
-XPS120::getMagnetField()
-{
-	if(isPCSHeaterOn())
-	{
+XPS120::getMagnetField() {
+	if(isPCSHeaterOn()) {
 		return getOutputField();
 	}
-	else
-	{
+	else {
 		return getPersistentField();
 	}
 }
 double
-XIPS120::getSweepRate()
-{
+XIPS120::getSweepRate() {
 	return read(9);
 }
 double
-XPS120::getSweepRate()
-{
+XPS120::getSweepRate() {
 	return read(9) * fieldResolution();
 }
 double
-XIPS120::getTargetField()
-{
+XIPS120::getTargetField() {
 	return read(8);
 }
 double
-XPS120::getTargetField()
-{
+XPS120::getTargetField() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%*1dM%*2dP%1d%*1d", &ret) != 1)
@@ -212,13 +191,11 @@ XPS120::getTargetField()
 	return ((ret & 4) ? -1 : 1) * fabs(read(8) * fieldResolution());
 }
 double
-XIPS120::getPersistentField()
-{
+XIPS120::getPersistentField() {
 	return read(18);
 }
 double
-XPS120::getPersistentField()
-{
+XPS120::getPersistentField() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%*1dM%*2dP%1d%*1d", &ret) != 1)
@@ -226,13 +203,11 @@ XPS120::getPersistentField()
 	return ((ret & 2) ? -1 : 1) * fabs(read(18) * fieldResolution());
 }
 double
-XIPS120::getOutputField()
-{
+XIPS120::getOutputField() {
 	return read(7);
 }
 double
-XPS120::getOutputField()
-{
+XPS120::getOutputField() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%*1dM%*2dP%1d%*1d", &ret) != 1)
@@ -240,23 +215,19 @@ XPS120::getOutputField()
 	return ((ret & 1) ? -1 : 1) * fabs(read(7) * fieldResolution());
 }
 double
-XIPS120::getOutputVolt()
-{
+XIPS120::getOutputVolt() {
 	return read(1);
 }
 double
-XPS120::getOutputVolt()
-{
+XPS120::getOutputVolt() {
 	return read(1) * voltageResolution();
 }
 double
-XIPS120::getOutputCurrent()
-{
+XIPS120::getOutputCurrent() {
 	return read(0);
 }
 double
-XPS120::getOutputCurrent()
-{
+XPS120::getOutputCurrent() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%*1dM%*2dP%1d%*1d", &ret) != 1)
@@ -264,8 +235,7 @@ XPS120::getOutputCurrent()
 	return ((ret & 1) ? -1 : 1) * fabs(read(0) * currentResolution());
 }
 bool
-XPS120::isPCSHeaterOn()
-{
+XPS120::isPCSHeaterOn() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%1dM%*2dP%*2d", &ret) != 1)
@@ -273,8 +243,7 @@ XPS120::isPCSHeaterOn()
 	return (ret == 1) || (ret == 8) || (ret == 5); //On or Fault or NOPCS
 }
 bool
-XPS120::isPCSFitted()
-{
+XPS120::isPCSFitted() {
 	int ret;
 	interface()->query("X");
 	if(interface()->scanf("X%*2dA%*1dC%*1dH%1dM%*2dP%*2d", &ret) != 1)
@@ -282,8 +251,7 @@ XPS120::isPCSFitted()
 	return (ret != 8);
 }
 void
-XPS120::setPCSHeater(bool val) throw (XInterface::XInterfaceError&)
-{
+XPS120::setPCSHeater(bool val) throw (XInterface::XInterfaceError&) {
 	interface()->sendf("H%u", (unsigned int)(val ? 1 : 0));
 	msecsleep(200);
 	if(isPCSHeaterOn() != val)
@@ -291,8 +259,7 @@ XPS120::setPCSHeater(bool val) throw (XInterface::XInterfaceError&)
 			i18n("Persistent Switch Heater not responding"), __FILE__, __LINE__);
 }
 void
-XIPS120::setRate(double hpm)
-{
+XIPS120::setRate(double hpm) {
 	for(int i = 0; i < 2; i++)
 	{
 		if(fabs(getSweepRate() - hpm) < fieldResolution()) break;
@@ -302,8 +269,7 @@ XIPS120::setRate(double hpm)
 }
 
 void
-XPS120::setRate(double hpm)
-{
+XPS120::setRate(double hpm) {
 	int ihpm = lrint(hpm / fieldResolution());
 	for(int i = 0; i < 2; i++)
 	{
@@ -314,8 +280,7 @@ XPS120::setRate(double hpm)
 }
 
 void
-XIPS120::open() throw (XInterface::XInterfaceError &)
-{
+XIPS120::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("$Q6");
 	start();
 }

@@ -14,7 +14,7 @@
 #ifndef ATOMIC_QUEUE_H_
 #define ATOMIC_QUEUE_H_
 
-#include <atomic.h>
+#include "atomic.h"
 #include <memory>
 
 //! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
@@ -30,35 +30,10 @@ public:
     }
 
     void push(T t) {
-        ASSERT(t);
-        writeBarrier();
-        for(;;) {
-        	if(m_count == SIZE) {
-        		readBarrier();
-	        	if(m_count == SIZE)
-    	            throw nospace_error();
-        	}
-            T *last = m_pLast;
-            T *first = m_pFirst;
-            readBarrier();
-            while(*last != 0) {
-                last++;
-                if(last == &m_ptrs[SIZE]) {
-                	readBarrier();
-                	last = m_ptrs;
-                }
-                if(last == first) {
-                	break;
-                }
-            }
-            if(atomicCompareAndSet((T)0, t, last)) {
-				m_pLast = last;
-				break;
-            }
-        }
-		atomicInc(&m_count);
-		writeBarrier();
+    	if( !atomicPush(t))
+    		throw nospace_error();
     }
+
     //! This is not reentrant.
     void pop() {
         ASSERT(*m_pFirst);
@@ -92,7 +67,41 @@ public:
         return m_count;
     }
 
-	//! Try to pop the front item.
+    //! Tries to push an item.
+	//! \arg item to be added.
+	//! \return true if succeeded.
+    bool atomicPush(T t) {
+        ASSERT(t);
+        writeBarrier();
+        for(;;) {
+        	if(m_count == SIZE) {
+        		readBarrier();
+	        	if(m_count == SIZE)
+    	            return false;
+        	}
+            T *last = m_pLast;
+            T *first = m_pFirst;
+            readBarrier();
+            while(*last != 0) {
+                last++;
+                if(last == &m_ptrs[SIZE]) {
+                	readBarrier();
+                	last = m_ptrs;
+                }
+                if(last == first) {
+                	break;
+                }
+            }
+            if(atomicCompareAndSet((T)0, t, last)) {
+				m_pLast = last;
+				break;
+            }
+        }
+		atomicInc(&m_count);
+		writeBarrier();
+		return true;
+    }
+    //! Tries to pop the front item.
 	//! \arg item to be released.
 	//! \return true if succeeded.
     bool atomicPop(const_ref item) {
@@ -104,7 +113,7 @@ public:
         }
         return false;
     }
-    //! Try to obtain the front item.
+    //! Tries to obtain the front item.
     const_ref atomicFront() {
         if(empty())
         	return 0L;

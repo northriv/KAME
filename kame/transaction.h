@@ -243,9 +243,10 @@ private:
 		shared_ptr<BranchPoint> branchpoint;
 		local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
 	};
+	enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint> &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-		bool make_unbundled_branch = false,
+		SnapshotMode mode,
 		int serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
 	bool commit(Transaction<XN> &tr);
 

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -89,12 +89,9 @@ const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL = 0xf;
 const unsigned char XSHPulser::PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY = 0x10;
 
 XSHPulser::XSHPulser(const char *name, bool runtime,
-					 const shared_ptr<XScalarEntryList> &scalarentries,
-					 const shared_ptr<XInterfaceList> &interfaces,
-					 const shared_ptr<XThermometerList> &thermometers,
-					 const shared_ptr<XDriverList> &drivers) :
-    XCharDeviceDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XPulser>(name, runtime, ref(tr_meas), meas) {
+
     interface()->setEOS("\n");
 	interface()->setSerialBaudRate(115200);
 	interface()->setSerialStopBits(2);
@@ -110,15 +107,13 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
 }
 
 void
-XSHPulser::createNativePatterns()
-{
+XSHPulser::createNativePatterns() {
 	//dry-run to determin LastPattern, DMATime
 	m_dmaTerm = 0;
 	m_lastPattern = 0;
 	uint32_t pat = 0;
 	insertPreamble((uint16_t)pat);
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-	{
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
 		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), true );
 		pat = it->pattern;
 	}
@@ -144,8 +139,7 @@ XSHPulser::createNativePatterns()
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
 	m_zippedPatterns.push_back(0);
 	m_zippedPatterns.push_back(0);
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-	{
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
 		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), false );
 		pat = it->pattern;
 	}
@@ -155,8 +149,7 @@ XSHPulser::createNativePatterns()
 }
 
 int
-XSHPulser::setAUX2DA(double volt, int addr)
-{
+XSHPulser::setAUX2DA(double volt, int addr) {
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX2_DA);
 	m_zippedPatterns.push_back((unsigned char) addr);
 	volt = max(volt, 0.0);
@@ -167,8 +160,7 @@ XSHPulser::setAUX2DA(double volt, int addr)
 	return 0;
 }
 int
-XSHPulser::insertPreamble(uint16_t startpattern)
-{
+XSHPulser::insertPreamble(uint16_t startpattern) {
 	const double masterlevel = pow(10.0, *masterLevel() / 20.0);
 	const double qamlevel1 = *qamLevel1();
 	const double qamlevel2 = *qamLevel2();
@@ -240,15 +232,13 @@ XSHPulser::insertPreamble(uint16_t startpattern)
 	return 0;	
 }
 int
-XSHPulser::finishPulse(void)
-{
+XSHPulser::finishPulse(void) {
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
 	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_LOOP_INF);
 	return 0;
 }
 int
-XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun)
-{
+XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun) {
 	const double msec = term * resolution();
 	int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
 	if( (msec > MIN_MTU_LEN) && ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
@@ -327,10 +317,8 @@ XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun
 }
 
 void
-XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
-{
-	if(output)
-	{
+XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
+	if(output) {
 		if(m_zippedPatterns.empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
@@ -370,8 +358,7 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
 			break;
 		}
 	}
-	else
-	{
+	else {
 		interface()->write("!", 1); //poff
 		interface()->receive();
 	}

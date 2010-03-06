@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -25,12 +25,9 @@ class XMeasure;
 //! Ruby scripting support, containing a thread running Ruby monitor program.
 //! The monitor program synchronize Ruby threads and XRubyThread objects.
 //! \sa XRubyThread
-class XRuby : public XAliasListNode<XRubyThread>
-{
-	XNODE_OBJECT
-protected:
-	XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
+class XRuby : public XAliasListNode<XRubyThread> {
 public:
+	XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
 	virtual ~XRuby();
   
 	void resume() {m_thread.resume();}

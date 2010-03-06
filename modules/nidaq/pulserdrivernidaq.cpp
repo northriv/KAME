@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,34 +20,27 @@ REGISTER_TYPE(XDriverList, NIDAQDOPulser, "NMR pulser NI-DAQ digital output only
 REGISTER_TYPE(XDriverList, NIDAQMSeriesWithSSeriesPulser, "NMR pulser NI-DAQ M Series with S Series");
 
 XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
-															   const shared_ptr<XScalarEntryList> &scalarentries,
-															   const shared_ptr<XInterfaceList> &interfaces,
-															   const shared_ptr<XThermometerList> &thermometers,
-															   const shared_ptr<XDriverList> &drivers) :
-    XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XNIDAQmxPulser(name, runtime, ref(tr_meas), meas),
 	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
-													dynamic_pointer_cast<XDriver>(this->shared_from_this())))
-{
-    interfaces->insert(m_ao_interface);
+													dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+    meas->interfaces()->insert(tr_meas, m_ao_interface);
     m_ao_interface->control()->setUIEnabled(false);
 }
 void
-XNIDAQAODOPulser::open() throw (XInterface::XInterfaceError &)
-{
+XNIDAQAODOPulser::open() throw (XInterface::XInterfaceError &) {
  	openAODO();
 	this->start();	
 }
 void
-XNIDAQDOPulser::open() throw (XInterface::XInterfaceError &)
-{
+XNIDAQDOPulser::open() throw (XInterface::XInterfaceError &) {
 //	if(XString(interface()->productSeries()) != "M")
 //		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
 }
 void
-XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &)
-{
+XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &) {
 	if(XString(interface()->productSeries()) != "M")
 		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
 

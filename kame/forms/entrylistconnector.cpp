@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -25,8 +25,7 @@
 XEntryListConnector::XEntryListConnector
 (const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist)
 	: XListQConnector(node, item),
-	  m_chartList(chartlist)
-{
+	  m_chartList(chartlist) {
 	connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
 			this, SLOT(clicked( int, int, int, const QPoint& )) );
 	m_pItem->setNumCols(4);
@@ -42,19 +41,21 @@ XEntryListConnector::XEntryListConnector
 	labels += i18n("Delta");
 	m_pItem->setColumnLabels(labels);
   
-	XNode::NodeList::reader list(node->children());
-	if(list) {
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-			onCatch(*it);
+	Snapshot shot( *node);
+	if(shot.size()) {
+		for(int idx = 0; idx < shot.size(); ++idx) {
+			XListNodeBase::Payload::CatchEvent e;
+			e.emitter = node.get();
+			e.caught = shot.list()->at(idx);
+			e.index = idx;
+			onCatch(shot, e);
+		}
 	}
 }
 void
-XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
-{
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if((*it)->entry->driver() == driver)
-		{
+XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+		if((*it)->entry->driver() == driver) {
 			tcons::tlisttext text;
 			text.label = (*it)->label;
 			text.str.reset(new XString((*it)->entry->value()->to_str()));
@@ -63,8 +64,7 @@ XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver)
 	}
 }
 void
-XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text)
-{
+XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text) {
     text.label->setText(text.str->c_str());
 }
 
@@ -72,45 +72,38 @@ void
 XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
 	switch(col) {
 	case 0:
-	case 1:
-	{
-		XNode::NodeList::reader list(m_chartList->children());
-		if(list) {
-			if((row >= 0) && (row < (int)list->size())) {
-				dynamic_pointer_cast<XValChart>(list->at(row))->showChart();
+	case 1: {
+			Snapshot shot( *m_chartList);
+			if(shot.size()) {
+				if((row >= 0) && (row < (int)shot.list()->size())) {
+					dynamic_pointer_cast<XValChart>(shot.list()->at(row))->showChart();
+				}
 			}
 		}
-	}
 	break;
 	default:
 		break;
 	}
 }
 void
-XEntryListConnector::onRelease(const shared_ptr<XNode> &node)
-{
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-	{
+XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
-		if((*it)->entry == node)
-		{
+		if((*it)->entry == e.released) {
 			(*it)->driver->onRecord().disconnect(m_lsnOnRecord);
-			for(int i = 0; i < m_pItem->numRows(); i++)
-			{
+			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == (*it)->label) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
 		}
-		else
-		{
+		else {
 			it++;
 		}
 	}
 }
 void
-XEntryListConnector::onCatch(const shared_ptr<XNode> &node)
-{
-	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(node);
+XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+	shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>(e.caught);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, entry->getLabel().c_str());

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -11,20 +11,34 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "transaction_impl.h"
+template class Transactional::Node<class XNode>;
+
 #include "xnode.h"
 #include <typeinfo>
 
-
 XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
-//---------------------------------------------------------------------------
+void
+XNode::Payload::setUIEnabled(bool var) {
+	if(isDisabled()) return;
+	m_flags = (m_flags & ~NODE_UI_ENABLED) | (var ? NODE_UI_ENABLED : 0);
+	tr().mark(onUIFlagsChanged(), &node());
+}
+void
+XNode::Payload::disable() {
+	m_flags = (m_flags & ~(NODE_DISABLED | NODE_UI_ENABLED)) | NODE_DISABLED;
+	tr().mark(onUIFlagsChanged(), &node());
+}
+
 XNode::XNode(const char *name, bool runtime)
-	: m_children(), m_name(name ? name : "")
-{
+	: Transactional::Node<XNode>(), m_name(name ? name : "") {
 	// temporaly shared_ptr to be able to use shared_from_this() in constructors
 	XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
 	ASSERT(shared_from_this());
-	m_flags = (runtime ? FLAG_RUNTIME : 0) | FLAG_UI_ENABLED | FLAG_ENABLED;
+
+	trans(*this).setRuntime(runtime);
+
 	dbgPrint(QString("xnode %1 is created., addr=0x%2, size=0x%3")
 			 .arg(getName())
 			 .arg((uintptr_t)this, 0, 16)
@@ -46,31 +60,22 @@ XNode::getTypename() const {
     return name.substr(i + 1);
 }
 void
-XNode::insert(const shared_ptr<XNode> &ptr)
-{
+XNode::insert(const shared_ptr<XNode> &ptr) {
     ASSERT(ptr);
-    if(!ptr->m_parent.lock())
-    	ptr->m_parent = shared_from_this();
-    m_children.push_back(ptr);
+    Transactional::Node<XNode>::insert(ptr);
+}
+bool
+XNode::insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion) {
+    ASSERT(ptr);
+    return Transactional::Node<XNode>::insert(tr, ptr, online_after_insertion);
 }
 void
 XNode::disable() {
-	for(;;) {
-		int flag = m_flags;
-		if(atomicCompareAndSet(flag, flag & ~(FLAG_ENABLED | FLAG_UI_ENABLED), &m_flags))
-			break;
-	}
-    onUIEnabled().talk(shared_from_this());
+	trans(*this).disable();
 }
 void
 XNode::setUIEnabled(bool v) {
-	if(!isEnabled()) return;
-	for(;;) {
-		int flag = m_flags;
-		if(atomicCompareAndSet(flag, v ? (flag | FLAG_UI_ENABLED) : (flag & ~FLAG_UI_ENABLED), &m_flags))
-			break;
-	}
-    onUIEnabled().talk(shared_from_this());
+	trans(*this).setUIEnabled(v);
 }
 void
 XNode::touch() {
@@ -78,246 +83,226 @@ XNode::touch() {
 }
 
 void
-XNode::clearChildren()
-{
-    m_children.reset();
+XNode::clearChildren() {
+    releaseAll();
 }
 int
-XNode::releaseChild(const shared_ptr<XNode> &node)
-{
-//	node->m_parent.reset();
-    for(;;) {
-    	NodeList::writer tr(m_children);
-        NodeList::iterator it = find(tr->begin(), tr->end(), node);
-        if(it == tr->end())
-        	return -1;
-        tr->erase(it);
-        if(tr->empty())
-            tr.reset();
-        if(tr.commit())
-			break;
-    }
-    return 0;
+XNode::releaseChild(const shared_ptr<XNode> &node) {
+	for(Transaction tr( *this);; ++tr) {
+		shared_ptr<const NodeList> list(tr.list());
+		NodeList::const_iterator it = find(list->begin(), list->end(), node);
+		if(it == list->end())
+			return -1;
+		if( !release(tr, node))
+			continue;
+		if(tr.commit())
+			return 0;
+	}
 }
 
 shared_ptr<XNode>
-XNode::getChild(const XString &var) const
-{
+XNode::getChild(const XString &var) const {
+	Snapshot shot(*this);
 	shared_ptr<XNode> node;
-	NodeList::reader list(children());
-	if(list) { 
+	shared_ptr<const NodeList> list(shot.list());
+	if(list) {
 		for(NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-			if((*it)->getName() == var) {
-                node = *it;
+			if(dynamic_pointer_cast<XNode>(*it)->getName() == var) {
+                node = dynamic_pointer_cast<XNode>(*it);
                 break;
 			}
 		}
 	}
 	return node;
 }
-shared_ptr<XNode>
-XNode::getParent() const
-{
-	return m_parent.lock();
+
+void
+XTouchableNode::Payload::touch() {
+	tr().mark(onTouch(), &node());
 }
 
-XValueNodeBase::XValueNodeBase(const char *name, bool runtime) : 
-    XNode(name, runtime), m_validator(0L)
-{
-}
 void
-XValueNodeBase::str(const XString &s) throw (XKameError &) {
-    XString sc(s);
-    if(m_validator)
-		(*m_validator)(sc);
-    _str(sc);
-}
-void
-XValueNodeBase::setValidator(Validator v) {
-    m_validator = v;
+XValueNodeBase::str(const XString &str) throw (XKameError &) {
+    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
+        trans(*this).str(str);
+    }
+    else {
+		shared_ptr<XValueNodeBase> ptr =
+			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
+        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
+        this->beforeValueChanged().talk(ptr);
+        try {
+        	trans(*this).str(str);
+        }
+        catch (XKameError &e) {
+            this->onValueChanged().talk(ptr);
+            throw e;
+        }
+        this->onValueChanged().talk(ptr);
+    }
 }
 
 template <typename T, int base>
 void
-XValueNode<T, base>::value(const T &t) {
-    if(m_tlkBeforeValueChanged.empty() && m_tlkOnValueChanged.empty()) {
-        m_var = t;
+XIntNodeBase<T, base>::value(T t) {
+    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
+        trans(*this) = t;
     }
     else {
-        XScopedLock<XRecursiveMutex> lock(m_valuemutex);
-        shared_ptr<XValueNodeBase> ptr = 
-            dynamic_pointer_cast<XValueNodeBase>(shared_from_this());
-        m_tlkBeforeValueChanged.talk(ptr);
-        m_var = t;
-        m_tlkOnValueChanged.talk(ptr); //, 1, &statusmutex);
+		shared_ptr<XValueNodeBase> ptr =
+			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
+        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
+        this->beforeValueChanged().talk(ptr);
+        trans(*this) = t;
+        this->onValueChanged().talk(ptr);
     }
 }
 
+template <typename T, int base>
+void
+XIntNodeBase<T, base>::Payload::_str(const XString &str) {
+}
 template <>
 void
-XValueNode<int, 10>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<int, 10>::Payload::_str(const XString &str) {
     bool ok;
     int var = QString(str).toInt(&ok, 10);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
-    value(var);
+    *this = var;
 }
 template <>
 void
-XValueNode<unsigned int, 10>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<unsigned int, 10>::Payload::_str(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toUInt(&ok);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
-    value(var);
+    *this = var;
 }
 template <>
 void
-XValueNode<long, 10>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<long, 10>::Payload::_str(const XString &str) {
     bool ok;
     long var = QString(str).toLong(&ok, 10);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
-    value(var);
+    *this = var;
 }
 template <>
 void
-XValueNode<unsigned long, 10>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<unsigned long, 10>::Payload::_str(const XString &str) {
     bool ok;
     unsigned long var = QString(str).toULong(&ok);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
-    value(var);
+    *this = var;
 }
 template <>
 void
-XValueNode<unsigned long, 16>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<unsigned long, 16>::Payload::_str(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toULong(&ok, 16);
     if(!ok)
 		throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
-    value(var);
+    *this = var;
 }
 template <>
 void
-XValueNode<bool, 10>::_str(const XString &str) throw (XKameError &) {
+XIntNodeBase<bool, 10>::Payload::_str(const XString &str) {
 	bool ok;
 	bool x = QString(str).toInt(&ok);
     if(ok) {
-		value( x ? true : false );
+		*this =  x ? true : false ;
 		return;
     }
 	if(QString(str).trimmed().toLower() == "true") {
-        value(true); return;
+        *this = true; return;
 	}
 	if(QString(str).trimmed().toLower() == "false") {
-        value(false); return;
+        *this = false; return;
 	}
 	throw XKameError(i18n("Ill string conversion to boolean."), __FILE__, __LINE__);
 }
 
 template <typename T, int base>
 XString
-XValueNode<T, base>::to_str() const {
+XIntNodeBase<T, base>::Payload::to_str() const {
     return QString::number(m_var, base);
 }
 template <>
 XString
-XValueNode<bool, 10>::to_str() const {
+XIntNodeBase<bool, 10>::Payload::to_str() const {
     return m_var ? "true" : "false";
 }
 
-template class XValueNode<int, 10>;
-template class XValueNode<unsigned int, 10>;
-template class XValueNode<long, 10>;
-template class XValueNode<unsigned long, 10>;
-template class XValueNode<unsigned long, 16>;
-template class XValueNode<bool, 10>;
+template class XIntNodeBase<int, 10>;
+template class XIntNodeBase<unsigned int, 10>;
+template class XIntNodeBase<long, 10>;
+template class XIntNodeBase<unsigned long, 10>;
+template class XIntNodeBase<unsigned long, 16>;
+template class XIntNodeBase<bool, 10>;
 
 XStringNode::XStringNode(const char *name, bool runtime)
 	: XValueNodeBase(name, runtime) {}
 
-XString
-XStringNode::to_str() const
-{
-	local_shared_ptr<XString> var(m_var);
-    return var ? (*var) : XString();
-}
-void
-XStringNode::_str(const XString &var) throw (XKameError &)
-{
-    value(var);
-}
-
-XStringNode::operator XString() const {
-    return to_str();
-}
 void
 XStringNode::value(const XString &t) {
-    if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var.reset(new XString(t));
+    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
+        trans(*this) = t;
     }
     else {
-        XScopedLock<XRecursiveMutex> lock(m_valuemutex);
-        beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var.reset(new XString(t));
-        onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
+		shared_ptr<XValueNodeBase> ptr =
+			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
+        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
+        this->beforeValueChanged().talk(ptr);
+        trans(*this) = t;
+        this->onValueChanged().talk(ptr);
     }
 }
-
 XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
-	: XValueNodeBase(name, runtime), m_var(0.0)
-{
-	if(format)
-		setFormat(format);
-	else
-		setFormat("");
+	: XValueNodeBase(name, runtime) {
+	setFormat(format);
+}
+
+void
+XDoubleNode::value(double t) {
+    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
+        trans(*this) = t;
+    }
+    else {
+		shared_ptr<XValueNodeBase> ptr =
+			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
+        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
+        this->beforeValueChanged().talk(ptr);
+        trans(*this) = t;
+        this->onValueChanged().talk(ptr);
+    }
 }
 XString
-XDoubleNode::to_str() const
-{
-    return formatDouble(m_format.c_str(), m_var);
+XDoubleNode::Payload::to_str() const {
+    return formatDouble(
+    	static_cast<const XDoubleNode&>(node()).format(), m_var);
 }
 void
-XDoubleNode::_str(const XString &str) throw (XKameError &)
-{
+XDoubleNode::Payload::_str(const XString &str) {
 	bool ok;
     double var = QString(str).toDouble(&ok);
-    if(!ok) 
+    if(!ok)
 		throw XKameError(i18n("Ill string conversion to double float."), __FILE__, __LINE__);
-    value(var);
-}
-void
-XDoubleNode::value(const double &t) {
-    if(beforeValueChanged().empty() && onValueChanged().empty()) {
-        m_var = t;
-    }
-    else {
-        XScopedLock<XRecursiveMutex> lock(m_valuemutex);
-        beforeValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-        m_var = t;
-        onValueChanged().talk(dynamic_pointer_cast<XValueNodeBase>(shared_from_this()));
-    }
-}
-XDoubleNode::operator double() const
-{
-    return m_var;
+    *this = var;
 }
 
-const char *
-XDoubleNode::format() const {
-    return m_format.c_str();
-}
 void
 XDoubleNode::setFormat(const char* format) {
     XString fmt;
-    if(format) fmt = format;
+    if(format)
+    	fmt = format;
     try {
         formatDoubleValidator(fmt);
-        m_format = fmt;
+        m_format.reset(new XString(fmt));
     }
     catch (XKameError &e) {
         e.print();
     }
 }
-

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,11 +27,8 @@ template <typename T>
 inline T *fastFill(T* p, T x, unsigned int cnt);
 
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
-							   const shared_ptr<XScalarEntryList> &scalarentries,
-							   const shared_ptr<XInterfaceList> &interfaces,
-							   const shared_ptr<XThermometerList> &thermometers,
-							   const shared_ptr<XDriverList> &drivers) :
-    XNIDAQmxDriver<XPulser>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas):
+    XNIDAQmxDriver<XPulser>(name, runtime, ref(tr_meas), meas),
     m_pausingBit(0), m_pausingCount(0), 
 	m_running(false),
     m_resolutionDO(RESOLUTION_UNDEF),
@@ -39,8 +36,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_taskAO(TASK_UNDEF),
 	m_taskDO(TASK_UNDEF),
 	m_taskDOCtr(TASK_UNDEF),
-	m_taskGateCtr(TASK_UNDEF)
-{
+	m_taskGateCtr(TASK_UNDEF) {
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
 		portSel(i)->add("Pausing(PFI4)");
     const int ports[] = {
@@ -62,15 +58,13 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
  	}
 }
 
-XNIDAQmxPulser::~XNIDAQmxPulser()
-{
+XNIDAQmxPulser::~XNIDAQmxPulser() {
 	clearTasks();
 	XNIDAQmxInterface::SoftwareTrigger::unregister(m_softwareTrigger);
 }
 
 void
-XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	if(intfDO()->maxDORate(1) == 0)
@@ -88,8 +82,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &)
 }
 
 void
-XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	
 	if(intfDO()->maxDORate(1) == 0)
@@ -127,8 +120,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &)
 }
 
 void
-XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	try {
@@ -393,7 +385,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 }
 int32
 XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
-	XNIDAQmxPulser *obj = reinterpret_cast<XNIDAQmxPulser*>(data);
+	XNIDAQmxPulser *obj = static_cast<XNIDAQmxPulser*>(data);
 	obj->onTaskDone(task, status);
 	return status;
 }
@@ -434,8 +426,7 @@ fastFill(T* p, T x, unsigned int cnt) {
 }
 
 void
-XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
-{
+XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
 		m_suspendDO = true;
@@ -593,8 +584,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &)
 	m_running = true;	
 }
 void
-XNIDAQmxPulser::stopPulseGen()
-{
+XNIDAQmxPulser::stopPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	m_suspendAO = true;
@@ -670,16 +660,14 @@ XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag,
 	return false;
 }
 void *
-XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated)
-{
+XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated) {
 	while(!terminated) {
 		writeBufAO(terminated, m_suspendAO);
 	}
 	return NULL;
 }
 void *
-XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
-{
+XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated) {
 	while(!terminated) {
 		writeBufDO(terminated, m_suspendDO);
 	}
@@ -687,8 +675,7 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated)
 }
 
 void
-XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &suspended)
-{
+XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &suspended) {
 	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
 
 	if(tryOutputSuspend(suspended, m_mutexAO, terminated))
@@ -733,8 +720,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 	return;
 }
 void
-XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended)
-{
+XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended) {
 	XScopedLock<XRecursiveMutex> lock(m_mutexDO);
 
 	if(tryOutputSuspend(suspended, m_mutexDO, terminated))
@@ -779,8 +765,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 	return;
 }
 void
-XNIDAQmxPulser::genBankDO()
-{
+XNIDAQmxPulser::genBankDO() {
 	GenPatternIterator it = m_genLastPatItDO;
 	uint32_t pat = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
@@ -848,8 +833,7 @@ XNIDAQmxPulser::genBankDO()
 	m_genTotalCountDO = total;
 }
 void
-XNIDAQmxPulser::genBankAO()
-{
+XNIDAQmxPulser::genBankAO() {
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	GenPatternIterator it = m_genLastPatItAO;
@@ -928,12 +912,10 @@ XNIDAQmxPulser::genBankAO()
 }
 
 void
-XNIDAQmxPulser::createNativePatterns()
-{
+XNIDAQmxPulser::createNativePatterns() {
 	m_genPatternListNext.reset(new std::vector<GenPattern>);
 	uint32_t pat = m_relPatList.back().pattern;
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++)
-	{
+	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
 		uint64_t tonext = it->toappear;
 
 		GenPattern genpat(pat, tonext);
@@ -973,16 +955,13 @@ XNIDAQmxPulser::createNativePatterns()
 
 
 void
-XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/)
-{
-	if(output)
-	{
+XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
+	if(output) {
 		if(!m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen();
 	}
-	else
-	{
+	else {
 		stopPulseGen();
 	}
 	return;

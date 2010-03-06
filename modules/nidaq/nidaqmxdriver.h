@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -44,12 +44,9 @@
 
 class XNIDAQmxTask;
 
-class XNIDAQmxInterface : public XInterface
-{
-	XNODE_OBJECT
-protected:
-	XNIDAQmxInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+class XNIDAQmxInterface : public XInterface {
 public:
+	XNIDAQmxInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XNIDAQmxInterface() {}
  
 	static XString getNIDAQmxErrMessage();
@@ -185,16 +182,10 @@ private:
 };
 
 template<class tDriver>
-class XNIDAQmxDriver : public tDriver
-{
-	XNODE_OBJECT
-protected:
-	XNIDAQmxDriver(const char *name, bool runtime, 
-				   const shared_ptr<XScalarEntryList> &scalarentries,
-				   const shared_ptr<XInterfaceList> &interfaces,
-				   const shared_ptr<XThermometerList> &thermometers,
-				   const shared_ptr<XDriverList> &drivers);
+class XNIDAQmxDriver : public tDriver {
 public:
+	XNIDAQmxDriver(const char *name, bool runtime, 
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNIDAQmxDriver() {}
 protected:
 	const shared_ptr<XNIDAQmxInterface> &interface() const {return m_interface;}
@@ -213,15 +204,11 @@ private:
 };
 template<class tDriver>
 XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime, 
-										const shared_ptr<XScalarEntryList> &scalarentries,
-										const shared_ptr<XInterfaceList> &interfaces,
-										const shared_ptr<XThermometerList> &thermometers,
-										const shared_ptr<XDriverList> &drivers) :
-    tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    tDriver(name, runtime, ref(tr_meas), meas),
 	m_interface(XNode::create<XNIDAQmxInterface>("Interface", false,
-												 dynamic_pointer_cast<XDriver>(this->shared_from_this())))
-{
-    interfaces->insert(m_interface);
+												 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+    meas->interfaces()->insert(tr_meas, m_interface);
     m_lsnOnOpen = interface()->onOpen().connectWeak(
 		this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
     m_lsnOnClose = interface()->onClose().connectWeak( 
@@ -229,8 +216,7 @@ XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime,
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
-{
+XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
 	try {
 		open();
 	}
@@ -241,8 +227,7 @@ XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
-{
+XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &) {
 	try {
 		this->stop();
 	}

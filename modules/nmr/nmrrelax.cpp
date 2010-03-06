@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -39,19 +39,15 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 	      ((p1Dist()->to_str() == P1DIST_LOG) ? p1min * exp((x) * log(p1max/p1min)) : \
 	       1/((1-(x))/p1min + (x)/p1max)))
 
-class XRelaxFuncPlot : public XFuncPlot
-{
-	XNODE_OBJECT
-protected:
-	XRelaxFuncPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph
+class XRelaxFuncPlot : public XFuncPlot {
+public:
+	XRelaxFuncPlot(const char *name, bool runtime, Transaction &tr, const shared_ptr<XGraph> &graph
 				   , const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &item,
 				   const shared_ptr<XNMRT1> &owner)
-		: XFuncPlot(name, runtime, graph), m_item(item), m_owner(owner)
+		: XFuncPlot(name, runtime, tr, graph), m_item(item), m_owner(owner)
 	{}
-public:
 	~XRelaxFuncPlot() {}
-	virtual double func(double t) const
-	{
+	virtual double func(double t) const {
 		shared_ptr<XRelaxFunc> func1 = *m_item;
 		if(!func1) return 0;
 		shared_ptr<XNMRT1> owner = m_owner.lock();
@@ -69,19 +65,19 @@ private:
 };
 
 XNMRT1::XNMRT1(const char *name, bool runtime,
-			   const shared_ptr<XScalarEntryList> &scalarentries,
-			   const shared_ptr<XInterfaceList> &interfaces,
-			   const shared_ptr<XThermometerList> &thermometers,
-			   const shared_ptr<XDriverList> &drivers)
-	: XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+	: XSecondaryDriver(name, runtime, ref(tr_meas), meas),
 	  m_relaxFuncs(create<XRelaxFuncList>("RelaxFuncs", true)),
 	  m_t1inv(create<XScalarEntry>("T1inv", false,
 								   dynamic_pointer_cast<XDriver>(shared_from_this()))),
 	  m_t1invErr(create<XScalarEntry>("T1invErr", false,
 									  dynamic_pointer_cast<XDriver>(shared_from_this()))),
-	  m_pulser(create<XItemNode < XDriverList, XPulser > >("Pulser", false, drivers, true)),
-	  m_pulse1(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >("NMRPulseAnalyzer1", false, drivers, true)),
-	  m_pulse2(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >("NMRPulseAnalyzer2", false, drivers)),
+	  m_pulser(create<XItemNode < XDriverList, XPulser > >(
+		  "Pulser", false, ref(tr_meas), meas->drivers(), true)),
+	  m_pulse1(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >(
+		  "NMRPulseAnalyzer1", false, ref(tr_meas), meas->drivers(), true)),
+	  m_pulse2(create<XItemNode < XDriverList, XNMRPulseAnalyzer > >(
+		  "NMRPulseAnalyzer2", false, ref(tr_meas), meas->drivers())),
 	  m_active(create<XBoolNode>("Active", false)),
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
 	  m_mInftyFit(create<XBoolNode>("MInftyFit", false)),
@@ -96,8 +92,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_mode(create<XComboNode>("Mode", false, true)),
 	  m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
 	  m_p1Dist(create<XComboNode>("P1Dist", false, true)),
-	  m_relaxFunc(create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
-					  "RelaxFunc", false, m_relaxFuncs, true)),
 	  m_resetFit(create<XNode>("ResetFit", true)),
 	  m_clearAll(create<XNode>("ClearAll", true)),
 	  m_fitStatus(create<XStringNode>("FitStatus", true)),
@@ -105,7 +99,15 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_form(new FrmNMRT1(g_pFrmMain)),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
 	  m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)) {
-    m_form->m_btnClear->setIcon(
+
+	for(Transaction tr( *this);; ++tr) {
+		m_relaxFunc = create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
+						  tr, "RelaxFunc", false, ref(tr), m_relaxFuncs, true);
+		if(tr.commit())
+			break;
+	}
+
+	m_form->m_btnClear->setIcon(
     	KIconLoader::global()->loadIcon("editdelete",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     m_form->m_btnResetFit->setIcon(
@@ -114,8 +116,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 
     m_form->setWindowTitle(i18n("NMR Relax. Meas. - ") + getLabel() );
 
-    scalarentries->insert(t1inv());
-    scalarentries->insert(t1invErr());
+    meas->scalarEntries()->insert(tr_meas, t1inv());
+    meas->scalarEntries()->insert(tr_meas, t1invErr());
 
     connect(pulser(), true);
     connect(pulse1(), false);
@@ -137,34 +139,35 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_windowWidth->add("150%");
     m_windowWidth->add("200%");
     m_windowWidth->value(2);
-	{
+	for(Transaction tr( *m_wave);; ++tr) {
 		const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
-		m_wave->setColCount(6, labels);
-		m_wave->insertPlot(i18n("Relaxation"), 0, 1, -1, 2);
-		m_wave->insertPlot(i18n("Out-of-Phase"), 0, 5, -1, 2);
-		shared_ptr<XAxis> axisx = m_wave->axisx();
-		shared_ptr<XAxis> axisy = m_wave->axisy();
-		axisx->logScale()->value(true);
-		axisy->label()->value(i18n("Relaxation"));
-		m_wave->plot(0)->drawLines()->value(false);
-		m_wave->plot(1)->drawLines()->value(false);
-		m_wave->plot(1)->intensity()->value(0.6);
-		shared_ptr<XFuncPlot> plot3 = create<XRelaxFuncPlot>(
-			"FittedCurve", true, m_wave->graph(),
-			relaxFunc(), dynamic_pointer_cast<XNMRT1>(shared_from_this()));
-		m_wave->graph()->plots()->insert(plot3);
-		plot3->label()->value(i18n("Fitted Curve"));
-		plot3->axisX()->value(axisx);
-		plot3->axisY()->value(axisy);
-		plot3->drawPoints()->value(false);
-		plot3->pointColor()->value(clBlue);
-		plot3->lineColor()->value(clBlue);
-		plot3->drawBars()->setUIEnabled(false);
-		plot3->barColor()->setUIEnabled(false);
-		plot3->clearPoints()->setUIEnabled(false);
-		m_wave->clear();
+		tr[ *m_wave].setColCount(6, labels);
+		tr[ *m_wave].insertPlot(i18n("Relaxation"), 0, 1, -1, 2);
+		tr[ *m_wave].insertPlot(i18n("Out-of-Phase"), 0, 5, -1, 2);
+		shared_ptr<XAxis> axisx = tr[ *m_wave].axisx();
+		shared_ptr<XAxis> axisy = tr[ *m_wave].axisy();
+		tr[ *axisx->logScale()] = true;
+		tr[ *axisy->label()] = i18n("Relaxation");
+		tr[ *tr[ *m_wave].plot(0)->drawLines()] = false;
+		tr[ *tr[ *m_wave].plot(1)->drawLines()] = false;
+		tr[ *tr[ *m_wave].plot(1)->intensity()] = 0.6;
+		shared_ptr<XFuncPlot> plot3 = m_wave->graph()->plots()->create<XRelaxFuncPlot>(
+			tr, "FittedCurve", true, ref(tr), m_wave->graph(),
+			relaxFunc(), static_pointer_cast<XNMRT1>(shared_from_this()));
+		tr[ *plot3->label()] = i18n("Fitted Curve");
+		tr[ *plot3->axisX()] = axisx;
+		tr[ *plot3->axisY()] = axisy;
+		tr[ *plot3->drawPoints()] = false;
+		tr[ *plot3->pointColor()] = clBlue;
+		tr[ *plot3->lineColor()] = clBlue;
+		tr[ *plot3->drawBars()].setUIEnabled(false);
+		tr[ *plot3->barColor()].setUIEnabled(false);
+		tr[ *plot3->clearPoints()].setUIEnabled(false);
+		if(tr.commit())
+			break;
 	}
+	m_wave->clear();
 
 	mode()->add("T1 Measurement");
 	mode()->add("T2 Measurement");
@@ -195,10 +198,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
 	m_conAutoWindow = xqcon_create<XQToggleButtonConnector>(m_autoWindow, m_form->m_ckbAutoWindow);
-	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc);
-	m_conWindowWidth = xqcon_create<XQComboBoxConnector>(m_windowWidth, m_form->m_cmbWindowWidth);
+	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
+	m_conWindowWidth = xqcon_create<XQComboBoxConnector>(m_windowWidth, m_form->m_cmbWindowWidth, Snapshot( *m_windowWidth));
 	m_conSmoothSamples = xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples);
-	m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist);
+	m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist, Snapshot( *m_p1Dist));
 	m_conClearAll = xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear);
 	m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
@@ -206,12 +209,12 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conMInftyFit = xqcon_create<XQToggleButtonConnector>(m_mInftyFit, m_form->m_ckbMInftyFit);
 	m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
 	m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
-	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbRelaxFunc);
-	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode);
+	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbRelaxFunc, Snapshot( *m_relaxFuncs));
+	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
 
-	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser);
-	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1);
-	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2);
+	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
+	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas));
+	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas));
 
 	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
 		shared_from_this(), &XNMRT1::onActiveChanged);
@@ -236,21 +239,18 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		shared_from_this(), &XNMRT1::onResetFit);
 }
 void
-XNMRT1::showForms()
-{
+XNMRT1::showForms() {
 	m_form->show();
 	m_form->raise();
 }
 
 void
-XNMRT1::onClearAll(const shared_ptr<XNode> &)
-{
+XNMRT1::onClearAll(const shared_ptr<XNode> &) {
     m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
 void
-XNMRT1::onResetFit(const shared_ptr<XNode> &)
-{
+XNMRT1::onResetFit(const shared_ptr<XNode> &) {
 	const double x = randMT19937();
 	const double p1min = *p1Min();
 	const double p1max = *p1Max();
@@ -264,8 +264,7 @@ XNMRT1::onResetFit(const shared_ptr<XNode> &)
 	requestAnalysis();
 }
 void
-XNMRT1::onCondChanged(const shared_ptr<XValueNodeBase> &node)
-{
+XNMRT1::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
     if((node == phase()) && *autoPhase()) return;
     if(((node == windowWidth()) || (node == windowFunc())) && *autoWindow()) return;
     if(
@@ -595,62 +594,63 @@ XNMRT1::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
 }
 
 void
-XNMRT1::visualize()
-{
+XNMRT1::visualize() {
 	if(!time()) {
 		m_wave->clear();
 		return;
 	}
 
-	{   XScopedWriteLock<XWaveNGraph> lock(*m_wave);
-	XString label;
-	switch (*mode()) {
-	case MEAS_T1:
-		label = "P1 [ms]";
-		break;
-	case MEAS_T2:
-		label = "2tau [us]";
-		break;
-	case MEAS_ST_E:
-		label = "T+tau [ms]";
-		break;
-	}
-	m_wave->setLabel(0, label.c_str());
-	m_wave->axisx()->label()->value(label);
-	m_wave->setRowCount(m_sumpts.size());
-	double *colp1 = m_wave->cols(0);
-	double *colval = m_wave->cols(1);
-	double *colabs = m_wave->cols(3);
-	double *colre = m_wave->cols(4);
-	double *colim = m_wave->cols(5);
-	double *colisigma = m_wave->cols(2);
-	int i = 0;
-	for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++) {
-		if(it->isigma == 0) {
-			colval[i] = 0;
-			colabs[i] = 0;
-			colre[i] = 0;
-			colim[i] = 0;
-			colp1[i] = 0;
+	for(Transaction tr( *m_wave);; ++tr) {
+		XString label;
+		switch( *mode()) {
+		case MEAS_T1:
+			label = "P1 [ms]";
+			break;
+		case MEAS_T2:
+			label = "2tau [us]";
+			break;
+		case MEAS_ST_E:
+			label = "T+tau [ms]";
+			break;
 		}
-		else {
-			colval[i] = it->var;
-			colabs[i] = std::abs(it->c);
-			colre[i] = std::real(it->c);
-			colim[i] = std::imag(it->c);
-			colp1[i] = it->p1;
+		tr[ *m_wave].setLabel(0, label.c_str());
+		tr[ *tr[ *m_wave].axisx()->label()] = label;
+		tr[ *m_wave].setRowCount(m_sumpts.size());
+		double *colp1 = tr[ *m_wave].cols(0);
+		double *colval = tr[ *m_wave].cols(1);
+		double *colabs = tr[ *m_wave].cols(3);
+		double *colre = tr[ *m_wave].cols(4);
+		double *colim = tr[ *m_wave].cols(5);
+		double *colisigma = tr[ *m_wave].cols(2);
+		int i = 0;
+		for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++) {
+			if(it->isigma == 0) {
+				colval[i] = 0;
+				colabs[i] = 0;
+				colre[i] = 0;
+				colim[i] = 0;
+				colp1[i] = 0;
+			}
+			else {
+				colval[i] = it->var;
+				colabs[i] = std::abs(it->c);
+				colre[i] = std::real(it->c);
+				colim[i] = std::imag(it->c);
+				colp1[i] = it->p1;
+			}
+			colisigma[i] = it->isigma;
+			i++;
 		}
-		colisigma[i] = it->isigma;
-		i++;
-	}
+		m_wave->drawGraph(tr);
+		if(tr.commit()) {
+			break;
+		}
 	}
 }
 
 void
-XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &)
-{
-	if(*active() == true)
-	{
+XNMRT1::onActiveChanged(const shared_ptr<XValueNodeBase> &) {
+	if(*active() == true) {
 		const shared_ptr<XPulser> _pulser = *pulser();
 		const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
 		const shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();

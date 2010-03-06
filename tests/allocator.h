@@ -62,4 +62,38 @@ void operator delete(void* p) {
 	free(p);
 }
 
+
+#include "atomic_queue.h"
+
+template <typename T>
+int
+atomic_shared_ptr_base<T,
+typename boost::enable_if<boost::is_base_of<atomic_countable, T> >::type >::
+deleter(T *p) {
+#define DELAYED_DELETE_QUEUE_SIZE ((200000/sizeof(T)+32))
+	struct Queue : public atomic_pointer_queue<T, DELAYED_DELETE_QUEUE_SIZE> {
+		~Queue() {
+			while( !this->empty()) {
+				delete this->front();
+				this->pop();
+			}
+		}
+	};
+	static Queue queue;
+	if(p) {
+		if(queue.atomicPush(p))
+			return 0;
+//		printf("!");
+		delete p;
+		return 1;
+	}
+	for(int i = 0;; ++i) {
+		if(queue.empty())
+			return i;
+		p = queue.front();
+		queue.pop();
+		delete p;
+	}
+}
+
 #endif /* ALLOCATOR_H_ */

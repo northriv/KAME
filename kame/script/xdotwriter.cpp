@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -38,12 +38,13 @@ XDotWriter::write()
           << std::endl;
     m_ofs << "node [shape=box,style=filled,color=green];" << std::endl;
           
-    write(m_root);
+    Snapshot shot(*m_root);
+    write(m_root, shot);
     m_ofs << "}"
           << std::endl;
 }
 void 
-XDotWriter::write(const shared_ptr<XNode> &node)
+XDotWriter::write(const shared_ptr<XNode> &node, const Snapshot &shot)
 {
     if(std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end()) {
         m_ofs << "obj_" << (uintptr_t)node.get()
@@ -55,9 +56,8 @@ XDotWriter::write(const shared_ptr<XNode> &node)
         
 //    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     int unnamed = 0;
-    XNode::NodeList::reader list(m_root->children());
-    if(list) { 
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+    if(shot.size(node)) {
+		for(XNode::const_iterator it = shot.list(node)->begin(); it != shot.list(node)->end(); it++) {
 			shared_ptr<XNode> child = *it;
            
 			if(child->getName().empty()) {
@@ -68,7 +68,7 @@ XDotWriter::write(const shared_ptr<XNode> &node)
 					  << " -> "
 					  << "obj_" << (uintptr_t)node.get()
 					  << std::endl;
-				write(child);
+				write(child, shot);
 			}
 		}
     }

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,11 +29,11 @@ typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateDriver;
 XDriverListConnector::XDriverListConnector
 (const shared_ptr<XDriverList> &node, FrmDriver *item)
 	: XListQConnector(node, item->m_tblDrivers),
-	  m_create(createOrphan<XNode>("Create", true)),
-	  m_release(createOrphan<XNode>("Release", true)),
+	  m_create(XNode::createOrphan<XNode>("Create", true)),
+	  m_release(XNode::createOrphan<XNode>("Release", true)),
 	  m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
-	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))  
-{
+	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))   {
+
     KIconLoader *loader = KIconLoader::global();
 	item->m_btnNew->setIcon( loader->loadIcon("filenew",
 					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
@@ -54,10 +54,15 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Recorded Time");
 	m_pItem->setColumnLabels(labels);
 
-	XNode::NodeList::reader list(node->children());
-	if(list) { 
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++)
-			onCatch(*it);
+	Snapshot shot(*node);
+	if(shot.size()) {
+		for(int idx = 0; idx < shot.size(); ++idx) {
+			XListNodeBase::Payload::CatchEvent e;
+			e.emitter = node.get();
+			e.caught = shot.list()->at(idx);
+			e.index = idx;
+			onCatch(shot, e);
+		}
 	}
 
 	m_lsnOnCreateTouched = m_create->onTouch().connectWeak(shared_from_this(),
@@ -67,8 +72,8 @@ XDriverListConnector::XDriverListConnector
 }
 
 void
-XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
-	shared_ptr<XDriver> driver(dynamic_pointer_cast<XDriver>(node));
+XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+	shared_ptr<XDriver> driver(static_pointer_cast<XDriver>(e.caught));
 	if(m_lsnOnRecord)
 		driver->onRecord().connect(m_lsnOnRecord);
 	else
@@ -93,15 +98,12 @@ XDriverListConnector::onCatch(const shared_ptr<XNode> &node) {
 	ASSERT(m_pItem->numRows() == (int)m_cons.size());
 }
 void
-XDriverListConnector::onRelease(const shared_ptr<XNode> &node) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();)
-	{
+XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
-		if((*it)->driver == node)
-		{
+		if((*it)->driver == e.released) {
 			(*it)->driver->onRecord().disconnect(m_lsnOnRecord);
-			for(int i = 0; i < m_pItem->numRows(); i++)
-			{
+			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 2) == (*it)->label)
 					m_pItem->removeRow(i);
 			}

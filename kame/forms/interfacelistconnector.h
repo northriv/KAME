@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,17 +20,14 @@
 class Q3Table;
 class QPushButton;
 
-class XInterfaceListConnector : public XListQConnector
-{
+class XInterfaceListConnector : public XListQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
-	XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, Q3Table *item);
 public:
+	XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, Q3Table *item);
 	virtual ~XInterfaceListConnector() {}
 protected:
-	virtual void onCatch(const shared_ptr<XNode> &node);
-	virtual void onRelease(const shared_ptr<XNode> &node);
+	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
 void clicked ( int row, int col, int button, const QPoint& );
 private:

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -26,19 +26,24 @@
 XQGraphDialogConnector::XQGraphDialogConnector
 (const shared_ptr<XGraph> &graph, DlgGraphSetup* item) :
     XQConnector(graph, item),
-    m_pItem(item),
-    m_selPlot(createOrphan<XItemNode<XPlotList, XPlot> >("", true, graph->plots(), true)),
-    m_selAxis(createOrphan<XItemNode<XAxisList, XAxis> >("", true, graph->axes(), true)),
-    m_conBackGround(xqcon_create<XKColorComboConnector>
-					(graph->backGround(), m_pItem->m_clrBackGroundColor)),
-    m_conDrawLegends(xqcon_create<XQToggleButtonConnector>
-					 (graph->drawLegends(), m_pItem->m_ckbDrawLegends)),
-    m_conPersistence(xqcon_create<XKDoubleNumInputConnector>
-					 (graph->persistence(), m_pItem->m_dblPersistence)),
-    m_conPlots(xqcon_create<XQListBoxConnector>(m_selPlot, m_pItem->lbPlots)),
-    m_conAxes(xqcon_create<XQListBoxConnector>(m_selAxis, m_pItem->lbAxes))
-{
-    m_pItem->dblIntensity->setRange(0.0, 2.0, 0.1, true);
+    m_pItem(item) {
+
+	for(Transaction tr( *graph);; ++tr) {
+		m_selPlot = XNode::createOrphan<XItemNode<XPlotList, XPlot> >("", true, ref(tr), graph->plots(), true);
+		m_selAxis = XNode::createOrphan<XItemNode<XAxisList, XAxis> >("", true, ref(tr), graph->axes(), true);
+		if(tr.commit())
+			break;
+	}
+    m_conBackGround = xqcon_create<XKColorComboConnector>
+					(graph->backGround(), m_pItem->m_clrBackGroundColor);
+    m_conDrawLegends = xqcon_create<XQToggleButtonConnector>
+					 (graph->drawLegends(), m_pItem->m_ckbDrawLegends);
+    m_conPersistence = xqcon_create<XKDoubleNumInputConnector>
+					 (graph->persistence(), m_pItem->m_dblPersistence);
+    m_conPlots = xqcon_create<XQListBoxConnector>(m_selPlot, m_pItem->lbPlots, Snapshot( *graph));
+    m_conAxes = xqcon_create<XQListBoxConnector>(m_selAxis, m_pItem->lbAxes, Snapshot( *graph));
+
+	m_pItem->dblIntensity->setRange(0.0, 2.0, 0.1, true);
     m_pItem->m_dblPersistence->setRange(0.0, 1.0, 0.1, true);
     
     m_lsnAxisChanged = m_selAxis->onValueChanged().connectWeak
@@ -63,7 +68,7 @@ XQGraphDialogConnector::onSelAxisChanged(const shared_ptr<XValueNodeBase> &) {
     m_conAxisMax.reset();
     m_conTicLabelFormat.reset();
 	shared_ptr<XAxis> axis = *m_selAxis;
-	if(!axis) {
+	if( !axis) {
 		return;
 	}
 	m_conAutoScale = xqcon_create<XQToggleButtonConnector>(
@@ -101,7 +106,7 @@ XQGraphDialogConnector::onSelPlotChanged(const shared_ptr<XValueNodeBase> &) {
     m_conColorPlotColorHigh.reset();
 
 	shared_ptr<XPlot> plot = *m_selPlot;
-	if(!plot) {
+	if( !plot) {
 		return;
 	}
 	m_conDrawPoints = xqcon_create<XQToggleButtonConnector>

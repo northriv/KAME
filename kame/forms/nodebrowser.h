@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -21,14 +21,11 @@
 class Ui_FrmNodeBrowser;
 typedef QForm<QWidget, Ui_FrmNodeBrowser> FrmNodeBrowser;
 
-class XNodeBrowser : public XQConnector
-{
+class XNodeBrowser : public XQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
+public:
 	XNodeBrowser(
 		const shared_ptr<XNode> &root, FrmNodeBrowser *form);
-public:
 	virtual ~XNodeBrowser();
 private slots:	
 	virtual void process();

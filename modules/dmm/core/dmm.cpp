@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,24 +20,20 @@
 #include "xnodeconnector.h"
 
 XDMM::XDMM(const char *name, bool runtime, 
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) : 
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_entry(create<XScalarEntry>("Value", false, 
 								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_function(create<XComboNode>("Function", false)),
     m_waitInms(create<XUIntNode>("WaitInms", false)),
-    m_form(new FrmDMM(g_pFrmMain))
-{
-	scalarentries->insert(m_entry);
+    m_form(new FrmDMM(g_pFrmMain)) {
+	meas->scalarEntries()->insert(tr_meas, m_entry);
 	m_waitInms->value(100);
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("DMM - ") + getLabel() );
 	m_function->setUIEnabled(false);
 	m_waitInms->setUIEnabled(false);
-	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction);
+	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function));
 	m_conWaitInms = xqcon_create<XQSpinBoxConnector>(m_waitInms, m_form->m_numWait);
 }
 

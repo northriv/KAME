@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -34,13 +34,16 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_bIsRedrawNeeded(true),
 	m_bIsAxisRedrawNeeded(false),
 	m_bTilted(false),
-	m_bReqHelp(false)
-{
+	m_bReqHelp(false) {
 	openFont();
 	item->m_painter.reset(this);
-	m_lsnRedraw = graph->onUpdate().connectWeak(
-        shared_from_this(), &XQGraphPainter::onRedraw,
-        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+	for(Transaction tr(*graph);; ++tr) {
+		m_lsnRedraw = tr[ *graph].onUpdate().connect(
+	        *this, &XQGraphPainter::onRedraw,
+	        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		if(tr.commit())
+			break;
+	}
 }
 
 float
@@ -49,8 +52,7 @@ XQGraphPainter::resScreen() {
 } 
 
 void
-XQGraphPainter::repaintGraph(int x1, int y1, int x2, int y2)
-{
+XQGraphPainter::repaintGraph(int x1, int y1, int x2, int y2) {
 	repaintBuffer(x1, y1, x2, y2);
 }
 
@@ -83,18 +85,16 @@ XQGraphPainter::posOffAxis(const XGraph::ScrPoint &dir,
 }
 
 shared_ptr<XAxis> 
-XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
-{
+XQGraphPainter::findAxis(const Snapshot &shot, const XGraph::ScrPoint &s1) {
     shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
-    XNode::NodeList::reader axes_list(m_graph->axes()->children());
-    if(axes_list) { 
-        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-		{
+	if(shot.size(m_graph->axes())) {
+		const XNode::NodeList &axes_list(*shot.list(m_graph->axes()));
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
 			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 			XGraph::SFloat z1;
 			XGraph::ScrPoint s2;
-			axis->axisToScreen(axis->screenToAxis(s1), &s2);
+			axis->axisToScreen(shot, axis->screenToAxis(shot, s1), &s2);
 			z1 = sqrtf(s1.distance2(s2));
 			if(zmin > z1) {
 				zmin = z1;
@@ -105,21 +105,21 @@ XQGraphPainter::findAxis(const XGraph::ScrPoint &s1)
     return found_axis;
 }
 shared_ptr<XPlot> 
-XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
-						  shared_ptr<XAxis> *axis1, shared_ptr<XAxis> *axis2)
-{
+XQGraphPainter::findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,
+						  shared_ptr<XAxis> *axis1, shared_ptr<XAxis> *axis2) {
 	double zmin = 0.1;
 	shared_ptr<XPlot> plot_found;
-	XNode::NodeList::reader plots_list(m_graph->plots()->children());
-	if(plots_list) { 
-		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-		{
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+	if(shot.size(m_graph->plots())) {
+		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
 			XGraph::GPoint g1;
-			shared_ptr<XAxis> axisx = *plot->axisX();
-			shared_ptr<XAxis> axisy = *plot->axisY();
-			shared_ptr<XAxis> axisz = *plot->axisZ();
-			plot->screenToGraph(s1, &g1);
+			shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
+			shared_ptr<XAxis> axisy = shot[ *plot->axisY()];
+			shared_ptr<XAxis> axisz = shot[ *plot->axisZ()];
+			if( !axisx || !axisy)
+				continue;
+			plot->screenToGraph(shot, s1, &g1);
 			if((fabs(g1.x) < zmin) && axisz) {
 				plot_found = plot;
 				zmin = fabs(g1.x);
@@ -144,8 +144,7 @@ XQGraphPainter::findPlane(const XGraph::ScrPoint &s1,
 }
 
 void
-XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode)
-{
+XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode) {
 	m_pointerLastPos[0] = x;
 	m_pointerLastPos[1] = y;
 
@@ -172,7 +171,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 							(int)(SELECT_WIDTH * m_pItem->height()),
 							&m_startScrPos, &m_startScrDX, &m_startScrDY);
 			if(z < 1.0)
-				m_foundPlane = findPlane(m_startScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
+				m_foundPlane = findPlane(Snapshot( *m_graph), m_startScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
 			m_finishScrPos = m_startScrPos;
 			break;
 		case SelAxis:
@@ -181,7 +180,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 						   (int)(SELECT_WIDTH * m_pItem->width()),
 						   (int)(SELECT_WIDTH * m_pItem->height()),
 						   &m_startScrPos, &m_startScrDX, &m_startScrDY);
-			if(z < 1.0) m_foundAxis = findAxis(m_startScrPos);
+			if(z < 1.0) m_foundAxis = findAxis(Snapshot( *m_graph), m_startScrPos);
 			m_finishScrPos = m_startScrPos;
 			break;
 		default:
@@ -206,7 +205,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 						(int)(SELECT_WIDTH * m_pItem->height()),
 						&m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		if(z < 1.0)
-            m_foundPlane = findPlane(m_finishScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
+            m_foundPlane = findPlane(Snapshot( *m_graph), m_finishScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
 		break;
 	case SelPlane:
 		selectPlane(x, y, 
@@ -248,26 +247,26 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			case SelPlane:
 				break;
 			case SelAxis:
-            {
-                XScopedLock<XGraph> lock(*m_graph);
-				if(!m_foundAxis) {
-					//if no axis, autoscale all axes
-                    XNode::NodeList::reader axes_list(m_graph->axes()->children());
-                    if(axes_list) { 
-                        for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-						{
-							shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-							if(axis->autoScale()->isUIEnabled())
-								axis->autoScale()->value(true);
+				for(Transaction tr( *m_graph);; ++tr) {
+					if( !m_foundAxis) {
+						//Autoscales all axes
+						if(tr.size(m_graph->axes())) {
+							const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
+							for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
+								shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
+								if(tr[ *axis->autoScale()].isUIEnabled())
+									tr[ *axis->autoScale()] = true;
+							}
 						}
-                    }
+					}
+					else {
+						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
+							tr[ *m_foundAxis->autoScale()] = true;
+					}
+					if(tr.commit())
+						break;
 				}
-				else {
-					if(m_foundAxis->autoScale()->isUIEnabled())
-						m_foundAxis->autoScale()->value(true);
-				}
-			}
-			break;
+				break;
 			case TiltTracking:
 				viewRotate(0.0, 0.0, 0.0, 0.0, true);
 				break;
@@ -276,46 +275,49 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			}
 	    }
 	    else {
-			XScopedLock<XGraph> lock(*m_graph);
-			switch(mode) {
-			case SelPlane:
-				if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
-					XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(m_startScrPos);
-					XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(m_startScrPos);
-					XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(m_finishScrPos);
-					XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(m_finishScrPos);
-				
-					if(m_foundPlaneAxis1->minValue()->isUIEnabled())
-						m_foundPlaneAxis1->minValue()->value(double(min(src1, dst1)));
-					if(m_foundPlaneAxis1->maxValue()->isUIEnabled())
-						m_foundPlaneAxis1->maxValue()->value(double(max(src1, dst1)));
-					if(m_foundPlaneAxis1->autoScale()->isUIEnabled())
-						m_foundPlaneAxis1->autoScale()->value(false);
-					if(m_foundPlaneAxis2->minValue()->isUIEnabled())
-						m_foundPlaneAxis2->minValue()->value(double(min(src2, dst2)));
-					if(m_foundPlaneAxis2->maxValue()->isUIEnabled())
-						m_foundPlaneAxis2->maxValue()->value(double(max(src2, dst2)));
-					if(m_foundPlaneAxis2->autoScale()->isUIEnabled())
-						m_foundPlaneAxis2->autoScale()->value(false);
-				
+			for(Transaction tr( *m_graph);; ++tr) {
+				switch(mode) {
+				case SelPlane:
+					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
+						XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(tr, m_startScrPos);
+						XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(tr, m_startScrPos);
+						XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
+						XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
+
+						if(tr[ *m_foundPlaneAxis1->minValue()].isUIEnabled())
+							tr[ *m_foundPlaneAxis1->minValue()] = double(min(src1, dst1));
+						if(tr[ *m_foundPlaneAxis1->maxValue()].isUIEnabled())
+							tr[ *m_foundPlaneAxis1->maxValue()] = double(max(src1, dst1));
+						if(tr[ *m_foundPlaneAxis1->autoScale()].isUIEnabled())
+							tr[ *m_foundPlaneAxis1->autoScale()] = false;
+						if(tr[ *m_foundPlaneAxis2->minValue()].isUIEnabled())
+							tr[ *m_foundPlaneAxis2->minValue()] = double(min(src2, dst2));
+						if(tr[ *m_foundPlaneAxis2->maxValue()].isUIEnabled())
+							tr[ *m_foundPlaneAxis2->maxValue()] = double(max(src2, dst2));
+						if(tr[ *m_foundPlaneAxis2->autoScale()].isUIEnabled())
+							tr[ *m_foundPlaneAxis2->autoScale()] = false;
+
+					}
+					break;
+				case SelAxis:
+					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
+						XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
+						XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
+						double _min = std::min(src, dst);
+						double _max = std::max(src, dst);
+						if(tr[ *m_foundAxis->minValue()].isUIEnabled())
+							tr[ *m_foundAxis->minValue()] = _min;
+						if(tr[ *m_foundAxis->maxValue()].isUIEnabled())
+							tr[ *m_foundAxis->maxValue()] = _max;
+						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
+							tr[ *m_foundAxis->autoScale()] = false;
+					}
+					break;
+				default:
+					break;
 				}
-				break;
-			case SelAxis:
-				if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
-					XGraph::VFloat src = m_foundAxis->screenToVal(m_startScrPos);
-					XGraph::VFloat dst = m_foundAxis->screenToVal(m_finishScrPos);
-					double _min = std::min(src, dst);
-					double _max = std::max(src, dst);
-					if(m_foundAxis->minValue()->isUIEnabled())
-						m_foundAxis->minValue()->value(_min);
-					if(m_foundAxis->maxValue()->isUIEnabled())
-						m_foundAxis->maxValue()->value(_max);
-					if(m_foundAxis->autoScale()->isUIEnabled())
-						m_foundAxis->autoScale()->value(false);
-				}
-				break;
-			default:
-				break;
+				if(tr.commit())
+					break;
 			}
 	    }
 	}
@@ -342,43 +344,41 @@ XQGraphPainter::wheel(int x, int y, double deg)
 	}
 }
 void
-XQGraphPainter::zoom(double zoomscale, int , int )
-{
+XQGraphPainter::zoom(double zoomscale, int , int ) {
 	XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
-	XScopedLock<XGraph> lock(*m_graph);
-	XNode::NodeList::reader axes_list(m_graph->axes()->children());
-	if(axes_list) { 
-		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-		{
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
-			if(axis->autoScale()->isUIEnabled())
-				axis->autoScale()->value(false);
+	for(Transaction tr( *m_graph);; ++tr) {
+		if(tr.size(m_graph->axes())) {
+			const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
+			for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
+				shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+				if(axis->autoScale()->isUIEnabled())
+					axis->autoScale()->value(false);
+			}
 		}
+		m_graph->zoomAxes(tr, resScreen(), zoomscale, s1);
+		if(tr.commit())
+			break;
 	}
-	m_graph->zoomAxes(resScreen(), zoomscale, s1);
 }
 void
-XQGraphPainter::onRedraw(const shared_ptr<XGraph> &)
-{
+XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
 	redrawOffScreen();
 	repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );  
 }
 void
-XQGraphPainter::drawOnScreenObj()
-{
+XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 	QString msg = "";
 //   if(SelectionStateNow != Selecting) return;
-	switch ( m_selectionModeNow )
-	{
+	switch ( m_selectionModeNow ) {
 	case SelNone:
 		if(m_foundPlane) {
-			XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(m_finishScrPos);
-			XGraph::VFloat dst1dx = m_foundPlaneAxis1->screenToVal(m_finishScrDX) - dst1;
-			XGraph::VFloat dst1dy = m_foundPlaneAxis1->screenToVal(m_finishScrDY) - dst1;
-			XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(m_finishScrPos);
-			XGraph::VFloat dst2dx = m_foundPlaneAxis2->screenToVal(m_finishScrDX) - dst2;
-			XGraph::VFloat dst2dy = m_foundPlaneAxis2->screenToVal(m_finishScrDY) - dst2;
+			XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(shot, m_finishScrPos);
+			XGraph::VFloat dst1dx = m_foundPlaneAxis1->screenToVal(shot, m_finishScrDX) - dst1;
+			XGraph::VFloat dst1dy = m_foundPlaneAxis1->screenToVal(shot, m_finishScrDY) - dst1;
+			XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(shot, m_finishScrPos);
+			XGraph::VFloat dst2dx = m_foundPlaneAxis2->screenToVal(shot, m_finishScrDX) - dst2;
+			XGraph::VFloat dst2dy = m_foundPlaneAxis2->screenToVal(shot, m_finishScrDY) - dst2;
 
 			dst1 = setprec(dst1, sqrt(dst1dx*dst1dx + dst1dy*dst1dy));
 			dst2 = setprec(dst2, sqrt(dst2dx*dst2dx + dst2dy*dst2dy));
@@ -392,18 +392,18 @@ XQGraphPainter::drawOnScreenObj()
 		break;
 	case SelPlane:
 		if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
-			XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(m_startScrPos);
-			XGraph::VFloat src1dx = m_foundPlaneAxis1->screenToVal(m_startScrDX) - src1;
-			XGraph::VFloat src1dy = m_foundPlaneAxis1->screenToVal(m_startScrDY) - src1;
-			XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(m_startScrPos);
-			XGraph::VFloat src2dx = m_foundPlaneAxis2->screenToVal(m_startScrDX) - src2;
-			XGraph::VFloat src2dy = m_foundPlaneAxis2->screenToVal(m_startScrDY) - src2;
-			XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(m_finishScrPos);
-			XGraph::VFloat dst1dx = m_foundPlaneAxis1->screenToVal(m_finishScrDX) - dst1;
-			XGraph::VFloat dst1dy = m_foundPlaneAxis1->screenToVal(m_finishScrDY) - dst1;
-			XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(m_finishScrPos);
-			XGraph::VFloat dst2dx = m_foundPlaneAxis2->screenToVal(m_finishScrDX) - dst2;
-			XGraph::VFloat dst2dy = m_foundPlaneAxis2->screenToVal(m_finishScrDY) - dst2;
+			XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(shot, m_startScrPos);
+			XGraph::VFloat src1dx = m_foundPlaneAxis1->screenToVal(shot, m_startScrDX) - src1;
+			XGraph::VFloat src1dy = m_foundPlaneAxis1->screenToVal(shot, m_startScrDY) - src1;
+			XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(shot, m_startScrPos);
+			XGraph::VFloat src2dx = m_foundPlaneAxis2->screenToVal(shot, m_startScrDX) - src2;
+			XGraph::VFloat src2dy = m_foundPlaneAxis2->screenToVal(shot, m_startScrDY) - src2;
+			XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(shot, m_finishScrPos);
+			XGraph::VFloat dst1dx = m_foundPlaneAxis1->screenToVal(shot, m_finishScrDX) - dst1;
+			XGraph::VFloat dst1dy = m_foundPlaneAxis1->screenToVal(shot, m_finishScrDY) - dst1;
+			XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(shot, m_finishScrPos);
+			XGraph::VFloat dst2dx = m_foundPlaneAxis2->screenToVal(shot, m_finishScrDX) - dst2;
+			XGraph::VFloat dst2dy = m_foundPlaneAxis2->screenToVal(shot, m_finishScrDY) - dst2;
 
 			src1 = setprec(src1, sqrt(src1dx*src1dx + src1dy*src1dy));
 			src2 = setprec(src2, sqrt(src2dx*src2dx + src2dy*src2dy));
@@ -416,13 +416,13 @@ XQGraphPainter::drawOnScreenObj()
 				.arg(m_foundPlaneAxis2->valToString(dst2).c_str());
 		
 			XGraph::ScrPoint sd1, sd2;
-			m_foundPlaneAxis1->valToScreen(dst1, &sd1);
-			m_foundPlaneAxis1->valToScreen(src1, &sd2);
+			m_foundPlaneAxis1->valToScreen(shot, dst1, &sd1);
+			m_foundPlaneAxis1->valToScreen(shot, src1, &sd2);
 			sd1 -= sd2;
 			sd1 += m_startScrPos;
 			XGraph::ScrPoint ss1, ss2;
-			m_foundPlaneAxis2->valToScreen(dst2, &ss1);
-			m_foundPlaneAxis2->valToScreen(src2, &ss2);
+			m_foundPlaneAxis2->valToScreen(shot, dst2, &ss1);
+			m_foundPlaneAxis2->valToScreen(shot, src2, &ss2);
 			ss1 -= ss2;
 			ss1 += m_startScrPos;
 		
@@ -437,12 +437,12 @@ XQGraphPainter::drawOnScreenObj()
 		break;
 	case SelAxis:
 		if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
-			XGraph::VFloat src = m_foundAxis->screenToVal(m_startScrPos);
-			XGraph::VFloat srcdx = m_foundAxis->screenToVal(m_startScrDX) - src;
-			XGraph::VFloat srcdy = m_foundAxis->screenToVal(m_startScrDY) - src;
-			XGraph::VFloat dst = m_foundAxis->screenToVal(m_finishScrPos);
-			XGraph::VFloat dstdx = m_foundAxis->screenToVal(m_finishScrDX) - dst;
-			XGraph::VFloat dstdy = m_foundAxis->screenToVal(m_finishScrDY) - dst;
+			XGraph::VFloat src = m_foundAxis->screenToVal(shot, m_startScrPos);
+			XGraph::VFloat srcdx = m_foundAxis->screenToVal(shot, m_startScrDX) - src;
+			XGraph::VFloat srcdy = m_foundAxis->screenToVal(shot, m_startScrDY) - src;
+			XGraph::VFloat dst = m_foundAxis->screenToVal(shot, m_finishScrPos);
+			XGraph::VFloat dstdx = m_foundAxis->screenToVal(shot, m_finishScrDX) - dst;
+			XGraph::VFloat dstdy = m_foundAxis->screenToVal(shot, m_finishScrDY) - dst;
 				
 			src = setprec(src, sqrt(srcdx*srcdx + srcdy*srcdy));
 			dst = setprec(dst, sqrt(dstdx*dstdx + dstdy*dstdy));
@@ -456,13 +456,13 @@ XQGraphPainter::drawOnScreenObj()
 			beginQuad(true);
 			setColor( clRed, 0.4 );
 			XGraph::ScrPoint s1, s2, s3, s4;
-			m_foundAxis->axisToScreen(src1, &s1);
+			m_foundAxis->axisToScreen(shot, src1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.02);
-			m_foundAxis->axisToScreen(src1, &s2);
+			m_foundAxis->axisToScreen(shot, src1, &s2);
 			posOffAxis(m_foundAxis->dirVector(), &s2, +0.02);
-			m_foundAxis->axisToScreen(dst1, &s3);
+			m_foundAxis->axisToScreen(shot, dst1, &s3);
 			posOffAxis(m_foundAxis->dirVector(), &s3, +0.02);
-			m_foundAxis->axisToScreen(dst1, &s4);
+			m_foundAxis->axisToScreen(shot, dst1, &s4);
 			posOffAxis(m_foundAxis->dirVector(), &s4, -0.02);
 			setVertex(s1);
 			setVertex(s2);
@@ -471,15 +471,15 @@ XQGraphPainter::drawOnScreenObj()
 			endQuad();
 			beginLine();
 			setColor( clBlue, 1.0 );
-			m_foundAxis->axisToScreen(src1, &s1);
+			m_foundAxis->axisToScreen(shot, src1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.1);
-			m_foundAxis->axisToScreen(src1, &s2);
+			m_foundAxis->axisToScreen(shot, src1, &s2);
 			posOffAxis(m_foundAxis->dirVector(), &s2, 0.05);
 			setVertex(s1);
 			setVertex(s2);
-			m_foundAxis->axisToScreen(dst1, &s1);
+			m_foundAxis->axisToScreen(shot, dst1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.1);
-			m_foundAxis->axisToScreen(dst1, &s2);
+			m_foundAxis->axisToScreen(shot, dst1, &s2);
 			posOffAxis(m_foundAxis->dirVector(), &s2, 0.05);
 			setVertex(s1);
 			setVertex(s2);
@@ -494,19 +494,17 @@ XQGraphPainter::drawOnScreenObj()
 	m_onScreenMsg = msg.toUtf8().data();
 }
 void
-XQGraphPainter::showHelp()
-{
+XQGraphPainter::showHelp() {
 	m_bReqHelp = true;
 	repaintGraph(0, 0, m_pItem->width(), m_pItem->height());
 }
 void
-XQGraphPainter::drawOnScreenViewObj()
-{
+XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	//Draw Title
-	setColor(*m_graph->titleColor());
+	setColor(shot[ *m_graph->titleColor()]);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), *m_graph->label());
+	drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
   
 	if(m_onScreenMsg.length() ) {
 		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
@@ -517,8 +515,8 @@ XQGraphPainter::drawOnScreenViewObj()
 	//Legends
 	if(*m_graph->drawLegends() &&
 			(m_selectionModeNow == SelNone)) {
-		XNode::NodeList::reader plots_list(m_graph->plots()->children());
-		if(plots_list && plots_list->size()) {
+		if(shot.size(m_graph->plots())) {
+			const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
 			float z = 0.98;
 			float dy = 0.04;
 			float x1 = 0.75;
@@ -526,26 +524,25 @@ XQGraphPainter::drawOnScreenViewObj()
 			if(m_pointerLastPos[0] > m_pItem->width() / 2)
 				x1 = 1.06f - x1;
 			if(m_pointerLastPos[1] < m_pItem->height() / 2)
-				y1 = 1.0f - y1 + plots_list->size() * dy;
+				y1 = 1.0f - y1 + plots_list.size() * dy;
 			float x2 = x1 - 0.01;
 			float x3 = x1 + 0.08;
 			defaultFont();
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y2 = y1;
-			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-			{
+			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
 				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 				selectFont(*plot->label(), XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 				y2 -= dy;
 			}
-			setColor(*m_graph->backGround(), 0.7);
+			setColor(shot[ *m_graph->backGround()], 0.7);
 			beginQuad(true);
 			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
 			endQuad();
-			setColor(*m_graph->titleColor(), 0.05);
+			setColor(shot[ *m_graph->titleColor()], 0.05);
 			beginQuad(true);
 			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
@@ -554,31 +551,29 @@ XQGraphPainter::drawOnScreenViewObj()
 			endQuad();
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y = y1;
-			for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-			{
-				setColor(*m_graph->titleColor(), 1.0);
+			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+				setColor(shot[ *m_graph->titleColor()], 1.0);
 				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 				drawText(XGraph::ScrPoint(x2,y,z), *plot->label());
-				plot->drawLegend(this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
+				plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
 			}
 		}
 	}
 	
-	if(m_bReqHelp) drawOnScreenHelp();
+	if(m_bReqHelp) drawOnScreenHelp(shot);
 }
 void
-XQGraphPainter::drawOnScreenHelp()
-{
+XQGraphPainter::drawOnScreenHelp(const Snapshot &shot) {
 	float z = 0.99;
-	setColor(*m_graph->backGround(), 0.3);
+	setColor(shot[ *m_graph->backGround()], 0.3);
 	beginQuad(true);
 	setVertex(XGraph::ScrPoint(0.0, 0.0, z));
 	setVertex(XGraph::ScrPoint(1.0, 0.0, z));
 	setVertex(XGraph::ScrPoint(1.0, 1.0, z));
 	setVertex(XGraph::ScrPoint(0.0, 1.0, z));
 	endQuad();
-	setColor(*m_graph->titleColor(), 0.55);
+	setColor(shot[ *m_graph->titleColor()], 0.55);
 	double y = 1.0;
 	beginQuad(true);
 	setVertex(XGraph::ScrPoint(1.0 - y, 1.0 - y, z));
@@ -587,7 +582,7 @@ XQGraphPainter::drawOnScreenHelp()
 	setVertex(XGraph::ScrPoint(y, 1.0 - y, z));
 	endQuad();
 	y -= 0.02;
-	setColor(*m_graph->backGround(), 1.0);
+	setColor(shot[ *m_graph->backGround()], 1.0);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
 	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!").toUtf8().data());
@@ -619,18 +614,15 @@ XQGraphPainter::drawOnScreenHelp()
 }
 
 void
-XQGraphPainter::drawOffScreenStart()
-{
-	m_graph->setupRedraw(resScreen());
+XQGraphPainter::drawOffScreenStart(const Snapshot &shot) {
+	m_graph->setupRedraw(shot, resScreen());
 }
 void
-XQGraphPainter::drawOffScreenPlanes()
-{
-	setColor((QRgb)*m_graph->backGround(), 0.3);
-	XNode::NodeList::reader plots_list(m_graph->plots()->children());
-	if(plots_list) { 
-		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-		{
+XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
+	setColor((QRgb)shot[ *m_graph->backGround()], 0.3);
+	if(shot.size(m_graph->plots())) {
+		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
 			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
 			XGraph::GPoint g1(0.0, 0.0, 0.0),
 				g2(1.0, 0.0, 0.0),
@@ -641,16 +633,16 @@ XQGraphPainter::drawOffScreenPlanes()
 				g7(1.0, 0.0, 1.0),
 				g8(1.0, 1.0, 1.0);
 			XGraph::ScrPoint s1, s2, s3, s4, s5, s6, s7, s8;
-			plot->graphToScreen(g1, &s1);
-			plot->graphToScreen(g2, &s2);
-			plot->graphToScreen(g3, &s3);
-			plot->graphToScreen(g4, &s4);
-			plot->graphToScreen(g5, &s5);
-			plot->graphToScreen(g6, &s6);
-			plot->graphToScreen(g7, &s7);
-			plot->graphToScreen(g8, &s8);
+			plot->graphToScreen(shot, g1, &s1);
+			plot->graphToScreen(shot, g2, &s2);
+			plot->graphToScreen(shot, g3, &s3);
+			plot->graphToScreen(shot, g4, &s4);
+			plot->graphToScreen(shot, g5, &s5);
+			plot->graphToScreen(shot, g6, &s6);
+			plot->graphToScreen(shot, g7, &s7);
+			plot->graphToScreen(shot, g8, &s8);
 			beginQuad(true);
-			setColor( *m_graph->backGround(), 0.2);
+			setColor( shot[ *m_graph->backGround()], 0.2);
 			setVertex(s1);
 			setVertex(s2);
 			setVertex(s4);
@@ -671,39 +663,33 @@ XQGraphPainter::drawOffScreenPlanes()
 	}
 }
 void
-XQGraphPainter::drawOffScreenGrids()
-{
-	XNode::NodeList::reader plots_list(m_graph->plots()->children());
-	if(plots_list) { 
-		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-		{
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-			plot->drawGrid(this, m_bTilted);
+XQGraphPainter::drawOffScreenGrids(const Snapshot &shot) {
+	if(shot.size(m_graph->plots())) {
+		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
+			plot->drawGrid(shot, this, m_bTilted);
 		}
 	}
 }
 void
-XQGraphPainter::drawOffScreenPoints()
-{
-	XNode::NodeList::reader plots_list(m_graph->plots()->children());
-	if(plots_list) { 
-		for(XNode::NodeList::const_iterator it = plots_list->begin(); it != plots_list->end(); it++)
-		{
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-			plot->drawPlot(this);
+XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
+	if(shot.size(m_graph->plots())) {
+		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
+			plot->drawPlot(shot, this);
 		}
 	}
 }
 void
-XQGraphPainter::drawOffScreenAxes()
-{
-	XNode::NodeList::reader axes_list(m_graph->axes()->children());
-	if(axes_list) { 
-		for(XNode::NodeList::const_iterator it = axes_list->begin(); it != axes_list->end(); it++)
-		{
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
+	if(shot.size(m_graph->axes())) {
+		const XNode::NodeList &axes_list( *shot.list(m_graph->axes()));
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
+			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
 			if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
-				axis->drawAxis(this);
+				axis->drawAxis(shot, this);
 		}
 	}
 }

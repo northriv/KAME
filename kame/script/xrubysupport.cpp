@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -41,7 +41,7 @@ XRuby::~XRuby()
 void
 XRuby::rnode_free(void *rnode)
 {
-	struct rnode_ptr* st = reinterpret_cast<struct rnode_ptr*>(rnode);
+	struct rnode_ptr* st = static_cast<struct rnode_ptr*>(rnode);
 	delete st;
 }
 
@@ -88,10 +88,10 @@ XRuby::rnode_child(VALUE self, VALUE var)
 			long idx;
 			case T_FIXNUM:
 				idx = NUM2LONG(var);
-				{ XNode::NodeList::reader list = node->children();
-				if(list) { 
-					if ((idx >= 0) && (idx < (int)list->size()))
-						child = list->at(idx);
+				{ Snapshot shot(*node);
+				if(shot.size()) {
+					if ((idx >= 0) && (idx < (int)shot.size()))
+						child = shot.list()->at(idx);
 				}
 				}
 				if(! child ) {
@@ -267,8 +267,8 @@ XRuby::rnode_count(VALUE self)
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			XNode::NodeList::reader list = node->children();
-			VALUE count = INT2NUM(list ? list->size() : 0);
+			Snapshot shot(*node);
+			VALUE count = INT2NUM(shot.size());
 			return count;
 		}
 		else {
@@ -513,10 +513,10 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	shared_ptr<XRubyThread> rubythread;
-	XNode::NodeList::reader list = st->xruby->children();
-	if(list) { 
-		for(unsigned int i = 0; i < list->size(); i++) {
-			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>(list->at(i));
+	Snapshot shot(*st->xruby);
+	if(shot.size()) {
+		for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
+			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>(*it);
 			ASSERT(th);
 			if(id == *th->threadID())
 				rubythread = th;

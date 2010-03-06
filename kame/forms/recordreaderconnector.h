@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,14 +22,11 @@ class Ui_FrmRecordReader;
 typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
 
 class XRawStreamRecordReader;
-class XRawStreamRecordReaderConnector : public XQConnector
-{
+class XRawStreamRecordReaderConnector : public XQConnector {
 	Q_OBJECT
-	XQCON_OBJECT
-protected:
+public:
 	XRawStreamRecordReaderConnector(
 		const shared_ptr<XRawStreamRecordReader> &reader, FrmRecordReader *form);
-public:
 	virtual ~XRawStreamRecordReaderConnector() {}
 
 private:

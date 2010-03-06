@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,11 +21,8 @@
 #include "xnodeconnector.h"
 
 XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) :
-	XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_marker1X(create<XScalarEntry>("Marker1X", false, 
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_marker1Y(create<XScalarEntry>("Marker1Y", false, 
@@ -40,12 +37,12 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_average(create<XUIntNode>("Average", false)),
 	m_form(new FrmNetworkAnalyzer(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
-								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump))
-{
-	scalarentries->insert(m_marker1X);
-	scalarentries->insert(m_marker1Y);
-	scalarentries->insert(m_marker2X);
-	scalarentries->insert(m_marker2Y);
+								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)) {
+
+	meas->scalarEntries()->insert(tr_meas, m_marker1X);
+	meas->scalarEntries()->insert(tr_meas, m_marker1Y);
+	meas->scalarEntries()->insert(tr_meas, m_marker2X);
+	meas->scalarEntries()->insert(tr_meas, m_marker2Y);
 	
 	startFreq()->setUIEnabled(false);
 	stopFreq()->setUIEnabled(false);
@@ -53,44 +50,48 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	average()->setUIEnabled(false);
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
-	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints);
+	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints, Snapshot( *points()));
 	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
 	
-	const char *labels[] = {"Freq [MHz]", "Level [dB]"};
-	m_waveForm->setColCount(2, labels); 
-	m_waveForm->insertPlot("Trace1", 0, 1);
-	m_waveForm->clear(); 
+	for(Transaction tr( *m_waveForm);; ++tr) {
+		const char *labels[] = {"Freq [MHz]", "Level [dB]"};
+		tr[ *m_waveForm].setColCount(2, labels);
+		tr[ *m_waveForm].insertPlot("Trace1", 0, 1);
 
-	m_graph = m_waveForm->graph();
-    m_graph->backGround()->value(QColor(0x0A, 0x05, 0x45).rgb());
-    m_graph->titleColor()->value(clWhite);
-    shared_ptr<XAxis> axisx = m_waveForm->axisx();
-    shared_ptr<XAxis> axisy = m_waveForm->axisy();
-    axisx->ticColor()->value(clWhite);
-    axisx->labelColor()->value(clWhite);
-    axisx->ticLabelColor()->value(clWhite);  
-    axisy->ticColor()->value(clWhite);
-    axisy->labelColor()->value(clWhite);
-    axisy->ticLabelColor()->value(clWhite);
-    axisy->autoScale()->value(false);
-    axisy->maxValue()->value(13.0);
-    axisy->minValue()->value(-70.0);
-    m_waveForm->plot(0)->drawPoints()->value(false);
-    m_waveForm->plot(0)->lineColor()->value(clGreen);
-    m_waveForm->plot(0)->pointColor()->value(clGreen);
-	shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-		"Markers", true, m_graph);
-	m_markerPlot = plot;
-	plot->label()->value(i18n("Markers"));
-	plot->axisX()->value(axisx);
-	plot->axisY()->value(axisy);
-	plot->drawLines()->value(false);
-	plot->drawBars()->value(true);
-	plot->pointColor()->value(clRed);
-	plot->barColor()->value(clRed);
-	plot->intensity()->value(2.0);
-	plot->clearPoints()->setUIEnabled(false);
-	plot->maxCount()->setUIEnabled(false);
+		m_graph = m_waveForm->graph();
+		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x45).rgb();
+		tr[ *m_graph->titleColor()] = clWhite;
+		shared_ptr<XAxis> axisx = tr[ *m_waveForm].axisx();
+		shared_ptr<XAxis> axisy = tr[ *m_waveForm].axisy();
+		tr[ *axisx->ticColor()] = clWhite;
+		tr[ *axisx->labelColor()] = clWhite;
+		tr[ *axisx->ticLabelColor()] = clWhite;
+		tr[ *axisy->ticColor()] = clWhite;
+		tr[ *axisy->labelColor()] = clWhite;
+		tr[ *axisy->ticLabelColor()] = clWhite;
+		tr[ *axisy->autoScale()] = false;
+		tr[ *axisy->maxValue()] = 13.0;
+		tr[ *axisy->minValue()] = -70.0;
+		tr[ *tr[ *m_waveForm].plot(0)->drawPoints()] = false;
+		tr[ *tr[ *m_waveForm].plot(0)->lineColor()] = clGreen;
+		tr[ *tr[ *m_waveForm].plot(0)->pointColor()] = clGreen;
+		shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
+			tr, "Markers", true, ref(tr), m_graph);
+		m_markerPlot = plot;
+		tr[ *plot->label()] = i18n("Markers");
+		tr[ *plot->axisX()] = axisx;
+		tr[ *plot->axisY()] = axisy;
+		tr[ *plot->drawLines()] = false;
+		tr[ *plot->drawBars()] = true;
+		tr[ *plot->pointColor()] = clRed;
+		tr[ *plot->barColor()] = clRed;
+		tr[ *plot->intensity()] = 2.0;
+		tr[ *plot->clearPoints()].setUIEnabled(false);
+		tr[ *plot->maxCount()].setUIEnabled(false);
+		if(tr.commit())
+			break;
+	}
+	m_waveForm->clear(); 
 }
 void
 XNetworkAnalyzer::showForms() {
@@ -153,32 +154,36 @@ XNetworkAnalyzer::visualize()
 //  	return;
 //  }
 	const unsigned int length = lengthRecorded();
-	{ XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
+	for(Transaction tr( *m_waveForm);; ++tr) {
+		tr[ *m_markerPlot->maxCount()] =m_markersRecorded.size();
+		std::deque<XGraph::ValPoint> &points(tr[ *m_markerPlot].points());
+		points.clear();
+		for(std::deque<std::pair<double, double> >::const_iterator it = m_markersRecorded.begin();
+			it != m_markersRecorded.end(); it++) {
+			points.push_back(XGraph::ValPoint(it->first, it->second));
+		}
 
-	m_markerPlot->clearAllPoints();
-	m_markerPlot->maxCount()->value(m_markersRecorded.size());
-	for(std::deque<std::pair<double, double> >::const_iterator it = m_markersRecorded.begin();
-		it != m_markersRecorded.end(); it++) {
-		m_markerPlot->addPoint(it->first, it->second);
-	}
-	
-	m_waveForm->setRowCount(length);
-    
-	double *freqs = m_waveForm->cols(0);
-	double fint = freqIntervalRecorded();
-	double f = startFreqRecorded();
-	for(unsigned int i = 0; i < length; i++) {
-		*freqs++ = f;
-		f += fint;
-	}
-        
-	memcpy(m_waveForm->cols(1), traceRecorded(), length * sizeof(double));
+		tr[ *m_waveForm].setRowCount(length);
+
+		double *freqs = tr[ *m_waveForm].cols(0);
+		double fint = freqIntervalRecorded();
+		double f = startFreqRecorded();
+		for(unsigned int i = 0; i < length; i++) {
+			*freqs++ = f;
+			f += fint;
+		}
+
+		memcpy(tr[ *m_waveForm].cols(1), traceRecorded(), length * sizeof(double));
+
+		m_waveForm->drawGraph(tr);
+		if(tr.commit()) {
+			break;
+		}
 	}
 }
 
 void *
-XNetworkAnalyzer::execute(const atomic<bool> &terminated)
-{
+XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	m_lsnOnStartFreqChanged = startFreq()->onValueChanged().connectWeak(
 		shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
 	m_lsnOnStopFreqChanged = stopFreq()->onValueChanged().connectWeak(

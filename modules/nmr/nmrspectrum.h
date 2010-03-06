@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -22,16 +22,10 @@ class XDMM;
 class Ui_FrmNMRSpectrum;
 typedef QForm<QMainWindow, Ui_FrmNMRSpectrum> FrmNMRSpectrum;
 
-class XNMRSpectrum : public XNMRSpectrumBase<FrmNMRSpectrum>
-{
-	XNODE_OBJECT
-protected:
-	XNMRSpectrum(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers);
+class XNMRSpectrum : public XNMRSpectrumBase<FrmNMRSpectrum> {
 public:
+	XNMRSpectrum(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! ususally nothing to do
 	~XNMRSpectrum() {}
 protected:

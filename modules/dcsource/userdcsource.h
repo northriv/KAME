@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,14 +19,10 @@
 #include "dcsource.h"
 
 //!YOKOGAWA 7551 DC V/DC A source
-class XYK7651:public XCharDeviceDriver<XDCSource>
-{
+class XYK7651:public XCharDeviceDriver<XDCSource> {
 public:
 	XYK7651(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers);
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual void changeFunction(int ch, int x);
 	virtual void changeOutput(int ch, bool x);
 	virtual void changeValue(int ch, double x, bool autorange);
@@ -38,14 +34,10 @@ protected:
 };
 
 //!MicroTask/Leiden Triple Current Source.
-class XMicroTaskTCS:public XCharDeviceDriver<XDCSource>
-{
+class XMicroTaskTCS:public XCharDeviceDriver<XDCSource> {
 public:
 	XMicroTaskTCS(const char *name, bool runtime,
-			const shared_ptr<XScalarEntryList> &scalarentries,
-			const shared_ptr<XInterfaceList> &interfaces,
-			const shared_ptr<XThermometerList> &thermometers,
-			const shared_ptr<XDriverList> &drivers);
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual void changeFunction(int, int) {}
 	virtual void changeOutput(int ch, bool x);
 	virtual void changeValue(int ch, double x, bool autorange);

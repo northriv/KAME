@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -14,25 +14,21 @@
 #include "xlistnode.h"
 
 XListNodeBase::XListNodeBase(const char *name, bool runtime) :
-    XNode(name, runtime)
-{
+    XNode(name, runtime) {
 }
 void
-XListNodeBase::clearChildren()
-{
-	NodeList::reader rd(m_children);
-	if(!rd || rd->empty())
+XListNodeBase::clearChildren() {
+	Transaction tr(*this);
+	if( ! tr.size())
 		return;
-	for(;;) {
-		NodeList::writer tr(m_children);
-		if(!tr || tr->empty()) {
+	for(;; ++tr) {
+		if( !tr.size()) {
 			onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 			return;
 		}
-		shared_ptr<XNode> node(tr->back());
-		tr->pop_back();
-		if(tr->empty())
-			tr.reset();
+		shared_ptr<XNode> node(tr.list()->back());
+		if( !release(tr, node))
+			continue;
 		if(tr.commit()) {
 			onRelease().talk(node);
 			continue;
@@ -40,35 +36,40 @@ XListNodeBase::clearChildren()
 	}
 }
 int
-XListNodeBase::releaseChild(const shared_ptr<XNode> &node)
-{
-    if(XNode::releaseChild(node)) return -1;
+XListNodeBase::releaseChild(const shared_ptr<XNode> &node) {
+	for(Transaction tr( *this);; ++tr) {
+		NodeList::const_iterator it = std::find(tr.list()->begin(), tr.list()->end(), node);
+		if(it == tr.list()->end())
+			return -1;
+		if( !release(tr, node))
+			continue;
+		if(tr.commit())
+			break;
+	}
     onRelease().talk(node);
-
     onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
     return 0;
 }
 void
-XListNodeBase::insert(const shared_ptr<XNode> &ptr)
-{
+XListNodeBase::insert(const shared_ptr<XNode> &ptr) {
 	XNode::insert(ptr);
 	onCatch().talk(ptr);
 	onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));
 }
+bool
+XListNodeBase::insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion) {
+	return XNode::insert(tr, ptr, online_after_insertion);
+}
 void
-XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
-{
-    for(;;) {
-        NodeList::writer tr(m_children);
-        if(src_idx >= tr->size())
+XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx) {
+	for(Transaction tr(*this);; ++tr) {
+        if(src_idx >= tr.size())
         	return;
-        shared_ptr<XNode> snode = tr->at(src_idx);
-        tr->at(src_idx).reset();
-        if(dst_idx > tr->size()) return;
-        XNode::NodeList::iterator dit = tr->begin();
-        dit += dst_idx;
-        tr->insert(dit, snode);
-        tr->erase(std::find(tr->begin(), tr->end(), shared_ptr<XNode>()));
+        if(dst_idx >= tr.size())
+        	return;
+        shared_ptr<XNode> snode = tr.list()->at(src_idx);
+        shared_ptr<XNode> dnode = tr.list()->at(dst_idx);
+        swap(tr, snode, dnode);
         if(tr.commit())
         	break;
     }
@@ -80,6 +81,35 @@ XListNodeBase::move(unsigned int src_idx, unsigned int dst_idx)
     onListChanged().talk(dynamic_pointer_cast<XListNodeBase>(shared_from_this()));    
 }
 
-shared_ptr<XNode> empty_creator(const char *, bool ) {
+void
+XListNodeBase::Payload::catchEvent(const shared_ptr<XNode>& var, int idx) {
+	CatchEvent e;
+	e.emitter = static_cast<XListNodeBase*>(&node());
+	e.caught = var;
+	e.index = idx;
+	tr().mark(onCatch(), e);
+}
+void
+XListNodeBase::Payload::releaseEvent(const shared_ptr<XNode>& var, int idx) {
+	ReleaseEvent e;
+	e.emitter = static_cast<XListNodeBase*>(&node());
+	e.released = var;
+	e.index = idx;
+	tr().mark(onRelease(), e);
+}
+void
+XListNodeBase::Payload::moveEvent(unsigned int src_idx, unsigned int dst_idx) {
+	MoveEvent e;
+	e.emitter = static_cast<XListNodeBase*>(&node());
+	e.src_idx = src_idx;
+	e.dst_idx = dst_idx;
+	tr().mark(onMove(), e);
+}
+void
+XListNodeBase::Payload::listChangeEvent() {
+	tr().mark(onListChanged(), static_cast<XListNodeBase*>(&node()));
+}
+
+shared_ptr<XNode> _empty_creator(const char *, bool ) {
     return shared_ptr<XNode>();
 }

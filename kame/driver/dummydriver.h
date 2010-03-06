@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,13 +17,11 @@
 #include "driver.h"
 #include "interface.h"
 
-class XDummyInterface : public XInterface
-{
-	XNODE_OBJECT
+class XDummyInterface : public XInterface {
+public:
 	XDummyInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
 		: XInterface(name, runtime, driver), m_bOpened(false)
 	{}
-public:
 	virtual ~XDummyInterface() {}
 
 	virtual void open() throw (XInterfaceError &) {
@@ -39,16 +37,9 @@ private:
 	bool m_bOpened;
 };
 template<class tDriver>
-class XDummyDriver : public tDriver
-{
-	XNODE_OBJECT
-protected:
-	XDummyDriver(const char *name, bool runtime, 
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers);
+class XDummyDriver : public tDriver {
 public:
+	XDummyDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDummyDriver() {}
 protected:
 	virtual void afterStop() {interface()->stop();}
@@ -61,16 +52,12 @@ private:
 };
 
 template<class tDriver>
-XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime, 
-									const shared_ptr<XScalarEntryList> &scalarentries,
-									const shared_ptr<XInterfaceList> &interfaces,
-									const shared_ptr<XThermometerList> &thermometers,
-									const shared_ptr<XDriverList> &drivers) :
-    tDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    tDriver(name, runtime, ref(tr_meas), meas),
 	m_interface(XNode::create<XDummyInterface>("Interface", false,
-											   dynamic_pointer_cast<XDriver>(this->shared_from_this())))
-{
-    interfaces->insert(m_interface);
+											   dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+    meas->interfaces()->insert(tr_meas, m_interface);
     m_lsnOnOpen = interface()->onOpen().connectWeak(
     	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
     m_lsnOnClose = interface()->onClose().connectWeak(
@@ -78,8 +65,7 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
-{
+XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
 	try {
 		this->start();
 	}
@@ -90,8 +76,7 @@ XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &)
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &)
-{
+XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &) {
 	try {
 		this->stop();
 	}

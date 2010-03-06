@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -18,16 +18,9 @@
 #include "xitemnode.h"
 
 //! Base class for all instrument drivers
-class XSecondaryDriver : public XDriver
-{
-	XNODE_OBJECT
-protected:
-	XSecondaryDriver(const char *name, bool runtime,
-		const shared_ptr<XScalarEntryList> &scalarentries,
-		const shared_ptr<XInterfaceList> &interfaces,
-		const shared_ptr<XThermometerList> &thermometers,
-		const shared_ptr<XDriverList> &drivers);
+class XSecondaryDriver : public XDriver {
 public:
+	XSecondaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XSecondaryDriver();
 
 	//! show all forms belonging to driver

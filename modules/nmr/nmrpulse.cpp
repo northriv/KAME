@@ -1,5 +1,5 @@
 /***************************************************************************
- Copyright (C) 2002-2009 Kentaro Kitagawa
+ Copyright (C) 2002-2010 Kentaro Kitagawa
  kitag@issp.u-tokyo.ac.jp
 
  This program is free software; you can redistribute it and/or
@@ -27,16 +27,13 @@ REGISTER_TYPE(XDriverList, NMRPulseAnalyzer, "NMR FID/echo analyzer");
 
 //---------------------------------------------------------------------------
 XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
-	const shared_ptr<XScalarEntryList> &scalarentries,
-	const shared_ptr<XInterfaceList> &interfaces,
-	const shared_ptr<XThermometerList> &thermometers,
-	const shared_ptr<XDriverList> &drivers) :
-	XSecondaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XSecondaryDriver(name, runtime, ref(tr_meas), meas),
 		m_entryPeakAbs(create<XScalarEntry>("PeakAbs", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))),
 		m_entryPeakFreq(create<XScalarEntry>("PeakFreq", false,
 			dynamic_pointer_cast<XDriver>(shared_from_this()))), 
-		m_dso(create<XItemNode<XDriverList, XDSO> >("DSO", false, drivers, true)),
+		m_dso(create<XItemNode<XDriverList, XDSO> >("DSO", false, ref(tr_meas), meas->drivers(), true)),
 		m_fromTrig(create<XDoubleNode>("FromTrig", false)),
 		m_width(create<XDoubleNode>("Width", false)),
 		m_phaseAdv(create<XDoubleNode>("PhaseAdv", false)),
@@ -57,7 +54,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_spectrumShow(create<XNode>("SpectrumShow", true)),
 		m_avgClear(create<XNode>("AvgClear", true)),
 		m_picEnabled(create<XBoolNode>("PICEnabled", false)),
-		m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, drivers, true)),
+		m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, ref(tr_meas), meas->drivers(), true)),
 		m_form(new FrmNMRPulse(g_pFrmMain)),
 		m_statusPrinter(XStatusPrinter::create(m_form.get())),
 		m_spectrumForm(new FrmGraphNURL(g_pFrmMain)), m_waveGraph(create<XWaveNGraph>("Wave", true,
@@ -73,8 +70,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	connect(dso());
 	connect(pulser(), false);
 
-	scalarentries->insert(entryPeakAbs());
-	scalarentries->insert(entryPeakFreq());
+	meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
+	meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
 
 	fromTrig()->value(-0.005);
 	width()->value(0.02);
@@ -103,9 +100,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_conUsePNR = xqcon_create<XQToggleButtonConnector>(usePNR(),
 		m_form->m_ckbPNR);
 	m_conPNRSolverList = xqcon_create<XQComboBoxConnector>(pnrSolverList(),
-		m_form->m_cmbPNRSolver);
+		m_form->m_cmbPNRSolver, Snapshot( *pnrSolverList()));
 	m_conSolverList = xqcon_create<XQComboBoxConnector>(solverList(),
-		m_form->m_cmbSolver);
+		m_form->m_cmbSolver, Snapshot( *solverList()));
 	m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
 	m_conBGWidth = xqcon_create<XQLineEditConnector>(bgWidth(),
 		m_form->m_edBGWidth);
@@ -123,7 +120,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_conEchoPeriod = xqcon_create<XQLineEditConnector>(echoPeriod(),
 		m_form->m_edEchoPeriod);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(),
-		m_form->m_cmbWindowFunc);
+		m_form->m_cmbWindowFunc, Snapshot( *windowFunc()));
 	m_form->m_numWindowWidth->setRange(3.0, 200.0, 1.0, true);
 	m_conWindowWidth = xqcon_create<XKDoubleNumInputConnector>(windowWidth(),
 		m_form->m_numWindowWidth);
@@ -134,74 +131,78 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form->m_ckbPICEnabled);
 
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser,
-		m_form->m_cmbPulser);
-	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO);
+		m_form->m_cmbPulser, ref(tr_meas));
+	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas));
 
-	{
+	for(Transaction tr( *waveGraph());; ++tr) {
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
-		waveGraph()->setColCount(5, labels);
-		waveGraph()->insertPlot(labels[1], 0, 1);
-		waveGraph()->insertPlot(labels[2], 0, 2);
-		waveGraph()->insertPlot(labels[3], 0, 3);
-		waveGraph()->insertPlot(labels[4], 0, 4);
-		waveGraph()->axisy()->label()->value(i18n("Intens. [V]"));
-		waveGraph()->plot(0)->label()->value(i18n("IFFT Re."));
-		waveGraph()->plot(0)->drawPoints()->value(false);
-		waveGraph()->plot(0)->intensity()->value(2.0);
-		waveGraph()->plot(1)->label()->value(i18n("IFFT Im."));
-		waveGraph()->plot(1)->drawPoints()->value(false);
-		waveGraph()->plot(1)->intensity()->value(2.0);
-		waveGraph()->plot(2)->label()->value(i18n("DSO CH1"));
-		waveGraph()->plot(2)->drawPoints()->value(false);
-		waveGraph()->plot(2)->lineColor()->value(QColor(0xff, 0xa0, 0x00).rgb());
-		waveGraph()->plot(2)->intensity()->value(0.3);
-		waveGraph()->plot(3)->label()->value(i18n("DSO CH2"));
-		waveGraph()->plot(3)->drawPoints()->value(false);
-		waveGraph()->plot(3)->lineColor()->value(QColor(0x00, 0xa0, 0xff).rgb());
-		waveGraph()->plot(3)->intensity()->value(0.3);
-		waveGraph()->clear();
+		tr[ *waveGraph()].setColCount(5, labels);
+		tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
+		tr[ *waveGraph()].insertPlot(labels[2], 0, 2);
+		tr[ *waveGraph()].insertPlot(labels[3], 0, 3);
+		tr[ *waveGraph()].insertPlot(labels[4], 0, 4);
+		tr[ *tr[ *waveGraph()].axisy()->label()] = i18n("Intens. [V]");
+		tr[ *tr[ *waveGraph()].plot(0)->label()] = i18n("IFFT Re.");
+		tr[ *tr[ *waveGraph()].plot(0)->drawPoints()] = false;
+		tr[ *tr[ *waveGraph()].plot(0)->intensity()] = 2.0;
+		tr[ *tr[ *waveGraph()].plot(1)->label()] = i18n("IFFT Im.");
+		tr[ *tr[ *waveGraph()].plot(1)->drawPoints()] = false;
+		tr[ *tr[ *waveGraph()].plot(1)->intensity()] = 2.0;
+		tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
+		tr[ *tr[ *waveGraph()].plot(2)->drawPoints()] = false;
+		tr[ *tr[ *waveGraph()].plot(2)->lineColor()] = QColor(0xff, 0xa0, 0x00).rgb();
+		tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.3;
+		tr[ *tr[ *waveGraph()].plot(3)->label()] = i18n("DSO CH2");
+		tr[ *tr[ *waveGraph()].plot(3)->drawPoints()] = false;
+		tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x00, 0xa0, 0xff).rgb();
+		tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.3;
+		if(tr.commit())
+			break;
 	}
-	{
+	waveGraph()->clear();
+	for(Transaction tr( *ftWaveGraph());; ++tr) {
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
-		ftWaveGraph()->setColCount(6, labels);
-		ftWaveGraph()->insertPlot(labels[3], 0, 3);
-		ftWaveGraph()->insertPlot(labels[4], 0, -1, 4);
-		ftWaveGraph()->insertPlot(labels[5], 0, 5);
-		ftWaveGraph()->axisy()->label()->value(i18n("Intens. [V]"));
-		ftWaveGraph()->plot(0)->label()->value(i18n("abs."));
-		ftWaveGraph()->plot(0)->drawBars()->value(true);
-		ftWaveGraph()->plot(0)->drawLines()->value(true);
-		ftWaveGraph()->plot(0)->drawPoints()->value(false);
-		ftWaveGraph()->plot(0)->intensity()->value(0.5);
-		ftWaveGraph()->plot(1)->label()->value(i18n("phase"));
-		ftWaveGraph()->plot(1)->drawPoints()->value(false);
-		ftWaveGraph()->plot(1)->intensity()->value(0.3);
-		ftWaveGraph()->plot(2)->label()->value(i18n("dark"));
-		ftWaveGraph()->plot(2)->drawBars()->value(false);
-		ftWaveGraph()->plot(2)->drawLines()->value(true);
-		ftWaveGraph()->plot(2)->lineColor()->value(QColor(0xa0, 0xa0, 0x00).rgb());
-		ftWaveGraph()->plot(2)->drawPoints()->value(false);
-		ftWaveGraph()->plot(2)->intensity()->value(0.5);
-		ftWaveGraph()->clear();
+		tr[ *ftWaveGraph()].setColCount(6, labels);
+		tr[ *ftWaveGraph()].insertPlot(labels[3], 0, 3);
+		tr[ *ftWaveGraph()].insertPlot(labels[4], 0, -1, 4);
+		tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
+		tr[ *tr[ *ftWaveGraph()].axisy()->label()] = i18n("Intens. [V]");
+		tr[ *tr[ *ftWaveGraph()].plot(0)->label()] = i18n("abs.");
+		tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
+		tr[ *tr[ *ftWaveGraph()].plot(0)->drawLines()] = true;
+		tr[ *tr[ *ftWaveGraph()].plot(0)->drawPoints()] = false;
+		tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.5;
+		tr[ *tr[ *ftWaveGraph()].plot(1)->label()] = i18n("phase");
+		tr[ *tr[ *ftWaveGraph()].plot(1)->drawPoints()] = false;
+		tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.3;
+		tr[ *tr[ *ftWaveGraph()].plot(2)->label()] = i18n("dark");
+		tr[ *tr[ *ftWaveGraph()].plot(2)->drawBars()] = false;
+		tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;
+		tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
+		tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
+		tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 0.5;
 		{
 			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
-				"Peaks", true, ftWaveGraph()->graph());
+				tr, "Peaks", true, ref(tr), ftWaveGraph()->graph());
 			m_peakPlot = plot;
-			plot->label()->value(i18n("Peaks"));
-			plot->axisX()->value(ftWaveGraph()->axisx());
-			plot->axisY()->value(ftWaveGraph()->axisy());
-			plot->drawPoints()->value(false);
-			plot->drawLines()->value(false);
-			plot->drawBars()->value(true);
-			plot->intensity()->value(0.5);
-			plot->displayMajorGrid()->value(false);
-			plot->pointColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
-			plot->barColor()->value(QColor(0x40, 0x40, 0xa0).rgb());
-			plot->clearPoints()->setUIEnabled(false);
-			plot->maxCount()->setUIEnabled(false);
+			tr[ *plot->label()] = i18n("Peaks");
+			tr[ *plot->axisX()] = tr[ *ftWaveGraph()].axisx();
+			tr[ *plot->axisY()] = tr[ *ftWaveGraph()].axisy();
+			tr[ *plot->drawPoints()] = false;
+			tr[ *plot->drawLines()] = false;
+			tr[ *plot->drawBars()] = true;
+			tr[ *plot->intensity()] = 0.5;
+			tr[ *plot->displayMajorGrid()] = false;
+			tr[ *plot->pointColor()] = QColor(0x40, 0x40, 0xa0).rgb();
+			tr[ *plot->barColor()] = QColor(0x40, 0x40, 0xa0).rgb();
+			tr[ *plot->clearPoints()].setUIEnabled(false);
+			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
+		if(tr.commit())
+			break;
 	}
+	ftWaveGraph()->clear();
 
 	m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
 	m_lsnOnSpectrumShow = m_spectrumShow->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onSpectrumShow,
@@ -430,9 +431,13 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 
 	if((m_startTime != starttime) || (length != m_waveWidth)) {
 		double t = length * interval * 1e3;
-		m_waveGraph->axisx()->autoScale()->value(false);
-		m_waveGraph->axisx()->minValue()->value(starttime * 1e3 - t * 0.3);
-		m_waveGraph->axisx()->maxValue()->value(starttime * 1e3 + t * 1.3);
+		for(Transaction tr( *waveGraph());; ++tr) {
+			tr[ *tr[ *waveGraph()].axisx()->autoScale()] = false;
+			tr[ *tr[ *waveGraph()].axisx()->minValue()] = starttime * 1e3 - t * 0.3;
+			tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
+			if(tr.commit())
+				break;
+		}
 	}
 	m_waveWidth = length;
 	bool skip = (m_timeClearRequested > _dso->timeAwared());
@@ -626,23 +631,22 @@ void XNMRPulseAnalyzer::visualize() {
 	}
 
 	int ftsize = m_ftWave.size();
-	{
-		XScopedWriteLock<XWaveNGraph> lock(*ftWaveGraph());
-		ftWaveGraph()->setRowCount(ftsize);
+	for(Transaction tr( *ftWaveGraph());; ++tr) {
+		tr[ *ftWaveGraph()].setRowCount(ftsize);
 		double normalize = 1.0 / m_wave.size();
 		double darknormalize = m_ftWavePSDCoeff / (m_wave.size() * interval());
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
-			ftWaveGraph()->cols(0)[i] = 0.001 * (i - ftsize/2) * m_dFreq;
+			tr[ *ftWaveGraph()].cols(0)[i] = 0.001 * (i - ftsize/2) * m_dFreq;
 			std::complex<double> z = m_ftWave[j] * normalize;
-			ftWaveGraph()->cols(1)[i] = std::real(z);
-			ftWaveGraph()->cols(2)[i] = std::imag(z);
-			ftWaveGraph()->cols(3)[i] = std::abs(z);
-			ftWaveGraph()->cols(4)[i] = std::arg(z) / M_PI * 180;
-			ftWaveGraph()->cols(5)[i] = sqrt(m_darkPSD[j] * darknormalize);
+			tr[ *ftWaveGraph()].cols(1)[i] = std::real(z);
+			tr[ *ftWaveGraph()].cols(2)[i] = std::imag(z);
+			tr[ *ftWaveGraph()].cols(3)[i] = std::abs(z);
+			tr[ *ftWaveGraph()].cols(4)[i] = std::arg(z) / M_PI * 180;
+			tr[ *ftWaveGraph()].cols(5)[i] = sqrt(m_darkPSD[j] * darknormalize);
 		}
-		m_peakPlot->maxCount()->value(m_solverRecorded->peaks().size());
-		std::deque<XGraph::ValPoint> &points(m_peakPlot->points());
+		tr[ *m_peakPlot->maxCount()] = m_solverRecorded->peaks().size();
+		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
 		points.resize(m_solverRecorded->peaks().size());
 		for(int i = 0; i < m_solverRecorded->peaks().size(); i++) {
 			double x = m_solverRecorded->peaks()[i].second;
@@ -650,25 +654,32 @@ void XNMRPulseAnalyzer::visualize() {
 			points[i] = XGraph::ValPoint(0.001 * x * m_dFreq,
 				m_solverRecorded->peaks()[i].first * normalize);
 		}
+		ftWaveGraph()->drawGraph(tr);
+		if(tr.commit()) {
+			break;
+		}
 	}
-	{
+	for(Transaction tr( *waveGraph());; ++tr) {
 		int length = m_dsoWave.size();
-		XScopedWriteLock<XWaveNGraph> lock(*waveGraph());
-		waveGraph()->setRowCount(length);
+		tr[ *waveGraph()].setRowCount(length);
 		for (int i = 0; i < length; i++) {
 			int j = i - m_dsoWaveStartPos;
-			waveGraph()->cols(0)[i] = (startTime() + j * m_interval) * 1e3;
+			tr[ *waveGraph()].cols(0)[i] = (startTime() + j * m_interval) * 1e3;
 			if(abs(j) < ftsize / 2) {
 				j = (j - m_waveFTPos + ftsize) % ftsize;
-				waveGraph()->cols(1)[i] = std::real(m_solverRecorded->ifft()[j]);
-				waveGraph()->cols(2)[i] = std::imag(m_solverRecorded->ifft()[j]);
+				tr[ *waveGraph()].cols(1)[i] = std::real(m_solverRecorded->ifft()[j]);
+				tr[ *waveGraph()].cols(2)[i] = std::imag(m_solverRecorded->ifft()[j]);
 			}
 			else {
-				waveGraph()->cols(1)[i] = 0.0;
-				waveGraph()->cols(2)[i] = 0.0;				
+				tr[ *waveGraph()].cols(1)[i] = 0.0;
+				tr[ *waveGraph()].cols(2)[i] = 0.0;
 			}
-			waveGraph()->cols(3)[i] = m_dsoWave[i].real();
-			waveGraph()->cols(4)[i] = m_dsoWave[i].imag();				
+			tr[ *waveGraph()].cols(3)[i] = m_dsoWave[i].real();
+			tr[ *waveGraph()].cols(4)[i] = m_dsoWave[i].imag();
+		}
+		waveGraph()->drawGraph(tr);
+		if(tr.commit()) {
+			break;
 		}
 	}
 }

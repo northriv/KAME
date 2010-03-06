@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,11 +21,8 @@
 #include <qcheckbox.h>
 
 XFuncSynth::XFuncSynth(const char *name, bool runtime, 
-					   const shared_ptr<XScalarEntryList> &scalarentries,
-					   const shared_ptr<XInterfaceList> &interfaces,
-					   const shared_ptr<XThermometerList> &thermometers,
-					   const shared_ptr<XDriverList> &drivers) : 
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_output(create<XBoolNode>("Output", true)),
     m_trig(create<XNode>("Trigger", true)),
     m_mode(create<XComboNode>("Mode", false)),
@@ -34,16 +31,16 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
     m_amp(create<XDoubleNode>("Amplitude", false)),
     m_phase(create<XDoubleNode>("Phase", false)),
     m_offset(create<XDoubleNode>("Offset", false)),
-    m_form(new FrmFuncSynth(g_pFrmMain))
-{
+    m_form(new FrmFuncSynth(g_pFrmMain)) {
+
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Func. Synth. - ") + getLabel() );
 
 	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
 	m_conTrig = xqcon_create<XQButtonConnector>(m_trig, m_form->m_btnTrig);
-	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode);
+	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
-	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunc);
+	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunc, Snapshot( *m_function));
 	m_conAmp = xqcon_create<XQLineEditConnector>(m_amp, m_form->m_edAmp);
 	m_conPhase = xqcon_create<XQLineEditConnector>(m_phase, m_form->m_edPhase);
 	m_conOffset = xqcon_create<XQLineEditConnector>(m_offset, m_form->m_edOffset);

@@ -86,7 +86,11 @@ using boost::scoped_ptr;
 using boost::shared_ptr;
 using boost::weak_ptr;
 using boost::enable_shared_from_this;
+using boost::static_pointer_cast;
 using boost::dynamic_pointer_cast;
+#include <boost/ref.hpp>
+using boost::ref;
+using boost::reference_wrapper;
 
 #include <math.h>
 #include <string>

@@ -121,7 +121,7 @@ XSignalBuffer::synchronize()
 			break;
 		}
 		_XTransaction *transaction = popOldest();
-		if(!transaction) {
+		if( !transaction) {
 			dotalk = false;
 			break;
 		}

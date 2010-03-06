@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,8 +30,7 @@
 
 #ifdef SERIAL_POSIX
 
-class XPosixSerialPort : public XPort
-{
+class XPosixSerialPort : public XPort {
 public:
 	XPosixSerialPort(XCharInterface *interface);
 	virtual ~XPosixSerialPort();

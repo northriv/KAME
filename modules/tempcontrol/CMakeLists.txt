@@ -1,4 +1,5 @@
 include_directories(
+    ${CMAKE_SOURCE_DIR}/kame/math
     ${CMAKE_SOURCE_DIR}/kame/thermometer
     ${CMAKE_SOURCE_DIR}/modules/charinterface
     ${CMAKE_SOURCE_DIR}/modules/dcsource/core)

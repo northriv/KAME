@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,10 +23,8 @@ class XQGraphPainter;
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
-class XQGraph : public QGLWidget
-{
+class XQGraph : public QGLWidget {
 	Q_OBJECT
-
 public:
 	XQGraph( QWidget* parent = 0, Qt::WFlags fl = 0 );
 	virtual ~XQGraph();

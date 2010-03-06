@@ -37,13 +37,4 @@ xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d) {
     return pHolder;
 }
 
-#define XQCON_OBJECT template <class T, class A, class B> \
-friend xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b); \
-template <class T, class A, class B, typename C> \
-friend xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c); \
-template <class T, class A, class B, typename C, typename D> \
-friend xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d); \
-friend class _XQConnectorHolder;
-
-
 #endif /*XNODECONNECTOR_PRV_H_*/

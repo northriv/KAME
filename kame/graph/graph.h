@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,6 +17,7 @@
 #include "xnode.h"
 #include "xlistnode.h"
 #include "xitemnode.h"
+#include "rwlock.h"
 
 #include <vector>
 #include <deque>
@@ -98,12 +99,9 @@ typedef XAliasListNode<XPlot> XPlotList;
 
 //! XGraph object can have one or more plots and two or more axes.
 //! \sa XPlot, XAxis, XQGraphPainter
-class XGraph : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XGraph(const char *name, bool runtime);
+class XGraph : public XNode {
 public:
+	XGraph(const char *name, bool runtime);
 	virtual XString getLabel() const {return *label();}
 
 	typedef float SFloat;
@@ -116,11 +114,11 @@ public:
 	typedef Vector4<GFloat> GPoint;
 	typedef Vector4<VFloat> ValPoint;
  
-	//! call me before redraw graph
-	//! Fix axes, take snapshot of points, autoscale axes
-	void setupRedraw(float resolution);
+	//! fixes axes, takes snapshot of points, autoscales axes.
+	//! Call me before redrawing the graph.
+	void setupRedraw(const Snapshot &shot, float resolution);
   
-	void zoomAxes(float resolution, XGraph::SFloat zoomscale,
+	void zoomAxes(const Snapshot &shot, float resolution, XGraph::SFloat zoomscale,
 				  const XGraph::ScrPoint &zoomcenter);
 
 	const shared_ptr<XAxisList> &axes() const {return m_axes;}
@@ -133,56 +131,49 @@ public:
 	const shared_ptr<XBoolNode> &drawLegends() const {return m_drawLegends;}
 
 	const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
-	//! signal to redraw
-	void requestUpdate();
-	bool isUpdateScheduled() const {return m_bUpdateScheduled;}
-	//! postpone signals to redraw
-	void lock();
-	//! reschedule signals to redraw
-	void unlock();
 
-	XTalker<shared_ptr<XGraph> > &onUpdate() {return m_tlkOnUpdate;}
+	//! signal to redraw
+	void requestUpdate(const Snapshot &shot);
+
 	const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
+
+	struct Payload : public XNode::Payload {
+		Talker<XGraph*, XGraph*> &onUpdate() {return m_tlkOnUpdate;}
+		const Talker<XGraph*, XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
+	private:
+		TalkerSingleton<XGraph*, XGraph*> m_tlkOnUpdate;
+	};
+
 protected:
 private:
-	void onPropertyChanged(const shared_ptr<XValueNodeBase> &);
-
-	bool m_bUpdateScheduled;
-	XRecursiveRWLock m_graphLock;
+	void onPropertyChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const shared_ptr<XStringNode> m_label;
-	shared_ptr<XListener> m_lsnPropertyChanged;
-  
 	const shared_ptr<XAxisList> m_axes;
 	const shared_ptr<XPlotList> m_plots; 
-
 	const shared_ptr<XHexNode> m_backGround;
 	const shared_ptr<XHexNode> m_titleColor;
-
 	const shared_ptr<XBoolNode> m_drawLegends;
-
 	const shared_ptr<XDoubleNode> m_persistence;
-	XTalker<shared_ptr<XGraph> > m_tlkOnUpdate;
+
+	shared_ptr<XListener> m_lsnPropertyChanged;
 };
 
-class XPlot : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph);
-public:  
+class XPlot : public XNode {
+public:
+	XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	virtual XString getLabel() const {return *label();}
 
-	virtual int clearAllPoints(void) = 0;
+	virtual int clearAllPoints() = 0;
 
 	//! obtains values from screen coordinate
 	//! if \a scr_prec > 0, value will be rounded around scr_prec
 	//! \sa XAxis::AxisToVal.
-	int screenToVal(const XGraph::ScrPoint &scr, XGraph::ValPoint *val,
+	int screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr, XGraph::ValPoint *val,
 					XGraph::SFloat scr_prec = -1);
-	void screenToGraph(const XGraph::ScrPoint &pt, XGraph::GPoint *g);
-	void graphToScreen(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
-	void graphToVal(const XGraph::GPoint &pt, XGraph::ValPoint *val);
+	void screenToGraph(const Snapshot &shot, const XGraph::ScrPoint &pt, XGraph::GPoint *g);
+	void graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
+	void graphToVal(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ValPoint *val);
 
 	const shared_ptr<XStringNode> &label() const {return m_label;}
   
@@ -200,7 +191,7 @@ public:
 	const shared_ptr<XHexNode> &barColor() const {return m_barColor;}//, BarInnerColor;
 	const shared_ptr<XHexNode> &colorPlotColorHigh() const {return m_colorPlotColorHigh;}
 	const shared_ptr<XHexNode> &colorPlotColorLow() const {return m_colorPlotColorLow;}
-	const shared_ptr<XNode> &clearPoints() const {return m_clearPoints;}
+	const shared_ptr<XTouchableNode> &clearPoints() const {return m_clearPoints;}
 	const shared_ptr<XItemNode<XAxisList, XAxis> > &axisX() const {return m_axisX;}
 	const shared_ptr<XItemNode<XAxisList, XAxis> > &axisY() const {return m_axisY;}
 	const shared_ptr<XItemNode<XAxisList, XAxis> > &axisZ() const {return m_axisZ;}
@@ -210,38 +201,33 @@ public:
 	const shared_ptr<XDoubleNode> &intensity() const {return m_intensity;}
 
 	//! auto-scale
-	virtual int validateAutoScale();
-	//! draw points from snapshot
-	int drawPlot(XQGraphPainter *painter);
-	//! draw a point for legneds.
+	virtual int validateAutoScale(const Snapshot &shot);
+	//! Draws points from snapshot
+	int drawPlot(const Snapshot &shot, XQGraphPainter *painter);
+	//! Draws a point for legneds.
 	//! \a spt the center of the point.
 	//! \a dx,dy the size of the area.
-	int drawLegend(XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy);
-	void drawGrid(XQGraphPainter *painter, bool drawzaxis = true);  
-	//! take a snap-shot all points for rendering 
-	void snapshot();
+	int drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy);
+	void drawGrid(const Snapshot &shot, XQGraphPainter *painter, bool drawzaxis = true);
+	//! Takes a snap-shot all points for rendering
+	virtual void snapshot(const Snapshot &shot) = 0;
   
 	//! \return found index, if not return -1 
-	int findPoint(int start, const XGraph::GPoint &gmin, const XGraph::GPoint &gmax,
+	int findPoint(const Snapshot &shot, int start, const XGraph::GPoint &gmin, const XGraph::GPoint &gmax,
 				  XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1);
 
-	//! Lock info of axes.
 	//! \return success or not
-	bool trylock();
-	void unlock();
+	bool fixScales(const Snapshot &shot);
+
+	struct Payload : public XNode::Payload {
+	};
 protected:
 	const weak_ptr<XGraph> m_graph;
 	shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ, m_curAxisW;
 
-	virtual int setMaxCount(unsigned int count) = 0;
-	virtual XGraph::ValPoint points(unsigned int index) const = 0;
-	virtual unsigned int count() const = 0;
-	//! data are copied to \p snappedPoints before rendering
-	virtual XGraph::ValPoint snappedPoints(unsigned int index) const {return m_ptsSnapped[index];}
-	virtual unsigned int snappedCount() const {return m_cntSnapped;}
-  
 	XGraph::ScrPoint m_scr0;
 	XGraph::ScrPoint m_len;
+	std::vector<XGraph::ValPoint> m_ptsSnapped;
   
 private:
 	struct tCanvasPoint {
@@ -264,7 +250,7 @@ private:
 	const shared_ptr<XHexNode> m_barColor;//, BarInnerColor;
 	const shared_ptr<XHexNode> m_colorPlotColorHigh;
 	const shared_ptr<XHexNode> m_colorPlotColorLow;
-	const shared_ptr<XNode> m_clearPoints;
+	const shared_ptr<XTouchableNode> m_clearPoints;
 	const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisX;
 	const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisY;
 	const shared_ptr<XItemNode<XAxisList, XAxis> > m_axisZ;
@@ -273,43 +259,36 @@ private:
 	const shared_ptr<XDoubleNode> m_zwoAxisZ;
 	const shared_ptr<XDoubleNode> m_intensity;
   
-	shared_ptr<XListener> m_lsnMaxCount;
 	shared_ptr<XListener> m_lsnClearPoints;
   
-	void onSetMaxCount(const shared_ptr<XValueNodeBase> &);
-	void onClearPoints(const shared_ptr<XNode> &) {clearAllPoints();}
+	void onClearPoints(const Snapshot &, XNode *);
   
 	bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2, 
 				  XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
 				  bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2);
 	inline bool isPtIncluded(const XGraph::GPoint &pt);
-	inline void validateAutoScaleOnePoint(const XGraph::ValPoint &pt);
     
-	void drawGrid(XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
+	void drawGrid(const Snapshot &shot,
+		XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
 
-	std::vector<XGraph::ValPoint> m_ptsSnapped;
 	std::vector<tCanvasPoint> m_canvasPtsSnapped; 
-	unsigned int m_cntSnapped;
 	void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
 	void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr);
 	unsigned int blendColor(unsigned int c1, unsigned int c2, float t);
 };
 
-class XAxis : public XNode
-{
-	XNODE_OBJECT
+class XAxis : public XNode {
 public:
 	enum AxisDirection {DirAxisX, DirAxisY, DirAxisZ, AxisWeight};
 	enum Tic {MajorTic, MinorTic, NoTics};  
-protected:
+
 	XAxis(const char *name, bool runtime,
-		  AxisDirection dir, bool rightOrTop, const shared_ptr<XGraph> &graph);
-public:
+		  AxisDirection dir, bool rightOrTop, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	virtual ~XAxis() {}
 
 	virtual XString getLabel() const {return *label();}
   
-	int drawAxis(XQGraphPainter *painter);
+	int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
 	//! obtains axis pos from value
 	XGraph::GFloat valToAxis(XGraph::VFloat value);
 	//! obtains value from position on axis
@@ -318,11 +297,11 @@ public:
 	XGraph::VFloat axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec = -1);
 	//! obtains axis pos from screen coordinate
 	//! \return pos in axis
-	XGraph::GFloat screenToAxis(const XGraph::ScrPoint &scr);
+	XGraph::GFloat screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr);
 	//! obtains screen position from axis
-	void axisToScreen(XGraph::GFloat pos, XGraph::ScrPoint *scr);
-	void valToScreen(XGraph::VFloat val, XGraph::ScrPoint *scr);
-	XGraph::VFloat screenToVal(const XGraph::ScrPoint &scr);
+	void axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *scr);
+	void valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *scr);
+	XGraph::VFloat screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr);
   
 	XString valToString(XGraph::VFloat val);
 
@@ -357,9 +336,9 @@ public:
 	Tic queryTic(int length, int pos, XGraph::VFloat *ticnum);
 
 	//! call me befor drawing, autoscaling
-	void startAutoscale(float resolution, bool clearscale = false);
+	void startAutoscale(const Snapshot &shot, float resolution, bool clearscale = false);
 	//! preserve changed scale
-	void fixScale(float resolution, bool suppressupdate = false);
+	void fixScale(const Snapshot &shot, float resolution, bool suppressupdate = false);
 	//! fixed value
 	XGraph::VFloat fixedMin() const {return m_minFixed;}
 	XGraph::VFloat fixedMax() const {return m_maxFixed;}
@@ -369,6 +348,9 @@ public:
 
 	const AxisDirection &direction() const {return m_direction;}
 	const XGraph::ScrPoint &dirVector() const {return m_dirVector;}
+
+	struct Payload : public XNode::Payload {
+	};
 protected:
 
 private:
@@ -377,9 +359,9 @@ private:
   
 	const weak_ptr<XGraph> m_graph;
   
-	void _startAutoscale(bool clearscale);
-	void drawLabel(XQGraphPainter *painter);
-	void performAutoFreq(float resolution);
+	void _startAutoscale(const Snapshot &shot, bool clearscale);
+	void drawLabel(const Snapshot &shot, XQGraphPainter *painter);
+	void performAutoFreq(const Snapshot &shot, float resolution);
   
 	const shared_ptr<XStringNode> m_label;
     
@@ -412,45 +394,40 @@ private:
 	bool m_bAutoscaleFixed;
 };
 
-class XXYPlot : public XPlot
-{
-	XNODE_OBJECT
-protected:
-	XXYPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph) : 
-		XPlot(name, runtime, graph) {}
+class XXYPlot : public XPlot {
 public:
+	XXYPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
+		XPlot(name, runtime, tr_graph, graph) {}
+
 	int clearAllPoints();
 	//! adds one point and draws
 	int addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
-	//! Direct Access.
-	//! use XGraph::suspendUpdate() first.
-	std::deque<XGraph::ValPoint> &points() {return m_points;}
+
+	struct Payload : public XNode::Payload {
+		std::deque<XGraph::ValPoint> &points() {return m_points;}
+		const std::deque<XGraph::ValPoint> &points() const {return m_points;}
+	private:
+		std::deque<XGraph::ValPoint> m_points;
+	};
 protected:
-	int setMaxCount(unsigned int count);
-	XGraph::ValPoint points(unsigned int index) const;
-	unsigned int count() const {return m_points.size();}
-private:
-	std::deque<XGraph::ValPoint> m_points;
+	//! Takes a snap-shot all points for rendering
+	virtual void snapshot(const Snapshot &shot);
 };
 
-class XFuncPlot : public XPlot
-{
-	XNODE_OBJECT
-protected:
-	XFuncPlot(const char *name, bool runtime, const shared_ptr<XGraph> &graph);
+class XFuncPlot : public XPlot {
 public:
+	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	int clearAllPoints() {return 0;}
-	virtual int validateAutoScale() {return 0;}
+	virtual int validateAutoScale(const Snapshot &) {return 0;}
   
 	virtual double func(double x) const = 0;
+
+	struct Payload : public XNode::Payload {
+	};
 protected:
-	virtual int setMaxCount(unsigned int count);
-	virtual XGraph::ValPoint points(unsigned int index) const;
-	virtual unsigned int count() const;
-	virtual XGraph::ValPoint snappedPoints(unsigned int index) const;
-	virtual unsigned int snappedCount() const;
+	//! Takes a snap-shot all points for rendering
+	virtual void snapshot(const Snapshot &shot);
 private:
-	int m_count;
 };
 //---------------------------------------------------------------------------
 #endif

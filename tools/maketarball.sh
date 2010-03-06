@@ -1,7 +1,12 @@
 #!/bin/bash
+version=`grep Version ./kame.spec | sed -e 's/Version: //'`
+file=kame-$version
+logfile=mkrpm.log
+echo $file
+
 dir=../2.1-backups
-file=$1
 mkdir -p $dir/$file
+rm $logfile
 rsync --exclude "linux686" \
 	--exclude "kdedarwin" \
 	--exclude "macosx" \
@@ -18,8 +23,8 @@ rsync --exclude "linux686" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
 	 . $dir/$file -av --delete
-(cd $dir/$file/tools/tests; make clean)
+(cd $dir/$file/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)
 (cd $dir; tar jcvf $file.tar.bz2 $file)
 rm -fR $dir/$file
-#rpmbuild --rcfile=rpmrc -ts $file.tar.bz2
+

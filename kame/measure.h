@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -33,14 +33,11 @@ class XRawStreamRecorder;
 class XRawStreamRecordReader;
 class XRuby;
 
-/*! The root node of KAME.
+/*! The root object of KAME.
  */
-class XMeasure : public XNode
-{
-	XNODE_OBJECT
-protected:
-	XMeasure(const char *name, bool runtime);
+class XMeasure : public XNode {
 public:
+	XMeasure(const char *name, bool runtime);
 	virtual ~XMeasure();
 
 	//! call me before loading a measurement file.
@@ -50,12 +47,12 @@ public:
 	//! stop all drivers.
 	void stop();
 
-	const shared_ptr<XThermometerList> &thermometerList() const {return m_thermometers;}
-	const shared_ptr<XDriverList> &driverList() const {return m_drivers;}
-	const shared_ptr<XInterfaceList> &interfaceList() const {return m_interfaces;} 
-	const shared_ptr<XScalarEntryList> &scalarEntryList() const {return m_scalarEntries;}
-	const shared_ptr<XGraphList> &graphList() const {return m_graphList;}
-	const shared_ptr<XChartList> &chartList() const {return m_chartList;}
+	const shared_ptr<XThermometerList> &thermometers() const {return m_thermometers;}
+	const shared_ptr<XDriverList> &drivers() const {return m_drivers;}
+	const shared_ptr<XInterfaceList> &interfaces() const {return m_interfaces;}
+	const shared_ptr<XScalarEntryList> &scalarEntries() const {return m_scalarEntries;}
+	const shared_ptr<XGraphList> &graphs() const {return m_graphList;}
+	const shared_ptr<XChartList> &charts() const {return m_chartList;}
 	const shared_ptr<XTextWriter> &textWriter() const {return m_textWriter;}
 	const shared_ptr<XRawStreamRecorder> &rawStreamRecorder() const {return m_rawStreamRecorder;}
 	const shared_ptr<XRawStreamRecordReader> &rawStreamRecordReader() const {return m_rawStreamRecordReader;}
@@ -80,7 +77,7 @@ private:
 	m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
 	m_conCalTable, m_conNodeBrowser;
 	shared_ptr<XListener> m_lsnOnReleaseDriver;
-	void onReleaseDriver(const shared_ptr<XNode> &driver);
+	void onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 };
 
 //! use this to show a floating information at the front of the main window.

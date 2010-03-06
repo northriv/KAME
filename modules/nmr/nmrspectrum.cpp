@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -23,25 +23,26 @@ REGISTER_TYPE(XDriverList, NMRSpectrum, "NMR field-swept spectrum measurement");
 
 //---------------------------------------------------------------------------
 XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
-						   const shared_ptr<XScalarEntryList> &scalarentries,
-						   const shared_ptr<XInterfaceList> &interfaces,
-						   const shared_ptr<XThermometerList> &thermometers,
-						   const shared_ptr<XDriverList> &drivers)
-	:
-	  XNMRSpectrumBase<FrmNMRSpectrum>(name, runtime, scalarentries, interfaces, thermometers, drivers),
-	  m_magnet(create<XItemNode<XDriverList, XMagnetPS, XDMM> >("MagnetPS", false, drivers, true)),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	  XNMRSpectrumBase<FrmNMRSpectrum>(name, runtime, ref(tr_meas), meas),
+	  m_magnet(create<XItemNode<XDriverList, XMagnetPS, XDMM> >(
+		  "MagnetPS", false, ref(tr_meas), meas->drivers(), true)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_resolution(create<XDoubleNode>("Resolution", false)),
 	  m_minValue(create<XDoubleNode>("FieldMin", false)),
 	  m_maxValue(create<XDoubleNode>("FieldMax", false)),
 	  m_fieldFactor(create<XDoubleNode>("FieldFactor", false)),
-	  m_residualField(create<XDoubleNode>("ResidualField", false))
-{
+	  m_residualField(create<XDoubleNode>("ResidualField", false)) {
+
 	connect(magnet());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum - ") + getLabel() );
-	m_spectrum->setLabel(0, "Field [T]");
-	m_spectrum->axisx()->label()->value(i18n("Field [T]"));
+	for(Transaction tr( *m_spectrum);; ++tr) {
+		tr[ *m_spectrum].setLabel(0, "Field [T]");
+		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Field [T]");
+		if(tr.commit())
+			break;
+	}
   
 	centerFreq()->value(20);
 	resolution()->value(0.001);
@@ -55,7 +56,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	m_conMax = xqcon_create<XQLineEditConnector>(m_maxValue, m_form->m_edMax);
 	m_conFieldFactor = xqcon_create<XQLineEditConnector>(m_fieldFactor, m_form->m_edFieldFactor);
 	m_conResidualField = xqcon_create<XQLineEditConnector>(m_residualField, m_form->m_edResidual);
-	m_conMagnet = xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry);
+	m_conMagnet = xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry, ref(tr_meas));
 
 	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
 	resolution()->onValueChanged().connect(m_lsnOnCondChanged);

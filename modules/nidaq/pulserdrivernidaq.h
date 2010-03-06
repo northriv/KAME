@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,18 +16,12 @@
 
 #include "pulserdrivernidaqmx.h"
 
-class XNIDAQAODOPulser : public XNIDAQmxPulser
-{
-	XNODE_OBJECT
-protected:
-	XNIDAQAODOPulser(const char *name, bool runtime,
-					 const shared_ptr<XScalarEntryList> &scalarentries,
-					 const shared_ptr<XInterfaceList> &interfaces,
-					 const shared_ptr<XThermometerList> &thermometers,
-					 const shared_ptr<XDriverList> &drivers)
-		: XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
-	}
+class XNIDAQAODOPulser : public XNIDAQmxPulser {
 public:
+	XNIDAQAODOPulser(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+		: XNIDAQmxPulser(name, runtime, ref(tr_meas), meas) {
+	}
 	virtual ~XNIDAQAODOPulser() {}
 
 protected:
@@ -36,18 +30,12 @@ protected:
     virtual bool haveQAMPorts() const {return true;}
 };
 
-class XNIDAQDOPulser : public XNIDAQmxPulser
-{
-	XNODE_OBJECT
-protected:
-	XNIDAQDOPulser(const char *name, bool runtime,
-				   const shared_ptr<XScalarEntryList> &scalarentries,
-				   const shared_ptr<XInterfaceList> &interfaces,
-				   const shared_ptr<XThermometerList> &thermometers,
-				   const shared_ptr<XDriverList> &drivers)
-		: XNIDAQmxPulser(name, runtime, scalarentries, interfaces, thermometers, drivers) {
-    }
+class XNIDAQDOPulser : public XNIDAQmxPulser {
 public:
+	XNIDAQDOPulser(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+		: XNIDAQmxPulser(name, runtime, ref(tr_meas), meas) {
+    }
 	virtual ~XNIDAQDOPulser() {}
 
 protected:
@@ -56,16 +44,10 @@ protected:
     virtual bool haveQAMPorts() const {return false;}
 };
 
-class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser
-{
-	XNODE_OBJECT
-protected:
-	XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
-								   const shared_ptr<XScalarEntryList> &scalarentries,
-								   const shared_ptr<XInterfaceList> &interfaces,
-								   const shared_ptr<XThermometerList> &thermometers,
-								   const shared_ptr<XDriverList> &drivers);
+class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser {
 public:
+	XNIDAQMSeriesWithSSeriesPulser(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNIDAQMSeriesWithSSeriesPulser() {}
 
 protected:

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -24,16 +24,10 @@ class MonteCarlo;
 class Ui_FrmMonteCarlo;
 typedef QForm<QMainWindow, Ui_FrmMonteCarlo> FrmMonteCarlo;
 
-class XMonteCarloDriver : public XDummyDriver<XPrimaryDriver>
-{
-	XNODE_OBJECT
-protected:
-	XMonteCarloDriver(const char *name, bool runtime,
-					  const shared_ptr<XScalarEntryList> &scalarentries,
-					  const shared_ptr<XInterfaceList> &interfaces,
-					  const shared_ptr<XThermometerList> &thermometers,
-					  const shared_ptr<XDriverList> &drivers);
+class XMonteCarloDriver : public XDummyDriver<XPrimaryDriver> {
 public:
+	XMonteCarloDriver(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XMonteCarloDriver();
 	//! show all forms belonging to driver

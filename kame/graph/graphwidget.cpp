@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,19 +27,16 @@ typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WFlags fl ) :
     QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba | QGL::DepthBuffer | QGL::AccumBuffer )
-			   , parent, 0, fl)
-{
+			   , parent, 0, fl) {
     if(!format().directRendering()) dbgPrint("direct rendering disabled");
 //      if(!layout() ) new QHBoxLayout(this);
 //      layout()->setAutoAdd(true);
 }
-XQGraph::~XQGraph()
-{
+XQGraph::~XQGraph() {
     m_painter.reset();
 }
 void
-XQGraph::setGraph(const shared_ptr<XGraph> &graph)
-{
+XQGraph::setGraph(const shared_ptr<XGraph> &graph) {
     m_conDialog.reset();
     m_painter.reset();
     m_graph = graph;
@@ -48,9 +45,8 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph)
     } 
 }
 void
-XQGraph::mousePressEvent ( QMouseEvent* e)
-{
-	if(!m_painter ) return;
+XQGraph::mousePressEvent ( QMouseEvent* e) {
+	if( !m_painter ) return;
 	XQGraphPainter::SelectionMode mode;
 	switch (e->button()) {
 	case Qt::RightButton:
@@ -69,32 +65,30 @@ XQGraph::mousePressEvent ( QMouseEvent* e)
 	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelStart, mode);
 }
 void
-XQGraph::mouseMoveEvent ( QMouseEvent* e)
-{
+XQGraph::mouseMoveEvent ( QMouseEvent* e) {
 	static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
-	if(!m_painter ) return;
+	if( !m_painter ) return;
 	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::Selecting);  
 }
 void
-XQGraph::mouseReleaseEvent ( QMouseEvent* e)
-{
-	if(!m_painter ) return;
+XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
+	if( !m_painter ) return;
 	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelFinish);
 }
 void
-XQGraph::mouseDoubleClickEvent ( QMouseEvent* e)
-{
+XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 	e->accept();
-	if(!m_painter ) return;
+	if( !m_painter ) return;
 	if(m_graph) { 
 		switch (e->button()) {
 		case Qt::RightButton:
 			m_painter->showHelp();
 			break;
 		case Qt::LeftButton:
-			m_conDialog = xqcon_create<XQGraphDialogConnector>(m_graph,
-															   new DlgGraphSetup(this, Qt::WDestructiveClose));
+			m_conDialog = xqcon_create<XQGraphDialogConnector>(
+				m_graph,
+				new DlgGraphSetup(this, Qt::WDestructiveClose));
 			break;
 		case Qt::MidButton:
 			break;
@@ -104,15 +98,13 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e)
 	}
 }
 void
-XQGraph::wheelEvent ( QWheelEvent *e)
-{
+XQGraph::wheelEvent ( QWheelEvent *e) {
 	e->accept();
 	if(m_painter )
 		m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
 }
 void
-XQGraph::showEvent ( QShowEvent * )
-{
+XQGraph::showEvent ( QShowEvent * ) {
 	shared_ptr<XGraph> graph = m_graph;
 	if(graph) { 
 		m_painter.reset();
@@ -123,32 +115,28 @@ XQGraph::showEvent ( QShowEvent * )
 	}
 }
 void
-XQGraph::hideEvent ( QHideEvent * )
-{
+XQGraph::hideEvent ( QHideEvent * ) {
 	m_conDialog.reset();
 	m_painter.reset();
 	setMouseTracking(false);
 }
 //! openGL stuff
 void
-XQGraph::initializeGL ()
-{
+XQGraph::initializeGL () {
     glClearColor( 1.0, 1.0, 1.0, 1.0 );
     glClearDepth( 1.0 );
     if(m_painter )
         m_painter->initializeGL();
 }
 void
-XQGraph::resizeGL ( int width, int height )
-{
+XQGraph::resizeGL ( int width, int height ) {
     glMatrixMode(GL_PROJECTION);
     glViewport( 0, 0, (GLint)width, (GLint)height ); 
     if(m_painter )
         m_painter->resizeGL(width, height);
 }
 void
-XQGraph::paintGL ()
-{
+XQGraph::paintGL () {
     if(m_painter )
         m_painter->paintGL();
     glEnd();

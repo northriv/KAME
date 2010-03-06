@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -64,8 +64,7 @@ int XQGraphPainter::s_fontRefCount = 0;
 FTFont *XQGraphPainter::s_pFont = NULL;
 
 void
-XQGraphPainter::openFont()
-{
+XQGraphPainter::openFont() {
 	if(s_fontRefCount == 0) {
 		QString filename = KStandardDirs::locate("appdata", FONT_FILE);
 		if(filename.isEmpty())
@@ -81,16 +80,14 @@ XQGraphPainter::openFont()
 }
 
 void
-XQGraphPainter::closeFont()
-{
+XQGraphPainter::closeFont() {
 	s_fontRefCount--;
 	if(s_fontRefCount == 0) {
 		delete s_pFont;
 		s_pFont = NULL;
 	}
 }
-XQGraphPainter::~XQGraphPainter()
-{
+XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
     
     if(m_listplanes) glDeleteLists(m_listplanes, 1);
@@ -100,8 +97,7 @@ XQGraphPainter::~XQGraphPainter()
     closeFont();
 }
 std::wstring
-XQGraphPainter::string2wstring(const XString &str)
-{
+XQGraphPainter::string2wstring(const XString &str) {
 	QString qstr(str);
     std::vector<wchar_t> buf(qstr.length() + 1);
     qstr.toWCharArray(&buf[0]);
@@ -109,8 +105,7 @@ XQGraphPainter::string2wstring(const XString &str)
 }
 
 int
-XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr)
-{
+XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr) {
 	GLdouble nx, ny, nz;
  	int ret = gluUnProject((double)x, (double)m_viewport[3] - y, z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	scr->x = nx;
@@ -119,8 +114,7 @@ XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr)
 	return (ret != GL_TRUE);
 }
 int
-XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z)
-{
+XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z) {
 	GLdouble nx, ny, nz;
 	int ret = gluProject(scr.x, scr.y, scr.z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	*x = nx;
@@ -130,67 +124,58 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 }
 
 void
-XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2)
-{
+XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2) {
 	if((x1 != x2) || (y1 != y2)) {
 		m_pItem->updateGL();
 	}
 }
 void
-XQGraphPainter::redrawOffScreen()
-{
+XQGraphPainter::redrawOffScreen() {
 	m_bIsRedrawNeeded = true;
 }
   
 void
-XQGraphPainter::beginLine(double size)
-{
+XQGraphPainter::beginLine(double size) {
 	glLineWidth(size);
     checkGLError(); 
 	glBegin(GL_LINES);
 }
 void
-XQGraphPainter::endLine()
-{
+XQGraphPainter::endLine() {
 	glEnd();
     checkGLError(); 
 }
 
 void
-XQGraphPainter::beginPoint(double size)
-{
+XQGraphPainter::beginPoint(double size) {
 	glPointSize(size);
     checkGLError(); 
 	glBegin(GL_POINTS);
 }
 void
-XQGraphPainter::endPoint()
-{
+XQGraphPainter::endPoint() {
 	glEnd();
     checkGLError(); 
 }
 void
-XQGraphPainter::beginQuad(bool )
-{
+XQGraphPainter::beginQuad(bool ) {
 	glBegin(GL_QUADS);
     checkGLError(); 
 }
 void
-XQGraphPainter::endQuad()
-{
+XQGraphPainter::endQuad() {
 	glEnd();
     checkGLError(); 
 }
 
 void
-XQGraphPainter::defaultFont()
-{
+XQGraphPainter::defaultFont() {
 	m_curAlign = 0;
 	m_curFontSize = DEFAULT_FONT_SIZE;
 }
 int
-XQGraphPainter::selectFont(const XString &str, const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint)
-{
+XQGraphPainter::selectFont(const XString &str,
+	const XGraph::ScrPoint &start, const XGraph::ScrPoint &dir, const XGraph::ScrPoint &swidth, int sizehint) {
 	XGraph::ScrPoint d = dir;
 	d.normalize();
 	XGraph::ScrPoint s1 = start;
@@ -256,8 +241,7 @@ XQGraphPainter::selectFont(const XString &str, const XGraph::ScrPoint &start, co
     
 	return 0;
 }void
-XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str)
-{
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 	float llx, lly, llz, urx, ury, urz;
 	std::wstring wstr = string2wstring(str);
 
@@ -289,14 +273,12 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str)
 
 
 void
-XQGraphPainter::setInitView()
-{
+XQGraphPainter::setInitView() {
 	glLoadIdentity();
 	glOrtho(0.0,1.0,0.0,1.0,VIEW_NEAR,VIEW_FAR);
 }
 void
-XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init)
-{
+XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init) {
 	m_pItem->makeCurrent();
     glGetError(); //reset error
     
@@ -331,8 +313,7 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 
 double
 XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
-						 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
-{
+						 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
 	m_pItem->makeCurrent();
       
 	glGetError(); //reset error
@@ -386,25 +367,21 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 
 double
 XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
-							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
-{
+							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
 	return selectGL(x, y, dx, dy, m_listplanes, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
-						   XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
-{
+						   XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
 	return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
-							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy )
-{
+							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
 	return selectGL(x, y, dx, dy, m_listpoints, scr, dsdx, dsdy);
 }
 void
-XQGraphPainter::initializeGL ()
-{
+XQGraphPainter::initializeGL () {
 //	m_pItem->makeCurrent();
 	
 //    glClearColor( 1.0, 1.0, 1.0, 1.0 );
@@ -432,8 +409,7 @@ XQGraphPainter::initializeGL ()
     viewRotate(0.0, 0.0, 0.0, 0.0, true);
 }
 void
-XQGraphPainter::resizeGL ( int width  , int height )
-{
+XQGraphPainter::resizeGL ( int width  , int height ) {
 //	m_pItem->makeCurrent();
 
     // setup viewport, projection etc.:
@@ -443,8 +419,7 @@ XQGraphPainter::resizeGL ( int width  , int height )
 //  drawLists();
 }
 void
-XQGraphPainter::paintGL ()
-{
+XQGraphPainter::paintGL () {
 //	m_pItem->makeCurrent();
     glGetError(); // flush error
     
@@ -466,8 +441,10 @@ XQGraphPainter::paintGL ()
 			m_updatedTime = XTime::XTime();
     }
         
+    Snapshot shot(*m_graph);
+
     if(m_bIsRedrawNeeded) {
-        drawOffScreenStart();
+        drawOffScreenStart(shot);
         
         QColor bgc = (QRgb)*m_graph->backGround();
         glClearColor( bgc.red() /255.0f, bgc.green() /255.0f, bgc.blue() /255.0f, 1.0 );
@@ -480,26 +457,26 @@ XQGraphPainter::paintGL ()
         checkGLError(); 
 
         glNewList(m_listplanes, GL_COMPILE);
-        drawOffScreenPlanes();
+        drawOffScreenPlanes(shot);
         glEndList();
         
         checkGLError(); 
 
         glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
-        drawOffScreenGrids();
+        drawOffScreenGrids(shot);
         glEndList();
         
         checkGLError(); 
 
         glNewList(m_listpoints, GL_COMPILE_AND_EXECUTE);
-        drawOffScreenPoints();
+        drawOffScreenPoints(shot);
         glEndList();
         
         checkGLError(); 
 
 //      glDisable(GL_DEPTH_TEST);       
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
-        drawOffScreenAxes();
+        drawOffScreenAxes(shot);
         glEndList();
         
         checkGLError(); 
@@ -522,7 +499,7 @@ XQGraphPainter::paintGL ()
         if(m_bIsAxisRedrawNeeded) {
 #endif // __APPLE__
             glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
-            drawOffScreenAxes();
+            drawOffScreenAxes(shot);
             glEndList();
             m_bIsAxisRedrawNeeded = false;
         }
@@ -531,7 +508,7 @@ XQGraphPainter::paintGL ()
         }
     }
 
-    drawOnScreenObj();
+    drawOnScreenObj(shot);
     
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -539,7 +516,7 @@ XQGraphPainter::paintGL ()
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
     glMatrixMode(GL_MODELVIEW);
     
-    double persist = *m_graph->persistence();
+    double persist = shot[ *m_graph->persistence()];
     if(persist > 0) {
 	#define OFFSET 0.1
 		double tau = persist / (-log(OFFSET)) * 0.4;
@@ -595,7 +572,7 @@ XQGraphPainter::paintGL ()
 		m_updatedTime = XTime::XTime();
     }
 
-    drawOnScreenViewObj();
+    drawOnScreenViewObj(shot);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
 //    glFlush();

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -21,18 +21,15 @@
 REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");
 
 XTestDriver::XTestDriver(const char *name, bool runtime, 
-						 const shared_ptr<XScalarEntryList> &scalarentries,
-						 const shared_ptr<XInterfaceList> &interfaces,
-						 const shared_ptr<XThermometerList> &thermometers,
-						 const shared_ptr<XDriverList> &drivers) :
-    XDummyDriver<XPrimaryDriver>(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XDummyDriver<XPrimaryDriver>(name, runtime, ref(tr_meas), meas),
     m_entryX(create<XScalarEntry>("X", false, 
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
+    	static_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
     m_entryY(create<XScalarEntry>("Y", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%+.4f[K]"))
-{
-	scalarentries->insert(m_entryX);
-	scalarentries->insert(m_entryY);
+    	static_pointer_cast<XDriver>(shared_from_this()), "%+.4f[K]")) {
+
+	meas->scalarEntries()->insert(tr_meas, m_entryX);
+	meas->scalarEntries()->insert(tr_meas, m_entryY);
 }
 
 void
@@ -40,20 +37,17 @@ XTestDriver::showForms() {
 //! impliment form->show() here
 }
 void
-XTestDriver::start()
-{
+XTestDriver::start() {
     m_thread.reset(new XThread<XTestDriver>(shared_from_this(), &XTestDriver::execute));
     m_thread->resume();
 }
 void
-XTestDriver::stop()
-{
+XTestDriver::stop() {
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 }
 void
-XTestDriver::analyzeRaw() throw (XRecordError&)
-{
+XTestDriver::analyzeRaw() throw (XRecordError&) {
     //! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s
     m_x = pop<double>();
     m_y = pop<double>();
@@ -61,17 +55,14 @@ XTestDriver::analyzeRaw() throw (XRecordError&)
     m_entryY->value(m_y);
 }
 void
-XTestDriver::visualize()
-{
+XTestDriver::visualize() {
 	//! impliment extra codes which do not need write-lock of record
 	//! record is read-locked
 }
 
 void *
-XTestDriver::execute(const atomic<bool> &terminated)
-{
-	while(!terminated)
-	{
+XTestDriver::execute(const atomic<bool> &terminated) {
+	while(!terminated) {
 		msecsleep(10);
 		double x = randMT19937() - 0.2;
 		double y = randMT19937()- 0.2;

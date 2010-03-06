@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -35,16 +35,10 @@ class Ui_FrmNMRT1;
 typedef QForm<QMainWindow, Ui_FrmNMRT1> FrmNMRT1;
 
 //! Measure Relaxation Curve
-class XNMRT1 : public XSecondaryDriver
-{
-	XNODE_OBJECT
-protected:
-	XNMRT1(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers);
+class XNMRT1 : public XSecondaryDriver {
 public:
+	XNMRT1(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XNMRT1 () {}
   
 	//! show all forms belonging to driver
@@ -132,7 +126,7 @@ private:
 	const shared_ptr<XComboNode> m_mode;
 	const shared_ptr<XUIntNode> m_smoothSamples;
 	const shared_ptr<XComboNode> m_p1Dist;
-	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
+	shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
 	const shared_ptr<XNode> m_resetFit, m_clearAll;
 	const shared_ptr<XStringNode> m_fitStatus;
 

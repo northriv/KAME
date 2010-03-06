@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -172,6 +172,7 @@ XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 {
+	Snapshot shot(*this);
 	if(*recording() == true)
 	{
 		if(driver->time())
@@ -179,9 +180,9 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 			XTime triggered_time;
 			std::deque<shared_ptr<XScalarEntry> > locked_entries;
 
-			XNode::NodeList::reader list(m_entries->children());
-			if(list) { 
-				for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+			if(shot.size(m_entries)) {
+				const XNode::NodeList &entries_list(*shot.list(m_entries));
+				for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
 					shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
 					if(!*entry->store()) continue;
 					shared_ptr<XDriver> d(entry->driver());
@@ -225,6 +226,7 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 void
 XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 {
+	Snapshot shot(*this);
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
@@ -239,9 +241,9 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 
 		XString buf;
 		buf = "#";
-		XNode::NodeList::reader list(m_entries->children());
-		if(list) { 
-			for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+		if(shot.size(m_entries)) {
+			const XNode::NodeList &entries_list(*shot.list(m_entries));
+			for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
 				shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
 				if(!*entry->store()) continue;
 				buf.append(entry->getLabel());

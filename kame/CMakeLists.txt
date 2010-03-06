@@ -18,6 +18,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/kame/analyzer
     ${CMAKE_SOURCE_DIR}/kame/thermometer
     ${CMAKE_BINARY_DIR}/kame/thermometer
+    ${CMAKE_SOURCE_DIR}/kame/math
     ${CMAKE_SOURCE_DIR}/kame/icons
     ${RUBY_INCLUDE_PATH} ${LTDL_INCLUDE_DIR})
 

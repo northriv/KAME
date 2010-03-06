@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,8 +27,8 @@ XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
     const shared_ptr<XRuby> &rbsupport) :
     XQConnector(rbthread, form),
-    m_resume(createOrphan<XBoolNode>("Resume", true)),
-    m_kill(createOrphan<XNode>("Kill", true)),
+    m_resume(XNode::createOrphan<XBoolNode>("Resume", true)),
+    m_kill(XNode::createOrphan<XNode>("Kill", true)),
     m_pForm(form),
     m_rubyThread(rbthread),
     m_rubySupport(rbsupport),
@@ -41,8 +41,8 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_conKill(xqcon_create<XQButtonConnector>(
 				  m_kill, form->m_pbtnKill)),
 	m_conLineinput(xqcon_create<XQLineEditConnector>(
-				  rbthread->lineinput(), form->m_edLineinput))
-{
+				  rbthread->lineinput(), form->m_edLineinput)) {
+
     KIconLoader *loader = KIconLoader::global();
     form->m_pbtnResume->setIcon(loader->loadIcon("exec",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  

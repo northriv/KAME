@@ -19,11 +19,8 @@ REGISTER_TYPE(XDriverList, TDS, "Tektronix DSO");
 
 //---------------------------------------------------------------------------
 XTDS::XTDS(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) :
-	XCharDeviceDriver<XDSO>(name, runtime, scalarentries, interfaces, thermometers, drivers) {
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XDSO>(name, runtime, ref(tr_meas), meas) {
 	const char* ch[] = {"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2", 0L};
 	for(int i = 0; ch[i]; i++)
 	{

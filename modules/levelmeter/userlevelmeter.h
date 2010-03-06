@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,32 +19,20 @@
 #include "oxforddriver.h"
 //---------------------------------------------------------------------------
 //OXFORD ILM helim level meter
-class XILM : public XOxfordDriver<XLevelMeter>
-{
-	XNODE_OBJECT
-protected:
-	XILM(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers);
+class XILM : public XOxfordDriver<XLevelMeter> {
 public:
+	XILM(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XILM() {}
 protected:
 	virtual double getLevel(unsigned int ch);
 };
 
 //LakeShore LM-500 level meter
-class XLM500 : public XCharDeviceDriver<XLevelMeter>
-{
-	XNODE_OBJECT
-protected:
-	XLM500(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers);
+class XLM500 : public XCharDeviceDriver<XLevelMeter> {
 public:
+	XLM500(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XLM500() {}
 protected:
 	virtual double getLevel(unsigned int ch);

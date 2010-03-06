@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,7 +27,6 @@
 
 XThreadLocal<std::vector<char> > XPort::s_tlBuffer;
 
-
 XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XInterface(name, runtime, driver), 
     m_bGPIBUseSerialPollOnWrite(true),
@@ -39,8 +38,8 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     m_serialBaudRate(9600),
     m_serialStopBits(2),
     m_script_send(create<XStringNode>("Send", true)),
-    m_script_query(create<XStringNode>("Query", true))
-{
+    m_script_query(create<XStringNode>("Query", true)) {
+
 #ifdef USE_GPIB
 	device()->add("GPIB");
 #endif

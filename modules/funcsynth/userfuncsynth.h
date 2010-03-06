@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -14,15 +14,10 @@
 #include "funcsynth.h"
 #include "chardevicedriver.h"
 
-class XWAVEFACTORY : public XCharDeviceDriver<XFuncSynth>
-{
-	XNODE_OBJECT
-protected:
+class XWAVEFACTORY : public XCharDeviceDriver<XFuncSynth> {
+public:
 	XWAVEFACTORY(const char *name, bool runtime,
-				 const shared_ptr<XScalarEntryList> &scalarentries,
-				 const shared_ptr<XInterfaceList> &interfaces,
-				 const shared_ptr<XThermometerList> &thermometers,
-				 const shared_ptr<XDriverList> &drivers);
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 protected:
 	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onTrigTouched(const shared_ptr<XNode> &);

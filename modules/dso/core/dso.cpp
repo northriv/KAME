@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -33,11 +33,8 @@ const unsigned int XDSO::s_trace_colors[] = {
 };
     
 XDSO::XDSO(const char *name, bool runtime,
-		   const shared_ptr<XScalarEntryList> &scalarentries,
-		   const shared_ptr<XInterfaceList> &interfaces,
-		   const shared_ptr<XThermometerList> &thermometers,
-		   const shared_ptr<XDriverList> &drivers) :
-	XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XPrimaryDriver(name, runtime, ref(tr_meas), meas),
 	m_average(create<XUIntNode>("Average", false)),
 	m_singleSequence(create<XBoolNode>("SingleSequence", false)),
 	m_trigSource(create<XComboNode>("TrigSource", false)),
@@ -72,20 +69,20 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_rawDisplayOnly(false),
 	m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
 	m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
-	m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1)),
-	m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2)),
-	m_conTrace3(xqcon_create<XQComboBoxConnector>(m_trace3, m_form->m_cmbTrace3)),
-	m_conTrace4(xqcon_create<XQComboBoxConnector>(m_trace4, m_form->m_cmbTrace4)),
-	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource)),
+	m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1, Snapshot( *m_trace1))),
+	m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2, Snapshot( *m_trace2))),
+	m_conTrace3(xqcon_create<XQComboBoxConnector>(m_trace3, m_form->m_cmbTrace3, Snapshot( *m_trace3))),
+	m_conTrace4(xqcon_create<XQComboBoxConnector>(m_trace4, m_form->m_cmbTrace4, Snapshot( *m_trace4))),
+	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource, Snapshot( *m_trigSource))),
 	m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
 	m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
 	m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
-	m_conFetchMode(xqcon_create<XQComboBoxConnector>(m_fetchMode, m_form->m_cmbFetchMode)),
+	m_conFetchMode(xqcon_create<XQComboBoxConnector>(m_fetchMode, m_form->m_cmbFetchMode, Snapshot( *m_fetchMode))),
 	m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
-	m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1)),
-	m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2)),
-	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3)),
-	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4)),
+	m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1, Snapshot( *m_vFullScale1))),
+	m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2, Snapshot( *m_vFullScale2))),
+	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3, Snapshot( *m_vFullScale3))),
+	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4, Snapshot( *m_vFullScale4))),
 	m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
 	m_conVOffset2(xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2)),
 	m_conVOffset3(xqcon_create<XQLineEditConnector>(m_vOffset3, m_form->m_edVOffset3)),
@@ -96,8 +93,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
 	m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
 	m_conFIRCenterFreq(xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq)),
-	m_statusPrinter(XStatusPrinter::create(m_form.get()))
-{
+	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
+
 	m_form->m_btnForceTrigger->setIcon(
 		KIconLoader::global()->loadIcon("apply",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
@@ -145,9 +142,13 @@ XDSO::XDSO(const char *name, bool runtime,
 	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
-  
-	m_waveForm->setColCount(4, s_trace_names);
-	m_waveForm->graph()->persistence()->value(0);
+
+	for(Transaction tr( *m_waveForm);; ++tr) {
+		tr[ *m_waveForm].setColCount(4, s_trace_names);
+		tr[ *m_waveForm->graph()->persistence()] = 0;
+		if(tr.commit())
+			break;
+	}
 	m_waveForm->clear();
 }
 void
@@ -217,29 +218,24 @@ XDSO::stop()
 	m_numChannelsDisp = 0;
 }
 unsigned int
-XDSO::lengthRecorded() const
-{
+XDSO::lengthRecorded() const {
     return m_wavesRecorded.size() / numChannelsRecorded();
 }
 const double *
-XDSO::waveRecorded(unsigned int ch) const
-{
+XDSO::waveRecorded(unsigned int ch) const {
     return &m_wavesRecorded[lengthRecorded() * ch];
 }
 unsigned int
-XDSO::lengthDisp() const
-{
+XDSO::lengthDisp() const {
     return m_wavesDisp.size() / numChannelsDisp();
 }
 double *
-XDSO::waveDisp(unsigned int ch)
-{
+XDSO::waveDisp(unsigned int ch) {
     return &m_wavesDisp[lengthDisp() * ch];
 }
 
 void
-XDSO::visualize()
-{
+XDSO::visualize() {
 	XScopedLock<XRecursiveMutex> lock(m_dispMutex);
   
 	m_statusPrinter->clear();
@@ -254,35 +250,38 @@ XDSO::visualize()
 		return;
 	}
 	const unsigned int length = lengthDisp();
-	{ XScopedWriteLock<XWaveNGraph> lock(*m_waveForm);
-	m_waveForm->setColCount(num_channels + 1, s_trace_names);
-	if(m_waveForm->numPlots() != num_channels) {
-		m_waveForm->clearPlots();
-		for(unsigned int i = 0; i < num_channels; i++) {
-			m_waveForm->insertPlot(s_trace_names[i + 1], 0, i + 1);
+	for(Transaction tr( *m_waveForm);; ++tr) {
+		tr[ *m_waveForm].setColCount(num_channels + 1, s_trace_names);
+		if(tr[ *m_waveForm].numPlots() != num_channels) {
+			tr[ *m_waveForm].clearPlots();
+			for(unsigned int i = 0; i < num_channels; i++) {
+				tr[ *m_waveForm].insertPlot(s_trace_names[i + 1], 0, i + 1);
+			}
+			tr[ *tr[ *m_waveForm].axisy()->label()] = i18n("Traces [V]");
 		}
-		m_waveForm->axisy()->label()->value(i18n("Traces [V]"));
-	}
-	for(unsigned int i = 0; i < num_channels; i++) {
-		m_waveForm->plot(i)->drawPoints()->value(false);
-		m_waveForm->plot(i)->lineColor()->value(s_trace_colors[i]);
-		m_waveForm->plot(i)->pointColor()->value(s_trace_colors[i]);
-		m_waveForm->plot(i)->barColor()->value(s_trace_colors[i]);
-	}
-          
-	m_waveForm->setRowCount(length);
-    
-	double *times = m_waveForm->cols(0);
-	double tint = timeIntervalDisp();
-	double t = -trigPosDisp() * tint;
-	for(unsigned int i = 0; i < length; i++) {
-		*times++ = t;
-		t += tint;
-	}
-        
-	for(unsigned int i = 0; i < num_channels; i++) {
-		memcpy(m_waveForm->cols(i + 1), waveDisp(i), length * sizeof(double));
-	}
+		for(unsigned int i = 0; i < num_channels; i++) {
+			tr[ *tr[ *m_waveForm].plot(i)->drawPoints()] = false;
+			tr[ *tr[ *m_waveForm].plot(i)->lineColor()] = s_trace_colors[i];
+			tr[ *tr[ *m_waveForm].plot(i)->pointColor()] = s_trace_colors[i];
+			tr[ *tr[ *m_waveForm].plot(i)->barColor()] = s_trace_colors[i];
+		}
+
+		tr[ *m_waveForm].setRowCount(length);
+
+		double *times = tr[ *m_waveForm].cols(0);
+		double tint = timeIntervalDisp();
+		double t = -trigPosDisp() * tint;
+		for(unsigned int i = 0; i < length; i++) {
+			*times++ = t;
+			t += tint;
+		}
+
+		for(unsigned int i = 0; i < num_channels; i++) {
+			memcpy(tr[ *m_waveForm].cols(i + 1), waveDisp(i), length * sizeof(double));
+		}
+		m_waveForm->drawGraph(tr);
+		if(tr.commit())
+			break;
 	}
 }
 void
@@ -291,8 +290,7 @@ XDSO::onRestartTouched(const shared_ptr<XNode> &) {
 	startSequence();
 }
 void *
-XDSO::execute(const atomic<bool> &terminated)
-{
+XDSO::execute(const atomic<bool> &terminated) {
 	m_timeSequenceStarted = XTime::now();
 	int last_count = 0;
   

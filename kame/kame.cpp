@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -49,8 +49,7 @@
 QWidget *g_pFrmMain = 0L;
 
 FrmKameMain::FrmKameMain()
-	:KMainWindow(NULL)
-{
+	:KMainWindow(NULL) {
 	resize(QSize(QApplication::desktop()->width(), height()).expandedTo(sizeHint()) );
 
 	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
@@ -132,7 +131,8 @@ FrmKameMain::FrmKameMain()
 
 //	resize(QSize(width(), 480 ));
    
-    m_measure = createOrphan<XMeasure>("Measurement", false);
+    // The root for all nodes.
+    m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
       
     // signals and slots connections
     connect( m_pFileCloseAction, SIGNAL( activated() ), this, SLOT( fileCloseAction_activated() ) );
@@ -185,8 +185,7 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 	return wnd;
 }
 
-FrmKameMain::~FrmKameMain()
-{
+FrmKameMain::~FrmKameMain() {
 	m_pTimer->stop();
 
 	m_measure.reset();
@@ -313,9 +312,10 @@ void
 FrmKameMain::closeEvent( QCloseEvent* ce )
 {
 	bool opened = false;
-	XNode::NodeList::reader list(m_measure->interfaceList()->children());
-	if(list) { 
-		for(XNode::NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
+    Snapshot shot(*m_measure->interfaces());
+    if(shot.size()) {
+    	const XNode::NodeList &list(*shot.list());
+		for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
 			shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
 			if(_interface->isOpened()) opened = true;
 		}

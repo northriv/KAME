@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,18 +19,14 @@
 #include <QCheckBox>
 
 XDCSource::XDCSource(const char *name, bool runtime, 
-   const shared_ptr<XScalarEntryList> &scalarentries,
-   const shared_ptr<XInterfaceList> &interfaces,
-   const shared_ptr<XThermometerList> &thermometers,
-   const shared_ptr<XDriverList> &drivers) : 
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers),
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_function(create<XComboNode>("Function", false)),
     m_output(create<XBoolNode>("Output", true)),
     m_value(create<XDoubleNode>("Value", false)),
     m_channel(create<XComboNode>("Channel", false, true)),
     m_range(create<XComboNode>("Range", false, true)),
-    m_form(new FrmDCSource(g_pFrmMain))
-{
+    m_form(new FrmDCSource(g_pFrmMain)) {
   m_form->statusBar()->hide();
   m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
 
@@ -40,11 +36,11 @@ XDCSource::XDCSource(const char *name, bool runtime,
   m_channel->setUIEnabled(false);
   m_range->setUIEnabled(false);
 
-  m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction);
+  m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function));
   m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
   m_conValue = xqcon_create<XQLineEditConnector>(m_value, m_form->m_edValue);
-  m_conChannel = xqcon_create<XQComboBoxConnector>(m_channel, m_form->m_cmbChannel);
-  m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange);
+  m_conChannel = xqcon_create<XQComboBoxConnector>(m_channel, m_form->m_cmbChannel, Snapshot( *m_channel));
+  m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange, Snapshot( *m_range));
 }
 
 void

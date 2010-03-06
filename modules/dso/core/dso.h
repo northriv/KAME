@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -28,16 +28,10 @@ typedef QForm<QMainWindow, Ui_FrmDSO> FrmDSO;
 #include "xwavengraph.h"
 
 //! Base class for digital storage oscilloscope.
-class XDSO : public XPrimaryDriver
-{
-	XNODE_OBJECT
-protected:
-	XDSO(const char *name, bool runtime,
-		 const shared_ptr<XScalarEntryList> &scalarentries,
-		 const shared_ptr<XInterfaceList> &interfaces,
-		 const shared_ptr<XThermometerList> &thermometers,
-		 const shared_ptr<XDriverList> &drivers);
+class XDSO : public XPrimaryDriver {
 public:
+	XDSO(const char *name, bool runtime,
+		 Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
 	virtual ~XDSO() {}
 	//! Shows all forms belonging to driver.

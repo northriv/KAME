@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -31,25 +31,18 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 
 //---------------------------------------------------------------------------
 
-class XRelaxFuncPoly : public XRelaxFunc
-{
-    
+class XRelaxFuncPoly : public XRelaxFunc {
 public:
 //! define a term in a relaxation function
 //! a*exp(-p*t/T1)
-	struct Term
-	{
+	struct Term {
 		int p;
 		double a;
 	};
  
-	XNODE_OBJECT
-protected:
 	XRelaxFuncPoly(const char *name, bool runtime, const Term *terms)
-		: XRelaxFunc(name, runtime), m_terms(terms)
-	{
-	}    
-public:  
+		: XRelaxFunc(name, runtime), m_terms(terms) {
+	}
 	virtual ~XRelaxFuncPoly() {}
   
 	//! called during fitting
@@ -57,13 +50,11 @@ public:
 	//! \param dfdt df/d(it1) will be passed
 	//! \param t a time P1 or 2tau
 	//! \param it1 1/T1 or 1/T2   
-	virtual void relax(double *f, double *dfdt, double t, double it1)
-	{
+	virtual void relax(double *f, double *dfdt, double t, double it1) {
 		double rf = 0, rdf = 0;
 		double x = -t * it1;
 		x = std::min(5.0, x);
-		for(const Term *term = m_terms; term->p != 0; term++)
-		{
+		for(const Term *term = m_terms; term->p != 0; term++) {
 			double a = term->a * exp(x*term->p);
 			rf += a;
 			rdf += a * term->p;
@@ -76,14 +67,10 @@ private:
 	const struct Term *m_terms;  
 };
 //! Power exponential.
-class XRelaxFuncPowExp : public XRelaxFunc
-{
-	XNODE_OBJECT
-protected:
+class XRelaxFuncPowExp : public XRelaxFunc {
+public:
 	XRelaxFuncPowExp(const char *name, bool runtime, double pow)
 		: XRelaxFunc(name, runtime), m_pow(pow)	{}
-public:  
-  
 	virtual ~XRelaxFuncPowExp() {}
   
 	//! called during fitting
@@ -242,8 +229,7 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nmr9s4[] = {
 };
 
 XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
-	: XAliasListNode<XRelaxFunc>(name, runtime)
-{
+	: XAliasListNode<XRelaxFunc>(name, runtime) {
 	create<XRelaxFuncPoly>("NMR I=1/2", true, s_relaxdata_nmr1);
 	create<XRelaxFuncPoly>("NMR I=1", true, s_relaxdata_nmr2);
 	create<XRelaxFuncPoly>("NMR I=3/2 center a", true, s_relaxdata_nmr3ca);
@@ -289,8 +275,7 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
 
 int
 XRelaxFunc::relax_f (const gsl_vector * x, void *params,
-					 gsl_vector * f)
-{
+					 gsl_vector * f) {
 	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
 	double iT1 = gsl_vector_get (x, 0);
 	double c = gsl_vector_get (x, 1);
@@ -316,8 +301,7 @@ XRelaxFunc::relax_f (const gsl_vector * x, void *params,
 }
 int
 XRelaxFunc::relax_df (const gsl_vector * x, void *params,
-					  gsl_matrix * J)
-{
+					  gsl_matrix * J) {
 
 	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
 	double iT1 = gsl_vector_get (x, 0);
@@ -341,8 +325,7 @@ XRelaxFunc::relax_df (const gsl_vector * x, void *params,
 }
 int
 XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
-					   gsl_vector * f, gsl_matrix * J)
-{
+					   gsl_vector * f, gsl_matrix * J) {
 	XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
 	double iT1 = gsl_vector_get (x, 0);
 
@@ -371,9 +354,7 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 	return GSL_SUCCESS;
 }
 XString
-XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
-				int itercnt)
-{
+XNMRT1::iterate(shared_ptr<XRelaxFunc> &func, int itercnt) {
 	//# of samples.
 	int n = 0;
 	for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++)
@@ -444,8 +425,7 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func,
 
 int
 do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f  *ef, exp_df *edf, exp_fdf *efdf
-		, int itercnt)
-{
+		, int itercnt) {
 	const gsl_multifit_fdfsolver_type *T;
 	T = gsl_multifit_fdfsolver_lmsder;
 	gsl_multifit_fdfsolver *s;

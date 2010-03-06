@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,16 +14,37 @@
 #ifndef ATOMIC_LIST_H_
 #define ATOMIC_LIST_H_
 
-#include "transactional.h"
+#include "atomic_smart_ptr.h"
+#include <deque>
 
 template <typename T, class LIST = std::deque<T> >
-class atomic_list : public transactional<LIST > {
+class atomic_list : public atomic_shared_ptr<LIST> {
 public:
 	typedef typename LIST::iterator iterator;
 	typedef typename LIST::const_iterator const_iterator;
+	typedef local_shared_ptr<const LIST> reader;
 
 	atomic_list() {}
 	~atomic_list() {}
+
+	class writer : public local_shared_ptr<LIST> {
+	public:
+		writer(atomic_list &x) :
+			local_shared_ptr<LIST>(),
+			m_target(x),
+			m_old_var(x) {
+			reset_unsafe(m_old_var ? (new LIST(*m_old_var)) : (new LIST()));
+		}
+		~writer() {}
+		bool commit() {
+			return (m_target.compareAndSet(m_old_var, *this));
+		}
+	protected:
+		writer();
+	private:
+		atomic_list &m_target;
+		const local_shared_ptr<LIST> m_old_var;
+	};
 
 	void push_back(const T &x) {
 		for(;;) {

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -16,12 +16,8 @@
 #include "analyzer.h"
 
 XLevelMeter::XLevelMeter(const char *name, bool runtime, 
-					 const shared_ptr<XScalarEntryList> &scalarentries,
-					 const shared_ptr<XInterfaceList> &interfaces,
-					 const shared_ptr<XThermometerList> &thermometers,
-					 const shared_ptr<XDriverList> &drivers) :
-    XPrimaryDriver(name, runtime, scalarentries, interfaces, thermometers, drivers)
-{
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XPrimaryDriver(name, runtime, ref(tr_meas), meas) {
 }
 void
 XLevelMeter::showForms() {
@@ -29,58 +25,49 @@ XLevelMeter::showForms() {
 }
 
 void
-XLevelMeter::start()
-{
+XLevelMeter::start() {
 	m_thread.reset(new XThread<XLevelMeter>(shared_from_this(), &XLevelMeter::execute));
 	m_thread->resume();
 }
 void
-XLevelMeter::stop()
-{
+XLevelMeter::stop() {
     if(m_thread) m_thread->terminate();
 //    m_thread->waitFor();
 //  thread must do interface()->close() at the end
 }
 
 void
-XLevelMeter::analyzeRaw() throw (XRecordError&)
-{
+XLevelMeter::analyzeRaw() throw (XRecordError&) {
 	for(unsigned int ch = 0; ch < m_entries.size(); ch++) {
 	    m_levelRecorded[ch] = pop<double>();
 	    m_entries[ch]->value(m_levelRecorded[ch]);
 	}
 }
 void
-XLevelMeter::visualize()
-{
+XLevelMeter::visualize() {
 	//! impliment extra codes which do not need write-lock of record
 	//! record is read-locked
 }
 
 void
-XLevelMeter::createChannels(const shared_ptr<XScalarEntryList> &scalarentries,
-    const char **channel_names)
-{
-  shared_ptr<XScalarEntryList> entries(scalarentries);
+XLevelMeter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
+    const char **channel_names) {
+  shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
   
   for(int i = 0; channel_names[i]; i++) {
 	    shared_ptr<XScalarEntry> entry(create<XScalarEntry>(
-	    	channel_names[i]
-		  , false,
-	       dynamic_pointer_cast<XDriver>(shared_from_this())
-	      , "%.4g"));
+	    	channel_names[i], false,
+	       dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g"));
 	     m_entries.push_back(entry);
-	     entries->insert(entry);
+	     entries->insert(tr_meas, entry);
     }
 	m_levelRecorded.resize(m_entries.size());
 }
 
 
 void *
-XLevelMeter::execute(const atomic<bool> &terminated)
-{   
-    while(!terminated)
-	{
+XLevelMeter::execute(const atomic<bool> &terminated) {
+    while(!terminated) {
 		msecsleep(100);
     	
 		clearRaw();
