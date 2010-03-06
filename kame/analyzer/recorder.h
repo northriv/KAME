@@ -44,8 +44,8 @@ public:
 	virtual ~XRawStreamRecorder() {}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
 protected:
-	virtual void onCatch(const shared_ptr<XNode> &node);
-	virtual void onRelease(const shared_ptr<XNode> &node);  
+	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 private:
 	void onOpen(const shared_ptr<XValueNodeBase> &);
   
@@ -74,8 +74,8 @@ public:
 	const shared_ptr<XStringNode> &lastLine() const {return m_lastLine;}
 
 protected:
-	virtual void onCatch(const shared_ptr<XNode> &node);
-	virtual void onRelease(const shared_ptr<XNode> &node);  
+	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 private:
 	const shared_ptr<XDriverList> m_drivers;
 	const shared_ptr<XScalarEntryList> m_entries;

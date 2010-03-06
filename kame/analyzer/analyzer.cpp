@@ -117,8 +117,8 @@ XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarE
 	: XAliasListNode<XValChart>(name, runtime),
 	  m_entries(entries) {
 	for(Transaction tr( *entries);; ++tr) {
-	    m_lsnOnCatchEntry = tr[ *entries].onCatch().connect( *this, &XChartList::onCatchEntry);
-	    m_lsnOnReleaseEntry = tr[ *entries].onRelease().connect( *this, &XChartList::onReleaseEntry);
+	    m_lsnOnCatchEntry = tr[ *entries].onCatch().connectWeakly(shared_from_this(), &XChartList::onCatchEntry);
+	    m_lsnOnReleaseEntry = tr[ *entries].onRelease().connectWeakly(shared_from_this(), &XChartList::onReleaseEntry);
 		if(tr.commit())
 			break;
 	}

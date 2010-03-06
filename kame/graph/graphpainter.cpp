@@ -35,20 +35,20 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_bIsAxisRedrawNeeded(false),
 	m_bTilted(false),
 	m_bReqHelp(false) {
+
 	openFont();
 	item->m_painter.reset(this);
-	for(Transaction tr(*graph);; ++tr) {
-		m_lsnRedraw = tr[ *graph].onUpdate().connect(
-	        *this, &XQGraphPainter::onRedraw,
+	for(Transaction tr( *graph);; ++tr) {
+		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(
+	        shared_from_this(), &XQGraphPainter::onRedraw,
 	        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
 		if(tr.commit())
 			break;
 	}
 }
-
 float
 XQGraphPainter::resScreen() {
-    return 1.0f/max(m_pItem->width(), m_pItem->height());
+    return 1.0f / max(m_pItem->width(), m_pItem->height());
 } 
 
 void

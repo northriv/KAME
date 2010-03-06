@@ -38,23 +38,23 @@ XRawStream::~XRawStream()
 
 XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
 	: XRawStream(name, runtime, driverlist),
-	  m_recording(create<XBoolNode>("Recording", true))
-{
+	  m_recording(create<XBoolNode>("Recording", true)) {
     recording()->value(false);
     
     m_lsnOnOpen = filename()->onValueChanged().connectWeak(
         shared_from_this(), &XRawStreamRecorder::onOpen);
     m_lsnOnFlush = recording()->onValueChanged().connectWeak(
         shared_from_this(), &XRawStreamRecorder::onFlush);
-    m_lsnOnCatch = m_drivers->onCatch().connectWeak(
-        shared_from_this(), &XRawStreamRecorder::onCatch);
-    m_lsnOnRelease = m_drivers->onRelease().connectWeak(
-        shared_from_this(), &XRawStreamRecorder::onRelease);
+    for(Transaction tr( *m_drivers);; ++tr) {
+        m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XRawStreamRecorder::onCatch);
+        m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XRawStreamRecorder::onRelease);
+    	if(tr.commit())
+    		break;
+    }
 }
 void
-XRawStreamRecorder::onCatch(const shared_ptr<XNode> &node)
-{
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(node);
+XRawStreamRecorder::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.caught);
     if(m_lsnOnRecord)
         driver->onRecord().connect(m_lsnOnRecord);
     else
@@ -62,20 +62,17 @@ XRawStreamRecorder::onCatch(const shared_ptr<XNode> &node)
             shared_from_this(), &XRawStreamRecorder::onRecord);
 }
 void
-XRawStreamRecorder::onRelease(const shared_ptr<XNode> &node)
-{
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(node);
+XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.released);
     driver->onRecord().disconnect(m_lsnOnRecord);
 }
 void
-XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &)
-{
+XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &) {
 	if(m_pGFD) gzclose(m_pGFD);
 	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "wb");
 }
 void
-XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &)
-{
+XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &) {
 	if(!*recording())
 		if(m_pGFD) {
 			m_filemutex.lock();    
@@ -84,8 +81,7 @@ XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &)
 		}
 }
 void
-XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d)
-{
+XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d) {
     if(*recording() && m_pGFD) {
         shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(d);
         if(driver) {
@@ -132,22 +128,22 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	  m_entries(entrylist),
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_lastLine(create<XStringNode>("LastLine", true)),
-	  m_recording(create<XBoolNode>("Recording", true))
-{
+	  m_recording(create<XBoolNode>("Recording", true)) {
     recording()->value(false);
     lastLine()->setUIEnabled(false);
   
     m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
         shared_from_this(), &XTextWriter::onFilenameChanged);
-    m_lsnOnCatch = m_drivers->onCatch().connectWeak(
-        shared_from_this(), &XTextWriter::onCatch);
-    m_lsnOnRelease = m_drivers->onRelease().connectWeak(
-        shared_from_this(), &XTextWriter::onRelease);
+    for(Transaction tr( *m_drivers);; ++tr) {
+        m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XTextWriter::onCatch);
+        m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XTextWriter::onRelease);
+    	if(tr.commit())
+    		break;
+    }
 }
 void
-XTextWriter::onCatch(const shared_ptr<XNode> &node)
-{
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(node);
+XTextWriter::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
+    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.caught);
     if(m_lsnOnRecord)
         driver->onRecord().connect(m_lsnOnRecord);
     else
@@ -155,9 +151,8 @@ XTextWriter::onCatch(const shared_ptr<XNode> &node)
             shared_from_this(), &XTextWriter::onRecord);
 }
 void
-XTextWriter::onRelease(const shared_ptr<XNode> &node)
-{
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(node);
+XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.released);
     driver->onRecord().disconnect(m_lsnOnRecord);
 }
 void
@@ -170,13 +165,10 @@ XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 }
 void
-XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
-{
+XTextWriter::onRecord(const shared_ptr<XDriver> &driver) {
 	Snapshot shot(*this);
-	if(*recording() == true)
-	{
-		if(driver->time())
-		{
+	if(*recording() == true) {
+		if(driver->time()) {
 			XTime triggered_time;
 			std::deque<shared_ptr<XScalarEntry> > locked_entries;
 
@@ -224,8 +216,7 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver)
 }
 
 void
-XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
-{
+XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 	Snapshot shot(*this);
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
@@ -260,8 +251,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &)
 	}
 }
 void
-XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &)
-{
+XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &) {
     lastLine()->setUIEnabled(*recording());
 	if(!*recording()) {
 		XScopedLock<XRecursiveMutex> lock(m_filemutex);  

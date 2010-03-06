@@ -32,15 +32,29 @@ template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &
 struct _ListenerRef : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 	_ListenerRef(tClass &obj,
 		void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
-				   XListener::FLAGS flags) :
-		_XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) {
-    }
+		XListener::FLAGS flags) :
+		_XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
 		(m_obj.*m_func)(x.shot, x.arg);
 	}
 private:
 	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
 	tClass &m_obj;
+};
+template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &>
+class _ListenerWeak : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
+	_ListenerWeak(const shared_ptr<tClass> &obj,
+		void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
+		 XListener::FLAGS flags) :
+		 _XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
+public:
+	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
+		if(shared_ptr<tClass> p = m_obj.lock() )
+			(p.get()->*m_func)(x.shot, x.arg);
+	}
+private:
+	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
+	const weak_ptr<tClass> m_obj;
 };
 
 template <class XN>
@@ -62,6 +76,9 @@ public:
 
 	template <class tObj, class tClass>
 	shared_ptr<XListener> connect(tObj &obj, void (tClass::*func)(
+		const Snapshot<XN> &shot, tArgRef), int flags = 0);
+	template <class tObj, class tClass>
+	shared_ptr<XListener> connectWeakly(const shared_ptr<tObj> &obj, void (tClass::*func)(
 		const Snapshot<XN> &shot, tArgRef), int flags = 0);
 
 	void connect(const shared_ptr<XListener> &);
@@ -106,7 +123,7 @@ private:
 			EventWrapper(l), event(e) {}
 		const _Event event;
 		virtual bool talkBuffered() {
-			(*this->listener)(event);
+			( *this->listener)(event);
 			return false;
 		}
 	};
@@ -118,11 +135,11 @@ private:
 					long elapsed_ms = (timeStamp() - this->registered_time) / 1000uL;
 					skip = ((long)this->listener->delay_ms() > elapsed_ms);
 				}
-				if(!skip) {
+				if( !skip) {
 					atomic_scoped_ptr<_Event> e;
 					e.swap(this->listener->arg);
 					ASSERT(e.get());
-					(*this->listener)(*e);
+					( *this->listener)( *e);
 				}
 				return skip;
 			}
@@ -175,6 +192,17 @@ Talker<XN, tArg, tArgRef>::connect(tObj &obj, void (tClass::*func)(
 }
 
 template <class XN, typename tArg, typename tArgRef>
+template <class tObj, class tClass>
+shared_ptr<XListener>
+Talker<XN, tArg, tArgRef>::connectWeakly(const shared_ptr<tObj> &obj,
+	void (tClass::*func)(const Snapshot<XN> &shot, tArgRef), int flags) {
+	shared_ptr<_Listener> listener(
+		new _ListenerWeak<XN, tClass, tArg, tArgRef>(
+			static_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
+	connect(listener);
+	return listener;
+}
+template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::connect(const shared_ptr<XListener> &lx) {
 	shared_ptr<_Listener> listener = dynamic_pointer_cast<_Listener>(lx);
@@ -225,7 +253,7 @@ Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot, const shared_ptr<List
 			if((listener->m_flags & XListener::FLAG_MASKED) == 0) {
 				if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
 					try {
-						(*listener)(event);
+						( *listener)(event);
 					}
 					catch (XKameError &e) {
 						e.print();

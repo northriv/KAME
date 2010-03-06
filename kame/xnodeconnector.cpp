@@ -90,7 +90,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     s_conCreating.push_back(shared_ptr<XQConnector>(this));
 
     for(Transaction tr( *node);; ++tr) {
-    	m_lsnUIEnabled = tr[ *node].onUIFlagsChanged().connect(*this, &XQConnector::onUIFlagsChanged,
+    	m_lsnUIEnabled = tr[ *node].onUIFlagsChanged().connectWeakly(shared_from_this(), &XQConnector::onUIFlagsChanged,
     		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     	if(tr.commit())
     		break;
@@ -429,11 +429,11 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table 
 	  m_pItem(item), m_list(node) {
 
 	for(Transaction tr( *node);; ++tr) {
-	    m_lsnMove = tr[ *node].onMove().connect( *this,
+	    m_lsnMove = tr[ *node].onMove().connectWeakly(shared_from_this(),
 	         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
-	    m_lsnCatch = tr[ *node].onCatch().connect( *this,
+	    m_lsnCatch = tr[ *node].onCatch().connectWeakly(shared_from_this(),
 			&XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
-	    m_lsnRelease = tr[ *node].onRelease().connect( *this,
+	    m_lsnRelease = tr[ *node].onRelease().connectWeakly(shared_from_this(),
 	    	&XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
 		if(tr.commit())
 			break;
@@ -481,7 +481,7 @@ XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::Move
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
 	: XValueQConnector(node, item) {
 	for(Transaction tr( *node);; ++tr) {
-	    m_lsnListChanged = tr[ *node].onListChanged().connect( *this,
+	    m_lsnListChanged = tr[ *node].onListChanged().connectWeakly(shared_from_this(),
 	    	&XItemQConnector::onListChanged,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
 		if(tr.commit())
