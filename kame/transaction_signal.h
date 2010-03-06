@@ -42,12 +42,11 @@ private:
 	tClass &m_obj;
 };
 template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &>
-class _ListenerWeak : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
+struct _ListenerWeak : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 	_ListenerWeak(const shared_ptr<tClass> &obj,
 		void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
 		 XListener::FLAGS flags) :
 		 _XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
-public:
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
 		if(shared_ptr<tClass> p = m_obj.lock() )
 			(p.get()->*m_func)(x.shot, x.arg);
