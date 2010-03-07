@@ -54,7 +54,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 	labels += i18n("Axis Z");
 	m_pItem->setColumnLabels(labels);
 
-	Snapshot shot(*node);
+	Snapshot shot( *node);
 	if(shot.size()) {
 		for(int idx = 0; idx < shot.size(); ++idx) {
 			XListNodeBase::Payload::CatchEvent e;
@@ -64,7 +64,6 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 			onCatch(shot, e);
 		}
 	}
-
   
 	m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
         shared_from_this(), &XGraphListConnector::onNewGraph, XListener::FLAG_MAIN_THREAD_CALL);
@@ -126,16 +125,17 @@ XGraphListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, graph->getLabel().c_str());
 
+	Snapshot shot_entries( *m_graphlist->entries());
 	struct tcons con;
 	con.node = e.caught;
 	QComboBox *cmbX = new QComboBox(m_pItem);
-	con.conx = xqcon_create<XQComboBoxConnector>(graph->axisX(), cmbX, Snapshot( *graph));
+	con.conx = xqcon_create<XQComboBoxConnector>(graph->axisX(), cmbX, shot_entries);
 	m_pItem->setCellWidget(i, 1, cmbX);
 	QComboBox *cmbY1 = new QComboBox(m_pItem);
-	con.cony1 = xqcon_create<XQComboBoxConnector>(graph->axisY1(), cmbY1, Snapshot( *graph));
+	con.cony1 = xqcon_create<XQComboBoxConnector>(graph->axisY1(), cmbY1, shot_entries);
 	m_pItem->setCellWidget(i, 2, cmbY1);
 	QComboBox *cmbZ = new QComboBox(m_pItem);
-	con.conz = xqcon_create<XQComboBoxConnector>(graph->axisZ(), cmbZ, Snapshot( *graph));
+	con.conz = xqcon_create<XQComboBoxConnector>(graph->axisZ(), cmbZ, shot_entries);
 	m_pItem->setCellWidget(i, 3, cmbZ);
 
 	con.widget = m_pItem->cellWidget(i, 1);

@@ -35,7 +35,8 @@ struct _ListenerRef : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 		XListener::FLAGS flags) :
 		_XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-		(m_obj.*m_func)(x.shot, x.arg);
+		if( !(this->m_flags & XListener::FLAG_MASKED))
+			(m_obj.*m_func)(x.shot, x.arg);
 	}
 private:
 	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
@@ -48,8 +49,9 @@ struct _ListenerWeak : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 		 XListener::FLAGS flags) :
 		 _XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-		if(shared_ptr<tClass> p = m_obj.lock() )
-			(p.get()->*m_func)(x.shot, x.arg);
+		if( !(this->m_flags & XListener::FLAG_MASKED))
+			if(shared_ptr<tClass> p = m_obj.lock() )
+				(p.get()->*m_func)(x.shot, x.arg);
 	}
 private:
 	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
@@ -214,7 +216,7 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<_Listener> &lx) {
 		m_listeners ? (new ListenerList(*m_listeners)) : (new ListenerList));
 	// clean-up dead listeners.
 	for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
-		if(!it->lock())
+		if( !it->lock())
 			it = new_list->erase(it);
 		else
 			++it;
@@ -249,29 +251,27 @@ Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot, const shared_ptr<List
 	_Event event(shot, arg);
 	for(ListenerList_const_it it = listeners->begin(); it != listeners->end(); it++) {
 		if(shared_ptr<_Listener> listener = it->lock()) {
-			if((listener->m_flags & XListener::FLAG_MASKED) == 0) {
-				if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
-					try {
-						( *listener)(event);
-					}
-					catch (XKameError &e) {
-						e.print();
-					}
-					catch (std::bad_alloc &) {
-						gErrPrint("Memory Allocation Failed!");
+			if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
+				try {
+					( *listener)(event);
+				}
+				catch (XKameError &e) {
+					e.print();
+				}
+				catch (std::bad_alloc &) {
+					gErrPrint("Memory Allocation Failed!");
+				}
+			}
+			else {
+				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+					atomic_scoped_ptr<_Event> newevent(new _Event(event) );
+					newevent.swap(listener->arg);
+					if( !newevent.get()) {
+						registerTransactionList(new EventWrapperAvoidDup(listener));
 					}
 				}
 				else {
-					if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-						atomic_scoped_ptr<_Event> newevent(new _Event(event) );
-						newevent.swap(listener->arg);
-						if( !newevent.get()) {
-							registerTransactionList(new EventWrapperAvoidDup(listener));
-						}
-					}
-					else {
-						registerTransactionList(new EventWrapperAllowDup(listener, event));
-					}
+					registerTransactionList(new EventWrapperAllowDup(listener, event));
 				}
 			}
 		}

@@ -143,6 +143,7 @@ public:
 	virtual ~XGraphList() {}
 
 	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
+	const shared_ptr<XScalarEntryList> &entries() const {return m_entries;}
 private:
 	const shared_ptr<XScalarEntryList> m_entries;
 };

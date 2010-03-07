@@ -509,6 +509,7 @@ public:
 		if(m)
 			m_messages.push_back(shared_ptr<_Message<XN> >(m));
 	}
+	//! \todo unmark(listener)
 private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.

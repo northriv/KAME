@@ -458,16 +458,18 @@ XListQConnector::~XListQConnector() {
 }
 void
 XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
-    unsigned int src = fromIndex;
-    unsigned int dst = toIndex;
-    
-    Snapshot shot(*m_list);
-    if(! shot.size() || src > shot.size() || (dst > shot.size())) {
-        throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
+	m_lsnMove->mask();
+    for(Transaction tr( *m_list);; ++tr) {
+        unsigned int src = fromIndex;
+        unsigned int dst = toIndex;
+		if( !tr.size() || src > tr.size() || (dst > tr.size())) {
+			throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
+		}
+		m_list->swap(tr, tr.list()->at(src), tr.list()->at(dst));
+		if(tr.commit())
+			break;
     }
-    m_lsnMove->mask();
-    m_list->move(src, dst);
-    m_lsnMove->unmask();
+	m_lsnMove->unmask();
 }
 void
 XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
