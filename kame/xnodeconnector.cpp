@@ -158,12 +158,13 @@ XQButtonConnector::onTouch(const shared_ptr<XNode> &) {
 
 XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item)
 	: XQConnector(node, item) {
-    m_lsnBeforeValueChanged = node->beforeValueChanged().connectWeak(
-        shared_from_this(), &XValueQConnector::beforeValueChanged,
-        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-    m_lsnValueChanged = node->onValueChanged().connectWeak(
-        shared_from_this(), &XValueQConnector::onValueChanged,
-        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+	for(Transaction tr( *node);; ++tr) {
+		m_lsnValueChanged = tr[ *node].onValueChanged().connectWeakly(
+			shared_from_this(), &XValueQConnector::onValueChanged,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+		if(tr.commit())
+			break;
+	}
 }
 XValueQConnector::~XValueQConnector() {
 }
@@ -182,7 +183,7 @@ XQLineEditConnector::XQLineEditConnector(
 		connect(item, SIGNAL( textChanged( const QString &) ),
 				this, SLOT( onTextChanged2(const QString &) ) );
     }
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XQLineEditConnector::onTextChanged(const QString &text) {
@@ -231,9 +232,9 @@ XQLineEditConnector::onExit() {
 	}
 }
 void
-XQLineEditConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+XQLineEditConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
-	m_pItem->setText(node->to_str());
+	m_pItem->setText(shot[ *node].to_str());
 	m_pItem->blockSignals(false);
 }
   
@@ -243,10 +244,9 @@ XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
 	  m_iNode(node),
 	  m_uINode(),
 	  m_pItem(item),
-	  m_pSlider(slider)
-{
+	  m_pSlider(slider) {
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
 	QSpinBox *item, QSlider *slider)
@@ -254,15 +254,14 @@ XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
 	  m_iNode(),
 	  m_uINode(node),
 	  m_pItem(item),
-	  m_pSlider(slider)
-{
+	  m_pSlider(slider) {
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
     if(slider) {
         connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
         slider->setRange(item->minimum(), item->maximum());
         slider->setSingleStep(item->singleStep());
     }
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XQSpinBoxConnector::onChange(int val) {
@@ -276,13 +275,13 @@ XQSpinBoxConnector::onChange(int val) {
     m_lsnValueChanged->unmask();
 }
 void
-XQSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
+XQSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
-	m_pItem->setValue(QString(node->to_str()).toInt());
+	m_pItem->setValue(QString(shot[ *node].to_str()).toInt());
 	m_pItem->blockSignals(false);
 	if(m_pSlider) {
 		m_pSlider->blockSignals(true);
-		m_pSlider->setValue(QString(node->to_str()).toInt());
+		m_pSlider->setValue(QString(shot[ *node].to_str()).toInt());
 		m_pSlider->blockSignals(false);
 	}
 }
@@ -290,10 +289,9 @@ XQSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
 XKDoubleNumInputConnector::XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, KDoubleNumInput *item)
 	: XValueQConnector(node, item),
 	  m_node(node),
-	  m_pItem(item)
-{
+	  m_pItem(item) {
     connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XKDoubleNumInputConnector::onChange(double val) {
@@ -302,20 +300,18 @@ XKDoubleNumInputConnector::onChange(double val) {
     m_lsnValueChanged->unmask();
 }
 void
-XKDoubleNumInputConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XKDoubleNumInputConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
-	m_pItem->setValue((double) *m_node);
+	m_pItem->setValue((double)shot[ *m_node]);
 	m_pItem->blockSignals(false);
 }
-
 
 XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node, QDoubleSpinBox *item)
 	: XValueQConnector(node, item),
 	  m_node(node),
-	  m_pItem(item)
-{
+	  m_pItem(item) {
     connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XQDoubleSpinBoxConnector::onChange(double val) {
@@ -324,9 +320,9 @@ XQDoubleSpinBoxConnector::onChange(double val) {
     m_lsnValueChanged->unmask();
 }
 void
-XQDoubleSpinBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XQDoubleSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
-	m_pItem->setValue((double)*m_node);
+	m_pItem->setValue((double)shot[ *m_node]);
 	m_pItem->blockSignals(false);
 }
       
@@ -334,8 +330,7 @@ XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
 									 KUrlRequester *item, const char *filter, bool saving)
 	: XValueQConnector(node, item),
 	  m_node(node),
-	  m_pItem(item)
-{
+	  m_pItem(item) {
     connect(item, SIGNAL( urlSelected ( const KUrl & ) ),
 			this, SLOT( onSelect( const KUrl & ) ) );
     m_pItem->button()->setAutoDefault(false);
@@ -343,7 +338,7 @@ XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
     m_pItem->setMode( saving ?
 			(KFile::File | KFile::LocalOnly)
 			: (KFile::File | KFile::LocalOnly | KFile::ExistingOnly ));
-//    onValueChanged(node);
+//    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XKURLReqConnector::onSelect( const KUrl &l) {
@@ -356,41 +351,40 @@ XKURLReqConnector::onSelect( const KUrl &l) {
 }
 
 void
-XKURLReqConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
-	m_pItem->setUrl(KUrl(node->to_str()));
+XKURLReqConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+	m_pItem->setUrl(KUrl(shot[ *node].to_str()));
 }
 
 XQLabelConnector::XQLabelConnector(const shared_ptr<XValueNodeBase> &node, QLabel *item)
 	: XValueQConnector(node, item),
-	  m_node(node), m_pItem(item)
-{
-    onValueChanged(node);
+	  m_node(node), m_pItem(item) {
+    onValueChanged(Snapshot( *node), node.get());
 }
 
 void
-XQLabelConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
-	m_pItem->setText(node->to_str());
+XQLabelConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+	m_pItem->setText(shot[ *node].to_str());
 }
 
 XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, Q3TextBrowser *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
-XQTextBrowserConnector::onValueChanged(const shared_ptr<XValueNodeBase> &node) {
-	m_pItem->setText(node->to_str());
+XQTextBrowserConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+	m_pItem->setText(shot[ *node].to_str());
 }
   
 XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 
 void
-XQLCDNumberConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-    QString buf(m_node->to_str());
+XQLCDNumberConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    QString buf(shot[ *node].to_str());
     if((int)buf.length() > m_pItem->numDigits())
         m_pItem->setNumDigits(buf.length());
     m_pItem->display(buf);
@@ -399,19 +393,20 @@ XQLCDNumberConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 XKLedConnector::XKLedConnector(const shared_ptr<XBoolNode> &node, KLed *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 
 void
-XKLedConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-	if(*m_node) m_pItem->on(); else m_pItem->off();
+XKLedConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+	if(shot[ *m_node])
+		m_pItem->on(); else m_pItem->off();
 }
 
 XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 
 void
@@ -420,8 +415,9 @@ XQToggleButtonConnector::onClick() {
 }
 
 void
-XQToggleButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-	if(((bool)*m_node) ^ m_pItem->isChecked()) m_pItem->toggle();
+XQToggleButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+	if((shot[ *m_node]) ^ m_pItem->isChecked())
+		m_pItem->toggle();
 }
 
 XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item)
@@ -524,9 +520,9 @@ XQComboBoxConnector::findItem(const QString &text) {
 }
 
 void
-XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
-	QString str = m_node->to_str();
+	QString str = shot[ *node].to_str();
 	int idx = -1;
 	int i = 0;
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin();
@@ -559,7 +555,7 @@ XQComboBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(false);
 }
 void
-XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *) {
+XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *node) {
 	m_itemStrings = m_node->itemStrings(shot);
 	m_pItem->clear();
 	bool exist = false;
@@ -573,9 +569,9 @@ XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *) {
             exist = true;
         }
 	}
-	if(!m_node->autoSetAny())
+	if( !m_node->autoSetAny())
 		m_pItem->addItem(i18n("(UNSEL)"));
-	onValueChanged(m_node);
+    onValueChanged(Snapshot( *node), node);
 }
 
 XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
@@ -599,8 +595,8 @@ XQListBoxConnector::onSelect(int idx) {
     }
 }
 void
-XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-    QString str = m_node->to_str();
+XQListBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    QString str = shot[ *node].to_str();
 	m_pItem->blockSignals(true);
 	unsigned int i = 0;
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
@@ -612,48 +608,47 @@ XQListBoxConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	m_pItem->blockSignals(false);
 }
 void
-XQListBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *) {
+XQListBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *node) {
 	m_itemStrings = m_node->itemStrings(shot);
 	m_pItem->clear();
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
 		it != m_itemStrings->end(); it++) {
 		m_pItem->insertItem(it->label);
 	}
-	onValueChanged(m_node);
+    onValueChanged(Snapshot( *node), node);
 }
 
 XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node, KColorButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( changed(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XKColorButtonConnector::onClick(const QColor &newColor) {
 	m_node->value(newColor.rgb());
 }
 void
-XKColorButtonConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-	m_pItem->setColor(QColor((QRgb)(unsigned int)*m_node));
+XKColorButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
+	m_pItem->setColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
 }
   
 XKColorComboConnector::XKColorComboConnector(const shared_ptr<XHexNode> &node, KColorCombo *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( activated(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
-    onValueChanged(node);
+    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XKColorComboConnector::onClick(const QColor &newColor) {
 	m_node->value(newColor.rgb());
 }
 void
-XKColorComboConnector::onValueChanged(const shared_ptr<XValueNodeBase> &) {
-	m_pItem->setColor(QColor((QRgb)(unsigned int)*m_node));
+XKColorComboConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
+	m_pItem->setColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
 }
 
-XStatusPrinter::XStatusPrinter(QMainWindow *window)
-{
+XStatusPrinter::XStatusPrinter(QMainWindow *window) {
     if(!window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
     m_pWindow = (window);
     m_pBar = (window->statusBar());
@@ -667,8 +662,7 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window)
 XStatusPrinter::~XStatusPrinter() {
 }
 shared_ptr<XStatusPrinter>
-XStatusPrinter::create(QMainWindow *window)
-{
+XStatusPrinter::create(QMainWindow *window) {
     new XStatusPrinter(window);
     shared_ptr<XStatusPrinter> ptr = s_statusPrinterCreating.back();
     s_statusPrinterCreating.pop_back();
