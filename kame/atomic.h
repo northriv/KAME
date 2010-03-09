@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -25,8 +25,7 @@ template <typename T, class Enable = void > class atomic;
 
 //! atomic access to POD type capable of CAS.
 template <typename T>
-class atomic_pod_cas
-{
+class atomic_pod_cas {
 public:
 	atomic_pod_cas() {}
 	atomic_pod_cas(T t) : m_var(t) {}
@@ -50,8 +49,7 @@ protected:
 
 //! atomic access to POD type capable of CAS2.
 template <typename T>
-class atomic_pod_cas2
-{
+class atomic_pod_cas2 {
 public:
 	atomic_pod_cas2() {}
 	atomic_pod_cas2(T t) : m_var(t) {}
@@ -110,8 +108,7 @@ protected:
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas2) * 2 == sizeof(T)) && boost::is_pod<T>::value>::type>
-: public atomic_pod_cas2<T>
-{
+: public atomic_pod_cas2<T> {
 public:
 	atomic() {}
 	atomic(T t) : atomic_pod_cas2<T>(t) {}
@@ -123,8 +120,7 @@ template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value &&
 !boost::is_integral<T>::value>::type>
-: public atomic_pod_cas<T>
-{
+: public atomic_pod_cas<T> {
 public:
 	atomic() {}
 	atomic(T t) : atomic_pod_cas<T>(t) {}
@@ -135,42 +131,39 @@ public:
 template <typename T>
 class atomic<T, typename boost::enable_if_c<
 (sizeof(int_cas_max) >= sizeof(T)) && boost::is_integral<T>::value>::type >
-: public atomic_pod_cas<T>
-{
+: public atomic_pod_cas<T> {
 public:
 	atomic() : atomic_pod_cas<T>((T)0) {}
 	atomic(T t) : atomic_pod_cas<T>(t) {}
 	atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
 	~atomic() {}
-	//! Note that the return value is not of atomic.
-	atomic &operator++() {atomicInc(&this->m_var); writeBarrier(); return *this;}
-	//! Note that the return value is not of atomic.
-	atomic &operator--() {atomicDecAndTest(&this->m_var); writeBarrier(); return *this;}
-	//! Note that the return value is not of atomic.
-	atomic &operator+=(T t) {atomicAdd(&this->m_var, t); writeBarrier(); return *this;}
-	//! Note that the return value is not of atomic.
-	atomic &operator-=(T t) {atomicAdd(&this->m_var, -t); writeBarrier(); return *this;}
+	//! Note that the return value is atomically given.
+	atomic &operator++() {atomicInc( &this->m_var); writeBarrier(); return *this;}
+	//! Note that the return value is atomically given.
+	atomic &operator--() {atomicDecAndTest( &this->m_var); writeBarrier(); return *this;}
+	//! Note that the return value is atomically given.
+	atomic &operator+=(T t) {atomicAdd( &this->m_var, t); writeBarrier(); return *this;}
+	//! Note that the return value is atomically given.
+	atomic &operator-=(T t) {atomicAdd( &this->m_var, -t); writeBarrier(); return *this;}
 	bool decAndTest() {
-		bool ret = atomicDecAndTest(&this->m_var);
+		bool ret = atomicDecAndTest( &this->m_var);
 		writeBarrier();
 		return ret;
 	}
 	bool addAndTest(T t) {
-		bool ret = atomicAddAndTest(&this->m_var, t);
+		bool ret = atomicAddAndTest( &this->m_var, t);
 		writeBarrier();
 		return ret;
 	}
 };
 
 //! Atomic access for a copy-able class which does not require transactional writings.
-//! \sa transactional
 template <typename T, class Enable>
-class atomic
-{
+class atomic {
 public:
 	atomic() : m_var(new T) {}
 	atomic(T t) : m_var(new T(t)) {}
-	atomic(const atomic &t) : m_var(t) {}
+	atomic(const atomic &t) : m_var(t.m_var) {}
 	~atomic() {}
 	operator T() const {
 		local_shared_ptr<T> x = m_var;
@@ -180,7 +173,15 @@ public:
 		m_var.reset(new T(t));
 		return *this;
 	}
-
+	bool compareAndSet(const T &oldv, const T &newv) {
+		local_shared_ptr<T> oldx(m_var);
+		if( *oldx != oldv)
+			return false;
+		local_shared_ptr<T> newx(new T(newv));
+		bool ret = m_var.compareAndSet(oldx, newx);
+		if(ret) writeBarrier();
+		return ret;
+	}
 protected:
 	atomic_shared_ptr<T> m_var;
 };

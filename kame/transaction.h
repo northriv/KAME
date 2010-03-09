@@ -136,7 +136,7 @@ private:
 	template <class P>
 	struct PayloadWrapper : public P::Payload {
 		virtual PayloadWrapper *clone(Transaction<XN> &tr, int64_t serial) {
-			PayloadWrapper *p = new PayloadWrapper(*this);
+			PayloadWrapper *p = new PayloadWrapper( *this);
 			p->m_tr = &tr;
 			p->m_serial = serial;
 			return p;
@@ -221,7 +221,7 @@ private:
 		PacketWrapper(const PacketWrapper &);
 	};
 	struct BranchPoint : public atomic_shared_ptr<PacketWrapper> {
-		BranchPoint() : atomic_shared_ptr<PacketWrapper>() {}
+		BranchPoint() : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
 		atomic<uint64_t> m_transaction_started_time;
 		inline void negotiate(uint64_t &started_time);
 	};
@@ -247,7 +247,7 @@ private:
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<BranchPoint> &branchpoint,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		SnapshotMode mode,
-		int serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
+		int64_t serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
 	bool commit(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
@@ -279,16 +279,16 @@ private:
 	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
 	//! \arg tr_serial The serial number associated with the transaction.
 	inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &superpacket,
-		bool copy_branch, int tr_serial, bool set_missing, XN** uppernode);
+		bool copy_branch, int64_t tr_serial, bool set_missing, XN** uppernode);
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
-		bool copy_branch, int tr_serial = 0, bool set_missing = false);
+		bool copy_branch, int64_t tr_serial = 0, bool set_missing = false);
 	const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &superpacket) const;
 	inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<BranchPoint > &branchpoint,
-		local_shared_ptr<Packet> &superpacket, bool copy_branch, int tr_serial, bool set_missing,
+		local_shared_ptr<Packet> &superpacket, bool copy_branch, int64_t tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *upperpacket, int *index);
 	//! finds this node and a corresponding packet in the (un)bundled \a packet.
 	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &superpacket,
-		bool copy_branch, int tr_serial, bool set_missing,
+		bool copy_branch, int64_t tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *upperpacket, int *index) const;
 	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
 		const local_shared_ptr<Packet> &packet);
@@ -362,7 +362,7 @@ public:
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		node.snapshot(*this, multi_nodal, ms);
+		node.snapshot( *this, multi_nodal, ms);
 	}
 	virtual ~Snapshot() {}
 
@@ -396,7 +396,7 @@ public:
 	}
 
 	template <typename T, typename tArgRef>
-	void talk(T &talker, tArgRef arg) const { talker.talk(*this, arg); }
+	void talk(T &talker, tArgRef arg) const { talker.talk( *this, arg); }
 protected:
 	friend class Node<XN>;
 	//! The snapshot.
@@ -408,7 +408,7 @@ protected:
 template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
 public:
-	explicit SingleSnapshot(const T&node) : Snapshot<XN>(node, false) {}
+	explicit SingleSnapshot(const T &node) : Snapshot<XN>(node, false) {}
 	virtual ~SingleSnapshot() {}
 
 	const typename T::Payload *operator->() const {
@@ -435,7 +435,7 @@ public:
 		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-		node.snapshot(*this, multi_nodal);
+		node.snapshot( *this, multi_nodal);
 		ASSERT(&this->m_packet->node() == &node);
 		ASSERT(&this->m_oldpacket->node() == &node);
 	}
@@ -456,7 +456,7 @@ public:
 	//! Explicitly commits.
 	bool commit() {
 		Node<XN> &node(this->m_packet->node());
-		if( !isModified() || node.commit(*this)) {
+		if( !isModified() || node.commit( *this)) {
 			finalizeCommitment();
 			return true;
 		}
@@ -466,7 +466,7 @@ public:
 	bool commitOrNext() {
 		if(commit())
 			return true;
-		++(*this);
+		++( *this);
 		return false;
 	}
 
@@ -482,20 +482,20 @@ public:
 				node.m_wrapper->m_transaction_started_time = m_started_time;
 		}
 		m_messages.clear();
-		this->m_packet->node().snapshot(*this, m_multi_nodal);
+		this->m_packet->node().snapshot( *this, m_multi_nodal);
 		return *this;
 	}
 
 	template <class T>
 	typename T::Payload &operator[](const shared_ptr<T> &node) {
-		return operator[](*node);
+		return operator[]( *node);
 	}
 	template <class T>
 	typename T::Payload &operator[](T &node) {
 		local_shared_ptr<typename Node<XN>::Payload> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		if(payload->m_serial != this->m_serial) {
-			payload.reset(payload->clone(*this, this->m_serial));
+			payload.reset(payload->clone( *this, this->m_serial));
 			typename T::Payload &p( *static_cast<typename T::Payload *>(payload.get()));
 			return p;
 		}
@@ -527,7 +527,7 @@ private:
 		//Messaging.
 		if(m_messages.size()) {
 			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
-				(*it)->talk(*this);
+				( *it)->talk( *this);
 			}
 		}
 		m_messages.clear();
@@ -543,14 +543,14 @@ private:
 template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
 public:
-	explicit SingleTransaction(T&node) : Transaction<XN>(node, false) {}
+	explicit SingleTransaction(T &node) : Transaction<XN>(node, false) {}
 	virtual ~SingleTransaction() {}
 
 	typename T::Payload &operator*() {
-		return (*this)[static_cast<T&>(this->m_packet->node())];
+		return ( *this)[static_cast<T &>(this->m_packet->node())];
 	}
 	typename T::Payload *operator->() {
-		return &(**this);
+		return &( **this);
 	}
 	template <class X>
 	operator X() const {
