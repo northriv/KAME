@@ -83,7 +83,7 @@ private:
 };
 
 #define trans(node) for(Transaction \
-	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+	__implicit_tr(node, true); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,
@@ -333,10 +333,10 @@ main(int argc, char **argv)
 		for(int i = 0; i < NUM_THREADS; i++) {
 			pthread_create(&threads[i], NULL, start_routine, NULL);
 		}
-		{
-			usleep(1000);
+		for(int i = 0; i < 100; i++) {
+			usleep(10000);
 			gn3->insert(gn4);
-			usleep(1000);
+			usleep(10000);
 			gn3->release(gn4);
 		}
 		for(int i = 0; i < NUM_THREADS; i++) {

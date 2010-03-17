@@ -203,9 +203,9 @@ main(int argc, char **argv)
 				if( !p21->insert(tr1, p2111, false))
 					continue;
 				tr1[*p22] = 1;
-				{ Snapshot shot1( *p211); shot1.list(); }
-				{ Snapshot shot1( *p1); shot1.list(); }
-				{ Snapshot shot1( *p2); shot1.list(); }
+//				{ Snapshot shot1( *p211); shot1.list(); }
+//				{ Snapshot shot1( *p1); shot1.list(); }
+//				{ Snapshot shot1( *p2); shot1.list(); }
 				if(tr1.commit()) break;
 				printf("f");
 			}
