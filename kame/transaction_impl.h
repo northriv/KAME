@@ -981,6 +981,7 @@ template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr) {
 	ASSERT(tr.m_oldpacket != tr.m_packet);
+	ASSERT(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
 
 	m_wrapper->negotiate(tr.m_started_time);
 
@@ -993,6 +994,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 				if( !tr.isMultiNodal() && (wrapper->packet()->payload() == tr.m_oldpacket->payload())) {
 					//Single-node mode, the payload in the snapshot is unchanged.
 					tr.m_packet->subpackets() = wrapper->packet()->subpackets();
+					tr.m_packet->m_missing = wrapper->packet()->missing();
 				}
 				else {
 					STRICT_TEST(s_serial_abandoned = tr.m_serial);

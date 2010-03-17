@@ -492,6 +492,7 @@ public:
 	}
 	template <class T>
 	typename T::Payload &operator[](T &node) {
+		ASSERT(isMultiNodal() || (&node == &this->m_packet->node()));
 		local_shared_ptr<typename Node<XN>::Payload> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		if(payload->m_serial != this->m_serial) {
