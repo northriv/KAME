@@ -626,10 +626,8 @@ Node<XN>::snapshotSupernode(const shared_ptr<BranchPoint > &branchpoint,
 		break;
 	}
 	//Checking if it is up-to-date.
-	if(shot->packet()->missing() || (mode == SNAPSHOT_FOR_UNBUNDLE)) {
-		if( *branchpoint != oldwrapper)
-				return SNAPSHOT_DISTURBED;
-	}
+	if( *branchpoint != oldwrapper)
+			return SNAPSHOT_DISTURBED;
 
 	ASSERT( *upperpacket);
 	int size = ( *upperpacket)->size();
@@ -750,6 +748,7 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, uint64_t &started_t
 				continue;
 			case SNAPSHOT_NODE_MISSING:
 			case SNAPSHOT_VOID_PACKET:
+				//The packet has been released.
 				if( !target->packet()->missing() || !multi_nodal) {
 					snapshot.m_packet = target->packet();
 					return;
