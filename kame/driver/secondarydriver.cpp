@@ -18,8 +18,7 @@ static XThreadLocal<std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryD
 XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XDriver(name, runtime, ref(tr_meas), meas),
-    m_dependency(new XRecordDependency())
-{
+    m_dependency(new XRecordDependency()) {
 }
 XSecondaryDriver::~XSecondaryDriver() {
 	
@@ -28,10 +27,8 @@ XSecondaryDriver::~XSecondaryDriver() {
     	if(it->second != this) {}
 }
 
-
 bool
-XSecondaryDriver::checkDeepDependency(shared_ptr<XRecordDependency> &dep) const
-{
+XSecondaryDriver::checkDeepDependency(shared_ptr<XRecordDependency> &dep) const {
     bool sane = true;
     dep->clear();
     for(tConnection_it it = m_connections_check_deep_dep.begin(); it != m_connections_check_deep_dep.end(); it++) {

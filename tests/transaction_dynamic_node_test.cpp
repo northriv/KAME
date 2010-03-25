@@ -17,7 +17,7 @@
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
-#define TRANSACTIONAL_STRICT_ASSERT
+//#define TRANSACTIONAL_STRICT_ASSERT
 
 class LongNode;
 typedef Transactional::Snapshot<LongNode> Snapshot;
@@ -83,7 +83,7 @@ private:
 };
 
 #define trans(node) for(Transaction \
-	__implicit_tr(node, true); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,

@@ -79,7 +79,7 @@ XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
 void
 XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
 	int n = m_pItem->currentRow();
-	Snapshot shot(*m_graphlist);
+	Snapshot shot( *m_graphlist);
 	if(shot.size()) {
 		if((n >= 0) && (n < (int)shot.list()->size())) {
 			shared_ptr<XNode> node = shot.list()->at(n);
@@ -90,15 +90,14 @@ XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
 void
 XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
 	switch(col) {
-	case 0:
-	{
-		Snapshot shot(*m_graphlist);
-		if(shot.size()) {
-			if((row >= 0) && (row < (int)shot.list()->size())) {
-				dynamic_pointer_cast<XValGraph>(shot.list()->at(row))->showGraph();
+	case 0: {
+			Snapshot shot( *m_graphlist);
+			if(shot.size()) {
+				if((row >= 0) && (row < (int)shot.list()->size())) {
+					dynamic_pointer_cast<XValGraph>(shot.list()->at(row))->showGraph();
+				}
 			}
 		}
-	}
 	break;
 	default:
         break;

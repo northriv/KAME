@@ -17,7 +17,7 @@
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 
-#define TRANSACTIONAL_STRICT_ASSERT
+//#define TRANSACTIONAL_STRICT_ASSERT
 
 class LongNode;
 typedef Transactional::Snapshot<LongNode> Snapshot;
