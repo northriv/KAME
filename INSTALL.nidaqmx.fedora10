@@ -9,7 +9,7 @@ yumdownloader --source kernel
 #Modify the corresponding config file (rpmbuild/SOURCES/config-x86-generic) as,
 CONFIG_4KSTACKS = n
 #Make kernel packages.
-rpmbuild --with baseonly --without debuginfo --target=i686 rpmbuild/SPECS/kernel.spec
+rpmbuild -ba --with baseonly --with firmware --without debuginfo --target=i686 rpmbuild/SPECS/kernel.spec
 #Install the kernel and kernel-devel and reboot.
 
 #If you need to make extra kernel-module packages
