@@ -51,8 +51,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
 		m_numEcho(create<XUIntNode>("NumEcho", false)),
 		m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
-		m_spectrumShow(create<XNode>("SpectrumShow", true)),
-		m_avgClear(create<XNode>("AvgClear", true)),
+		m_spectrumShow(create<XTouchableNode>("SpectrumShow", true)),
+		m_avgClear(create<XTouchableNode>("AvgClear", true)),
 		m_picEnabled(create<XBoolNode>("PICEnabled", false)),
 		m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, ref(tr_meas), meas->drivers(), true)),
 		m_form(new FrmNMRPulse(g_pFrmMain)),
@@ -68,7 +68,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_pnrSolverList->str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
 
 	connect(dso());
-	connect(pulser(), false);
+	connect(pulser());
 
 	meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
 	meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
@@ -156,10 +156,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *waveGraph()].plot(3)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x00, 0xa0, 0xff).rgb();
 		tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.3;
+		tr[ *waveGraph()].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	waveGraph()->clear();
 	for(Transaction tr( *ftWaveGraph());; ++tr) {
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
@@ -199,36 +199,43 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
+		tr[ *ftWaveGraph()].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	ftWaveGraph()->clear();
 
-	m_lsnOnAvgClear = m_avgClear->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
-	m_lsnOnSpectrumShow = m_spectrumShow->onTouch().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onSpectrumShow,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnAvgClear = tr[ *m_avgClear].onTouch().connectWeakly(
+			shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
+		m_lsnOnSpectrumShow = tr[ *m_spectrumShow].onTouch().connectWeakly(
+			shared_from_this(), &XNMRPulseAnalyzer::onSpectrumShow,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
 
-	m_lsnOnCondChanged = fromTrig()->onValueChanged().connectWeak(shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
-	width()->onValueChanged().connect(m_lsnOnCondChanged);
-	phaseAdv()->onValueChanged().connect(m_lsnOnCondChanged);
-	usePNR()->onValueChanged().connect(m_lsnOnCondChanged);
-	pnrSolverList()->onValueChanged().connect(m_lsnOnCondChanged);
-	solverList()->onValueChanged().connect(m_lsnOnCondChanged);
-	bgPos()->onValueChanged().connect(m_lsnOnCondChanged);
-	bgWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-	fftPos()->onValueChanged().connect(m_lsnOnCondChanged);
-	fftLen()->onValueChanged().connect(m_lsnOnCondChanged);
-	//	extraAvg()->onValueChanged().connect(m_lsnOnCondChanged);
-	exAvgIncr()->onValueChanged().connect(m_lsnOnCondChanged);
-	numEcho()->onValueChanged().connect(m_lsnOnCondChanged);
-	echoPeriod()->onValueChanged().connect(m_lsnOnCondChanged);
-	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
-	windowWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-	difFreq()->onValueChanged().connect(m_lsnOnCondChanged);
+		m_lsnOnCondChanged = tr[ *fromTrig()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);
+		tr[ *width()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *phaseAdv()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *usePNR()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *pnrSolverList()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *solverList()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *bgPos()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *bgWidth()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *fftPos()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *fftLen()].onValueChanged().connect(m_lsnOnCondChanged);
+		//	extraAvg()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *exAvgIncr()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *numEcho()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *echoPeriod()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *difFreq()].onValueChanged().connect(m_lsnOnCondChanged);
+		if(tr.commit())
+			break;
+	}
 }
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
-void XNMRPulseAnalyzer::onSpectrumShow(const shared_ptr<XNode> &) {
+void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
 	m_spectrumForm->show();
 	m_spectrumForm->raise();
 }
@@ -237,14 +244,17 @@ void XNMRPulseAnalyzer::showForms() {
 	m_form->raise();
 }
 
-void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave, 
+void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
+	std::vector<std::complex<double> > &wave,
 	int pos, int length, int bgpos, int bglength) {
+	Snapshot &shot(tr);
+
 	std::complex<double> bg = 0;
 	if (bglength) {
 		double normalize = 0.0;
 		for (int i = 0; i < bglength; i++) {
 			double z = 1.0;
-			if(!*usePNR())
+			if( !shot[ *usePNR()])
 				z = FFT::windowFuncHamming( (double)i / bglength - 0.5);
 			bg += z * wave[pos + i + bgpos];
 			normalize += z;
@@ -256,9 +266,9 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		wave[i] -= bg;
 	}
 
-	shared_ptr<SpectrumSolver> solverPNR = m_solverPNR->solver();
-	if (bglength) {
-		if(*usePNR() && solverPNR) {
+	shared_ptr<SpectrumSolver> solverPNR = shot[ *m_solverPNR].solver();
+	if(bglength) {
+		if(shot[ *usePNR()] && solverPNR) {
 			int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
 			std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
 			for(unsigned int i = 0; i < bglength; i++) {
@@ -277,9 +287,11 @@ void XNMRPulseAnalyzer::backgroundSub(std::vector<std::complex<double> > &wave,
 		}
 	}
 }
-void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
+void XNMRPulseAnalyzer::rotNFFT(Transaction &tr, int ftpos, double ph,
 	std::vector<std::complex<double> > &wave,
 	std::vector<std::complex<double> > &ftwave) {
+	Snapshot &shot(tr);
+
 	int length = wave.size();
 	//phase advance
 	std::complex<double> cph(std::polar(1.0, ph));
@@ -290,10 +302,10 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 	int fftlen = ftwave.size();
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
-	FFT::twindowfunc wndfunc = m_solver->windowFunc();
-	double wndwidth = *windowWidth() / 100.0;
+	FFT::twindowfunc wndfunc = m_solver->windowFunc(shot);
+	double wndwidth = shot[ *windowWidth()] / 100.0;
 	try {
-		m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
+		tr[ *this].m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
@@ -301,101 +313,110 @@ void XNMRPulseAnalyzer::rotNFFT(int ftpos, double ph,
 
 	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
 	
-	if(m_solverRecorded->isFT()) {
+	if(shot[ *this].m_solverRecorded->isFT()) {
 		std::vector<double> weight;
 		SpectrumSolver::window(length, -ftpos, wndfunc, wndwidth, weight);
 		double w = 0;
 		for(int i = 0; i < length; i++)
 			w += weight[i] * weight[i];
-		m_ftWavePSDCoeff = w/(double)length;
+		tr[ *this].m_ftWavePSDCoeff = w/(double)length;
 	}
 	else {
-		m_ftWavePSDCoeff = 1.0;
+		tr[ *this].m_ftWavePSDCoeff = 1.0;
 	}
 }
-void XNMRPulseAnalyzer::onAvgClear(const shared_ptr<XNode> &) {
-	m_timeClearRequested = XTime::now();
+void XNMRPulseAnalyzer::onAvgClear(const Snapshot &shot, XTouchableNode *) {
+	trans( *this).m_timeClearRequested = XTime::now();
+
+	Snapshot shot_this( *this);
 	requestAnalysis();
 
-	const shared_ptr<XDSO> _dso = *dso();
+	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
 	if(_dso)
-		_dso->restart()->touch(); //Restart averaging in DSO.
+		trans( *_dso->restart()).touch(); //Restart averaging in DSO.
 }
-void XNMRPulseAnalyzer::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
-	if (node == exAvgIncr())
+void XNMRPulseAnalyzer::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
+	if(node == exAvgIncr().get())
 		extraAvg()->value(0);
-	if ((node == numEcho()) || (node == difFreq()) || (node == exAvgIncr()))
-		onAvgClear(node);
+	if((node == numEcho().get()) || (node == difFreq().get()) || (node == exAvgIncr().get()))
+		onAvgClear(shot, avgClear().get());
 	else
 		requestAnalysis();
 }
-bool XNMRPulseAnalyzer::checkDependency(const shared_ptr<XDriver> &emitter) const {
-	const shared_ptr<XPulser> _pulser = *pulser();
-	if (emitter == _pulser)
+bool XNMRPulseAnalyzer::checkDependency(const Snapshot &shot_this,
+	const Snapshot &shot_emitter, const Snapshot &shot_others,
+	XDriver *emitter) const {
+	const shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
+	if (emitter == _pulser.get())
 		return false;
-	const shared_ptr<XDSO> _dso = *dso();
-	if (!_dso)
+	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
+	if( !_dso)
 		return false;
 	//    //Request for clear.
 	//    if(m_timeClearRequested > _dso->timeAwared()) return true;
 	//    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
 	return true;
 }
-void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
-	throw (XRecordError&) {
-	const shared_ptr<XDSO> _dso = *dso();
+void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
+	const Snapshot &shot_others,
+	XDriver *emitter) throw (XRecordError&) {
+	Snapshot &shot_this(tr);
+	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
 	ASSERT(_dso);
-	ASSERT(_dso->time() );
 
-	if (_dso->numChannelsRecorded() < 1) {
+	const Snapshot &shot_dso((emitter == _dso.get()) ? shot_emitter : shot_others);
+	ASSERT(shot_dso[ *_dso].time() );
+
+	if(shot_dso[ *_dso].numChannels() < 1) {
 		throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
 	}
-	if (_dso->numChannelsRecorded() < 2) {
+	if(shot_dso[ *_dso].numChannels() < 2) {
 		throw XSkippedRecordError(i18n("Two channels needed in DSO"), __FILE__, __LINE__);
 	}
-	if (!*_dso->singleSequence()) {
+	if( !shot_dso[ *_dso->singleSequence()]) {
 		m_statusPrinter->printWarning(i18n("Use sequential average in DSO."));
 	}
+	int dso_len = shot_dso[ *_dso].length();
 
-	double interval = _dso->timeIntervalRecorded();
+	double interval = shot_dso[ *_dso].timeInterval();
 	if (interval <= 0) {
 		throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
-	int pos = lrint(*fromTrig() *1e-3 / interval + _dso->trigPosRecorded());
-	double starttime = (pos - _dso->trigPosRecorded()) * interval;
-	if (pos >= (int)_dso->lengthRecorded()) {
+	int pos = lrint( *fromTrig() *1e-3 / interval + shot_dso[ *_dso].trigPos());
+	double starttime = (pos - shot_dso[ *_dso].trigPos()) * interval;
+	if(pos >= dso_len) {
 		throw XSkippedRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
 	}
-	if (pos < 0) {
+	if(pos < 0) {
 		throw XSkippedRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
 	}
-	int length = lrint(*width() / 1000 / interval);
-	if (pos + length >= (int)_dso->lengthRecorded()) {
+	int length = lrint( shot_this[ *width()] / 1000 / interval);
+	if(pos + length >= dso_len) {
 		throw XSkippedRecordError(i18n("Invalid length."), __FILE__, __LINE__);
 	}
-	if (length <= 0) {
+	if(length <= 0) {
 		throw XSkippedRecordError(i18n("Invalid length."), __FILE__, __LINE__);
 	}
 	
-	int bgpos = lrint((*bgPos() - *fromTrig()) / 1000 / interval);
-	if(pos + bgpos >= (int)_dso->lengthRecorded()) {
+	int bgpos = lrint((shot_this[ *bgPos()] - shot_this[ *fromTrig()]) / 1000 / interval);
+	if(pos + bgpos >= dso_len) {
 		throw XSkippedRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
 	}
 	if(bgpos < 0) {
 		throw XSkippedRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
 	}
-	int bglength = lrint(*bgWidth() / 1000 / interval);
-	if(pos + bgpos + bglength >= (int)_dso->lengthRecorded()) {
+	int bglength = lrint(shot_this[ *bgWidth()] / 1000 / interval);
+	if(pos + bgpos + bglength >= dso_len) {
 		throw XSkippedRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
 	if(bglength < 0) {
 		throw XSkippedRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
 
-	shared_ptr<XPulser> _pulser(*pulser());
+	shared_ptr<XPulser> _pulser(shot_this[ *pulser()]);
 	
-	int echoperiod = lrint(*echoPeriod() / 1000 /interval);
-	int numechoes = *numEcho();
+	int echoperiod = lrint(shot_this[ *echoPeriod()] / 1000 /interval);
+	int numechoes = shot_this[ *numEcho()];
 	numechoes = std::max(1, numechoes);
 	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
 
@@ -407,88 +428,84 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
 	if(numechoes > 1) {
-		if(pos + echoperiod * (numechoes - 1) + length >= (int)_dso->lengthRecorded()) {
+		if(pos + echoperiod * (numechoes - 1) + length >= dso_len) {
 			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 		}
 		if(echoperiod < length) {
 			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 		}
-		if(!bg_after_last_echo) {
+		if( !bg_after_last_echo) {
 			if(bgpos + bglength > echoperiod) {
 				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 			}
-			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= (int)_dso->lengthRecorded()) {
+			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= dso_len) {
 				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 			}
 		}
 		if(_pulser) {
-			if((numechoes > _pulser->echoNumRecorded()) ||
-				(fabs(*echoPeriod()*1e3 / (_pulser->tauRecorded()*2.0) - 1.0) > 1e-4)) {
+			if((numechoes > shot_others[ *_pulser].echoNum()) ||
+				(fabs( *echoPeriod()*1e3 / (shot_others[ *_pulser].tau()*2.0) - 1.0) > 1e-4)) {
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 			}
 		}
 	}
 
-	if((m_startTime != starttime) || (length != m_waveWidth)) {
+	if((shot_this[ *this].m_startTime != starttime) || (length != shot_this[ *this].m_waveWidth)) {
 		double t = length * interval * 1e3;
-		for(Transaction tr( *waveGraph());; ++tr) {
-			tr[ *tr[ *waveGraph()].axisx()->autoScale()] = false;
-			tr[ *tr[ *waveGraph()].axisx()->minValue()] = starttime * 1e3 - t * 0.3;
-			tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
-			if(tr.commit())
-				break;
-		}
+		tr[ *tr[ *waveGraph()].axisx()->autoScale()] = false;
+		tr[ *tr[ *waveGraph()].axisx()->minValue()] = starttime * 1e3 - t * 0.3;
+		tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
 	}
-	m_waveWidth = length;
-	bool skip = (m_timeClearRequested > _dso->timeAwared());
+	tr[ *this].m_waveWidth = length;
+	bool skip = (shot_this[ *this].m_timeClearRequested > shot_dso[ *_dso].timeAwared());
 	bool avgclear = skip;
 
-	if(interval != m_interval) {
+	if(interval != shot_this[ *this].m_interval) {
 		//[sec]
-		m_interval = interval;
+		tr[ *this].m_interval = interval;
 		avgclear = true;
 	}
-	if(m_startTime != starttime) {
+	if(shot_this[ *this].m_startTime != starttime) {
 		//[sec]
-		m_startTime = starttime;
+		tr[ *this].m_startTime = starttime;
 		avgclear = true;
 	}
 	
-	if (length > (int)m_waveSum.size()) {
+	if(length > (int)shot_this[ *this].m_waveSum.size()) {
 		avgclear = true;
 	}
-	m_wave.resize(length);
-	m_waveSum.resize(length);
+	tr[ *this].m_wave.resize(length);
+	tr[ *this].m_waveSum.resize(length);
 	int fftlen = FFT::fitLength(*fftLen());
-	if(fftlen != m_darkPSD.size()) {
+	if(fftlen != shot_this[ *this].m_darkPSD.size()) {
 		avgclear = true;		
 	}
-	m_darkPSD.resize(fftlen);
-	m_darkPSDSum.resize(fftlen);
-	std::fill(m_wave.begin(), m_wave.end(), 0.0);
+	tr[ *this].m_darkPSD.resize(fftlen);
+	tr[ *this].m_darkPSDSum.resize(fftlen);
+	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), 0.0);
 
 	// Phase Inversion Cycling
-	bool picenabled = *m_picEnabled;
+	bool picenabled = shot_this[ *m_picEnabled];
 	bool inverted = false;
-	if (picenabled && (!_pulser || !_pulser->time())) {
+	if (picenabled && ( !_pulser || !shot_others[ *_pulser].time())) {
 		picenabled = false;
 		gErrPrint(getLabel() + ": " + i18n("No active pulser!"));
 	}
 	if (_pulser) {
-		inverted = _pulser->invertPhaseRecorded();
+		inverted = shot_others[ *_pulser].invertPhase();
 	}
 
-	int avgnum = std::max((unsigned int)*extraAvg(), 1u) * (picenabled ? 2 : 1);
+	int avgnum = std::max((unsigned int)shot_this[ *extraAvg()], 1u) * (picenabled ? 2 : 1);
 	
-	if (!*exAvgIncr() && (avgnum <= m_avcount)) {
+	if( !shot_this[ *exAvgIncr()] && (avgnum <= shot_this[ *this].m_avcount)) {
 		avgclear = true;
 	}
-	if (avgclear) {
-		std::fill(m_waveSum.begin(), m_waveSum.end(), 0.0);
-		std::fill(m_darkPSDSum.begin(), m_darkPSDSum.end(), 0.0);
-		m_avcount = 0;
-		if(*exAvgIncr()) {
-			extraAvg()->value(0);
+	if(avgclear) {
+		std::fill(tr[ *this].m_waveSum.begin(), tr[ *this].m_waveSum.end(), 0.0);
+		std::fill(tr[ *this].m_darkPSDSum.begin(), tr[ *this].m_darkPSDSum.end(), 0.0);
+		tr[ *this].m_avcount = 0;
+		if(shot_this[ *exAvgIncr()]) {
+			tr[ *extraAvg()] = 0;
 		}
 	}
 
@@ -496,45 +513,49 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	m_dsoWave.resize(_dso->lengthRecorded());
+	tr[ *this].m_dsoWave.resize(dso_len);
+	std::complex<double> *dsowave( &tr[ *this].m_dsoWave[0]);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
-		ASSERT( _dso->numChannelsRecorded() );
-		rawwavecos = _dso->waveRecorded(0);
-		rawwavesin = _dso->waveRecorded(1);
-		for(unsigned int i = 0; i < _dso->lengthRecorded(); i++) {
-			m_dsoWave[i] = std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
+		ASSERT(shot_dso[ *_dso].numChannels() );
+		rawwavecos = shot_dso[ *_dso].wave(0);
+		rawwavesin = shot_dso[ *_dso].wave(1);
+		for(unsigned int i = 0; i < dso_len; i++) {
+			dsowave[i] = std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
 		}
 	}
-	m_dsoWaveStartPos = pos;
+	tr[ *this].m_dsoWaveStartPos = pos;
 
 	//background subtraction or dynamic noise reduction
 	if(bg_after_last_echo)
-		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
+		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
 	for(int i = 1; i < numechoes; i++) {
 		int rpos = pos + i * echoperiod;
 		for(int j = 0;
 		j < (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
 			int k = rpos + j;
-			ASSERT(k < (int)_dso->lengthRecorded());
+			ASSERT(k < dso_len);
 			if(i == 1)
-				m_dsoWave[pos + j] /= (double)numechoes;
-			m_dsoWave[pos + j] += m_dsoWave[k] / (double)numechoes;
+				dsowave[pos + j] /= (double)numechoes;
+			dsowave[pos + j] += dsowave[k] / (double)numechoes;
 		}
 	}
 	//background subtraction or dynamic noise reduction
-	if(!bg_after_last_echo)
-		backgroundSub(m_dsoWave, pos, length, bgpos, bglength);
+	if( !bg_after_last_echo)
+		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
 
+	std::complex<double> *wavesum( &tr[ *this].m_waveSum[0]);
+	double *darkpsdsum( &tr[ *this].m_darkPSDSum[0]);
 	//Incremental/Sequential average.
-	if((emitter == _dso) || (!m_avcount)) {	
+	if((emitter == _dso.get()) || ( !shot_this[ *this].m_avcount)) {
 		for(int i = 0; i < length; i++) {
-			m_waveSum[i] += m_dsoWave[pos + i];
+			wavesum[i] += dsowave[pos + i];
 		}
 		{
 			//Estimate power spectral density of dark side.
-			if(!m_ftDark || (m_ftDark->length() != m_darkPSD.size())) {
-				m_ftDark.reset(new FFT(-1, *fftLen()));
+			if( !shot_this[ *this].m_ftDark ||
+				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
+				tr[ *this].m_ftDark.reset(new FFT(-1, *fftLen()));
 			}
 			std::vector<std::complex<double> > darkin(fftlen, 0.0), darkout(fftlen);
 			int bginplen = std::min(bglength, fftlen);
@@ -542,117 +563,146 @@ void XNMRPulseAnalyzer::analyze(const shared_ptr<XDriver> &emitter)
 			//Twist background not to be affected by the dc subtraction.
 			for(int i = 0; i < bginplen; i++) {
 				double tw = sin(2.0*M_PI*i/(double)bginplen);
-				darkin[i] = m_dsoWave[pos + i + bgpos] * tw;
+				darkin[i] = dsowave[pos + i + bgpos] * tw;
 				normalize += tw * tw;
 			}
 			normalize = 1.0 / normalize * interval;
-			m_ftDark->exec(darkin, darkout);
+			tr[ *this].m_ftDark->exec(darkin, darkout);
 			//Convolution for the rectangular window.
 			for(int i = 0; i < fftlen; i++) {
 				darkin[i] = std::norm(darkout[i]) * normalize;
 			}
-			m_ftDark->exec(darkin, darkout); //FT of PSD.
+			tr[ *this].m_ftDark->exec(darkin, darkout); //FT of PSD.
 			std::vector<std::complex<double> > sigma2(darkout);
 			std::fill(darkin.begin(), darkin.end(), 0.0);
 			double x = sqrt(1.0 / length / fftlen);
 			for(int i = 0; i < length; i++) {
 				darkin[i] = x;
 			}
-			m_ftDark->exec(darkin, darkout); //FT of rect. window.
+			tr[ *this].m_ftDark->exec(darkin, darkout); //FT of rect. window.
 			for(int i = 0; i < fftlen; i++) {
 				darkin[i] = std::norm(darkout[i]);
 			}
-			m_ftDark->exec(darkin, darkout); //FT of norm of (FT of rect. window). 
+			tr[ *this].m_ftDark->exec(darkin, darkout); //FT of norm of (FT of rect. window).
 			for(int i = 0; i < fftlen; i++) {
 				darkin[i] = std::conj(darkout[i] * sigma2[i]);
 			}
-			m_ftDark->exec(darkin, darkout); //Convolution.
+			tr[ *this].m_ftDark->exec(darkin, darkout); //Convolution.
 			normalize = 1.0 / fftlen;
 			for(int i = 0; i < fftlen; i++) {
-				m_darkPSDSum[i] += std::real(darkout[i]) * normalize; //[V^2/Hz]
+				darkpsdsum[i] += std::real(darkout[i]) * normalize; //[V^2/Hz]
 			}
 		}
-		m_avcount++;
-		if(*exAvgIncr()) {
-			extraAvg()->value(m_avcount);
+		tr[ *this].m_avcount++;
+		if( shot_this[ *exAvgIncr()]) {
+			tr[ *extraAvg()] = shot_this[ *this].m_avcount;
 		}
 	}
-	double normalize = 1.0 / m_avcount;
+	std::complex<double> *wave( &tr[ *this].m_wave[0]);
+	double normalize = 1.0 / shot_this[ *this].m_avcount;
 	for(int i = 0; i < length; i++) {
-		m_wave[i] = m_waveSum[i] * normalize;
+		wave[i] = wavesum[i] * normalize;
 	}
 	double darknormalize = normalize * normalize;
 	if(bg_after_last_echo)
 		darknormalize /= (double)numechoes;
+	double *darkpsd( &tr[ *this].m_darkPSD[0]);
 	for(int i = 0; i < fftlen; i++) {
-		m_darkPSD[i] = m_darkPSDSum[i] * darknormalize;
+		darkpsd[i] = darkpsdsum[i] * darknormalize;
 	}
-	int ftpos = lrint(*fftPos() * 1e-3 / interval + _dso->trigPosRecorded() - pos);
+	int ftpos = lrint( *fftPos() * 1e-3 / interval + shot_dso[ *_dso].trigPos() - pos);
 
-	if(*difFreq() != 0.0) {
+	if(shot_this[ *difFreq()] != 0.0) {
 		//Digital IF.
-		double omega = -2.0 * M_PI * *difFreq() * 1e3 * interval;
+		double omega = -2.0 * M_PI * shot_this[ *difFreq()] * 1e3 * interval;
 		for(int i = 0; i < length; i++) {
-			m_wave[i] *= std::polar(1.0, omega * (i - ftpos));
+			wave[i] *= std::polar(1.0, omega * (i - ftpos));
 		}
 	}
 
 	//	if((windowfunc != &windowFuncRect) && (abs(ftpos - length/2) > length*0.1))
 	//		m_statusPrinter->printWarning(i18n("FFTPos is off-centered for window func."));
-	double ph = *phaseAdv() * M_PI / 180;
-	m_waveFTPos = ftpos;
+	double ph = shot_this[ *phaseAdv()] * M_PI / 180;
+	tr[ *this].m_waveFTPos = ftpos;
 	//[Hz]
-	m_dFreq = 1.0 / fftlen / interval;
-	m_ftWave.resize(fftlen);
-	m_solverRecorded = m_solver->solver();
+	tr[ *this].m_dFreq = 1.0 / fftlen / interval;
+	tr[ *this].m_ftWave.resize(fftlen);
+	tr[ *this].m_solverRecorded = shot_this[ *m_solver].solver();
 
-	rotNFFT(ftpos, ph, m_wave, m_ftWave);	
-	if(m_solverRecorded->peaks().size()) {
-		entryPeakAbs()->value(m_solverRecorded->peaks()[0].first / (double)m_wave.size());
-		double x = m_solverRecorded->peaks()[0].second;
+	rotNFFT(tr, ftpos, ph, tr[ *this].m_wave, tr[ *this].m_ftWave);
+	if(shot_this[ *this].m_solverRecorded->peaks().size()) {
+		entryPeakAbs()->value(tr,
+			shot_this[ *this].m_solverRecorded->peaks()[0].first / (double)shot_this[ *this].m_wave.size());
+		double x = shot_this[ *this].m_solverRecorded->peaks()[0].second;
 		x = (x > fftlen / 2) ? (x - fftlen) : x;
-		entryPeakFreq()->value(0.001 * x * m_dFreq);
+		entryPeakFreq()->value(tr,
+			0.001 * x * shot_this[ *this].m_dFreq);
 	}
 	
-	if(picenabled && (m_avcount % 2 == 1) && (emitter == _dso)) {
-		ASSERT( _pulser->time() );
-		unlockConnection(_pulser);
-		_pulser->invertPhase()->value(!inverted);
-	}
-	if(!*exAvgIncr() && (avgnum != m_avcount))
+	tr[ *this].m_bInvertPulserNext = picenabled && (shot_this[ *this].m_avcount % 2 == 1) && (emitter == _dso.get());
+
+	if( !shot_this[ *exAvgIncr()] && (avgnum != shot_this[ *this].m_avcount))
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
-void XNMRPulseAnalyzer::visualize() {
-	if (!time() || !m_avcount) {
-		ftWaveGraph()->clear();
-		waveGraph()->clear();
-		m_peakPlot->maxCount()->value(0);
+void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
+	if( !shot[ *this].time() || !shot[ *this].m_avcount) {
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *ftWaveGraph()].clearPoints();
+			tr[ *waveGraph()].clearPoints();
+			tr[ *m_peakPlot->maxCount()] = 0;
+			if(tr.commit())
+				break;
+		}
 		return;
 	}
 
-	int ftsize = m_ftWave.size();
+	if(shot[ *this].m_bInvertPulserNext) {
+		shared_ptr<XPulser> _pulser = shot[ *pulser()];
+		if(_pulser) {
+			for(Transaction tr( *_pulser);; ++tr) {
+				if(tr[ *_pulser].time()) {
+					tr[ *_pulser->invertPhase()] = !tr[ *_pulser->invertPhase()];
+				}
+				if(tr.commit())
+					break;
+			}
+		}
+	}
+
+	int ftsize = shot[ *this].m_ftWave.size();
 	for(Transaction tr( *ftWaveGraph());; ++tr) {
 		tr[ *ftWaveGraph()].setRowCount(ftsize);
-		double normalize = 1.0 / m_wave.size();
-		double darknormalize = m_ftWavePSDCoeff / (m_wave.size() * interval());
+		double normalize = 1.0 / shot[ *this].m_wave.size();
+		double darknormalize =
+			shot[ *this].m_ftWavePSDCoeff / (shot[ *this].m_wave.size() * shot[ *this].interval());
+		double dfreq = shot[ *this].m_dFreq;
+		const double *darkpsd( &shot[ *this].m_darkPSD[0]);
+		const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);
+		double *colf( &tr[ *ftWaveGraph()].cols(0)[0]);
+		double *colr( &tr[ *ftWaveGraph()].cols(0)[1]);
+		double *coli( &tr[ *ftWaveGraph()].cols(0)[2]);
+		double *colabs( &tr[ *ftWaveGraph()].cols(0)[3]);
+		double *colarg( &tr[ *ftWaveGraph()].cols(0)[4]);
+		double *coldark( &tr[ *ftWaveGraph()].cols(0)[5]);
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
-			tr[ *ftWaveGraph()].cols(0)[i] = 0.001 * (i - ftsize/2) * m_dFreq;
-			std::complex<double> z = m_ftWave[j] * normalize;
-			tr[ *ftWaveGraph()].cols(1)[i] = std::real(z);
-			tr[ *ftWaveGraph()].cols(2)[i] = std::imag(z);
-			tr[ *ftWaveGraph()].cols(3)[i] = std::abs(z);
-			tr[ *ftWaveGraph()].cols(4)[i] = std::arg(z) / M_PI * 180;
-			tr[ *ftWaveGraph()].cols(5)[i] = sqrt(m_darkPSD[j] * darknormalize);
+			colf[i] = 0.001 * (i - ftsize/2) * dfreq;
+			std::complex<double> z = ftwave[j] * normalize;
+			colr[i] = std::real(z);
+			coli[i] = std::imag(z);
+			colabs[i] = std::abs(z);
+			colarg[i] = std::arg(z) / M_PI * 180;
+			coldark[i] = sqrt(darkpsd[j] * darknormalize);
 		}
-		tr[ *m_peakPlot->maxCount()] = m_solverRecorded->peaks().size();
+		tr[ *m_peakPlot->maxCount()] = shot[ *this].m_solverRecorded->peaks().size();
 		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
-		points.resize(m_solverRecorded->peaks().size());
-		for(int i = 0; i < m_solverRecorded->peaks().size(); i++) {
-			double x = m_solverRecorded->peaks()[i].second;
+		points.resize(shot[ *this].m_solverRecorded->peaks().size());
+		const std::pair<double, double> *peaks( &shot[ *this].m_solverRecorded->peaks()[0]);
+		int size = shot[ *this].m_solverRecorded->peaks().size();
+		for(int i = 0; i < size; i++) {
+			double x = peaks[i].second;
 			x = (x > ftsize / 2) ? (x - ftsize) : x;
-			points[i] = XGraph::ValPoint(0.001 * x * m_dFreq,
-				m_solverRecorded->peaks()[i].first * normalize);
+			points[i] = XGraph::ValPoint(0.001 * x * dfreq, peaks[i].first * normalize);
 		}
 		ftWaveGraph()->drawGraph(tr);
 		if(tr.commit()) {
@@ -660,22 +710,33 @@ void XNMRPulseAnalyzer::visualize() {
 		}
 	}
 	for(Transaction tr( *waveGraph());; ++tr) {
-		int length = m_dsoWave.size();
+		int length = shot[ *this].m_dsoWave.size();
+		const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
+		const std::complex<double> *ifft( &shot[ *this].m_solverRecorded->ifft()[0]);
+		int dsowavestartpos = shot[ *this].m_dsoWaveStartPos;
+		double interval = shot[ *this].m_interval;
+		double starttime = shot[ *this].startTime();
+		int waveftpos = shot[ *this].m_waveFTPos;
 		tr[ *waveGraph()].setRowCount(length);
+		double *colt( &tr[ *waveGraph()].cols(0)[0]);
+		double *colfr( &tr[ *waveGraph()].cols(1)[0]);
+		double *colfi( &tr[ *waveGraph()].cols(2)[0]);
+		double *colrr( &tr[ *waveGraph()].cols(3)[0]);
+		double *colri( &tr[ *waveGraph()].cols(4)[0]);
 		for (int i = 0; i < length; i++) {
-			int j = i - m_dsoWaveStartPos;
-			tr[ *waveGraph()].cols(0)[i] = (startTime() + j * m_interval) * 1e3;
+			int j = i - dsowavestartpos;
+			colt[i] = (starttime + j * interval) * 1e3;
 			if(abs(j) < ftsize / 2) {
-				j = (j - m_waveFTPos + ftsize) % ftsize;
-				tr[ *waveGraph()].cols(1)[i] = std::real(m_solverRecorded->ifft()[j]);
-				tr[ *waveGraph()].cols(2)[i] = std::imag(m_solverRecorded->ifft()[j]);
+				j = (j - waveftpos + ftsize) % ftsize;
+				colfr[i] = std::real(ifft[j]);
+				colfi[i] = std::imag(ifft[j]);
 			}
 			else {
-				tr[ *waveGraph()].cols(1)[i] = 0.0;
-				tr[ *waveGraph()].cols(2)[i] = 0.0;
+				colfr[i] = 0.0;
+				colfi[i] = 0.0;
 			}
-			tr[ *waveGraph()].cols(3)[i] = m_dsoWave[i].real();
-			tr[ *waveGraph()].cols(4)[i] = m_dsoWave[i].imag();
+			colrr[i] = dsowave[i].real();
+			colri[i] = dsowave[i].imag();
 		}
 		waveGraph()->drawGraph(tr);
 		if(tr.commit()) {

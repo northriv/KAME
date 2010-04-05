@@ -28,8 +28,7 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 }
 
 void
-XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &)
-{
+XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 	interface()->query("SENS:FREQ:START?");
 	startFreq()->value(interface()->toDouble() / 1e6);
 	interface()->query("SENS:FREQ:STOP?");
@@ -94,8 +93,8 @@ XAgilentNetworkAnalyzer::startContSweep() {
 	interface()->send("INIT:CONT ON");
 }
 void
-XAgilentNetworkAnalyzer::acquireTrace(unsigned int ch) {
-	XScopedLock<XInterface> lock(*interface());
+XAgilentNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
+	XScopedLock<XInterface> lock( *interface());
 	if(ch >= 2)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	interface()->queryf("SENS%u:STAT?", ch + 1u);
@@ -103,38 +102,38 @@ XAgilentNetworkAnalyzer::acquireTrace(unsigned int ch) {
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);		
 	interface()->queryf("SENS%u:FREQ:START?", ch + 1u);
 	double start = interface()->toDouble() / 1e6;
-	push(start);
+	writer->push(start);
 	interface()->queryf("SENS%u:FREQ:STOP?", ch + 1u);
 	double stop = interface()->toDouble() / 1e6;
-	push(stop);
+	writer->push(stop);
 	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
 	unsigned int len = interface()->toUInt();
-	push(len);
+	writer->push(len);
 	acquireTraceData(ch, len);
-	rawData().insert(rawData().end(), 
+	writer->insert(writer->end(),
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
 void
-XAgilentNetworkAnalyzer::convertRaw() throw (XRecordError&) {
-	double start = pop<double>();
-	double stop = pop<double>();
-	unsigned int samples = pop<unsigned int>();
-	m_startFreqRecorded = start;
-	char c = pop<char>();
+XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	double start = reader.pop<double>();
+	double stop = reader.pop<double>();
+	unsigned int samples = reader.pop<unsigned int>();
+	tr[ *this].m_startFreq = start;
+	char c = reader.pop<char>();
 	if (c != '#') throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	char buf[11];
-	buf[0] = pop<char>();
+	buf[0] = reader.pop<char>();
 	unsigned int len;
 	sscanf(buf, "%1u", &len);
 	for(unsigned int i = 0; i < len; i++) {
-		buf[i] = pop<char>();
+		buf[i] = reader.pop<char>();
 	}
 	buf[len] = '\0';
 	sscanf(buf, "%u", &len);
-	m_freqIntervalRecorded = (stop - start) / (samples - 1);
-	m_traceRecorded.resize(samples);
+	tr[ *this].m_freqInterval = (stop - start) / (samples - 1);
+	tr[ *this]._trace().resize(samples);
 
-	convertRawBlock(len);
+	convertRawBlock(reader, tr, len);
 }
 
 void
@@ -144,14 +143,15 @@ XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->receive(len * sizeof(float) + 12);
 }
 void
-XHP8711::convertRawBlock(unsigned int len) throw (XRecordError&) {
-	unsigned int samples = m_traceRecorded.size();
+XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
+	unsigned int len) throw (XRecordError&) {
+	unsigned int samples = tr[ *this]._trace().size();
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	if(len / sizeof(float) > samples)
 		throw XRecordError(i18n("Select scalar plot."), __FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		m_traceRecorded[i] = pop<float>();
+		tr[ *this]._trace()[i] = reader.pop<float>();
 	}
 }
 
@@ -162,12 +162,13 @@ XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->receive(len * sizeof(float) * 2 + 12);
 }
 void
-XAgilentE5061::convertRawBlock(unsigned int len) throw (XRecordError&) {
-	unsigned int samples = m_traceRecorded.size();
+XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
+	unsigned int len) throw (XRecordError&) {
+	unsigned int samples = tr[ *this]._trace().size();
 	if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		m_traceRecorded[i] = pop<float>();
-		pop<float>();
+		tr[ *this]._trace()[i] = reader.pop<float>();
+		reader.pop<float>();
 	}
 }

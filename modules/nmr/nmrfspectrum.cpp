@@ -31,7 +31,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_burstCount(create<XUIntNode>("BurstCount", false)),
 	  m_active(create<XBoolNode>("Active", true)) {
-	connect(sg1(), true);
+	connect(sg1());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -64,75 +64,79 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 }
 
 void
-XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &)
-{
-    if(*active()) {
+XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &) {
+    if( *active()) {
 		m_burstFreqCycleCount = 0;
 		m_burstPhaseCycleCount = 0;
 		shared_ptr<XSG> _sg1 = *sg1();
-		if(_sg1) _sg1->freq()->value(*centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
-		onClear(shared_from_this());
+		if(_sg1)
+			_sg1->freq()->value( *centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
+		Snapshot shot_this( *this);
+		onClear(shot_this, clear().get());
 	}
 }
 bool
-XNMRFSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const
-{
+XNMRFSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const {
     return false;
 }
 bool
-XNMRFSpectrum::checkDependencyImpl(const shared_ptr<XDriver> &) const {
-    shared_ptr<XSG> _sg1 = *sg1();
-    if(!_sg1) return false;
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-    if(_pulse->timeAwared() < _sg1->time()) return false;
+XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
+	const Snapshot &shot_emitter, const Snapshot &shot_others,
+	XDriver *emitter) const {
+    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
+    if( !_sg1) return false;
+	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
+    if(shot_emitter[ *_pulse].timeAwared() < shot_others[ *_sg1].time()) return false;
     return true;
 }
 double
-XNMRFSpectrum::getMinFreq() const{
-	double cfreq = *centerFreq(); //MHz
-	double freq_span = *freqSpan() * 1e-3; //MHz
+XNMRFSpectrum::getMinFreq(const Snapshot &shot_this) const{
+	double cfreq = shot_this[ *centerFreq()]; //MHz
+	double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
 	return (cfreq - freq_span/2) * 1e6;
 }
 double
-XNMRFSpectrum::getMaxFreq() const{
-	double cfreq = *centerFreq(); //MHz
-	double freq_span = *freqSpan() * 1e-3; //MHz
+XNMRFSpectrum::getMaxFreq(const Snapshot &shot_this) const{
+	double cfreq = shot_this[ *centerFreq()]; //MHz
+	double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
 	return (cfreq + freq_span/2) * 1e6;
 }
 double
-XNMRFSpectrum::getFreqResHint() const {
+XNMRFSpectrum::getFreqResHint(const Snapshot &shot_this) const {
 	return 1e-6;
 }
 double
-XNMRFSpectrum::getCurrentCenterFreq() const {
-    shared_ptr<XSG> _sg1 = *sg1();
+XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
+    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
 	ASSERT( _sg1 );
-	ASSERT( _sg1->time() );
-    double freq = _sg1->freqRecorded() - *sg1FreqOffset(); //MHz
+	ASSERT(shot_others[ *_sg1].time() );
+    double freq = shot_others[ *_sg1].freq() - shot_this[ *sg1FreqOffset()]; //MHz
 	return freq * 1e6;
 }
 void
-XNMRFSpectrum::afterFSSum() {
-	double freq = getCurrentCenterFreq() * 1e-6;
+XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 	//set new freq
-	if(*active()) {
-	    shared_ptr<XSG> _sg1 = *sg1();
-		ASSERT( _sg1 );
-		ASSERT( _sg1->time() );
+	if(shot_this[ *active()]) {
+	    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
+		if( ! _sg1)
+			return;
+		Snapshot shot_sg( *_sg1);
+		if( !shot_sg[ *_sg1].time())
+			return;
 
-	    double cfreq = *centerFreq(); //MHz
-		double freq_span = *freqSpan() * 1e-3; //MHz
-		double freq_step = *freqStep() * 1e-3; //MHz
-		if(cfreq <= freq_span/2) {
+		double freq = getCurrentCenterFreq(shot_this, shot_sg) * 1e-6;
+
+	    double cfreq = shot_this[ *centerFreq()]; //MHz
+		double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
+		double freq_step = shot_this[ *freqStep()] * 1e-3; //MHz
+		if(cfreq <= freq_span / 2) {
 			throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
 		}
-		if(freq_span <= freq_step*2) {
+		if(freq_span <= freq_step * 2) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
-		if(_sg1) unlockConnection(_sg1);
-		
-		int burstcnt = *burstCount();
+		int burstcnt = shot_this[ *burstCount()];
 		double newf = freq; //MHz
 		m_burstFreqCycleCount++;
 		if(burstcnt) {
@@ -143,22 +147,23 @@ XNMRFSpectrum::afterFSSum() {
 				m_burstPhaseCycleCount++;
 			}
 		}
-		if(!burstcnt || (m_burstPhaseCycleCount >= 4)) {
+		if( !burstcnt || (m_burstPhaseCycleCount >= 4)) {
 			m_burstPhaseCycleCount = 0;
 			newf += freq_step;
 		}
 		
-		if(_sg1) _sg1->freq()->value(newf + *sg1FreqOffset());
-		if(newf >= getMaxFreq() * 1e-6 - freq_step)
-			active()->value(false);
+		if(_sg1)
+			_sg1->freq()->value(newf + shot_this[ *sg1FreqOffset()]);
+		if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
+			trans( *active()) = false;
 	}	
 }
 
 void
-XNMRFSpectrum::getValues(std::vector<double> &values) const {
-	values.resize(wave().size());
-	for(unsigned int i = 0; i < wave().size(); i++) {
-		double freq = minRecorded() + i*resRecorded();
+XNMRFSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
+	values.resize(shot_this[ *this].wave().size());
+	for(unsigned int i = 0; i < shot_this[ *this].wave().size(); i++) {
+		double freq = shot_this[ *this].min() + i * shot_this[ *this].res();
 		values[i] = freq * 1e-6;
 	}
 }

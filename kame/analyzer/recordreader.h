@@ -26,10 +26,10 @@ public:
 	const shared_ptr<XComboNode> &speed() const {return m_speed;}
 	const shared_ptr<XBoolNode> &fastForward() const {return m_fastForward;}
 	const shared_ptr<XBoolNode> &rewind() const {return m_rewind;}
-	const shared_ptr<XNode> &stop() const {return m_stop;}
-	const shared_ptr<XNode> &first() const {return m_first;}
-	const shared_ptr<XNode> &next() const {return m_next;}
-	const shared_ptr<XNode> &back() const {return m_back;}
+	const shared_ptr<XTouchableNode> &stop() const {return m_stop;}
+	const shared_ptr<XTouchableNode> &first() const {return m_first;}
+	const shared_ptr<XTouchableNode> &next() const {return m_next;}
+	const shared_ptr<XTouchableNode> &back() const {return m_back;}
 	const shared_ptr<XStringNode> &posString() const {return m_posString;}
 private:
 	struct XRecordError : public XKameError {
@@ -54,14 +54,14 @@ private:
 	const shared_ptr<XComboNode> m_speed;
 	const shared_ptr<XBoolNode> m_fastForward;
 	const shared_ptr<XBoolNode> m_rewind;
-	const shared_ptr<XNode> m_stop;
-	const shared_ptr<XNode> m_first, m_next, m_back;
+	const shared_ptr<XTouchableNode> m_stop;
+	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_posString;
 	void onPlayCondChanged(const shared_ptr<XValueNodeBase> &);
-	void onStop(const shared_ptr<XNode> &);
-	void onFirst(const shared_ptr<XNode> &);
-	void onNext(const shared_ptr<XNode> &);
-	void onBack(const shared_ptr<XNode> &);
+	void onStop(const Snapshot &shot, XTouchableNode *);
+	void onFirst(const Snapshot &shot, XTouchableNode *);
+	void onNext(const Snapshot &shot, XTouchableNode *);
+	void onBack(const Snapshot &shot, XTouchableNode *);
   
 	void onOpen(const shared_ptr<XValueNodeBase> &); 
 	shared_ptr<XListener> m_lsnOnOpen;

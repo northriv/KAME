@@ -36,7 +36,7 @@ protected:
 protected slots:
 void clicked ( int row, int col, int button, const QPoint& );
 private:
-	shared_ptr<XNode> m_create, m_release;
+	shared_ptr<XTouchableNode> m_create, m_release;
   
 	struct tcons {
 		struct tlisttext {
@@ -56,9 +56,9 @@ private:
 	shared_ptr<XListener> m_lsnOnCreateTouched, m_lsnOnReleaseTouched;
   
 	const xqcon_ptr m_conCreate, m_conRelease;
-	void onRecord(const shared_ptr<XDriver> &driver);
-	void onCreateTouched(const shared_ptr<XNode> &);
-	void onReleaseTouched(const shared_ptr<XNode> &);
+	void onRecord(const Snapshot &shot, XDriver *driver);
+	void onCreateTouched(const Snapshot &shot, XTouchableNode *);
+	void onReleaseTouched(const Snapshot &shot, XTouchableNode *);
 };
 
 

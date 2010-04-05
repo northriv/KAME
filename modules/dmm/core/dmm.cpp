@@ -45,8 +45,7 @@ XDMM::showForms() {
 }
 
 void
-XDMM::start()
-{
+XDMM::start() {
     m_thread.reset(new XThread<XDMM>(shared_from_this(), &XDMM::execute));
     m_thread->resume();
 
@@ -54,35 +53,25 @@ XDMM::start()
     m_waitInms->setUIEnabled(true);
 }
 void
-XDMM::stop()
-{
+XDMM::stop() {
     m_function->setUIEnabled(false);
     m_waitInms->setUIEnabled(false);
 
     if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
 }
 
 void
-XDMM::analyzeRaw() throw (XRecordError&)
-{
-    double x;
-    x = pop<double>();
-    m_value = x;
-    m_entry->value(x);
+XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	double x = reader.pop<double>();
+	tr[ *this]._write(x);
+	m_entry->value(tr, x);
 }
 void
-XDMM::visualize()
-{
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XDMM::visualize(const Snapshot &shot) {
 }
 
-//! called when m_function is changed
 void
-XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node)
-{
+XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node) {
     try {
         changeFunction();
     }
@@ -92,8 +81,7 @@ XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node)
 }
 
 void *
-XDMM::execute(const atomic<bool> &terminated)
-{
+XDMM::execute(const atomic<bool> &terminated) {
     try {
         changeFunction();
     }
@@ -106,11 +94,11 @@ XDMM::execute(const atomic<bool> &terminated)
     m_lsnOnFunctionChanged = 
         function()->onValueChanged().connectWeak(
 			shared_from_this(), &XDMM::onFunctionChanged);    
-	while(!terminated)
-	{
-		msecsleep(*waitInms());
+	while( !terminated) {
+		msecsleep( *waitInms());
 		if(function()->to_str().empty()) continue;
       
+		shared_ptr<RawData> writer(new RawData);
 		double x;
 		XTime time_awared = XTime::now();
 		// try/catch exception of communication errors
@@ -121,9 +109,8 @@ XDMM::execute(const atomic<bool> &terminated)
 			e.print(getLabel() + " " + i18n("DMM Read Error"));
 			continue;
 		}
-		clearRaw();
-		push(x);
-		finishWritingRaw(time_awared, XTime::now());
+		writer->push(x);
+		finishWritingRaw(writer, time_awared, XTime::now());
 	}
     
     m_lsnOnFunctionChanged.reset();

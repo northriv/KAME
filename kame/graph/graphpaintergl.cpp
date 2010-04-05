@@ -441,10 +441,10 @@ XQGraphPainter::paintGL () {
 			m_updatedTime = XTime::XTime();
     }
         
-    Snapshot shot(*m_graph);
+    Snapshot shot( *m_graph);
 
     if(m_bIsRedrawNeeded) {
-        drawOffScreenStart(shot);
+        shot = startDrawing();
         
         QColor bgc = (QRgb)*m_graph->backGround();
         glClearColor( bgc.red() /255.0f, bgc.green() /255.0f, bgc.blue() /255.0f, 1.0 );

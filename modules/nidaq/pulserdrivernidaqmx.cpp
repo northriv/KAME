@@ -427,6 +427,7 @@ fastFill(T* p, T x, unsigned int cnt) {
 
 void
 XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
+	Snapshot shot( *this);
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
 		m_suspendDO = true;
@@ -436,8 +437,8 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 		
 		stopPulseGen();
 		
-		unsigned int pausingbitnext = selectedPorts(PORTSEL_PAUSING);
-		m_aswBit = selectedPorts(PORTSEL_ASW);
+		unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
+		m_aswBit = selectedPorts(shot, PORTSEL_ASW);
 	
 		if(CLEAR_TASKS_EVERYTIME ||
 		   (m_taskDO == TASK_UNDEF) ||
@@ -452,7 +453,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 		{
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-			if(!m_pausingBit & (bufsize < 2047uL))
+			if( !m_pausingBit & (bufsize < 2047uL))
 				throw XInterface::XInterfaceError(
 					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
 							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
@@ -912,10 +913,12 @@ XNIDAQmxPulser::genBankAO() {
 }
 
 void
-XNIDAQmxPulser::createNativePatterns() {
+XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
+	const Snapshot &shot(tr);
 	m_genPatternListNext.reset(new std::vector<GenPattern>);
-	uint32_t pat = m_relPatList.back().pattern;
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
+	uint32_t pat = shot[ *this].relPatList().back().pattern;
+	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
+		it != shot[ *this].relPatList().end(); it++) {
 		uint64_t tonext = it->toappear;
 
 		GenPattern genpat(pat, tonext);
@@ -924,8 +927,8 @@ XNIDAQmxPulser::createNativePatterns() {
 	}
 
 	if(haveQAMPorts()) {
-		const double offset[] = {*qamOffset1(), *qamOffset2()};
-		const double level[] = {*qamLevel1(), *qamLevel2()};
+		const double offset[] = { *qamOffset1(), *qamOffset2()};
+		const double level[] = { *qamLevel1(), *qamLevel2()};
 		  			  	
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 			//arrange range info.
@@ -943,7 +946,7 @@ XNIDAQmxPulser::createNativePatterns() {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 				m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
 				for(std::vector<std::complex<double> >::const_iterator it = 
-						qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 					std::complex<double> z(*it * c);
 					m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
 				}
@@ -955,9 +958,9 @@ XNIDAQmxPulser::createNativePatterns() {
 
 
 void
-XNIDAQmxPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
+XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankpattern*/) {
 	if(output) {
-		if(!m_genPatternListNext || m_genPatternListNext->empty() )
+		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen();
 	}

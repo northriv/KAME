@@ -19,6 +19,8 @@
 #include "xitemnode.h"
 #include "xnodeconnector.h"
 #include <complex>
+#include <boost/array.hpp>
+using boost::array;
 #include "fft.h"
 
 class QMainWindow;
@@ -41,15 +43,98 @@ public:
 
 	//! driver specific part below
 
-    
-    //! \sa combMode(), combModeRecorded().
-	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3}; 
-    //! \sa rtMode(), rtModeRecorded().
+    //! \sa combMode(), Payload::combMode().
+	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3};
+    //! \sa rtMode(), Payload::rtMode().
     enum {N_RT_MODE_FIXREP = 0, N_RT_MODE_FIXREST = 1};
-	//! \sa numPhaseCycle(), numPhaseCycleRecorded().
+	//! \sa numPhaseCycle(), Payload::numPhaseCycle().
 	enum {MAX_NUM_PHASE_CYCLE = 16};
 	//! # of digital-pulse ports.
 	enum {NUM_DO_PORTS= 16};
+  	//! for RelPatList patterns. \sa Payload::RelPatList.
+	enum {PAT_DO_MASK = (1 << NUM_DO_PORTS) - 1,
+		  PAT_QAM_PHASE = (1 << NUM_DO_PORTS),
+		  PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
+		  PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
+		  PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
+		  PAT_QAM_PULSE_IDX_P2 = PAT_QAM_PULSE_IDX * 2,
+		  PAT_QAM_PULSE_IDX_PCOMB = PAT_QAM_PULSE_IDX * 3,
+		  PAT_QAM_PULSE_IDX_INDUCE_EMISSION = PAT_QAM_PULSE_IDX * 4,
+		  PAT_QAM_PULSE_IDX_MASK = PAT_QAM_PULSE_IDX * 15,
+		  PAT_QAM_MASK = PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK,
+  	};
+
+	struct Payload : public XPrimaryDriver::Payload {
+	    //! ver 1 records.
+	    int16_t combMode() const {return m_combMode;}
+	    double rtime() const {return m_rtime;}
+	    double tau() const {return m_tau;}
+	    double pw1() const {return m_pw1;}
+	    double pw2() const {return m_pw2;}
+	    double combP1() const {return m_combP1;}
+	    double altSep() const {return m_altSep;}
+	    double combP1Alt() const {return m_combP1Alt;}
+	    double aswSetup() const {return m_aswSetup;}
+	    double aswHold() const {return m_aswHold;}
+	    //! ver 2 records.
+	    double difFreq() const {return m_difFreq;}
+	    double combPW() const {return m_combPW;}
+	    double combPT() const {return m_combPT;}
+	    uint16_t echoNum() const {return m_echoNum;}
+	    uint16_t combNum() const {return m_combNum;}
+	    int16_t rtMode() const {return m_rtMode;}
+	    uint16_t numPhaseCycle() const {return m_numPhaseCycle;}
+	    //! ver 3 records [experimental].
+	    bool invertPhase() const {return m_invertPhase;}
+
+	    //! periodic term of one cycle [ms].
+	    double periodicTerm() const;
+
+		struct RelPat {
+			RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
+				pattern(pat), time(t), toappear(toapp) {}
+			uint32_t pattern;
+			uint64_t time; //!< unit of resolution().
+			uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
+		};
+
+		typedef std::deque<RelPat> RelPatList;
+		RelPatList &relPatList() {return m_relPatList;}
+		const RelPatList &relPatList() const {return m_relPatList;}
+
+	  	const std::vector<std::complex<double> > &qamWaveForm(unsigned int idx) const {
+	  		return m_qamWaveForm[idx];
+	  	}
+	private:
+		friend class XPulser;
+
+	    //! ver 1 records
+	    int16_t m_combMode;
+	    double m_rtime;
+	    double m_tau;
+	    double m_pw1;
+	    double m_pw2;
+	    double m_combP1;
+	    double m_altSep;
+	    double m_combP1Alt;
+	    double m_aswSetup;
+	    double m_aswHold;
+	    //! ver 2 records
+	    double m_difFreq;
+	    double m_combPW;
+	    double m_combPT;
+	    uint16_t m_echoNum;
+	    uint16_t m_combNum;
+	    int16_t m_rtMode;
+	    uint16_t m_numPhaseCycle;
+	    //! ver 3 records
+	    bool m_invertPhase;
+
+	    RelPatList m_relPatList;
+		array<std::vector<std::complex<double> >,
+			XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX>
+			m_qamWaveForm;
+	};
 	
 	const shared_ptr<XBoolNode> &output() const {return m_output;}
  	const shared_ptr<XComboNode> &combMode() const {return m_combMode;} //!< see above definitions in header file
@@ -100,30 +185,8 @@ public:
     	return m_portSel[port];
     }
     
-    //! ver 1 records.
-    int16_t combModeRecorded() const {return m_combModeRecorded;}
-    double rtimeRecorded() const {return m_rtimeRecorded;}
-    double tauRecorded() const {return m_tauRecorded;}
-    double pw1Recorded() const {return m_pw1Recorded;}
-    double pw2Recorded() const {return m_pw2Recorded;}
-    double combP1Recorded() const {return m_combP1Recorded;}
-    double altSepRecorded() const {return m_altSepRecorded;}
-    double combP1AltRecorded() const {return m_combP1AltRecorded;}
-    double aswSetupRecorded() const {return m_aswSetupRecorded;}
-    double aswHoldRecorded() const {return m_aswHoldRecorded;}
-    //! ver 2 records.
-    double difFreqRecorded() const {return m_difFreqRecorded;}
-    double combPWRecorded() const {return m_combPWRecorded;}
-    double combPTRecorded() const {return m_combPTRecorded;}
-    uint16_t echoNumRecorded() const {return m_echoNumRecorded;}
-    uint16_t combNumRecorded() const {return m_combNumRecorded;}
-    int16_t rtModeRecorded() const {return m_rtModeRecorded;}
-    uint16_t numPhaseCycleRecorded() const {return m_numPhaseCycleRecorded;}
-    //! ver 3 records [experimental].
-    bool invertPhaseRecorded() const {return m_invertPhaseRecorded;}
-    
-    //! periodic term of one cycle [ms].
-    double periodicTermRecorded() const;
+    //! time resolution [ms]
+    virtual double resolution() const = 0;
 protected:
 	//! indice for return values of portSel().
 	enum {PORTSEL_UNSEL = -1,
@@ -137,93 +200,34 @@ protected:
 		  /*PORTSEL_PAUSING = 16*/};
 	//! \arg func e.g. PORTSEL_GATE.
 	//! \return bit mask.
-	unsigned int selectedPorts(int func) const;
-  	//! for RelPatList patterns. \sa RelPatList.
-	enum {PAT_DO_MASK = (1 << NUM_DO_PORTS) - 1,
-		  PAT_QAM_PHASE = (1 << NUM_DO_PORTS),
-		  PAT_QAM_PHASE_MASK = PAT_QAM_PHASE * 3,
-		  PAT_QAM_PULSE_IDX = PAT_QAM_PHASE * 4,
-		  PAT_QAM_PULSE_IDX_P1 = PAT_QAM_PULSE_IDX * 1,
-		  PAT_QAM_PULSE_IDX_P2 = PAT_QAM_PULSE_IDX * 2,
-		  PAT_QAM_PULSE_IDX_PCOMB = PAT_QAM_PULSE_IDX * 3,
-		  PAT_QAM_PULSE_IDX_INDUCE_EMISSION = PAT_QAM_PULSE_IDX * 4,
-		  PAT_QAM_PULSE_IDX_MASK = PAT_QAM_PULSE_IDX * 15,
-		  PAT_QAM_MASK = PAT_QAM_PHASE_MASK | PAT_QAM_PULSE_IDX_MASK,
-  	};
+	unsigned int selectedPorts(const Snapshot &shot, int func) const;
  
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
-
-	friend class XQPulserDriverConnector;
-  
-    //! ver 1 records
-    int16_t m_combModeRecorded;
-    double m_rtimeRecorded;
-    double m_tauRecorded;
-    double m_pw1Recorded;
-    double m_pw2Recorded;
-    double m_combP1Recorded;
-    double m_altSepRecorded;
-    double m_combP1AltRecorded;
-    double m_aswSetupRecorded;
-    double m_aswHoldRecorded;
-    //! ver 2 records
-    double m_difFreqRecorded;
-    double m_combPWRecorded;
-    double m_combPTRecorded;
-    uint16_t m_echoNumRecorded;
-    uint16_t m_combNumRecorded;
-    int16_t m_rtModeRecorded;
-    uint16_t m_numPhaseCycleRecorded;        
-    //! ver 3 records
-    bool m_invertPhaseRecorded;
-
-	struct RelPat {
-		RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
-			pattern(pat), time(t), toappear(toapp) {}
-		uint32_t pattern;
-		uint64_t time; //!< unit of resolution().
-		uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
-	};
-
-	typedef std::deque<RelPat> RelPatList;
-	RelPatList m_relPatList;
-	typedef RelPatList::iterator RelPatListIterator;
-
-	//! push parameters.
-	//! use this after clearRaw()
-	void writeRaw();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called inside analyze() or analyzeRaw()
+	//! This might be called even if the record is broken (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	typedef FFT::twindowfunc tpulsefunc;
 	tpulsefunc pulseFunc(const XString &str) const;
 
-    //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output, unsigned int blankpattern) = 0;
-    //! convert RelPatList to native patterns
-    virtual void createNativePatterns() = 0;
-    //! time resolution [ms]
-    virtual double resolution() const = 0;
+    //! Sends patterns to pulser or turn-off
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) = 0;
+    //! Converts RelPatList to native patterns
+    virtual void createNativePatterns(Transaction &tr) = 0;
     virtual double resolutionQAM() const = 0;
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const = 0;
     //! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
-
-  	const std::vector<std::complex<double> > &qamWaveForm(unsigned int idx) const
-	{return m_qamWaveForm[idx];}
-
-  
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -264,7 +268,7 @@ private:
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     
-	const shared_ptr<XNode> m_moreConfigShow;
+	const shared_ptr<XTouchableNode> m_moreConfigShow;
 	xqcon_ptr m_conOutput;
 	xqcon_ptr m_conCombMode, m_conRTMode;
 	xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
@@ -285,7 +289,7 @@ private:
 	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;
-	void onMoreConfigShow(const shared_ptr<XNode> &);
+	void onMoreConfigShow(const Snapshot &shot, XTouchableNode *);
 
 	const qshared_ptr<FrmPulser> m_form;
 	const qshared_ptr<FrmPulserMore> m_formMore;
@@ -295,13 +299,12 @@ private:
 	void onPulseChanged(const shared_ptr<XValueNodeBase> &);
 
 	//! create RelPatList
-	void rawToRelPat() throw (XRecordError&);
+	void rawToRelPat(Transaction &tr) throw (XRecordError&);
 
 	//! prepare waveforms for QAM.
-	void makeWaveForm(unsigned int pnum_minus_1, 
+	void makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 					  double pw, unsigned int to_center,
 					  tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-	std::vector<std::complex<double> > m_qamWaveForm[PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX];
   
 	//! truncate time by resolution().
 	inline double rintTermMilliSec(double msec) const;

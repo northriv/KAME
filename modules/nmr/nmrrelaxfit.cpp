@@ -287,7 +287,7 @@ XRelaxFunc::relax_f (const gsl_vector * x, void *params,
 		a = data->fixed_minfty - c;
 
 	int i = 0;
-	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
+	for(std::deque<XNMRT1::Payload::Pt>::iterator it = data->pts->begin();
 		it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
@@ -308,9 +308,8 @@ XRelaxFunc::relax_df (const gsl_vector * x, void *params,
 	double c = gsl_vector_get (x, 1);
 
 	int i = 0;
-	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
-		it != data->pts->end(); it++)
-    {
+	for(std::deque<XNMRT1::Payload::Pt>::iterator it = data->pts->begin();
+		it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
 		double yi = 0, dydt = 0;
@@ -337,7 +336,7 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 		a = data->fixed_minfty - c;
 
 	int i = 0;
-	for(std::deque<XNMRT1::Pt>::iterator it = data->pts->begin();
+	for(std::deque<XNMRT1::Payload::Pt>::iterator it = data->pts->begin();
 		it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
@@ -354,17 +353,18 @@ XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
 	return GSL_SUCCESS;
 }
 XString
-XNMRT1::iterate(shared_ptr<XRelaxFunc> &func, int itercnt) {
+XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
+	const Snapshot &shot_this(tr);
 	//# of samples.
 	int n = 0;
-	for(std::deque<Pt>::iterator it = m_sumpts.begin(); it != m_sumpts.end(); it++)
-    {
+	for(std::deque<Payload::Pt>::const_iterator it = shot_this[ *this].m_sumpts.begin();
+		it != shot_this[ *this].m_sumpts.end(); it++) {
 		if(it->isigma > 0)  n++;
     }    
 	struct NLLS nlls = {
-		&m_sumpts,
+		&tr[ *this].m_sumpts,
 		func,
-		*mInftyFit(),
+		shot_this[ *mInftyFit()],
 		0.0, //m_params[1] + m_params[2],
 	};
 	//# of indep. params.
@@ -373,50 +373,55 @@ XNMRT1::iterate(shared_ptr<XRelaxFunc> &func, int itercnt) {
 	int status;
 	double norm = 0;
 	XTime firsttime = XTime::now();
-	for(;;)
-    {
-		status = do_nlls(n, p, m_params, m_errors, &norm,
-						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-		if(!status) break;
+	for(;;) {
+		status = do_nlls(n, p, &tr[ *this].m_params[0], &tr[ *this].m_errors[0], &norm,
+			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
+		if( !status) break;
 		if(XTime::now() - firsttime < 0.01) continue;
 		if(XTime::now() - firsttime > 0.05) break;
 		double p1max = *p1Max();
 		double p1min = *p1Min();
-		m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
-		m_params[1] = 1.0*(randMT19937() - 0.5);
-		m_params[2] = 0.0;
-		status = do_nlls(n, p, m_params, m_errors, &norm,
-						 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
+		tr[ *this].m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
+		tr[ *this].m_params[1] = 1.0*(randMT19937() - 0.5);
+		tr[ *this].m_params[2] = 0.0;
+		status = do_nlls(n, p, &tr[ *this].m_params[0], &tr[ *this].m_errors[0], &norm,
+			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
     }
-	m_errors[0] *= norm / sqrt((double)n);
-	m_errors[1] *= norm / sqrt((double)n);
-	m_errors[2] *= norm / sqrt((double)n);
+	tr[ *this].m_errors[0] *= norm / sqrt((double)n);
+	tr[ *this].m_errors[1] *= norm / sqrt((double)n);
+	tr[ *this].m_errors[2] *= norm / sqrt((double)n);
 	
-	if(!nlls.is_minftyfit)
-		m_params[2] = nlls.fixed_minfty - m_params[1];
+	if( !nlls.is_minftyfit)
+		tr[ *this].m_params[2] = nlls.fixed_minfty - tr[ *this].m_params[1];
 
-	double t1 = 0.001 / m_params[0];
-	double t1err = 0.001 / pow(m_params[0], 2.0) * m_errors[0];
+	double t1 = 0.001 / shot_this[ *this].m_params[0];
+	double t1err = 0.001 / pow(shot_this[ *this].m_params[0], 2.0) * shot_this[ *this].m_errors[0];
 	XString buf = "";
-	switch (*mode()) {
+	switch(shot_this[ *mode()]) {
 	case MEAS_ST_E:
 	case MEAS_T1:
 		buf += formatString("1/T1[1/s] = %.5g +- %.3g(%.2f%%)\n",
-								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
+								 1000.0 * shot_this[ *this].m_params[0],
+								 1000.0 * shot_this[ *this].m_errors[0],
+								 fabs(100.0 * shot_this[ *this].m_errors[0]/shot_this[ *this].m_params[0]));
 		buf += formatString("T1[s] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	case MEAS_T2:
 		buf += formatString("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
-								 1000.0 * m_params[0], 1000.0 * m_errors[0], fabs(100.0 * m_errors[0]/m_params[0]));
+								 1000.0 * shot_this[ *this].m_params[0],
+								 1000.0 * shot_this[ *this].m_errors[0],
+								 fabs(100.0 * shot_this[ *this].m_errors[0]/shot_this[ *this].m_params[0]));
 		buf += formatString("T2[ms] = %.5g +- %.3g(%.2f%%)\n",
 								 t1, t1err, fabs(100.0 * t1err/t1));
 		break;
 	}
 	buf += formatString("c[V] = %.5g +- %.3g(%.3f%%)\n",
-							 m_params[1], m_errors[1], fabs(100.0 * m_errors[1]/m_params[1]));
+		shot_this[ *this].m_params[1], shot_this[ *this].m_errors[1],
+		fabs(100.0 * shot_this[ *this].m_errors[1]/shot_this[ *this].m_params[1]));
 	buf += formatString("a[V] = %.5g +- %.3g(%.3f%%)\n",
-							 m_params[2], m_errors[2], fabs(100.0 * m_errors[2]/m_params[2]));
+		shot_this[ *this].m_params[2], shot_this[ *this].m_errors[2],
+		fabs(100.0 * shot_this[ *this].m_errors[2]/shot_this[ *this].m_params[2]));
 	buf += formatString("status = %s\n", gsl_strerror (status));
 	buf += formatString("rms of residuals = %.3g\n", norm / sqrt((double)n));
 	buf += formatString("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));

@@ -29,24 +29,24 @@ template <class FRM>
 XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
 	: XSecondaryDriver(name, runtime, ref(tr_meas), meas),
-	  m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >(
-		  "PulseAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
-	  m_bandWidth(create<XDoubleNode>("BandWidth", false)),
-	  m_bwList(create<XComboNode>("BandWidthList", false, true)),
-	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
-	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
-	  m_clear(create<XNode>("Clear", true)),
-	  m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
-	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
-	  m_windowWidth(create<XDoubleNode>("WindowWidth", false)),
-	  m_form(new FRM(g_pFrmMain)),
-	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
-	  m_spectrum(create<XWaveNGraph>("Spectrum", true,
-									 m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
-    m_form->m_btnClear->setIcon(
+	m_pulse(create<XItemNode<XDriverList, XNMRPulseAnalyzer> >(
+	  "PulseAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
+	m_bandWidth(create<XDoubleNode>("BandWidth", false)),
+	m_bwList(create<XComboNode>("BandWidthList", false, true)),
+	m_autoPhase(create<XBoolNode>("AutoPhase", false)),
+	m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
+	m_clear(create<XTouchableNode>("Clear", true)),
+	m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
+	m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
+	m_windowWidth(create<XDoubleNode>("WindowWidth", false)),
+	m_form(new FRM(g_pFrmMain)),
+	m_statusPrinter(XStatusPrinter::create(m_form.get())),
+	m_spectrum(create<XWaveNGraph>("Spectrum", true,
+		m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
+	m_form->m_btnClear->setIcon(
     	KIconLoader::global()->loadIcon("editdelete",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     
 	connect(pulse());
 
@@ -94,10 +94,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
+		tr[ *m_spectrum].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	m_spectrum->clear();
   
 	bandWidth()->value(50);
 	bwList()->add("50%");
@@ -123,8 +123,12 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc,
 		m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
 
-	m_lsnOnClear = m_clear->onTouch().connectWeak(
-		shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnClear = tr[ *m_clear].onTouch().connectWeakly(
+			shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);
+		if(tr.commit())
+			break;
+	}
 	m_lsnOnCondChanged = bandWidth()->onValueChanged().connectWeak(
 		shared_from_this(), &XNMRSpectrumBase<FRM>::onCondChanged);
 	autoPhase()->onValueChanged().connect(m_lsnOnCondChanged);
@@ -139,57 +143,59 @@ XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::showForms()
-{
+XNMRSpectrumBase<FRM>::showForms() {
 	m_form->show();
 	m_form->raise();
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::onCondChanged(const shared_ptr<XValueNodeBase> &node)
-{
-    if((node == phase()) && *autoPhase()) return;
+XNMRSpectrumBase<FRM>::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
+//    if((node == phase()) && *autoPhase()) return;
 	if((node == bandWidth()) || onCondChangedImpl(node))
-        m_timeClearRequested = XTime::now();
+        trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::onClear(const shared_ptr<XNode> &)
-{
-    m_timeClearRequested = XTime::now();
+XNMRSpectrumBase<FRM>::onClear(const Snapshot &shot, XTouchableNode *) {
+    trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
 template <class FRM>
 bool
-XNMRSpectrumBase<FRM>::checkDependency(const shared_ptr<XDriver> &emitter) const {
-    shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-    if(!_pulse) return false;
-    if(emitter == shared_from_this()) return true;
-    return (emitter == _pulse) && checkDependencyImpl(emitter);
+XNMRSpectrumBase<FRM>::checkDependency(const Snapshot &shot_this,
+	const Snapshot &shot_emitter, const Snapshot &shot_others,
+	XDriver *emitter) const {
+    shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
+    if( !_pulse) return false;
+    if(emitter == this) return true;
+    return (emitter == _pulse.get()) && checkDependencyImpl(shot_this, shot_emitter, shot_others, emitter);
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&)
-{
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
+XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+	XDriver *emitter) throw (XRecordError&) {
+	Snapshot &shot_this(tr);
+
+	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 	ASSERT( _pulse );
+	const Snapshot &shot_pulse((emitter == _pulse.get()) ? shot_emitter : shot_others);
  
-	if(*_pulse->exAvgIncr()) {
+	if(shot_pulse[ *_pulse->exAvgIncr()]) {
 		m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	bool clear = (m_timeClearRequested > _pulse->timeAwared());
+	bool clear = (shot_this[ *this].m_timeClearRequested > shot_pulse[ *_pulse].timeAwared());
   
-	double interval = _pulse->interval();
-	double df = _pulse->dFreq();
+	double interval = shot_pulse[ *_pulse].interval();
+	double df = shot_pulse[ *_pulse].dFreq();
 	
-	double res = getFreqResHint();
+	double res = getFreqResHint(shot_this);
 	res = df * std::max(1L, lrint(res / df - 0.5));
 	
-	double _max = getMaxFreq();
-	double _min = getMinFreq();
+	double _max = getMaxFreq(shot_this);
+	double _min = getMinFreq(shot_this);
 	
 	if(_max <= _min) {
 		throw XSkippedRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
@@ -198,109 +204,131 @@ XNMRSpectrumBase<FRM>::analyze(const shared_ptr<XDriver> &emitter) throw (XRecor
 		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
 	}
 
-	if(fabs(log(resRecorded() / res)) < log(2.0))
-		res = resRecorded();
+	if(fabs(log(shot_this[ *this].res() / res)) < log(2.0))
+		res = shot_this[ *this].res();
 	
-	if((resRecorded() != res) || clear) {
-		m_resRecorded = res;
-		for(int bank = 0; bank < ACCUM_BANKS; bank++) {
-			m_accum[bank].clear();
-			m_accum_weights[bank].clear();
-			m_accum_dark[bank].clear();
+	if((shot_this[ *this].res() != res) || clear) {
+		tr[ *this].m_res = res;
+		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
+			tr[ *this].m_accum[bank].clear();
+			tr[ *this].m_accum_weights[bank].clear();
+			tr[ *this].m_accum_dark[bank].clear();
 		}
 	}
 	else {
-		int diff = lrint(minRecorded() / res) - lrint(_min / res);
-		for(int bank = 0; bank < ACCUM_BANKS; bank++) {
+		int diff = lrint(shot_this[ *this].min() / res) - lrint(_min / res);
+		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 			for(int i = 0; i < diff; i++) {
-				m_accum[bank].push_front(0.0);
-				m_accum_weights[bank].push_front(0);
-				m_accum_dark[bank].push_front(0.0);
+				tr[ *this].m_accum[bank].push_front(0.0);
+				tr[ *this].m_accum_weights[bank].push_front(0);
+				tr[ *this].m_accum_dark[bank].push_front(0.0);
 			}
 			for(int i = 0; i < -diff; i++) {
-				if(!m_accum[bank].empty()) {
-					m_accum[bank].pop_front();
-					m_accum_weights[bank].pop_front();
-					m_accum_dark[bank].pop_front();
+				if( !shot_this[ *this].m_accum[bank].empty()) {
+					tr[ *this].m_accum[bank].pop_front();
+					tr[ *this].m_accum_weights[bank].pop_front();
+					tr[ *this].m_accum_dark[bank].pop_front();
 				}
 			}
 		}
 	}
-	m_minRecorded = _min;
+	tr[ *this].m_min = _min;
 	int length = lrint((_max - _min) / res);
-	for(int bank = 0; bank < ACCUM_BANKS; bank++) {
-		m_accum[bank].resize(length, 0.0);
-		m_accum_weights[bank].resize(length, 0);
-		m_accum_dark[bank].resize(length, 0.0);
+	for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
+		tr[ *this].m_accum[bank].resize(length, 0.0);
+		tr[ *this].m_accum_weights[bank].resize(length, 0);
+		tr[ *this].m_accum_dark[bank].resize(length, 0.0);
 	}
-	m_wave.resize(length);
-	std::fill(m_wave.begin(), m_wave.end(), 0.0);
-	m_weights.resize(length);
-	std::fill(m_weights.begin(), m_weights.end(), 0.0);
-	m_darkPSD.resize(length);
-	std::fill(m_darkPSD.begin(), m_darkPSD.end(), 0.0);
+	tr[ *this].m_wave.resize(length);
+	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), 0.0);
+	tr[ *this].m_weights.resize(length);
+	std::fill(tr[ *this].m_weights.begin(), tr[ *this].m_weights.end(), 0.0);
+	tr[ *this].m_darkPSD.resize(length);
+	std::fill(tr[ *this].m_darkPSD.begin(), tr[ *this].m_darkPSD.end(), 0.0);
 
 	if(clear) {
-		m_spectrum->clear();
-		m_peaks.clear();
-		_pulse->avgClear()->touch();
+		tr[ *m_spectrum].clearPoints();
+		tr[ *this].m_peaks.clear();
+		trans( *_pulse->avgClear()).touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	if(emitter == _pulse) {
-		fssum();
-		afterFSSum();
+	if(emitter == _pulse.get()) {
+		fssum(tr, shot_pulse, shot_others);
+		tr[ *this].m_bRearrangeInstrumNext = true;
 	}
+	else
+		tr[ *this].m_bRearrangeInstrumNext = false;
 	
-	analyzeIFT();
-	if(*autoPhase()) {
+	analyzeIFT(tr, shot_pulse);
+	std::complex<double> *wave( &tr[ *this].m_wave[0]);
+	const double *weights( &shot_this[ *this].weights()[0]);
+	int wave_size = shot_this[ *this].wave().size();
+	if(shot_this[ *autoPhase()]) {
 		std::complex<double> csum(0.0, 0.0);
-		for(unsigned int i = 0; i < wave().size(); i++) {
-			csum += wave()[i] * weights()[i];
-		}
+		for(unsigned int i = 0; i < wave_size; i++)
+			csum += wave[i] * weights[i];
 		double ph = 180.0 / M_PI * atan2(std::imag(csum), std::real(csum));
 		if(fabs(ph) < 180.0)
-			phase()->value(ph);
+			tr[ *phase()] = ph;
+		tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
 	}
-	double ph = *phase() / 180.0 * M_PI;
+	double ph = shot_this[ *phase()] / 180.0 * M_PI;
 	std::complex<double> cph = std::polar(1.0, -ph);
-	for(unsigned int i = 0; i < wave().size(); i++) {
-		m_wave[i] *= cph;
-	}
+	for(unsigned int i = 0; i < wave_size; i++)
+		wave[i] *= cph;
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::visualize() {
-	if(!time()) {
-		m_spectrum->clear();
-		m_peakPlot->maxCount()->value(0);
+XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
+	if( !shot[ *this].time()) {
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *m_spectrum].clearPoints();
+			tr[ *m_peakPlot->maxCount()] = 0;
+			if(tr.commit())
+				break;
+		}
 		return;
 	}
 
-	int length = wave().size();
+	if(shot[ *this].m_bRearrangeInstrumNext)
+		rearrangeInstrum(shot);
+
+	int length = shot[ *this].wave().size();
 	std::vector<double> values;
-	getValues(values);
+	getValues(shot, values);
 	ASSERT(values.size() == length);
 	for(Transaction tr( *m_spectrum);; ++tr) {
 		double th = FFT::windowFuncHamming(0.1);
+		const std::complex<double> *wave( &shot[ *this].wave()[0]);
+		const double *weights( &shot[ *this].weights()[0]);
+		const double *darkpsd( &shot[ *this].darkPSD()[0]);
 		tr[ *m_spectrum].setRowCount(length);
+		double *colx( &tr[ *m_spectrum].cols(0)[0]);
+		double *colr( &tr[ *m_spectrum].cols(0)[1]);
+		double *coli( &tr[ *m_spectrum].cols(0)[2]);
+		double *colw( &tr[ *m_spectrum].cols(0)[3]);
+		double *colabs( &tr[ *m_spectrum].cols(0)[4]);
+		double *coldark( &tr[ *m_spectrum].cols(0)[5]);
 		for(int i = 0; i < length; i++) {
-			tr[ *m_spectrum].cols(0)[i] = values[i];
-			tr[ *m_spectrum].cols(1)[i] = std::real(wave()[i]);
-			tr[ *m_spectrum].cols(2)[i] = std::imag(wave()[i]);
-			tr[ *m_spectrum].cols(3)[i] = (weights()[i] > th) ? weights()[i] : 0.0;
-			tr[ *m_spectrum].cols(4)[i] = std::abs(wave()[i]);
-			tr[ *m_spectrum].cols(5)[i] = sqrt(darkPSD()[i]);
+			colx[i] = values[i];
+			colr[i] = std::real(wave[i]);
+			coli[i] = std::imag(wave[i]);
+			colw[i] = (weights[i] > th) ? weights[i] : 0.0;
+			colabs[i] = std::abs(wave[i]);
+			coldark[i] = sqrt(darkpsd[i]);
 		}
-		tr[ *m_peakPlot->maxCount()] = m_peaks.size();
+		tr[ *m_peakPlot->maxCount()] = shot[ *this].m_peaks.size();
 		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
-		points.resize(m_peaks.size());
-		for(int i = 0; i < m_peaks.size(); i++) {
-			double x = m_peaks[i].second;
+		points.resize(shot[ *this].m_peaks.size());
+		const std::pair<double, double> *peaks( &shot[ *this].m_peaks[0]);
+		int size = shot[ *this].m_peaks.size();
+		for(int i = 0; i < size; i++) {
+			double x = peaks[i].second;
 			int j = lrint(x - 0.5);
 			j = std::min(std::max(0, j), length - 2);
 			double a = values[j] + (values[j + 1] - values[j]) * (x - j);
-			points[i] = XGraph::ValPoint(a, m_peaks[i].first);
+			points[i] = XGraph::ValPoint(a, peaks[i].first);
 		}
 		m_spectrum->drawGraph(tr);
 		if(tr.commit()) {
@@ -311,68 +339,79 @@ XNMRSpectrumBase<FRM>::visualize() {
 
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::fssum() {
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
+XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const Snapshot &shot_others) {
+	Snapshot &shot_this(tr);
+	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 
-	int len = _pulse->ftWidth();
-	double df = _pulse->dFreq();
+	int len = shot_pulse[ *_pulse].ftWidth();
+	double df = shot_pulse[ *_pulse].dFreq();
 	if((len == 0) || (df == 0)) {
 		throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);
 	}
 	//bw *= 1.8; // for Hamming.
 	//	bw *= 3.6; // for FlatTop.
 	//bw *= 2.2; // for Kaiser3.
-	int bw = abs(lrint(*bandWidth() * 1000.0 / df * 2.2));
+	int bw = abs(lrint(shot_this[ *bandWidth()] * 1000.0 / df * 2.2));
 	if(bw >= len) {
 		throw XRecordError(i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);
 	}
-	double cfreq = getCurrentCenterFreq();
+	double cfreq = getCurrentCenterFreq(shot_this, shot_others);
 	if(cfreq == 0) {
 		throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
 	}
 	std::vector<std::complex<double> > ftwavein(len, 0.0), ftwaveout(len);
-	if(!m_preFFT || (m_preFFT->length() != len)) {
-		m_preFFT.reset(new FFT(-1, len));
+	if( !shot_this[ *this].m_preFFT || (shot_this[ *this].m_preFFT->length() != len)) {
+		tr[ *this].m_preFFT.reset(new FFT(-1, len));
 	}
-	int wlen = std::min(len, (int)_pulse->wave().size());
-	int woff = -_pulse->waveFTPos() + len * ((_pulse->waveFTPos() > 0) ? ((int)_pulse->waveFTPos() / len + 1) : 0);
+	int wlen = std::min(len, (int)shot_pulse[ *_pulse].wave().size());
+	int woff = -shot_pulse[ *_pulse].waveFTPos()
+		+ len * ((shot_pulse[ *_pulse].waveFTPos() > 0) ? ((int)shot_pulse[ *_pulse].waveFTPos() / len + 1) : 0);
+	const std::complex<double> *pulse_wave( &shot_pulse[ *_pulse].wave()[0]);
 	for(int i = 0; i < wlen; i++) {
 		int j = (i + woff) % len;
-		ftwavein[j] = _pulse->wave()[i];
+		ftwavein[j] = pulse_wave[i];
 	}
-	m_preFFT->exec(ftwavein, ftwaveout);
+	tr[ *this].m_preFFT->exec(ftwavein, ftwaveout);
 	bw /= 2.0;
-	double normalize = 1.0 / (double)_pulse->wave().size();
-	double darknormalize = resRecorded() / df;
-	for(int bank = 0; bank < ACCUM_BANKS; bank++) {
+	double normalize = 1.0 / (double)shot_pulse[ *_pulse].wave().size();
+	double darknormalize = shot_this[ *this].res() / df;
+	for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
+		double min = shot_this[ *this].min();
+		double res = shot_this[ *this].res();
+		int size = (int)shot_this[ *this].m_accum[bank].size();
+		std::deque<std::complex<double> > &accum_wave(tr[ *this].m_accum[bank]);
+		std::deque<double> &accum_weights(tr[ *this].m_accum_weights[bank]);
+		std::deque<double> &accum_dark(tr[ *this].m_accum_dark[bank]);
+		const double *pulse_dark( &shot_pulse[ *_pulse].darkPSD()[0]);
 		for(int i = -bw / 2; i <= bw / 2; i++) {
 			double freq = i * df;
-			int idx = lrint((cfreq + freq - minRecorded()) / resRecorded());
-			if((idx >= (int)m_accum[bank].size()) || (idx < 0))
+			int idx = lrint((cfreq + freq - min) / res);
+			if((idx >= size) || (idx < 0))
 				continue;
 			double w = FFT::windowFuncKaiser1((double)i / bw);
 			int j = (i + len) % len;
-			m_accum[bank][idx] += ftwaveout[j] * w * normalize;
-			m_accum_weights[bank][idx] += w;
-			m_accum_dark[bank][idx] += _pulse->darkPSD()[j] * w * w * darknormalize;
+			accum_wave[idx] += ftwaveout[j] * w * normalize;
+			accum_weights[idx] += w;
+			accum_dark[idx] += pulse_dark[j] * w * w * darknormalize;
 		}
 		bw *= 2.0;
 	}
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::analyzeIFT() {
-	int bank = *bwList();
-	if((bank < 0) || (bank >= ACCUM_BANKS))
+XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
+	Snapshot &shot_this(tr);
+	int bank = shot_this[ *bwList()];
+	if((bank < 0) || (bank >= Payload::ACCUM_BANKS))
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	double bw_coeff = 0.5*pow(2.0, (double)bank);
 	
 	double th = FFT::windowFuncHamming(0.49);
 	int max_idx = 0;
-	int min_idx = m_accum[bank].size() - 1;
+	int min_idx = shot_this[ *this].m_accum[bank].size() - 1;
 	int taps_max = 0; 
-	for(int i = 0; i < m_accum[bank].size(); i++) {
-		if(m_accum_weights[bank][i] > th) {
+	for(int i = 0; i < shot_this[ *this].m_accum[bank].size(); i++) {
+		if(shot_this[ *this].m_accum_weights[bank][i] > th) {
 			min_idx = std::min(min_idx, i);
 			max_idx = std::max(max_idx, i);
 			taps_max++;
@@ -381,37 +420,41 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 	if(max_idx <= min_idx)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
-	double res = resRecorded();
+	double res = shot_this[ *this].res();
 	int iftlen = max_idx - min_idx + 1;
-	int npad = lrint(6.0 / (res * _pulse->waveWidth() * _pulse->interval()) + 0.5); //# of pads in frequency domain.
+	int npad = lrint(
+		6.0 / (res * shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval()) + 0.5); //# of pads in frequency domain.
 	//Truncation factor for IFFT.
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
-	int tdsize = lrint(_pulse->waveWidth() * _pulse->interval() * res * iftlen);
-	int iftorigin = lrint(_pulse->waveFTPos() * _pulse->interval() * res * iftlen);
-	int bwinv = abs(lrint(1.0/(*bandWidth() * bw_coeff * 1000.0 * _pulse->interval() * res * iftlen)));
+	int tdsize = lrint(shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval() * res * iftlen);
+	int iftorigin = lrint(shot_pulse[ *_pulse].waveFTPos() * shot_pulse[ *_pulse].interval() * res * iftlen);
+	int bwinv = abs(lrint(1.0/(*bandWidth() * bw_coeff * 1000.0 * shot_pulse[ *_pulse].interval() * res * iftlen)));
 	if(abs(iftorigin) > iftlen/2)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	
-	if(!m_ift || (m_ift->length() != iftlen)) {
-		m_ift.reset(new FFT(1, iftlen));
+	if( !shot_this[ *this].m_ift || (shot_this[ *this].m_ift->length() != iftlen)) {
+		tr[ *this].m_ift.reset(new FFT(1, iftlen));
 	}
 	
 	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
 	std::fill(fftwave.begin(), fftwave.end(), 0.0);
+	const std::deque<std::complex<double> > &accum_wave(shot_this[ *this].m_accum[bank]);
+	const std::deque<double> &accum_weights(shot_this[ *this].m_accum_weights[bank]);
+	const std::deque<double> &accum_dark(shot_this[ *this].m_accum_dark[bank]);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
-		if(m_accum_weights[bank][i] > th)
-			fftwave[k] = m_accum[bank][i] / m_accum_weights[bank][i];
+		if(accum_weights[i] > th)
+			fftwave[k] = accum_wave[i] / accum_weights[i];
 	}
-	m_ift->exec(fftwave, iftwave);
+	tr[ *this].m_ift->exec(fftwave, iftwave);
 	
-	shared_ptr<SpectrumSolver> solver = m_solver->solver();
+	shared_ptr<SpectrumSolver> solver = shot_this[ *m_solver].solver();
 	std::vector<std::complex<double> > solverin;
-	FFT::twindowfunc wndfunc = m_solver->windowFunc();
-	double wndwidth = *windowWidth() / 100.0;
+	FFT::twindowfunc wndfunc = m_solver->windowFunc(shot_this);
+	double wndwidth = shot_this[ *windowWidth()] / 100.0;
 	double psdcoeff = 1.0;
 	if(solver->isFT()) {
 		std::vector<double> weight;
@@ -442,23 +485,28 @@ XNMRSpectrumBase<FRM>::analyzeIFT() {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 	}
 
-	psdcoeff /= _pulse->waveWidth() * _pulse->interval();
+	std::deque<std::complex<double> > &wave(tr[ *this].m_wave);
+	std::deque<double> &weights(tr[ *this].m_weights);
+	std::deque<double> &darkpsd(tr[ *this].m_darkPSD);
+	psdcoeff /= shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
-		m_wave[i] = fftwave[k] / (double)iftlen;
-		double w = m_accum_weights[bank][i];
-		m_weights[i] = w;
-		m_darkPSD[i] = m_accum_dark[bank][i] / (w*w) * psdcoeff;
+		wave[i] = fftwave[k] / (double)iftlen;
+		double w = accum_weights[i];
+		weights[i] = w;
+		darkpsd[i] = accum_dark[i] / (w*w) * psdcoeff;
 	}
 	th = FFT::windowFuncHamming(0.1);
-	m_peaks.clear();
+	tr[ *this].m_peaks.clear();
+	int weights_size = shot_this[ *this].weights().size();
+	std::deque<std::pair<double, double> > &peaks(tr[ *this].m_peaks);
 	for(int i = 0; i < solver->peaks().size(); i++) {
 		double k = solver->peaks()[i].second;
 		double j = (k > iftlen/2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
-		if((l >= 0) && (l < weights().size()) && (weights()[l] > th))
-			m_peaks.push_back(std::pair<double, double>(
+		if((l >= 0) && (l < weights_size) && (weights[l] > th))
+			peaks.push_back(std::pair<double, double>(
 				solver->peaks()[i].first / (double)iftlen, j));
 	}
 }

@@ -118,8 +118,8 @@ private:
  //! e.g. compile primitives, or make pixmap.
  void redrawOffScreen();
  
- //! draw plots, axes.
- void drawOffScreenStart(const Snapshot &shot);
+ //! Draws plots, axes.
+ Snapshot startDrawing();
  void drawOffScreenGrids(const Snapshot &shot);
  void drawOffScreenPlanes(const Snapshot &shot);
  void drawOffScreenPoints(const Snapshot &shot);

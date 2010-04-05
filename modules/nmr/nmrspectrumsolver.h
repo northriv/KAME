@@ -24,7 +24,13 @@ public:
 		const shared_ptr<XComboNode> selector, const shared_ptr<XComboNode> windowfunc,
 		const shared_ptr<XDoubleNode> windowlength, bool leastsqureonly = false);
 	~SpectrumSolverWrapper();
-	shared_ptr<SpectrumSolver> solver() {return m_solver;}
+
+	struct Payload : public XNode::Payload {
+		const shared_ptr<SpectrumSolver> &solver() const {return m_solver;}
+	private:
+		friend class SpectrumSolverWrapper;
+		shared_ptr<SpectrumSolver> m_solver;
+	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT[];
@@ -53,12 +59,11 @@ public:
 	static const char WINDOW_FUNC_KAISER_2[];
 	static const char WINDOW_FUNC_KAISER_3[];
 	
-	FFT::twindowfunc windowFunc() const;
+	FFT::twindowfunc windowFunc(const Snapshot &shot) const;
 	void windowFuncs(std::deque<FFT::twindowfunc> &funcs) const;
 private:
 	const shared_ptr<XComboNode> m_selector, m_windowfunc;
 	const shared_ptr<XDoubleNode> m_windowlength;
-	shared_ptr<SpectrumSolver> m_solver;
 	shared_ptr<XListener> m_lsnOnChanged;
 	void onSolverChanged(const shared_ptr<XValueNodeBase> &);
 };

@@ -63,19 +63,19 @@ public:
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! register channel names in your constructor
 	//! \param multiread if true, simultaneous reading of multi channels.

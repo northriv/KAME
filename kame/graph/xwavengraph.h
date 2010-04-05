@@ -43,12 +43,11 @@ public:
 	const shared_ptr<XGraph> &graph() const { return m_graph;}
 	const shared_ptr<XStringNode> &filename() const { return m_filename;}
 
-	//! clear all data points
-	void clear();
-	const shared_ptr<XNode> &dump() const { return m_dump;}
+	const shared_ptr<XTouchableNode> &dump() const { return m_dump;}
 	void drawGraph(Transaction &tr);
 
 	struct Payload : public XNode::Payload {
+		void clearPoints();
 		void clearPlots();
 		void insertPlot(const XString &label, int colx = 0, int coly1 = 1,
 			int coly2 = -1, int colweight = -1, int colz = -1);
@@ -106,13 +105,13 @@ private:
 
 	const shared_ptr<XGraph> m_graph;
 
-	const shared_ptr<XNode> m_dump;
+	const shared_ptr<XTouchableNode> m_dump;
 	const shared_ptr<XStringNode> m_filename;
 
 	shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged,
 		m_lsnOnIconChanged;
 
-	void onDumpTouched(const shared_ptr<XNode> &);
+	void onDumpTouched(const Snapshot &shot, XTouchableNode *);
 	void onFilenameChanged(const shared_ptr<XValueNodeBase> &);
 	void onIconChanged(const Snapshot &shot, bool );
 

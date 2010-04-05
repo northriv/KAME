@@ -32,21 +32,17 @@ XLevelMeter::start() {
 void
 XLevelMeter::stop() {
     if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
 }
 
 void
-XLevelMeter::analyzeRaw() throw (XRecordError&) {
-	for(unsigned int ch = 0; ch < m_entries.size(); ch++) {
-	    m_levelRecorded[ch] = pop<double>();
-	    m_entries[ch]->value(m_levelRecorded[ch]);
+XLevelMeter::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	for(unsigned int ch = 0; ch < tr[ *this].m_levels.size(); ch++) {
+		tr[ *this].m_levels[ch] = reader.pop<double>();
+		m_entries[ch]->value(tr, tr[ *this].m_levels[ch]);
 	}
 }
 void
-XLevelMeter::visualize() {
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XLevelMeter::visualize(const Snapshot &shot) {
 }
 
 void
@@ -61,28 +57,32 @@ XLevelMeter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &me
 	     m_entries.push_back(entry);
 	     entries->insert(tr_meas, entry);
     }
-	m_levelRecorded.resize(m_entries.size());
+  for(Transaction tr( *this);; ++tr) {
+	tr[ *this].m_levels.resize(m_entries.size());
+  	if(tr.commit()) {
+  		break;
+  	}
+  }
 }
-
 
 void *
 XLevelMeter::execute(const atomic<bool> &terminated) {
-    while(!terminated) {
+    while( !terminated) {
 		msecsleep(100);
     	
-		clearRaw();
+		shared_ptr<RawData> writer(new RawData);
 		// try/catch exception of communication errors
 		try {
 			unsigned int num = m_entries.size();
 			for(unsigned int ch = 0; ch < num; ch++)
-				push((double)getLevel(ch));
+				writer->push((double)getLevel(ch));
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
 			continue;
 		}
  
-		finishWritingRaw(XTime::now(), XTime::now());
+		finishWritingRaw(writer, XTime::now(), XTime::now());
 	}
 	afterStop();	
 	return NULL;

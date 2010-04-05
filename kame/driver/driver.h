@@ -36,25 +36,31 @@ public:
 	//! Shows all forms belonging to the driver.
 	virtual void showForms() = 0;
  
-	//! Be called during parsing.
-	XTalker<shared_ptr<XDriver> > &onRecord() {return m_tlkRecord;}
-	//! Locks the analyzed members and entries
-	void readLockRecord() const;
-	void readUnlockRecord() const;
-  
-	//! Recorded time.
-	//! It is a time stamp when a phenomenon occurred and recorded.
-	//! Following analyses have to be based on this time.
-	//! It is undefined if record is invalid.
-	const XTime &time() const {return m_recordTime;}
-	//! A time stamp when an operator (you) can see outputs.
-	//! Manual operations (e.g. pushing a clear button) have to be based on this time.
-	//! It is a time when a phenomenon starts if measurement is going on.
-	//! It is a time when a record was read for a non-real-time analysis.
-	//! It is undefined if record is invalid.
-	const XTime &timeAwared() const {return m_awaredTime;}
-  
-	virtual const shared_ptr<XRecordDependency> dependency() const = 0;
+	struct Payload : public XNode::Payload {
+		//! Recorded time.
+		//! It is a time stamp when a phenomenon occurred and recorded.
+		//! Following analyses have to be based on this time.
+		//! It is undefined if record is invalid.
+		const XTime &time() const {return m_recordTime;}
+		//! A time stamp when an operator (you) can see outputs.
+		//! Manual operations (e.g. pushing a clear button) have to be based on this time.
+		//! It is a time when a phenomenon starts if measurement is going on.
+		//! It is a time when a record was read for a non-real-time analysis.
+		//! It is undefined if record is invalid.
+		const XTime &timeAwared() const {return m_awaredTime;}
+
+		Talker<XDriver*, XDriver*> &onRecord() {return m_tlkOnRecord;}
+		const Talker<XDriver*, XDriver*> &onRecord() const {return m_tlkOnRecord;}
+	private:
+		friend class XDriver;
+
+		//! \sa time()
+		XTime m_recordTime;
+		//! \sa timeAwared()
+		XTime m_awaredTime;
+
+		Talker<XDriver*, XDriver*> m_tlkOnRecord;
+	};
 protected:
 	//! Throwing this exception will cause a reset of record time.
 	//! And, prints error message.
@@ -71,57 +77,16 @@ protected:
 		XBufferUnderflowRecordError(const char *file, int line);
 	};
  
-	//! This is called after analyze() or analyzeRaw()
-	//! The record will be read-locked.
-	//! This might be called even if the record is broken (time() == false).
-	virtual void visualize() = 0;
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot) = 0;
   
-	//! Write-locks a record and read-locks all dependent drivers.
-	//! \return true if locked.
-	bool tryStartRecording();
-	//! m_tlkRecord is invoked after unlocking
+	//! Sets time stamps.
 	//! \sa time(), timeAwared()
-	void finishRecordingNReadLock(const XTime &time_awared, const XTime &time_recorded);
-	//! leaves the existing record.
-	void abortRecording();
-	//! leaves the existing record.
-	void abortRecordingNReadLock();
-	//! Lock this record and dependent drivers
+	void record(Transaction &tr,
+		const XTime &time_awared, const XTime &time_recorded);
 private:
-	XTalker<shared_ptr<XDriver> > m_tlkRecord;
-	//! mutex for record
-	XRecursiveRWLock m_recordLock;
-	//! \sa time()
-	XTime m_recordTime;
-	//! \sa timeAwared()
-	XTime m_awaredTime;
 };
-
-//! When a record depends on other records, multiple delegations may cause a confilct of time stamps. This class can detect it.
-class XRecordDependency {
-public:
-    XRecordDependency();
-    XRecordDependency(const shared_ptr<XRecordDependency> &);
-    //! \return true if conflicted.
-    //! Search for entry which has the same driver and different times.
-    bool merge(const shared_ptr<const XDriver> &driver);
-    void clear();
-    
-    bool isConflict() const {return m_bConflict;}
-private:
-    bool m_bConflict;
-	struct tDependency {
-		tDependency(const shared_ptr<const XDriver> &d, const XTime &time);
-		bool operator<(const tDependency &d) const;
-		shared_ptr<const XDriver> driver;    
-		XTime time;
-	};
-	//! written on recording
-	std::set<tDependency> m_dependency;
-	typedef std::set<tDependency>::iterator tDependency_it;
-
-};
-
 
 class XDriverList : public XCustomTypeListNode<XDriver> {
 public:

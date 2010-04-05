@@ -27,8 +27,8 @@ XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
     const shared_ptr<XRuby> &rbsupport) :
     XQConnector(rbthread, form),
-    m_resume(XNode::createOrphan<XBoolNode>("Resume", true)),
-    m_kill(XNode::createOrphan<XNode>("Kill", true)),
+    m_resume(XNode::createOrphan<XTouchableNode>("Resume", true)),
+    m_kill(XNode::createOrphan<XTouchableNode>("Kill", true)),
     m_pForm(form),
     m_rubyThread(rbthread),
     m_rubySupport(rbsupport),
@@ -52,10 +52,18 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_pForm->m_ptxtDefout->setMaxLogLines(10000);
     m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
     
-    m_lsnOnResumeTouched = m_resume->onTouch().connectWeak(
-        shared_from_this(), &XRubyThreadConnector::onResumeTouched);
-    m_lsnOnKillTouched = m_kill->onTouch().connectWeak(
-        shared_from_this(), &XRubyThreadConnector::onKillTouched);
+    for(Transaction tr( *m_resume);; ++tr) {
+		m_lsnOnResumeTouched = tr[ *m_resume].onTouch().connectWeakly(
+			shared_from_this(), &XRubyThreadConnector::onResumeTouched);
+		if(tr.commit())
+			break;
+    }
+    for(Transaction tr( *m_kill);; ++tr) {
+		m_lsnOnKillTouched = tr[ *m_kill].onTouch().connectWeakly(
+			shared_from_this(), &XRubyThreadConnector::onKillTouched);
+		if(tr.commit())
+			break;
+    }
     m_lsnOnDefout = rbthread->onMessageOut().connectWeak(
         shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
     m_lsnOnStatusChanged = rbthread->status()->onValueChanged().connectWeak(
@@ -66,8 +74,7 @@ XRubyThreadConnector::XRubyThreadConnector(
     
     onStatusChanged(rbthread->status());    
 }
-XRubyThreadConnector::~XRubyThreadConnector()
-{
+XRubyThreadConnector::~XRubyThreadConnector() {
     if(isItemAlive()) {
         m_pForm->m_ptxtDefout->clear();
     }
@@ -82,11 +89,11 @@ XRubyThreadConnector::onStatusChanged(const shared_ptr<XValueNodeBase> &) {
     m_resume->setUIEnabled(alive && !running);
 }
 void
-XRubyThreadConnector::onResumeTouched(const shared_ptr<XNode> &) {
+XRubyThreadConnector::onResumeTouched(const Snapshot &shot, XTouchableNode *node) {
     m_rubyThread->resume();
 }
 void
-XRubyThreadConnector::onKillTouched(const shared_ptr<XNode> &) {
+XRubyThreadConnector::onKillTouched(const Snapshot &shot, XTouchableNode *node) {
     m_rubyThread->kill();
 }
 void

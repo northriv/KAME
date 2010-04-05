@@ -27,26 +27,26 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XFuncSynth() {}
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! driver specific part below
 	const shared_ptr<XBoolNode> &output() const {return m_output;}
-	const shared_ptr<XNode> &trig() const {return m_trig;} //!< trigger to burst
+	const shared_ptr<XTouchableNode> &trig() const {return m_trig;} //!< trigger to burst
 	const shared_ptr<XComboNode> &mode() const {return m_mode;}
 	const shared_ptr<XComboNode> &function() const {return m_function;}
 	const shared_ptr<XDoubleNode> &freq() const {return m_freq;} //!< [Hz]
@@ -55,7 +55,7 @@ protected:
 	const shared_ptr<XDoubleNode> &offset() const {return m_offset;} //!< [V]
 protected:
 	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrigTouched(const shared_ptr<XNode> &) = 0;
+	virtual void onTrigTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void onModeChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
@@ -64,7 +64,7 @@ protected:
 	virtual void onOffsetChanged(const shared_ptr<XValueNodeBase> &) = 0;
 private:
 	const shared_ptr<XBoolNode>  m_output;
-	const shared_ptr<XNode>  m_trig;
+	const shared_ptr<XTouchableNode>  m_trig;
 	const shared_ptr<XComboNode>  m_mode;
 	const shared_ptr<XComboNode>  m_function;
 	const shared_ptr<XDoubleNode>  m_freq;

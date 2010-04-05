@@ -23,8 +23,7 @@ class XChartList;
 class XScalarEntryList;
 class XDriver;
 
-class XEntryListConnector : public XListQConnector
-{
+class XEntryListConnector : public XListQConnector {
 	Q_OBJECT
 public:
 	XEntryListConnector
@@ -54,7 +53,7 @@ private:
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
 	shared_ptr<XListener> m_lsnOnRecord;
-	void onRecord(const shared_ptr<XDriver> &driver);
+	void onRecord(const Snapshot &shot, XDriver *driver);
 };
 
 #endif

@@ -19,8 +19,8 @@ REGISTER_TYPE(XDriverList, WAVEFACTORY, "NF WAVE-FACTORY pulse generator");
 
 XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XCharDeviceDriver<XFuncSynth>(name, runtime, ref(tr_meas), meas)
-{
+    XCharDeviceDriver<XFuncSynth>(name, runtime, ref(tr_meas), meas) {
+
 	function()->add("SINUSOID");
 	function()->add("TRIANGLE");
 	function()->add("SQUARE");
@@ -47,32 +47,27 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
   }
 */
 void
-XWAVEFACTORY::onOutputChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("SIG %d", *output() ? 1 : 0);
 }
 
 void
-XWAVEFACTORY::onTrigTouched(const shared_ptr<XNode> &)
-{
+XWAVEFACTORY::onTrigTouched(const Snapshot &shot, XTouchableNode *) {
 	interface()->send("TRG 1");
 }
 
 void
-XWAVEFACTORY::onModeChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onModeChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("OMO %d", (int)*mode());
 }
 
 void
-XWAVEFACTORY::onFunctionChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onFunctionChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("FNC %d", (int)*function() + 1);
 }
 
 void
-XWAVEFACTORY::onFreqChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("FRQ %e" , (double)*freq());
 }
 
@@ -83,14 +78,12 @@ XWAVEFACTORY::onAmpChanged(const shared_ptr<XValueNodeBase> &)
 }
 
 void
-XWAVEFACTORY::onPhaseChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onPhaseChanged(const shared_ptr<XValueNodeBase> &) {
 	interface()->sendf("PHS %e" , (double)*phase());
 }
 
 
 void
-XWAVEFACTORY::onOffsetChanged(const shared_ptr<XValueNodeBase> &)
-{
+XWAVEFACTORY::onOffsetChanged(const shared_ptr<XValueNodeBase> &) {
     interface()->sendf("OFS %e" , (double)*offset());
 }

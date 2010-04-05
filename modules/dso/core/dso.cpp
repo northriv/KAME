@@ -51,8 +51,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_vOffset3(create<XDoubleNode>("VOffset3", false)),
 	m_vOffset4(create<XDoubleNode>("VOffset4", false)),
 	m_recordLength(create<XUIntNode>("RecordLength", false)),
-	m_forceTrigger(create<XNode>("ForceTrigger", true)),  
-	m_restart(create<XNode>("Restart", true)),
+	m_forceTrigger(create<XTouchableNode>("ForceTrigger", true)),
+	m_restart(create<XTouchableNode>("Restart", true)),
 	m_trace1(create<XComboNode>("Trace1", false)),
 	m_trace2(create<XComboNode>("Trace2", false)),
 	m_trace3(create<XComboNode>("Trace3", false)),
@@ -65,8 +65,6 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form(new FrmDSO(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
 								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)),
-	m_numChannelsDisp(0),
-	m_rawDisplayOnly(false),
 	m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
 	m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
 	m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1, Snapshot( *m_trace1))),
@@ -146,10 +144,10 @@ XDSO::XDSO(const char *name, bool runtime,
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		tr[ *m_waveForm].setColCount(4, s_trace_names);
 		tr[ *m_waveForm->graph()->persistence()] = 0;
+		tr[ *m_waveForm].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	m_waveForm->clear();
 }
 void
 XDSO::showForms() {
@@ -159,8 +157,7 @@ XDSO::showForms() {
 }
 
 void
-XDSO::start()
-{
+XDSO::start() {
 	m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
 	m_thread->resume();
   
@@ -188,8 +185,7 @@ XDSO::start()
 	recordLength()->setUIEnabled(true);
 }
 void
-XDSO::stop()
-{   
+XDSO::stop() {
 //  trace1()->setUIEnabled(true);
 //  trace2()->setUIEnabled(true);
   
@@ -212,44 +208,45 @@ XDSO::stop()
 	recordLength()->setUIEnabled(false);  
   	
 	if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
-
-	m_numChannelsDisp = 0;
 }
 unsigned int
-XDSO::lengthRecorded() const {
-    return m_wavesRecorded.size() / numChannelsRecorded();
+XDSO::Payload::length() const {
+    return m_waves.size() / numChannels();
 }
 const double *
-XDSO::waveRecorded(unsigned int ch) const {
-    return &m_wavesRecorded[lengthRecorded() * ch];
+XDSO::Payload::wave(unsigned int ch) const {
+    return &m_waves[length() * ch];
 }
 unsigned int
-XDSO::lengthDisp() const {
+XDSO::Payload::lengthDisp() const {
     return m_wavesDisp.size() / numChannelsDisp();
 }
 double *
-XDSO::waveDisp(unsigned int ch) {
+XDSO::Payload::waveDisp(unsigned int ch) {
     return &m_wavesDisp[lengthDisp() * ch];
 }
-
+const double *
+XDSO::Payload::waveDisp(unsigned int ch) const {
+    return &m_wavesDisp[lengthDisp() * ch];
+}
 void
-XDSO::visualize() {
-	XScopedLock<XRecursiveMutex> lock(m_dispMutex);
-  
+XDSO::visualize(const Snapshot &shot) {
 	m_statusPrinter->clear();
   
 //  if(!time()) {
 //  	m_waveForm->clear();
 //  	return;
 //  }
-	const unsigned int num_channels = numChannelsDisp();
-	if(!num_channels) {
-		m_waveForm->clear();
+	const unsigned int num_channels = shot[ *this].numChannelsDisp();
+	if( !num_channels) {
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *m_waveForm].clearPoints();
+			if(tr.commit())
+				break;
+		}
 		return;
 	}
-	const unsigned int length = lengthDisp();
+	const unsigned int length = shot[ *this].lengthDisp();
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		tr[ *m_waveForm].setColCount(num_channels + 1, s_trace_names);
 		if(tr[ *m_waveForm].numPlots() != num_channels) {
@@ -269,15 +266,15 @@ XDSO::visualize() {
 		tr[ *m_waveForm].setRowCount(length);
 
 		double *times = tr[ *m_waveForm].cols(0);
-		double tint = timeIntervalDisp();
-		double t = -trigPosDisp() * tint;
+		double tint = shot[ *this].timeIntervalDisp();
+		double t = -shot[ *this].trigPosDisp() * tint;
 		for(unsigned int i = 0; i < length; i++) {
 			*times++ = t;
 			t += tint;
 		}
 
 		for(unsigned int i = 0; i < num_channels; i++) {
-			memcpy(tr[ *m_waveForm].cols(i + 1), waveDisp(i), length * sizeof(double));
+			memcpy(tr[ *m_waveForm].cols(i + 1), shot[ *this].waveDisp(i), length * sizeof(double));
 		}
 		m_waveForm->drawGraph(tr);
 		if(tr.commit())
@@ -285,7 +282,7 @@ XDSO::visualize() {
 	}
 }
 void
-XDSO::onRestartTouched(const shared_ptr<XNode> &) {
+XDSO::onRestartTouched(const Snapshot &shot, XTouchableNode *) {
 	m_timeSequenceStarted = XTime::now();
 	startSequence();
 }
@@ -332,35 +329,41 @@ XDSO::execute(const atomic<bool> &terminated) {
 		shared_from_this(), &XDSO::onVOffset3Changed);
 	m_lsnOnVOffset4Changed = vOffset4()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onVOffset4Changed);
-	m_lsnOnForceTriggerTouched = forceTrigger()->onTouch().connectWeak(
-		shared_from_this(), &XDSO::onForceTriggerTouched);
-	m_lsnOnRestartTouched = restart()->onTouch().connectWeak(
-		shared_from_this(), &XDSO::onRestartTouched);
 	m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
 		shared_from_this(), &XDSO::onRecordLengthChanged);
 
-	while(!terminated) {
-		const int fetch_mode = *fetchMode();
-		if(!fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnForceTriggerTouched = tr[ *forceTrigger()].onTouch().connectWeakly(
+			shared_from_this(), &XDSO::onForceTriggerTouched);
+		m_lsnOnRestartTouched = tr[ *restart()].onTouch().connectWeakly(
+			shared_from_this(), &XDSO::onRestartTouched);
+		if(tr.commit())
+			break;
+	}
+
+	while( !terminated) {
+		Snapshot shot( *this);
+		const int fetch_mode = shot[ *fetchMode()];
+		if( !fetch_mode || (fetch_mode == FETCHMODE_NEVER)) {
 			msecsleep(100);
 			continue;
 		}
 		std::deque<XString> channels;
 		{
 			XString chstr = trace1()->to_str();
-			if(!chstr.empty())
+			if( !chstr.empty())
 				channels.push_back(chstr);
 			chstr = trace2()->to_str();
-			if(!chstr.empty())
+			if( !chstr.empty())
 				channels.push_back(chstr);
 			chstr = trace3()->to_str();
-			if(!chstr.empty())
+			if( !chstr.empty())
 				channels.push_back(chstr);
 			chstr = trace4()->to_str();
-			if(!chstr.empty())
+			if( !chstr.empty())
 				channels.push_back(chstr);
 		}
-		if(!channels.size()) {
+		if( !channels.size()) {
             statusPrinter()->printMessage(getLabel() + " " + i18n("Select traces!."));
             msecsleep(500);
             continue;
@@ -369,8 +372,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 		bool seq_busy = false;
 		int count;
 		try {
-			count = acqCount(&seq_busy);
-			if(!count) {
+			count = acqCount( &seq_busy);
+			if( !count) {
 				last_count = 0;
 				msecsleep(10);
 				continue;
@@ -381,7 +384,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 				continue;
 			}
 			if(fetch_mode == FETCHMODE_SEQ) {
-				if(*singleSequence() && seq_busy) {
+				if(shot[ *singleSequence()] && seq_busy) {
 					msecsleep(10);
 					continue;
 				}
@@ -392,10 +395,10 @@ XDSO::execute(const atomic<bool> &terminated) {
 			continue;
 		}
       
-		clearRaw();
+		shared_ptr<RawData> writer(new RawData);
 		// try/catch exception of communication errors
 		try {
-			getWave(channels);
+			getWave(writer, channels);
 		}
 		catch (XDriver::XSkippedRecordError&) {
 			continue;
@@ -405,13 +408,13 @@ XDSO::execute(const atomic<bool> &terminated) {
 			continue;
 		}
       
-		m_rawDisplayOnly = (*singleSequence() && seq_busy);
+		trans( *this).m_rawDisplayOnly = (shot[ *singleSequence()] && seq_busy);
 
-		finishWritingRaw(m_timeSequenceStarted, XTime::now());
+		finishWritingRaw(writer, m_timeSequenceStarted, XTime::now());
 	      
 		last_count =  count;
 		
-		if(*singleSequence() && !seq_busy) {
+		if(shot[ *singleSequence()] && !seq_busy) {
 			last_count = 0;
 			m_timeSequenceStarted = XTime::now();
 			// try/catch exception of communication errors
@@ -424,7 +427,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 			}
 		}
     }
-    m_rawDisplayOnly = false;
+    trans( *this).m_rawDisplayOnly = false;
 
 	m_lsnOnAverageChanged.reset();
 	m_lsnOnSingleChanged.reset();
@@ -455,58 +458,55 @@ XDSO::execute(const atomic<bool> &terminated) {
 }
 
 void
-XDSO::onCondChanged(const shared_ptr<XValueNodeBase> &)
-{
-//  readLockRecord();
-	visualize();
-//  readUnlockRecord();
+XDSO::onCondChanged(const shared_ptr<XValueNodeBase> &) {
+	Snapshot shot( *this);
+	visualize(shot);
 }
 void
-XDSO::setParameters(unsigned int channels, double startpos, double interval, unsigned int length)
-{
+XDSO::Payload::setParameters(unsigned int channels, double startpos, double interval, unsigned int length) {
 	m_numChannelsDisp = channels;
 	m_wavesDisp.resize(channels * length, 0.0);
 	m_trigPosDisp = -startpos / interval;
 	m_timeIntervalDisp = interval;
 }
 void
-XDSO::convertRawToDisp() throw (XRecordError&) {
-    convertRaw();
+XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+    convertRaw(reader, tr);
     
-	unsigned int num_channels = numChannelsDisp();
-	if(!num_channels) {
+	Snapshot &shot(tr);
+	unsigned int num_channels = shot[ *this].numChannelsDisp();
+	if( !num_channels) {
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
-	if(*firEnabled()) {
-		double  bandwidth = *firBandWidth()*1000.0*timeIntervalDisp();
-		double fir_sharpness = *firSharpness();
+	if(shot[ *firEnabled()]) {
+		double  bandwidth = shot[ *firBandWidth()] * 1000.0 * shot[ *this].timeIntervalDisp();
+		double fir_sharpness = shot[ *firSharpness()];
 		if(fir_sharpness < 4.0)
 			m_statusPrinter->printWarning(i18n("Too small number of taps for FIR filter."));
 		int taps = std::min((int)lrint(2 * fir_sharpness / bandwidth), 5000);
-		double center = *firCenterFreq() * 1000.0 * timeIntervalDisp();
-		if(!m_fir || (taps != m_fir->taps()) || (bandwidth != m_fir->bandWidth()) || (center != m_fir->centerFreq()))
-			m_fir.reset(new FIR(taps, bandwidth, center));
-		unsigned int length = lengthDisp();
+		double center = shot[ *firCenterFreq()] * 1000.0 * shot[ *this].timeIntervalDisp();
+		if( !shot[ *this].m_fir || (taps != shot[ *this].m_fir->taps()) ||
+			(bandwidth != shot[ *this].m_fir->bandWidth()) || (center != shot[ *this].m_fir->centerFreq()))
+			tr[ *this].m_fir.reset(new FIR(taps, bandwidth, center));
+		unsigned int length = shot[ *this].lengthDisp();
 		std::vector<double> buf(length);
 		for(unsigned int i = 0; i < num_channels; i++) {
-			m_fir->exec(waveDisp(i), &buf[0], length);
-			memcpy(waveDisp(i), &buf[0], length * sizeof(double));
+			shot[ *this].m_fir->exec(tr[ *this].waveDisp(i), &buf[0], length);
+			memcpy(tr[ *this].waveDisp(i), &buf[0], length * sizeof(double));
 		}
 	}
 }
 void
-XDSO::analyzeRaw() throw (XRecordError&) {
-	XScopedLock<XRecursiveMutex> lock(m_dispMutex);
+XDSO::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+    convertRawToDisp(reader, tr);
 
-    convertRawToDisp();
-
-	if(m_rawDisplayOnly) {
+	if(tr[ *this].m_rawDisplayOnly) {
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
-//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
-	m_numChannelsRecorded = m_numChannelsDisp;
-	m_wavesRecorded.resize(m_wavesDisp.size());
-	m_trigPosRecorded = m_trigPosDisp;
-	m_timeIntervalRecorded = m_timeIntervalDisp;
-	memcpy(&m_wavesRecorded[0], &m_wavesDisp[0], m_wavesDisp.size() * sizeof(double));
+	//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
+	tr[ *this].m_numChannels = tr[ *this].m_numChannelsDisp;
+	tr[ *this].m_waves.resize(tr[ *this].m_wavesDisp.size());
+	tr[ *this].m_trigPos = tr[ *this].m_trigPosDisp;
+	tr[ *this].m_timeInterval = tr[ *this].m_timeIntervalDisp;
+	memcpy( &tr[ *this].m_waves[0], &tr[ *this].m_wavesDisp[0], tr[ *this].m_wavesDisp.size() * sizeof(double));
 }

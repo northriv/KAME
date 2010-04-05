@@ -77,8 +77,7 @@ XMagnetPS::showForms() {
 }
 
 void
-XMagnetPS::start()
-{
+XMagnetPS::start() {
 	m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
 	m_thread->resume();
   
@@ -86,37 +85,29 @@ XMagnetPS::start()
 	sweepRate()->setUIEnabled(true);
 }
 void
-XMagnetPS::stop()
-{
+XMagnetPS::stop() {
 	targetField()->setUIEnabled(false);
 	sweepRate()->setUIEnabled(false);
 	allowPersistent()->setUIEnabled(false);
 	
     if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
 }
 
 void
-XMagnetPS::analyzeRaw() throw (XRecordError&)
-{
-    m_magnetFieldRecorded = pop<float>();
-    m_outputCurrentRecorded = pop<float>();
-    m_field->value(m_magnetFieldRecorded);
-    m_current->value(m_outputCurrentRecorded);
+XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	tr[ *this].m_magnetField = reader.pop<float>();
+	tr[ *this].m_outputCurrent = reader.pop<float>();
+	m_field->value(tr, tr[ *this].m_magnetField);
+	m_current->value(tr, tr[*this].m_outputCurrent);
 }
 void
-XMagnetPS::visualize()
-{
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XMagnetPS::visualize(const Snapshot &shot) {
 }
 
 void
-XMagnetPS::onRateChanged(const shared_ptr<XValueNodeBase> &)
-{
+XMagnetPS::onRateChanged(const shared_ptr<XValueNodeBase> &) {
     try {
-        setRate(*sweepRate());
+        setRate( *sweepRate());
     }
     catch (XKameError &e) {
 		e.print(getLabel() + "; ");
@@ -124,8 +115,7 @@ XMagnetPS::onRateChanged(const shared_ptr<XValueNodeBase> &)
 }
 
 void *
-XMagnetPS::execute(const atomic<bool> &terminated)
-{   
+XMagnetPS::execute(const atomic<bool> &terminated) {
 	double havg = 0.0;
 	double dhavg = 0.0;
 	double lasth = 0.0;
@@ -150,13 +140,12 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 		return NULL;
 	}
 
-	if(is_pcs_fitted ) allowPersistent()->setUIEnabled(true);
+	if(is_pcs_fitted) allowPersistent()->setUIEnabled(true);
 	m_lsnRate = sweepRate()->onValueChanged().connectWeak(
 		shared_from_this(), &XMagnetPS::onRateChanged);
 
   
-    while(!terminated)
-	{
+    while( !terminated) {
 		msecsleep(10);
 		double magnet_field;
 		double output_field;
@@ -185,11 +174,11 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 			e.print(getLabel() + "; ");
 			continue;
 		}
-		clearRaw();
-		push((float)magnet_field);
-		push((float)output_current);
+		shared_ptr<RawData> writer(new RawData);
+		writer->push((float)magnet_field);
+		writer->push((float)output_current);
  
-		finishWritingRaw(XTime::now(), XTime::now());
+		finishWritingRaw(writer, XTime::now(), XTime::now());
       
 		magnetField()->value(magnet_field);
 		outputField()->value(output_field);
@@ -197,7 +186,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 		outputVolt()->value(output_volt);
 		pcsHeater()->value(pcs_heater && is_pcs_fitted);
 
-		persistent()->value(!pcs_heater && pcsh_stable && is_pcs_fitted);
+		persistent()->value( !pcs_heater && pcsh_stable && is_pcs_fitted);
 
 		//calicurate std. deviations in some periods
 		XTime newtime = XTime::now();
@@ -211,21 +200,19 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 		dhavg = (dhavg - dhdt) * exp(-dt / 3.0) + dhdt;
       
 		try {
-			if(is_pcs_fitted)
-			{
+			if(is_pcs_fitted) {
 				if(pcs_heater) {
 					//pcs heater is on
 					if(fabs(target_field - *targetField()) >= field_resolution) {
 						if(pcsh_stable) {
-							setPoint(*targetField());
+							setPoint( *targetField());
 							toSetPoint();    
 						}
 					}
 					else {
 						if((fabs(dhavg) < field_resolution / 10) && 
 						   (fabs(magnet_field - target_field) < field_resolution) &&
-						   *allowPersistent() )
-						{
+						   *allowPersistent() ) {
 							//field is not sweeping, and persistent is allowed
 							m_statusPrinter->printMessage(getLabel() + " " + 
 														  i18n("Turning on Perisistent mode."));
@@ -270,7 +257,7 @@ XMagnetPS::execute(const atomic<bool> &terminated)
 			else {
 				// pcsh is not fitted.
 				if(fabs(target_field - *targetField()) >= field_resolution) {                
-					setPoint(*targetField());
+					setPoint( *targetField());
 					toSetPoint();
 				}
 			}

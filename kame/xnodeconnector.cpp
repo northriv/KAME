@@ -135,25 +135,30 @@ XQConnector::connectedNode(const QWidget *item) {
 
 void
 XQConnector::onUIFlagsChanged(const Snapshot &shot, XNode *node) {
-    m_pWidget->setEnabled(shot[*node].isUIEnabled());
+    m_pWidget->setEnabled(shot[ *node].isUIEnabled());
 }
 
-XQButtonConnector::XQButtonConnector(const shared_ptr<XNode> &node, QAbstractButton *item)
+XQButtonConnector::XQButtonConnector(const shared_ptr<XTouchableNode> &node,
+	QAbstractButton *item)
 	: XQConnector(node, item),
 	  m_node(node), m_pItem(item) {
 
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
-    m_lsnTouch = node->onTouch().connectWeak
-        (shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
+    for(Transaction tr( *node);; ++tr) {
+		m_lsnTouch = tr[ *node].onTouch().connectWeakly
+			(shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+    }
 }
 XQButtonConnector::~XQButtonConnector() {
 }
 void
 XQButtonConnector::onClick() {
-	m_node->touch();
+	trans( *m_node).touch();
 }
 void
-XQButtonConnector::onTouch(const shared_ptr<XNode> &) {
+XQButtonConnector::onTouch(const Snapshot &shot, XTouchableNode *node) {
 }
 
 XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item)

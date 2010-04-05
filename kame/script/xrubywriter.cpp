@@ -46,7 +46,7 @@ XRubyWriter::write(
     bool ghost, int level)
 {
 	int size = shot.size(node);
-    ghost = ghost || node->isRunTime();
+    ghost = ghost || shot[ *node].isRuntime();
     shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
         if(size) {
@@ -78,7 +78,7 @@ XRubyWriter::write(
         // XListNode doesn't want typename
         write_typename = (lnode->getTypename().find("XListNode") != 0);
         // XAliasListNode doesn't want creation of child
-        if(lnode->getTypename().find("XAliasListNode") == 0) lnode.reset();
+        if(lnode->getTypename().find( "XAliasListNode") == 0) lnode.reset();
     }
     unsigned idx = 0;
     if(size) {

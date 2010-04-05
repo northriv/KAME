@@ -207,6 +207,7 @@ main(int argc, char **argv)
 //				{ Snapshot shot1( *p1); shot1.list(); }
 //				{ Snapshot shot1( *p2); shot1.list(); }
 				if(tr1.commit()) break;
+//				if(tr1.commitAt( *gn1)) break;
 				printf("f");
 			}
 			{

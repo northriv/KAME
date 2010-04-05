@@ -34,7 +34,7 @@ XTestDriver::XTestDriver(const char *name, bool runtime,
 
 void
 XTestDriver::showForms() {
-//! impliment form->show() here
+// impliment form->show() here
 }
 void
 XTestDriver::start() {
@@ -47,29 +47,28 @@ XTestDriver::stop() {
 //    m_thread->waitFor();
 }
 void
-XTestDriver::analyzeRaw() throw (XRecordError&) {
-    //! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s
-    m_x = pop<double>();
-    m_y = pop<double>();
-    m_entryX->value(m_x);
-    m_entryY->value(m_y);
+XTestDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+    // Since raw buffer is FIFO, use the same sequence of push()es for pop()s
+	tr[ *this].m_x = reader.pop<double>();
+	tr[ *this].m_y = reader.pop<double>();
+	m_entryX->value(tr, tr[ *this].m_x);
+	m_entryY->value(tr, tr[ *this].m_y);
 }
 void
-XTestDriver::visualize() {
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XTestDriver::visualize(const Snapshot &shot) {
 }
 
 void *
 XTestDriver::execute(const atomic<bool> &terminated) {
-	while(!terminated) {
+	while( !terminated) {
 		msecsleep(10);
 		double x = randMT19937() - 0.2;
 		double y = randMT19937()- 0.2;
-		clearRaw();
-		push(x);
-		push(y);
-		finishWritingRaw(XTime::now(), XTime::now());
+
+		shared_ptr<RawData> writer(new RawData);
+		writer->push(x);
+		writer->push(y);
+		finishWritingRaw(writer, XTime::now(), XTime::now());
 	}
 	afterStop();
 	return NULL;

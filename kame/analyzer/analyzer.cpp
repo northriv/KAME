@@ -29,22 +29,17 @@ XScalarEntry::XScalarEntry(const char *name, bool runtime, const shared_ptr<XDri
 	  m_delta(create<XDoubleNode>("Delta", false)),
 	  m_store(create<XBoolNode>("Store", false)),
 	  m_value(create<XDoubleNode>("Value", true)),
-	  m_storedValue(create<XDoubleNode>("StoredValue", true)),
-	  m_bTriggered(false) {
+	  m_storedValue(create<XDoubleNode>("StoredValue", true)) {
 
 	m_delta->setFormat(format);
 	m_storedValue->setFormat(format);
 	m_value->setFormat(format);
 	store()->value(false);
 }
-bool
-XScalarEntry::isTriggered() const {
-    return m_bTriggered;
-}
 void
-XScalarEntry::storeValue() {
-    storedValue()->value(*value());
-    m_bTriggered = false;
+XScalarEntry::storeValue(Transaction &tr) {
+    tr[ *storedValue()] = (double)tr[ *value()];
+    tr[ *this].m_bTriggered = false;
 }
 
 XString
@@ -53,12 +48,12 @@ XScalarEntry::getLabel() const {
 }
 
 void
-XScalarEntry::value(double val) {
-	if((*delta() != 0) && (fabs(val - *storedValue()) > *delta()))
-	{
-		m_bTriggered = true;
+XScalarEntry::value(Transaction &tr, double val) {
+	Snapshot &shot(tr);
+	if((shot[ *delta()] != 0) && (fabs(val - shot[ *storedValue()]) > shot[ *delta()])) {
+		tr[ *this].m_bTriggered = true;
 	}
-	value()->value(val);
+	tr[ *value()] = val;
 }
 
 XValChart::XValChart(const char *name, bool runtime,
@@ -96,14 +91,18 @@ XValChart::XValChart(const char *name, bool runtime,
 			break;
 	}
 
-    m_lsnOnRecord = entry->driver()->onRecord().connectWeak(
-        shared_from_this(), &XValChart::onRecord);
+	for(Transaction tr( *entry->driver());; ++tr) {
+		m_lsnOnRecord = tr[ *entry->driver()].onRecord().connectWeakly(
+			shared_from_this(), &XValChart::onRecord);
+		if(tr.commit())
+			break;
+	}
 }
 void
-XValChart::onRecord(const shared_ptr<XDriver> &driver) {
+XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
 	double val;
-    val = *m_entry->value();
-    XTime time = driver->time();
+    val = shot[ *m_entry->value()];
+    XTime time = shot[ *driver].time();
     if(time)
         m_chart->addPoint(time.sec() + time.usec() * 1e-6, val);
 }

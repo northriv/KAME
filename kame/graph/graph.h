@@ -114,11 +114,11 @@ public:
 	typedef Vector4<GFloat> GPoint;
 	typedef Vector4<VFloat> ValPoint;
  
-	//! fixes axes, takes snapshot of points, autoscales axes.
-	//! Call me before redrawing the graph.
-	void setupRedraw(const Snapshot &shot, float resolution);
+	//! Fixes axes and performs autoscaling of the axes.
+	//! Call this function before redrawal of the graph.
+	void setupRedraw(Transaction &tr, float resolution);
   
-	void zoomAxes(const Snapshot &shot, float resolution, XGraph::SFloat zoomscale,
+	void zoomAxes(Transaction &tr, float resolution, XGraph::SFloat zoomscale,
 				  const XGraph::ScrPoint &zoomcenter);
 
 	const shared_ptr<XAxisList> &axes() const {return m_axes;}
@@ -131,9 +131,6 @@ public:
 	const shared_ptr<XBoolNode> &drawLegends() const {return m_drawLegends;}
 
 	const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
-
-	//! signal to redraw
-	void requestUpdate(const Snapshot &shot);
 
 	const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
 
@@ -217,7 +214,7 @@ public:
 				  XGraph::GFloat width, XGraph::ValPoint *val, XGraph::GPoint *g1);
 
 	//! \return success or not
-	bool fixScales(const Snapshot &shot);
+	bool fixScales(const Snapshot &);
 
 	struct Payload : public XNode::Payload {
 	};
@@ -261,9 +258,9 @@ private:
   
 	shared_ptr<XListener> m_lsnClearPoints;
   
-	void onClearPoints(const Snapshot &, XNode *);
+	void onClearPoints(const Snapshot &, XTouchableNode *);
   
-	bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2, 
+	inline bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2,
 				  XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
 				  bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2);
 	inline bool isPtIncluded(const XGraph::GPoint &pt);
@@ -272,9 +269,9 @@ private:
 		XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
 
 	std::vector<tCanvasPoint> m_canvasPtsSnapped; 
-	void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
-	void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr);
-	unsigned int blendColor(unsigned int c1, unsigned int c2, float t);
+	inline void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
+	inline void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr);
+	inline unsigned int blendColor(unsigned int c1, unsigned int c2, float t);
 };
 
 class XAxis : public XNode {
@@ -332,13 +329,13 @@ public:
 	void zoom(bool minchange, bool maxchange, XGraph::GFloat zoomscale,
 			  XGraph::GFloat center = 0.5);
 
-	//! obtains the type of tic and rounded value from position on axis
+	//! Obtains the type of tic and rounded value from position on axis
 	Tic queryTic(int length, int pos, XGraph::VFloat *ticnum);
 
-	//! call me befor drawing, autoscaling
+	//! Call this function before drawing or autoscale.
 	void startAutoscale(const Snapshot &shot, float resolution, bool clearscale = false);
-	//! preserve changed scale
-	void fixScale(const Snapshot &shot, float resolution, bool suppressupdate = false);
+	//! Preserves modified scale.
+	void fixScale(Transaction &tr, float resolution, bool suppressupdate = false);
 	//! fixed value
 	XGraph::VFloat fixedMin() const {return m_minFixed;}
 	XGraph::VFloat fixedMax() const {return m_maxFixed;}

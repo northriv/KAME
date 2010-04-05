@@ -67,8 +67,7 @@ XLIA::showForms() {
 }
 
 void
-XLIA::start()
-{
+XLIA::start() {
     m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
     m_thread->resume();
 	m_output->setUIEnabled(true);
@@ -81,8 +80,7 @@ XLIA::start()
         
 }
 void
-XLIA::stop()
-{  
+XLIA::stop() {
 	m_output->setUIEnabled(false);
 	m_frequency->setUIEnabled(false);
 	m_sensitivity->setUIEnabled(false);
@@ -92,29 +90,22 @@ XLIA::stop()
 	m_fetchFreq->setUIEnabled(false);
   	
     if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
 }
 
 void
-XLIA::analyzeRaw() throw (XRecordError&)
-{
+XLIA::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
     double x, y;
-    x = pop<double>();
-    y = pop<double>();
-    m_valueX->value(x);
-    m_valueY->value(y);
+    x = reader.pop<double>();
+    y = reader.pop<double>();
+    m_valueX->value(tr, x);
+    m_valueY->value(tr, y);
 }
 void
-XLIA::visualize()
-{
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XLIA::visualize(const Snapshot &shot) {
 }
 
 void 
-XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &)
-{
+XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
     try {
         changeOutput(*output());
     }
@@ -124,8 +115,7 @@ XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &)
-{
+XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
     try {
         changeFreq(*frequency());
     }
@@ -135,8 +125,7 @@ XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &)
-{
+XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &) {
     try {
         changeSensitivity(*sensitivity());
     }
@@ -146,8 +135,7 @@ XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &)
-{
+XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &) {
     try {
         changeTimeConst(*timeConst());
     }
@@ -158,8 +146,7 @@ XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &)
 }
 
 void *
-XLIA::execute(const atomic<bool> &terminated)
-{
+XLIA::execute(const atomic<bool> &terminated) {
 
 	m_lsnOutput = output()->onValueChanged().connectWeak(
 		shared_from_this(), &XLIA::onOutputChanged);
@@ -170,8 +157,7 @@ XLIA::execute(const atomic<bool> &terminated)
 	m_lsnTimeConst = timeConst()->onValueChanged().connectWeak(
 		shared_from_this(), &XLIA::onTimeConstChanged);
 
-	while(!terminated)
-	{
+	while( !terminated) {
 		double fetch_freq = *fetchFreq();
 		double wait = 0;
 		if(fetch_freq > 0) {
@@ -190,10 +176,10 @@ XLIA::execute(const atomic<bool> &terminated)
 			e.print(getLabel() + " " + i18n("Read Error, "));
 			continue;
 		}
-		clearRaw();
-		push(x);
-		push(y);
-		finishWritingRaw(time_awared, XTime::now());
+		shared_ptr<RawData> writer(new RawData);
+		writer->push(x);
+		writer->push(y);
+		finishWritingRaw(writer, time_awared, XTime::now());
 	}
   
 	m_lsnOutput.reset();

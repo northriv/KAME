@@ -20,7 +20,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 protected:
 	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrigTouched(const shared_ptr<XNode> &);
+	virtual void onTrigTouched(const Snapshot &shot, XTouchableNode *);
 	virtual void onModeChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
 	virtual void onFreqChanged(const shared_ptr<XValueNodeBase> &);

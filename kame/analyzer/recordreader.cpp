@@ -47,13 +47,13 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_speed(create<XComboNode>("Speed", true, true)),
 	  m_fastForward(create<XBoolNode>("FastForward", true)),
 	  m_rewind(create<XBoolNode>("Rewind", true)),
-	  m_stop(create<XNode>("Stop", true)),
-	  m_first(create<XNode>("First", true)),
-	  m_next(create<XNode>("Next", true)),
-	  m_back(create<XNode>("Back", true)),
+	  m_stop(create<XTouchableNode>("Stop", true)),
+	  m_first(create<XTouchableNode>("First", true)),
+	  m_next(create<XTouchableNode>("Next", true)),
+	  m_back(create<XTouchableNode>("Back", true)),
 	  m_posString(create<XStringNode>("PosString", true)),
-	  m_periodicTerm(0)
-{
+	  m_periodicTerm(0) {
+
     m_lsnOnOpen = filename()->onValueChanged().connectWeak(
         shared_from_this(), &XRawStreamRecordReader::onOpen);
     m_speed->add(SPEED_FASTEST);
@@ -62,18 +62,22 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     m_speed->add(SPEED_SLOW);
     m_speed->value(SPEED_FAST);
     
-    m_lsnFirst = m_first->onTouch().connectWeak(
-		shared_from_this(), &XRawStreamRecordReader::onFirst,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-    m_lsnBack = m_back->onTouch().connectWeak(
-		shared_from_this(), &XRawStreamRecordReader::onBack,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-    m_lsnNext = m_next->onTouch().connectWeak(
-		shared_from_this(), &XRawStreamRecordReader::onNext,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-    m_lsnStop = m_stop->onTouch().connectWeak(
-		shared_from_this(), &XRawStreamRecordReader::onStop,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+    for(Transaction tr( *this);; ++tr) {
+		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
+			shared_from_this(), &XRawStreamRecordReader::onFirst,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		m_lsnBack = tr[ *m_back].onTouch().connectWeakly(
+			shared_from_this(), &XRawStreamRecordReader::onBack,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		m_lsnNext = tr[ *m_next].onTouch().connectWeakly(
+			shared_from_this(), &XRawStreamRecordReader::onNext,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		m_lsnStop = tr[ *m_stop].onTouch().connectWeakly(
+			shared_from_this(), &XRawStreamRecordReader::onStop,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		if(tr.commit())
+			break;
+    }
     m_lsnPlayCond = m_fastForward->onValueChanged().connectWeak(
 		shared_from_this(), 
 		&XRawStreamRecordReader::onPlayCondChanged,
@@ -85,19 +89,17 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
         it->reset(new XThread<XRawStreamRecordReader>(shared_from_this(),
 													  &XRawStreamRecordReader::execute));
-        (*it)->resume();
+        ( *it)->resume();
     }
 }
 void
-XRawStreamRecordReader::onOpen(const shared_ptr<XValueNodeBase> &)
-{
+XRawStreamRecordReader::onOpen(const shared_ptr<XValueNodeBase> &) {
 	if(m_pGFD) gzclose(m_pGFD);
 	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "rb");
 }
 void
 XRawStreamRecordReader::readHeader(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &)
-{
+	throw (XRawStreamRecordReader::XRecordError &) {
 	if(gzeof(fd))
 		throw XIOError(__FILE__, __LINE__);
 	uint32_t size =
@@ -105,17 +107,17 @@ XRawStreamRecordReader::readHeader(void *fd)
 		+ sizeof(int32_t) //time().sec()
 		+ sizeof(int32_t); //time().usec()
 	std::vector<char> buf(size);
-	std::vector<char>::iterator it = buf.begin();
+	XPrimaryDriver::RawDataReader reader(buf);
 	if(gzread(fd, &buf[0], size) == -1) throw XIOError(__FILE__, __LINE__);
-	m_allsize = XPrimaryDriver::pop<uint32_t>(it);
-	long sec = XPrimaryDriver::pop<int32_t>(it);
-	long usec = XPrimaryDriver::pop<int32_t>(it);
+	m_allsize = reader.pop<uint32_t>();
+	long sec = reader.pop<int32_t>();
+	long usec = reader.pop<int32_t>();
 	m_time = XTime(sec, usec);
 }
 void
 XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
-	throw (XRawStreamRecordReader::XRecordError &)
-{
+	throw (XRawStreamRecordReader::XRecordError &) {
+
 	readHeader(fd);
 	char name[256], sup[256];
 	gzgetline(fd, (unsigned char*)name, 256, '\0');
@@ -138,7 +140,7 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
     // m_time must be copied before unlocking
     XTime time(m_time);
     m_posString->value(time.getTimeStr());
-    if(!driver || (size > MAX_RAW_RECORD_SIZE)) {
+    if( !driver || (size > MAX_RAW_RECORD_SIZE)) {
         if(gzseek(fd, size + sizeof(uint32_t), SEEK_CUR) == -1)
 			throw XIOError(__FILE__, __LINE__);
 		if(driver)
@@ -149,32 +151,32 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
 		else
 	        throw XNoDriverError(name, __FILE__, __LINE__);
     }
-    try {
-        driver->clearRaw();
-        driver->rawData().resize(size);
-        if(gzread(fd, &driver->rawData()[0], size) == -1)
-            throw XIOError(__FILE__, __LINE__);
-        std::vector<char> buf(sizeof(uint32_t));
-        if(gzread(fd, &buf[0], sizeof(uint32_t)) == -1)
-            throw XIOError(__FILE__, __LINE__);
-        std::vector<char>::iterator it = buf.begin();
-        uint32_t footer_allsize = XPrimaryDriver::pop<uint32_t>(it);
-        if(footer_allsize != m_allsize)
-            throw XBrokenRecordError(__FILE__, __LINE__);
-    }
-    catch (XRecordError &e) {
-        driver->finishWritingRaw(XTime(), XTime());
-        throw e;
-    }
-    mutex.unlock();
+	shared_ptr<XPrimaryDriver::RawData> rawdata(new XPrimaryDriver::RawData());
+	try {
+		rawdata->resize(size);
+		if(gzread(fd, &rawdata->at(0), size) == -1)
+			throw XIOError(__FILE__, __LINE__);
+		std::vector<char> buf(sizeof(uint32_t));
+		if(gzread(fd, &buf[0], sizeof(uint32_t)) == -1)
+			throw XIOError(__FILE__, __LINE__);
+		XPrimaryDriver::RawDataReader reader(buf);
+		uint32_t footer_allsize = reader.pop<uint32_t>();
+		if(footer_allsize != m_allsize)
+			throw XBrokenRecordError(__FILE__, __LINE__);
+	}
+	catch (XRecordError &e) {
+		driver->finishWritingRaw(rawdata, XTime(), XTime());
+		throw e;
+	}
+	mutex.unlock();
 	{ XScopedLock<XMutex> lock(m_drivermutex);
-	driver->finishWritingRaw(XTime::now(), time);
+	driver->finishWritingRaw(rawdata, XTime::now(), time);
 	}
 }
 void
 XRawStreamRecordReader::gzgetline(void*fd, unsigned char*buf, unsigned int len, int del)
-	throw (XIOError &)
-{
+	throw (XIOError &) {
+
 	int c;
 	for(unsigned int i = 0; i < len; i++) {
 		c = gzgetc(fd);
@@ -186,21 +188,18 @@ XRawStreamRecordReader::gzgetline(void*fd, unsigned char*buf, unsigned int len, 
 }
 void
 XRawStreamRecordReader::_first(void *fd)
-	throw (XRawStreamRecordReader::XIOError &)
-{
+	throw (XRawStreamRecordReader::XIOError &) {
 	gzrewind(fd);
 }
 void
 XRawStreamRecordReader::_previous(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &)
-{
+	throw (XRawStreamRecordReader::XRecordError &) {
 	if(gzseek(fd, -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 	goToHeader(fd);
 }
 void
 XRawStreamRecordReader::_next(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &)
-{
+	throw (XRawStreamRecordReader::XRecordError &) {
 	readHeader(fd);
 	uint32_t headersize = sizeof(uint32_t) //allsize
 		+ sizeof(int32_t) //time().sec()
@@ -209,43 +208,39 @@ XRawStreamRecordReader::_next(void *fd)
 }
 void
 XRawStreamRecordReader::goToHeader(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &)
-{
+	throw (XRawStreamRecordReader::XRecordError &) {
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
 	std::vector<char> buf(sizeof(uint32_t));
-	std::vector<char>::iterator it = buf.begin();
+	XPrimaryDriver::RawDataReader reader(buf);
 	if(gzread(fd, &buf[0], sizeof(uint32_t)) == Z_NULL) throw XIOError(__FILE__, __LINE__);
-	int allsize = XPrimaryDriver::pop<uint32_t>(it);
+	int allsize = reader.pop<uint32_t>();
 	if(gzseek(fd, -allsize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::terminate()
-{
+XRawStreamRecordReader::terminate() {
     m_periodicTerm = 0;
     for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
-        (*it)->terminate();
+        ( *it)->terminate();
     }
     XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 
 void
-XRawStreamRecordReader::onPlayCondChanged(const shared_ptr<XValueNodeBase> &)
-{
+XRawStreamRecordReader::onPlayCondChanged(const shared_ptr<XValueNodeBase> &) {
     double ms = 1.0;
     if(m_speed->to_str() == SPEED_FASTEST) ms = 0.1;
     if(m_speed->to_str() == SPEED_FAST) ms = 10.0;
     if(m_speed->to_str() == SPEED_NORMAL) ms = 30.0;
     if(m_speed->to_str() == SPEED_SLOW) ms = 100.0;
-    if(!*m_fastForward && !*m_rewind) ms = 0;
-    if(*m_rewind) ms = -ms;
+    if( !*m_fastForward && !*m_rewind) ms = 0;
+    if( *m_rewind) ms = -ms;
     m_periodicTerm = ms;
     XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
 }
 void
-XRawStreamRecordReader::onStop(const shared_ptr<XNode> &)
-{
+XRawStreamRecordReader::onStop(const Snapshot &shot, XTouchableNode *) {
     m_periodicTerm = 0;
     g_statusPrinter->printMessage(i18n("Stopped"));
     m_fastForward->onValueChanged().mask();
@@ -256,10 +251,8 @@ XRawStreamRecordReader::onStop(const shared_ptr<XNode> &)
     m_rewind->onValueChanged().unmask();
 }
 void
-XRawStreamRecordReader::onFirst(const shared_ptr<XNode> &)
-{
-	if(m_pGFD)
-	{
+XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
+	if(m_pGFD) {
 		try {
 			m_filemutex.lock();
 			_first(m_pGFD);
@@ -273,10 +266,8 @@ XRawStreamRecordReader::onFirst(const shared_ptr<XNode> &)
 	}
 }
 void
-XRawStreamRecordReader::onNext(const shared_ptr<XNode> &)
-{
-	if(m_pGFD)
-	{
+XRawStreamRecordReader::onNext(const Snapshot &shot, XTouchableNode *) {
+	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
 			parseOne(m_pGFD, m_filemutex);
@@ -289,10 +280,8 @@ XRawStreamRecordReader::onNext(const shared_ptr<XNode> &)
 	}
 }
 void
-XRawStreamRecordReader::onBack(const shared_ptr<XNode> &)
-{
-	if(m_pGFD)
-	{
+XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
+	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
 			_previous(m_pGFD);
@@ -307,10 +296,8 @@ XRawStreamRecordReader::onBack(const shared_ptr<XNode> &)
 	}
 }
 
-void *XRawStreamRecordReader::execute(const atomic<bool> &terminated)
-{
-	while(!terminated)
-	{
+void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
+	while( !terminated) {
 		double ms = 0.0;
 		{
 			XScopedLock<XCondition> lock(m_condition);

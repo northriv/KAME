@@ -22,15 +22,22 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XH8Pulser() {}
 
+	struct Payload : public XPulser::Payload {
+	private:
+		friend class XH8Pulser;
+		struct h8ushort {unsigned char msb; unsigned char lsb;};
+		std::vector<h8ushort> m_zippedPatterns;
+	};
+
+	//! time resolution [ms]
+    virtual double resolution() const;
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
-    //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output, unsigned int blankpattern);
-    //! convert RelPatList to native patterns
-    virtual void createNativePatterns();
-    //! time resolution [ms]
-    virtual double resolution() const;
+    //! Sends patterns to pulser or turn-off
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+    //! Converts RelPatList to native patterns
+    virtual void createNativePatterns(Transaction &tr);
     virtual double resolutionQAM() const {return 0.0;}
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const;
@@ -40,8 +47,5 @@ private:
 	//! Add 1 pulse pattern
 	//! \param term a period to next pattern
 	//! \param pattern a pattern for digital, to appear
-	int pulseAdd(uint64_t term, uint16_t pattern);
-
-	struct h8ushort {unsigned char msb; unsigned char lsb;};
-	std::vector<h8ushort> m_zippedPatterns;
+	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
 };

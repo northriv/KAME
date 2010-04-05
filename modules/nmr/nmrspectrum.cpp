@@ -66,60 +66,63 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	residualField()->onValueChanged().connect(m_lsnOnCondChanged);
 }
 bool
-XNMRSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &node) const
-{
+XNMRSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &node) const {
     return (node == m_residualField) || (node == m_fieldFactor) || (node == m_resolution);
 }
 bool
-XNMRSpectrum::checkDependencyImpl(const shared_ptr<XDriver> &emitter) const {
-    shared_ptr<XMagnetPS> _magnet = *magnet();
-    shared_ptr<XDMM> _dmm = *magnet();
-    if(!(_magnet || _dmm)) return false;
-    if(emitter == _magnet) return false;
-    if(emitter == _dmm) return false;
+XNMRSpectrum::checkDependencyImpl(const Snapshot &shot_this,
+	const Snapshot &shot_emitter, const Snapshot &shot_others,
+	XDriver *emitter) const {
+    shared_ptr<XMagnetPS> _magnet = shot_this[ *magnet()];
+    shared_ptr<XDMM> _dmm = shot_this[ *magnet()];
+    if( !(_magnet || _dmm)) return false;
+    if(emitter == _magnet.get()) return false;
+    if(emitter == _dmm.get()) return false;
     return true;
 }
 double
-XNMRSpectrum::getFreqResHint() const {
-	double res = fabs(*resolution() / *maxValue() * *centerFreq());	
-	res = std::min(res, fabs(*resolution() / *minValue() * *centerFreq()));
+XNMRSpectrum::getFreqResHint(const Snapshot &shot_this) const {
+	double res = fabs(shot_this[ *resolution()] / shot_this[ *maxValue()] * shot_this[ *centerFreq()]);
+	res = std::min(res, fabs(shot_this[ *resolution()] / shot_this[ *minValue()] * shot_this[ *centerFreq()]));
 	return res * 1e6;
 }
 double
-XNMRSpectrum::getMinFreq() const {
-	double freq = -log(*maxValue()) * *centerFreq();	
-	freq = std::min(freq, -log(*minValue()) * *centerFreq());
+XNMRSpectrum::getMinFreq(const Snapshot &shot_this) const {
+	double freq = -log(shot_this[ *maxValue()]) * shot_this[ *centerFreq()];
+	freq = std::min(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
 	return freq * 1e6;
 }
 double
-XNMRSpectrum::getMaxFreq() const {
-	double freq = -log(*maxValue()) * *centerFreq();	
-	freq = std::max(freq, -log(*minValue()) * *centerFreq());
+XNMRSpectrum::getMaxFreq(const Snapshot &shot_this) const {
+	double freq = -log(shot_this[ *maxValue()]) * shot_this[ *centerFreq()];
+	freq = std::max(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
 	return freq * 1e6;
 }
 double
-XNMRSpectrum::getCurrentCenterFreq() const {
-	shared_ptr<XMagnetPS> _magnet = *magnet();
-    shared_ptr<XDMM> _dmm = *magnet();
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
+XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
+	shared_ptr<XMagnetPS> _magnet = shot_this[ *magnet()];
+    shared_ptr<XDMM> _dmm = shot_this[ *magnet()];
+	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 
 	ASSERT( _magnet || _dmm );
 	double field;
-	if(_magnet)
-		field = _magnet->magnetFieldRecorded();
-	else
-		field = _dmm->valueRecorded();
+	if(_magnet) {
+		field = shot_others[ *_magnet].magnetField();
+	}
+	else {
+		field = shot_others[ *_dmm].value();
+	}
 
-	field *= *fieldFactor();
-	field += *residualField();
+	field *= shot_this[ *fieldFactor()];
+	field += shot_this[ *residualField()];
  	
-	return -log(field) * *centerFreq() * 1e6;
+	return -log(field) * shot_this[ *centerFreq()] * 1e6;
 }
 void
-XNMRSpectrum::getValues(std::vector<double> &values) const {
-	values.resize(wave().size());
-	for(unsigned int i = 0; i < wave().size(); i++) {
-		double freq = minRecorded() + i*resRecorded();
-		values[i] = exp(-freq * 1e-6 / *centerFreq());
+XNMRSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
+	values.resize(shot_this[ *this].wave().size());
+	for(unsigned int i = 0; i < shot_this[ *this].wave().size(); i++) {
+		double freq = shot_this[ *this].min() + i * shot_this[ *this].res();
+		values[i] = exp( -freq * 1e-6 / shot_this[ *centerFreq()]);
 	}
 }

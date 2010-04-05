@@ -14,6 +14,8 @@
 #include "graph.h"
 #include "support.h"
 
+// \todo Use Payload for scales.
+
 #include "graphpainter.h"
 #include <qgl.h>
 
@@ -96,28 +98,25 @@ XGraph::XGraph(const char *name, bool runtime) :
 
 void
 XGraph::onPropertyChanged(const Snapshot &shot, XValueNodeBase *) {
-    requestUpdate(Snapshot( *this));
+	Snapshot shot_this( *this);
+	shot_this.talk(shot_this[ *this].onUpdate(), this);
 }
 
 void
-XGraph::requestUpdate(const Snapshot &shot) {
-	shot.talk(shot[ *this].onUpdate(), this);
-}
-
-void
-XGraph::setupRedraw(const Snapshot &shot, float resolution) {
+XGraph::setupRedraw(Transaction &tr, float resolution) {
+	const Snapshot &shot(tr);
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
+			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 			axis->startAutoscale(shot, resolution, *axis->autoScale() );
 		}
 	}
 	if(shot.size(plots())) {
 		const XNode::NodeList &plots_list( *shot.list(plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
-			if(plot->fixScales(shot)) {
+		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); ++it) {
+			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+			if(plot->fixScales(tr)) {
 				plot->snapshot(shot);
 				plot->validateAutoScale(shot);
 			}
@@ -125,32 +124,33 @@ XGraph::setupRedraw(const Snapshot &shot, float resolution) {
 	}
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
+			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 			if(shot[ *axis->autoScale()])
 				axis->zoom(true, true, UNZOOM_ABIT);
-			axis->fixScale(shot, resolution, true);
+			axis->fixScale(tr, resolution, true);
 		}
 	}
 }
 
 void
-XGraph::zoomAxes(const Snapshot &shot, float resolution,
+XGraph::zoomAxes(Transaction &tr, float resolution,
 				 XGraph::GFloat scale, const XGraph::ScrPoint &center) {
+	const Snapshot &shot(tr);
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
+			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 			axis->startAutoscale(shot, resolution);
 		}
 	}
 //   validateAutoScale();
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
+		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
+			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 			axis->zoom(true, true, scale, axis->screenToAxis(shot, center));
-			axis->fixScale(shot, resolution);
+			axis->fixScale(tr, resolution);
 		}
 	}
 }
@@ -293,14 +293,14 @@ XPlot::graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::Scr
 		graphToScreenFast(pt, scr);
     }
 }
-void
+inline void
 XPlot::graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) {
 	scr->x = m_scr0.x + m_len.x * pt.x;
 	scr->y = m_scr0.y + m_len.y * pt.y;
 	scr->z = m_scr0.z + m_len.z * pt.z;
 	scr->w = std::min(std::max(pt.w, (XGraph::GFloat)0.0), (XGraph::GFloat)1.0);
 }
-void
+inline void
 XPlot::valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) {
 	gr->x = m_curAxisX->valToAxis(pt.x);
 	gr->y = m_curAxisY->valToAxis(pt.y);
@@ -333,7 +333,7 @@ XPlot::findPoint(const Snapshot &shot, int start, const XGraph::GPoint &gmin, co
 }
 
 void
-XPlot::onClearPoints(const Snapshot &, XNode *) {
+XPlot::onClearPoints(const Snapshot &, XTouchableNode *) {
 	clearAllPoints();
 }
 
@@ -497,7 +497,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 				pt2.graph.y = g0y;
 				pt2.scr.y = s0y;
 				pt2.insidecube = isPtIncluded(pt2.graph);
-				if(clipLine(*cpt, pt2, &s1, &s2, false, NULL, NULL, NULL, NULL)) {
+				if(clipLine( *cpt, pt2, &s1, &s2, false, NULL, NULL, NULL, NULL)) {
 					if(colorplot || hasweight) painter->setColor(cpt->color, alpha * cpt->scr.w); 
 					painter->setVertex(s1);
 					painter->setVertex(s2);
@@ -515,7 +515,8 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 			unsigned int color1, color2;
 			float alpha1, alpha2;
 			for(int i = 1; i < cnt; ++i) {
-				if(clipLine(*cpt, *(cpt + 1), &s1, &s2, colorplot || hasweight, &color1, &color2, &alpha1, &alpha2)) {
+				if(clipLine( *cpt, *(cpt + 1), &s1, &s2, colorplot || hasweight,
+					&color1, &color2, &alpha1, &alpha2)) {
 					if(colorplot || hasweight) painter->setColor(color1, alpha*alpha1);
 					painter->setVertex(s1);
 					if(colorplot || hasweight) painter->setColor(color2, alpha*alpha2);
@@ -549,7 +550,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 	return -1;
 }
 
-unsigned int
+inline unsigned int
 XPlot::blendColor(unsigned int c1, unsigned int c2, float t) {
     unsigned char c1red = qRed((QRgb)c1);
     unsigned char c1green = qGreen((QRgb)c1);
@@ -563,14 +564,14 @@ XPlot::blendColor(unsigned int c1, unsigned int c2, float t) {
         lrintf(c2blue * t + c1blue * (1.0f - t)));
 }
 
-bool
+inline bool
 XPlot::isPtIncluded(const XGraph::GPoint &pt) {
 	return (pt.x >= 0) && (pt.x <= 1) &&
 		(pt.y >= 0) && (pt.y <= 1) &&
 		(pt.z >= 0) && (pt.z <= 1);
 }
 
-bool
+inline bool
 XPlot::clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2,
 				XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, bool blendcolor,
 				unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2) {
@@ -690,8 +691,8 @@ XXYPlot::clearAllPoints() {
 	shared_ptr<XGraph> graph(m_graph.lock());
 	for(Transaction tr( *graph);; ++tr) {
 		tr[ *this].points().clear();
+		tr.mark(tr[ *graph].onUpdate(), graph.get());
 		if(tr.commit()) {
-			graph->requestUpdate(tr);
 			break;
 		}
 	}
@@ -718,8 +719,8 @@ XXYPlot::addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z, XGraph::
 			points.pop_front();
 		}
 		points.push_back(npt);
+		tr.mark(tr[ *graph].onUpdate(), graph.get());
 		if(tr.commit()) {
-			graph->requestUpdate(tr);
 			break;
 		}
 	}
@@ -834,11 +835,9 @@ XAxis::startAutoscale(const Snapshot &shot, float, bool clearscale) {
     _startAutoscale(shot, clearscale);
 }
 void
-XAxis::fixScale(const Snapshot &shot, float resolution, bool suppressupdate) {
+XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {
+	const Snapshot &shot(tr);
 	shared_ptr<XGraph> graph(m_graph.lock());
-    if(suppressupdate) {
-    	graph->lsnPropertyChanged()->mask();
-    }
     if(m_minFixed == m_maxFixed) {
 		XGraph::VFloat x = m_minFixed;
         m_maxFixed = x ? std::max(x * 1.01, x * 0.99) : 0.01;
@@ -848,14 +847,14 @@ XAxis::fixScale(const Snapshot &shot, float resolution, bool suppressupdate) {
         max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) : (XGraph::VFloat)shot[ *minValue()];
     if(m_minFixed != min_tmp) {
         minValue()->setFormat(ticLabelFormat()->to_str().c_str());
-        trans( *minValue()) = m_minFixed;
+        tr[ *minValue()] = m_minFixed;
     }
     if(m_maxFixed != shot[ *maxValue()]) {
         maxValue()->setFormat(ticLabelFormat()->to_str().c_str());
-        trans( *maxValue()) = m_maxFixed;
+        tr[ *maxValue()] = m_maxFixed;
     }
     if(suppressupdate) {
-        graph->lsnPropertyChanged()->unmask();
+        tr.unmark(graph->lsnPropertyChanged());
     }
     performAutoFreq(shot, resolution);
 }

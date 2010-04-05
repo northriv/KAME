@@ -13,200 +13,125 @@
 ***************************************************************************/
 #include "secondarydriver.h"
 
-static XThreadLocal<std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > > > stl_locked_connections;
-
 XSecondaryDriver::XSecondaryDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XDriver(name, runtime, ref(tr_meas), meas),
-    m_dependency(new XRecordDependency()) {
+    m_drivers(meas->drivers()) {
 }
 XSecondaryDriver::~XSecondaryDriver() {
-	
-    for(std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
-    	it = stl_locked_connections->begin(); it != stl_locked_connections->end(); it++)
-    	if(it->second != this) {}
-}
-
-bool
-XSecondaryDriver::checkDeepDependency(shared_ptr<XRecordDependency> &dep) const {
-    bool sane = true;
-    dep->clear();
-    for(tConnection_it it = m_connections_check_deep_dep.begin(); it != m_connections_check_deep_dep.end(); it++) {
-        bool is_conflict = dep->merge(*it);
-        if(is_conflict) {
-            sane = false;
-            break;
-        }
-    }
-    return sane;
-}
-
-
-void
-XSecondaryDriver::readLockAllConnections() {
-    m_connection_mutex.readLock();
-    for(tConnection_it it = m_connections.begin(); it != m_connections.end(); it++) {
-    	stl_locked_connections->push_back(std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(*it, this));
-        (*it)->readLockRecord();
-    }
-}
-void
-XSecondaryDriver::readUnlockAllConnections() {
-    for(std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
-    	it = stl_locked_connections->begin(); it != stl_locked_connections->end();) {
-    	if(it->second == this) {
-    		it->first->readUnlockRecord();
-    		it = stl_locked_connections->erase(it);
-    	}
-    	else {
-    		it++;
-    	}
-    }
-    m_connection_mutex.readUnlock();
-}
-void
-XSecondaryDriver::unlockConnection(const shared_ptr<XDriver> &connected) {
-	std::vector<std::pair<shared_ptr<const XDriver>, XSecondaryDriver* > >::iterator
-		it = std::find(
-		stl_locked_connections->begin(), stl_locked_connections->end(),
-		std::pair<shared_ptr<const XDriver>, XSecondaryDriver* >(connected, this));
-	ASSERT(it != stl_locked_connections->end());
-	stl_locked_connections->erase(it);
-	connected->readUnlockRecord();
 }
 
 void
-XSecondaryDriver::requestAnalysis()
-{
-    onConnectedRecorded(dynamic_pointer_cast<XDriver>(shared_from_this()));
+XSecondaryDriver::requestAnalysis() {
+	Snapshot shot( *this);
+    onConnectedRecorded(shot, this);
 }
 void
-XSecondaryDriver::onConnectedRecorded(const shared_ptr<XDriver> &driver)
-{
-	for(unsigned int i = 0;; i++) {
-		readLockAllConnections();
-	    //! check if emitter has already connected or if self-emission
-	    if((std::find(m_connections.begin(), m_connections.end(), driver)
-			!= m_connections.end()) 
-	       || (driver == shared_from_this())) {
-	        //! driver-side dependency check
-	        if(checkDependency(driver)) {
-	            shared_ptr<XRecordDependency> dep(new XRecordDependency);
-	            // check if recorded times don't contradict.
-	            if(checkDeepDependency(dep)) {
-	            	bool skipped = false;
-	                if(!tryStartRecording()) {
-	                	readUnlockAllConnections();
-	                	msecsleep(i*10);
-                    	if(i > 20) {
-                    		gErrPrint(formatString_tr(I18N_NOOP(
-                    				"Dead lock deteceted on %s. Operation canceled.\nReport this bug to author(s)."),
-                    				getName().c_str()));
-                    		return;
-                    	}
-	                	continue;
-	                }
-	                XTime time_recorded = driver->time();
-	                try {
-	                    analyze(driver);
-	                }
-	                catch (XSkippedRecordError& e) {
-	                	skipped = true;
-	        	    	if(e.msg().length())
-	        	    		e.print(getLabel() + ": " + i18n("Skipped, because "));
-	                }
-	                catch (XRecordError& e) {
-						time_recorded = XTime(); //record is invalid
-						e.print(getLabel() + ": " + i18n("Record Error, because "));
-	                }
-	                readUnlockAllConnections();
-	                if(skipped)
-	                	abortRecordingNReadLock();
-	            	else {
-		                m_dependency = dep;
-		                finishRecordingNReadLock(driver->timeAwared(), time_recorded);
-	            	}
-	                visualize();
-	                readUnlockRecord();
-	            	return;
-	            }
-	        }
-	    }
-	    readUnlockAllConnections();
-	    return;
+XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *driver) {
+	for(;;) {
+		Snapshot shot_others( *m_drivers.lock());
+		if( !shot_others.isUpperOf( *this))
+			return;
+		if( !shot_others.isUpperOf( *driver))
+			return;
+		Transaction tr( *this, shot_others);
+		Snapshot &shot_this(tr);
+
+		if(driver != this) {
+		//checking if emitter has already connected unless self-emitted.
+			bool found = false;
+			for(Payload::ConnectionList::const_iterator it = shot_this[ *this].m_connections.begin();
+				it != shot_this[ *this].m_connections.end(); ++it) {
+				if((shared_ptr<XNode>(shot_this[ *it->m_selecter]).get() == driver) &&
+					(shot_emitter[ *driver].time())) {
+					found = true;
+					break;
+				}
+			}
+			if( !found)
+				return;
+		}
+		//checking if the selecters point to existing drivers.
+		for(Payload::ConnectionList::const_iterator it = shot_this[ *this].m_connections.begin();
+			it != shot_this[ *this].m_connections.end(); ++it) {
+			shared_ptr<XNode> node = shot_this[ *it->m_selecter];
+			if(node) {
+				if( !shot_others.isUpperOf( *node))
+					return;
+				if((node.get() != driver) &&
+					!shot_others[ *static_pointer_cast<XDriver>(node)].time())
+					return; //Record is invalid.
+			}
+		}
+
+		//driver-side dependency check
+		if( !checkDependency(tr, shot_emitter, shot_others, driver))
+			return;
+
+		bool skipped = false;
+		XTime time_recorded = shot_emitter[ *driver].time();
+		try {
+			analyze(tr, shot_emitter, shot_others, driver);
+		}
+		catch (XSkippedRecordError& e) {
+			skipped = true;
+			if(e.msg().length())
+				e.print(getLabel() + ": " + i18n("Skipped, because "));
+		}
+		catch (XRecordError& e) {
+			time_recorded = XTime(); //record is invalid
+			e.print(getLabel() + ": " + i18n("Record Error, because "));
+		}
+		if( !skipped)
+			record(tr, shot_emitter[ *driver].timeAwared(), time_recorded);
+		if(tr.commit()) {
+			visualize(tr);
+			break;
+		}
 	}
 }
 void
-XSecondaryDriver::connect(const shared_ptr<XItemNodeBase> &item, bool check_deep_dep)
-{
-    if(m_lsnBeforeItemChanged)
-        item->beforeValueChanged().connect(m_lsnBeforeItemChanged);
-    else
-        m_lsnBeforeItemChanged = item->beforeValueChanged().connectWeak(
-			shared_from_this(), &XSecondaryDriver::beforeItemChanged);
-	if(check_deep_dep) {
-	    if(m_lsnOnItemChangedCheckDeepDep)
-	        item->onValueChanged().connect(m_lsnOnItemChangedCheckDeepDep);
-	    else
-	        m_lsnOnItemChangedCheckDeepDep = item->onValueChanged().connectWeak(
-				shared_from_this(), &XSecondaryDriver::onItemChangedCheckDeepDep);
+XSecondaryDriver::connect(const shared_ptr<XPointerItemNode<XDriverList> > &selecter) {
+    for(Transaction tr( *this);; ++tr) {
+    	Payload::Connection con;
+		con.m_selecter = selecter;
+		tr[ *this].m_connections.push_back(con);
+
+		if(tr.commit())
+			break;
 	}
-	else {
-	    if(m_lsnOnItemChanged)
-	        item->onValueChanged().connect(m_lsnOnItemChanged);
-	    else
-	        m_lsnOnItemChanged = item->onValueChanged().connectWeak(
-				shared_from_this(), &XSecondaryDriver::onItemChanged);
+
+    for(Transaction tr( *selecter);; ++tr) {
+		if(m_lsnOnItemChanged)
+			tr[ *selecter].onValueChanged().connect(m_lsnOnItemChanged);
+		else
+			m_lsnOnItemChanged = tr[ *selecter].onValueChanged().connectWeakly(shared_from_this(),
+				&XSecondaryDriver::onItemChanged);
+		if(tr.commit())
+			break;
 	}
 }
 void
-XSecondaryDriver::beforeItemChanged(const shared_ptr<XValueNodeBase> &node) {
-    //! changes in items are not allowed while onRecord() is emitting
-    m_connection_mutex.writeLock();
+XSecondaryDriver::onItemChanged(const Snapshot &shot, XValueNodeBase *node) {
+    XPointerItemNode<XDriverList> *item =
+        static_cast<XPointerItemNode<XDriverList>*>(node);
+    shared_ptr<XNode> nd = shot[ *item];
+    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(nd);
 
-    shared_ptr<XPointerItemNode<XDriverList> > item =
-		dynamic_pointer_cast<XPointerItemNode<XDriverList> >(node);
-    shared_ptr<XNode> nd = *item;
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
-
-    if(driver) {
-        driver->onRecord().disconnect(m_lsnOnRecord);
-        ASSERT(std::find(m_connections.begin(), m_connections.end(), driver) != m_connections.end());
-        m_connections.erase(std::find(m_connections.begin(), m_connections.end(), driver));
-        std::vector<shared_ptr<const XDriver> >::iterator it = 
-        	std::find(m_connections_check_deep_dep.begin(), m_connections_check_deep_dep.end(), driver);
-        if(it != m_connections_check_deep_dep.end())
-        	m_connections_check_deep_dep.erase(it);
+    shared_ptr<XListener> lsnonrecord;
+	if(driver) {
+		for(Transaction tr( *driver);; ++tr) {
+			lsnonrecord = tr[ *driver].onRecord().connectWeakly(
+					shared_from_this(), &XSecondaryDriver::onConnectedRecorded);
+			if(tr.commit())
+				break;
+		}
+	}
+    for(Transaction tr( *this);; ++tr) {
+		Payload::ConnectionList::iterator it
+			= std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);
+		it->m_lsnOnRecord = lsnonrecord;
+		if(tr.commit())
+			break;
     }
-}
-void
-XSecondaryDriver::onItemChangedCheckDeepDep(const shared_ptr<XValueNodeBase> &node) {
-    shared_ptr<XPointerItemNode<XDriverList> > item = 
-        dynamic_pointer_cast<XPointerItemNode<XDriverList> >(node);
-    shared_ptr<XNode> nd = *item;
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
-
-    if(driver) {
-        m_connections_check_deep_dep.push_back(driver);
-    }
-
-    onItemChanged(node);
-}
-void
-XSecondaryDriver::onItemChanged(const shared_ptr<XValueNodeBase> &node) {
-    shared_ptr<XPointerItemNode<XDriverList> > item = 
-        dynamic_pointer_cast<XPointerItemNode<XDriverList> >(node);
-    shared_ptr<XNode> nd = *item;
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(nd);
-
-    if(driver) {
-        m_connections.push_back(driver);
-        if(m_lsnOnRecord)
-            driver->onRecord().connect(m_lsnOnRecord);
-        else
-            m_lsnOnRecord = driver->onRecord().connectWeak(
-                shared_from_this(), &XSecondaryDriver::onConnectedRecorded);
-    }
-
-    m_connection_mutex.writeUnlock();
 }

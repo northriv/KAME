@@ -148,29 +148,28 @@ void XTempControl::stop() {
 	//  thread must do interface()->close() at the end
 }
 
-void XTempControl::analyzeRaw() throw (XRecordError&) {
+void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	try {
 		for(;;) {
 			//! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s
-			uint16_t chno = pop<uint16_t> ();
-			pop<uint16_t> (); //reserve
-			float raw = pop<float> ();
-			float temp = pop<float> ();
+			uint16_t chno = reader.pop<uint16_t> ();
+			reader.pop<uint16_t> (); //reserve
+			float raw = reader.pop<float> ();
+			float temp = reader.pop<float> ();
 			if( !m_multiread)
 				chno = 0;
 			if(chno >= m_entry_temps.size())
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-			m_entry_temps[chno]->value(temp);
-			m_entry_raws[chno]->value(raw);
+			m_entry_temps[chno]->value(tr, temp);
+			m_entry_raws[chno]->value(tr, raw);
 		}
 	}
 	catch(XRecordError&) {
 	}
 }
-void XTempControl::visualize() {
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+void XTempControl::visualize(const Snapshot &shot) {
 }
+
 void XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &) {
 	m_conThermometer.reset();
 	m_conExcitation.reset();
@@ -291,27 +290,25 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	while( !terminated) {
 		msecsleep(10);
 
+		shared_ptr<RawData> writer(new RawData);
+		Snapshot shot( *this);
 		double raw, src_raw = 0, src_temp = 0, temp;
-		clearRaw();
 		XTime time_awared = XTime::now();
 		// try/catch exception of communication errors
 		try {
-			shared_ptr<XChannel> src_ch = *m_currentChannel;
+			shared_ptr<XChannel> src_ch = shot[ *m_currentChannel];
 			if(src_ch) {
-				shared_ptr<XThermometer> thermo = *src_ch->thermometer();
+				shared_ptr<XThermometer> thermo = shot[ *src_ch->thermometer()];
 				src_raw = getRaw(src_ch);
 				src_temp = ( !thermo) ? getTemp(src_ch) : thermo->getTemp(
 					src_raw);
 				m_sourceTemp->value(src_temp);
 			}
-			Snapshot shot( *m_channels);
-			if(shot.size()) {
-				const XNode::NodeList &list( *shot.list());
+			if(shot.size(m_channels)) {
+				const XNode::NodeList &list( *shot.list(m_channels));
 				unsigned int idx = 0;
-				for(XNode::const_iterator it = list.begin(); it
-					!= list.end(); it++) {
-					shared_ptr<XChannel> ch = dynamic_pointer_cast<XChannel> (
-						*it);
+				for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
+					shared_ptr<XChannel> ch = static_pointer_cast<XChannel>( *it);
 					if(src_ch == ch) {
 						temp = src_temp;
 						raw = src_raw;
@@ -319,42 +316,41 @@ XTempControl::execute(const atomic<bool> &terminated) {
 					else {
 						if( !m_multiread)
 							continue;
-						shared_ptr<XThermometer> thermo = *ch->thermometer();
+						shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
 						raw = getRaw(ch);
 						temp = ( !thermo) ? getTemp(ch) : thermo->getTemp(raw);
 					}
-					push((uint16_t) idx);
-					push((uint16_t) 0); // reserve
-					push(float(raw));
-					push(float(temp));
+					writer->push((uint16_t) idx);
+					writer->push((uint16_t) 0); // reserve
+					writer->push(float(raw));
+					writer->push(float(temp));
 					idx++;
 				}
 			}
 
 			//calicurate std. deviations in some periods
-			double tau = *interval() * 4.0;
+			double tau = shot[ *interval()] * 4.0;
 			if(tau <= 1)
 				tau = 4.0;
 			XTime newtime = XTime::now();
 			double dt = newtime - lasttime;
 			lasttime = newtime;
-			double terr = src_temp - *targetTemp();
+			double terr = src_temp - shot[ *targetTemp()];
 			tempAvg = (tempAvg - temp) * exp( -dt / tau) + temp;
-			tempErrAvg = (tempErrAvg - terr * terr) * exp( -dt / tau) + terr
-				* terr;
+			tempErrAvg = (tempErrAvg - terr * terr) * exp( -dt / tau) + terr * terr;
 			tempErrAvg = std::min(tempErrAvg, src_temp * src_temp);
 			stabilized()->value(sqrt(tempErrAvg)); //stderr
 
 			double power = 0.0;
-			if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
-				int ch = *extDCSourceChannel();
+			if(shared_ptr<XDCSource> dcsrc = shot[ *extDCSource()]) {
+				int ch = shot[ *extDCSourceChannel()];
 				if(ch >= 0) {
 					if(src_ch) {
-						if(heaterMode()->to_str() == "PID") {
+						if(shot[ *heaterMode()].to_str() == "PID") {
 							power = pid(newtime, src_temp);
 						}
-						if(heaterMode()->to_str() == "Man") {
-							power = *manualPower();
+						if(shot[ *heaterMode()].to_str() == "Man") {
+							power = shot[ *manualPower()];
 						}
 					}
 					power = std::max(std::min(power, 100.0), 0.0);
@@ -371,7 +367,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + "; ");
 			continue;
 		}
-		finishWritingRaw(time_awared, XTime::now());
+		finishWritingRaw(writer, time_awared, XTime::now());
 	}
 
 	m_setupChannel->value(shared_ptr<XThermometer> ());
@@ -478,7 +474,7 @@ void XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 void XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
 	try {
 		shared_ptr<XChannel> ch;
-		Snapshot shot(*channels());
+		Snapshot shot( *channels());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
 			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {

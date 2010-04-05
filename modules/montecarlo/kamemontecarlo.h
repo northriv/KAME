@@ -18,6 +18,8 @@
 #include "dummydriver.h"
 #include "xwavengraph.h"
 #include <fftw3.h>
+#include <boost/array.hpp>
+using boost::array;
 
 class XScalarEntry;
 class MonteCarlo;
@@ -32,20 +34,39 @@ public:
 	virtual ~XMonteCarloDriver();
 	//! show all forms belonging to driver
 	virtual void showForms();
+
+	struct Payload : public XPrimaryDriver::Payload {
+		Payload() : m_fftlen(-1) {}
+	private:
+		friend class XMonteCarloDriver;
+		shared_ptr<MonteCarlo> m_loop, m_store;
+		int m_fftlen;
+		array<fftw_complex *, 3> m_pFFTin, m_pFFTout;
+		array<fftw_plan, 3> m_fftplan;
+
+		long double m_sumDU, m_sumDS, m_sumDUav;
+		long double m_testsTotal;
+		double m_flippedTotal;
+		double m_dU;
+		double m_DUav, m_Mav;
+		double m_lastTemp;
+		//! along field direction.
+		double m_lastField, m_lastMagnetization;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
-    
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
 private:
 	shared_ptr<XDoubleNode> m_targetTemp;
 	shared_ptr<XDoubleNode> m_targetField;
@@ -58,12 +79,11 @@ private:
 	shared_ptr<XDoubleNode> m_alpha;
 	shared_ptr<XDoubleNode> m_minTests;
 	shared_ptr<XDoubleNode> m_minFlips;
-	shared_ptr<XNode> m_step;
+	shared_ptr<XTouchableNode> m_step;
 	shared_ptr<XComboNode> m_graph3D;
 	shared_ptr<XScalarEntry> m_entryT, m_entryH,
 		m_entryU, m_entryC, m_entryCoT,
 		m_entryS, m_entryM, m_entry2in2, m_entry1in3;
-	shared_ptr<MonteCarlo> m_loop, m_store;
   
 	xqcon_ptr m_conLength, m_conCutoffReal, m_conCutoffRec, m_conAlpha,
 		m_conTargetTemp, m_conTargetField,
@@ -71,23 +91,12 @@ private:
 		m_conGraph3D;
 	qshared_ptr<FrmMonteCarlo> m_form;
 	shared_ptr<XWaveNGraph> m_wave3D;
-	long double m_sumDU, m_sumDS, m_sumDUav;
-	long double m_testsTotal;
-	double m_flippedTotal;
-	double m_dU;
-	double m_DUav, m_Mav;
-	double m_lastTemp;
-	//! along field direction.
-	double m_lastField, m_lastMagnetization;
-	void execute(int flips, long double tests);
+	void execute(Transaction &tr, int flips, long double tests);
 	void onTargetChanged(const shared_ptr<XValueNodeBase> &);
 	void onGraphChanged(const shared_ptr<XValueNodeBase> &);
-	void onStepTouched(const shared_ptr<XNode> &);
+	void onStepTouched(const Snapshot &shot, XTouchableNode *);
 	shared_ptr<XListener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;
-	int m_fftlen;
-	fftw_complex *(m_pFFTin[3]), *(m_pFFTout[3]);
-	fftw_plan m_fftplan[3];  
 };
 
 #endif /*KAMEMONTECARLO_H_*/

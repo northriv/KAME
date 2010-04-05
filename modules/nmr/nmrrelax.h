@@ -20,6 +20,9 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
+#include <boost/array.hpp>
+using boost::array;
+
 #include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
@@ -41,22 +44,58 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XNMRT1 () {}
   
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
-
-	//! this is called when connected driver emit a signal
-	//! unless dependency is broken
-	//! all connected drivers are readLocked
-	virtual void analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
-	//! check connected drivers have valid time
-	//! \return true if dependency is resolved
-	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const;
- 
+	//! This function is called when a connected driver emit a signal
+	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
+	//! Checks if the connected drivers have valid time stamps.
+	//! \return true if dependency is resolved.
+	//! This function must be reentrant unlike analyze().
+	virtual bool checkDependency(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const;
 public:
+	struct Payload : public XSecondaryDriver::Payload {
+	private:
+	friend class XNMRT1;
+	friend class XRelaxFuncPlot;
+		//! For fitting and display
+		struct Pt {
+			double var; /// auto-phase- or absolute value
+			std::complex<double> c;
+			double p1;
+			double isigma; /// weight
+			std::deque<std::complex<double> > value_by_cond;
+		};
+		struct ConvolutionCache {
+			std::vector<std::complex<double> > wave;
+			double windowwidth;
+			FFT::twindowfunc windowfunc;
+			int origin;
+			double cfreq;
+			double power;
+		};
+		//! Raw measured points
+		struct RawPt {
+			std::deque<std::complex<double> > value_by_cond;
+			double p1;
+		};
+		std::deque<shared_ptr<ConvolutionCache> > m_convolutionCache;
+		//! Stores all measured points.
+		std::deque<RawPt> m_pts;
+		//! Stores reduced points to manage fitting and display.
+		std::deque<Pt> m_sumpts;
+		array<double, 3> m_params; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
+		array<double, 3> m_errors; //!< std. deviations
+
+		XTime m_timeClearRequested;
+	};
+
 	//! Holds 1/T1 or 1/T2 and its std. deviation
 	const shared_ptr<XScalarEntry> &t1inv() const {return m_t1inv;}
 	const shared_ptr<XScalarEntry> &t1invErr() const {return m_t1invErr;}
@@ -127,23 +166,12 @@ private:
 	const shared_ptr<XUIntNode> m_smoothSamples;
 	const shared_ptr<XComboNode> m_p1Dist;
 	shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
-	const shared_ptr<XNode> m_resetFit, m_clearAll;
+	const shared_ptr<XTouchableNode> m_resetFit, m_clearAll;
 	const shared_ptr<XStringNode> m_fitStatus;
 
-	//! For fitting and display
-	struct Pt
-	{
-		double var; /// auto-phase- or absolute value
-		std::complex<double> c;
-		double p1;
-		double isigma; /// weight
-		std::deque<std::complex<double> > value_by_cond;
-	};
-
 	//! for Non-Lenear-Least-Square fitting
-	struct NLLS
-	{
-		std::deque< Pt > *pts; //pointer to data
+	struct NLLS {
+		std::deque<Payload::Pt> *pts; //pointer to data
 		shared_ptr<XRelaxFunc> func; //pointer to the current relaxation function
 		bool is_minftyfit; //3param fit or not.
 		double fixed_minfty;
@@ -152,10 +180,10 @@ private:
 	shared_ptr<XListener> m_lsnOnClearAll, m_lsnOnResetFit;
 	shared_ptr<XListener> m_lsnOnActiveChanged;
 	shared_ptr<XListener> m_lsnOnCondChanged;
-	void onClearAll (const shared_ptr<XNode> &);
-	void onResetFit (const shared_ptr<XNode> &);
-	void onActiveChanged (const shared_ptr<XValueNodeBase> &);
-	void onCondChanged (const shared_ptr<XValueNodeBase> &);
+	void onClearAll (const Snapshot &shot, XTouchableNode *);
+	void onResetFit (const Snapshot &shot, XTouchableNode *);
+	void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
+	void onCondChanged (const Snapshot &shot, XValueNodeBase *);
 	xqcon_ptr m_conP1Min, m_conP1Max, m_conPhase, m_conFreq,
 		m_conWindowFunc, m_conWindowWidth, m_conAutoWindow,
 		m_conSmoothSamples, m_conASWClearance;
@@ -166,48 +194,26 @@ private:
 	xqcon_ptr m_conMode;
 	xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
 
-	void analyzeSpectrum(const shared_ptr<XNMRPulseAnalyzer> &pulse, std::deque<std::complex<double> > &value_by_cond);
-
-	void analyzeSpectrum (
+	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
 		std::deque<std::complex<double> > &value_by_cond);
-	std::deque<double> m_windowWidthList;
-	struct ConvolutionCache {
-		std::vector<std::complex<double> > wave;
-		double windowwidth;
-		FFT::twindowfunc windowfunc;
-		int origin;
-		double cfreq;
-		double power;
-	};
-	std::deque<shared_ptr<ConvolutionCache> > m_convolutionCache;
+
 	shared_ptr<SpectrumSolverWrapper> m_solver;
-	//! Raw measured points
-	struct RawPt {
-		std::deque<std::complex<double> > value_by_cond;
-		double p1;
-	};
-	//! Store all measured points
-	std::deque< RawPt > m_pts;
-	//! Store reduced points to manage fitting and display
-	std::deque< Pt > m_sumpts;
 
 	const qshared_ptr<FrmNMRT1> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
+  
+	//! Does fitting iterations \a itercnt times
+	//! \param relax a pointer to a realaxation function
+	//! \param itercnt counts 
+	//! \param buf a message will be passed
+	XString iterate(Transaction &tr, shared_ptr<XRelaxFunc> &relax, int itercnt);
+ 		      
 	//! Store reduced points
 	//! \sa m_pt, m_sumpts
 	const shared_ptr<XWaveNGraph> m_wave;
 
-	double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
-	double m_errors[3]; //!< std. deviations
-  
-	//! Do fitting iterations \a itercnt times
-	//! \param relax a pointer to a realaxation function
-	//! \param itercnt counts 
-	//! \param buf a message will be passed
-	XString iterate(shared_ptr<XRelaxFunc> &relax, int itercnt);
- 		      
-	XTime m_timeClearRequested;
+	std::deque<double> m_windowWidthList;
 };
 
 //---------------------------------------------------------------------------

@@ -53,13 +53,13 @@ XEntryListConnector::XEntryListConnector
 	}
 }
 void
-XEntryListConnector::onRecord(const shared_ptr<XDriver> &driver) {
+XEntryListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
-		if((*it)->entry->driver() == driver) {
+		if((*it)->entry->driver().get() == driver) {
 			tcons::tlisttext text;
-			text.label = (*it)->label;
-			text.str.reset(new XString((*it)->entry->value()->to_str()));
-			(*it)->tlkOnRecordRedirected->talk(text);
+			text.label = ( *it)->label;
+			text.str.reset(new XString(shot[ *( *it)->entry->value()].to_str()));
+			( *it)->tlkOnRecordRedirected->talk(text);
 		}
 	}
 }
@@ -89,10 +89,14 @@ void
 XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
-		if((*it)->entry == e.released) {
-			(*it)->driver->onRecord().disconnect(m_lsnOnRecord);
+		if(( *it)->entry == e.released) {
+			for(Transaction tr( *( *it)->driver);; ++tr) {
+				tr[ *( *it)->driver].onRecord().disconnect(m_lsnOnRecord);
+				if(tr.commit())
+					break;
+			}
 			for(int i = 0; i < m_pItem->numRows(); i++) {
-				if(m_pItem->cellWidget(i, 1) == (*it)->label) m_pItem->removeRow(i);
+				if(m_pItem->cellWidget(i, 1) == ( *it)->label) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
 		}
@@ -109,11 +113,15 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_pItem->setText(i, 0, entry->getLabel().c_str());
 
 	shared_ptr<XDriver> driver = entry->driver();
-	if(m_lsnOnRecord)
-		driver->onRecord().connect(m_lsnOnRecord);
-	else
-		m_lsnOnRecord = driver->onRecord().connectWeak(
-			shared_from_this(), &XEntryListConnector::onRecord);
+	for(Transaction tr( *driver);; ++tr) {
+		if(m_lsnOnRecord)
+			tr[ *driver].onRecord().connect(m_lsnOnRecord);
+		else
+			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XEntryListConnector::onRecord);
+		if(tr.commit())
+			break;
+	}
 
 	m_cons.push_back(shared_ptr<tcons>(new tcons));
 	m_cons.back()->entry = entry;

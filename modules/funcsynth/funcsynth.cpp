@@ -24,7 +24,7 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_output(create<XBoolNode>("Output", true)),
-    m_trig(create<XNode>("Trigger", true)),
+    m_trig(create<XTouchableNode>("Trigger", true)),
     m_mode(create<XComboNode>("Mode", false)),
     m_freq(create<XDoubleNode>("Freq", false)),
     m_function(create<XComboNode>("Function", false)),
@@ -63,8 +63,7 @@ XFuncSynth::showForms() {
 }
 
 void
-XFuncSynth::start()
-{
+XFuncSynth::start() {
     m_output->setUIEnabled(true);
     m_trig->setUIEnabled(true);
     m_mode->setUIEnabled(true);
@@ -76,8 +75,6 @@ XFuncSynth::start()
         
 	m_lsnOutput = output()->onValueChanged().connectWeak(
 		shared_from_this(), &XFuncSynth::onOutputChanged);
-	m_lsnTrig = trig()->onTouch().connectWeak(
-		shared_from_this(), &XFuncSynth::onTrigTouched);
 	m_lsnMode = mode()->onValueChanged().connectWeak(
 		shared_from_this(), &XFuncSynth::onModeChanged);
 	m_lsnFreq = freq()->onValueChanged().connectWeak(
@@ -90,10 +87,16 @@ XFuncSynth::start()
 		shared_from_this(), &XFuncSynth::onPhaseChanged);
 	m_lsnOffset = offset()->onValueChanged().connectWeak(
 		shared_from_this(), &XFuncSynth::onOffsetChanged);
+
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnTrig = tr[ *trig()].onTouch().connectWeakly(
+			shared_from_this(), &XFuncSynth::onTrigTouched);
+		if(tr.commit())
+			break;
+	}
 }
 void
-XFuncSynth::stop()
-{  
+XFuncSynth::stop() {
 	m_lsnOutput.reset();
 	m_lsnTrig.reset();
 	m_lsnMode.reset();
@@ -116,13 +119,9 @@ XFuncSynth::stop()
 }
 
 void
-XFuncSynth::analyzeRaw() throw (XRecordError&)
-{
+XFuncSynth::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 }
 void
-XFuncSynth::visualize()
-{
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XFuncSynth::visualize(const Snapshot &shot) {
 }
 

@@ -89,7 +89,7 @@ XQGraphPainter::findAxis(const Snapshot &shot, const XGraph::ScrPoint &s1) {
     shared_ptr<XAxis> found_axis;
     double zmin = 0.1;
 	if(shot.size(m_graph->axes())) {
-		const XNode::NodeList &axes_list(*shot.list(m_graph->axes()));
+		const XNode::NodeList &axes_list( *shot.list(m_graph->axes()));
 		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
 			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
 			XGraph::SFloat z1;
@@ -350,10 +350,10 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
 	for(Transaction tr( *m_graph);; ++tr) {
 		if(tr.size(m_graph->axes())) {
 			const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
-			for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
+			for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
 				shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
-				if(axis->autoScale()->isUIEnabled())
-					axis->autoScale()->value(false);
+				if(tr[ *axis->autoScale()].isUIEnabled())
+					tr[ *axis->autoScale()] = false;
 			}
 		}
 		m_graph->zoomAxes(tr, resScreen(), zoomscale, s1);
@@ -508,7 +508,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
   
 	if(m_onScreenMsg.length() ) {
 		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
-	 	setColor(*m_graph->titleColor());
+	 	setColor( *m_graph->titleColor());
 		m_curAlign = Qt::AlignBottom | Qt::AlignLeft;
   		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
 	}
@@ -613,9 +613,13 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot) {
 	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help").toUtf8().data());
 }
 
-void
-XQGraphPainter::drawOffScreenStart(const Snapshot &shot) {
-	m_graph->setupRedraw(shot, resScreen());
+Snapshot
+XQGraphPainter::startDrawing() {
+	for(Transaction tr( *m_graph);; ++tr) {
+		m_graph->setupRedraw(tr, resScreen());
+		if(tr.commit())
+			return tr;
+	}
 }
 void
 XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {

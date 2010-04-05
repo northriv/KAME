@@ -29,23 +29,30 @@ public:
 	virtual ~XTestDriver() {}
 	//! show all forms belonging to driver
 	virtual void showForms();
+
+	struct Payload : public XPrimaryDriver::Payload {
+		double x() const {return m_x;}
+		double y() const {return m_y;}
+	private:
+		friend class XTestDriver;
+		double m_x,m_y;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
 private:
 	shared_ptr<XThread<XTestDriver> > m_thread;
-	double m_x,m_y;
 	const shared_ptr<XScalarEntry> m_entryX, m_entryY;
 	void *execute(const atomic<bool> &);
   

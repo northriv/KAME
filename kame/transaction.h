@@ -248,7 +248,9 @@ private:
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		SnapshotMode mode,
 		int64_t serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
+
 	bool commit(Transaction<XN> &tr);
+//	bool commit_at_super(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
@@ -358,6 +360,8 @@ class Snapshot {
 public:
 	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_serial(x.m_serial) {
 	}
+	Snapshot(Node<XN> &node, const Snapshot &x) : m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial) {
+	}
 	Snapshot(const Transaction<XN>&x);
 	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
 		XTime time(XTime::now());
@@ -391,6 +395,18 @@ public:
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return packet->subnodes();
 	}
+
+	bool isUpperOf(const XN &lower) const {
+		const shared_ptr<const typename Node<XN>::NodeList> _list(list());
+		if( !_list)
+			return false;
+		for(typename Node<XN>::NodeList::const_iterator it = _list->begin(); it != _list->end(); ++it) {
+			if(it->get() == &lower)
+				return true;
+		}
+		return false;
+	}
+
 	void print() {
 		m_packet->_print();
 	}
@@ -444,6 +460,12 @@ public:
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 	}
+	Transaction(Node<XN> &node, const Snapshot<XN> &x) :
+		Snapshot<XN>(node, x),
+		m_oldpacket(this->m_packet), m_multi_nodal(true) {
+		XTime time(XTime::now());
+		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
+	}
 	virtual ~Transaction() {
 		//Do not leave the time stamp.
 		if(m_started_time) {
@@ -453,16 +475,22 @@ public:
 			}
 		}
 	}
-	//! Explicitly commits.
 	bool commit() {
 		Node<XN> &node(this->m_packet->node());
 		if( !isModified() || node.commit( *this)) {
-			finalizeCommitment();
+			finalizeCommitment(node);
 			return true;
 		}
 		return false;
 	}
-	//! Explicitly commits.
+//	bool commitAt(Node<XN> &supernode) {
+//		if(supernode.commit_at_super( *this)) {
+//			finalizeCommitment(this->m_packet->node());
+//			return true;
+//		}
+//		return false;
+//	}
+	//! Combination of commit() and operator++().
 	bool commitOrNext() {
 		if(commit())
 			return true;
@@ -492,7 +520,7 @@ public:
 	}
 	template <class T>
 	typename T::Payload &operator[](T &node) {
-		ASSERT(isMultiNodal() || (&node == &this->m_packet->node()));
+		ASSERT(isMultiNodal() || ( &node == &this->m_packet->node()));
 		local_shared_ptr<typename Node<XN>::Payload> &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		if(payload->m_serial != this->m_serial) {
@@ -511,14 +539,16 @@ public:
 		if(m)
 			m_messages.push_back(shared_ptr<_Message<XN> >(m));
 	}
-	//! \todo unmark(listener)
+	void unmark(const shared_ptr<XListener> &x) {
+		for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it)
+			( *it)->unmark(x);
+	}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
-	void finalizeCommitment() {
+	void finalizeCommitment(Node<XN> &node) {
 		//Clears the time stamp linked to this object.
-		Node<XN> &node(this->m_packet->node());
 		if(node.m_wrapper->m_transaction_started_time >= m_started_time) {
 			node.m_wrapper->m_transaction_started_time = 0;
 		}

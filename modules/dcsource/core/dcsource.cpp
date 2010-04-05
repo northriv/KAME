@@ -51,8 +51,7 @@ XDCSource::showForms() {
 }
 
 void
-XDCSource::start()
-{
+XDCSource::start() {
   m_output->setUIEnabled(true);
   m_function->setUIEnabled(true);
   m_value->setUIEnabled(true);
@@ -72,8 +71,7 @@ XDCSource::start()
   updateStatus();
 }
 void
-XDCSource::stop()
-{
+XDCSource::stop() {
   m_lsnChannel.reset();
   m_lsnOutput.reset();
   m_lsnFunction.reset();
@@ -89,19 +87,14 @@ XDCSource::stop()
 }
 
 void
-XDCSource::analyzeRaw() throw (XRecordError&)
-{
+XDCSource::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&)  {
 }
 void
-XDCSource::visualize()
-{
- //! impliment extra codes which do not need write-lock of record
- //! record is read-locked
+XDCSource::visualize(const Snapshot &shot) {
 }
 
 void 
-XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &)
-{
+XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
 	int ch = *channel();
     try {
         changeOutput(ch, *output());
@@ -112,8 +105,7 @@ XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &)
-{
+XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &) {
 	int ch = *channel();
     try {
         changeFunction(ch, *function());
@@ -124,8 +116,7 @@ XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &)
-{
+XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	int ch = *channel();
     try {
         changeValue(ch, *value(), true);
@@ -136,8 +127,7 @@ XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &)
-{
+XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &) {
 	int ch = *channel();
     try {
         changeRange(ch, *range());
@@ -148,8 +138,7 @@ XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &)
     }
 }
 void 
-XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &)
-{
+XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &) {
 	int ch = *channel();
     try {
     	m_lsnOutput->mask();

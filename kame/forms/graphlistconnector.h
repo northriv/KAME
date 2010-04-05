@@ -37,8 +37,8 @@ void clicked ( int row, int col, int button, const QPoint& );
 private:
 	const shared_ptr<XGraphList> m_graphlist;
   
-	const shared_ptr<XNode> m_newGraph;
-	const shared_ptr<XNode> m_deleteGraph;
+	const shared_ptr<XTouchableNode> m_newGraph;
+	const shared_ptr<XTouchableNode> m_deleteGraph;
 	struct tcons {
 		xqcon_ptr conx, cony1, conz;
 		shared_ptr<XNode> node;
@@ -51,8 +51,8 @@ private:
 	const xqcon_ptr m_conNewGraph, m_conDeleteGraph;
 	shared_ptr<XListener> m_lsnNewGraph, m_lsnDeleteGraph;
   
-	void onNewGraph (const shared_ptr<XNode> &);
-	void onDeleteGraph (const shared_ptr<XNode> &);
+	void onNewGraph (const Snapshot &shot, XTouchableNode *);
+	void onDeleteGraph (const Snapshot &shot, XTouchableNode *);
 };
 
 #endif

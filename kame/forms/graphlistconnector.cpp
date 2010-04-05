@@ -29,8 +29,8 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 										 QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
-    m_newGraph(XNode::createOrphan<XNode>("NewGraph", true)),
-    m_deleteGraph(XNode::createOrphan<XNode>("DeleteGraph", true)),
+    m_newGraph(XNode::createOrphan<XTouchableNode>("NewGraph", true)),
+    m_deleteGraph(XNode::createOrphan<XTouchableNode>("DeleteGraph", true)),
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
     m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete)) {
     KIconLoader *loader = KIconLoader::global();
@@ -65,24 +65,32 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 		}
 	}
   
-	m_lsnNewGraph = m_newGraph->onTouch().connectWeak(
-        shared_from_this(), &XGraphListConnector::onNewGraph, XListener::FLAG_MAIN_THREAD_CALL);
-	m_lsnDeleteGraph = m_deleteGraph->onTouch().connectWeak(
-        shared_from_this(), &XGraphListConnector::onDeleteGraph, XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *m_newGraph);; ++tr) {
+		m_lsnNewGraph = tr[ *m_newGraph].onTouch().connectWeakly(
+			shared_from_this(), &XGraphListConnector::onNewGraph, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
+	for(Transaction tr( *m_deleteGraph);; ++tr) {
+		m_lsnDeleteGraph = tr[ *m_deleteGraph].onTouch().connectWeakly(
+			shared_from_this(), &XGraphListConnector::onDeleteGraph, XListener::FLAG_MAIN_THREAD_CALL);
+	if(tr.commit())
+		break;
+}
 }
 
 void
-XGraphListConnector::onNewGraph (const shared_ptr<XNode> &) {
+XGraphListConnector::onNewGraph (const Snapshot &shot, XTouchableNode *) {
 	static int graphidx = 1;
     m_graphlist->createByTypename("", formatString("Graph-%d", graphidx++));
 }
 void
-XGraphListConnector::onDeleteGraph (const shared_ptr<XNode> &) {
+XGraphListConnector::onDeleteGraph (const Snapshot &shot, XTouchableNode *) {
 	int n = m_pItem->currentRow();
-	Snapshot shot( *m_graphlist);
-	if(shot.size()) {
-		if((n >= 0) && (n < (int)shot.list()->size())) {
-			shared_ptr<XNode> node = shot.list()->at(n);
+	Snapshot shot_this( *m_graphlist);
+	if(shot_this.size()) {
+		if((n >= 0) && (n < (int)shot_this.list()->size())) {
+			shared_ptr<XNode> node = shot_this.list()->at(n);
 			m_graphlist->releaseChild(node);
 		}
 	}

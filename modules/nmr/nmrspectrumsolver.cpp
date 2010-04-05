@@ -88,17 +88,17 @@ SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 	}
 }
 FFT::twindowfunc
-SpectrumSolverWrapper::windowFunc() const {
+SpectrumSolverWrapper::windowFunc(const Snapshot &shot) const {
 	FFT::twindowfunc func = &FFT::windowFuncRect;
-	if(m_windowfunc) {
-		if(m_windowfunc->to_str() == WINDOW_FUNC_HANNING) func = &FFT::windowFuncHanning;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_HAMMING) func = &FFT::windowFuncHamming;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_FLATTOP) func = &FFT::windowFuncFlatTop;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN) func = &FFT::windowFuncBlackman;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &FFT::windowFuncBlackmanHarris;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_1) func = &FFT::windowFuncKaiser1;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_2) func = &FFT::windowFuncKaiser2;
-		if(m_windowfunc->to_str() == WINDOW_FUNC_KAISER_3) func = &FFT::windowFuncKaiser3;
+	if(shot[ *m_windowfunc]) {
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_HANNING) func = &FFT::windowFuncHanning;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_HAMMING) func = &FFT::windowFuncHamming;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_FLATTOP) func = &FFT::windowFuncFlatTop;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_BLACKMAN) func = &FFT::windowFuncBlackman;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_BLACKMAN_HARRIS) func = &FFT::windowFuncBlackmanHarris;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_KAISER_1) func = &FFT::windowFuncKaiser1;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_KAISER_2) func = &FFT::windowFuncKaiser2;
+		if(shot[ *m_windowfunc].to_str() == WINDOW_FUNC_KAISER_3) func = &FFT::windowFuncKaiser3;
 	}
 	return func;
 }
@@ -175,5 +175,5 @@ SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
 		m_windowfunc->setUIEnabled(has_window);
 	if(m_windowlength)
 		m_windowlength->setUIEnabled(has_length);
-	m_solver = solver;	
+	trans( *this).m_solver = solver;
 }

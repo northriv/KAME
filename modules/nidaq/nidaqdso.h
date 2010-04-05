@@ -24,8 +24,8 @@ public:
 	XNIDAQmxDSO(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNIDAQmxDSO();
-	//! convert raw to record
-	virtual void convertRaw() throw (XRecordError&);
+	//! Converts raw to record
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
@@ -52,15 +52,15 @@ protected:
 	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
+	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	virtual double getTimeInterval();
 	//! clear count or start sequence measurement
 	virtual void startSequence();
 	virtual int acqCount(bool *seq_busy);
 
-	//! load waveform and settings from instrument
-	virtual void getWave(std::deque<XString> &channels);
+	//! Loads waveform and settings from instrument
+	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
 private:
 	typedef int16 tRawAI;
 	scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;

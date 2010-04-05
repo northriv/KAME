@@ -28,7 +28,7 @@ XConCalTable::XConCalTable
 (const shared_ptr<XThermometerList> &list, FrmCalTable *form)
 	:  XQConnector(list, form), 
 	   m_list(list),
-	   m_display(XNode::createOrphan<XNode>("display") ),
+	   m_display(XNode::createOrphan<XTouchableNode>("display") ),
 	   m_temp(XNode::createOrphan<XDoubleNode>("temp") ),
 	   m_value(XNode::createOrphan<XDoubleNode>("value") ),
 	   m_pForm(form),
@@ -54,9 +54,13 @@ XConCalTable::XConCalTable
 	m_lsnValue = value()->onValueChanged().connectWeak(
 		shared_from_this(),
 		&XConCalTable::onValueChanged);
-	m_lsnDisplay = display()->onTouch().connectWeak(
-		shared_from_this(),
-		&XConCalTable::onDisplayTouched, XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *display());; ++tr) {
+		m_lsnDisplay = tr[ *display()].onTouch().connectWeakly(
+			shared_from_this(),
+			&XConCalTable::onDisplayTouched, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
 
 	m_waveform->setWindowTitle(i18n("Thermometer Calibration"));
 	for(Transaction tr( *m_wave);; ++tr) {
@@ -73,17 +77,17 @@ XConCalTable::XConCalTable
 		shared_ptr<XAxis> axisy = tr[ *m_wave].axisy();
 		tr[ *axisy->logScale()] = true;
 		m_wave->drawGraph(tr);
+		tr[ *m_wave].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	m_wave->clear();
 }
 
 void
 XConCalTable::onTempChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
-	double ret = thermo->getRawValue(*temp());
+	double ret = thermo->getRawValue( *temp());
 	m_lsnValue->mask();
 	value()->value(ret);    
 	m_lsnValue->unmask();
@@ -92,20 +96,24 @@ void
 XConCalTable::onValueChanged(const shared_ptr<XValueNodeBase> &) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
-	double ret = thermo->getTemp(*value());
+	double ret = thermo->getTemp( *value());
 	m_lsnTemp->mask();
 	temp()->value(ret);
 	m_lsnTemp->unmask();
 }
 void
-XConCalTable::onDisplayTouched(const shared_ptr<XNode> &) {
+XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) {
-		m_wave->clear();
+		for(Transaction tr( *m_wave);; ++tr) {
+			tr[ *m_wave].clearPoints();
+			if(tr.commit())
+				break;
+		}
 		return;
 	}
 	const int length = 1000;
-	double step = (log(*thermo->tempMax()) - log(*thermo->tempMin())) / length;
+	double step = (log( *thermo->tempMax()) - log( *thermo->tempMin())) / length;
 	for(Transaction tr( *m_wave);; ++tr) {
 		tr[ *m_wave].setRowCount(length);
 		double lt = log(*thermo->tempMin());

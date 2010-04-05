@@ -32,25 +32,32 @@ public:
 				 const char *format = 0L);
 	virtual ~XScalarEntry() {}
 
-	//a criterion that determine a trigger of storing
+	//A condition for determining a trigger of storing.
 	//0: never
 	//negative: allways
-	//positive: when the difference from old value exceeds 'Delta'
+	//positive: when the difference from old value exceeds 'Delta'.
 	const shared_ptr<XDoubleNode> &delta() const {return m_delta;}
-	//if false, one line does't contain this
+	//if false, one line should not include this.
 	const shared_ptr<XBoolNode> &store() const {return m_store;}
 
 	const shared_ptr<XDoubleNode> &value() const {return m_value;}
 	const shared_ptr<XDoubleNode> &storedValue() const {return m_storedValue;}
   
-	bool isTriggered() const;
-	void storeValue();
+	void storeValue(Transaction &tr);
 
 	shared_ptr<XDriver> driver() const {return m_driver.lock();}
   
 	virtual XString getLabel() const;
   
-	virtual void value(double val);
+	void value(Transaction &tr, double val);
+
+	struct Payload : public XNode::Payload {
+		Payload() : m_bTriggered(false) {}
+		bool isTriggered() const {return m_bTriggered;}
+	private:
+		friend class XScalarEntry;
+		bool m_bTriggered;
+	};
 protected:
 private:
 	const weak_ptr<XDriver> m_driver;
@@ -60,8 +67,6 @@ private:
 
 	const shared_ptr<XDoubleNode> m_value;
 	const shared_ptr<XDoubleNode> m_storedValue;
-  
-	bool m_bTriggered;
 };
 
 class XDriverList;
@@ -86,7 +91,7 @@ public:
 private:
 	shared_ptr<XListener> m_lsnOnRecord;
 	//callback from Driver
-	void onRecord(const shared_ptr<XDriver> &);
+	void onRecord(const Snapshot &shot, XDriver *driver);
 
 	const shared_ptr<XScalarEntry> m_entry;
 	shared_ptr<XGraph> m_graph;

@@ -30,24 +30,20 @@ static inline VALUE string2RSTRING(const XString &str) {
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
 : XAliasListNode<XRubyThread>(name, runtime),
 m_measure(measure), 
-m_thread(shared_from_this(), &XRuby::execute)
-{
+m_thread(shared_from_this(), &XRuby::execute) {
 	m_lsnCreateChild = m_tlkCreateChild.connectWeak(shared_from_this(),
 		&XRuby::onCreateChild, XListener::FLAG_MAIN_THREAD_CALL);
 }
-XRuby::~XRuby()
-{
+XRuby::~XRuby() {
 }
 void
-XRuby::rnode_free(void *rnode)
-{
+XRuby::rnode_free(void *rnode) {
 	struct rnode_ptr* st = static_cast<struct rnode_ptr*>(rnode);
 	delete st;
 }
 
 VALUE
-XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby)
-{
+XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby) {
 
 	struct rnode_ptr *st
 	= new rnode_ptr;
@@ -56,27 +52,22 @@ XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby)
 	st->xruby = xruby;
 	VALUE rnew;
 	shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
-	if(vnode)
-	{
+	if(vnode) {
 		rnew = Data_Wrap_Struct(xruby->rbClassValueNode, 0, rnode_free, st);
 	}
-	else
-	{
+	else {
 		shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
-		if(lnode)
-		{
+		if(lnode) {
 			rnew = Data_Wrap_Struct(xruby->rbClassListNode, 0, rnode_free, st);
 		}
-		else
-		{
+		else {
 			rnew = Data_Wrap_Struct(xruby->rbClassNode, 0, rnode_free, st);
 		}
 	}
 	return rnew;
 }
 VALUE
-XRuby::rnode_child(VALUE self, VALUE var)
-{
+XRuby::rnode_child(VALUE self, VALUE var) {
 	char errmsg[256];
 	try {
 		shared_ptr<XNode> child;
@@ -125,8 +116,7 @@ XRuby::rnode_child(VALUE self, VALUE var)
 	return Qnil;  
 }
 VALUE
-XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
-{
+XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 	Check_Type(rbtype, T_STRING);
 	if(TYPE(rbtype) != T_STRING) return Qnil;
 	Check_Type(rbname, T_STRING);
@@ -140,14 +130,13 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 		struct rnode_ptr *st;
 		Data_Get_Struct(self, struct rnode_ptr, st);
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			if( node->isRunTime() )
-			{
+			Snapshot shot( *node);
+			if( shot[ *node].isRuntime() ) {
 				throw formatString("Node %s is run-time node!\n", node->getName().c_str());
 			}     
 			shared_ptr<XListNodeBase> lnode =
 				dynamic_pointer_cast<XListNodeBase>(node);
-			if(!lnode)
-			{
+			if( !lnode) {
 				throw formatString("Error on %s : Not ListNode. Could not make child"
 					" name = %s, type = %s\n", node->getName().c_str(), name, type);
 			}
@@ -160,7 +149,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 	          return Qnil;
 	      }
 			 */
-			if(!child) {
+			if( !child) {
 				shared_ptr<tCreateChild> x(new tCreateChild);
 				x->lnode = lnode;
 				x->type = type;
@@ -173,7 +162,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 				child = x->child;
 				x->child.reset();
 			}
-			if(!child) {
+			if( !child) {
 				throw formatString(
 					"Error on %s : Could not make child"
 					" name = %s, type = %s\n", node->getName().c_str(), name, type);
@@ -191,29 +180,26 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname)
 	return Qnil;  
 }
 void
-XRuby::onCreateChild(const shared_ptr<tCreateChild> &x) 
-{
+XRuby::onCreateChild(const shared_ptr<tCreateChild> &x)  {
 	x->child = x->lnode->createByTypename(x->type, x->name);
 	x->lnode.reset();
 	XScopedLock<XCondition> lock(x->cond);
 	x->cond.signal();
 }
 VALUE
-XRuby::rlistnode_release_child(VALUE self, VALUE rbchild)
-{
+XRuby::rlistnode_release_child(VALUE self, VALUE rbchild) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			if(!node->isUIEnabled() )
-			{
+			Snapshot shot( *node);
+			if( !shot[ *node].isUIEnabled()) {
 				throw formatString("Node %s is read-only!\n", node->getName().c_str());
 			}     
 			shared_ptr<XListNodeBase> lnode =
 				dynamic_pointer_cast<XListNodeBase>(node);
-			if(!lnode)
-			{
+			if( !lnode) {
 				throw formatString("Error on %s : Not ListNode. Could not release child\n"
 					, node->getName().c_str());
 			}
@@ -240,8 +226,7 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild)
 }
 
 VALUE
-XRuby::rnode_name(VALUE self)
-{
+XRuby::rnode_name(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
@@ -260,14 +245,13 @@ XRuby::rnode_name(VALUE self)
 	return Qnil;  
 }
 VALUE
-XRuby::rnode_count(VALUE self)
-{
+XRuby::rnode_count(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			Snapshot shot(*node);
+			Snapshot shot( *node);
 			VALUE count = INT2NUM(shot.size());
 			return count;
 		}
@@ -282,18 +266,24 @@ XRuby::rnode_count(VALUE self)
 	return Qnil;  
 }
 VALUE
-XRuby::rnode_touch(VALUE self)
-{
+XRuby::rnode_touch(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
+			shared_ptr<XTouchableNode> tnode = dynamic_pointer_cast<XTouchableNode>(node);
+			if( !node)
+				throw formatString("Type mismatch on node %s\n", node->getName().c_str());
 			dbgPrint(QString("Ruby, Node %1, touching."));
-			if(node->isUIEnabled() )
-				node->touch();
-			else
-				throw formatString("Node %s is read-only!\n", node->getName().c_str());
+			for(Transaction tr( *tnode);; ++tr) {
+				if(tr[ *tnode].isUIEnabled() )
+					tr[ *tnode].touch();
+				else
+					throw formatString("Node %s is read-only!\n", node->getName().c_str());
+				if(tr.commit())
+					break;
+			}
 			return Qnil;  
 		}
 		else {
@@ -307,26 +297,23 @@ XRuby::rnode_touch(VALUE self)
 	return Qnil;  
 }
 VALUE
-XRuby::rvaluenode_set(VALUE self, VALUE var)
-{
+XRuby::rvaluenode_set(VALUE self, VALUE var) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
+			Snapshot shot( *node);
 			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 			ASSERT(vnode);
 			dbgPrint(QString("Ruby, Node %1, setting new value.").arg(node->getName()) );
-			if(!node->isUIEnabled() )
-			{
+			if( !shot[ *node].isUIEnabled()) {
 				throw formatString("Node %s is read-only!\n", node->getName().c_str());
 			}
-			if(XRuby::strOnNode(vnode, var))
-			{
+			if(XRuby::strOnNode(vnode, var)) {
 				return Qnil;
 			}
-			else
-			{
+			else {
 				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(vnode->to_str()) );
 				return XRuby::getValueOfNode(vnode);
 			}
@@ -342,26 +329,23 @@ XRuby::rvaluenode_set(VALUE self, VALUE var)
 	return Qnil;  
 }
 VALUE
-XRuby::rvaluenode_load(VALUE self, VALUE var)
-{
+XRuby::rvaluenode_load(VALUE self, VALUE var) {
 	char errmsg[256];
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
+			Snapshot shot( *node);
 			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 			ASSERT(vnode);
 			dbgPrint(QString("Ruby, Node %1, loading new value.").arg(node->getName()) );
-			if( node->isRunTime() )
-			{
+			if( shot[ *node].isRuntime()) {
 				throw formatString("Node %s is run-time node!\n", node->getName().c_str());
 			}
-			if(XRuby::strOnNode(vnode, var))
-			{
+			if(XRuby::strOnNode(vnode, var)) {
 				return Qnil;
 			}
-			else
-			{
+			else {
 				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(vnode->to_str()) );
 				return XRuby::getValueOfNode(vnode);
 			}
@@ -378,8 +362,7 @@ XRuby::rvaluenode_load(VALUE self, VALUE var)
 
 }
 VALUE
-XRuby::rvaluenode_get(VALUE self)
-{
+XRuby::rvaluenode_get(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
@@ -400,8 +383,7 @@ XRuby::rvaluenode_get(VALUE self)
 	return Qnil;  
 }
 VALUE
-XRuby::rvaluenode_to_str(VALUE self)
-{
+XRuby::rvaluenode_to_str(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	char errmsg[256];
@@ -423,8 +405,7 @@ XRuby::rvaluenode_to_str(VALUE self)
 }
 
 int
-XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
-{
+XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 	double dbl = 0;
 	long integer = 0;
 
@@ -487,8 +468,7 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value)
 	return -1;
 }
 VALUE
-XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
-{
+XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
 	shared_ptr<XDoubleNode> dnode = dynamic_pointer_cast<XDoubleNode>(node);
 	shared_ptr<XIntNode> inode = dynamic_pointer_cast<XIntNode>(node);
 	shared_ptr<XUIntNode> uinode = dynamic_pointer_cast<XUIntNode>(node);
@@ -496,13 +476,13 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node)
 	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
 	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
 	shared_ptr<XStringNode> snode = dynamic_pointer_cast<XStringNode>(node);
-	if(dnode) {return rb_float_new((double)*dnode);}
-	if(inode) {return INT2NUM(*inode);}
-	if(uinode) {return UINT2NUM(*uinode);}
-	if(lnode) {return LONG2NUM(*lnode);}
-	if(ulnode) {return ULONG2NUM(*ulnode);}
-	if(bnode) {return (*bnode) ? Qtrue : Qfalse;}
-	if(snode) {return string2RSTRING(*snode);}
+	if(dnode) {return rb_float_new((double) *dnode);}
+	if(inode) {return INT2NUM( *inode);}
+	if(uinode) {return UINT2NUM( *uinode);}
+	if(lnode) {return LONG2NUM( *lnode);}
+	if(ulnode) {return ULONG2NUM( *ulnode);}
+	if(bnode) {return ( *bnode) ? Qtrue : Qfalse;}
+	if(snode) {return string2RSTRING( *snode);}
 	return Qnil;
 }
 
@@ -525,8 +505,7 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 	return rubythread;
 }
 VALUE
-XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
-{
+XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid) {
 	shared_ptr<XString> sstr(new XString(RSTRING(str)->ptr));
 	shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
 	if(rubythread) {
@@ -539,8 +518,7 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid)
 	return Qnil;
 }
 VALUE
-XRuby::my_rbdefin(VALUE self, VALUE threadid)
-{
+XRuby::my_rbdefin(VALUE self, VALUE threadid) {
 	shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
 	char errmsg[256];
 	try {
@@ -561,18 +539,15 @@ XRuby::my_rbdefin(VALUE self, VALUE threadid)
 	return Qnil;  
 }
 VALUE
-XRuby::is_main_terminated(VALUE self)
-{
+XRuby::is_main_terminated(VALUE self) {
 	struct rnode_ptr *st;
 	Data_Get_Struct(self, struct rnode_ptr, st);
 	return (st->xruby->m_thread.isTerminated()) ? Qtrue : Qfalse;
 }
 
 void *
-XRuby::execute(const atomic<bool> &terminated)
-{
-
-	while (!terminated) {
+XRuby::execute(const atomic<bool> &terminated) {
+	while ( !terminated) {
 		ruby_init();
 		ruby_script("KAME");
 

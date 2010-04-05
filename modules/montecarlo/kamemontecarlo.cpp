@@ -63,31 +63,30 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
     m_alpha(create<XDoubleNode>("Alpha", false)),
     m_minTests(create<XDoubleNode>("MinTests", false)),
     m_minFlips(create<XDoubleNode>("MinFlips", false)),
-    m_step(create<XNode>("Step", true)),
+    m_step(create<XTouchableNode>("Step", true)),
     m_graph3D(create<XComboNode>("Graph3D", false, true)),
-    m_entryT(create<XScalarEntry>("Temp", false, 
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
-    m_entryH(create<XScalarEntry>("Field", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
-    m_entryU(create<XScalarEntry>("U", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
-    m_entryC(create<XScalarEntry>("C", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
-    m_entryCoT(create<XScalarEntry>("CoverT", false,
-									dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
-    m_entryS(create<XScalarEntry>("S", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
-    m_entryM(create<XScalarEntry>("M", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
-    m_entry2in2(create<XScalarEntry>("2in2", false,
-									 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
-    m_entry1in3(create<XScalarEntry>("1in3", false,
-									 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+	m_entryT(create<XScalarEntry>("Temp", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+	m_entryH(create<XScalarEntry>("Field", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+	m_entryU(create<XScalarEntry>("U", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+	m_entryC(create<XScalarEntry>("C", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+	m_entryCoT(create<XScalarEntry>("CoverT", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+	m_entryS(create<XScalarEntry>("S", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+	m_entryM(create<XScalarEntry>("M", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.6g")),
+	m_entry2in2(create<XScalarEntry>("2in2", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+	m_entry1in3(create<XScalarEntry>("1in3", false,
+		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_form(new FrmMonteCarlo(g_pFrmMain)),
     m_wave3D(create<XWaveNGraph>("Wave3D", false, 
-								 m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-    m_statusPrinter(XStatusPrinter::create(m_form.get())),
-    m_fftlen(-1) {
+		m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+    m_statusPrinter(XStatusPrinter::create(m_form.get())) {
 
 	meas->scalarEntries()->insert(tr_meas, m_entryT);
 	meas->scalarEntries()->insert(tr_meas, m_entryH);
@@ -179,17 +178,18 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 		tr[ *tr[ *m_wave3D].axisz()->ticColor()] = clWhite;
 		tr[ *tr[ *m_wave3D].axisz()->labelColor()] = clWhite;
 		tr[ *tr[ *m_wave3D].axisz()->ticLabelColor()] = clWhite;
+		tr[ *m_wave3D].clearPoints();
 		if(tr.commit())
 			break;
     }
-	m_wave3D->clear();
 }
 XMonteCarloDriver::~XMonteCarloDriver() {
+	Snapshot shot( *this);
     for(int d = 0; d < 3; d++) {
-        if(m_fftlen > 0) {
-            fftw_destroy_plan(m_fftplan[d]);
-            fftw_free(m_pFFTin[d]);
-            fftw_free(m_pFFTout[d]);
+        if(shot[ *this].m_fftlen > 0) {
+            fftw_destroy_plan(shot[ *this].m_fftplan[d]);
+            fftw_free(shot[ *this].m_pFFTin[d]);
+            fftw_free(shot[ *this].m_pFFTout[d]);
         }
     }	
 }
@@ -200,51 +200,57 @@ XMonteCarloDriver::showForms() {
     m_form->raise();
 }
 void
-XMonteCarloDriver::start()
-{
-    MonteCarlo::setupField(*m_L, 0.0, *m_cutoffReal, *m_cutoffRec, *m_alpha);
+XMonteCarloDriver::start() {
+	Snapshot shot( *this);
+    MonteCarlo::setupField(shot[ *m_L], 0.0, shot[ *m_cutoffReal], shot[ *m_cutoffRec], shot[ *m_alpha]);
     m_L->setUIEnabled(false);
-    m_loop.reset(new MonteCarlo(2));
-    m_store.reset(new MonteCarlo(1));
     m_cutoffReal->setUIEnabled(false);
     m_cutoffRec->setUIEnabled(false);
     m_alpha->setUIEnabled(false);
-    m_sumDU = m_loop->internalEnergy() * N_A;
-    m_sumDUav = m_sumDU;
-    m_sumDS = 0.0;
-    m_testsTotal = 0.0;
-    m_flippedTotal = 0.0;
-    m_lastTemp = 300.0;
-    m_lastField = 0.0;
-    m_dU = 0.0;
     m_hdirx->setUIEnabled(false);
     m_hdiry->setUIEnabled(false);
     m_hdirz->setUIEnabled(false);
-    MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
-    field_dir.normalize();
-    m_lastMagnetization = m_loop->magnetization().innerProduct(field_dir);
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *this].m_loop.reset(new MonteCarlo(2));
+        tr[ *this].m_store.reset(new MonteCarlo(1));
+        tr[ *this].m_sumDU = tr[ *this].m_loop->internalEnergy() * N_A;
+        tr[ *this].m_sumDUav = tr[ *this].m_sumDU;
+        tr[ *this].m_sumDS = 0.0;
+        tr[ *this].m_testsTotal = 0.0;
+        tr[ *this].m_flippedTotal = 0.0;
+        tr[ *this].m_lastTemp = 300.0;
+        tr[ *this].m_lastField = 0.0;
+        tr[ *this].m_dU = 0.0;
+        MonteCarlo::Vector3<double> field_dir(tr[ *m_hdirx], tr[ *m_hdiry], tr[ *m_hdirz]);
+        field_dir.normalize();
+        tr[ *this].m_lastMagnetization = tr[ *this].m_loop->magnetization().innerProduct(field_dir);
+
+        m_lsnStepTouched = tr[ *m_step].onTouch().connectWeakly(
+    		shared_from_this(), &XMonteCarloDriver::onStepTouched);
+    	if(tr.commit())
+    		break;
+    }
 
     m_lsnTargetChanged = m_targetTemp->onValueChanged().connectWeak(
 		shared_from_this(), &XMonteCarloDriver::onTargetChanged);
     m_targetField->onValueChanged().connect(m_lsnTargetChanged);
-    m_lsnStepTouched = m_step->onTouch().connectWeak(
-		shared_from_this(), &XMonteCarloDriver::onStepTouched);
     m_lsnGraphChanged = m_graph3D->onValueChanged().connectWeak(
 		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
     int fftlen = MonteCarlo::length() * 4;
     for(int d = 0; d < 3; d++) {
-        if(m_fftlen > 0) {
-            fftw_destroy_plan(m_fftplan[d]);
-            fftw_free(m_pFFTin[d]);
-            fftw_free(m_pFFTout[d]);
+        if(shot[ *this].m_fftlen > 0) {
+            fftw_destroy_plan(shot[ *this].m_fftplan[d]);
+            fftw_free(shot[ *this].m_pFFTin[d]);
+            fftw_free(shot[ *this].m_pFFTout[d]);
         }
-        m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-        m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-        m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen, m_pFFTin[d], m_pFFTout[d],
+        trans( *this).m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        trans( *this).m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+        trans( *this).m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen,
+        	shot[ *this].m_pFFTin[d], shot[ *this].m_pFFTout[d],
         	FFTW_FORWARD, FFTW_ESTIMATE);
     }
-    m_fftlen = fftlen;
+    trans( *this).m_fftlen = fftlen;
 }
 void
 XMonteCarloDriver::stop() {
@@ -263,59 +269,62 @@ XMonteCarloDriver::stop() {
     afterStop();
 }
 void
-XMonteCarloDriver::analyzeRaw() throw (XRecordError&) {
+XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	const Snapshot &shot(tr);
     unsigned int size = MonteCarlo::length();
-    if(rawData().size() != size*size*size*16)
+    if(reader.size() != size*size*size*16)
         throw XRecordError("Size Mismatch", __FILE__, __LINE__);
-    MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
+    MonteCarlo::Vector3<double> field_dir(shot[ *m_hdirx], shot[ *m_hdiry], shot[ *m_hdirz]);
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);
-    field *= *m_targetField;
-    char *spins = (char*)&rawData()[0];
-    m_store->read(spins, *m_targetTemp, field);
+    field *= shot[ *m_targetField];
+    char *spins = (char*)&reader.data()[0];
+    tr[ *this].m_store->read(spins, shot[ *m_targetTemp], field);
 
-    double dT = *m_targetTemp - m_lastTemp;
-    m_lastTemp = *m_targetTemp;
-    double m = m_store->magnetization().innerProduct(field_dir);
-    double dM = m - m_lastMagnetization;
-    double dH = *m_targetField - m_lastField;
-    double dU = m_dU;
+    double dT = shot[ *m_targetTemp] - shot[ *this].m_lastTemp;
+    tr[ *this].m_lastTemp = shot[ *m_targetTemp];
+    double m = shot[ *this].m_store->magnetization().innerProduct(field_dir);
+    double dM = m - shot[ *this].m_lastMagnetization;
+    double dH = shot[ *m_targetField] - shot[ *this].m_lastField;
+    double dU = shot[ *this].m_dU;
     // DS += (DU + HDM + MDH)/T
-    m_sumDS += (dU + dM * *m_targetField * MU_B * N_A) / *m_targetTemp; 
+    tr[ *this].m_sumDS += (dU + dM * shot[ *m_targetField] * MU_B * N_A) / shot[ *m_targetTemp];
     // DU += -MDH.
-    dU += -m_lastMagnetization * MU_B * N_A * dH;
-    double dUav = m_DUav * N_A;
-    dUav += -m_Mav * MU_B * N_A * dH;
-    double c = (fabs(dT) < 1e-10) ? 0.0 : ((m_sumDU + dUav - m_sumDUav) / dT);
-    m_sumDUav = m_sumDU + dUav;
-    m_sumDU += dU;
-    m_lastMagnetization = m;
-    m_lastField = *m_targetField;
-    double u = m_sumDU;
+    dU += -shot[ *this].m_lastMagnetization * MU_B * N_A * dH;
+    double dUav = shot[ *this].m_DUav * N_A;
+    dUav += -shot[ *this].m_Mav * MU_B * N_A * dH;
+    double c = (fabs(dT) < 1e-10) ? 0.0 : ((shot[ *this].m_sumDU + dUav - shot[ *this].m_sumDUav) / dT);
+    tr[ *this].m_sumDUav = shot[ *this].m_sumDU + dUav;
+    tr[ *this].m_sumDU += dU;
+    tr[ *this].m_lastMagnetization = m;
+    tr[ *this].m_lastField = shot[ *m_targetField];
+    double u = shot[ *this].m_sumDU;
     if(rand() % 20 == 0) {
         std::cerr << "Recalculate Internal Energy." << std::endl;
-        u = m_store->internalEnergy() * N_A;
-        if(fabs((u - m_sumDU)/u) > 1e-5) {
-            gErrPrint(formatString("SumDU Error = %g!", (double)(u - m_sumDU)/u)); 
+        u = shot[ *this].m_store->internalEnergy() * N_A;
+        if(fabs((u - shot[ *this].m_sumDU)/u) > 1e-5) {
+            gErrPrint(formatString("SumDU Error = %g!", (double)(u - shot[ *this].m_sumDU)/u));
         }
     }
-    MonteCarlo::Quartet quartet = m_store->siteMagnetization();
-    m_entryT->value(m_lastTemp);
-    m_entryH->value(m_lastField);
-    m_entryU->value(u);
-    m_entryC->value(c);
-    m_entryCoT->value(c / m_lastTemp);
-    m_entryS->value(m_sumDS);
-    m_entryM->value(m_Mav);
-    m_entry2in2->value(100.0*quartet.twotwo);
-    m_entry1in3->value(100.0*quartet.onethree);
+    MonteCarlo::Quartet quartet = shot[ *this].m_store->siteMagnetization();
+    m_entryT->value(tr, shot[ *this].m_lastTemp);
+    m_entryH->value(tr, shot[ *this].m_lastField);
+    m_entryU->value(tr, u);
+    m_entryC->value(tr, c);
+    m_entryCoT->value(tr, c / shot[ *this].m_lastTemp);
+    m_entryS->value(tr, shot[ *this].m_sumDS);
+    m_entryM->value(tr, shot[ *this].m_Mav);
+    m_entry2in2->value(tr, 100.0*quartet.twotwo);
+    m_entry1in3->value(tr, 100.0*quartet.onethree);
 }
 void
-XMonteCarloDriver::visualize() {
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
-	if(!time()) {
-		m_wave3D->clear();
+XMonteCarloDriver::visualize(const Snapshot &shot) {
+	if( !shot[ *this].time()) {
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *m_wave3D].clearPoints();
+			if(tr.commit())
+				break;
+		}
 		return;
 	}
     
@@ -378,14 +387,15 @@ XMonteCarloDriver::visualize() {
 		writeflips = true;
 	}
 
-    int size = m_store->length();
+    int size = shot[ *this].m_store->length();
     std::vector<char> spins(size*size*size*16);
     std::vector<double> fields;
     if(calch) fields.resize(size*size*size*16);
     std::vector<double> probabilities;
     if(calcp) probabilities.resize(size*size*size*16);
-    m_store->write((char*)&spins[0]
+    shot[ *this].m_store->write((char*)&spins[0]
 				   , fields.size() ? &fields[0] : 0, probabilities.size() ? &probabilities[0] : 0);
+    int fftlen = shot[ *this].m_fftlen;
     for(int d = 0; d < 3; d++) {
         for(int site = 0; site < 16; site++) {
             const int *pos = cg_ASitePositions[site];
@@ -393,38 +403,38 @@ XMonteCarloDriver::visualize() {
             for(int k = 0; k < size; k++) {
 				for(int j = 0; j < size; j++) {
 					for(int i = 0; i < size; i++) {
-						int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+						int fftidx =fftlen*(fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
 						int spin = spins[size*(size*(size*site + k) + j) + i];
-						m_pFFTin[d][fftidx][0] = spin* ising / sqrt(3.0);
+						shot[ *this].m_pFFTin[d][fftidx][0] = spin* ising / sqrt(3.0);
 					}
 				}
             }
         }
     }
     
-	MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
+	MonteCarlo::Vector3<double> field_dir(shot[ *m_hdirx], shot[ *m_hdiry], shot[ *m_hdirz]);
 	field_dir.normalize();
     
 
 	if(fftx || ffty || fftz) {
-		fftw_execute(m_fftplan[0]);
-		fftw_execute(m_fftplan[1]);
-		fftw_execute(m_fftplan[2]);
+		fftw_execute(shot[ *this].m_fftplan[0]);
+		fftw_execute(shot[ *this].m_fftplan[1]);
+		fftw_execute(shot[ *this].m_fftplan[2]);
     
 		for(Transaction tr( *m_wave3D);; ++tr) {
-			tr[ *m_wave3D].setRowCount(m_fftlen * m_fftlen * m_fftlen );
-			double normalize = A_MOMENT / m_fftlen / m_fftlen / m_fftlen;
+			tr[ *m_wave3D].setRowCount(fftlen * fftlen * fftlen );
+			double normalize = A_MOMENT / fftlen / fftlen / fftlen;
 			int idx = 0;
-			for(int l = 0; l < m_fftlen; l++) {
-				for(int k = 0; k < m_fftlen; k++) {
-					for(int h = 0; h < m_fftlen; h++) {
-						int qidx = m_fftlen*(m_fftlen*l + k) + h;
-						fftw_complex *ix = &m_pFFTout[0][qidx];
-						fftw_complex *iy = &m_pFFTout[1][qidx];
-						fftw_complex *iz = &m_pFFTout[2][qidx];
-						tr[ *m_wave3D].cols(0)[idx] = (double)h * 8.0/m_fftlen;
-						tr[ *m_wave3D].cols(1)[idx] = (double)k * 8.0/m_fftlen;
-						tr[ *m_wave3D].cols(2)[idx] = (double)l * 8.0/m_fftlen;
+			for(int l = 0; l < fftlen; l++) {
+				for(int k = 0; k < fftlen; k++) {
+					for(int h = 0; h < fftlen; h++) {
+						int qidx = fftlen*(fftlen*l + k) + h;
+						fftw_complex *ix = &shot[ *this].m_pFFTout[0][qidx];
+						fftw_complex *iy = &shot[ *this].m_pFFTout[1][qidx];
+						fftw_complex *iz = &shot[ *this].m_pFFTout[2][qidx];
+						tr[ *m_wave3D].cols(0)[idx] = (double)h * 8.0/fftlen;
+						tr[ *m_wave3D].cols(1)[idx] = (double)k * 8.0/fftlen;
+						tr[ *m_wave3D].cols(2)[idx] = (double)l * 8.0/fftlen;
 						double v = 0.0;
 						if(along_field_dir) {
 							double vr = field_dir.innerProduct(MonteCarlo::Vector3<double>
@@ -464,16 +474,16 @@ XMonteCarloDriver::visualize() {
 				for(int j = 0; j < size; j++) {
 					for(int i = 0; i < size; i++) {
 						int sidx = size*(size*(size*site + k) + j) + i;
-						int fftidx = m_fftlen*(m_fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+						int fftidx = fftlen*(fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
 						double x = i + pos[0] * 0.25;
 						double y = j + pos[1] * 0.25;
 						double z = k + pos[2] * 0.25;
 						tr[ *m_wave3D].cols(0)[idx] = x;
 						tr[ *m_wave3D].cols(1)[idx] = y;
 						tr[ *m_wave3D].cols(2)[idx] = z;
-						double sx = m_pFFTin[0][fftidx][0];
-						double sy = m_pFFTin[1][fftidx][0];
-						double sz = m_pFFTin[2][fftidx][0];
+						double sx = shot[ *this].m_pFFTin[0][fftidx][0];
+						double sy = shot[ *this].m_pFFTin[1][fftidx][0];
+						double sz = shot[ *this].m_pFFTin[2][fftidx][0];
 						double v = 0.0;
 						if(along_field_dir) {
 							v = field_dir.innerProduct(MonteCarlo::Vector3<double>
@@ -507,7 +517,7 @@ XMonteCarloDriver::visualize() {
 	}
 	if(calcbsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(16*size*size*size);
-		m_store->write_bsite(&fields[0]);
+		shot[ *this].m_store->write_bsite(&fields[0]);
 		for(Transaction tr( *m_wave3D);; ++tr) {
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(16*size*size*size);
@@ -542,7 +552,7 @@ XMonteCarloDriver::visualize() {
 	}
 	if(calc8asite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(8*size*size*size);
-		m_store->write_8asite(&fields[0]);
+		shot[ *this].m_store->write_8asite(&fields[0]);
 		for(Transaction tr( *m_wave3D);; ++tr) {
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(8*size*size*size);
@@ -577,7 +587,7 @@ XMonteCarloDriver::visualize() {
 	}
 	if(calc48fsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(48*size*size*size);
-		m_store->write_48fsite(&fields[0]);
+		shot[ *this].m_store->write_48fsite(&fields[0]);
 		for(Transaction tr( *m_wave3D);; ++tr) {
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(48*size*size*size);
@@ -612,7 +622,7 @@ XMonteCarloDriver::visualize() {
 	}
 	if(writeflips) {
 		std::deque<MonteCarlo::FlipHistory> flips;
-		m_loop->write_flips(flips);
+		shot[ *this].m_loop->write_flips(flips);
 
 		for(Transaction tr( *m_wave3D);; ++tr) {
 			tr[ *m_wave3D].setRowCount(flips.size());
@@ -647,41 +657,49 @@ XMonteCarloDriver::visualize() {
 }
 void
 XMonteCarloDriver::onGraphChanged(const shared_ptr<XValueNodeBase> &) {
-	readLockRecord();
-	visualize();
-	readUnlockRecord();
+	Snapshot shot( *this);
+	visualize(shot);
   
 }
 void
 XMonteCarloDriver::onTargetChanged(const shared_ptr<XValueNodeBase> &) {
-    int size = m_loop->length();
-    int spin_size = size*size*size*4*4;
-    int flips = (int)(*m_minFlips * spin_size);
-    long double tests = *m_minTests * spin_size;
-    execute(flips, tests);
+	for(Transaction tr( *this);; ++tr) {
+		int size = tr[ *this].m_loop->length();
+		int spin_size = size*size*size*4*4;
+		int flips = (int)(tr[ *m_minFlips] * spin_size);
+		long double tests = tr[ *m_minTests] * spin_size;
+		execute(tr, flips, tests);
+		if(tr.commit())
+			break;
+	}
 }
 void
-XMonteCarloDriver::onStepTouched(const shared_ptr<XNode> &) {
-    execute(1, 1);
+XMonteCarloDriver::onStepTouched(const Snapshot &shot, XTouchableNode *) {
+	for(Transaction tr( *this);; ++tr) {
+	    execute(tr, 1, 1);
+		if(tr.commit())
+			break;
+	}
 }
 void
-XMonteCarloDriver::execute(int flips, long double tests) {
-    unsigned int size = m_loop->length();
+XMonteCarloDriver::execute(Transaction &tr, int flips, long double tests) {
+    unsigned int size = tr[ *this].m_loop->length();
     int spin_size = size*size*size*4*4;
-    MonteCarlo::Vector3<double> field_dir(*m_hdirx,*m_hdiry,*m_hdirz);
+    MonteCarlo::Vector3<double> field_dir(tr[ *m_hdirx], tr[ *m_hdiry], tr[ *m_hdirz]);
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);
-    field *= *m_targetField;
+    field *= tr[ *m_targetField];
     MonteCarlo::Vector3<double> m;
-    m_dU = m_loop->exec(*m_targetTemp, field, &flips, &tests, &m_DUav, &m) * N_A;
-    m_testsTotal += tests;
-    m_flippedTotal += flips;
+    tr[ *this].m_dU = tr[ *this].m_loop->exec(tr[ *m_targetTemp], field, &flips, &tests, &tr[ *this].m_DUav, &m) * N_A;
+    tr[ *this].m_testsTotal += tests;
+    tr[ *this].m_flippedTotal += flips;
     fprintf(stderr, "Total flips = %g (%g per spin).\n",
-    	((double)m_flippedTotal), ((double)m_flippedTotal / spin_size));
-    m_Mav = m.innerProduct(field_dir);
+    	((double)tr[ *this].m_flippedTotal), ((double)tr[ *this].m_flippedTotal / spin_size));
+    tr[ *this].m_Mav = m.innerProduct(field_dir);
     fprintf(stderr, "Total tests = %g (%g per spin).\n",
-    	((double)m_testsTotal), ((double)m_testsTotal / spin_size));
-    rawData().resize(size*size*size*16);
-    m_loop->write((char*)&rawData()[0]);
-    finishWritingRaw(XTime::now(), XTime::now());
+    	((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / spin_size));
+    shared_ptr<RawData> writer(new RawData);
+    writer->resize(size*size*size*16);
+    tr[ *this].m_loop->write((char*)&writer->at(0));
+    finishWritingRaw(writer, XTime::now(), XTime::now());
 }

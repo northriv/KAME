@@ -29,7 +29,7 @@
 
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
 	XNode(name, runtime), m_btnDump(item->m_btnDump), m_graph(create<XGraph> (
-		name, false)), m_dump(create<XNode> ("Dump", true)), m_filename(create<
+		name, false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
 		XStringNode> ("FileName", true)) {
 	item->m_graphwidget->setGraph(m_graph);
 	m_conFilename = xqcon_create<XKURLReqConnector> (m_filename, item->m_url,
@@ -40,7 +40,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
 	KUrlRequester *urlreq, QPushButton *btndump) :
 	XNode(name, runtime), m_btnDump(btndump), m_graph(create<XGraph> (name,
-		false)), m_dump(create<XNode> ("Dump", true)), m_filename(create<
+		false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
 		XStringNode> ("FileName", true)) {
 	graphwidget->setGraph(m_graph);
 	m_conFilename = xqcon_create<XKURLReqConnector> (m_filename, urlreq,
@@ -57,13 +57,9 @@ void XWaveNGraph::init() {
 			&XWaveNGraph::onIconChanged, XListener::FLAG_MAIN_THREAD_CALL
 				| XListener::FLAG_AVOID_DUP);
 		tr.mark(tr[ *this].onIconChanged(), false);
-		if(tr.commit())
-			break;
-	}
-	dump()->setUIEnabled(false);
 
-	trans( *m_graph->persistence()) = 0.0;
-	for(Transaction tr( *this);; ++tr) {
+		tr[ *dump()].setUIEnabled(false);
+		tr[ *m_graph->persistence()] = 0.0;
 		tr[ *this].clearPlots();
 		if(tr.commit())
 			break;
@@ -73,6 +69,15 @@ XWaveNGraph::~XWaveNGraph() {
 	m_stream.close();
 }
 
+void
+XWaveNGraph::Payload::clearPoints() {
+	setRowCount(0);
+	for(int i = 0; i < numPlots(); ++i)
+		tr()[ *plot(i)].points().clear();
+
+	shared_ptr<XGraph> graph(static_cast<XWaveNGraph*>( &node())->graph());
+	tr().mark(tr()[ *graph].onUpdate(), graph.get());
+}
 void
 XWaveNGraph::Payload::clearPlots() {
 	const shared_ptr<XGraph> &graph(static_cast<XWaveNGraph &>(node()).m_graph);
@@ -216,16 +221,16 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 			(const char*) QString(filename()->to_str().c_str()).toLocal8Bit().data(),
 			OFSMODE);
 
-		if(m_stream.good()) {
-			m_lsnOnDumpTouched = dump()->onTouch().connectWeak(
-				shared_from_this(), &XWaveNGraph::onDumpTouched);
-			dump()->setUIEnabled(true);
-		}
-		else {
-			m_lsnOnDumpTouched.reset();
-			dump()->setUIEnabled(false);
-		}
 		for(Transaction tr(*this);; ++tr) {
+			if(m_stream.good()) {
+				m_lsnOnDumpTouched = tr[ *dump()].onTouch().connectWeakly(
+					shared_from_this(), &XWaveNGraph::onDumpTouched);
+				tr[ *dump()].setUIEnabled(true);
+			}
+			else {
+				m_lsnOnDumpTouched.reset();
+				tr[ *dump()].setUIEnabled(false);
+			}
 			tr.mark(tr[ *this].onIconChanged(), false);
 			if(tr.commit())
 				break;
@@ -234,9 +239,13 @@ XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 void
-XWaveNGraph::onDumpTouched(const shared_ptr<XNode> &) {
+XWaveNGraph::onDumpTouched(const Snapshot &shot, XTouchableNode *) {
 	XScopedLock<XMutex> filelock(m_filemutex);
-	trans(*this).dump(m_stream);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *this].dump(m_stream);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XWaveNGraph::Payload::dump(std::fstream &stream) {
@@ -262,19 +271,6 @@ XWaveNGraph::Payload::dump(std::fstream &stream) {
 		stream.flush();
 
 		tr().mark(m_tlkOnIconChanged, true);
-	}
-}
-void
-XWaveNGraph::clear() {
-	for(Transaction tr( *this);; ++tr) {
-		tr[ *this].setRowCount(0);
-		for(int i = 0; i < tr[ *this].numPlots(); ++i) {
-			tr[ *tr[ *this].plot(i)].points().clear();
-		}
-		if(tr.commit()) {
-			m_graph->requestUpdate(tr);
-			break;
-		}
 	}
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {

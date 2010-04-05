@@ -28,28 +28,33 @@ public:
 	virtual ~XSG() {}
 	//! show all forms belonging to driver
 	virtual void showForms();
+
+	struct Payload : public XPrimaryDriver::Payload {
+		double freq() const {return m_freq;}
+	private:
+		friend class XSG;
+		double m_freq;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
 public:
 	//! driver specific part below
 	const shared_ptr<XDoubleNode> &freq() const {return m_freq;} //!< freq [MHz]
 	const shared_ptr<XDoubleNode> &oLevel() const {return m_oLevel;} //!< Output Level [dBm]
 	const shared_ptr<XBoolNode> &fmON() const {return m_fmON;} //!< Activate FM
 	const shared_ptr<XBoolNode> &amON() const {return m_amON;} //!< Activate AM
-    
-	double freqRecorded() const {return m_freqRecorded;} //!< freq [MHz]
 protected:
 	virtual void changeFreq(double mhz) = 0;
 	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &) = 0;
@@ -62,8 +67,6 @@ private:
 	const shared_ptr<XDoubleNode> m_oLevel;
 	const shared_ptr<XBoolNode> m_fmON;
 	const shared_ptr<XBoolNode> m_amON;
-  
-	double m_freqRecorded;
   
 	xqcon_ptr m_conFreq, m_conOLevel, m_conFMON, m_conAMON;
 	shared_ptr<XListener> m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;

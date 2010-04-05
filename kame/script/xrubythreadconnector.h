@@ -28,17 +28,17 @@ public:
 						 const shared_ptr<XRuby> &rbsupport);
     virtual ~XRubyThreadConnector();
     
-	const   shared_ptr<XBoolNode> &resume() const {return m_resume;}
-	const   shared_ptr<XNode> &kill() const {return m_kill;}
+	const shared_ptr<XTouchableNode> &resume() const {return m_resume;}
+	const shared_ptr<XTouchableNode> &kill() const {return m_kill;}
 private:
-    const shared_ptr<XBoolNode> m_resume;
-    const shared_ptr<XNode> m_kill;
+    const shared_ptr<XTouchableNode> m_resume;
+    const shared_ptr<XTouchableNode> m_kill;
     shared_ptr<XListener> m_lsnOnResumeTouched;
     shared_ptr<XListener> m_lsnOnKillTouched;
     shared_ptr<XListener> m_lsnOnDefout;
     shared_ptr<XListener> m_lsnOnStatusChanged;
-    void onResumeTouched(const shared_ptr<XNode> &node);
-    void onKillTouched(const shared_ptr<XNode> &node);
+    void onResumeTouched(const Snapshot &shot, XTouchableNode *node);
+    void onKillTouched(const Snapshot &shot, XTouchableNode *node);
     void onDefout(const shared_ptr<XString> &str);
     void onStatusChanged(const shared_ptr<XValueNodeBase> &node);
     FrmRubyThread *const m_pForm;

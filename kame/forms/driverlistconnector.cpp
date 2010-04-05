@@ -29,8 +29,8 @@ typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateDriver;
 XDriverListConnector::XDriverListConnector
 (const shared_ptr<XDriverList> &node, FrmDriver *item)
 	: XListQConnector(node, item->m_tblDrivers),
-	  m_create(XNode::createOrphan<XNode>("Create", true)),
-	  m_release(XNode::createOrphan<XNode>("Release", true)),
+	  m_create(XNode::createOrphan<XTouchableNode>("Create", true)),
+	  m_release(XNode::createOrphan<XTouchableNode>("Release", true)),
 	  m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
 	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))   {
 
@@ -54,7 +54,7 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Recorded Time");
 	m_pItem->setColumnLabels(labels);
 
-	Snapshot shot(*node);
+	Snapshot shot( *node);
 	if(shot.size()) {
 		for(int idx = 0; idx < shot.size(); ++idx) {
 			XListNodeBase::Payload::CatchEvent e;
@@ -65,20 +65,32 @@ XDriverListConnector::XDriverListConnector
 		}
 	}
 
-	m_lsnOnCreateTouched = m_create->onTouch().connectWeak(shared_from_this(),
-														   &XDriverListConnector::onCreateTouched, XListener::FLAG_MAIN_THREAD_CALL);
-	m_lsnOnReleaseTouched = m_release->onTouch().connectWeak(shared_from_this(),
-															 &XDriverListConnector::onReleaseTouched, XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *m_create);; ++tr) {
+		m_lsnOnCreateTouched = tr[ *m_create].onTouch().connectWeakly(shared_from_this(),
+			&XDriverListConnector::onCreateTouched, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
+	for(Transaction tr( *m_release);; ++tr) {
+		m_lsnOnReleaseTouched = tr[ *m_release].onTouch().connectWeakly(shared_from_this(),
+			&XDriverListConnector::onReleaseTouched, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
 }
 
 void
 XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XDriver> driver(static_pointer_cast<XDriver>(e.caught));
-	if(m_lsnOnRecord)
-		driver->onRecord().connect(m_lsnOnRecord);
-	else
-		m_lsnOnRecord = driver->onRecord().connectWeak(
-			shared_from_this(), &XDriverListConnector::onRecord);
+	for(Transaction tr( *driver);; ++tr) {
+		if(m_lsnOnRecord)
+			tr[ *driver].onRecord().connect(m_lsnOnRecord);
+		else
+			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XDriverListConnector::onRecord);
+		if(tr.commit())
+			break;
+	}
   
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
@@ -101,10 +113,14 @@ void
 XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
-		if((*it)->driver == e.released) {
-			(*it)->driver->onRecord().disconnect(m_lsnOnRecord);
+		if(( *it)->driver == e.released) {
+			for(Transaction tr( *( *it)->driver);; ++tr) {
+				tr[ *( *it)->driver].onRecord().disconnect(m_lsnOnRecord);
+				if(tr.commit())
+					break;
+			}
 			for(int i = 0; i < m_pItem->numRows(); i++) {
-				if(m_pItem->cellWidget(i, 2) == (*it)->label)
+				if(m_pItem->cellWidget(i, 2) == ( *it)->label)
 					m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
@@ -115,37 +131,30 @@ XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Paylo
 }
 void
 XDriverListConnector::clicked ( int row, int col, int , const QPoint& ) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if(m_pItem->cellWidget(row, 2) == (*it)->label)
-		{
-			if(col < 3) (*it)->driver->showForms();
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+		if(m_pItem->cellWidget(row, 2) == ( *it)->label) {
+			if(col < 3) ( *it)->driver->showForms();
 		}
 	}
 }
 
 void
-XDriverListConnector::onRecord(const shared_ptr<XDriver> &driver)
-{
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if((*it)->driver == driver)
-		{
+XDriverListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+		if(( *it)->driver.get() == driver) {
 			tcons::tlisttext text;
-			text.label = (*it)->label;
-			text.str.reset(new XString((*it)->driver->time().getTimeStr()));
-			(*it)->tlkOnRecordRedirected->talk(text);
+			text.label = ( *it)->label;
+			text.str.reset(new XString(shot[ *driver].time().getTimeStr()));
+			( *it)->tlkOnRecordRedirected->talk(text);
 		}
 	}
 }
 void
-XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text)
-{
+XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text) {
     text.label->setText(text.str->c_str());
 }
 void
-XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
-{
+XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
 	qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(g_pFrmMain));
 	dlg->setModal(true);
 	static int num = 0;
@@ -172,18 +181,15 @@ XDriverListConnector::onCreateTouched(const shared_ptr<XNode> &)
 											  dlg->m_edName->text().toUtf8().data());
 		}
 	}
-	if(!driver)
+	if( !driver)
         gErrPrint(i18n("Driver creation failed."));
 }
 void
-XDriverListConnector::onReleaseTouched(const shared_ptr<XNode> &)
-{
+XDriverListConnector::onReleaseTouched(const Snapshot &shot, XTouchableNode *) {
     shared_ptr<XDriver> driver;
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
-	{
-		if((*it)->label == m_pItem->cellWidget(m_pItem->currentRow(), 2))
-		{
-			driver = (*it)->driver;
+	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+		if(( *it)->label == m_pItem->cellWidget(m_pItem->currentRow(), 2)) {
+			driver = ( *it)->driver;
 		}
 	}    
     if(driver) m_list->releaseChild(driver);

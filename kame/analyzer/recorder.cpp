@@ -28,11 +28,9 @@ XRawStream::XRawStream(const char *name, bool runtime, const shared_ptr<XDriverL
 	: XNode(name, runtime),
 	  m_drivers(driverlist),
 	  m_pGFD(0),
-	  m_filename(create<XStringNode>("Filename", true))
-{
+	  m_filename(create<XStringNode>("Filename", true)) {
 }
-XRawStream::~XRawStream()
-{
+XRawStream::~XRawStream() {
     if(m_pGFD) gzclose(m_pGFD);
 }    
 
@@ -54,17 +52,25 @@ XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const sha
 }
 void
 XRawStreamRecorder::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.caught);
-    if(m_lsnOnRecord)
-        driver->onRecord().connect(m_lsnOnRecord);
-    else
-        m_lsnOnRecord = driver->onRecord().connectWeak(
-            shared_from_this(), &XRawStreamRecorder::onRecord);
+    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(e.caught);
+    for(Transaction tr( *driver);; ++tr) {
+		if(m_lsnOnRecord)
+			tr[ *driver].onRecord().connect(m_lsnOnRecord);
+		else
+			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XRawStreamRecorder::onRecord);
+		if(tr.commit())
+			break;
+    }
 }
 void
 XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.released);
-    driver->onRecord().disconnect(m_lsnOnRecord);
+    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(e.released);
+    for(Transaction tr( *driver);; ++tr) {
+		tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
+		if(tr.commit())
+			break;
+    }
 }
 void
 XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &) {
@@ -73,7 +79,7 @@ XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &) {
 }
 void
 XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &) {
-	if(!*recording())
+	if( !*recording())
 		if(m_pGFD) {
 			m_filemutex.lock();    
 			gzflush(m_pGFD, Z_FULL_FLUSH);
@@ -81,18 +87,17 @@ XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &) {
 		}
 }
 void
-XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d) {
-    if(*recording() && m_pGFD) {
-        shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(d);
+XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
+    if( *recording() && m_pGFD) {
+        XPrimaryDriver *driver = dynamic_cast<XPrimaryDriver*>(d);
         if(driver) {
-            std::vector<char> &rawdata(*XPrimaryDriver::s_tlRawData);
+        	const XPrimaryDriver::RawData &rawdata(shot[ *driver].rawData());
             uint32_t size = rawdata.size();
             if(size) {
                 uint32_t headersize =
                     sizeof(uint32_t) //allsize
                     + sizeof(int32_t) //time().sec()
                     + sizeof(int32_t); //time().usec()            
-                std::vector<char> buf;
                 // size of raw record wrapped by header and footer
                 uint32_t allsize =
                     headersize
@@ -100,20 +105,21 @@ XRawStreamRecorder::onRecord(const shared_ptr<XDriver> &d) {
                     + 2 //two null chars
                     + size //rawData
                     + sizeof(uint32_t); //allsize
-                XPrimaryDriver::push((uint32_t)allsize, buf);
-                XPrimaryDriver::push((int32_t)driver->time().sec(), buf);
-                XPrimaryDriver::push((int32_t)driver->time().usec(), buf);
-                ASSERT(buf.size() == headersize);
+                XPrimaryDriver::RawData header;
+                header.push((uint32_t)allsize);
+                header.push((int32_t)shot[ *driver].time().sec());
+                header.push((int32_t)shot[ *driver].time().usec());
+                ASSERT(header.size() == headersize);
     
                 m_filemutex.lock();
-                gzwrite(m_pGFD, &buf[0], buf.size());
+                gzwrite(m_pGFD, &header[0], header.size());
                 gzprintf(m_pGFD, "%s", (const char*)driver->getName().c_str());
                 gzputc(m_pGFD, '\0');
                 gzputc(m_pGFD, '\0'); //Reserved
                 gzwrite(m_pGFD, &rawdata[0], size);
-                buf.clear();
-                XPrimaryDriver::push((uint32_t)allsize, buf);
-                gzwrite(m_pGFD, &buf[0], buf.size());
+                header.clear(); //using as a footer.
+                header.push((uint32_t)allsize);
+                gzwrite(m_pGFD, &header[0], header.size());
                 m_filemutex.unlock();
             }
         }
@@ -143,17 +149,25 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 }
 void
 XTextWriter::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.caught);
-    if(m_lsnOnRecord)
-        driver->onRecord().connect(m_lsnOnRecord);
-    else
-        m_lsnOnRecord = driver->onRecord().connectWeak(
-            shared_from_this(), &XTextWriter::onRecord);
+    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(e.caught);
+    for(Transaction tr( *driver);; ++tr) {
+		if(m_lsnOnRecord)
+			tr[ *driver].onRecord().connect(m_lsnOnRecord);
+		else
+			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XTextWriter::onRecord);
+		if(tr.commit())
+			break;
+    }
 }
 void
 XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-    shared_ptr<XDriver> driver = dynamic_pointer_cast<XDriver>(e.released);
-    driver->onRecord().disconnect(m_lsnOnRecord);
+    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(e.released);
+    for(Transaction tr( *driver);; ++tr) {
+		tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
+		if(tr.commit())
+			break;
+    }
 }
 void
 XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
@@ -165,51 +179,40 @@ XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 }
 void
-XTextWriter::onRecord(const shared_ptr<XDriver> &driver) {
-	Snapshot shot(*this);
-	if(*recording() == true) {
-		if(driver->time()) {
-			XTime triggered_time;
-			std::deque<shared_ptr<XScalarEntry> > locked_entries;
-
-			if(shot.size(m_entries)) {
-				const XNode::NodeList &entries_list(*shot.list(m_entries));
+XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
+	if( *recording()) {
+		if(shot[ *driver].time()) {
+			for(;;) {
+				Snapshot shot_entries( *m_entries);
+				if( !shot_entries.size())
+					break;
+				const XNode::NodeList &entries_list( *shot_entries.list());
+				bool triggered = false;
 				for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
-					shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-					if(!*entry->store()) continue;
+					shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>( *it);
+					if( !*entry->store()) continue;
 					shared_ptr<XDriver> d(entry->driver());
-					if(!d) continue;
-					locked_entries.push_back(entry);
-					d->readLockRecord();
-					if(entry->isTriggered()) triggered_time = entry->driver()->time();
-				}
-			}
-			if(triggered_time) {
-				XRecordDependency dep;
-				for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-					it != locked_entries.end(); it++) {
-					shared_ptr<XDriver> d((*it)->driver());
-					if(!d) continue;
-					dep.merge(d);
-					if(dep.isConflict()) break;
-				}
-				if(!dep.isConflict()) {
-					XString buf;
-					for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-						it != locked_entries.end(); it++) {
-						if(!*(*it)->store()) continue;
-						(*it)->storeValue();
-						buf.append((*it)->storedValue()->to_str() + " ");
+					if( !d) continue;
+					if((d.get() == driver) && shot[ *entry].isTriggered()) {
+						triggered = true;
+						break;
 					}
-					buf.append(driver->time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
-					lastLine()->value(buf);
 				}
-			}
-			for(std::deque<shared_ptr<XScalarEntry> >::iterator it = locked_entries.begin();
-				it != locked_entries.end(); it++) {
-				shared_ptr<XDriver> d((*it)->driver());
-				if(!d) continue;
-				d->readUnlockRecord();
+				if( !triggered)
+					break;
+				Transaction tr_entries(shot_entries);
+				XString buf;
+				for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
+					shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>( *it);
+					if( !shot_entries[ *entry->store()]) continue;
+					entry->storeValue(tr_entries);
+					buf.append(shot_entries[ *entry->storedValue()].to_str() + " ");
+				}
+				buf.append(shot[ *driver].time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
+				if(tr_entries.commit()) {
+					lastLine()->value(buf);
+					return;
+				}
 			}
 		}
 	}
@@ -217,7 +220,6 @@ XTextWriter::onRecord(const shared_ptr<XDriver> &driver) {
 
 void
 XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
-	Snapshot shot(*this);
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
@@ -232,11 +234,12 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 
 		XString buf;
 		buf = "#";
-		if(shot.size(m_entries)) {
-			const XNode::NodeList &entries_list(*shot.list(m_entries));
+		Snapshot shot_entries( *m_entries);
+		if(shot_entries.size()) {
+			const XNode::NodeList &entries_list( *shot_entries.list());
 			for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
-				shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(*it);
-				if(!*entry->store()) continue;
+				shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>( *it);
+				if( !*entry->store()) continue;
 				buf.append(entry->getLabel());
 				buf.append(" ");
 			}
@@ -253,7 +256,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 void
 XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &) {
     lastLine()->setUIEnabled(*recording());
-	if(!*recording()) {
+	if( !*recording()) {
 		XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 		if(m_stream.good())
 			m_stream.flush();

@@ -95,8 +95,8 @@ public:
 	};
 private:  
 	void onItemReleased(const Snapshot& shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-		for(Snapshot shot(*this);;) {
-			if(e.released != (shared_ptr<XNode>)shot[*this])
+		for(Snapshot shot( *this);;) {
+			if(e.released != (shared_ptr<XNode>)shot[ *this])
 				break;
 			Transaction tr(shot);
 			tr[ *this] = shared_ptr<XNode>();

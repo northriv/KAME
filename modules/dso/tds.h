@@ -24,8 +24,8 @@ public:
 	XTDS(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XTDS() {}
-	//! convert raw to record
-	virtual void convertRaw() throw (XRecordError&);
+	//! Converts the raw to a display-able style.
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 protected:
 	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) {}
 	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) {}
@@ -47,7 +47,7 @@ protected:
 	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &);
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onForceTriggerTouched(const shared_ptr<XNode> &);
+	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
@@ -57,8 +57,8 @@ protected:
 	virtual void startSequence();
 	virtual int acqCount(bool *seq_busy);
 
-	//! load waveform and settings from instrument
-	virtual void getWave(std::deque<XString> &channels);
+	//! Loads waveforms and settings from the instrument.
+	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
 private:
 };
 

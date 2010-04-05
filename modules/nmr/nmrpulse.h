@@ -32,23 +32,72 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNMRPulseAnalyzer();
   
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
 
-	//! this is called when connected driver emit a signal
-	//! unless dependency is broken
-	//! all connected drivers are readLocked
-	virtual void analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
-	//! check connected drivers have valid time
-	//! \return true if dependency is resolved
-	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const;
+	//! This function is called when a connected driver emit a signal
+	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter,
+		const Snapshot &shot_others,
+		XDriver *emitter) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
+	//! Checks if the connected drivers have valid time stamps.
+	//! \return true if dependency is resolved.
+	//! This function must be reentrant unlike analyze().
+	virtual bool checkDependency(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const;
  
 public:
 	//! driver specific part below 
+	struct Payload : public XSecondaryDriver::Payload {
+		//! Time-domain Wave.
+		const std::vector<std::complex<double> > &wave() const {return m_wave;}
+		//! Power spectrum of the noise estimated from the background. [V^2/Hz].
+		const std::vector<double> &darkPSD() const {return m_darkPSD;}
+		//! freq. resolution [Hz]
+		double dFreq() const {return m_dFreq;}
+		//! time resolution [sec.]
+		double interval() const {return m_interval;}
+		//! time diff. of the first point from trigger [sec.]
+		double startTime() const {return m_startTime;}
+		//! Length of analyzed wave.
+		int waveWidth() const {return m_waveWidth;}
+		//! Position of the origin of FT.
+		int waveFTPos() const {return m_waveFTPos;}
+		//! Length of FT.
+		int ftWidth() const {return m_ftWave.size();}
+	private:
+		friend class XNMRPulseAnalyzer;
+		std::vector<std::complex<double> > m_wave;
+		std::vector<double> m_darkPSD;
+		/// FFT Wave
+		const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
+		double m_ftWavePSDCoeff;
+		std::vector<std::complex<double> > m_ftWave;
+		std::vector<std::complex<double> > m_dsoWave;
+		int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
+		double m_dFreq;  ///< Hz per point
+		//! # of summations.
+		int m_avcount;
+		//! Stored Waves for avg.
+		std::vector<std::complex<double> > m_waveSum;
+		std::vector<double> m_darkPSDSum;
+		//! time resolution
+		double m_interval;
+		//! time diff. of the first point from trigger
+		double m_startTime;
+
+		//for FFT/MEM.
+		shared_ptr<SpectrumSolver> m_solverRecorded;
+		shared_ptr<FFT> m_ftDark;
+
+		bool m_bInvertPulserNext;
+
+		XTime m_timeClearRequested;
+	};
   
 	//! Entry storing the power of the strogest peak.
 	const shared_ptr<XScalarEntry> &entryPeakAbs() const {return m_entryPeakAbs;}
@@ -92,32 +141,13 @@ public:
 	/// Extra Average Steps
 	const shared_ptr<XUIntNode> &extraAvg() const {return m_extraAvg;}
 	/// Clear averaging results
-	const shared_ptr<XNode> &avgClear() const {return m_avgClear;}
+	const shared_ptr<XTouchableNode> &avgClear() const {return m_avgClear;}
 
 	/// # of echoes
 	const shared_ptr<XUIntNode> &numEcho() const {return m_numEcho;}
 	/// If NumEcho > 1, need periodic term of echoes [ms]
 	const shared_ptr<XDoubleNode> &echoPeriod() const {return m_echoPeriod;}
 
-	//! records below.
-
-	//! Time-domain Wave.
-	const std::vector<std::complex<double> > &wave() const {return m_wave;}
-	//! Power spectrum of the noise estimated from the background. [V^2/Hz].
-	const std::vector<double> &darkPSD() const {return m_darkPSD;}
-	//! freq. resolution [Hz]
-	double dFreq() const {return m_dFreq;}
-	//! time resolution [sec.]
-	double interval() const {return m_interval;}
-	//! time diff. of the first point from trigger [sec.]
-	double startTime() const {return m_startTime;}
-	//! Length of analyzed wave.
-	int waveWidth() const {return m_waveWidth;}
-	//! Position of the origin of FT.
-	int waveFTPos() const {return m_waveFTPos;}
-	//! Length of FT.
-	int ftWidth() const {return m_ftWave.size();}
-	
 private:
 	/// Stored Wave for display.
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
@@ -150,33 +180,13 @@ private:
 	const shared_ptr<XUIntNode> m_numEcho;
 	const shared_ptr<XDoubleNode> m_echoPeriod;
 
-	const shared_ptr<XNode> m_spectrumShow;
-	const shared_ptr<XNode> m_avgClear;
+	const shared_ptr<XTouchableNode> m_spectrumShow;
+	const shared_ptr<XTouchableNode> m_avgClear;
 
 	//! Phase Inversion Cycling
 	const shared_ptr<XBoolNode> m_picEnabled;
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
-  
-	//! Records
-	std::vector<std::complex<double> > m_wave;
-	std::vector<double> m_darkPSD;
-	/// FFT Wave
-	const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
-	double m_ftWavePSDCoeff;
-	std::vector<std::complex<double> > m_ftWave;
-	std::vector<std::complex<double> > m_dsoWave;
-	int m_dsoWaveStartPos, m_waveFTPos, m_waveWidth;
-	double m_dFreq;  ///< Hz per point
-	//! # of summations.
-	int m_avcount;
-	//! Stored Waves for avg.
-	std::vector<std::complex<double> > m_waveSum;
-	std::vector<double> m_darkPSDSum;
-	//! time resolution
-	double m_interval;
-	//! time diff. of the first point from trigger
-	double m_startTime;
-  
+
 	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos,
 		m_conUsePNR, m_conPNRSolverList, m_conSolverList, 
 		m_conBGWidth, m_conFFTPos, m_conFFTLen, m_conExtraAv;
@@ -196,25 +206,20 @@ private:
 	const shared_ptr<XWaveNGraph> m_waveGraph;
 	const shared_ptr<XWaveNGraph> m_ftWaveGraph;
   
-	void onCondChanged(const shared_ptr<XValueNodeBase> &);
-	void onSpectrumShow(const shared_ptr<XNode> &);
-	void onAvgClear(const shared_ptr<XNode> &);
-  
-	void backgroundSub(std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength);
-  
 	//for FFT/MEM.
 	shared_ptr<SpectrumSolverWrapper> m_solver;
-	shared_ptr<SpectrumSolver> m_solverRecorded;
-	shared_ptr<XXYPlot> m_peakPlot;
 	shared_ptr<SpectrumSolverWrapper> m_solverPNR;
-	shared_ptr<FFT> m_ftDark;
-	
-	void rotNFFT(int ftpos, double ph, 
+	shared_ptr<XXYPlot> m_peakPlot;
+
+	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
+	void onSpectrumShow(const Snapshot &shot, XTouchableNode *);
+	void onAvgClear(const Snapshot &shot, XTouchableNode *);
+  
+	void backgroundSub(Transaction &tr,
+		std::vector<std::complex<double> > &wave, int pos, int length, int bgpos, int bglength);
+  
+	void rotNFFT(Transaction &tr, int ftpos, double ph,
 				 std::vector<std::complex<double> > &wave, std::vector<std::complex<double> > &ftwave);
-    
-	XTime m_timeClearRequested;
 };
-
-
 
 #endif

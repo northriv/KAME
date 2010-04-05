@@ -26,12 +26,12 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNIDAQmxPulser();
 
+    //! time resolution [ms]
+    virtual double resolution() const {return m_resolutionDO;}
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &) = 0;
 	virtual void close() throw (XInterface::XInterfaceError &);
 	
-    //! time resolution [ms]
-    virtual double resolution() const {return m_resolutionDO;}
     double resolutionQAM() const {return m_resolutionAO;}
 	//! existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
@@ -40,10 +40,10 @@ protected:
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
 	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 
        	 
-    //! send patterns to pulser or turn-off
-    virtual void changeOutput(bool output, unsigned int blankpattern);
-    //! convert RelPatList to native patterns
-    virtual void createNativePatterns();
+    //! SendS patterns to pulser or turn-off
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+    //! Converts RelPatList to native patterns
+    virtual void createNativePatterns(Transaction &tr);
 
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}

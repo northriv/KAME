@@ -25,11 +25,14 @@ XQPulserDriverConnector::XQPulserDriverConnector(
       m_pulser(node),
       m_graph(XNode::createOrphan<XGraph>(node->getName().c_str(), false)) {
 
-	shared_ptr<XPulser> pulser(node);    
-	m_lsnOnPulseChanged = pulser->onRecord().connectWeak(
-		shared_from_this(), &XQPulserDriverConnector::onPulseChanged,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-  
+	shared_ptr<XPulser> pulser(node);
+	for(Transaction tr( *pulser);; ++tr) {
+		m_lsnOnPulseChanged = tr[ *pulser].onRecord().connectWeakly(
+			shared_from_this(), &XQPulserDriverConnector::onPulseChanged,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		if(tr.commit())
+			break;
+	}
 	m_pTable->setNumCols(3);
 	double def = 50;
 	m_pTable->setColumnWidth(0, (int)(def * 1.5));
@@ -54,8 +57,8 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     
     for(Transaction tr( *m_graph);; ++tr) {
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
-		shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list.at(0));
-		shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list.at(1));
+		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
+		shared_ptr<XAxis> axisy = static_pointer_cast<XAxis>(axes_list.at(1));
 
 		tr[ *axisy->ticLabelFormat()] = "%.0f";
 
@@ -120,31 +123,31 @@ XQPulserDriverConnector::clicked( int , int , int, const QPoint & ) {
 void
 XQPulserDriverConnector::selectionChanged() {
     shared_ptr<XPulser> pulser(m_pulser);
-    pulser->readLockRecord();    
-    updateGraph(true);
-    pulser->readUnlockRecord();
+    Snapshot shot( *pulser);
+    updateGraph(shot, true);
 }
 void
-XQPulserDriverConnector::updateGraph(bool checkselection) {
+XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) {
     shared_ptr<XPulser> pulser(m_pulser);
+    const XPulser::Payload::RelPatList &relpatlist(shot[ *pulser].relPatList());
 	for(Transaction tr( *m_graph);; ++tr) {
 		std::deque<XGraph::ValPoint> & barplot_points(tr[ *m_barPlot].points());
-		tr[ *m_barPlot->maxCount()] = pulser->m_relPatList.size();
+		tr[ *m_barPlot->maxCount()] = relpatlist.size();
 		barplot_points.clear();
 		std::deque<std::deque<XGraph::ValPoint> *> plots_points;
 		for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
 			it != m_plots.end(); it++) {
-			tr[ *(*it)->maxCount()] = pulser->m_relPatList.size() * 2;
+			tr[ *(*it)->maxCount()] = relpatlist.size() * 2;
 			tr[ **it].points().clear();
 			plots_points.push_back(&tr[ **it].points());
 		}
-		uint32_t lastpat = pulser->m_relPatList.empty() ? 0 :
-			pulser->m_relPatList[pulser->m_relPatList.size() - 1].pattern;
+		uint32_t lastpat = relpatlist.empty() ? 0 :
+			relpatlist[relpatlist.size() - 1].pattern;
 		double firsttime = -0.001, lasttime = 100;
 
 		int i = 0;
-		for(XPulser::RelPatListIterator it = pulser->m_relPatList.begin();
-			it != pulser->m_relPatList.end(); it++) {
+		for(XPulser::Payload::RelPatList::const_iterator it = relpatlist.begin();
+			it != relpatlist.end(); it++) {
 			double time = it->time * pulser->resolution();
 			if(m_pTable->isRowSelected(i)) {
 				if(firsttime < 0) firsttime = time;
@@ -171,26 +174,22 @@ XQPulserDriverConnector::updateGraph(bool checkselection) {
 			tr[ *axisx->minValue()] = firsttime;
 			tr[ *axisx->maxValue()] = lasttime;
 		}
+		tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
 		if(tr.commit()) {
-			m_graph->requestUpdate(tr);
 			break;
 		}
 	}
 }
 
 void
-XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &) {
+XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
     shared_ptr<XPulser> pulser(m_pulser);
-
-    pulser->readLockRecord();
-    
-    if(pulser->time()) {
-        
+    if(shot[ *pulser].time()) {
         m_pTable->blockSignals(true);
-        m_pTable->setNumRows(pulser->m_relPatList.size());
+        m_pTable->setNumRows(shot[ *pulser].relPatList().size());
         int i = 0;
-        for(XPulser::RelPatListIterator it = pulser->m_relPatList.begin();
-			it != pulser->m_relPatList.end(); it++) {
+        for(XPulser::Payload::RelPatList::const_iterator it = shot[ *pulser].relPatList().begin();
+			it != shot[ *pulser].relPatList().end(); it++) {
 			//        Form->tblPulse->insertRows(i);
 			m_pTable->setText(i, 0, formatString("%.4f", it->time * pulser->resolution()));
 			m_pTable->setText(i, 1, formatString("%.4f", it->toappear * pulser->resolution()));
@@ -206,7 +205,7 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &) {
 		}
         m_pTable->blockSignals(false);
         
-        updateGraph(false);
+        updateGraph(shot, false);
     }
     else {
         m_pTable->setNumRows(0);
@@ -216,12 +215,10 @@ XQPulserDriverConnector::onPulseChanged(const shared_ptr<XDriver> &) {
 				tr[ **it].points().clear();
 			}
 			tr[ *m_barPlot].points().clear();
+			tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
 			if(tr.commit()) {
-				m_graph->requestUpdate(tr);
 				break;
 			}
     	}
     }
-    
-    pulser->readUnlockRecord();    
 }

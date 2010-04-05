@@ -23,63 +23,56 @@ public:
 	XSecondaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XSecondaryDriver();
 
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms() = 0;
 
-	virtual const shared_ptr<XRecordDependency> dependency() const {return m_dependency;}
+	struct Payload : public XDriver::Payload {
+	private:
+		friend class XSecondaryDriver;
+		struct Connection {
+			shared_ptr<XListener> m_lsnOnRecord;
+			shared_ptr<XPointerItemNode<XDriverList> > m_selecter;
+			bool operator==(const XItemNodeBase *p) const {return p == m_selecter.get();}
+		};
+		typedef std::vector<Connection> ConnectionList;
+		ConnectionList m_connections;
+	};
 protected:
-	//! call this to receive signal/data
-	void connect(const shared_ptr<XItemNodeBase> &item, bool check_deep_dep = true);
+	//! Call this to receive signal/data.
+	void connect(const shared_ptr<XPointerItemNode<XDriverList> > &selecter);
 	//! check dependencies and lock all records and analyze
 	//! null pointer will be passed to analyze()
 	//! emitter is driver itself.
 	//! \sa analyze(), checkDependency()
 	void requestAnalysis();
-	//! unlock one of connections in order to change the state of that instrument.
-	void unlockConnection(const shared_ptr<XDriver> &connected);
 
-	//! this is called when connected driver emit a signal
-	//! unless dependency is broken
-	//! all connected drivers are readLocked
-	virtual void analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&) = 0;
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
+	//! This function is called when a connected driver emit a signal
+	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) throw (XRecordError&) = 0;
+	//! This function is called inside analyze() or analyzeRaw()
 	//! this must be reentrant unlike analyze()
-	virtual void visualize() = 0;
-	//! check connected drivers have valid time
-	//! \return true if dependency is resolved
-	//! this must be reentrant unlike analyze()
-	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const = 0;
+	virtual void visualize(const Snapshot &shot) = 0;
+	//! Checks if the connected drivers have valid time stamps.
+	//! \return true if dependency is resolved.
+	//! This function must be reentrant unlike analyze().
+	virtual bool checkDependency(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const = 0;
 
 	//! usually nothing to do
 	virtual void start() {}
 	//! usually nothing to do
 	virtual void stop() {}
 private:
-	void readLockAllConnections();
-	void readUnlockAllConnections();
-
-	//! \ret true if dependency is resolved
-	bool checkDeepDependency(shared_ptr<XRecordDependency> &) const;
-
-	shared_ptr<XRecordDependency> m_dependency;
-
-	//! holds connections
-	std::vector<shared_ptr<const XDriver> > m_connections;
-	std::vector<shared_ptr<const XDriver> > m_connections_check_deep_dep;
-	XRWLock m_connection_mutex;
-	typedef std::vector<shared_ptr<const XDriver> >::const_iterator tConnection_it;
-	shared_ptr<XListener> m_lsnOnRecord;
-	shared_ptr<XListener> m_lsnBeforeItemChanged;
-	shared_ptr<XListener> m_lsnOnItemChangedCheckDeepDep;
 	shared_ptr<XListener> m_lsnOnItemChanged;
-	//! called by connected drivers
-	//! does dependency checks, readLock all connected drivers, write
-	//! and finally call purely virtual function analyze();
-	void onConnectedRecorded(const shared_ptr<XDriver> &);
-	void beforeItemChanged(const shared_ptr<XValueNodeBase> &item);
-	void onItemChangedCheckDeepDep(const shared_ptr<XValueNodeBase> &item);
-	void onItemChanged(const shared_ptr<XValueNodeBase> &item);
+	//! called by connected drivers,
+	//! checks dependency, takes snapshot for drivers,
+	//! and finally calls purely virtual function analyze();
+	void onConnectedRecorded(const Snapshot &shot, XDriver *driver);
+
+	void onItemChanged(const Snapshot &shot, XValueNodeBase *item);
+
+	weak_ptr<XDriverList> m_drivers;
 };
 
 #endif /*SECONDARYDRIVER_H_*/

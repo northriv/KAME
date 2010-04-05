@@ -120,15 +120,15 @@ class QAbstractButton;
 class XQButtonConnector : public XQConnector {
 	Q_OBJECT
 public:
-	XQButtonConnector(const shared_ptr<XNode> &node, QAbstractButton *item);
+	XQButtonConnector(const shared_ptr<XTouchableNode> &node, QAbstractButton *item);
 	virtual ~XQButtonConnector();
 private slots:
 protected slots:
 virtual void onClick();
 protected:
-	virtual void onTouch(const shared_ptr<XNode> &node);
+	virtual void onTouch(const Snapshot &shot, XTouchableNode *node);
 	shared_ptr<XListener> m_lsnTouch;
-	const shared_ptr<XNode> m_node;
+	const shared_ptr<XTouchableNode> m_node;
 	QAbstractButton *const m_pItem;
 };
 

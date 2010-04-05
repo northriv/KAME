@@ -100,19 +100,10 @@ public:
 	void clearChildren();
 	int releaseChild(const shared_ptr<XNode> &node);
 
-	bool isRunTime() const {return (**shared_from_this())->isRuntime();}
-
-	//! \sa SetUIEnabled()
-	bool isUIEnabled() const {return (**shared_from_this())->isUIEnabled();}
 	//! Enables/Disables control over GUI
 	void setUIEnabled(bool v);
 	//! Disables all operations on this node forever.
 	void disable();
-	//! Touch signaling
-	void touch();
-
-	//! \sa touch()
-	XTalker<shared_ptr<XNode> > &onTouch() {return m_tlkOnTouch;}
 
 	virtual void insert(const shared_ptr<XNode> &ptr);
 	virtual bool insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion = false);
@@ -137,7 +128,6 @@ public:
 	enum FLAG {NODE_UI_ENABLED = 0x1, NODE_DISABLED = 0x2, NODE_RUNTIME = 0x4};
 
 protected: 
-	XTalker<shared_ptr<XNode> > m_tlkOnTouch;
 private:
 	XNode(); //inhibited.
 	const XString m_name;
@@ -153,10 +143,10 @@ public:
 		Payload() : XNode::Payload() {}
 		void touch();
 		//! \sa touch()
-		Talker<XNode*, XNode*> &onTouch() {return m_tlkOnTouch;}
-		const Talker<XNode*, XNode*> &onTouch() const {return m_tlkOnTouch;}
+		Talker<XTouchableNode*, XTouchableNode*> &onTouch() {return m_tlkOnTouch;}
+		const Talker<XTouchableNode*, XTouchableNode*> &onTouch() const {return m_tlkOnTouch;}
 	protected:
-		Talker<XNode*, XNode*> m_tlkOnTouch;
+		Talker<XTouchableNode*, XTouchableNode*> m_tlkOnTouch;
 	};
 protected:
 };

@@ -107,103 +107,106 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
 }
 
 void
-XSHPulser::createNativePatterns() {
+XSHPulser::createNativePatterns(Transaction &tr) {
+	const Snapshot &shot(tr);
 	//dry-run to determin LastPattern, DMATime
-	m_dmaTerm = 0;
-	m_lastPattern = 0;
+	tr[ *this].m_dmaTerm = 0;
+	tr[ *this].m_lastPattern = 0;
 	uint32_t pat = 0;
-	insertPreamble((uint16_t)pat);
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
-		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), true );
+	insertPreamble(tr, (uint16_t)pat);
+	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
+		it != shot[ *this].relPatList().end(); it++) {
+		pulseAdd(tr, it->toappear, it->pattern, (it == shot[ *this].relPatList().begin() ), true );
 		pat = it->pattern;
 	}
   
-	insertPreamble((uint16_t)pat);
+	insertPreamble(tr, (uint16_t)pat);
 
 	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
-	  	const uint16_t word = qamWaveForm(i).size();
+	  	const uint16_t word = shot[ *this].qamWaveForm(i).size();
 		if(!word) continue;
-		m_waveformPos[i] = m_zippedPatterns.size();
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
-		m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+		tr[ *this].m_waveformPos[i] = shot[ *this].m_zippedPatterns.size();
+		tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_HBURST);
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 		for(std::vector<std::complex<double> >::const_iterator it = 
-				qamWaveForm(i).begin(); it != qamWaveForm(i).end(); it++) {
+				shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 			double x = max(min(it->real() * 125.0, 124.0), -124.0);
 			double y = max(min(it->imag() * 125.0, 124.0), -124.0);
-			m_zippedPatterns.push_back( (unsigned char)(char)x );	
-			m_zippedPatterns.push_back( (unsigned char)(char)y );	
+			tr[ *this].m_zippedPatterns.push_back( (unsigned char)(char)x );
+			tr[ *this].m_zippedPatterns.push_back( (unsigned char)(char)y );
 		}
 	}
 	
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
-	m_zippedPatterns.push_back(0);
-	m_zippedPatterns.push_back(0);
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
-		pulseAdd(it->toappear, it->pattern, (it == m_relPatList.begin() ), false );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DO);
+	tr[ *this].m_zippedPatterns.push_back(0);
+	tr[ *this].m_zippedPatterns.push_back(0);
+	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
+		it != shot[ *this].relPatList().end(); it++) {
+		pulseAdd(tr, it->toappear, it->pattern, (it == shot[ *this].relPatList().begin() ), false );
 		pat = it->pattern;
 	}
-	finishPulse();
+	finishPulse(tr);
 
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_END);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_END);
 }
 
 int
-XSHPulser::setAUX2DA(double volt, int addr) {
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX2_DA);
-	m_zippedPatterns.push_back((unsigned char) addr);
+XSHPulser::setAUX2DA(Transaction &tr, double volt, int addr) {
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX2_DA);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char) addr);
 	volt = max(volt, 0.0);
 	uint16_t word = (uint16_t)rint(4096u * volt / 2 / 2.5);
 	word = min(word, (uint16_t)4095u);
-	m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 	return 0;
 }
 int
-XSHPulser::insertPreamble(uint16_t startpattern) {
+XSHPulser::insertPreamble(Transaction &tr, uint16_t startpattern) {
 	const double masterlevel = pow(10.0, *masterLevel() / 20.0);
 	const double qamlevel1 = *qamLevel1();
 	const double qamlevel2 = *qamLevel2();
-	m_zippedPatterns.clear();
+	tr[ *this].m_zippedPatterns.clear();
 	
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET);
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset1() *1e-2 / masterlevel ) );
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset2() *1e-2 / masterlevel ) );
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL);
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel1 * 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel2 * 0x100) );
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset1() *1e-2 / masterlevel ) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset2() *1e-2 / masterlevel ) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel1 * 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel2 * 0x100) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_DELAY);
 //obsolete
 //	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay1() / DMA_PERIOD * 1e-3) );
 //	m_zippedPatterns.push_back((unsigned char)(signed char)rint(*qamDelay2() / DMA_PERIOD * 1e-3) );
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
-	m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(0) );
 	
 	uint32_t len;	
 	//wait for 1 ms
 	len = lrint(1.0 / MTU_PERIOD);
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
-	m_zippedPatterns.push_back((unsigned char)((len % 0x10000) / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len % 0x10000) % 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) % 0x100) );
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
-	m_zippedPatterns.push_back((unsigned char)(startpattern / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(startpattern % 0x100) );
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + 2);
-	m_zippedPatterns.push_back((unsigned char)(startpattern / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)(startpattern % 0x100) );
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len % 0x10000) / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len % 0x10000) % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len / 0x10000) / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len / 0x10000) % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(startpattern / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(startpattern % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + 2);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(startpattern / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(startpattern % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
 	
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_PULSEON);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_PULSEON);
 	
 	//wait for 10 ms
 	len = lrint(10.0 / MTU_PERIOD);
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
-	m_zippedPatterns.push_back((unsigned char)((len % 0x10000) / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len % 0x10000) % 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) / 0x100) );
-	m_zippedPatterns.push_back((unsigned char)((len / 0x10000) % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len % 0x10000) / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len % 0x10000) % 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len / 0x10000) / 0x100) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)((len / 0x10000) % 0x100) );
 	
 /*	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX1);
 	int aswfilter = 3;
@@ -211,8 +214,8 @@ XSHPulser::insertPreamble(uint16_t startpattern) {
 	if(aswFilter()->to_str() == ASW_FILTER_2) aswfilter = 2;
 	m_zippedPatterns.push_back((unsigned char)aswfilter);
 */
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX1);
-	m_zippedPatterns.push_back((unsigned char)3);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_AUX1);
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)3);
 /*	setAUX2DA(*portLevel8(), 1);
 	setAUX2DA(*portLevel9(), 2);
 	setAUX2DA(*portLevel10(), 3);
@@ -220,106 +223,110 @@ XSHPulser::insertPreamble(uint16_t startpattern) {
 	setAUX2DA(*portLevel12(), 5);
 	setAUX2DA(*portLevel13(), 6);
 	setAUX2DA(*portLevel14(), 7);*/
-	setAUX2DA(0.0, 1);
-	setAUX2DA(0.0, 2);
-	setAUX2DA(0.0, 3);
-	setAUX2DA(0.0, 4);
-	setAUX2DA(0.0, 5);
-	setAUX2DA(0.0, 6);
-	setAUX2DA(0.0, 7);
-	setAUX2DA(1.6 * masterlevel, 0); //tobe 5V
+	setAUX2DA(tr, 0.0, 1);
+	setAUX2DA(tr, 0.0, 2);
+	setAUX2DA(tr, 0.0, 3);
+	setAUX2DA(tr, 0.0, 4);
+	setAUX2DA(tr, 0.0, 5);
+	setAUX2DA(tr, 0.0, 6);
+	setAUX2DA(tr, 0.0, 7);
+	setAUX2DA(tr, 1.6 * masterlevel, 0); //tobe 5V
 	
 	return 0;	
 }
 int
-XSHPulser::finishPulse(void) {
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
-	m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_LOOP_INF);
+XSHPulser::finishPulse(Transaction &tr) {
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
+	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_LOOP_INF);
 	return 0;
 }
 int
-XSHPulser::pulseAdd(uint64_t term, uint32_t pattern, bool firsttime, bool dryrun) {
+XSHPulser::pulseAdd(Transaction &tr, uint64_t term, uint32_t pattern, bool firsttime, bool dryrun) {
+	const Snapshot &shot(tr);
 	const double msec = term * resolution();
 	int64_t mtu_term = term * llrint(resolution() / MTU_PERIOD);
-	if( (msec > MIN_MTU_LEN) && ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
+	if( (msec > MIN_MTU_LEN) &&
+		((shot[ *this].m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) ) {
 		//insert long wait
-		if(!firsttime) {
-			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
+		if( !firsttime) {
+			tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_END);
 		}
-		mtu_term += m_dmaTerm;
+		mtu_term += shot[ *this].m_dmaTerm;
 		uint32_t ulen = (uint32_t)(mtu_term / 0x10000uLL);
 		uint16_t ulenh = (uint16_t)(ulen / 0x10000uL);
 		uint16_t ulenl = (uint16_t)(ulen % 0x10000uL);	
 		uint16_t dlen = (uint32_t)(mtu_term % 0x10000uLL);
 		if(ulenh) {
-			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
-			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenh / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenh % 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG_LONG);
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenh / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenh % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
 		}
 		else { if(ulenl) {
-			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
-			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT_LONG);
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenl / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(ulenl % 0x100) );
 		}
 		else {
-			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT);
-			m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_WAIT);
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(dlen % 0x100) );
 		}
 		}
 		mtu_term -= ulen*0x10000uL + dlen;
 		mtu_term = max(0LL, mtu_term);
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
-		m_zippedPatterns.push_back((unsigned char)(m_lastPattern / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(m_lastPattern % 0x100) );
-		m_dmaTerm = 0;
+		tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_SET);
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(shot[ *this].m_lastPattern / 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(shot[ *this].m_lastPattern % 0x100) );
+		tr[ *this].m_dmaTerm = 0;
 	}
-	m_dmaTerm += mtu_term;
-	unsigned long pos_l = m_dmaTerm / llrint(resolution() / MTU_PERIOD);
+	tr[ *this].m_dmaTerm += mtu_term;
+	unsigned long pos_l = shot[ *this].m_dmaTerm / llrint(resolution() / MTU_PERIOD);
 	if(pos_l >= 0x7000u)
 		throw XInterface::XInterfaceError(i18n("Too long DMA."), __FILE__, __LINE__);
 	uint16_t pos = (uint16_t)pos_l;
 	uint16_t len = mtu_term / llrint(resolution() / MTU_PERIOD);
-	if( ((m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) && ((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
-		uint16_t qam_pos = m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
+	if( ((shot[ *this].m_lastPattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX == 0) &&
+		((pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX > 0) ) {
+		uint16_t qam_pos = shot[ *this].m_waveformPos[(pattern & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX - 1];
 		if(!dryrun) {
-			if(!qam_pos || (m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
+			if(!qam_pos || (shot[ *this].m_zippedPatterns[qam_pos] != PATTERN_ZIPPED_COMMAND_DMA_HBURST))
 				throw XInterface::XInterfaceError(i18n("No waveform."), __FILE__, __LINE__);
-			uint16_t word = m_zippedPatterns.size() - qam_pos;
-			m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
-			m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
-			m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
-			m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
+			uint16_t word = shot[ *this].m_zippedPatterns.size() - qam_pos;
+			tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_COPY_HBURST);
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)((pattern & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE));
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(pos / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(pos % 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(word / 0x100) );
+			tr[ *this].m_zippedPatterns.push_back((unsigned char)(word % 0x100) );
 		}
 	}
 	if(len > PATTERN_ZIPPED_COMMAND_DMA_LSET_END - PATTERN_ZIPPED_COMMAND_DMA_LSET_START) {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG);
-		m_zippedPatterns.push_back((unsigned char)(len / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(len % 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
+		tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_LONG);
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(len / 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(len % 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
 	}
 	else {
-		m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + (unsigned char)len);
-		m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
-		m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
+		tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_DMA_LSET_START + (unsigned char)len);
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(pattern / 0x100) );
+		tr[ *this].m_zippedPatterns.push_back((unsigned char)(pattern % 0x100) );
 	}
-	m_lastPattern = pattern;
+	tr[ *this].m_lastPattern = pattern;
 	return 0;
 }
 
 void
-XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
+XSHPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankpattern*/) {
+	XScopedLock<XInterface> lock( *interface());
 	if(output) {
-		if(m_zippedPatterns.empty() )
+		if(shot[ *this].m_zippedPatterns.empty())
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
 			try {
@@ -328,16 +335,16 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
 				char buf[3];
 				if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
 					throw XInterface::XConvError(__FILE__, __LINE__);
-				unsigned int size = m_zippedPatterns.size();
+				unsigned int size = shot[ *this].m_zippedPatterns.size();
 				interface()->sendf("$pload %x", size );
 				interface()->receive();
 				interface()->write(">", 1);
 				uint16_t sum = 0;
-				for(unsigned int i = 0; i < m_zippedPatterns.size(); i++) {
-					sum += m_zippedPatterns[i];
+				for(unsigned int i = 0; i < shot[ *this].m_zippedPatterns.size(); i++) {
+					sum += shot[ *this].m_zippedPatterns[i];
 				} 
 				msecsleep(1);
-				interface()->write((char*)&m_zippedPatterns[0], size);
+				interface()->write((char*) &shot[ *this].m_zippedPatterns[0], size);
           
 				interface()->receive();
 				unsigned int ret;
@@ -362,6 +369,5 @@ XSHPulser::changeOutput(bool output, unsigned int /*blankpattern*/) {
 		interface()->write("!", 1); //poff
 		interface()->receive();
 	}
-	return;
 }
 

@@ -25,26 +25,30 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
 	virtual ~XLevelMeter() {}
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
  
-	//! Records
-	unsigned int channelNumRecorded() const {return m_levelRecorded.size();}
-	double levelRecorded(unsigned int ch) const {return m_levelRecorded[ch];}
+	struct Payload : public XPrimaryDriver::Payload {
+		unsigned int channelNum() const {return m_levels.size();}
+		double level(unsigned int ch) const {return m_levels[ch];}
+	private:
+		friend class XLevelMeter;
+		std::vector<double> m_levels;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! driver specific part below
 protected:
@@ -58,9 +62,6 @@ private:
  
 	shared_ptr<XThread<XLevelMeter> > m_thread;
   
-	//! Records
-	std::vector<double> m_levelRecorded;
-
 	std::deque<shared_ptr<XScalarEntry> > m_entries;
     
 	void *execute(const atomic<bool> &);  

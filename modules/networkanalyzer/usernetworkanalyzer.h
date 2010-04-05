@@ -32,15 +32,16 @@ public:
 	virtual void getMarkerPos(unsigned int num, double &x, double &y);
 	virtual void oneSweep();
 	virtual void startContSweep();
-	virtual void acquireTrace(unsigned int ch);
-	//! convert raw to dispaly-able
-	virtual void convertRaw() throw (XRecordError&);
+	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
+	//! Converts raw to dispaly-able
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
 
 	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
-	virtual void convertRawBlock(unsigned int len) throw (XRecordError&) = 0;
+	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
+		unsigned int len) throw (XRecordError&) = 0;
 private:
 };
 
@@ -53,7 +54,8 @@ public:
 	virtual ~XHP8711() {}
 
 	virtual void acquireTraceData(unsigned int ch, unsigned int len);
-	virtual void convertRawBlock(unsigned int len) throw (XRecordError&);
+	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
+		unsigned int len) throw (XRecordError&);
 private:
 };
 
@@ -66,7 +68,8 @@ public:
 	virtual ~XAgilentE5061() {}
 
 	virtual void acquireTraceData(unsigned int ch, unsigned int len);
-	virtual void convertRawBlock(unsigned int len) throw (XRecordError&);
+	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
+		unsigned int len) throw (XRecordError&);
 private:
 };
 

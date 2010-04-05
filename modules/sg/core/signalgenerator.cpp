@@ -75,13 +75,11 @@ XSG::stop() {
 }
 
 void
-XSG::analyzeRaw() throw (XRecordError&) {
-    m_freqRecorded = pop<double>();
+XSG::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	tr[ *this].m_freq = reader.pop<double>();
 }
 void
-XSG::visualize() {
-	//! impliment extra codes which do not need write-lock of record
-	//! record is read-locked
+XSG::visualize(const Snapshot &shot) {
 }
 void
 XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
@@ -92,7 +90,8 @@ XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
     }
     XTime time_awared(XTime::now());
     changeFreq(_freq);
-    clearRaw();
-    push(_freq);
-    finishWritingRaw(time_awared, XTime::now());
+
+    shared_ptr<RawData> writer(new RawData);
+    writer->push(_freq);
+    finishWritingRaw(writer, time_awared, XTime::now());
 }

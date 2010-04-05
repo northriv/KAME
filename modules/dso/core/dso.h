@@ -37,16 +37,19 @@ public:
 	//! Shows all forms belonging to driver.
 	virtual void showForms();
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! This is called after analyze() or analyzeRaw()
-	//! The record will be read-locked.
-	//! This might be called even if the record is broken (time() == false).
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! driver specific part below
 public:
@@ -67,8 +70,8 @@ public:
 	const shared_ptr<XDoubleNode> &vOffset3() const {return m_vOffset3;}
 	const shared_ptr<XDoubleNode> &vOffset4() const {return m_vOffset4;}
 	const shared_ptr<XUIntNode> &recordLength() const {return m_recordLength;}
-	const shared_ptr<XNode> &forceTrigger() const {return m_forceTrigger;}  
-	const shared_ptr<XNode> &restart() const {return m_restart;}
+	const shared_ptr<XTouchableNode> &forceTrigger() const {return m_forceTrigger;}
+	const shared_ptr<XTouchableNode> &restart() const {return m_restart;}
 
 	const shared_ptr<XComboNode> &trace1() const {return m_trace1;}
 	const shared_ptr<XComboNode> &trace2() const {return m_trace2;}
@@ -82,13 +85,38 @@ public:
 	const shared_ptr<XDoubleNode> &firCenterFreq() const {return m_firCenterFreq;} ///< [kHz]
 	const shared_ptr<XDoubleNode> &firSharpness() const {return m_firSharpness;}
 
-	//! Records below
-	double trigPosRecorded() const {return m_trigPosRecorded;} ///< unit is interval
-	unsigned int numChannelsRecorded() const {return m_numChannelsRecorded;}
-	double timeIntervalRecorded() const {return m_timeIntervalRecorded;} //! [sec]
-	unsigned int lengthRecorded() const;
-	const double *waveRecorded(unsigned int ch) const;
-  
+	struct Payload : public XPrimaryDriver::Payload {
+		Payload() : m_rawDisplayOnly(false), m_numChannelsDisp(0) {}
+		double trigPos() const {return m_trigPos;} ///< unit is interval
+		unsigned int numChannels() const {return m_numChannels;}
+		double timeInterval() const {return m_timeInterval;} //! [sec]
+		unsigned int length() const;
+		const double *wave(unsigned int ch) const;
+
+		void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);
+		//! For displaying.
+		unsigned int lengthDisp() const;
+		double *waveDisp(unsigned int ch);
+		const double *waveDisp(unsigned int ch) const;
+		double trigPosDisp() const {return m_trigPosDisp;} ///< unit is interval
+		unsigned int numChannelsDisp() const {return m_numChannelsDisp;}
+		double timeIntervalDisp() const {return m_timeIntervalDisp;} //! [sec]
+	private:
+		friend class XDSO;
+		double m_trigPos; ///< unit is interval
+		unsigned int m_numChannels;
+		double m_timeInterval; //! [sec]
+		std::vector<double> m_waves;
+
+		//! for displaying.
+		bool m_rawDisplayOnly;
+		double m_trigPosDisp; ///< unit is interval
+		unsigned int m_numChannelsDisp;
+		double m_timeIntervalDisp; //! [sec]
+		std::vector<double> m_wavesDisp;
+
+		shared_ptr<FIR> m_fir;
+	};
 protected:
 	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) = 0;
@@ -110,8 +138,8 @@ protected:
 	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onForceTriggerTouched(const shared_ptr<XNode> &) = 0;
-	virtual void onRestartTouched(const shared_ptr<XNode> &);
+	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) = 0;
+	virtual void onRestartTouched(const Snapshot &shot, XTouchableNode *);
 
 	virtual double getTimeInterval() = 0;
 
@@ -121,22 +149,10 @@ protected:
 	//! \arg seq_busy true if the sequence is not finished.
 	virtual int acqCount(bool *seq_busy) = 0;
 
-	//! Loads the waveform and settings from the instrument.
-	virtual void getWave(std::deque<XString> &channels) = 0;
+	//! Loads waveforms and settings from the instrument.
+	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) = 0;
 	//! Converts the raw to a display-able style.
-	virtual void convertRaw() throw (XRecordError&) = 0;
-	void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);
-	//! For displaying.
-	unsigned int lengthDisp() const;
-	double *waveDisp(unsigned int ch);
-	double trigPosDisp() const {return m_trigPosDisp;} ///< unit is interval
-	unsigned int numChannelsDisp() const {return m_numChannelsDisp;}
-	double timeIntervalDisp() const {return m_timeIntervalDisp;} //! [sec]
-  
-	//! This is called when the raw data is written.
-	//! unless dependency is broken.
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
   
 	const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
 private:
@@ -161,8 +177,8 @@ private:
 	const shared_ptr<XDoubleNode> m_vOffset3;
 	const shared_ptr<XDoubleNode> m_vOffset4;
 	const shared_ptr<XUIntNode> m_recordLength;
-	const shared_ptr<XNode> m_forceTrigger;  
-	const shared_ptr<XNode> m_restart;
+	const shared_ptr<XTouchableNode> m_forceTrigger;
+	const shared_ptr<XTouchableNode> m_restart;
 	const shared_ptr<XComboNode> m_trace1;
 	const shared_ptr<XComboNode> m_trace2;
 	const shared_ptr<XComboNode> m_trace3;
@@ -176,20 +192,8 @@ private:
 	const qshared_ptr<FrmDSO> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
   
-	//! These are parts of a record.
-	double m_trigPosRecorded; ///< unit is interval
-	unsigned int m_numChannelsRecorded;
-	double m_timeIntervalRecorded; //! [sec]
-	std::vector<double> m_wavesRecorded;
-	//! for displaying.
-	bool m_rawDisplayOnly;
-	double m_trigPosDisp; ///< unit is interval
-	unsigned int m_numChannelsDisp;
-	double m_timeIntervalDisp; //! [sec]
-	std::vector<double> m_wavesDisp;
-	XRecursiveMutex m_dispMutex;
 	//! Convert the raw to a display-able style and performs extra digital processing.
-	void convertRawToDisp() throw (XRecordError&);
+	void convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
   
 	shared_ptr<XListener> m_lsnOnSingleChanged;
 	shared_ptr<XListener> m_lsnOnAverageChanged;
@@ -229,8 +233,6 @@ private:
 	shared_ptr<XThread<XDSO> > m_thread;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 
-	shared_ptr<FIR> m_fir;
-  
 	void *execute(const atomic<bool> &);
   
 	static const char *s_trace_names[];

@@ -29,24 +29,29 @@ public:
 
 	//! usually nothing to do
 	virtual ~XDMM() {}
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
 	
-	double valueRecorded() const {return m_value;}
+	struct Payload : public XPrimaryDriver::Payload {
+		double value() const {return m_var;}
+		void _write(double var) {m_var = var;}
+	private:
+		double m_var;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! driver specific part below
 	const shared_ptr<XComboNode> &function() const {return m_function;}
@@ -54,13 +59,13 @@ protected:
 protected:
 	//! one-shot reading
 	virtual double oneShotRead() = 0; 
-	//! called when m_function is changed
+	//! is called when m_function is changed
 	virtual void changeFunction() = 0;
   
 	//! This should not cause an exception.
 	virtual void afterStop() = 0;
 private:
-	//! called when m_function is changed
+	//! is called when m_function is changed
 	void onFunctionChanged(const shared_ptr<XValueNodeBase> &node);
   
 	const shared_ptr<XScalarEntry> m_entry;
@@ -71,7 +76,6 @@ private:
  
 	shared_ptr<XThread<XDMM> > m_thread;
 	const qshared_ptr<FrmDMM> m_form;
-	double m_value;
   
 	void *execute(const atomic<bool> &);
   

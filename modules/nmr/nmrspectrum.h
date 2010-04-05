@@ -31,13 +31,15 @@ public:
 protected:
 	//! \return true to be cleared.
 	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const;
-	virtual double getFreqResHint() const;
-	virtual double getMinFreq() const;
-	virtual double getMaxFreq() const;
-	virtual double getCurrentCenterFreq() const;
-	virtual void getValues(std::vector<double> &values) const;
+	virtual double getFreqResHint(const Snapshot &shot_this) const;
+	virtual double getMinFreq(const Snapshot &shot_this) const;
+	virtual double getMaxFreq(const Snapshot &shot_this) const;
+	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const;
+	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const;
 
-	virtual bool checkDependencyImpl(const shared_ptr<XDriver> &emitter) const;
+	virtual bool checkDependencyImpl(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const;
 public:
 	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > &magnet() const {return m_magnet;}
 

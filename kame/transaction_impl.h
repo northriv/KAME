@@ -975,12 +975,39 @@ Node<XN>::fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> > &subwrapp
 			fetchSubpackets(subwrappers, subpacket);
 	}
 }
-
+//template <class XN>
+//bool
+//Node<XN>::commit_at_super(Transaction<XN> &tr) {
+//	Node &node(tr.m_packet->node());
+//	for(Transaction<XN> tr_super( *this);; ++tr_super) {
+//		local_shared_ptr<Packet> *packet
+//			= node.reverseLookup(tr_super.m_packet, false, Packet::SERIAL_NULL, false, 0);
+//		if( !packet)
+//			return false; //Released.
+//		if( *packet != tr.m_oldpacket) {
+//			if( !tr.isMultiNodal() && (( *packet)->payload() == tr.m_oldpacket->payload())) {
+//				//Single-node mode, the payload in the snapshot is unchanged.
+//				tr.m_packet->subpackets() = ( *packet)->subpackets();
+//				tr.m_packet->m_missing = ( *packet)->missing();
+//			}
+//			else {
+//				return false;
+//			}
+//		}
+//		node.reverseLookup(tr_super.m_packet, true, tr_super.m_serial, tr.m_packet->missing())
+//			= tr.m_packet;
+//		if(tr_super.commit()) {
+//			tr.m_packet = tr_super.m_packet;
+//			return true;
+//		}
+//	}
+//}
 template <class XN>
 bool
 Node<XN>::commit(Transaction<XN> &tr) {
 	ASSERT(tr.m_oldpacket != tr.m_packet);
 	ASSERT(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
+	ASSERT(this == &tr.m_packet->node());
 
 	m_wrapper->negotiate(tr.m_started_time);
 
@@ -997,6 +1024,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 				}
 				else {
 					STRICT_TEST(s_serial_abandoned = tr.m_serial);
+					fprintf(stderr, "F");
 					return false;
 				}
 			}
@@ -1022,6 +1050,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 			continue;
 		case UNBUNDLE_SUBVALUE_HAS_CHANGED: {
 				STRICT_TEST(s_serial_abandoned = tr.m_serial);
+				fprintf(stderr, "F");
 				return false;
 			}
 		case UNBUNDLE_DISTURBED:

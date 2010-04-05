@@ -225,10 +225,10 @@ XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
 					  recordLength()->to_str().c_str());
 }
 void
-XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
-	XScopedLock<XInterface> lock(*interface());
+XLecroyDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
+	XScopedLock<XInterface> lock( *interface());
 	//	interface()->send("FORCE_TRIGER");
-	if((*average() <= 1) && *singleSequence()) {
+	if(( *average() <= 1) && *singleSequence()) {
 		interface()->send("ARM");
 	}
 	else {
@@ -238,8 +238,8 @@ XLecroyDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
 
 void
 XLecroyDSO::startSequence() {
-	XScopedLock<XInterface> lock(*interface());
-	if((*average() <= 1) && *singleSequence())
+	XScopedLock<XInterface> lock( *interface());
+	if(( *average() <= 1) && *singleSequence())
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
@@ -289,15 +289,14 @@ XLecroyDSO::getTimeInterval() {
 }
 
 void
-XLecroyDSO::getWave(std::deque<XString> &channels)
-{
-	XScopedLock<XInterface> lock(*interface());
+XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) {
+	XScopedLock<XInterface> lock( *interface());
 //	interface()->send("TRIG_MODE STOP");
 	try {
-		push<unsigned int32_t>(channels.size());
+		writer->push<unsigned int32_t>(channels.size());
 		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
 			XString ch = channels[i];
-			if(*average() > 1) {
+			if( *average() > 1) {
 				const char *fch[] = {"TA", "TB", "TC", "TD"};
 				ch = fch[i];
 			}
@@ -310,22 +309,22 @@ XLecroyDSO::getWave(std::deque<XString> &channels)
 			interface()->receive(2); //For "#9"
 			if(interface()->buffer().size() != 2)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
-			rawData().insert(rawData().end(), 
+			writer->insert(writer->end(),
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
 			interface()->scanf("#%1u", &n);
 			interface()->receive(n);
 			if(interface()->buffer().size() != n)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
-			rawData().insert(rawData().end(), 
+			writer->insert(writer->end(),
 							 interface()->buffer().begin(), interface()->buffer().end());
 			int blks = interface()->toUInt();
 			XTime tstart = XTime::now();
 			for(int retry = 0;; retry++) {
 				interface()->receive(blks);
 				blks -= interface()->buffer().size();
-				rawData().insert(rawData().end(), 
-								 interface()->buffer().begin(), interface()->buffer().end());
+				writer->insert(writer->end(),
+					 interface()->buffer().begin(), interface()->buffer().end());
 				if(blks <= 0)
 					break;
 				if(XTime::now() - tstart > 3.0)
@@ -346,54 +345,57 @@ XLecroyDSO::getWave(std::deque<XString> &channels)
 //		interface()->send("TRIG_MODE NORM");
 }
 void
-XLecroyDSO::convertRaw() throw (XRecordError&) {
+XLecroyDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+		Snapshot &shot(tr);
+
 #define WAVEDESC_WAVE_ARRAY_COUNT 116
 #define DATA_BLOCK 346
 	
-	unsigned int ch_cnt = pop<unsigned int32_t>();
+	unsigned int ch_cnt = reader.pop<unsigned int32_t>();
 	for(unsigned int ch = 0; ch < ch_cnt; ch++) {
-		std::vector<char>::iterator dit = rawDataPopIterator();
+		std::vector<char>::const_iterator dit = reader.popIterator();
 		unsigned int n;
-		sscanf(&*dit, "#%1u", &n);
+		sscanf( &*dit, "#%1u", &n);
 		dit += n + 2;
-		if(strncmp(&*dit, "WAVEDESC", 8)) {
+		if(strncmp( &*dit, "WAVEDESC", 8)) {
 			throw XRecordError(i18n("Invalid waveform"), __FILE__, __LINE__);
 		}
 		dit += DATA_BLOCK;
-		rawDataPopIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
-		int32_t count = pop<int32_t>();
-		pop<int32_t>();
-		int32_t first_valid = pop<int32_t>();
-		int32_t last_valid = pop<int32_t>();
-		int32_t first = pop<int32_t>();
-		pop<int32_t>();
-		pop<int32_t>();
-		pop<int32_t>();
-		int32_t acqcount = pop<int32_t>();
-		pop<int16_t>();
-		pop<int16_t>();
-		float vgain = pop<float>();
-		float voffset = pop<float>();
-		pop<float>();
-		pop<float>();
-		pop<int16_t>();
-		pop<int16_t>();
-		float interval = pop<float>();
-		double hoffset = pop<double>();
+		reader.popIterator() += WAVEDESC_WAVE_ARRAY_COUNT + n + 2;
+		int32_t count = reader.pop<int32_t>();
+		reader.pop<int32_t>();
+		int32_t first_valid = reader.pop<int32_t>();
+		int32_t last_valid = reader.pop<int32_t>();
+		int32_t first = reader.pop<int32_t>();
+		reader.pop<int32_t>();
+		reader.pop<int32_t>();
+		reader.pop<int32_t>();
+		int32_t acqcount = reader.pop<int32_t>();
+		reader.pop<int16_t>();
+		reader.pop<int16_t>();
+		float vgain = reader.pop<float>();
+		float voffset = reader.pop<float>();
+		reader.pop<float>();
+		reader.pop<float>();
+		reader.pop<int16_t>();
+		reader.pop<int16_t>();
+		float interval = reader.pop<float>();
+		double hoffset = reader.pop<double>();
 		
 		fprintf(stderr, "first_valid=%d,last_valid=%d,first=%d,acqcount=%d,count=%d\n",
 			(int)first_valid, (int)last_valid, (int)first, (int)acqcount, (int)count);
 		if(ch == 0) {
 			if((count < 0) || 
-				(rawData().size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
+				(reader.size() < (count * 2 + DATA_BLOCK + n + 2) * ch_cnt))
 				throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-			setParameters(ch_cnt, hoffset, interval, count);
+			tr[ *this].setParameters(ch_cnt, hoffset, interval, count);
 		}
 		
-		double *wave = waveDisp(ch);
-		rawDataPopIterator() = dit;
-		for(int i = 0; i < std::min(count, (int32_t)lengthDisp()); i++) {
-			int16_t x = pop<int16_t>();
+		double *wave = tr[ *this].waveDisp(ch);
+		reader.popIterator() = dit;
+		int length = shot[ *this].lengthDisp();
+		for(int i = 0; i < std::min(count, (int32_t)length); i++) {
+			int16_t x = reader.pop<int16_t>();
 			float v = voffset + vgain * x;
 			*wave++ = v;
 		}

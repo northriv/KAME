@@ -32,16 +32,17 @@ public:
 	XConCalTable(const shared_ptr<XThermometerList> &list, FrmCalTable *form);
 	virtual ~XConCalTable() {}
 
-	const shared_ptr<XNode> &display() const {return m_display;}
+	const shared_ptr<XTouchableNode> &display() const {return m_display;}
 	const shared_ptr<XDoubleNode> &temp() const {return m_temp;}
 	const shared_ptr<XDoubleNode> &value() const {return m_value;}  
-	const shared_ptr<XItemNode<XThermometerList, XThermometer> >
-	&thermometer() const {return m_thermometer;}  
+	const shared_ptr<XItemNode<XThermometerList, XThermometer> >&thermometer() const {
+		return m_thermometer;
+	}
   
 private:
 	shared_ptr<XThermometerList> m_list; 
  
-	const shared_ptr<XNode> m_display;
+	const shared_ptr<XTouchableNode> m_display;
 	const shared_ptr<XDoubleNode> m_temp, m_value;
 	shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
 	xqcon_ptr m_conThermo, m_conTemp, m_conValue, m_conDisplay;
@@ -51,7 +52,7 @@ private:
   
 	void onTempChanged(const shared_ptr<XValueNodeBase> &);
 	void onValueChanged(const shared_ptr<XValueNodeBase> &);  
-	void onDisplayTouched(const shared_ptr<XNode> &);
+	void onDisplayTouched(const Snapshot &shot, XTouchableNode *);
 	FrmCalTable *const m_pForm;
 	qshared_ptr<FrmGraphNURL> m_waveform;
 	const shared_ptr<XWaveNGraph> m_wave;

@@ -88,21 +88,20 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 		tr[ *plot->intensity()] = 2.0;
 		tr[ *plot->clearPoints()].setUIEnabled(false);
 		tr[ *plot->maxCount()].setUIEnabled(false);
+		tr[ *m_waveForm].clearPoints();
 		if(tr.commit())
 			break;
 	}
-	m_waveForm->clear(); 
 }
 void
 XNetworkAnalyzer::showForms() {
-//! impliment form->show() here
+// impliment form->show() here
     m_form->show();
     m_form->raise();
 }
 
 void
-XNetworkAnalyzer::start()
-{
+XNetworkAnalyzer::start() {
 	m_thread.reset(new XThread<XNetworkAnalyzer>(shared_from_this(), &XNetworkAnalyzer::execute));
 	m_thread->resume();
   
@@ -112,68 +111,64 @@ XNetworkAnalyzer::start()
 	average()->setUIEnabled(true);
 }
 void
-XNetworkAnalyzer::stop()
-{   
+XNetworkAnalyzer::stop() {
 	startFreq()->setUIEnabled(false);
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
   	
 	if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
 }
 
 void
-XNetworkAnalyzer::analyzeRaw() throw (XRecordError&)
-{
-	unsigned int numtr = pop<unsigned int>();
+XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	const Snapshot &shot(tr);
+	unsigned int numtr = reader.pop<unsigned int>();
 	if(numtr != 1)
 		return; 
-	unsigned int nummk = pop<unsigned int>();
-	m_markersRecorded.resize(nummk);
+	unsigned int nummk = reader.pop<unsigned int>();
+	tr[ *this].m_markers.resize(nummk);
 	for(unsigned int i = 0; i < nummk; i++) {
-		m_markersRecorded[i].first = pop<double>();
-		m_markersRecorded[i].second = pop<double>();
+		tr[ *this].m_markers[i].first = reader.pop<double>();
+		tr[ *this].m_markers[i].second = reader.pop<double>();
 	}
 	if(nummk >= 1) {
-	    m_marker1X->value(m_markersRecorded[0].first);
-	    m_marker1Y->value(m_markersRecorded[0].second);
+	    m_marker1X->value(tr, shot[ *this].m_markers[0].first);
+	    m_marker1Y->value(tr, shot[ *this].m_markers[0].second);
 	}
 	if(nummk >= 2) {
-	    m_marker2X->value(m_markersRecorded[1].first);
-	    m_marker2Y->value(m_markersRecorded[1].second);
+	    m_marker2X->value(tr, shot[ *this].m_markers[1].first);
+	    m_marker2Y->value(tr, shot[ *this].m_markers[1].second);
 	}
-    convertRaw();
+    convertRaw(reader, tr);
 }
 void
-XNetworkAnalyzer::visualize()
-{
+XNetworkAnalyzer::visualize(const Snapshot &shot) {
 //  if(!time()) {
 //  	m_waveForm->clear();
 //  	return;
 //  }
-	const unsigned int length = lengthRecorded();
+	const unsigned int length = shot[ *this].length();
 	for(Transaction tr( *m_waveForm);; ++tr) {
-		tr[ *m_markerPlot->maxCount()] =m_markersRecorded.size();
+		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
 		std::deque<XGraph::ValPoint> &points(tr[ *m_markerPlot].points());
 		points.clear();
-		for(std::deque<std::pair<double, double> >::const_iterator it = m_markersRecorded.begin();
-			it != m_markersRecorded.end(); it++) {
+		for(std::deque<std::pair<double, double> >::const_iterator it = shot[ *this].m_markers.begin();
+			it != shot[ *this].m_markers.end(); it++) {
 			points.push_back(XGraph::ValPoint(it->first, it->second));
 		}
 
 		tr[ *m_waveForm].setRowCount(length);
 
 		double *freqs = tr[ *m_waveForm].cols(0);
-		double fint = freqIntervalRecorded();
-		double f = startFreqRecorded();
+		double fint = shot[ *this].freqInterval();
+		double f = shot[ *this].startFreq();
 		for(unsigned int i = 0; i < length; i++) {
 			*freqs++ = f;
 			f += fint;
 		}
 
-		memcpy(tr[ *m_waveForm].cols(1), traceRecorded(), length * sizeof(double));
+		memcpy(tr[ *m_waveForm].cols(1), shot[ *this].trace(), length * sizeof(double));
 
 		m_waveForm->drawGraph(tr);
 		if(tr.commit()) {
@@ -193,9 +188,9 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
 		shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
 
-	while(!terminated) {
+	while( !terminated) {
 		XTime time_awared = XTime::now();
-		clearRaw();
+		shared_ptr<RawData> writer(new RawData);
 		// try/catch exception of communication errors
 		try {
 			oneSweep();
@@ -207,7 +202,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			e.print(getLabel());
 			continue;
 		}
-		push((unsigned int)1); //# of traces.
+		writer->push((unsigned int)1); //# of traces.
 		double mx[8], my[8];
 		unsigned int nummk = 0;
 		try {
@@ -223,13 +218,13 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			e.print(getLabel());
 			continue;
 		}
-		push((unsigned int)nummk); //# of markers.
+		writer->push((unsigned int)nummk); //# of markers.
 		for(unsigned int i = 0; i < nummk; i++) {
-			push(mx[i]);
-			push(my[i]);			
+			writer->push(mx[i]);
+			writer->push(my[i]);
 		}
 		try {
-			acquireTrace(0);
+			acquireTrace(writer, 0);
 		}
 		catch (XDriver::XSkippedRecordError&) {
 			continue;
@@ -238,7 +233,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			e.print(getLabel());
 			continue;
 		}
-		finishWritingRaw(time_awared, XTime::now());
+		finishWritingRaw(writer, time_awared, XTime::now());
     }
 	try {
 		startContSweep();

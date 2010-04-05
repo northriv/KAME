@@ -54,14 +54,16 @@ XH8Pulser::open() throw (XInterface::XInterfaceError &) {
 }
 
 void
-XH8Pulser::createNativePatterns() {
-	m_zippedPatterns.clear();
-	for(RelPatListIterator it = m_relPatList.begin(); it != m_relPatList.end(); it++) {
-		pulseAdd(it->toappear, (uint16_t)(it->pattern & PAT_DO_MASK));
+XH8Pulser::createNativePatterns(Transaction &tr) {
+	const Snapshot &shot(tr);
+	tr[ *this].m_zippedPatterns.clear();
+	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
+		it != shot[ *this].relPatList().end(); it++) {
+		pulseAdd(tr, it->toappear, (uint16_t)(it->pattern & PAT_DO_MASK));
 	}
 }
 int
-XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern) {
+XH8Pulser::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
 	C_ASSERT(sizeof(long long) == 8);
 
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
@@ -70,28 +72,28 @@ XH8Pulser::pulseAdd(uint64_t term, uint16_t pattern) {
 	uint32_t llen = (uint32_t)((term - 1) % 0x8000uLL);
 
 	switch(ulen) {
-		h8ushort x;
+		Payload::h8ushort x;
 	case 0:
 		x.msb = llen / 0x100;
 		x.lsb = llen % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		x.msb = pattern / 0x100;
 		x.lsb = pattern % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		break;
 	default:
 		x.msb = (ulen % 0x8000u + 0x8000u) / 0x100;
 		x.lsb = (ulen % 0x8000u + 0x8000u) % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		x.msb = (ulen / 0x8000u) / 0x100;
 		x.lsb = (ulen / 0x8000u) % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		x.msb = (llen + 0x8000u) / 0x100;
 		x.lsb = (llen + 0x8000u) % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		x.msb = pattern / 0x100;
 		x.lsb = pattern % 0x100;
-		m_zippedPatterns.push_back(x);
+		tr[ *this].m_zippedPatterns.push_back(x);
 		break;
 	}
 	return 0;
@@ -104,16 +106,17 @@ static uint16_t makesum(unsigned char *start, uint32_t bytes) {
 	return sum;
 }
 void
-XH8Pulser::changeOutput(bool output, unsigned int blankpattern) {
+XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
+	XScopedLock<XInterface> lock( *interface());
 	if(output) {
-		if(m_zippedPatterns.empty() |
-		   (m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
+		if(shot[ *this].m_zippedPatterns.empty() |
+		   (shot[ *this].m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		for(unsigned int retry = 0; ; retry++) {
 			try {
 				interface()->sendf("$poff %x", blankpattern);
 				interface()->send("$pclear");
-				unsigned int size = m_zippedPatterns.size();
+				unsigned int size = shot[ *this].m_zippedPatterns.size();
 				unsigned int pincr = size;
 				interface()->sendf("$pload %x %x", size, pincr);
 				interface()->receive();
@@ -121,10 +124,10 @@ XH8Pulser::changeOutput(bool output, unsigned int blankpattern) {
 				msecsleep(1);
 				for(unsigned int j=0; j < size; j += pincr) {
 					interface()->write(
-						(char *)&m_zippedPatterns[j], pincr * 2);
+						(char *) &shot[ *this].m_zippedPatterns[j], pincr * 2);
 					uint16_t sum = 
-						makesum((unsigned char *)&m_zippedPatterns[j], pincr * 2);
-					h8ushort nsum;
+						makesum((unsigned char *) &shot[ *this].m_zippedPatterns[j], pincr * 2);
+					Payload::h8ushort nsum;
 					nsum.lsb = sum % 0x100; nsum.msb = sum / 0x100;
 					interface()->write((char *)&nsum, 2);
 				}

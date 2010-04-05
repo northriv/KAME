@@ -78,11 +78,6 @@ XNode::setUIEnabled(bool v) {
 	trans(*this).setUIEnabled(v);
 }
 void
-XNode::touch() {
-    onTouch().talk(shared_from_this());
-}
-
-void
 XNode::clearChildren() {
     releaseAll();
 }
@@ -118,7 +113,7 @@ XNode::getChild(const XString &var) const {
 
 void
 XTouchableNode::Payload::touch() {
-	tr().mark(onTouch(), &node());
+	tr().mark(onTouch(), static_cast<XTouchableNode *>(&node()));
 }
 
 void

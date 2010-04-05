@@ -17,6 +17,8 @@
 #include <secondarydriver.h>
 #include <xnodeconnector.h>
 #include <complex>
+#include <boost/array.hpp>
+using boost::array;
 #include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
@@ -31,22 +33,55 @@ public:
 	//! ususally nothing to do
 	virtual ~XNMRSpectrumBase();
   
-	//! show all forms belonging to driver
+	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
-
-	//! this is called when connected driver emit a signal
-	//! unless dependency is broken
-	//! all connected drivers are readLocked
-	virtual void analyze(const shared_ptr<XDriver> &emitter) throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
-	//! check connected drivers have valid time
-	//! \return true if dependency is resolved
-	virtual bool checkDependency(const shared_ptr<XDriver> &emitter) const;
+	//! This function is called when a connected driver emit a signal
+	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
+	//! Checks if the connected drivers have valid time stamps.
+	//! \return true if dependency is resolved.
+	//! This function must be reentrant unlike analyze().
+	virtual bool checkDependency(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const;
 public:
 	//! driver specific part below 
+	struct Payload : public XSecondaryDriver::Payload {
+		const std::deque<std::complex<double> > &wave() const {return m_wave;}
+		//! Averaged weights.
+		const std::deque<double> &weights() const {return m_weights;}
+		//! Power spectrum density of dark. [V].
+		const std::deque<double> &darkPSD() const {return m_darkPSD;}
+		//! Resolution [Hz].
+		double res() const {return m_res;}
+		//! Value of the first point [Hz].
+		double min() const {return m_min;}
+	private:
+		template <class>
+		friend class XNMRSpectrumBase;
+
+		enum {ACCUM_BANKS = 3};
+		array<std::deque<std::complex<double> >, ACCUM_BANKS> m_accum;
+		array<std::deque<double>, ACCUM_BANKS> m_accum_weights;
+		array<std::deque<double>, ACCUM_BANKS> m_accum_dark; //[V^2/Hz].
+
+		std::deque<std::complex<double> > m_wave;
+		std::deque<double> m_weights;
+		std::deque<double> m_darkPSD;
+
+		double m_res, m_min;
+
+		bool m_bRearrangeInstrumNext;
+
+		shared_ptr<FFT> m_ift, m_preFFT;
+		std::deque<std::pair<double, double> > m_peaks;
+		XTime m_timeClearRequested;
+	};
+
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > &pulse() const {return m_pulse;}
 
 	const shared_ptr<XDoubleNode> &bandWidth() const {return m_bandWidth;}
@@ -58,51 +93,34 @@ public:
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
 	//! Spectrum solvers.
 	const shared_ptr<XComboNode> &solverList() const {return m_solverList;}
-	/// FFT Window Function
+	///! FFT Window Function
 	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
 	//! Changing width of time-domain image [%]
 	const shared_ptr<XDoubleNode> &windowWidth() const {return m_windowWidth;}
-	
-	//! records below.
-	const std::deque<std::complex<double> > &wave() const {return m_wave;}
-	//! averaged weights
-	const std::deque<double> &weights() const {return m_weights;}
-	//! power spectrum density of dark. [V].
-	const std::deque<double> &darkPSD() const {return m_darkPSD;}
-	//! resolution [Hz]
-	double resRecorded() const {return m_resRecorded;}
-	//! value of the first point [Hz]
-	double minRecorded() const {return m_minRecorded;}
+	//! Clears stored points.
+	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
 protected:
-	//! Records
-	enum {ACCUM_BANKS = 3};
-	std::deque<double> m_accum_weights[ACCUM_BANKS];
-	std::deque<std::complex<double> > m_accum[ACCUM_BANKS];
-	std::deque<double> m_accum_dark[ACCUM_BANKS]; //[V^2/Hz].
-
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
 	//! \return true to be cleared.
 	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const = 0;
 	//! [Hz]
-	virtual double getFreqResHint() const = 0;
+	virtual double getFreqResHint(const Snapshot &shot_this) const = 0;
 	//! [Hz]
-	virtual double getMinFreq() const = 0;
+	virtual double getMinFreq(const Snapshot &shot_this) const = 0;
 	//! [Hz]
-	virtual double getMaxFreq() const = 0;
+	virtual double getMaxFreq(const Snapshot &shot_this) const = 0;
 	//! [Hz]
-	virtual double getCurrentCenterFreq() const = 0;
-	virtual void afterFSSum() {}
-	virtual void getValues(std::vector<double> &values) const = 0;
-	virtual bool checkDependencyImpl(const shared_ptr<XDriver> &emitter) const = 0;
+	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const = 0;
+	virtual void rearrangeInstrum(const Snapshot &shot) {}
+	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const = 0;
+	virtual bool checkDependencyImpl(const Snapshot &shot_this,
+		const Snapshot &shot_emitter, const Snapshot &shot_others,
+		XDriver *emitter) const = 0;
 private:
 	//! Fourier Step Summation.
-	void fssum();
-
-	//! Records
-	std::deque<std::complex<double> > m_wave;
-	std::deque<double> m_weights;
-	std::deque<double> m_darkPSD;
+	void fssum(Transaction &tr, const Snapshot &shot_pulse, const Snapshot &shot_others);
+	void analyzeIFT(Transaction &tr, const Snapshot &shot_pulse);
 
 	const shared_ptr<XItemNode<XDriverList, XNMRPulseAnalyzer> > m_pulse;
  
@@ -110,33 +128,26 @@ private:
 	const shared_ptr<XComboNode> m_bwList;
 	const shared_ptr<XBoolNode> m_autoPhase;
 	const shared_ptr<XDoubleNode> m_phase;
-	const shared_ptr<XNode> m_clear;
+	const shared_ptr<XTouchableNode> m_clear;
 	const shared_ptr<XComboNode> m_solverList;
 	const shared_ptr<XComboNode> m_windowFunc;
 	const shared_ptr<XDoubleNode> m_windowWidth;
 	
-	double m_resRecorded, m_minRecorded;
-  
 	xqcon_ptr m_conBandWidth, m_conBWList;
 	xqcon_ptr m_conPulse;
 	xqcon_ptr m_conPhase, m_conAutoPhase;
 	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;
 
-	shared_ptr<FFT> m_ift, m_preFFT;
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<XXYPlot> m_peakPlot;
-	std::vector<std::pair<double, double> > m_peaks;
 
-	void analyzeIFT();
-	
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
 
-	XTime m_timeClearRequested;
 protected:
 	const qshared_ptr<FRM> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 	const shared_ptr<XWaveNGraph> m_spectrum;
-	void onClear(const shared_ptr<XNode> &);
+	void onClear(const Snapshot &shot, XTouchableNode *);
 };
 
 #endif

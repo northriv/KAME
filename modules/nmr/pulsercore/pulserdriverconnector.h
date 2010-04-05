@@ -35,10 +35,10 @@ void clicked ( int row, int col, int button, const QPoint & mousePos );
 	void selectionChanged ();
 private:
 
-	void updateGraph(bool checkselection);
+	void updateGraph(const Snapshot &shot, bool checkselection);
   
 	shared_ptr<XListener> m_lsnOnPulseChanged;
-	void onPulseChanged(const shared_ptr<XDriver> &);
+	void onPulseChanged(const Snapshot &shot, XDriver*);
   
 	Q3Table *const m_pTable;
 	const weak_ptr<XPulser> m_pulser;

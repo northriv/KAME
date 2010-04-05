@@ -70,6 +70,7 @@ XNodeBrowser::process() {
 	if( !node)
 		node = m_lastPointed;
 	if((node != m_lastPointed) && node) {
+		Snapshot shot( *node);
 		shared_ptr<XValueNodeBase> valuenode(dynamic_pointer_cast<XValueNodeBase>(node));
 		shared_ptr<XListNodeBase> listnode(dynamic_pointer_cast<XListNodeBase>(node));
 
@@ -82,8 +83,8 @@ XNodeBrowser::process() {
 		//		str += "\nName: ";
 		//		str += node->getName();
 		str += "<br>";
-		if(!node->isUIEnabled()) str+= "UI/scripting disabled.<br>";
-		if(node->isRunTime()) str+= "For run-time only.<br>";
+		if( !shot[ *node].isUIEnabled()) str+= "UI/scripting disabled.<br>";
+		if(shot[ *node].isRuntime()) str+= "For run-time only.<br>";
 		str += "<font color=#005500>Type:</font> ";
 		str += node->getTypename().c_str();
 		str += "<br>";
@@ -116,7 +117,6 @@ XNodeBrowser::process() {
 			//			str += rbpath;
 			str += "Inaccessible from the root.<br>";		
 		}
-		Snapshot shot( *node);
 		if(shot.size()) {
 			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)shot.list()->size()).c_str();
 			for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {

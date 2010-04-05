@@ -543,8 +543,8 @@ XNIDAQmxDSO::onTaskDone(TaskHandle /*task*/, int32 status) {
 	}
 }
 void
-XNIDAQmxDSO::onForceTriggerTouched(const shared_ptr<XNode> &) {
-	XScopedLock<XInterface> lock(*interface());
+XNIDAQmxDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
+	XScopedLock<XInterface> lock( *interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
@@ -848,8 +848,8 @@ XNIDAQmxDSO::aiRawToVolt(const float64 *pcoeff, float64 raw) {
 }
 
 void
-XNIDAQmxDSO::getWave(std::deque<XString> &) {
-	XScopedLock<XInterface> lock(*interface());
+XNIDAQmxDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
+	XScopedLock<XInterface> lock( *interface());
 
 	int bank;
 	for(;;) {
@@ -874,53 +874,51 @@ XNIDAQmxDSO::getWave(std::deque<XString> &) {
 	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
 
-	push((uint32_t)num_ch);
-	push((uint32_t)m_preTriggerPos);
-	push((uint32_t)len);
-	push((uint32_t)rec.accumCount);
-	push((double)m_interval);
+	writer->push((uint32_t)num_ch);
+	writer->push((uint32_t)m_preTriggerPos);
+	writer->push((uint32_t)len);
+	writer->push((uint32_t)rec.accumCount);
+	writer->push((double)m_interval);
 	for(unsigned int ch = 0; ch < num_ch; ch++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-			push((double)m_coeffAI[ch][i]);
+			writer->push((double)m_coeffAI[ch][i]);
 		}
 	}
 	const int32_t *p = &(rec.record[0]);
-	std::vector<char> &raw_data(rawData());
 	const unsigned int size = len * num_ch;
 	for(unsigned int i = 0; i < size; i++)
-		push(*p++, raw_data);
+		writer->push<int32_t>( *p++);
 	XString str(buf);
-	rawData().insert(rawData().end(), str.begin(), str.end());
+	writer->insert(writer->end(), str.begin(), str.end());
 	str = ""; //reserved/
-	rawData().insert(rawData().end(), str.begin(), str.end());
+	writer->insert(writer->end(), str.begin(), str.end());
 
 	rec.unlock();
 }
 void
-XNIDAQmxDSO::convertRaw() throw (XRecordError&) {
-	const unsigned int num_ch = pop<uint32_t>();
-	const unsigned int pretrig = pop<uint32_t>();
-	const unsigned int len = pop<uint32_t>();
-	const unsigned int accumCount = pop<uint32_t>();
-	const double interval = pop<double>();
+XNIDAQmxDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	const unsigned int num_ch = reader.pop<uint32_t>();
+	const unsigned int pretrig = reader.pop<uint32_t>();
+	const unsigned int len = reader.pop<uint32_t>();
+	const unsigned int accumCount = reader.pop<uint32_t>();
+	const double interval = reader.pop<double>();
 
-	setParameters(num_ch, - (double)pretrig * interval, interval, len);
+	tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
 	double *wave[NUM_MAX_CH];
 	float64 coeff[NUM_MAX_CH][CAL_POLY_ORDER];
 	for(unsigned int j = 0; j < num_ch; j++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-			coeff[j][i] = pop<double>();
+			coeff[j][i] = reader.pop<double>();
 		}
 
-		wave[j] = waveDisp(j);
+		wave[j] = tr[ *this].waveDisp(j);
 	}
 
-	std::vector<char>::iterator &raw_data_it(rawDataPopIterator());
 	const float64 prop = 1.0 / accumCount;
 	for(unsigned int i = 0; i < len; i++) {
 		for(unsigned int j = 0; j < num_ch; j++)
-			*(wave[j])++ = aiRawToVolt(coeff[j], pop<int32_t>(raw_data_it) * prop);
+			*(wave[j])++ = aiRawToVolt(coeff[j], reader.pop<int32_t>() * prop);
 	}
 }
 

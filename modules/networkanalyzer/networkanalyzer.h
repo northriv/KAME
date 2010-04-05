@@ -32,22 +32,37 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
 	virtual ~XNetworkAnalyzer() {}
-	//! show all forms belonging to driver.
+	//! Shows all forms belonging to driver.
 	virtual void showForms();
+
+	struct Payload : public XPrimaryDriver::Payload {
+		double startFreq() const {return m_startFreq;} //! [MHz]
+		double freqInterval() const {return m_freqInterval;} //! [MHz]
+		unsigned int length() const {return m_trace.size();}
+		const double *trace() const {return &m_trace[0];}
+
+		std::vector<double> &_trace() {return m_trace;}
+		double m_startFreq;
+		double m_freqInterval;
+	private:
+		friend class XNetworkAnalyzer;
+		std::vector<double> m_trace;
+		std::deque<std::pair<double, double> > m_markers;
+	};
 protected:
-	//! Start up your threads, connect GUI, and activate signals
+	//! Starts up your threads, connects GUI, and activates signals.
 	virtual void start();
-	//! Shut down your threads, unconnect GUI, and deactivate signals
-	//! this may be called even if driver has already stopped.
+	//! Shuts down your threads, unconnects GUI, and deactivates signals
+	//! This function may be called even if driver has already stopped.
 	virtual void stop();
   
-	//! this is called when raw is written 
-	//! unless dependency is broken
-	//! convert raw to record
-	virtual void analyzeRaw() throw (XRecordError&);
-	//! this is called after analyze() or analyzeRaw()
-	//! record is readLocked
-	virtual void visualize();
+	//! This function will be called when raw data are written.
+	//! Implement this function to convert the raw data to the record (Payload).
+	//! \sa analyze()
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+	//! This might be called even if the record is invalid (time() == false).
+	virtual void visualize(const Snapshot &shot);
   
 	//! driver specific part below
 	const shared_ptr<XScalarEntry> &marker1X() const {return m_marker1X;}
@@ -58,12 +73,6 @@ protected:
 	const shared_ptr<XDoubleNode> &stopFreq() const {return m_stopFreq;}
 	const shared_ptr<XComboNode> &points() const {return m_points;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
-
-	//! Records below
-	double startFreqRecorded() const {return m_startFreqRecorded;} //! [MHz]
-	double freqIntervalRecorded() const {return m_freqIntervalRecorded;} //! [MHz]
-	unsigned int lengthRecorded() const {return m_traceRecorded.size();}
-	const double *traceRecorded() const {return &m_traceRecorded[0];}
 protected:
 	virtual void onStartFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
 	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
@@ -72,14 +81,9 @@ protected:
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
 	virtual void startContSweep() = 0;
-	virtual void acquireTrace(unsigned int ch) = 0;
-	//! convert raw to dispaly-able
-	virtual void convertRaw() throw (XRecordError&) = 0;
-	
-	std::vector<double> m_traceRecorded;	
-	double m_startFreqRecorded;
-	double m_freqIntervalRecorded;
-	std::deque<std::pair<double, double> > m_markersRecorded;
+	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) = 0;
+	//! Converts raw to dispaly-able
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
 private:
 	const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
 	const shared_ptr<XScalarEntry> m_marker1X;

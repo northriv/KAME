@@ -61,6 +61,7 @@ private:
 template <class XN>
 struct _Message {
 	virtual void talk(const Snapshot<XN> &shot) = 0;
+	virtual void unmark(const shared_ptr<XListener> &x) = 0;
 };
 
 //! M/M Listener and Talker model
@@ -85,29 +86,32 @@ public:
 	void connect(const shared_ptr<XListener> &);
 	void disconnect(const shared_ptr<XListener> &);
 
-	//! block emission of signals from this talker.
+	//! Blocks emission of signals from this talker.
 	//! use this with owner's responsibility.
+	//! \todo obsoleted.
 	//! \sa unmask()
 	void mask() {ASSERT( !m_masked); m_masked = true;}
-	//! un-block emission of signals from this talker.
+	//! Un-blocks emission of signals from this talker.
 	//! use this with owner's responsibility.
+	//! \todo obsoleted.
 	//! \sa mask()
 	void unmask() {ASSERT( m_masked); m_masked = false;}
 
-	//! Request a talk to connected listeners.
+	//! Requests a talk to connected listeners.
 	//! If a listener is not mainthread model, the listener will be called later.
 	//! \param arg passing argument to all listeners
 	//! If listener avoids duplication, lock won't be passed to listener.
 	virtual _Message<XN>* message(tArgRef arg);
-	void talk(const Snapshot<XN> &shot, tArgRef arg) const { _talk(shot, m_listeners, arg);}
+	void talk(const Snapshot<XN> &shot, tArgRef arg) const {
+		_talk(shot, m_listeners, shared_ptr<UnmarkedListenerList>(), arg);
+	}
 
 	bool empty() const {return !m_listeners;}
 private:
 	typedef Event<XN, tArg, tArgRef> _Event;
 	typedef _XListenerImpl<Event<XN, tArg, tArgRef> > _Listener;
 	typedef std::deque<weak_ptr<_Listener> > ListenerList;
-	typedef typename ListenerList::iterator ListenerList_it;
-	typedef typename ListenerList::const_iterator ListenerList_const_it;
+	typedef std::deque<shared_ptr<XListener> > UnmarkedListenerList;
 	shared_ptr<ListenerList> m_listeners;
 	bool m_masked;
 
@@ -145,13 +149,31 @@ private:
 				return skip;
 			}
 	};
-	inline static void _talk(const Snapshot<XN> &shot, const shared_ptr<ListenerList> &list, tArgRef arg);
+	inline static void _talk(const Snapshot<XN> &shot,
+		const shared_ptr<ListenerList> &list,
+		const shared_ptr<UnmarkedListenerList> &unmarked, tArgRef arg);
 protected:
 	struct Message : public _Message<XN> {
 		Message(tArgRef a, const shared_ptr<ListenerList> &l) : _Message<XN>(), arg(a), listeners(l) {}
 		tArg arg;
 		shared_ptr<ListenerList> listeners;
-		virtual void talk(const Snapshot<XN> &shot) {_talk(shot, listeners, arg);}
+		shared_ptr<UnmarkedListenerList> listeners_unmarked;
+		virtual void talk(const Snapshot<XN> &shot) {
+			_talk(shot, listeners, listeners_unmarked, arg);
+		}
+		virtual void unmark(const shared_ptr<XListener> &x) {
+			if( !listeners)
+				return;
+			for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
+				if(shared_ptr<_Listener> listener = it->lock()) {
+					if(listener == x) {
+						if( !listeners_unmarked)
+							listeners_unmarked.reset(new UnmarkedListenerList);
+						listeners_unmarked->push_back(x);
+					}
+				}
+			}
+		}
 	};
 };
 
@@ -213,9 +235,9 @@ template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::connect(const shared_ptr<_Listener> &lx) {
 	shared_ptr<ListenerList> new_list(
-		m_listeners ? (new ListenerList(*m_listeners)) : (new ListenerList));
+		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
 	// clean-up dead listeners.
-	for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
+	for(typename ListenerList::iterator it = new_list->begin(); it != new_list->end();) {
 		if( !it->lock())
 			it = new_list->erase(it);
 		else
@@ -229,7 +251,7 @@ void
 Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 	shared_ptr<ListenerList> new_list(
 		m_listeners ? (new ListenerList(*m_listeners)) : (new ListenerList));
-	for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
+	for(typename ListenerList::iterator it = new_list->begin(); it != new_list->end();) {
 		if(shared_ptr<XListener> listener = it->lock()) {
 			// clean dead listeners and matching one.
 			if( !listener || (lx == listener)) {
@@ -245,21 +267,23 @@ Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 
 template <class XN, typename tArg, typename tArgRef>
 void
-Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot, const shared_ptr<ListenerList> &listeners, tArgRef arg) {
+Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot,
+	const shared_ptr<ListenerList> &listeners,
+	const shared_ptr<UnmarkedListenerList> &unmarked, tArgRef arg) {
 //	if(this->m_bMasked) return;
 	if( !listeners) return;
 	_Event event(shot, arg);
-	for(ListenerList_const_it it = listeners->begin(); it != listeners->end(); it++) {
+	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
 		if(shared_ptr<_Listener> listener = it->lock()) {
+			if(unmarked &&
+				(std::find(unmarked->begin(), unmarked->end(), listener) != unmarked->end()))
+				continue;
 			if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
 				try {
 					( *listener)(event);
 				}
 				catch (XKameError &e) {
 					e.print();
-				}
-				catch (std::bad_alloc &) {
-					gErrPrint("Memory Allocation Failed!");
 				}
 			}
 			else {
@@ -277,7 +301,6 @@ Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot, const shared_ptr<List
 		}
 	}
 }
-
 
 } //namespace Transactional
 
