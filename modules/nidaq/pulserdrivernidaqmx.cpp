@@ -959,6 +959,9 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 
 void
 XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankpattern*/) {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);

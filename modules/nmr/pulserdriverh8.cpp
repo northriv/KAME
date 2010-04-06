@@ -108,6 +108,8 @@ static uint16_t makesum(unsigned char *start, uint32_t bytes) {
 void
 XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
 	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
 	if(output) {
 		if(shot[ *this].m_zippedPatterns.empty() |
 		   (shot[ *this].m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))

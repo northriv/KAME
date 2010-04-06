@@ -28,7 +28,7 @@ public:
 		uint32_t m_lastPattern;
 		uint64_t m_dmaTerm;
 		std::vector<unsigned char> m_zippedPatterns;
-		array<int, PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX> m_waveformPos;
+		int m_waveformPos[PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX];
 	};
 
 	//! time resolution [ms]

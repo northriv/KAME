@@ -17,8 +17,6 @@
 #include <secondarydriver.h>
 #include <xnodeconnector.h>
 #include <complex>
-#include <boost/array.hpp>
-using boost::array;
 #include "nmrspectrumsolver.h"
 
 class XNMRPulseAnalyzer;
@@ -51,11 +49,11 @@ protected:
 public:
 	//! driver specific part below 
 	struct Payload : public XSecondaryDriver::Payload {
-		const std::deque<std::complex<double> > &wave() const {return m_wave;}
+		const std::vector<std::complex<double> > &wave() const {return m_wave;}
 		//! Averaged weights.
-		const std::deque<double> &weights() const {return m_weights;}
+		const std::vector<double> &weights() const {return m_weights;}
 		//! Power spectrum density of dark. [V].
-		const std::deque<double> &darkPSD() const {return m_darkPSD;}
+		const std::vector<double> &darkPSD() const {return m_darkPSD;}
 		//! Resolution [Hz].
 		double res() const {return m_res;}
 		//! Value of the first point [Hz].
@@ -64,21 +62,23 @@ public:
 		template <class>
 		friend class XNMRSpectrumBase;
 
-		enum {ACCUM_BANKS = 3};
-		array<std::deque<std::complex<double> >, ACCUM_BANKS> m_accum;
-		array<std::deque<double>, ACCUM_BANKS> m_accum_weights;
-		array<std::deque<double>, ACCUM_BANKS> m_accum_dark; //[V^2/Hz].
-
-		std::deque<std::complex<double> > m_wave;
-		std::deque<double> m_weights;
-		std::deque<double> m_darkPSD;
-
 		double m_res, m_min;
+
+		std::vector<double> m_weights;
+		std::vector<double> m_darkPSD;
+		std::vector<std::complex<double> > m_wave;
+
+		enum {ACCUM_BANKS = 3};
+		std::deque<std::complex<double> > m_accum[ACCUM_BANKS];
+		std::deque<double> m_accum_weights[ACCUM_BANKS];
+		std::deque<double> m_accum_dark[ACCUM_BANKS]; //[V^2/Hz].
+
+		std::deque<std::pair<double, double> > m_peaks;
 
 		bool m_bRearrangeInstrumNext;
 
 		shared_ptr<FFT> m_ift, m_preFFT;
-		std::deque<std::pair<double, double> > m_peaks;
+
 		XTime m_timeClearRequested;
 	};
 

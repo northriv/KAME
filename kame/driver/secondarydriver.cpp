@@ -35,7 +35,7 @@ XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *dri
 		if( !shot_others.isUpperOf( *driver))
 			return;
 		Transaction tr( *this, shot_others);
-		Snapshot &shot_this(tr);
+		const Snapshot &shot_this(tr);
 
 		if(driver != this) {
 		//checking if emitter has already connected unless self-emitted.

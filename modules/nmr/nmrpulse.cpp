@@ -360,7 +360,7 @@ bool XNMRPulseAnalyzer::checkDependency(const Snapshot &shot_this,
 void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
-	Snapshot &shot_this(tr);
+	const Snapshot &shot_this(tr);
 	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
 	ASSERT(_dso);
 
@@ -382,7 +382,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if (interval <= 0) {
 		throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
-	int pos = lrint( *fromTrig() *1e-3 / interval + shot_dso[ *_dso].trigPos());
+	int pos = lrint(shot_this[ *fromTrig()] *1e-3 / interval + shot_dso[ *_dso].trigPos());
 	double starttime = (pos - shot_dso[ *_dso].trigPos()) * interval;
 	if(pos >= dso_len) {
 		throw XSkippedRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
@@ -610,7 +610,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	for(int i = 0; i < fftlen; i++) {
 		darkpsd[i] = darkpsdsum[i] * darknormalize;
 	}
-	int ftpos = lrint( *fftPos() * 1e-3 / interval + shot_dso[ *_dso].trigPos() - pos);
+	int ftpos = lrint( shot_this[ *fftPos()] * 1e-3 / interval + shot_dso[ *_dso].trigPos() - pos);
 
 	if(shot_this[ *difFreq()] != 0.0) {
 		//Digital IF.
@@ -678,12 +678,12 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		double dfreq = shot[ *this].m_dFreq;
 		const double *darkpsd( &shot[ *this].m_darkPSD[0]);
 		const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);
-		double *colf( &tr[ *ftWaveGraph()].cols(0)[0]);
-		double *colr( &tr[ *ftWaveGraph()].cols(0)[1]);
-		double *coli( &tr[ *ftWaveGraph()].cols(0)[2]);
-		double *colabs( &tr[ *ftWaveGraph()].cols(0)[3]);
-		double *colarg( &tr[ *ftWaveGraph()].cols(0)[4]);
-		double *coldark( &tr[ *ftWaveGraph()].cols(0)[5]);
+		double *colf(tr[ *ftWaveGraph()].cols(0));
+		double *colr(tr[ *ftWaveGraph()].cols(1));
+		double *coli(tr[ *ftWaveGraph()].cols(2));
+		double *colabs(tr[ *ftWaveGraph()].cols(3));
+		double *colarg(tr[ *ftWaveGraph()].cols(4));
+		double *coldark(tr[ *ftWaveGraph()].cols(5));
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
 			colf[i] = 0.001 * (i - ftsize/2) * dfreq;
@@ -718,11 +718,11 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		double starttime = shot[ *this].startTime();
 		int waveftpos = shot[ *this].m_waveFTPos;
 		tr[ *waveGraph()].setRowCount(length);
-		double *colt( &tr[ *waveGraph()].cols(0)[0]);
-		double *colfr( &tr[ *waveGraph()].cols(1)[0]);
-		double *colfi( &tr[ *waveGraph()].cols(2)[0]);
-		double *colrr( &tr[ *waveGraph()].cols(3)[0]);
-		double *colri( &tr[ *waveGraph()].cols(4)[0]);
+		double *colt(tr[ *waveGraph()].cols(0));
+		double *colfr(tr[ *waveGraph()].cols(1));
+		double *colfi(tr[ *waveGraph()].cols(2));
+		double *colrr(tr[ *waveGraph()].cols(3));
+		double *colri(tr[ *waveGraph()].cols(4));
 		for (int i = 0; i < length; i++) {
 			int j = i - dsowavestartpos;
 			colt[i] = (starttime + j * interval) * 1e3;

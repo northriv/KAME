@@ -325,6 +325,8 @@ XSHPulser::pulseAdd(Transaction &tr, uint64_t term, uint32_t pattern, bool first
 void
 XSHPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankpattern*/) {
 	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
 	if(output) {
 		if(shot[ *this].m_zippedPatterns.empty())
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);

@@ -18,8 +18,6 @@
 #include "dummydriver.h"
 #include "xwavengraph.h"
 #include <fftw3.h>
-#include <boost/array.hpp>
-using boost::array;
 
 class XScalarEntry;
 class MonteCarlo;
@@ -41,8 +39,9 @@ public:
 		friend class XMonteCarloDriver;
 		shared_ptr<MonteCarlo> m_loop, m_store;
 		int m_fftlen;
-		array<fftw_complex *, 3> m_pFFTin, m_pFFTout;
-		array<fftw_plan, 3> m_fftplan;
+		fftw_complex *m_pFFTin[3];
+		fftw_complex *m_pFFTout[3];
+		fftw_plan m_fftplan[3];
 
 		long double m_sumDU, m_sumDS, m_sumDUav;
 		long double m_testsTotal;

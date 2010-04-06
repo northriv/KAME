@@ -19,8 +19,6 @@
 #include "xitemnode.h"
 #include "xnodeconnector.h"
 #include <complex>
-#include <boost/array.hpp>
-using boost::array;
 #include "fft.h"
 
 class QMainWindow;
@@ -131,9 +129,8 @@ public:
 	    bool m_invertPhase;
 
 	    RelPatList m_relPatList;
-		array<std::vector<std::complex<double> >,
-			XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX>
-			m_qamWaveForm;
+		std::vector<std::complex<double> >
+			m_qamWaveForm[XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX];
 	};
 	
 	const shared_ptr<XBoolNode> &output() const {return m_output;}

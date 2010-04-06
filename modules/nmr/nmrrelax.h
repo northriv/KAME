@@ -20,8 +20,6 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
-#include <boost/array.hpp>
-using boost::array;
 
 #include "nmrspectrumsolver.h"
 
@@ -90,8 +88,8 @@ public:
 		std::deque<RawPt> m_pts;
 		//! Stores reduced points to manage fitting and display.
 		std::deque<Pt> m_sumpts;
-		array<double, 3> m_params; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
-		array<double, 3> m_errors; //!< std. deviations
+		double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
+		double m_errors[3]; //!< std. deviations
 
 		XTime m_timeClearRequested;
 	};

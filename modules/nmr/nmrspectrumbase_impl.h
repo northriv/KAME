@@ -175,7 +175,7 @@ template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
-	Snapshot &shot_this(tr);
+	const Snapshot &shot_this(tr);
 
 	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 	ASSERT( _pulse );
@@ -261,8 +261,8 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		tr[ *this].m_bRearrangeInstrumNext = false;
 	
 	analyzeIFT(tr, shot_pulse);
-	std::complex<double> *wave( &tr[ *this].m_wave[0]);
-	const double *weights( &shot_this[ *this].weights()[0]);
+	std::vector<std::complex<double> > &wave(tr[ *this].m_wave);
+	const std::vector<double> &weights(shot_this[ *this].weights());
 	int wave_size = shot_this[ *this].wave().size();
 	if(shot_this[ *autoPhase()]) {
 		std::complex<double> csum(0.0, 0.0);
@@ -304,12 +304,12 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		const double *weights( &shot[ *this].weights()[0]);
 		const double *darkpsd( &shot[ *this].darkPSD()[0]);
 		tr[ *m_spectrum].setRowCount(length);
-		double *colx( &tr[ *m_spectrum].cols(0)[0]);
-		double *colr( &tr[ *m_spectrum].cols(0)[1]);
-		double *coli( &tr[ *m_spectrum].cols(0)[2]);
-		double *colw( &tr[ *m_spectrum].cols(0)[3]);
-		double *colabs( &tr[ *m_spectrum].cols(0)[4]);
-		double *coldark( &tr[ *m_spectrum].cols(0)[5]);
+		double *colx(tr[ *m_spectrum].cols(0));
+		double *colr(tr[ *m_spectrum].cols(1));
+		double *coli(tr[ *m_spectrum].cols(2));
+		double *colw(tr[ *m_spectrum].cols(3));
+		double *colabs(tr[ *m_spectrum].cols(4));
+		double *coldark(tr[ *m_spectrum].cols(5));
 		for(int i = 0; i < length; i++) {
 			colx[i] = values[i];
 			colr[i] = std::real(wave[i]);
@@ -340,7 +340,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const Snapshot &shot_others) {
-	Snapshot &shot_this(tr);
+	const Snapshot &shot_this(tr);
 	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 
 	int len = shot_pulse[ *_pulse].ftWidth();
@@ -400,11 +400,11 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
-	Snapshot &shot_this(tr);
+	const Snapshot &shot_this(tr);
 	int bank = shot_this[ *bwList()];
 	if((bank < 0) || (bank >= Payload::ACCUM_BANKS))
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	double bw_coeff = 0.5*pow(2.0, (double)bank);
+	double bw_coeff = 0.5 * pow(2.0, (double)bank);
 	
 	double th = FFT::windowFuncHamming(0.49);
 	int max_idx = 0;
@@ -431,7 +431,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval() * res * iftlen);
 	int iftorigin = lrint(shot_pulse[ *_pulse].waveFTPos() * shot_pulse[ *_pulse].interval() * res * iftlen);
-	int bwinv = abs(lrint(1.0/(*bandWidth() * bw_coeff * 1000.0 * shot_pulse[ *_pulse].interval() * res * iftlen)));
+	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *_pulse].interval() * res * iftlen)));
 	if(abs(iftorigin) > iftlen/2)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	
@@ -462,13 +462,13 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		double w = 0;
 		for(int i = 0; i < tdsize; i++)
 			w += weight[i] * weight[i];
-		psdcoeff = w/(double)tdsize;
+		psdcoeff = w / (double)tdsize;
 		//Compensate broadening due to convolution.
 		solverin.resize(iftlen);
 		double wlen = SpectrumSolver::windowLength(tdsize, -iftorigin, wndwidth);
 		wlen += bwinv * 2; //effect of convolution.
 		wndwidth = wlen / solverin.size();
-		iftorigin = solverin.size()/2;	
+		iftorigin = solverin.size() / 2;
 	}
 	else {
 		solverin.resize(tdsize);
@@ -485,16 +485,16 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 	}
 
-	std::deque<std::complex<double> > &wave(tr[ *this].m_wave);
-	std::deque<double> &weights(tr[ *this].m_weights);
-	std::deque<double> &darkpsd(tr[ *this].m_darkPSD);
+	std::vector<std::complex<double> > &wave(tr[ *this].m_wave);
+	std::vector<double> &weights(tr[ *this].m_weights);
+	std::vector<double> &darkpsd(tr[ *this].m_darkPSD);
 	psdcoeff /= shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		wave[i] = fftwave[k] / (double)iftlen;
 		double w = accum_weights[i];
 		weights[i] = w;
-		darkpsd[i] = accum_dark[i] / (w*w) * psdcoeff;
+		darkpsd[i] = accum_dark[i] / (w * w) * psdcoeff;
 	}
 	th = FFT::windowFuncHamming(0.1);
 	tr[ *this].m_peaks.clear();
@@ -502,7 +502,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	std::deque<std::pair<double, double> > &peaks(tr[ *this].m_peaks);
 	for(int i = 0; i < solver->peaks().size(); i++) {
 		double k = solver->peaks()[i].second;
-		double j = (k > iftlen/2) ? (k - iftlen) : k;
+		double j = (k > iftlen / 2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
 		if((l >= 0) && (l < weights_size) && (weights[l] > th))

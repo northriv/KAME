@@ -130,8 +130,8 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 
 	tr()[ *plot.xyplot->label()] = label;
 	const XNode::NodeList &axes_list( *tr().list(graph->axes()));
-	m_axisx = dynamic_pointer_cast<XAxis> (axes_list.at(0));
-	m_axisy = dynamic_pointer_cast<XAxis> (axes_list.at(1));
+	m_axisx = static_pointer_cast<XAxis>(axes_list.at(0));
+	m_axisy = static_pointer_cast<XAxis>(axes_list.at(1));
 	tr()[ *plot.xyplot->axisX()] = m_axisx;
 	tr()[ *m_axisx->label()] = m_labels[plot.colx];
 	if(plot.coly1 >= 0) {
@@ -259,7 +259,7 @@ XWaveNGraph::Payload::dump(std::fstream &stream) {
 		stream << std::endl;
 
 		for(unsigned int i = 0; i < rowCount(); i++) {
-			if((colWeight(i) < 0) || (cols(colWeight(i)) > 0)) {
+			if((m_colw < 0) || (cols(m_colw)[i] > 0)) {
 				for(unsigned int j = 0; j < colCount(); j++) {
 					stream << cols(j)[i] << " ";
 				}
@@ -274,27 +274,27 @@ XWaveNGraph::Payload::dump(std::fstream &stream) {
 	}
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
-	for(int i = 0; i < tr[ *this].numPlots(); ++i) {
-		int rowcnt = tr[ *this].rowCount();
-		double *colx = tr[ *this].cols(tr[ *this].colX(i));
+	const Snapshot &shot(tr);
+	for(int i = 0; i < shot[ *this].numPlots(); ++i) {
+		int rowcnt = tshot[ *this].rowCount();
+		double *colx = tr[ *this].cols(shot[ *this].colX(i));
 		double *coly = NULL;
-		if(tr[ *this].colY1(i) >= 0)
-			coly = tr[ *this].cols(tr[ *this].colY1(i));
-		if(tr[ *this].colY2(i) >= 0)
-			coly = tr[ *this].cols(tr[ *this].colY2(i));
-		double *colweight = (tr[ *this].colWeight(i) >= 0) ? tr[ *this].cols(tr[ *this].colWeight(i))
-			: NULL;
-		double *colz = (tr[ *this].colZ(i) >= 0) ? tr[ *this].cols(tr[ *this].colZ(i)) : NULL;
+		if(shot[ *this].colY1(i) >= 0)
+			coly = tr[ *this].cols(shot[ *this].colY1(i));
+		if(shot[ *this].colY2(i) >= 0)
+			coly = tr[ *this].cols(shot[ *this].colY2(i));
+		double *colweight = (shot[ *this].colWeight(i) >= 0) ? tr[ *this].cols(shot[ *this].colWeight(i)) : NULL;
+		double *colz = (shot[ *this].colZ(i) >= 0) ? tr[ *this].cols(shot[ *this].colZ(i)) : NULL;
 
 		if(colweight) {
 			double weight_max = 0.0;
 			for(int i = 0; i < rowcnt; i++)
 				weight_max = std::max(weight_max, colweight[i]);
-			tr[ *tr[ *this].axisw()->maxValue()] = weight_max;
-			tr[ *tr[ *this].axisw()->minValue()] =  -0.4 * weight_max;
+			tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
+			tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
 		}
 
-		std::deque<XGraph::ValPoint> &points_plot(tr[ *tr[ *this].plot(i)].points());
+		std::deque<XGraph::ValPoint> &points_plot(tr[ *shot[ *this].plot(i)].points());
 		points_plot.clear();
 		for(int i = 0; i < rowcnt; ++i) {
 			double z = 0.0;
