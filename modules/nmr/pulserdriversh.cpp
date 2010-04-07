@@ -327,6 +327,12 @@ XSHPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankp
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
+
+	{
+		//Pulser turned off.
+		interface()->write("!", 1); //poff
+		interface()->receive();
+	}
 	if(output) {
 		if(shot[ *this].m_zippedPatterns.empty())
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
@@ -366,10 +372,6 @@ XSHPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankp
 			}
 			break;
 		}
-	}
-	else {
-		interface()->write("!", 1); //poff
-		interface()->receive();
 	}
 }
 

@@ -117,7 +117,7 @@ XComboNode::Payload::add(const XString &str) {
 	m_strings->push_back(str);
 	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
 	if(str == m_var.first) {
-		m_var.second = m_strings->size();
+		m_var.second = m_strings->size() - 1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	}
 }
@@ -127,6 +127,10 @@ XComboNode::Payload::clear() {
 	m_strings.reset(new std::deque<XString>( *m_strings));
     m_strings->clear();
 	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
+	if(m_var.second >= 0) {
+	    m_var = std::pair<XString, int>("", -1);
+	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
+	}
 }
 
 shared_ptr<const std::deque<XItemNodeBase::Item> >
@@ -138,9 +142,9 @@ XComboNode::Payload::itemStrings() const {
 		item.label = *it;
 		items->push_back(item);
 	}
-    if( *this < 0) {
+    if(m_var.second < 0) {
 	    XItemNodeBase::Item item;
-        item.name = to_str();
+        item.name = m_var.first;
         if(item.name.length()) {
 	        item.label = formatString("(%s)", item.name.c_str());
 	    	items->push_back(item);

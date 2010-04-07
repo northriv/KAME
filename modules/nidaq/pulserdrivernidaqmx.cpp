@@ -962,14 +962,11 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
+	stopPulseGen();
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen();
 	}
-	else {
-		stopPulseGen();
-	}
-	return;
 }
 

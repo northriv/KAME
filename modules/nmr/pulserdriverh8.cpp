@@ -110,6 +110,8 @@ XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpat
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
+
+	interface()->sendf("$poff %x", blankpattern); //Pulser turned off.
 	if(output) {
 		if(shot[ *this].m_zippedPatterns.empty() |
 		   (shot[ *this].m_zippedPatterns.size() >= MAX_PATTERN_SIZE ))
@@ -148,8 +150,5 @@ XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpat
 			}
 			break;
 		}
-	}
-	else {
-		interface()->sendf("$poff %x", blankpattern);
 	}
 }
