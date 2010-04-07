@@ -35,17 +35,17 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_conPosString(xqcon_create<XQLineEditConnector>(reader->posString(), form->edTime)),
 	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))) {
 
-    KIconLoader *loader = KIconLoader::global();
-    form->btnNext->setIcon( loader->loadIcon("forward",
-															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    form->btnBack->setIcon( loader->loadIcon("previous",
-															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    form->btnFF->setIcon( loader->loadIcon("player_fwd",
-															KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    form->btnRW->setIcon( loader->loadIcon("player_rew",
-															KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    form->btnFirst->setIcon( loader->loadIcon("player_start",
-															   KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    form->btnStop->setIcon( loader->loadIcon("player_stop",
-															  KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	KIconLoader *loader = KIconLoader::global();
+	form->btnNext->setIcon( loader->loadIcon("forward",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->btnBack->setIcon( loader->loadIcon("previous",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->btnFF->setIcon( loader->loadIcon("player_fwd",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->btnRW->setIcon( loader->loadIcon("player_rew",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->btnFirst->setIcon( loader->loadIcon("player_start",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->btnStop->setIcon( loader->loadIcon("player_stop",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 }

@@ -58,16 +58,20 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	m_conResidualField = xqcon_create<XQLineEditConnector>(m_residualField, m_form->m_edResidual);
 	m_conMagnet = xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry, ref(tr_meas));
 
-	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
-	resolution()->onValueChanged().connect(m_lsnOnCondChanged);
-	minValue()->onValueChanged().connect(m_lsnOnCondChanged);
-	maxValue()->onValueChanged().connect(m_lsnOnCondChanged);
-	fieldFactor()->onValueChanged().connect(m_lsnOnCondChanged);
-	residualField()->onValueChanged().connect(m_lsnOnCondChanged);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *resolution()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *minValue()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *maxValue()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *fieldFactor()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *residualField()].onValueChanged().connect(m_lsnOnCondChanged);
+		if(tr.commit())
+			break;
+	}
 }
 bool
-XNMRSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &node) const {
-    return (node == m_residualField) || (node == m_fieldFactor) || (node == m_resolution);
+XNMRSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *node) const {
+    return (node == m_residualField.get()) || (node == m_fieldFactor.get()) || (node == m_resolution.get());
 }
 bool
 XNMRSpectrum::checkDependencyImpl(const Snapshot &shot_this,

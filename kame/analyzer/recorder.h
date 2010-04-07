@@ -47,7 +47,7 @@ protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 private:
-	void onOpen(const shared_ptr<XValueNodeBase> &);
+	void onOpen(const Snapshot &shot, XValueNodeBase *);
   
 	shared_ptr<XListener> m_lsnOnRecord;
 	shared_ptr<XListener> m_lsnOnCatch;
@@ -56,7 +56,7 @@ private:
 	shared_ptr<XListener> m_lsnOnOpen;
   
 	void onRecord(const Snapshot &shot, XDriver *driver);
-	void onFlush(const shared_ptr<XValueNodeBase> &);
+	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	const shared_ptr<XBoolNode> m_recording;
 };
 
@@ -89,9 +89,9 @@ private:
 	shared_ptr<XListener> m_lsnOnLastLineChanged; 
 	shared_ptr<XListener> m_lsnOnFilenameChanged;
 	void onRecord(const Snapshot &shot, XDriver *driver);
-	void onFlush(const shared_ptr<XValueNodeBase> &);
-	void onLastLineChanged(const shared_ptr<XValueNodeBase> &);
-	void onFilenameChanged(const shared_ptr<XValueNodeBase> &);
+	void onFlush(const Snapshot &shot, XValueNodeBase *);
+	void onLastLineChanged(const Snapshot &shot, XValueNodeBase *);
+	void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
     
 	std::fstream m_stream;
 	XRecursiveMutex m_filemutex;

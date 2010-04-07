@@ -88,11 +88,15 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
 	m_extDCSource->setUIEnabled(true);
 	m_extDCSourceChannel->setUIEnabled(true);
-	m_lsnOnExtDCSourceChanged = m_extDCSource->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onExtDCSourceChanged);
 
-	m_lsnOnSetupChannelChanged = m_setupChannel->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onSetupChannelChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onExtDCSourceChanged);
+		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onSetupChannelChanged);
+		if(tr.commit())
+			break;
+	}
 
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("TempControl - ") + getLabel());
@@ -170,7 +174,7 @@ void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRe
 void XTempControl::visualize(const Snapshot &shot) {
 }
 
-void XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_conThermometer.reset();
 	m_conExcitation.reset();
 	m_lsnOnExcitationChanged.reset();
@@ -181,9 +185,13 @@ void XTempControl::onSetupChannelChanged(const shared_ptr<XValueNodeBase> &) {
 		channel->thermometer(), m_form->m_cmbThermometer, Snapshot( *channel->thermometers()));
 	m_conExcitation = xqcon_create<XQComboBoxConnector> (channel->excitation(),
 		m_form->m_cmbExcitation, Snapshot( *channel->excitation()));
-	m_lsnOnExcitationChanged
-		= channel->excitation()->onValueChanged().connectWeak(
-			shared_from_this(), &XTempControl::onExcitationChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnExcitationChanged
+			= tr[ *channel->excitation()].onValueChanged().connectWeakly(
+				shared_from_this(), &XTempControl::onExcitationChanged);
+		if(tr.commit())
+			break;
+	}
 }
 
 void XTempControl::createChannels(
@@ -269,23 +277,27 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	double tempErrAvg = 0.0;
 	XTime lasttime = XTime::now();
 
-	m_lsnOnPChanged = prop()->onValueChanged().connectWeak(shared_from_this(),
-		&XTempControl::onPChanged);
-	m_lsnOnIChanged = interval()->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onIChanged);
-	m_lsnOnDChanged = deriv()->onValueChanged().connectWeak(shared_from_this(),
-		&XTempControl::onDChanged);
-	m_lsnOnTargetTempChanged = targetTemp()->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onTargetTempChanged);
-	m_lsnOnManualPowerChanged = manualPower()->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onManualPowerChanged);
-	m_lsnOnHeaterModeChanged = heaterMode()->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onHeaterModeChanged);
-	m_lsnOnPowerRangeChanged = powerRange()->onValueChanged().connectWeak(
-		shared_from_this(), &XTempControl::onPowerRangeChanged);
-	m_lsnOnCurrentChannelChanged
-		= m_currentChannel->onValueChanged().connectWeak(shared_from_this(),
-			&XTempControl::onCurrentChannelChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnPChanged = tr[ *prop()].onValueChanged().connectWeakly(shared_from_this(),
+			&XTempControl::onPChanged);
+		m_lsnOnIChanged = tr[ *interval()].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onIChanged);
+		m_lsnOnDChanged = tr[ *deriv()].onValueChanged().connectWeakly(shared_from_this(),
+			&XTempControl::onDChanged);
+		m_lsnOnTargetTempChanged = tr[ *targetTemp()].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onTargetTempChanged);
+		m_lsnOnManualPowerChanged = tr[ *manualPower()].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onManualPowerChanged);
+		m_lsnOnHeaterModeChanged = tr[ *heaterMode()].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onHeaterModeChanged);
+		m_lsnOnPowerRangeChanged = tr[ *powerRange()].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::onPowerRangeChanged);
+		m_lsnOnCurrentChannelChanged
+			= tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(),
+				&XTempControl::onCurrentChannelChanged);
+		if(tr.commit())
+			break;
+	}
 
 	while( !terminated) {
 		msecsleep(10);
@@ -384,7 +396,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	afterStop();
 	return NULL;
 }
-void XTempControl::onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
 	extDCSourceChannel()->clear();
 	if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
 		shared_ptr<const std::deque<XItemNodeBase::Item> > strings(
@@ -395,7 +407,7 @@ void XTempControl::onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &) {
 		}
 	}
 }
-void XTempControl::onPChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onPChanged( *prop());
@@ -404,7 +416,7 @@ void XTempControl::onPChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onIChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onIChanged( *interval());
@@ -413,7 +425,7 @@ void XTempControl::onIChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onDChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onDChanged( *deriv());
@@ -422,7 +434,7 @@ void XTempControl::onDChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onTargetTempChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onTargetTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onTargetTempChanged( *targetTemp());
@@ -431,7 +443,7 @@ void XTempControl::onTargetTempChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onManualPowerChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onManualPowerChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onManualPowerChanged( *manualPower());
@@ -440,7 +452,7 @@ void XTempControl::onManualPowerChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onHeaterModeChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
@@ -450,7 +462,7 @@ void XTempControl::onHeaterModeChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
 		if( !shared_ptr<XDCSource> ( *extDCSource()))
 			onPowerRangeChanged( *powerRange());
@@ -459,7 +471,7 @@ void XTempControl::onPowerRangeChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
+void XTempControl::onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
 		shared_ptr<XChannel> ch( *currentChannel());
@@ -471,7 +483,7 @@ void XTempControl::onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &) {
 		e.print();
 	}
 }
-void XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
+void XTempControl::onExcitationChanged(const Snapshot &shot, XValueNodeBase *node) {
 	try {
 		shared_ptr<XChannel> ch;
 		Snapshot shot( *channels());
@@ -480,13 +492,13 @@ void XTempControl::onExcitationChanged(const shared_ptr<XValueNodeBase> &node) {
 			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
 				shared_ptr<XChannel> _ch =
 					dynamic_pointer_cast<XChannel> ( *it);
-				if(_ch->excitation() == node)
+				if(_ch->excitation().get() == node)
 					ch = _ch;
 			}
 		}
 		if( !ch)
 			return;
-		int exc = *ch->excitation();
+		int exc = shot[ *ch->excitation()];
 		if(exc < 0)
 			return;
 		onExcitationChanged(ch, exc);

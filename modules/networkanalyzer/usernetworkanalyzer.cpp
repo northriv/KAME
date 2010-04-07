@@ -52,15 +52,15 @@ XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 void 
-XAgilentNetworkAnalyzer::onStartFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("SENS:FREQ:START %f MHZ", (double)*startFreq());
 }
 void 
-XAgilentNetworkAnalyzer::onStopFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("SENS:FREQ:STOP %f MHZ", (double)*stopFreq());
 }
 void
-XAgilentNetworkAnalyzer::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+XAgilentNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 	unsigned int avg = *average();
 	if(avg >= 2)
 		interface()->sendf("SENS:AVER:CLEAR;STAT ON;COUNT %u", avg);
@@ -68,7 +68,7 @@ XAgilentNetworkAnalyzer::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 		interface()->send("SENS:AVER:STAT OFF");
 }
 void
-XAgilentNetworkAnalyzer::onPointsChanged(const shared_ptr<XValueNodeBase> &) {	
+XAgilentNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {	
 	interface()->sendf("SENS:SWE:POIN %s", points()->to_str().c_str());
 }
 void

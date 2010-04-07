@@ -101,7 +101,7 @@ protected:
 	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
     
 	//! \return true to be cleared.
-	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const = 0;
+	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const = 0;
 	//! [Hz]
 	virtual double getFreqResHint(const Snapshot &shot_this) const = 0;
 	//! [Hz]
@@ -139,7 +139,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<XXYPlot> m_peakPlot;
 
-	void onCondChanged(const shared_ptr<XValueNodeBase> &);
+	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 
 	atomic<int> m_isInstrumControlRequested;
 protected:

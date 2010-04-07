@@ -54,8 +54,6 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_posString(create<XStringNode>("PosString", true)),
 	  m_periodicTerm(0) {
 
-    m_lsnOnOpen = filename()->onValueChanged().connectWeak(
-        shared_from_this(), &XRawStreamRecordReader::onOpen);
     m_speed->add(SPEED_FASTEST);
     m_speed->add(SPEED_FAST);
     m_speed->add(SPEED_NORMAL);
@@ -63,6 +61,8 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     m_speed->value(SPEED_FAST);
     
     for(Transaction tr( *this);; ++tr) {
+        m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
+            shared_from_this(), &XRawStreamRecordReader::onOpen);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onFirst,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
@@ -75,15 +75,15 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 		m_lsnStop = tr[ *m_stop].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onStop,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+	    m_lsnPlayCond = tr[ *m_fastForward].onValueChanged().connectWeakly(
+			shared_from_this(),
+			&XRawStreamRecordReader::onPlayCondChanged,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+	    tr[ *m_rewind].onValueChanged().connect(m_lsnPlayCond);
+	    tr[ *m_speed].onValueChanged().connect(m_lsnPlayCond);
 		if(tr.commit())
 			break;
     }
-    m_lsnPlayCond = m_fastForward->onValueChanged().connectWeak(
-		shared_from_this(), 
-		&XRawStreamRecordReader::onPlayCondChanged,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-    m_rewind->onValueChanged().connect(m_lsnPlayCond);
-    m_speed->onValueChanged().connect(m_lsnPlayCond);
     
     m_threads.resize(RECORD_READER_NUM_THREADS);
     for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
@@ -93,7 +93,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     }
 }
 void
-XRawStreamRecordReader::onOpen(const shared_ptr<XValueNodeBase> &) {
+XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(m_pGFD);
 	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "rb");
 }
@@ -227,7 +227,7 @@ XRawStreamRecordReader::terminate() {
 }
 
 void
-XRawStreamRecordReader::onPlayCondChanged(const shared_ptr<XValueNodeBase> &) {
+XRawStreamRecordReader::onPlayCondChanged(const Snapshot &shot, XValueNodeBase *) {
     double ms = 1.0;
     if(m_speed->to_str() == SPEED_FASTEST) ms = 0.1;
     if(m_speed->to_str() == SPEED_FAST) ms = 10.0;
@@ -243,12 +243,13 @@ void
 XRawStreamRecordReader::onStop(const Snapshot &shot, XTouchableNode *) {
     m_periodicTerm = 0;
     g_statusPrinter->printMessage(i18n("Stopped"));
-    m_fastForward->onValueChanged().mask();
-    m_fastForward->value(false);
-    m_fastForward->onValueChanged().unmask();
-    m_rewind->onValueChanged().mask();
-    m_rewind->value(false);
-    m_rewind->onValueChanged().unmask();
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *m_fastForward] = false;
+		tr[ *m_rewind] = false;
+		tr.unmark(m_lsnPlayCond);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
@@ -321,12 +322,13 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
 		}
 		catch (XRecordError &e) {
 			m_periodicTerm = 0.0;
-			m_fastForward->onValueChanged().mask();
-			m_fastForward->value(false);
-			m_fastForward->onValueChanged().unmask();
-			m_rewind->onValueChanged().mask();
-			m_rewind->value(false);
-			m_rewind->onValueChanged().unmask();
+			for(Transaction tr( *this);; ++tr) {
+				tr[ *m_fastForward] = false;
+				tr[ *m_rewind] = false;
+				tr.unmark(m_lsnPlayCond);
+				if(tr.commit())
+					break;
+			}
 			m_filemutex.unlock();
 			e.print(i18n("No Record, because "));
 		}

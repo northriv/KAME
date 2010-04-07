@@ -165,11 +165,6 @@ public:
 	typedef void (*Validator)(XString &);
 	void setValidator(Validator x) {m_validator = x;}
 
-	XTalker<shared_ptr<XValueNodeBase> > &beforeValueChanged()
-	{return m_tlkBeforeValueChanged;}
-	XTalker<shared_ptr<XValueNodeBase> > &onValueChanged()
-	{return m_tlkOnValueChanged;}
-
 	struct Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
 		//! Gets value as a string, which is used for scripting.
@@ -191,9 +186,6 @@ public:
 		TalkerSingleton<XValueNodeBase*, XValueNodeBase*> m_tlkOnValueChanged;
 	};
 protected:
-	XTalker<shared_ptr<XValueNodeBase> > m_tlkBeforeValueChanged;
-	XTalker<shared_ptr<XValueNodeBase> > m_tlkOnValueChanged;
-	XRecursiveMutex m_talker_mutex;
 	Validator m_validator;
 };
 

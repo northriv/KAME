@@ -26,9 +26,9 @@ public:
 
 protected:
 	virtual void changeFreq(double mhz);
-	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
 
@@ -48,9 +48,9 @@ public:
 	virtual ~XHP8643() {}
 protected:
 	virtual void changeFreq(double mhz);
-	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
 
@@ -61,7 +61,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XHP8648() {}
 protected:
-	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
 
@@ -73,9 +73,9 @@ public:
 	virtual ~XHP8664() {}
 protected:
 	virtual void changeFreq(double mhz);
-	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
 

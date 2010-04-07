@@ -41,7 +41,7 @@ private:
 	tconslist m_cons;
 
 	const shared_ptr<XInterfaceList> m_interfaceList;
-	void onControlChanged(const shared_ptr<XValueNodeBase> &);
+	void onControlChanged(const Snapshot &shot, XValueNodeBase *);
 };
 
 #endif /*INTERFACELISTCONNECTOR_H_*/

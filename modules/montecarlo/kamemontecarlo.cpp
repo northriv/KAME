@@ -227,15 +227,15 @@ XMonteCarloDriver::start() {
 
         m_lsnStepTouched = tr[ *m_step].onTouch().connectWeakly(
     		shared_from_this(), &XMonteCarloDriver::onStepTouched);
+        m_lsnTargetChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(
+    		shared_from_this(), &XMonteCarloDriver::onTargetChanged);
+        tr[ *m_targetField].onValueChanged().connect(m_lsnTargetChanged);
+        m_lsnGraphChanged = tr[ *m_graph3D].onValueChanged().connectWeakly(
+    		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
+
     	if(tr.commit())
     		break;
     }
-
-    m_lsnTargetChanged = m_targetTemp->onValueChanged().connectWeak(
-		shared_from_this(), &XMonteCarloDriver::onTargetChanged);
-    m_targetField->onValueChanged().connect(m_lsnTargetChanged);
-    m_lsnGraphChanged = m_graph3D->onValueChanged().connectWeak(
-		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
     int fftlen = MonteCarlo::length() * 4;
     for(int d = 0; d < 3; d++) {
@@ -656,13 +656,13 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 	}
 }
 void
-XMonteCarloDriver::onGraphChanged(const shared_ptr<XValueNodeBase> &) {
-	Snapshot shot( *this);
-	visualize(shot);
+XMonteCarloDriver::onGraphChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
+	visualize(shot_this);
   
 }
 void
-XMonteCarloDriver::onTargetChanged(const shared_ptr<XValueNodeBase> &) {
+XMonteCarloDriver::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
 	for(Transaction tr( *this);; ++tr) {
 		int size = tr[ *this].m_loop->length();
 		int spin_size = size*size*size*4*4;

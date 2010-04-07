@@ -41,7 +41,6 @@ public:
 	void kill();
 	void resume();
   
-	XTalker<shared_ptr<XString> > &onMessageOut() {return m_tlkOnMessageOut;}
 	//! def. input gets(). Return "" if the buffer is empty.
 	XString gets();
 	const shared_ptr<XStringNode> &lineinput() const {return m_lineinput;}
@@ -50,15 +49,21 @@ public:
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 //  shared_ptr<XStringNode> &action() const {return m_action;}
 	const shared_ptr<XLongNode> &threadID() const {return m_threadID;}
+
+	struct Payload : public XNode::Payload {
+		Talker<shared_ptr<XString> > &onMessageOut() {return m_tlkOnMessageOut;}
+		const Talker<shared_ptr<XString> > &onMessageOut() const {return m_tlkOnMessageOut;}
+	private:
+		Talker<shared_ptr<XString> > m_tlkOnMessageOut;
+	};
 private:
-	XTalker<shared_ptr<XString> > m_tlkOnMessageOut;
 	const shared_ptr<XStringNode> m_filename;
 	shared_ptr<XStringNode> m_status;
 	shared_ptr<XStringNode> m_action;
 	shared_ptr<XStringNode> m_lineinput;
 	shared_ptr<XLongNode> m_threadID;
 	shared_ptr<XListener> m_lsnOnLineChanged;
-	void onLineChanged(const shared_ptr<XValueNodeBase> &);
+	void onLineChanged(const Snapshot &shot, XValueNodeBase *);
 	std::deque<XString> m_lineBuffer;
 	XMutex m_lineBufferMutex;
 };

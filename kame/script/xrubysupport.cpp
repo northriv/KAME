@@ -31,8 +31,12 @@ XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure
 : XAliasListNode<XRubyThread>(name, runtime),
 m_measure(measure), 
 m_thread(shared_from_this(), &XRuby::execute) {
-	m_lsnCreateChild = m_tlkCreateChild.connectWeak(shared_from_this(),
-		&XRuby::onCreateChild, XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
+			&XRuby::onChildCreated, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
 }
 XRuby::~XRuby() {
 }
@@ -79,7 +83,7 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 			long idx;
 			case T_FIXNUM:
 				idx = NUM2LONG(var);
-				{ Snapshot shot(*node);
+				{ Snapshot shot( *node);
 				if(shot.size()) {
 					if ((idx >= 0) && (idx < (int)shot.size()))
 						child = shot.list()->at(idx);
@@ -150,11 +154,12 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 	      }
 			 */
 			if( !child) {
-				shared_ptr<tCreateChild> x(new tCreateChild);
+				shared_ptr<Payload::tCreateChild> x(new Payload::tCreateChild);
 				x->lnode = lnode;
 				x->type = type;
 				x->name = name;
-				st->xruby->m_tlkCreateChild.talk(x);
+				Snapshot shot( *st->xruby);
+				shot.talk(shot[ *st->xruby].onChildCreated(), x);
 				XScopedLock<XCondition> lock(x->cond);
 				while(x->lnode) {
 					x->cond.wait();
@@ -180,7 +185,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 	return Qnil;  
 }
 void
-XRuby::onCreateChild(const shared_ptr<tCreateChild> &x)  {
+XRuby::onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x)  {
 	x->child = x->lnode->createByTypename(x->type, x->name);
 	x->lnode.reset();
 	XScopedLock<XCondition> lock(x->cond);
@@ -509,8 +514,9 @@ XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid) {
 	shared_ptr<XString> sstr(new XString(RSTRING(str)->ptr));
 	shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
 	if(rubythread) {
-		rubythread->onMessageOut().talk(sstr);
-		dbgPrint(QString("Ruby [%1]; %2").arg(rubythread->filename()->to_str()).arg(*sstr));
+		Snapshot shot( *rubythread);
+		shot.talk(shot[ *rubythread].onMessageOut(), sstr);
+		dbgPrint(QString("Ruby [%1]; %2").arg(shot[ *rubythread->filename()].to_str()).arg( *sstr));
 	}
 	else {
 		dbgPrint(QString("Ruby [global]; %1").arg(*sstr));

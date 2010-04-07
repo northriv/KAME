@@ -48,12 +48,20 @@ XConCalTable::XConCalTable
 	m_conValue = xqcon_create<XQLineEditConnector> (m_value, form->edValue, false);
 	m_conDisplay = xqcon_create<XQButtonConnector> (m_display, form->btnDisplay);
 
-	m_lsnTemp = temp()->onValueChanged().connectWeak(
-		shared_from_this(),
-		&XConCalTable::onTempChanged);
-	m_lsnValue = value()->onValueChanged().connectWeak(
-		shared_from_this(),
-		&XConCalTable::onValueChanged);
+	for(Transaction tr( *temp());; ++tr) {
+		m_lsnTemp = tr[ *temp()].onValueChanged().connectWeakly(
+			shared_from_this(),
+			&XConCalTable::onTempChanged);
+		if(tr.commit())
+			break;
+	}
+	for(Transaction tr( *value());; ++tr) {
+		m_lsnValue = tr[ *value()].onValueChanged().connectWeakly(
+			shared_from_this(),
+			&XConCalTable::onValueChanged);
+		if(tr.commit())
+			break;
+	}
 	for(Transaction tr( *display());; ++tr) {
 		m_lsnDisplay = tr[ *display()].onTouch().connectWeakly(
 			shared_from_this(),
@@ -84,7 +92,7 @@ XConCalTable::XConCalTable
 }
 
 void
-XConCalTable::onTempChanged(const shared_ptr<XValueNodeBase> &) {
+XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
 	double ret = thermo->getRawValue( *temp());
@@ -93,7 +101,7 @@ XConCalTable::onTempChanged(const shared_ptr<XValueNodeBase> &) {
 	m_lsnValue->unmask();
 }
 void
-XConCalTable::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
 	double ret = thermo->getTemp( *value());

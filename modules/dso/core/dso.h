@@ -118,26 +118,26 @@ public:
 		shared_ptr<FIR> m_fir;
 	};
 protected:
-	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrace3Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrace4Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrigPosChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVOffset1Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVOffset2Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrace3Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrace4Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onSingleChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void onRestartTouched(const Snapshot &shot, XTouchableNode *);
 
@@ -219,7 +219,7 @@ private:
 	shared_ptr<XListener> m_lsnOnRestartTouched;
 	shared_ptr<XListener> m_lsnOnCondChanged;
   
-	void onCondChanged(const shared_ptr<XValueNodeBase> &);
+	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
   
 	const xqcon_ptr m_conAverage, m_conSingle,
 		m_conTrace1, m_conTrace2, m_conTrace3, m_conTrace4;

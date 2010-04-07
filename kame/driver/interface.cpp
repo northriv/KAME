@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -36,10 +36,14 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_device(create<XComboNode>("Device", false, true)),
     m_port(create<XStringNode>("Port", false)),
     m_address(create<XUIntNode>("Address", false)),
-    m_control(create<XBoolNode>("Control", true))
-{
-	lsnOnControlChanged = control()->onValueChanged().connectWeak(
-        shared_from_this(), &XInterface::onControlChanged);
+    m_control(create<XBoolNode>("Control", true)) {
+
+	for(Transaction tr( *this);; ++tr) {
+		lsnOnControlChanged = tr[ *control()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XInterface::onControlChanged);
+		if(tr.commit())
+			break;
+	}
 }
 
 XString
@@ -52,7 +56,7 @@ XInterface::getLabel() const
 }
 
 void
-XInterface::onControlChanged(const shared_ptr<XValueNodeBase> &)
+XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *)
 {
 	if(*control()) {
 	    g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
@@ -65,8 +69,7 @@ XInterface::onControlChanged(const shared_ptr<XValueNodeBase> &)
 }
 
 void
-XInterface::start()
-{
+XInterface::start() {
 	XScopedLock<XInterface> lock(*this);
 	try {
 		if(isOpened()) {
@@ -94,8 +97,7 @@ XInterface::start()
 	m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
 }
 void
-XInterface::stop()
-{
+XInterface::stop() {
 	XScopedLock<XInterface> lock(*this);
   
 	try {

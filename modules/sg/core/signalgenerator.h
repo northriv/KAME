@@ -57,11 +57,11 @@ public:
 	const shared_ptr<XBoolNode> &amON() const {return m_amON;} //!< Activate AM
 protected:
 	virtual void changeFreq(double mhz) = 0;
-	virtual void onOLevelChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onFMONChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onAMONChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
-	void onFreqChanged(const shared_ptr<XValueNodeBase> &);  
+	void onFreqChanged(const Snapshot &shot, XValueNodeBase *);  
 
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_oLevel;

@@ -39,8 +39,8 @@ private:
     shared_ptr<XListener> m_lsnOnStatusChanged;
     void onResumeTouched(const Snapshot &shot, XTouchableNode *node);
     void onKillTouched(const Snapshot &shot, XTouchableNode *node);
-    void onDefout(const shared_ptr<XString> &str);
-    void onStatusChanged(const shared_ptr<XValueNodeBase> &node);
+    void onDefout(const Snapshot &shot, const shared_ptr<XString> &str);
+    void onStatusChanged(const Snapshot &shot, XValueNodeBase *node);
     FrmRubyThread *const m_pForm;
     const shared_ptr<XRubyThread> m_rubyThread;
     const shared_ptr<XRuby> m_rubySupport;

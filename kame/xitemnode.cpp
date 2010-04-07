@@ -56,17 +56,7 @@ XComboNode::value(const XString &s) {
 
 void
 XComboNode::value(int t) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans( *this) = t;
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        trans( *this) = t;
-        this->onValueChanged().talk(ptr);
-    }
+	trans( *this) = t;
 }
 
 void
@@ -128,7 +118,7 @@ XComboNode::Payload::clear() {
     m_strings->clear();
 	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
 	if(m_var.second >= 0) {
-	    m_var = std::pair<XString, int>("", -1);
+	    m_var.second = -1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	}
 }
@@ -142,6 +132,7 @@ XComboNode::Payload::itemStrings() const {
 		item.label = *it;
 		items->push_back(item);
 	}
+	ASSERT(m_strings->size() || (m_var.second < 0));
     if(m_var.second < 0) {
 	    XItemNodeBase::Item item;
         item.name = m_var.first;

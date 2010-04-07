@@ -79,10 +79,10 @@ private:
 	shared_ptr<XThread<XLIA> > m_thread;
 	const qshared_ptr<FrmLIA> m_form;
   
-	void onOutputChanged(const shared_ptr<XValueNodeBase> &);
-	void onFreqChanged(const shared_ptr<XValueNodeBase> &);
-	void onSensitivityChanged(const shared_ptr<XValueNodeBase> &);
-	void onTimeConstChanged(const shared_ptr<XValueNodeBase> &);
+	void onOutputChanged(const Snapshot &shot, XValueNodeBase *);
+	void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
+	void onSensitivityChanged(const Snapshot &shot, XValueNodeBase *);
+	void onTimeConstChanged(const Snapshot &shot, XValueNodeBase *);
 
 	void *execute(const atomic<bool> &);
   

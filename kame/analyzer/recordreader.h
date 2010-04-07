@@ -57,13 +57,13 @@ private:
 	const shared_ptr<XTouchableNode> m_stop;
 	const shared_ptr<XTouchableNode> m_first, m_next, m_back;
 	const shared_ptr<XStringNode> m_posString;
-	void onPlayCondChanged(const shared_ptr<XValueNodeBase> &);
+	void onPlayCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStop(const Snapshot &shot, XTouchableNode *);
 	void onFirst(const Snapshot &shot, XTouchableNode *);
 	void onNext(const Snapshot &shot, XTouchableNode *);
 	void onBack(const Snapshot &shot, XTouchableNode *);
   
-	void onOpen(const shared_ptr<XValueNodeBase> &); 
+	void onOpen(const Snapshot &shot, XValueNodeBase *); 
 	shared_ptr<XListener> m_lsnOnOpen;
   
 	uint32_t m_allsize;

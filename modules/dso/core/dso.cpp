@@ -109,11 +109,15 @@ XDSO::XDSO(const char *name, bool runtime,
 	firCenterFreq()->value(.0);
 	firSharpness()->value(4.5);
   
-	m_lsnOnCondChanged = firEnabled()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onCondChanged);
-	firBandWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-	firCenterFreq()->onValueChanged().connect(m_lsnOnCondChanged);
-	firSharpness()->onValueChanged().connect(m_lsnOnCondChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnCondChanged = tr[ *firEnabled()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onCondChanged);
+		tr[ *firBandWidth()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *firCenterFreq()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *firSharpness()].onValueChanged().connect(m_lsnOnCondChanged);
+		if(tr.commit())
+			break;
+	}
   
 	{
 		const char *modes[] = {"Never", "Averaging", "Sequence", 0L};
@@ -291,48 +295,47 @@ XDSO::execute(const atomic<bool> &terminated) {
 	m_timeSequenceStarted = XTime::now();
 	int last_count = 0;
   
-	m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onAverageChanged);
-	m_lsnOnSingleChanged = singleSequence()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onSingleChanged);
-	m_lsnOnTimeWidthChanged = timeWidth()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTimeWidthChanged);
-	m_lsnOnTrigSourceChanged = trigSource()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrigSourceChanged);
-	m_lsnOnTrigPosChanged = trigPos()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrigPosChanged);
-	m_lsnOnTrigLevelChanged = trigLevel()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrigLevelChanged);
-	m_lsnOnTrigFallingChanged = trigFalling()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrigFallingChanged);
-	m_lsnOnTrace1Changed = trace1()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrace1Changed);
-	m_lsnOnTrace2Changed = trace2()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrace2Changed);
-	m_lsnOnTrace3Changed = trace3()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrace3Changed);
-	m_lsnOnTrace4Changed = trace4()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onTrace4Changed);
-	m_lsnOnVFullScale1Changed = vFullScale1()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVFullScale1Changed);
-	m_lsnOnVFullScale2Changed = vFullScale2()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVFullScale2Changed);
-	m_lsnOnVFullScale3Changed = vFullScale3()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVFullScale3Changed);
-	m_lsnOnVFullScale4Changed = vFullScale4()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVFullScale4Changed);
-	m_lsnOnVOffset1Changed = vOffset1()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVOffset1Changed);
-	m_lsnOnVOffset2Changed = vOffset2()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVOffset2Changed);
-	m_lsnOnVOffset3Changed = vOffset3()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVOffset3Changed);
-	m_lsnOnVOffset4Changed = vOffset4()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onVOffset4Changed);
-	m_lsnOnRecordLengthChanged = recordLength()->onValueChanged().connectWeak(
-		shared_from_this(), &XDSO::onRecordLengthChanged);
-
 	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onAverageChanged);
+		m_lsnOnSingleChanged = tr[ *singleSequence()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onSingleChanged);
+		m_lsnOnTimeWidthChanged = tr[ *timeWidth()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTimeWidthChanged);
+		m_lsnOnTrigSourceChanged = tr[ *trigSource()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrigSourceChanged);
+		m_lsnOnTrigPosChanged = tr[ *trigPos()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrigPosChanged);
+		m_lsnOnTrigLevelChanged = tr[ *trigLevel()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrigLevelChanged);
+		m_lsnOnTrigFallingChanged = tr[ *trigFalling()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrigFallingChanged);
+		m_lsnOnTrace1Changed = tr[ *trace1()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrace1Changed);
+		m_lsnOnTrace2Changed = tr[ *trace2()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrace2Changed);
+		m_lsnOnTrace3Changed = tr[ *trace3()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrace3Changed);
+		m_lsnOnTrace4Changed = tr[ *trace4()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onTrace4Changed);
+		m_lsnOnVFullScale1Changed = tr[ *vFullScale1()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVFullScale1Changed);
+		m_lsnOnVFullScale2Changed = tr[ *vFullScale2()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVFullScale2Changed);
+		m_lsnOnVFullScale3Changed = tr[ *vFullScale3()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVFullScale3Changed);
+		m_lsnOnVFullScale4Changed = tr[ *vFullScale4()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVFullScale4Changed);
+		m_lsnOnVOffset1Changed = tr[ *vOffset1()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVOffset1Changed);
+		m_lsnOnVOffset2Changed = tr[ *vOffset2()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVOffset2Changed);
+		m_lsnOnVOffset3Changed = tr[ *vOffset3()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVOffset3Changed);
+		m_lsnOnVOffset4Changed = tr[ *vOffset4()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onVOffset4Changed);
+		m_lsnOnRecordLengthChanged = tr[ *recordLength()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onRecordLengthChanged);
 		m_lsnOnForceTriggerTouched = tr[ *forceTrigger()].onTouch().connectWeakly(
 			shared_from_this(), &XDSO::onForceTriggerTouched);
 		m_lsnOnRestartTouched = tr[ *restart()].onTouch().connectWeakly(
@@ -458,9 +461,9 @@ XDSO::execute(const atomic<bool> &terminated) {
 }
 
 void
-XDSO::onCondChanged(const shared_ptr<XValueNodeBase> &) {
-	Snapshot shot( *this);
-	visualize(shot);
+XDSO::onCondChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
+	visualize(shot_this);
 }
 void
 XDSO::Payload::setParameters(unsigned int channels, double startpos, double interval, unsigned int length) {

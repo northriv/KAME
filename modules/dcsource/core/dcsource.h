@@ -70,7 +70,8 @@ protected:
 	virtual void visualize(const Snapshot &shot);
 
 	void updateStatus() {
-		onChannelChanged(channel());
+		Snapshot shot( *channel());
+		onChannelChanged(shot, channel().get());
 	}
 
 private:
@@ -83,11 +84,11 @@ private:
 	shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel,
 		m_lsnRange;
 
-	virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onValueChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onChannelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onRangeChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onFunctionChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onOutputChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onChannelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onRangeChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const qshared_ptr<FrmDCSource> m_form;
 };

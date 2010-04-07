@@ -49,8 +49,12 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
 	init();
 }
 void XWaveNGraph::init() {
-	m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
-		shared_from_this(), &XWaveNGraph::onFilenameChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
+			shared_from_this(), &XWaveNGraph::onFilenameChanged);
+		if(tr.commit())
+			break;
+	}
 
 	for(Transaction tr(*this);; ++tr) {
 		m_lsnOnIconChanged = tr[ *this].onIconChanged().connect( *this,
@@ -210,7 +214,7 @@ XWaveNGraph::onIconChanged(const Snapshot &shot, bool v) {
 			KIconLoader::SizeSmall, true));
 }
 void
-XWaveNGraph::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
+XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	{
 		XScopedLock<XMutex> lock(m_filemutex);
 

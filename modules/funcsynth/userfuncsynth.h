@@ -19,12 +19,12 @@ public:
 	XWAVEFACTORY(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 protected:
-	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onOutputChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onTrigTouched(const Snapshot &shot, XTouchableNode *);
-	virtual void onModeChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onFreqChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onAmpChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onPhaseChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onOffsetChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onModeChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFunctionChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAmpChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onPhaseChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onOffsetChanged(const Snapshot &shot, XValueNodeBase *);
 };

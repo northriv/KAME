@@ -91,7 +91,7 @@ protected:
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted() = 0;
 private:
-	virtual void onRateChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onRateChanged(const Snapshot &shot, XValueNodeBase *);
   
 	const shared_ptr<XScalarEntry> m_field, m_current;
 

@@ -923,83 +923,83 @@ XNIDAQmxDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordEr
 }
 
 void
-XNIDAQmxDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 	startSequence();
 }
 
 void
-XNIDAQmxDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
 	startSequence();
 }
 void
-XNIDAQmxDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrace2Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrace3Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrace3Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onTrace4Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onTrace4Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVOffset3Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onVOffset4Changed(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
+XNIDAQmxDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
 	createChannels();
 }

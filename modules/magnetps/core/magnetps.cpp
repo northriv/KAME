@@ -105,7 +105,7 @@ XMagnetPS::visualize(const Snapshot &shot) {
 }
 
 void
-XMagnetPS::onRateChanged(const shared_ptr<XValueNodeBase> &) {
+XMagnetPS::onRateChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setRate( *sweepRate());
     }
@@ -141,8 +141,12 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	}
 
 	if(is_pcs_fitted) allowPersistent()->setUIEnabled(true);
-	m_lsnRate = sweepRate()->onValueChanged().connectWeak(
-		shared_from_this(), &XMagnetPS::onRateChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnRate = tr[ *sweepRate()].onValueChanged().connectWeakly(
+			shared_from_this(), &XMagnetPS::onRateChanged);
+		if(tr.commit())
+			break;
+	}
 
   
     while( !terminated) {

@@ -33,21 +33,21 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_rubyThread(rbthread),
     m_rubySupport(rbsupport),
     m_conFilename(xqcon_create<XQLabelConnector>(
-					  rbthread->filename(), form->m_plblFilename)),
+    	rbthread->filename(), form->m_plblFilename)),
     m_conStatus(xqcon_create<XQLabelConnector>(
-					rbthread->status(), form->m_plblStatus)),
+    	rbthread->status(), form->m_plblStatus)),
     m_conResume(xqcon_create<XQButtonConnector>(
-					m_resume, (form->m_pbtnResume))),
+    	m_resume, (form->m_pbtnResume))),
     m_conKill(xqcon_create<XQButtonConnector>(
-				  m_kill, form->m_pbtnKill)),
+    	m_kill, form->m_pbtnKill)),
 	m_conLineinput(xqcon_create<XQLineEditConnector>(
-				  rbthread->lineinput(), form->m_edLineinput)) {
+		rbthread->lineinput(), form->m_edLineinput)) {
 
     KIconLoader *loader = KIconLoader::global();
-    form->m_pbtnResume->setIcon(loader->loadIcon("exec",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
-    form->m_pbtnKill->setIcon(loader->loadIcon("stop",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
+	form->m_pbtnResume->setIcon(loader->loadIcon("exec",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+	form->m_pbtnKill->setIcon(loader->loadIcon("stop",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
             
     m_pForm->m_ptxtDefout->setMaxLogLines(10000);
     m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
@@ -64,15 +64,19 @@ XRubyThreadConnector::XRubyThreadConnector(
 		if(tr.commit())
 			break;
     }
-    m_lsnOnDefout = rbthread->onMessageOut().connectWeak(
-        shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
-    m_lsnOnStatusChanged = rbthread->status()->onValueChanged().connectWeak(
-        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
+	for(Transaction tr( *rbthread);; ++tr) {
+	    m_lsnOnDefout = tr[ *rbthread].onMessageOut().connectWeakly(
+	        shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
+	    m_lsnOnStatusChanged = tr[ *rbthread->status()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
+		if(tr.commit()) {
+		    onStatusChanged(tr, rbthread->status().get());
+			break;
+		}
+	}
         
-    form->setWindowIcon(*g_pIconScript);
+    form->setWindowIcon( *g_pIconScript);
     form->setWindowTitle(rbthread->getLabel());
-    
-    onStatusChanged(rbthread->status());    
 }
 XRubyThreadConnector::~XRubyThreadConnector() {
     if(isItemAlive()) {
@@ -82,7 +86,7 @@ XRubyThreadConnector::~XRubyThreadConnector() {
     m_rubySupport->releaseChild(m_rubyThread);
 }
 void
-XRubyThreadConnector::onStatusChanged(const shared_ptr<XValueNodeBase> &) {
+XRubyThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
     bool alive = m_rubyThread->isAlive();
     m_kill->setUIEnabled(alive);
     bool running = m_rubyThread->isRunning();
@@ -97,6 +101,6 @@ XRubyThreadConnector::onKillTouched(const Snapshot &shot, XTouchableNode *node) 
     m_rubyThread->kill();
 }
 void
-XRubyThreadConnector::onDefout(const shared_ptr<XString> &str) {
-    m_pForm->m_ptxtDefout->append(*str);
+XRubyThreadConnector::onDefout(const Snapshot &shot, const shared_ptr<XString> &str) {
+    m_pForm->m_ptxtDefout->append( *str);
 }

@@ -42,7 +42,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 	labels += i18n("Addr");
 	item->setColumnLabels(labels);
 
-	Snapshot shot(*node);
+	Snapshot shot( *node);
 	if(shot.size()) {
 		for(int idx = 0; idx < shot.size(); ++idx) {
 			XListNodeBase::Payload::CatchEvent e;
@@ -55,18 +55,18 @@ XInterfaceListConnector::XInterfaceListConnector(
 }
 
 void
-XInterfaceListConnector::onControlChanged(const shared_ptr<XValueNodeBase> &node) {
+XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
-		if(it->interface->control() == node) {
+		if(it->interface->control().get() == node) {
 		    KIconLoader *loader = KIconLoader::global();
-			if(*it->interface->control()) {
+			if(shot[ *it->interface->control()]) {
 				it->btn->setIcon( loader->loadIcon("stop",
-																	KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 				it->btn->setText(i18n("&STOP"));
 			}
 			else {
 				it->btn->setIcon( loader->loadIcon("run",
-																	KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 				it->btn->setText(i18n("&RUN"));
 			}
 		}
@@ -97,11 +97,16 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	numAddr->setSingleStep(1);
 	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
-	con.lsnOnControlChanged = interface->control()->onValueChanged().connectWeak(
-        shared_from_this(), &XInterfaceListConnector::onControlChanged,
-		XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *interface);; ++tr) {
+		con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
+			shared_from_this(), &XInterfaceListConnector::onControlChanged,
+			XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit()) {
+			onControlChanged(tr, interface->control().get());
+			break;
+		}
+	}
 	m_cons.push_back(con);
-	onControlChanged(interface->control());
 }
 void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {

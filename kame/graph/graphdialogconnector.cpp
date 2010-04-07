@@ -46,10 +46,18 @@ XQGraphDialogConnector::XQGraphDialogConnector
 	m_pItem->dblIntensity->setRange(0.0, 2.0, 0.1, true);
     m_pItem->m_dblPersistence->setRange(0.0, 1.0, 0.1, true);
     
-    m_lsnAxisChanged = m_selAxis->onValueChanged().connectWeak
-        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
-    m_lsnPlotChanged = m_selPlot->onValueChanged().connectWeak
-        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, XListener::FLAG_MAIN_THREAD_CALL);
+	for(Transaction tr( *m_selAxis);; ++tr) {
+	    m_lsnAxisChanged = tr[ *m_selAxis].onValueChanged().connectWeakly
+	        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
+	for(Transaction tr( *m_selPlot);; ++tr) {
+	    m_lsnPlotChanged = tr[ *m_selPlot].onValueChanged().connectWeakly
+	        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, XListener::FLAG_MAIN_THREAD_CALL);
+		if(tr.commit())
+			break;
+	}
 
     m_pItem->show();
 }   
@@ -58,7 +66,7 @@ XQGraphDialogConnector::~XQGraphDialogConnector() {
 }
  
 void
-XQGraphDialogConnector::onSelAxisChanged(const shared_ptr<XValueNodeBase> &) {
+XQGraphDialogConnector::onSelAxisChanged(const Snapshot &shot, XValueNodeBase *) {
     m_conAutoScale.reset();
     m_conLogScale.reset();
     m_conDisplayTicLabels.reset();
@@ -87,7 +95,7 @@ XQGraphDialogConnector::onSelAxisChanged(const shared_ptr<XValueNodeBase> &) {
 		(axis->ticLabelFormat(), m_pItem->edTicLabelFormat);
 }
 void
-XQGraphDialogConnector::onSelPlotChanged(const shared_ptr<XValueNodeBase> &) {
+XQGraphDialogConnector::onSelPlotChanged(const Snapshot &shot, XValueNodeBase *) {
     m_conDrawPoints.reset();
     m_conDrawLines.reset();
     m_conDrawBars.reset();

@@ -66,7 +66,7 @@ protected:
 	virtual void afterStop() = 0;
 private:
 	//! is called when m_function is changed
-	void onFunctionChanged(const shared_ptr<XValueNodeBase> &node);
+	void onFunctionChanged(const Snapshot &shot, XValueNodeBase *node);
   
 	const shared_ptr<XScalarEntry> m_entry;
 	const shared_ptr<XComboNode> m_function;

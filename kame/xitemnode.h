@@ -207,17 +207,7 @@ public:
 template <class TL>
 void
 XPointerItemNode<TL>::value(const shared_ptr<XNode> &t) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this) = t;
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        trans(*this) = t;
-        this->onValueChanged().talk(ptr);
-    }
+	trans(*this) = t;
 }
 
 #endif /*XITEMNODE_H_*/

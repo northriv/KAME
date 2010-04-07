@@ -71,7 +71,7 @@ XDMM::visualize(const Snapshot &shot) {
 }
 
 void
-XDMM::onFunctionChanged(const shared_ptr<XValueNodeBase> &node) {
+XDMM::onFunctionChanged(const Snapshot &shot, XValueNodeBase *node) {
     try {
         changeFunction();
     }
@@ -91,9 +91,13 @@ XDMM::execute(const atomic<bool> &terminated) {
 		return NULL;
     }
         
-    m_lsnOnFunctionChanged = 
-        function()->onValueChanged().connectWeak(
-			shared_from_this(), &XDMM::onFunctionChanged);    
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnFunctionChanged =
+	        tr[ *function()].onValueChanged().connectWeakly(
+				shared_from_this(), &XDMM::onFunctionChanged);
+		if(tr.commit())
+			break;
+	}
 	while( !terminated) {
 		msecsleep( *waitInms());
 		if(function()->to_str().empty()) continue;

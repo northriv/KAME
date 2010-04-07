@@ -50,8 +50,8 @@ private:
 	shared_ptr<XListener> m_lsnTemp, m_lsnValue;
 	shared_ptr<XListener> m_lsnDisplay;
   
-	void onTempChanged(const shared_ptr<XValueNodeBase> &);
-	void onValueChanged(const shared_ptr<XValueNodeBase> &);  
+	void onTempChanged(const Snapshot &shot, XValueNodeBase *);
+	void onValueChanged(const Snapshot &shot, XValueNodeBase *);  
 	void onDisplayTouched(const Snapshot &shot, XTouchableNode *);
 	FrmCalTable *const m_pForm;
 	qshared_ptr<FrmGraphNURL> m_waveform;

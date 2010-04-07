@@ -39,10 +39,14 @@ XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const sha
 	  m_recording(create<XBoolNode>("Recording", true)) {
     recording()->value(false);
     
-    m_lsnOnOpen = filename()->onValueChanged().connectWeak(
-        shared_from_this(), &XRawStreamRecorder::onOpen);
-    m_lsnOnFlush = recording()->onValueChanged().connectWeak(
-        shared_from_this(), &XRawStreamRecorder::onFlush);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XRawStreamRecorder::onOpen);
+	    m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XRawStreamRecorder::onFlush);
+		if(tr.commit())
+			break;
+	}
     for(Transaction tr( *m_drivers);; ++tr) {
         m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XRawStreamRecorder::onCatch);
         m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XRawStreamRecorder::onRelease);
@@ -73,12 +77,12 @@ XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload
     }
 }
 void
-XRawStreamRecorder::onOpen(const shared_ptr<XValueNodeBase> &) {
+XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(m_pGFD);
 	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "wb");
 }
 void
-XRawStreamRecorder::onFlush(const shared_ptr<XValueNodeBase> &) {
+XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
 	if( !*recording())
 		if(m_pGFD) {
 			m_filemutex.lock();    
@@ -138,8 +142,12 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
     recording()->value(false);
     lastLine()->setUIEnabled(false);
   
-    m_lsnOnFilenameChanged = filename()->onValueChanged().connectWeak(
-        shared_from_this(), &XTextWriter::onFilenameChanged);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XTextWriter::onFilenameChanged);
+		if(tr.commit())
+			break;
+	}
     for(Transaction tr( *m_drivers);; ++tr) {
         m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XTextWriter::onCatch);
         m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XTextWriter::onRelease);
@@ -170,7 +178,7 @@ XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::Relea
     }
 }
 void
-XTextWriter::onLastLineChanged(const shared_ptr<XValueNodeBase> &) {
+XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.good())
 	{
@@ -219,17 +227,21 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 }
 
 void
-XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
+XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
 	m_stream.open((const char*)QString(filename()->to_str()).toLocal8Bit().data(), OFSMODE);
 
 	if(m_stream.good()) {
-		m_lsnOnFlush = recording()->onValueChanged().connectWeak(
-			shared_from_this(), &XTextWriter::onFlush);
-		m_lsnOnLastLineChanged = lastLine()->onValueChanged().connectWeak(
-			shared_from_this(), &XTextWriter::onLastLineChanged);
+		for(Transaction tr( *this);; ++tr) {
+			m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
+				shared_from_this(), &XTextWriter::onFlush);
+			m_lsnOnLastLineChanged = tr[ *lastLine()].onValueChanged().connectWeakly(
+				shared_from_this(), &XTextWriter::onLastLineChanged);
+			if(tr.commit())
+				break;
+		}
 		lastLine()->setUIEnabled(true);
 
 		XString buf;
@@ -254,7 +266,7 @@ XTextWriter::onFilenameChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 }
 void
-XTextWriter::onFlush(const shared_ptr<XValueNodeBase> &) {
+XTextWriter::onFlush(const Snapshot &shot, XValueNodeBase *) {
     lastLine()->setUIEnabled(*recording());
 	if( !*recording()) {
 		XScopedLock<XRecursiveMutex> lock(m_filemutex);  

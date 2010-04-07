@@ -29,7 +29,7 @@ public:
 	~XNMRFSpectrum() {}
 protected:
 	//! \return true to be cleared.
-	virtual bool onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const;
+	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const;
 	virtual double getFreqResHint(const Snapshot &shot_this) const;
 	virtual double getMinFreq(const Snapshot &shot_this) const;
 	virtual double getMaxFreq(const Snapshot &shot_this) const;
@@ -79,7 +79,7 @@ private:
 		m_conFreqSpan, m_conFreqStep;
 	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset, m_conBurstCount, m_conBurstFreqStep;
 
-	void onActiveChanged(const shared_ptr<XValueNodeBase> &);
+	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
 };
 
 

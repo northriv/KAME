@@ -74,10 +74,10 @@ protected:
 	const shared_ptr<XComboNode> &points() const {return m_points;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
 protected:
-	virtual void onStartFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onStopFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onPointsChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
 	virtual void startContSweep() = 0;

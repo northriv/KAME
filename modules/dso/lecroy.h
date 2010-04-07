@@ -27,26 +27,26 @@ public:
 	//! Converts the raw to a display-able style.
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 protected:
-	virtual void onTrace1Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrace2Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrace3Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrace4Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onAverageChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onSingleChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrigSourceChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrigPosChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrigLevelChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTrigFallingChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onTimeWidthChanged(const shared_ptr<XValueNodeBase> &);
-	virtual void onVFullScale1Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVFullScale2Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVFullScale3Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVFullScale4Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVOffset1Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVOffset2Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVOffset3Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onVOffset4Changed(const shared_ptr<XValueNodeBase> &);
-	virtual void onRecordLengthChanged(const shared_ptr<XValueNodeBase> &);
+	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrace3Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrace4Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onSingleChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrigPosChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVOffset1Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVOffset2Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVOffset3Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onVOffset4Changed(const Snapshot &shot, XValueNodeBase *);
+	virtual void onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.

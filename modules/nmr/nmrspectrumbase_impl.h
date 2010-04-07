@@ -126,17 +126,17 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnClear = tr[ *m_clear].onTouch().connectWeakly(
 			shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);
+		m_lsnOnCondChanged = tr[ *bandWidth()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNMRSpectrumBase<FRM>::onCondChanged);
+		tr[ *autoPhase()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *phase()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *solverList()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *bwList()].onValueChanged().connect(m_lsnOnCondChanged);
 		if(tr.commit())
 			break;
 	}
-	m_lsnOnCondChanged = bandWidth()->onValueChanged().connectWeak(
-		shared_from_this(), &XNMRSpectrumBase<FRM>::onCondChanged);
-	autoPhase()->onValueChanged().connect(m_lsnOnCondChanged);
-	phase()->onValueChanged().connect(m_lsnOnCondChanged);
-	solverList()->onValueChanged().connect(m_lsnOnCondChanged);
-	windowWidth()->onValueChanged().connect(m_lsnOnCondChanged);
-	windowFunc()->onValueChanged().connect(m_lsnOnCondChanged);
-	bwList()->onValueChanged().connect(m_lsnOnCondChanged);
 }
 template <class FRM>
 XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
@@ -149,9 +149,9 @@ XNMRSpectrumBase<FRM>::showForms() {
 }
 template <class FRM>
 void
-XNMRSpectrumBase<FRM>::onCondChanged(const shared_ptr<XValueNodeBase> &node) {
+XNMRSpectrumBase<FRM>::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 //    if((node == phase()) && *autoPhase()) return;
-	if((node == bandWidth()) || onCondChangedImpl(node))
+	if((node == bandWidth().get()) || onCondChangedImpl(shot, node))
         trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }

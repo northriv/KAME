@@ -54,14 +54,14 @@ protected:
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;} //!< [deg.]
 	const shared_ptr<XDoubleNode> &offset() const {return m_offset;} //!< [V]
 protected:
-	virtual void onOutputChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onOutputChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onTrigTouched(const Snapshot &shot, XTouchableNode *) = 0;
-	virtual void onModeChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onFunctionChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onFreqChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onAmpChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onPhaseChanged(const shared_ptr<XValueNodeBase> &) = 0;
-	virtual void onOffsetChanged(const shared_ptr<XValueNodeBase> &) = 0;
+	virtual void onModeChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onFunctionChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onAmpChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onPhaseChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onOffsetChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
 	const shared_ptr<XBoolNode>  m_output;
 	const shared_ptr<XTouchableNode>  m_trig;

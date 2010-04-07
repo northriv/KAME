@@ -46,10 +46,14 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 	device()->add("SERIAL");
 	device()->add("DUMMY");
   
-	m_lsnOnSendRequested = m_script_send->onValueChanged().connectWeak(
-		shared_from_this(), &XCharInterface::onSendRequested);
-	m_lsnOnQueryRequested = m_script_query->onValueChanged().connectWeak(
-		shared_from_this(), &XCharInterface::onQueryRequested);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
+			shared_from_this(), &XCharInterface::onSendRequested);
+		m_lsnOnQueryRequested = tr[ *m_script_query].onValueChanged().connectWeakly(
+			shared_from_this(), &XCharInterface::onQueryRequested);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XCharInterface::setEOS(const char *str) {
@@ -261,7 +265,7 @@ XCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &)
 	this->query(&buf[0]);
 }
 void
-XCharInterface::onSendRequested(const shared_ptr<XValueNodeBase> &)
+XCharInterface::onSendRequested(const Snapshot &shot, XValueNodeBase *)
 {
 	shared_ptr<XPort> port = m_xport;
     if(!port)
@@ -269,7 +273,7 @@ XCharInterface::onSendRequested(const shared_ptr<XValueNodeBase> &)
     port->send(m_script_send->to_str().c_str());
 }
 void
-XCharInterface::onQueryRequested(const shared_ptr<XValueNodeBase> &)
+XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *)
 {
 	shared_ptr<XPort> port = m_xport;    
     if(!port)

@@ -91,8 +91,8 @@ private:
 	qshared_ptr<FrmMonteCarlo> m_form;
 	shared_ptr<XWaveNGraph> m_wave3D;
 	void execute(Transaction &tr, int flips, long double tests);
-	void onTargetChanged(const shared_ptr<XValueNodeBase> &);
-	void onGraphChanged(const shared_ptr<XValueNodeBase> &);
+	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
+	void onGraphChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStepTouched(const Snapshot &shot, XTouchableNode *);
 	shared_ptr<XListener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;

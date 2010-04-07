@@ -103,16 +103,16 @@ protected:
 	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch) = 0;
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 private:
-	void onPChanged(const shared_ptr<XValueNodeBase> &);
-	void onIChanged(const shared_ptr<XValueNodeBase> &);
-	void onDChanged(const shared_ptr<XValueNodeBase> &);
-	void onTargetTempChanged(const shared_ptr<XValueNodeBase> &);
-	void onManualPowerChanged(const shared_ptr<XValueNodeBase> &);
-	void onHeaterModeChanged(const shared_ptr<XValueNodeBase> &);
-	void onPowerRangeChanged(const shared_ptr<XValueNodeBase> &);
-	void onCurrentChannelChanged(const shared_ptr<XValueNodeBase> &);
-	void onExcitationChanged(const shared_ptr<XValueNodeBase> &);
-	void onExtDCSourceChanged(const shared_ptr<XValueNodeBase> &);
+	void onPChanged(const Snapshot &shot, XValueNodeBase *);
+	void onIChanged(const Snapshot &shot, XValueNodeBase *);
+	void onDChanged(const Snapshot &shot, XValueNodeBase *);
+	void onTargetTempChanged(const Snapshot &shot, XValueNodeBase *);
+	void onManualPowerChanged(const Snapshot &shot, XValueNodeBase *);
+	void onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *);
+	void onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *);
+	void onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *);
+	void onExcitationChanged(const Snapshot &shot, XValueNodeBase *);
+	void onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const shared_ptr<XChannelList> m_channels;
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
@@ -133,7 +133,7 @@ private:
 		m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
 		m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnExtDCSourceChanged;
 
-	void onSetupChannelChanged(const shared_ptr<XValueNodeBase> &);
+	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
 
 	std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
 	std::deque<shared_ptr<XScalarEntry> > m_entry_raws;

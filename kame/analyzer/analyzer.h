@@ -134,12 +134,12 @@ private:
 	shared_ptr<tAxis> m_axisX, m_axisY1, m_axisZ;
 	shared_ptr<XXYPlot> m_livePlot, m_storePlot;
 	shared_ptr<XListener> m_lsnAxisChanged;
-	void onAxisChanged(const shared_ptr<XValueNodeBase> &node);
+	void onAxisChanged(const Snapshot &shot, XValueNodeBase *node);
 
 	shared_ptr<XListener> m_lsnLiveChanged;
 	shared_ptr<XListener> m_lsnStoreChanged;
-	void onLiveChanged(const shared_ptr<XValueNodeBase> &node);
-	void onStoreChanged(const shared_ptr<XValueNodeBase> &node);
+	void onLiveChanged(const Snapshot &shot, XValueNodeBase *node);
+	void onStoreChanged(const Snapshot &shot, XValueNodeBase *node);
 };
 
 class XGraphList : public XCustomTypeListNode<XValGraph> {

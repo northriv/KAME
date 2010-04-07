@@ -118,39 +118,13 @@ XTouchableNode::Payload::touch() {
 
 void
 XValueNodeBase::str(const XString &str) throw (XKameError &) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this).str(str);
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        try {
-        	trans(*this).str(str);
-        }
-        catch (XKameError &e) {
-            this->onValueChanged().talk(ptr);
-            throw e;
-        }
-        this->onValueChanged().talk(ptr);
-    }
+	trans(*this).str(str);
 }
 
 template <typename T, int base>
 void
 XIntNodeBase<T, base>::value(T t) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this) = t;
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        trans(*this) = t;
-        this->onValueChanged().talk(ptr);
-    }
+	trans(*this) = t;
 }
 
 template <typename T, int base>
@@ -243,17 +217,7 @@ XStringNode::XStringNode(const char *name, bool runtime)
 
 void
 XStringNode::value(const XString &t) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this) = t;
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        trans(*this) = t;
-        this->onValueChanged().talk(ptr);
-    }
+	trans(*this) = t;
 }
 XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
 	: XValueNodeBase(name, runtime) {
@@ -262,17 +226,7 @@ XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
 
 void
 XDoubleNode::value(double t) {
-    if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this) = t;
-    }
-    else {
-		shared_ptr<XValueNodeBase> ptr =
-			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
-        XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
-        this->beforeValueChanged().talk(ptr);
-        trans(*this) = t;
-        this->onValueChanged().talk(ptr);
-    }
+	trans(*this) = t;
 }
 XString
 XDoubleNode::Payload::to_str() const {

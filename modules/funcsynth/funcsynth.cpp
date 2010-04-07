@@ -73,20 +73,24 @@ XFuncSynth::start() {
     m_phase->setUIEnabled(true);
     m_offset->setUIEnabled(true);
         
-	m_lsnOutput = output()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onOutputChanged);
-	m_lsnMode = mode()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onModeChanged);
-	m_lsnFreq = freq()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onFreqChanged);
-	m_lsnFunction = function()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onFunctionChanged);
-	m_lsnAmp = amp()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onAmpChanged);
-	m_lsnPhase = phase()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onPhaseChanged);
-	m_lsnOffset = offset()->onValueChanged().connectWeak(
-		shared_from_this(), &XFuncSynth::onOffsetChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onOutputChanged);
+		m_lsnMode = tr[ *mode()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onModeChanged);
+		m_lsnFreq = tr[ *freq()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onFreqChanged);
+		m_lsnFunction = tr[ *function()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onFunctionChanged);
+		m_lsnAmp = tr[ *amp()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onAmpChanged);
+		m_lsnPhase = tr[ *phase()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onPhaseChanged);
+		m_lsnOffset = tr[ *offset()].onValueChanged().connectWeakly(
+			shared_from_this(), &XFuncSynth::onOffsetChanged);
+		if(tr.commit())
+			break;
+	}
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnTrig = tr[ *trig()].onTouch().connectWeakly(

@@ -65,7 +65,7 @@ private:
 	const shared_ptr<XComboNode> m_selector, m_windowfunc;
 	const shared_ptr<XDoubleNode> m_windowlength;
 	shared_ptr<XListener> m_lsnOnChanged;
-	void onSolverChanged(const shared_ptr<XValueNodeBase> &);
+	void onSolverChanged(const Snapshot &shot, XValueNodeBase *);
 };
 
 #endif /*NMRSPECTRUMSOLVER_H_*/

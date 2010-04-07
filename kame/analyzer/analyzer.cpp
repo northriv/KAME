@@ -157,14 +157,18 @@ XValGraph::XValGraph(const char *name, bool runtime,
 	  m_axisX(create<tAxis>("AxisX", false, ref(tr_entries), entries)),
 	  m_axisY1(create<tAxis>("AxisY1", false, ref(tr_entries), entries)),
 	  m_axisZ(create<tAxis>("AxisZ", false, ref(tr_entries), entries)) {
-    m_lsnAxisChanged = axisX()->onValueChanged().connectWeak(
-        shared_from_this(), &XValGraph::onAxisChanged,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-    axisY1()->onValueChanged().connect(m_lsnAxisChanged);
-    axisZ()->onValueChanged().connect(m_lsnAxisChanged);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnAxisChanged = tr[ *axisX()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XValGraph::onAxisChanged,
+			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+	    tr[ *axisY1()].onValueChanged().connect(m_lsnAxisChanged);
+	    tr[ *axisZ()].onValueChanged().connect(m_lsnAxisChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
-XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &) {
+XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
     shared_ptr<XScalarEntry> entryx = *axisX();
     shared_ptr<XScalarEntry> entryy1 = *axisY1();
     shared_ptr<XScalarEntry> entryz = *axisZ();
@@ -176,7 +180,7 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &) {
 
 	if(!entryx || !entryy1) return;
   
-	for(Transaction tr( *m_graph);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		m_livePlot =
 			m_graph->plots()->create<XXYPlot>(tr, (m_graph->getName() + "-Live").c_str(), false, ref(tr), m_graph);
 		tr[ *m_livePlot->label()] = m_graph->getLabel() + " Live";
@@ -216,21 +220,21 @@ XValGraph::onAxisChanged(const shared_ptr<XValueNodeBase> &) {
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
 		tr[ *m_graph->label()] = getLabel();
+
+		m_lsnLiveChanged = tr[ *entryx->value()].onValueChanged().connectWeakly(
+			shared_from_this(), &XValGraph::onLiveChanged);
+		tr[ *entryy1->value()].onValueChanged().connect(m_lsnLiveChanged);
+		if(entryz) tr[ *entryz->value()].onValueChanged().connect(m_lsnLiveChanged);
+
+		m_lsnStoreChanged = tr[ *entryx->storedValue()].onValueChanged().connectWeakly(
+			shared_from_this(), &XValGraph::onStoreChanged);
+		tr[ *entryy1->storedValue()].onValueChanged().connect(m_lsnStoreChanged);
+		if(entryz) tr[ *entryz->storedValue()].onValueChanged().connect(m_lsnStoreChanged);
+
 		if(tr.commit())
 			break;
 	}
 
-
-	m_lsnLiveChanged = entryx->value()->onValueChanged().connectWeak(
-		shared_from_this(), &XValGraph::onLiveChanged);
-	entryy1->value()->onValueChanged().connect(m_lsnLiveChanged);
-	if(entryz) entryz->value()->onValueChanged().connect(m_lsnLiveChanged);
-  
-	m_lsnStoreChanged = entryx->storedValue()->onValueChanged().connectWeak(
-		shared_from_this(), &XValGraph::onStoreChanged);
-	entryy1->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
-	if(entryz) entryz->storedValue()->onValueChanged().connect(m_lsnStoreChanged);
-  
 	showGraph();
 }
 
@@ -241,7 +245,7 @@ XValGraph::clearAllPoints() {
 	m_livePlot->clearAllPoints();
 }
 void
-XValGraph::onLiveChanged(const shared_ptr<XValueNodeBase> &) {
+XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	double x, y, z = 0.0;
     shared_ptr<XScalarEntry> entryx = *axisX();
     shared_ptr<XScalarEntry> entryy1 = *axisY1();
@@ -255,7 +259,7 @@ XValGraph::onLiveChanged(const shared_ptr<XValueNodeBase> &) {
     m_livePlot->addPoint(x, y, z);
 }
 void
-XValGraph::onStoreChanged(const shared_ptr<XValueNodeBase> &) {
+XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
 	double x, y, z = 0.0;
     shared_ptr<XScalarEntry> entryx = *axisX();
     shared_ptr<XScalarEntry> entryy1 = *axisY1();

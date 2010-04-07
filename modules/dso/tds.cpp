@@ -73,7 +73,7 @@ XTDS::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 void 
-XTDS::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( *average() == 1) {
 		interface()->send("ACQ:MODE SAMPLE");
 	}
@@ -83,7 +83,7 @@ XTDS::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 void
-XTDS::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( *singleSequence()) {
 		interface()->send("ACQ:STOPAFTER SEQUENCE;STATE ON");
 	}
@@ -92,78 +92,78 @@ XTDS::onSingleChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 }
 void
-XTDS::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->send("TRIG:A:EDG:SOU " + trigSource()->to_str());
 }
 void
-XTDS::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
     if( *trigPos() >= 0)
 		interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)*trigPos());
     else
 		interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -( *trigPos() - 50.0)/100.0* *timeWidth());
 }
 void
-XTDS::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("TRIG:A:EDG:LEV %g", (double)*trigLevel());
 }
 void
-XTDS::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("TRIG:A:EDG:SLOP %s", (*trigFalling() ? "FALL" : "RISE"));
 }
 void
-XTDS::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("HOR:MAIN:SCALE %.1g", (double)*timeWidth()/10.0);
 }
 void
-XTDS::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace1()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
-XTDS::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
-XTDS::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace3()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale3()->to_str().c_str())/10.0);
 }
 void
-XTDS::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace4()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale4()->to_str().c_str())/10.0);
 }
 void
-XTDS::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace1()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset1());
 }
 void
-XTDS::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
 }
 void
-XTDS::onVOffset3Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace3()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset3());
 }
 void
-XTDS::onVOffset4Changed(const shared_ptr<XValueNodeBase> &) {
+XTDS::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace4()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset4());
 }
 void
-XTDS::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
+XTDS::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->send("HOR:RECORD " + 
 					  recordLength()->to_str());
 }

@@ -33,12 +33,23 @@ public:
 	void resume() {m_thread.resume();}
 	void terminate() {m_thread.terminate();}
 
+	struct Payload : public XAliasListNode<XRubyThread>::Payload {
+		struct tCreateChild {
+			XString type;
+			XString name;
+			shared_ptr<XListNodeBase> lnode;
+			XCondition cond;
+			shared_ptr<XNode> child;
+		};
+		Talker<shared_ptr<tCreateChild> > &onChildCreated() {return m_tlkOnChildCreated;}
+		const Talker<shared_ptr<tCreateChild> > &onChildCreated() const {return m_tlkOnChildCreated;}
+	private:
+		Talker<shared_ptr<tCreateChild> > m_tlkOnChildCreated;
+	};
 protected:
 	virtual void *execute(const atomic<bool> &);
 private:
-   
-	struct rnode_ptr
-	{
+	struct rnode_ptr {
 		weak_ptr<XNode> ptr;
 		XRuby *xruby;
 	};
@@ -68,17 +79,8 @@ private:
 	static VALUE rlistnode_create_child(VALUE, VALUE, VALUE);
 	static VALUE rlistnode_release_child(VALUE, VALUE);
 
-	struct tCreateChild
-	{
-		XString type;
-		XString name;
-		shared_ptr<XListNodeBase> lnode;
-		XCondition cond;
-		shared_ptr<XNode> child;
-	};
-	XTalker<shared_ptr<tCreateChild> > m_tlkCreateChild;
-	shared_ptr<XListener> m_lsnCreateChild;
-	void onCreateChild(const shared_ptr<tCreateChild> &x);
+	shared_ptr<XListener> m_lsnChildCreated;
+	void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
   
 	const weak_ptr<XMeasure> m_measure;
 	XThread<XRuby> m_thread;

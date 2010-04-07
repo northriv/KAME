@@ -47,7 +47,7 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
   }
 */
 void
-XWAVEFACTORY::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("SIG %d", *output() ? 1 : 0);
 }
 
@@ -57,33 +57,33 @@ XWAVEFACTORY::onTrigTouched(const Snapshot &shot, XTouchableNode *) {
 }
 
 void
-XWAVEFACTORY::onModeChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onModeChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("OMO %d", (int)*mode());
 }
 
 void
-XWAVEFACTORY::onFunctionChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("FNC %d", (int)*function() + 1);
 }
 
 void
-XWAVEFACTORY::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("FRQ %e" , (double)*freq());
 }
 
 void
-XWAVEFACTORY::onAmpChanged(const shared_ptr<XValueNodeBase> &)
+XWAVEFACTORY::onAmpChanged(const Snapshot &shot, XValueNodeBase *)
 {
 	interface()->sendf("AMV %e" , (double)*amp());
 }
 
 void
-XWAVEFACTORY::onPhaseChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onPhaseChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("PHS %e" , (double)*phase());
 }
 
 
 void
-XWAVEFACTORY::onOffsetChanged(const shared_ptr<XValueNodeBase> &) {
+XWAVEFACTORY::onOffsetChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->sendf("OFS %e" , (double)*offset());
 }

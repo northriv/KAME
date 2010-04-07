@@ -32,7 +32,6 @@ set(kame_SRCS
     xscheduler.cpp
     thread.cpp
     threadlocal.cpp
-    rwlock.cpp
     support.cpp
     xtime.cpp
     xnode.cpp

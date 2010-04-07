@@ -50,14 +50,18 @@ XSG::start() {
 	m_amON->setUIEnabled(true);
 	m_fmON->setUIEnabled(true);
 	
-	m_lsnOLevel = oLevel()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onOLevelChanged);
-	m_lsnAMON = amON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onAMONChanged);
-	m_lsnFMON = fmON()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFMONChanged);
-	m_lsnFreq = freq()->onValueChanged().connectWeak(
-		shared_from_this(), &XSG::onFreqChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOLevel = tr[ *oLevel()].onValueChanged().connectWeakly(
+			shared_from_this(), &XSG::onOLevelChanged);
+		m_lsnAMON = tr[ *amON()].onValueChanged().connectWeakly(
+			shared_from_this(), &XSG::onAMONChanged);
+		m_lsnFMON = tr[ *fmON()].onValueChanged().connectWeakly(
+			shared_from_this(), &XSG::onFMONChanged);
+		m_lsnFreq = tr[ *freq()].onValueChanged().connectWeakly(
+			shared_from_this(), &XSG::onFreqChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XSG::stop() {
@@ -82,7 +86,7 @@ void
 XSG::visualize(const Snapshot &shot) {
 }
 void
-XSG::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XSG::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     double _freq = *freq();
     if(_freq <= 0) {
         gErrPrint(getLabel() + " " + i18n("Positive Value Needed."));

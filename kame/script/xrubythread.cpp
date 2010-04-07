@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,53 +19,55 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 	  m_status(create<XStringNode>("Status", true)),
 	  m_action(create<XStringNode>("Action", true)),
 	  m_threadID(create<XLongNode>("ThreadID", true)),
-	  m_lineinput(create<XStringNode>("LineInput", true))
-{
+	  m_lineinput(create<XStringNode>("LineInput", true)) {
+
     m_threadID->value(-1);
     m_filename->value(filename);
     m_action->value(RUBY_THREAD_ACTION_STARTING);
     m_status->value(RUBY_THREAD_STATUS_STARTING);
     lineinput()->setUIEnabled(false);
-    m_lsnOnLineChanged = lineinput()->onValueChanged().connectWeak(shared_from_this(),
-        &XRubyThread::onLineChanged);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnLineChanged = tr[ *lineinput()].onValueChanged().connectWeakly(shared_from_this(),
+	        &XRubyThread::onLineChanged);
+		if(tr.commit())
+			break;
+	}
 }
  
 bool
-XRubyThread::isRunning() const
-{
-    return (XString(*m_status) == RUBY_THREAD_STATUS_RUN);
+XRubyThread::isRunning() const {
+    return (XString( *m_status) == RUBY_THREAD_STATUS_RUN);
 }
 bool
-XRubyThread::isAlive() const
-{
-    return (XString(*m_status) != RUBY_THREAD_STATUS_N_A);
+XRubyThread::isAlive() const {
+    return (XString( *m_status) != RUBY_THREAD_STATUS_N_A);
 }
 void
-XRubyThread::kill()
-{
+XRubyThread::kill() {
     m_action->value(RUBY_THREAD_ACTION_KILL);
 	lineinput()->setUIEnabled(false);
 }
 void
-XRubyThread::resume()
-{
+XRubyThread::resume() {
     m_action->value(RUBY_THREAD_ACTION_WAKEUP);
 }
 void
-XRubyThread::onLineChanged(const shared_ptr<XValueNodeBase> &)
-{
+XRubyThread::onLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	XString line = *lineinput();
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	m_lineBuffer.push_back(line);
-	lineinput()->onValueChanged().mask();
-	lineinput()->value("");
-	lineinput()->onValueChanged().unmask();
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *lineinput()] = "";
+		tr.unmark(m_lsnOnLineChanged);
+		if(tr.commit())
+			break;
+	}
 }
 
 XString
 XRubyThread::gets() {	
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
-	if(!m_lineBuffer.size()) {
+	if( !m_lineBuffer.size()) {
 		lineinput()->setUIEnabled(true);
 		return XString();
 	}

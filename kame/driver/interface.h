@@ -71,7 +71,7 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &) = 0;
 private:
-	void onControlChanged(const shared_ptr<XValueNodeBase> &);
+	void onControlChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const weak_ptr<XDriver> m_driver;
 	const shared_ptr<XComboNode> m_device;

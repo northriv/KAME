@@ -44,8 +44,8 @@ private:
 		m_conColorPlot, m_conColorPlotColorHigh, m_conColorPlotColorLow,
 		m_conPlots, m_conAxes, m_conIntensity, m_conDrawLegends, m_conPersistence;  
  
-	void onSelAxisChanged(const shared_ptr<XValueNodeBase> &node);
-	void onSelPlotChanged(const shared_ptr<XValueNodeBase> &node);
+	void onSelAxisChanged(const Snapshot &shot, XValueNodeBase *node);
+	void onSelPlotChanged(const Snapshot &shot, XValueNodeBase *node);
 
 };
 #endif /*GRAPHDIALOGCONNECTOR_H_*/

@@ -56,15 +56,19 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
 
-	m_lsnOnActiveChanged = active()->onValueChanged().connectWeak(
-		shared_from_this(), &XNMRFSpectrum::onActiveChanged);
-	centerFreq()->onValueChanged().connect(m_lsnOnCondChanged);
-	freqSpan()->onValueChanged().connect(m_lsnOnCondChanged);
-	freqStep()->onValueChanged().connect(m_lsnOnCondChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNMRFSpectrum::onActiveChanged);
+		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *freqSpan()].onValueChanged().connect(m_lsnOnCondChanged);
+		tr[ *freqStep()].onValueChanged().connect(m_lsnOnCondChanged);
+		if(tr.commit())
+			break;
+	}
 }
 
 void
-XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &) {
+XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
     if( *active()) {
 		m_burstFreqCycleCount = 0;
 		m_burstPhaseCycleCount = 0;
@@ -76,7 +80,7 @@ XNMRFSpectrum::onActiveChanged(const shared_ptr<XValueNodeBase> &) {
 	}
 }
 bool
-XNMRFSpectrum::onCondChangedImpl(const shared_ptr<XValueNodeBase> &) const {
+XNMRFSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const {
     return false;
 }
 bool

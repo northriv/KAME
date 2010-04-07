@@ -54,48 +54,53 @@ XLecroyDSO::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
 	interface()->send("COMM_ORDER LO");
-	onAverageChanged(average());
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 
 	start();
 }
 void 
-XLecroyDSO::onTrace1Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock(*interface());
     XString ch = trace1()->to_str();
-    if(!ch.empty()) {
+    if( !ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
-    onAverageChanged(average());
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 }
 void 
-XLecroyDSO::onTrace2Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrace2Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock(*interface());
     XString ch = trace2()->to_str();
-    if(!ch.empty()) {
+    if( !ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
-    onAverageChanged(average());
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 }
 void
-XLecroyDSO::onTrace3Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrace3Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock(*interface());
     XString ch = trace3()->to_str();
-    if(!ch.empty()) {
+    if( !ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
-    onAverageChanged(average());
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 }
 void
-XLecroyDSO::onTrace4Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrace4Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock(*interface());
     XString ch = trace4()->to_str();
-    if(!ch.empty()) {
+    if( !ch.empty()) {
 		interface()->sendf("%s:TRACE ON", ch.c_str());
     }
-    onAverageChanged(average());
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 }
 void
-XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock(*interface());
 	interface()->send("TRIG_MODE STOP");
 	int avg = *average();
@@ -115,7 +120,7 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 //		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
 		const char *atype = sseq ? "AVGS" : "AVGC";
 	    XString ch = trace1()->to_str();
-	    if(!ch.empty()) {
+	    if( !ch.empty()) {
 //			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
 //				ch.c_str(), atype, avg);
 			interface()->sendf("TA:DEFINE EQN,'%s(%s)',SWEEPS,%d",
@@ -123,21 +128,21 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 			interface()->send("TA:TRACE ON");
 	    }
 	    ch = trace2()->to_str();
-	    if(!ch.empty()) {
+	    if( !ch.empty()) {
 			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
 				atype, ch.c_str(), avg);
 			interface()->send("TB:TRACE ON");
 	    }
 		interface()->send("TRIG_MODE NORM");
 	    ch = trace3()->to_str();
-	    if(!ch.empty()) {
+	    if( !ch.empty()) {
 			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
 				atype, ch.c_str(), avg);
 			interface()->send("TB:TRACE ON");
 	    }
 		interface()->send("TRIG_MODE NORM");
 	    ch = trace4()->to_str();
-	    if(!ch.empty()) {
+	    if( !ch.empty()) {
 			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
 				atype, ch.c_str(), avg);
 			interface()->send("TB:TRACE ON");
@@ -147,80 +152,81 @@ XLecroyDSO::onAverageChanged(const shared_ptr<XValueNodeBase> &) {
 }
 
 void
-XLecroyDSO::onSingleChanged(const shared_ptr<XValueNodeBase> &node) {
-	onAverageChanged(node);
+XLecroyDSO::onSingleChanged(const Snapshot &shot, XValueNodeBase *node) {
+    Snapshot shot_this( *this);
+    onAverageChanged(shot_this, average().get());
 }
 void
-XLecroyDSO::onTrigSourceChanged(const shared_ptr<XValueNodeBase> &)
+XLecroyDSO::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *)
 {
 	interface()->sendf("TRIG_SELECT EDGE,SR,%s", trigSource()->to_str().c_str());
 }
 void
-XLecroyDSO::onTrigPosChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("TRIG_DELAY %fPCT", (double)*trigPos());
 }
 void
-XLecroyDSO::onTrigLevelChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("%s:TRIG_LEVEL %gV", trigSource()->to_str().c_str(), (double)*trigLevel());
 }
 void
-XLecroyDSO::onTrigFallingChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("%s:TRIG_SLOPE %s", trigSource()->to_str().c_str(), (*trigFalling() ? "NEG" : "POS"));
 }
 void
-XLecroyDSO::onTimeWidthChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("TIME_DIV %.1g", (double)*timeWidth()/10.0);
 }
 void
-XLecroyDSO::onVFullScale1Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace1()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
 }
 void
-XLecroyDSO::onVFullScale2Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
 }
 void
-XLecroyDSO::onVFullScale3Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace3()->to_str();
 	if(ch.empty()) return;
 	interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale3()->to_str().c_str())/10.0);
 }
 void
-XLecroyDSO::onVFullScale4Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace4()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:VOLT_DIV %.1g", ch.c_str(), atof(vFullScale4()->to_str().c_str())/10.0);
 }
 void
-XLecroyDSO::onVOffset1Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace1()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset1());
 }
 void
-XLecroyDSO::onVOffset2Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace2()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset2());
 }
 void
-XLecroyDSO::onVOffset3Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace3()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset3());
 }
 void
-XLecroyDSO::onVOffset4Changed(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
     XString ch = trace4()->to_str();
     if(ch.empty()) return;
     interface()->sendf("%s:OFFSET %.8g V", ch.c_str(), (double)*vOffset4());
 }
 void
-XLecroyDSO::onRecordLengthChanged(const shared_ptr<XValueNodeBase> &) {
+XLecroyDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("MEMORY_SIZE %s",
 					  recordLength()->to_str().c_str());
 }

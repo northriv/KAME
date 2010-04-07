@@ -179,14 +179,18 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 
 void *
 XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
-	m_lsnOnStartFreqChanged = startFreq()->onValueChanged().connectWeak(
-		shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
-	m_lsnOnStopFreqChanged = stopFreq()->onValueChanged().connectWeak(
-		shared_from_this(), &XNetworkAnalyzer::onStopFreqChanged);
-	m_lsnOnPointsChanged = points()->onValueChanged().connectWeak(
-		shared_from_this(), &XNetworkAnalyzer::onPointsChanged);
-	m_lsnOnAverageChanged = average()->onValueChanged().connectWeak(
-		shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnStartFreqChanged = tr[ *startFreq()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
+		m_lsnOnStopFreqChanged = tr[ *stopFreq()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNetworkAnalyzer::onStopFreqChanged);
+		m_lsnOnPointsChanged = tr[ *points()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNetworkAnalyzer::onPointsChanged);
+		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
+		if(tr.commit())
+			break;
+	}
 
 	while( !terminated) {
 		XTime time_awared = XTime::now();

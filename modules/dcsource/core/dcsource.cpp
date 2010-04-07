@@ -27,20 +27,20 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_channel(create<XComboNode>("Channel", false, true)),
     m_range(create<XComboNode>("Range", false, true)),
     m_form(new FrmDCSource(g_pFrmMain)) {
-  m_form->statusBar()->hide();
-  m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
+	m_form->statusBar()->hide();
+	m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
 
-  m_output->setUIEnabled(false);
-  m_function->setUIEnabled(false);
-  m_value->setUIEnabled(false);
-  m_channel->setUIEnabled(false);
-  m_range->setUIEnabled(false);
+	m_output->setUIEnabled(false);
+	m_function->setUIEnabled(false);
+	m_value->setUIEnabled(false);
+	m_channel->setUIEnabled(false);
+	m_range->setUIEnabled(false);
 
-  m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function));
-  m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
-  m_conValue = xqcon_create<XQLineEditConnector>(m_value, m_form->m_edValue);
-  m_conChannel = xqcon_create<XQComboBoxConnector>(m_channel, m_form->m_cmbChannel, Snapshot( *m_channel));
-  m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange, Snapshot( *m_range));
+	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function));
+	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
+	m_conValue = xqcon_create<XQLineEditConnector>(m_value, m_form->m_edValue);
+	m_conChannel = xqcon_create<XQComboBoxConnector>(m_channel, m_form->m_cmbChannel, Snapshot( *m_channel));
+	m_conRange = xqcon_create<XQComboBoxConnector>(m_range, m_form->m_cmbRange, Snapshot( *m_range));
 }
 
 void
@@ -52,38 +52,42 @@ XDCSource::showForms() {
 
 void
 XDCSource::start() {
-  m_output->setUIEnabled(true);
-  m_function->setUIEnabled(true);
-  m_value->setUIEnabled(true);
-  m_channel->setUIEnabled(true);
-  m_range->setUIEnabled(true);
-        
-  m_lsnOutput = output()->onValueChanged().connectWeak(
-                          shared_from_this(), &XDCSource::onOutputChanged);
-  m_lsnFunction = function()->onValueChanged().connectWeak(
-                          shared_from_this(), &XDCSource::onFunctionChanged);
-  m_lsnValue = value()->onValueChanged().connectWeak(
-                        shared_from_this(), &XDCSource::onValueChanged);
-  m_lsnChannel = channel()->onValueChanged().connectWeak(
-                          shared_from_this(), &XDCSource::onChannelChanged);
-  m_lsnRange = range()->onValueChanged().connectWeak(
-                          shared_from_this(), &XDCSource::onRangeChanged);
-  updateStatus();
+	m_output->setUIEnabled(true);
+	m_function->setUIEnabled(true);
+	m_value->setUIEnabled(true);
+	m_channel->setUIEnabled(true);
+	m_range->setUIEnabled(true);
+
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
+							  shared_from_this(), &XDCSource::onOutputChanged);
+		m_lsnFunction = tr[ *function()].onValueChanged().connectWeakly(
+							  shared_from_this(), &XDCSource::onFunctionChanged);
+		m_lsnValue = tr[ *value()].onValueChanged().connectWeakly(
+							shared_from_this(), &XDCSource::onValueChanged);
+		m_lsnChannel = tr[ *channel()].onValueChanged().connectWeakly(
+							  shared_from_this(), &XDCSource::onChannelChanged);
+		m_lsnRange = tr[ *range()].onValueChanged().connectWeakly(
+							  shared_from_this(), &XDCSource::onRangeChanged);
+		if(tr.commit())
+			break;
+	}
+	updateStatus();
 }
 void
 XDCSource::stop() {
-  m_lsnChannel.reset();
-  m_lsnOutput.reset();
-  m_lsnFunction.reset();
-  m_lsnValue.reset();
-  
-  m_output->setUIEnabled(false);
-  m_function->setUIEnabled(false);
-  m_value->setUIEnabled(false);
-  m_channel->setUIEnabled(false);
-  m_range->setUIEnabled(false);
-  
-  afterStop();
+	m_lsnChannel.reset();
+	m_lsnOutput.reset();
+	m_lsnFunction.reset();
+	m_lsnValue.reset();
+
+	m_output->setUIEnabled(false);
+	m_function->setUIEnabled(false);
+	m_value->setUIEnabled(false);
+	m_channel->setUIEnabled(false);
+	m_range->setUIEnabled(false);
+
+	afterStop();
 }
 
 void
@@ -94,7 +98,7 @@ XDCSource::visualize(const Snapshot &shot) {
 }
 
 void 
-XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
+XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
         changeOutput(ch, *output());
@@ -105,7 +109,7 @@ XDCSource::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &) {
+XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
         changeFunction(ch, *function());
@@ -116,7 +120,7 @@ XDCSource::onFunctionChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &) {
+XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
         changeValue(ch, *value(), true);
@@ -127,7 +131,7 @@ XDCSource::onValueChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &) {
+XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
         changeRange(ch, *range());
@@ -138,7 +142,7 @@ XDCSource::onRangeChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XDCSource::onChannelChanged(const shared_ptr<XValueNodeBase> &) {
+XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
     	m_lsnOutput->mask();

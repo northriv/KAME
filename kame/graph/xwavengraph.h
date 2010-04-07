@@ -112,7 +112,7 @@ private:
 		m_lsnOnIconChanged;
 
 	void onDumpTouched(const Snapshot &shot, XTouchableNode *);
-	void onFilenameChanged(const shared_ptr<XValueNodeBase> &);
+	void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
 	void onIconChanged(const Snapshot &shot, bool );
 
 	xqcon_ptr m_conFilename, m_conDump;

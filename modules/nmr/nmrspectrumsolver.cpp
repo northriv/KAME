@@ -59,7 +59,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 		windowfunc->add(WINDOW_FUNC_KAISER_3);
 	}
 	if(selector) {
-		if(!leastsquareonly) {
+		if( !leastsquareonly) {
 			selector->add(SPECTRUM_SOLVER_ZF_FFT);
 			selector->add(SPECTRUM_SOLVER_MEM_STRICT);
 	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
@@ -75,8 +75,14 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 		selector->add(SPECTRUM_SOLVER_LS_HQ);
 		selector->add(SPECTRUM_SOLVER_LS_AICc);
 		selector->add(SPECTRUM_SOLVER_LS_MDL);
-		m_lsnOnChanged = selector->onValueChanged().connectWeak(shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
-		onSolverChanged(selector);
+		for(Transaction tr( *selector);; ++tr) {
+			m_lsnOnChanged = tr[ *selector].onValueChanged().connectWeakly(
+				shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
+			if(tr.commit()) {
+				onSolverChanged(tr, selector.get());
+				break;
+			}
+		}
 	}
 }
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
@@ -117,7 +123,7 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 }
 
 void
-SpectrumSolverWrapper::onSolverChanged(const shared_ptr<XValueNodeBase> &) {
+SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<SpectrumSolver> solver;
 	bool has_window = true;
 	bool has_length = true;

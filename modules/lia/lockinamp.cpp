@@ -105,7 +105,7 @@ XLIA::visualize(const Snapshot &shot) {
 }
 
 void 
-XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
+XLIA::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         changeOutput(*output());
     }
@@ -115,7 +115,7 @@ XLIA::onOutputChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
+XLIA::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         changeFreq(*frequency());
     }
@@ -125,7 +125,7 @@ XLIA::onFreqChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &) {
+XLIA::onSensitivityChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         changeSensitivity(*sensitivity());
     }
@@ -135,7 +135,7 @@ XLIA::onSensitivityChanged(const shared_ptr<XValueNodeBase> &) {
     }
 }
 void 
-XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &) {
+XLIA::onTimeConstChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         changeTimeConst(*timeConst());
     }
@@ -148,14 +148,18 @@ XLIA::onTimeConstChanged(const shared_ptr<XValueNodeBase> &) {
 void *
 XLIA::execute(const atomic<bool> &terminated) {
 
-	m_lsnOutput = output()->onValueChanged().connectWeak(
-		shared_from_this(), &XLIA::onOutputChanged);
-	m_lsnFreq = frequency()->onValueChanged().connectWeak(
-		shared_from_this(), &XLIA::onFreqChanged);
-	m_lsnSens = sensitivity()->onValueChanged().connectWeak(
-		shared_from_this(), &XLIA::onSensitivityChanged);
-	m_lsnTimeConst = timeConst()->onValueChanged().connectWeak(
-		shared_from_this(), &XLIA::onTimeConstChanged);
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
+			shared_from_this(), &XLIA::onOutputChanged);
+		m_lsnFreq = tr[ *frequency()].onValueChanged().connectWeakly(
+			shared_from_this(), &XLIA::onFreqChanged);
+		m_lsnSens = tr[ *sensitivity()].onValueChanged().connectWeakly(
+			shared_from_this(), &XLIA::onSensitivityChanged);
+		m_lsnTimeConst = tr[ *timeConst()].onValueChanged().connectWeakly(
+			shared_from_this(), &XLIA::onTimeConstChanged);
+		if(tr.commit())
+			break;
+	}
 
 	while( !terminated) {
 		double fetch_freq = *fetchFreq();

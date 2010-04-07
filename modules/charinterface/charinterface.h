@@ -98,8 +98,8 @@ private:
 	shared_ptr<XStringNode> m_script_query;
 	shared_ptr<XListener> m_lsnOnSendRequested;
 	shared_ptr<XListener> m_lsnOnQueryRequested;
-	void onSendRequested(const shared_ptr<XValueNodeBase> &);
-	void onQueryRequested(const shared_ptr<XValueNodeBase> &);
+	void onSendRequested(const Snapshot &shot, XValueNodeBase *);
+	void onQueryRequested(const Snapshot &shot, XValueNodeBase *);
 };
 
 class XPort {
