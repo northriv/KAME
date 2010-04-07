@@ -78,7 +78,7 @@ start_routine(void *) {
 		//		gn1->_print();
 		for(Transaction tr1(*gn1); ; ++tr1){
 //			tr1.print();
-			Snapshot &ctr1(tr1); // For reading.
+			const Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
 			tr1[gn3] = ctr1[gn3] + 1;
 			Snapshot str1(tr1);
@@ -244,12 +244,11 @@ main(int argc, char **argv)
 			trans(*p2113) = 0;
 
 			for(Transaction tr1(*gn1); ; ++tr1){
-				Snapshot &ctr1(tr1); // For reading.
+				const Snapshot &ctr1(tr1); // For reading.
 				tr1[gn1] = ctr1[gn1] + 1;
 				tr1[gn3] = ctr1[gn3] + 1;
-				Snapshot str1(tr1);
-				tr1[gn1] = str1[gn1] - 1;
-				tr1[gn3] = str1[gn3] - 1;
+				tr1[gn1] = ctr1[gn1] - 1;
+				tr1[gn3] = ctr1[gn3] - 1;
 				if(tr1.commit()) break;
 				printf("f");
 			}

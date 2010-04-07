@@ -276,7 +276,7 @@ XWaveNGraph::Payload::dump(std::fstream &stream) {
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
 	for(int i = 0; i < shot[ *this].numPlots(); ++i) {
-		int rowcnt = tshot[ *this].rowCount();
+		int rowcnt = shot[ *this].rowCount();
 		double *colx = tr[ *this].cols(shot[ *this].colX(i));
 		double *coly = NULL;
 		if(shot[ *this].colY1(i) >= 0)

@@ -52,12 +52,12 @@ int main(int argc, char *argv[])
 	KCmdLineArgs::init( argc, argv, &aboutData );
 
 	KCmdLineOptions options;
-	options.add("logging", ki18n("log debuging info."));
+	options.add("logging", ki18n("log debugging info."));
 	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
 	options.add("nodr");
 	options.add("nodirectrender", ki18n("do not use direct rendering"));
-	options.add("module <path>", ki18n("load a specified module"));
+	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
 	options.add("+[File]", ki18n("measurement file to open"));
 
 	KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	KApplication *app;
 	app = new KApplication;
   
-	std::deque<XString> modules_core, modules;
+	QStringList module_dir;
 	{
 		KGlobal::dirs()->addPrefix(".");
 		makeIcons( KIconLoader::global());
@@ -96,10 +96,7 @@ int main(int argc, char *argv[])
 			// Use UTF8 conversion from std::string to QString.
 			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
             
-			QStringList module_path = args->getOptionList("module");
-			for(QStringList::const_iterator it = module_path.begin(); it != module_path.end(); it++) {
-				modules_core.push_back(it->toLatin1().data());
-			}
+			module_dir = args->getOptionList("moduledir");
 
 #ifdef __SSE2__
 			// Check CPU specs.
@@ -139,8 +136,10 @@ int main(int argc, char *argv[])
 #ifdef __linux__
 	LTDL_SET_PRELOADED_SYMBOLS();
 #endif
-	QStringList libdirs = KGlobal::dirs()->resourceDirs("lib");
-	for(QStringList::iterator it = libdirs.begin(); it != libdirs.end(); it++) {
+	if(module_dir.isEmpty())
+		module_dir = KGlobal::dirs()->resourceDirs("lib");
+	std::deque<XString> modules_core, modules;
+	for(QStringList::iterator it = module_dir.begin(); it != module_dir.end(); it++) {
 		QString path;
 		path = *it + "kame/core_modules";
 		lt_dladdsearchdir(path.toLocal8Bit().data());

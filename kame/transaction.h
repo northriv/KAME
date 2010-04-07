@@ -89,23 +89,28 @@ public:
 
 	XN *upperNode(Snapshot<XN> &shot);
 
-	//! Data and accessor linked to the node.
+	//! Data holder and accessor linked to the node.
 	//! Re-implement members in its subclasses.
+	//! The instances have to be capable of copy-construction.
 	struct Payload : public atomic_countable {
 		Payload() : m_node(0), m_serial(-1), m_tr(0) {}
 		virtual ~Payload() {}
+
 		//! points to the node.
 		XN &node() {return *m_node;}
 		//! points to the node.
 		const XN &node() const {return *m_node;}
 		int64_t serial() const {return this->m_serial;}
 		Transaction<XN> &tr() { return *this->m_tr;}
-		virtual Payload *clone(Transaction<XN> &tr, int64_t serial) = 0;
 
 		virtual void catchEvent(const shared_ptr<XN>&, int) {}
 		virtual void releaseEvent(const shared_ptr<XN>&, int) {}
 		virtual void moveEvent(unsigned int src_idx, unsigned int dst_idx) {}
 		virtual void listChangeEvent() {}
+	private:
+		friend class Node;
+		friend class Transaction<XN>;
+		virtual Payload *clone(Transaction<XN> &tr, int64_t serial) = 0;
 
 		XN *m_node;
 		//! Serial number of the transaction.
