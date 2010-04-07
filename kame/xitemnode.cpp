@@ -57,26 +57,26 @@ XComboNode::value(const XString &s) {
 void
 XComboNode::value(int t) {
     if(this->beforeValueChanged().empty() && this->onValueChanged().empty()) {
-        trans(*this) = t;
+        trans( *this) = t;
     }
     else {
 		shared_ptr<XValueNodeBase> ptr =
 			dynamic_pointer_cast<XValueNodeBase>(this->shared_from_this());
         XScopedLock<XRecursiveMutex> lock(this->m_talker_mutex);
         this->beforeValueChanged().talk(ptr);
-        trans(*this) = t;
+        trans( *this) = t;
         this->onValueChanged().talk(ptr);
     }
 }
 
 void
 XComboNode::add(const XString &str) {
-	trans(*this).add(str);
+	trans( *this).add(str);
 }
 
 void
 XComboNode::clear() {
-	trans(*this).clear();
+	trans( *this).clear();
 }
 
 void
@@ -97,7 +97,7 @@ XComboNode::Payload::operator=(const XString &var) {
 	if(i == m_strings->size())
 		i = -1;
 	m_var = std::pair<XString, int>(var, i);
-    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
+    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	return *this;
 }
 
@@ -107,22 +107,26 @@ XComboNode::Payload::operator=(int t) {
 	    m_var = std::pair<XString, int>(m_strings->at(t), t);
 	else
 	    m_var = std::pair<XString, int>("", -1);
-    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
+    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	return *this;
 }
 
 void
 XComboNode::Payload::add(const XString &str) {
-	m_strings.reset(new std::deque<XString>(*m_strings));
+	m_strings.reset(new std::deque<XString>( *m_strings));
 	m_strings->push_back(str);
-	tr().mark(onListChanged(), static_cast<XItemNodeBase*>(&node()));
+	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
+	if(str == m_var.first) {
+		m_var.second = m_strings->size();
+	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
+	}
 }
 
 void
 XComboNode::Payload::clear() {
-	m_strings.reset(new std::deque<XString>(*m_strings));
+	m_strings.reset(new std::deque<XString>( *m_strings));
     m_strings->clear();
-	tr().mark(onListChanged(), static_cast<XItemNodeBase*>(&node()));
+	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
 }
 
 shared_ptr<const std::deque<XItemNodeBase::Item> >
@@ -134,7 +138,7 @@ XComboNode::Payload::itemStrings() const {
 		item.label = *it;
 		items->push_back(item);
 	}
-    if(*this < 0) {
+    if( *this < 0) {
 	    XItemNodeBase::Item item;
         item.name = to_str();
         if(item.name.length()) {

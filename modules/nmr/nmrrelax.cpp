@@ -607,6 +607,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	t1inv()->value(tr, 1000.0 * shot_this[ *this].m_params[0]);
 	t1invErr()->value(tr, 1000.0 * shot_this[ *this].m_errors[0]);
+
+	m_isPulserControlRequested = (emitter != this);
 }
 
 void
@@ -621,27 +623,29 @@ XNMRT1::visualize(const Snapshot &shot) {
 	}
 
 	//set new P1s
-	if(shot[ *active()]) {
+	if(shot[ *active()] && m_isPulserControlRequested.compareAndSet((int)true, (int)false)) {
 		shared_ptr<XPulser> _pulser = shot[ *pulser()];
 		if(_pulser) {
-			double p1min = shot[ *p1Min()];
-			double p1max = shot[ *p1Max()];
-			double x = randMT19937();
-			double np1, np2;
-			np1 = f(x);
-			np2 = f(1-x);
-			_pulser->output()->value(false);
-			switch(shot[ *mode()]) {
-			case MEAS_T1:
-			case MEAS_ST_E:
-				_pulser->combP1()->value(np1);
-				_pulser->combP1Alt()->value(np2);
-				break;
-			case MEAS_T2:
-				_pulser->tau()->value(np1 / 2.0);
-				break;
+			for(Transaction tr( *_pulser);; ++tr) {
+				double p1min = shot[ *p1Min()];
+				double p1max = shot[ *p1Max()];
+				double x = randMT19937();
+				double np1, np2;
+				np1 = f(x);
+				np2 = f(1-x);
+				switch(shot[ *mode()]) {
+				case MEAS_T1:
+				case MEAS_ST_E:
+					tr[ *_pulser->combP1()] = np1;
+					tr[ *_pulser->combP1Alt()] = np2;
+					break;
+				case MEAS_T2:
+					tr[ *_pulser->tau()] = np1 / 2.0;
+					break;
+				}
+				if(tr.commit())
+					break;
 			}
-			_pulser->output()->value(true);
 		}
 	}
 

@@ -255,10 +255,10 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 
 	if(emitter == _pulse.get()) {
 		fssum(tr, shot_pulse, shot_others);
-		tr[ *this].m_bRearrangeInstrumNext = true;
+		m_isInstrumControlRequested = true;
 	}
 	else
-		tr[ *this].m_bRearrangeInstrumNext = false;
+		m_isInstrumControlRequested = false;
 	
 	analyzeIFT(tr, shot_pulse);
 	std::vector<std::complex<double> > &wave(tr[ *this].m_wave);
@@ -291,7 +291,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		return;
 	}
 
-	if(shot[ *this].m_bRearrangeInstrumNext)
+	if(m_isInstrumControlRequested.compareAndSet((int)true, (int)false))
 		rearrangeInstrum(shot);
 
 	int length = shot[ *this].wave().size();

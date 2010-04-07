@@ -75,8 +75,6 @@ public:
 
 		std::deque<std::pair<double, double> > m_peaks;
 
-		bool m_bRearrangeInstrumNext;
-
 		shared_ptr<FFT> m_ift, m_preFFT;
 
 		XTime m_timeClearRequested;
@@ -143,6 +141,7 @@ private:
 
 	void onCondChanged(const shared_ptr<XValueNodeBase> &);
 
+	atomic<int> m_isInstrumControlRequested;
 protected:
 	const qshared_ptr<FRM> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;

@@ -49,8 +49,8 @@ public:
 	XPointerItemNode(const char *name, bool runtime, Transaction &tr_list,
 		const shared_ptr<TL> &list, bool auto_set_any = false)
 		:  XItemNodeBase(name, runtime, auto_set_any), m_list(list) {
-		m_lsnOnItemReleased = tr_list[ *list].onRelease().connect(*this, &XPointerItemNode<TL>::onItemReleased);
-		m_lsnOnListChanged = tr_list[ *list].onListChanged().connect(*this, &XPointerItemNode<TL>::lsnOnListChanged);
+		m_lsnOnItemReleased = tr_list[ *list].onRelease().connect( *this, &XPointerItemNode<TL>::onItemReleased);
+		m_lsnOnListChanged = tr_list[ *list].onListChanged().connect( *this, &XPointerItemNode<TL>::lsnOnListChanged);
     }
 	virtual ~XPointerItemNode() {}
 
@@ -126,7 +126,7 @@ public:
 	struct Payload : public XPointerItemNode<TL>::Payload {
 		Payload() : XPointerItemNode<TL>::Payload() {}
 		operator shared_ptr<T1>() const {
-	        return dynamic_pointer_cast<T1>(shared_ptr<XNode>(*this));
+	        return dynamic_pointer_cast<T1>(shared_ptr<XNode>( *this));
 		}
 		Payload &operator=(const shared_ptr<XNode> &t) {
 			XPointerItemNode<TL>::Payload::operator=(t);
@@ -157,10 +157,10 @@ public:
 		if(shared_ptr<TL> list = this->m_list.lock()) {
 			if(shot.size(list)) {
 				for(typename XNode::const_iterator it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
-					if(dynamic_pointer_cast<T1>(*it) || dynamic_pointer_cast<T2>(*it)) {
+					if(dynamic_pointer_cast<T1>( *it) || dynamic_pointer_cast<T2>( *it)) {
 						XItemNodeBase::Item item;
-						item.name = (*it)->getName();
-						item.label = (*it)->getLabel();
+						item.name = ( *it)->getName();
+						item.label = ( *it)->getLabel();
 						items->push_back(item);
 					}
 				}

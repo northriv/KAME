@@ -212,6 +212,8 @@ private:
 	const shared_ptr<XWaveNGraph> m_wave;
 
 	std::deque<double> m_windowWidthList;
+
+	atomic<int> m_isPulserControlRequested;
 };
 
 //---------------------------------------------------------------------------

@@ -487,11 +487,11 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	// Phase Inversion Cycling
 	bool picenabled = shot_this[ *m_picEnabled];
 	bool inverted = false;
-	if (picenabled && ( !_pulser || !shot_others[ *_pulser].time())) {
+	if(picenabled && ( !_pulser || !shot_others[ *_pulser].time())) {
 		picenabled = false;
 		gErrPrint(getLabel() + ": " + i18n("No active pulser!"));
 	}
-	if (_pulser) {
+	if(_pulser) {
 		inverted = shot_others[ *_pulser].invertPhase();
 	}
 
@@ -639,7 +639,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			0.001 * x * shot_this[ *this].m_dFreq);
 	}
 	
-	tr[ *this].m_bInvertPulserNext = picenabled && (shot_this[ *this].m_avcount % 2 == 1) && (emitter == _dso.get());
+	m_isPulseInversionRequested = picenabled && (shot_this[ *this].m_avcount % 2 == 1) && (emitter == _dso.get());
 
 	if( !shot_this[ *exAvgIncr()] && (avgnum != shot_this[ *this].m_avcount))
 		throw XSkippedRecordError(__FILE__, __LINE__);
@@ -656,7 +656,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		return;
 	}
 
-	if(shot[ *this].m_bInvertPulserNext) {
+	if(m_isPulseInversionRequested.compareAndSet((int)true, (int)false)) {
 		shared_ptr<XPulser> _pulser = shot[ *pulser()];
 		if(_pulser) {
 			for(Transaction tr( *_pulser);; ++tr) {

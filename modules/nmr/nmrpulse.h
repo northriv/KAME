@@ -94,8 +94,6 @@ public:
 		shared_ptr<SpectrumSolver> m_solverRecorded;
 		shared_ptr<FFT> m_ftDark;
 
-		bool m_bInvertPulserNext;
-
 		XTime m_timeClearRequested;
 	};
   
@@ -186,6 +184,7 @@ private:
 	//! Phase Inversion Cycling
 	const shared_ptr<XBoolNode> m_picEnabled;
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
+	atomic<int> m_isPulseInversionRequested;
 
 	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos,
 		m_conUsePNR, m_conPNRSolverList, m_conSolverList, 

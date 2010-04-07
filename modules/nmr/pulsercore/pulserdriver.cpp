@@ -399,53 +399,57 @@ XPulser::start() {
 		difFreq()->setUIEnabled(true);  
 	}
 
-	m_lsnOnPulseChanged = combMode()->onValueChanged().connectWeak(
-		shared_from_this(), &XPulser::onPulseChanged);
-	rtime()->onValueChanged().connect(m_lsnOnPulseChanged);
-	tau()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combPW()->onValueChanged().connect(m_lsnOnPulseChanged);
-	pw1()->onValueChanged().connect(m_lsnOnPulseChanged);
-	pw2()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combNum()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combPT()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combP1()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combP1Alt()->onValueChanged().connect(m_lsnOnPulseChanged);
-	aswSetup()->onValueChanged().connect(m_lsnOnPulseChanged);
-	aswHold()->onValueChanged().connect(m_lsnOnPulseChanged);
-	altSep()->onValueChanged().connect(m_lsnOnPulseChanged);
-	output()->onValueChanged().connect(m_lsnOnPulseChanged);
-	g2Setup()->onValueChanged().connect(m_lsnOnPulseChanged);
-	echoNum()->onValueChanged().connect(m_lsnOnPulseChanged);
-	drivenEquilibrium()->onValueChanged().connect(m_lsnOnPulseChanged);
-	numPhaseCycle()->onValueChanged().connect(m_lsnOnPulseChanged);
-	combOffRes()->onValueChanged().connect(m_lsnOnPulseChanged);
-	induceEmission()->onValueChanged().connect(m_lsnOnPulseChanged);    
-	induceEmissionPhase()->onValueChanged().connect(m_lsnOnPulseChanged);    
-	qswDelay()->onValueChanged().connect(m_lsnOnPulseChanged);
-	qswWidth()->onValueChanged().connect(m_lsnOnPulseChanged);
-	qswSoftSWOff()->onValueChanged().connect(m_lsnOnPulseChanged);
-	qswPiPulseOnly()->onValueChanged().connect(m_lsnOnPulseChanged);
-	invertPhase()->onValueChanged().connect(m_lsnOnPulseChanged);
-	conserveStEPhase()->onValueChanged().connect(m_lsnOnPulseChanged);
-	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
-		portSel(i)->onValueChanged().connect(m_lsnOnPulseChanged);
-	}
-  
-	if(haveQAMPorts()) {
-		p1Func()->onValueChanged().connect(m_lsnOnPulseChanged);
-		p2Func()->onValueChanged().connect(m_lsnOnPulseChanged);
-		combFunc()->onValueChanged().connect(m_lsnOnPulseChanged);
-		p1Level()->onValueChanged().connect(m_lsnOnPulseChanged);
-		p2Level()->onValueChanged().connect(m_lsnOnPulseChanged);
-		combLevel()->onValueChanged().connect(m_lsnOnPulseChanged);
-		masterLevel()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamOffset1()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamOffset2()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamLevel1()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamLevel2()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamDelay1()->onValueChanged().connect(m_lsnOnPulseChanged);
-		qamDelay2()->onValueChanged().connect(m_lsnOnPulseChanged);
-		difFreq()->onValueChanged().connect(m_lsnOnPulseChanged);    
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnOnPulseChanged = tr[ *combMode()].onValueChanged().connectWeakly(
+			shared_from_this(), &XPulser::onPulseChanged);
+		tr[ *rtime()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *tau()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combPW()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *pw1()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *pw2()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combNum()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combPT()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combP1()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combP1Alt()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *aswSetup()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *aswHold()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *altSep()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *output()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *g2Setup()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *echoNum()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *drivenEquilibrium()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *numPhaseCycle()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *combOffRes()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *induceEmission()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *induceEmissionPhase()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *qswDelay()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *qswWidth()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *qswSoftSWOff()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *qswPiPulseOnly()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *invertPhase()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *conserveStEPhase()].onValueChanged().connect(m_lsnOnPulseChanged);
+		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+			tr[ *portSel(i)].onValueChanged().connect(m_lsnOnPulseChanged);
+		}
+
+		if(haveQAMPorts()) {
+			tr[ *p1Func()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *p2Func()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *combFunc()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *p1Level()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *p2Level()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *combLevel()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *masterLevel()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamOffset1()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamOffset2()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamLevel1()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamLevel2()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamDelay1()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *qamDelay2()].onValueChanged().connect(m_lsnOnPulseChanged);
+			tr[ *difFreq()].onValueChanged().connect(m_lsnOnPulseChanged);
+		}
+		if(tr.commit())
+			break;
 	}
 }
 void
@@ -530,7 +534,7 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     	tr[ *this].m_invertPhase = reader.pop<uint16_t>();
     }
     catch (XRecordError &) {
-    	Snapshot &shot(tr);
+    	const Snapshot &shot(tr);
     	tr[ *this].m_difFreq = shot[ *difFreq()];
     	tr[ *this].m_combPW = shot[ *combPW()];
     	tr[ *this].m_combPT = shot[ *combPT()];
@@ -550,17 +554,18 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
 }
 
 void
-XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node) {
+XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	XTime time_awared = XTime::now();
+	Snapshot shot( *this);
   
-	const double _tau = rintTermMicroSec(*tau());
-	const double _asw_setup = rintTermMilliSec(*aswSetup());
-	const double _asw_hold = rintTermMilliSec(*aswHold());
-	const double _alt_sep = rintTermMilliSec(*altSep());
-	const int _echo_num = *echoNum();
+	const double _tau = rintTermMicroSec(shot[ *tau()]);
+	const double _asw_setup = rintTermMilliSec(shot[ *aswSetup()]);
+	const double _asw_hold = rintTermMilliSec(shot[ *aswHold()]);
+	const double _alt_sep = rintTermMilliSec(shot[ *altSep()]);
+	const int _echo_num = shot[ *echoNum()];
 	if(_asw_setup > 2.0 * _tau)
 		aswSetup()->value(2.0 * _tau);
-	if(node != altSep()) {
+	if(node != altSep().get()) {
 		if(_alt_sep != _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000) {
 			altSep()->value(_asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000);
 			return;
@@ -569,7 +574,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node) {
 
 	shared_ptr<RawData> writer(new RawData);
 
-	if( !*output()) {
+	if( !shot[ *output()]) {
 		finishWritingRaw(writer, XTime(), XTime());
 		return;
 	}
@@ -583,24 +588,24 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node) {
 	}
 */    
 //! ver 1 records below
-    writer->push((int16_t)*combMode());
+    writer->push((int16_t)shot[ *combMode()]);
     writer->push((int16_t)0); //reserve
-    writer->push((double)rintTermMilliSec(*rtime()));
+    writer->push((double)rintTermMilliSec(shot[ *rtime()]));
     writer->push((double)_tau);
-    writer->push((double)*pw1());
-    writer->push((double)*pw2());
-    writer->push((double)rintTermMilliSec(*combP1()));
+    writer->push((double)shot[ *pw1()]);
+    writer->push((double)shot[ *pw2()]);
+    writer->push((double)rintTermMilliSec(shot[ *combP1()]));
     writer->push((double)_alt_sep);
-    writer->push((double)rintTermMilliSec(*combP1Alt()));
+    writer->push((double)rintTermMilliSec(shot[ *combP1Alt()]));
     writer->push((double)_asw_setup);
     writer->push((double)_asw_hold);
 //! ver 2 records below
-    writer->push((double)*difFreq());
-    writer->push((double)*combPW());
-    writer->push((double)rintTermMicroSec(*combPT()));
-    writer->push((uint16_t)*echoNum());
-    writer->push((uint16_t)*combNum());
-    writer->push((int16_t)*rtMode());
+    writer->push((double)shot[ *difFreq()]);
+    writer->push((double)shot[ *combPW()]);
+    writer->push((double)rintTermMicroSec(shot[ *combPT()]));
+    writer->push((uint16_t)shot[ *echoNum()]);
+    writer->push((uint16_t)shot[ *combNum()]);
+    writer->push((int16_t)shot[ *rtMode()]);
 	int npat = 16;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_1) npat = 1;
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_2) npat = 2;
@@ -609,7 +614,7 @@ XPulser::onPulseChanged(const shared_ptr<XValueNodeBase> &node) {
 	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
 	writer->push((uint16_t)npat);
 //! ver 3 records below
-    writer->push((uint16_t) *invertPhase());
+    writer->push((uint16_t)shot[ *invertPhase()]);
 
 	finishWritingRaw(writer, time_awared, XTime::now());
 }

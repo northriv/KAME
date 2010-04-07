@@ -504,7 +504,7 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 void
 XQComboBoxConnector::onSelect(int idx) {
     try {
-        if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
             m_node->str(XString());
         else
             m_node->str(m_itemStrings->at(idx).name);

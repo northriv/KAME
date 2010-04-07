@@ -293,7 +293,7 @@ private:
   
 	xqcon_ptr m_conPulserDriver;
     
-	void onPulseChanged(const shared_ptr<XValueNodeBase> &);
+	void onPulseChanged(const Snapshot &shot, XValueNodeBase *node);
 
 	//! create RelPatList
 	void rawToRelPat(Transaction &tr) throw (XRecordError&);
