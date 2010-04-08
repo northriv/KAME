@@ -78,7 +78,8 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, interface->getLabel().c_str());
-	struct tcons con;
+	m_cons.push_back(tcons());
+	tcons &con(m_cons.back());
 	con.interface = interface;
 	con.btn = new QPushButton(m_pItem);
 	con.btn->setCheckable(true);
@@ -97,7 +98,6 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	numAddr->setSingleStep(1);
 	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
-	m_cons.push_back(con);
 	for(Transaction tr( *interface);; ++tr) {
 		con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
 			shared_from_this(), &XInterfaceListConnector::onControlChanged,
