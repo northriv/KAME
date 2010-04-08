@@ -514,7 +514,7 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 
 	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
 	m_softwareTrigger->setBlankTerm(m_interval * rec.recordLength);
-	fprintf(stderr, "Virtual trig start.\n");
+//	fprintf(stderr, "Virtual trig start.\n");
 
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));

@@ -97,6 +97,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	numAddr->setSingleStep(1);
 	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
+	m_cons.push_back(con);
 	for(Transaction tr( *interface);; ++tr) {
 		con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
 			shared_from_this(), &XInterfaceListConnector::onControlChanged,
@@ -106,7 +107,6 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 			break;
 		}
 	}
-	m_cons.push_back(con);
 }
 void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {

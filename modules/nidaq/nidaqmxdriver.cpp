@@ -172,7 +172,7 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 				return 0uLL;
 			}
 		}
-		if(!m_slowQueueSize)
+		if( !m_slowQueueSize)
 			return 0uLL;
 		cnt = m_slowQueue.front();
 		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
