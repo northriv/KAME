@@ -53,6 +53,7 @@ public:
 		}
 	private:
 		long m_x;
+//		double load[10000];
 	};
 };
 

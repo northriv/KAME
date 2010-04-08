@@ -71,6 +71,9 @@ start_routine(void *) {
     	gp3.reset();
     	p2.swap(p3);
 
+    	p2.reset();
+    	p2.swap(gp1);
+
         usleep(10);
 	}
     return 0;

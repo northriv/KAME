@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -20,8 +20,7 @@
 //! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
 //! \sa atomic_queue, atomic_pointer_queue
 template <typename T, unsigned int SIZE, typename const_ref = T>
-class atomic_nonzero_pod_queue
-{
+class atomic_nonzero_pod_queue {
 public:
     struct nospace_error {};
 
@@ -82,7 +81,7 @@ public:
             T *last = m_pLast;
             T *first = m_pFirst;
             readBarrier();
-            while(*last != 0) {
+            while( *last != 0) {
                 last++;
                 if(last == &m_ptrs[SIZE]) {
                 	readBarrier();
@@ -119,7 +118,7 @@ public:
         	return 0L;
         T *first = m_pFirst;
         readBarrier();
-        while(*first == 0) {
+        while( *first == 0) {
             first++;
             if(first == &m_ptrs[SIZE]) {
             	first = m_ptrs;
@@ -137,7 +136,7 @@ public:
     	T *first = m_pFirst;
     	readBarrier();
     	for(;;) {
-    		if(*first) {
+    		if( *first) {
 				T obj = atomicSwap((T)0, first);
 				if(obj) {
 		            m_pFirst = first;
@@ -168,14 +167,13 @@ class atomic_pointer_queue : public atomic_nonzero_pod_queue<T*, SIZE, const T*>
 
 //! Atomic FIFO with a pre-defined size for copy-constructable class.
 template <typename T, unsigned int SIZE>
-class atomic_queue
-{
+class atomic_queue {
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
 
     atomic_queue() {}
     ~atomic_queue() {
-        while(!empty()) pop();
+        while( !empty()) pop();
     }
 
     void push(const T&t) {
@@ -210,8 +208,7 @@ private:
 
 //! Atomic FIFO of a pre-defined size for copy-able class.
 template <typename T, unsigned int SIZE>
-class atomic_queue_reserved
-{
+class atomic_queue_reserved {
 public:
     typedef typename atomic_pointer_queue<T, SIZE>::nospace_error nospace_error;
     typedef uint_cas_max key;
@@ -229,7 +226,7 @@ public:
 
     void push(const T&t) {
     	key pack = m_reservoir.atomicPopAny();
-    	if(!pack)
+    	if( !pack)
     		throw nospace_error();
     	int idx = key2index(pack);
     	m_array[idx] = t;

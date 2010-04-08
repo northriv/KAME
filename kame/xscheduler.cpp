@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -60,19 +60,20 @@ XSignalBuffer::popOldest() {
 		if(m_skippedQueue.size())
 			m_oldest_timestamp = m_skippedQueue.front().second;
 	}
-	if(item)
+	if(item) {
+		ASSERT( !skipped_item);
 		return item;
+	}
 	return skipped_item;
 }
 void 
-XSignalBuffer::registerTransactionList(_XTransaction *transaction)
-{
+XSignalBuffer::registerTransactionList(_XTransaction *transaction) {
     unsigned long time(transaction->registered_time);
-    ASSERT(!isMainThread());
+    ASSERT( !isMainThread());
     for(;;) {
     	for(unsigned int i = 0; i < 20; i++) {
 			unsigned long cost = 0;
-			if(!m_queue.empty()) {
+			if( !m_queue.empty()) {
 				cost += time - m_oldest_timestamp;
 			}
 			if(cost > 100000uL) {
@@ -97,8 +98,8 @@ XSignalBuffer::registerTransactionList(_XTransaction *transaction)
     	}
         try {
             bool empty = m_queue.empty();
-            m_queue.push(transaction);
             if(empty) m_oldest_timestamp = transaction->registered_time;
+            m_queue.push(transaction);
             break;
         }
         catch (Queue::nospace_error &) {
@@ -107,8 +108,7 @@ XSignalBuffer::registerTransactionList(_XTransaction *transaction)
     }
 }
 bool
-XSignalBuffer::synchronize()
-{
+XSignalBuffer::synchronize() {
 	bool dotalk = true;
 	XTime time_start(XTime::now());
 	unsigned long time_stamp_start(timeStamp());

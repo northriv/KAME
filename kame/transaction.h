@@ -540,7 +540,7 @@ public:
 
 	template <typename T, typename tArgRef>
 	void mark(T &talker, tArgRef arg) {
-		_Message<XN> *m = talker.message(arg);
+		_Message<XN> *m = talker.createMessage(arg);
 		if(m)
 			m_messages.push_back(shared_ptr<_Message<XN> >(m));
 	}

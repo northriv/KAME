@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "transaction_impl.h"
 template class Transactional::Node<class XNode>;
+atomic<int> Transactional::leak_checker::s_cnt = 0;
 
 #include "xnode.h"
 #include <typeinfo>
