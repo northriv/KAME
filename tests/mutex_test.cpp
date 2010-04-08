@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include <thread.h>
-#include <spinlock.h>
 #include "thread.cpp"
 
 atomic<int> objcnt = 0;
