@@ -56,7 +56,7 @@ class _XTalkerBase {
 protected:
 	_XTalkerBase() {}
 public:
-	virtual ~_XTalkerBase();
+	virtual ~_XTalkerBase() {}
 protected:
 };
 

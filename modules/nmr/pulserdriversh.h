@@ -34,7 +34,7 @@ public:
 	//! time resolution [ms]
     virtual double resolution() const;
 protected:
-    //! Sends patterns to pulser or turn-off
+    //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
     //! Converts RelPatList to native patterns
     virtual void createNativePatterns(Transaction &tr);

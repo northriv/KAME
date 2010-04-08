@@ -34,7 +34,7 @@ public:
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
-    //! Sends patterns to pulser or turn-off
+    //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
     //! Converts RelPatList to native patterns
     virtual void createNativePatterns(Transaction &tr);

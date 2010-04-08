@@ -17,7 +17,6 @@
 #include "xnode.h"
 #include "xlistnode.h"
 #include "xitemnode.h"
-#include "rwlock.h"
 
 #include <vector>
 #include <deque>

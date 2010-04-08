@@ -426,8 +426,7 @@ fastFill(T* p, T x, unsigned int cnt) {
 }
 
 void
-XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
-	Snapshot shot( *this);
+XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
 		m_suspendDO = true;
@@ -527,7 +526,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 			genBankAO();
 		}
 		//write pre-ample.
-		fastFill(&m_genBufDO[0], (tRawDO)0, cnt_preample);
+		fastFill( &m_genBufDO[0], (tRawDO)0, cnt_preample);
 		
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
@@ -570,7 +569,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 		if(m_taskAO != TASK_UNDEF)
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 	}
-	fprintf(stderr, "Prefilling done.\n");
+//	fprintf(stderr, "Prefilling done.\n");
 	//slave must start before the master.
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
 	if(m_taskGateCtr != TASK_UNDEF)
@@ -578,7 +577,7 @@ XNIDAQmxPulser::startPulseGen() throw (XInterface::XInterfaceError &) {
 	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxStartTask(m_taskDOCtr));
 	m_suspendDO = false;
-	fprintf(stderr, "Starting AO....\n");
+//	fprintf(stderr, "Starting AO....\n");
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));	
 	m_suspendAO = false;
@@ -617,9 +616,11 @@ XNIDAQmxPulser::stopPulseGen() {
 		if(m_taskDOCtr != TASK_UNDEF)
 		    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDOCtr));
 	    CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
-		if(m_taskGateCtr != TASK_UNDEF)
-		    CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
-		if(!CLEAR_TASKS_EVERYTIME) {
+		if(m_taskGateCtr != TASK_UNDEF) {
+			CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone (m_taskGateCtr, 0.1));
+			CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
+		}
+		if( !CLEAR_TASKS_EVERYTIME) {
 			if(m_taskAO != TASK_UNDEF)
 			    CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			if(m_taskDOCtr != TASK_UNDEF)
@@ -642,7 +643,7 @@ XNIDAQmxPulser::aoVoltToRaw(const std::complex<double> &volt)
 		double y = 0.0;
 		double *pco = m_coeffAO[ch];
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-			y += (*pco++) * x;
+			y += ( *pco++) * x;
 			x *= volts[ch];
 		}
 		z.ch[ch] = lrint(y);
@@ -662,14 +663,14 @@ XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag,
 }
 void *
 XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminated) {
-	while(!terminated) {
+	while( !terminated) {
 		writeBufAO(terminated, m_suspendAO);
 	}
 	return NULL;
 }
 void *
 XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminated) {
-	while(!terminated) {
+	while( !terminated) {
 		writeBufDO(terminated, m_suspendDO);
 	}
 	return NULL;
@@ -962,11 +963,13 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
-	stopPulseGen();
+	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
-		startPulseGen();
+		startPulseGen(shot);
+	}
+	else {
+		stopPulseGen();
 	}
 }
-

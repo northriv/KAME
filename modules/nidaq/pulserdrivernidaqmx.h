@@ -28,6 +28,11 @@ public:
 
     //! time resolution [ms]
     virtual double resolution() const {return m_resolutionDO;}
+
+    struct Payload : public XNIDAQmxDriver<XPulser>::Payload {
+    private:
+    	friend class XNIDAQmxPulser;
+    };
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &) = 0;
 	virtual void close() throw (XInterface::XInterfaceError &);
@@ -40,9 +45,9 @@ protected:
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
 	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 
        	 
-    //! SendS patterns to pulser or turn-off
+    //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
-    //! Converts RelPatList to native patterns
+    //! Converts RelPatList to native patterns.
     virtual void createNativePatterns(Transaction &tr);
 
     //! minimum period of pulses [ms]
@@ -51,7 +56,7 @@ protected:
 	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
 	void openAODO() throw (XInterface::XInterfaceError &);
 private:
-	void startPulseGen() throw (XInterface::XInterfaceError &);
+	void startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &);
 	void stopPulseGen();
 	
 	void clearTasks();

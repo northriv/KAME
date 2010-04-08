@@ -1,3 +1,12 @@
+* Thu Apr 8 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.1.1-1)
+- No more mask/unmask for Talker/Listener.
+- puserdrivernidaqmx.cpp: Surpress warning during stopPulseGen().
+
+* Wed Apr 7 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.1.0-1)
+- transaction.h, xnode.h: Apply lock-free software transactional memory to most of all internals.
+
 * Wed Jan 6 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.0.0-1)
 - dso.cpp, nmrpulse.cpp: Averaging restarts when a clear button is invoked.

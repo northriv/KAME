@@ -216,7 +216,7 @@ protected:
 	typedef FFT::twindowfunc tpulsefunc;
 	tpulsefunc pulseFunc(const XString &str) const;
 
-    //! Sends patterns to pulser or turn-off
+    //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) = 0;
     //! Converts RelPatList to native patterns
     virtual void createNativePatterns(Transaction &tr) = 0;
