@@ -1,8 +1,9 @@
-* Thu Apr 8 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Fri Apr 9 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.1-1)
 - No more mask/unmask for Talker/Listener.
 - puserdrivernidaqmx.cpp: Surpress warning during stopPulseGen().
 - nmrspectrumbase_impl.h: Fix for coarse resolution.
+- transaction_signal.h: Fix memory leaks.
 
 * Wed Apr 7 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.0-1)
