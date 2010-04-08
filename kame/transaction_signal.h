@@ -35,8 +35,7 @@ struct _ListenerRef : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 		XListener::FLAGS flags) :
 		_XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-		if( !(this->m_flags & XListener::FLAG_MASKED))
-			(m_obj.*m_func)(x.shot, x.arg);
+		(m_obj.*m_func)(x.shot, x.arg);
 	}
 private:
 	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
@@ -49,9 +48,8 @@ struct _ListenerWeak : public _XListenerImpl<Event<XN, tArg, tArgRef> > {
 		 XListener::FLAGS flags) :
 		 _XListenerImpl<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-		if( !(this->m_flags & XListener::FLAG_MASKED))
-			if(shared_ptr<tClass> p = m_obj.lock() )
-				(p.get()->*m_func)(x.shot, x.arg);
+		if(shared_ptr<tClass> p = m_obj.lock() )
+			(p.get()->*m_func)(x.shot, x.arg);
 	}
 private:
 	void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
@@ -72,8 +70,8 @@ struct _Message {
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 class Talker {
 public:
-	Talker() : m_masked(false) {}
-	Talker(const Talker &x) : m_listeners(x.m_listeners), m_masked(false) {}
+	Talker() {}
+	Talker(const Talker &x) : m_listeners(x.m_listeners) {}
 	virtual ~Talker() {}
 
 	template <class tObj, class tClass>
@@ -85,17 +83,6 @@ public:
 
 	void connect(const shared_ptr<XListener> &);
 	void disconnect(const shared_ptr<XListener> &);
-
-	//! Blocks emission of signals from this talker.
-	//! use this with owner's responsibility.
-	//! \todo obsoleted.
-	//! \sa unmask()
-	void mask() {ASSERT( !m_masked); m_masked = true;}
-	//! Un-blocks emission of signals from this talker.
-	//! use this with owner's responsibility.
-	//! \todo obsoleted.
-	//! \sa mask()
-	void unmask() {ASSERT( m_masked); m_masked = false;}
 
 	//! Requests a talk to connected listeners.
 	//! If a listener is not mainthread model, the listener will be called later.
@@ -113,7 +100,6 @@ private:
 	typedef std::deque<weak_ptr<_Listener> > ListenerList;
 	typedef std::deque<shared_ptr<XListener> > UnmarkedListenerList;
 	shared_ptr<ListenerList> m_listeners;
-	bool m_masked;
 
 	void connect(const shared_ptr<_Listener> &);
 
@@ -197,7 +183,7 @@ private:
 template <class XN, typename tArg, typename tArgRef>
 _Message<XN>*
 Talker<XN, tArg, tArgRef>::message(tArgRef arg) {
-	if( !m_listeners || m_masked)
+	if( !m_listeners)
 		return 0;
 	return new Message(arg, m_listeners);
 }
@@ -250,7 +236,7 @@ template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 	shared_ptr<ListenerList> new_list(
-		m_listeners ? (new ListenerList(*m_listeners)) : (new ListenerList));
+		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
 	for(typename ListenerList::iterator it = new_list->begin(); it != new_list->end();) {
 		if(shared_ptr<XListener> listener = it->lock()) {
 			// clean dead listeners and matching one.
@@ -270,7 +256,6 @@ void
 Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot,
 	const shared_ptr<ListenerList> &listeners,
 	const shared_ptr<UnmarkedListenerList> &unmarked, tArgRef arg) {
-//	if(this->m_bMasked) return;
 	if( !listeners) return;
 	_Event event(shot, arg);
 	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {

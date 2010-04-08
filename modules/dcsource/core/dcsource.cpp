@@ -101,7 +101,7 @@ void
 XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
-        changeOutput(ch, *output());
+        changeOutput(ch, shot[ *output()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + i18n(": Error while changing output, "));
@@ -112,7 +112,7 @@ void
 XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
-        changeFunction(ch, *function());
+        changeFunction(ch, shot[ *function()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + i18n(": Error while changing function, "));
@@ -123,7 +123,7 @@ void
 XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
-        changeValue(ch, *value(), true);
+        changeValue(ch, shot[ *value()], true);
     }
     catch (XKameError& e) {
         e.print(getLabel() + i18n(": Error while changing value, "));
@@ -134,7 +134,7 @@ void
 XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = *channel();
     try {
-        changeRange(ch, *range());
+        changeRange(ch, shot[ *range()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + i18n(": Error while changing value, "));
@@ -143,20 +143,20 @@ XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void 
 XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {
-	int ch = *channel();
     try {
-    	m_lsnOutput->mask();
-    	m_lsnFunction->mask();
-    	m_lsnValue->mask();
-    	m_lsnRange->mask();
-        queryStatus(ch);
-    	m_lsnOutput->unmask();
-    	m_lsnFunction->unmask();
-    	m_lsnValue->unmask();
-    	m_lsnRange->unmask();
+    	for(Transaction tr( *this);; ++tr) {
+    		int ch = tr[ *channel()];
+            queryStatus(tr, ch);
+            tr.unmark(m_lsnOutput);
+            tr.unmark(m_lsnFunction);
+            tr.unmark(m_lsnRange);
+            tr.unmark(m_lsnValue);
+    		if(tr.commit())
+    			break;
+    	}
     }
     catch (XKameError& e) {
-        e.print(getLabel() + i18n(": Error while changing value, "));
+        e.print(getLabel());
         return;
     }
 }

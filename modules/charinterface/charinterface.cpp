@@ -144,13 +144,11 @@ const std::vector<char> &
 XCharInterface::buffer() const {return m_xport->buffer();}
 
 void
-XCharInterface::send(const XString &str) throw (XCommError &)
-{
+XCharInterface::send(const XString &str) throw (XCommError &) {
     this->send(str.c_str());
 }
 void
-XCharInterface::send(const char *str) throw (XCommError &)
-{
+XCharInterface::send(const char *str) throw (XCommError &) {
 	XScopedLock<XCharInterface> lock(*this);
 	try {
 		dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
@@ -162,8 +160,7 @@ XCharInterface::send(const char *str) throw (XCommError &)
 	}
 }
 void
-XCharInterface::sendf(const char *fmt, ...) throw (XInterfaceError &)
-{
+XCharInterface::sendf(const char *fmt, ...) throw (XInterfaceError &) {
 	va_list ap;
 	int buf_size = SNPRINT_BUF_SIZE;
 	std::vector<char> buf;
@@ -186,8 +183,7 @@ XCharInterface::sendf(const char *fmt, ...) throw (XInterfaceError &)
 	this->send(&buf[0]);
 }
 void
-XCharInterface::write(const char *sendbuf, int size) throw (XCommError &)
-{
+XCharInterface::write(const char *sendbuf, int size) throw (XCommError &) {
 	XScopedLock<XCharInterface> lock(*this);
 	try {
 		dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
@@ -199,8 +195,7 @@ XCharInterface::write(const char *sendbuf, int size) throw (XCommError &)
 	}
 }
 void
-XCharInterface::receive() throw (XCommError &)
-{
+XCharInterface::receive() throw (XCommError &) {
 	XScopedLock<XCharInterface> lock(*this);
 	try {
 		dbgPrint(driver()->getLabel() + " Receiving...");
@@ -215,8 +210,7 @@ XCharInterface::receive() throw (XCommError &)
 	}
 }
 void
-XCharInterface::receive(unsigned int length) throw (XCommError &)
-{
+XCharInterface::receive(unsigned int length) throw (XCommError &) {
 	XScopedLock<XCharInterface> lock(*this);
 	try {
 		dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
@@ -229,20 +223,17 @@ XCharInterface::receive(unsigned int length) throw (XCommError &)
 	}
 }
 void
-XCharInterface::query(const XString &str) throw (XCommError &)
-{
+XCharInterface::query(const XString &str) throw (XCommError &) {
     query(str.c_str());
 }
 void
-XCharInterface::query(const char *str) throw (XCommError &)
-{
+XCharInterface::query(const char *str) throw (XCommError &) {
 	XScopedLock<XCharInterface> lock(*this);
 	send(str);
 	receive();
 }
 void
-XCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &)
-{
+XCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &) {
 	va_list ap;
 	int buf_size = SNPRINT_BUF_SIZE;
 	std::vector<char> buf;
@@ -265,31 +256,30 @@ XCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &)
 	this->query(&buf[0]);
 }
 void
-XCharInterface::onSendRequested(const Snapshot &shot, XValueNodeBase *)
-{
+XCharInterface::onSendRequested(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XPort> port = m_xport;
     if(!port)
 		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
-    port->send(m_script_send->to_str().c_str());
+    port->send(shot[ *m_script_send].to_str().c_str());
 }
 void
-XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *)
-{
+XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XPort> port = m_xport;    
     if(!port)
 		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     XScopedLock<XCharInterface> lock(*this);
-    port->send(m_script_query->to_str().c_str());
+    port->send(shot[ *m_script_query].to_str().c_str());
     port->receive();
-    m_lsnOnQueryRequested->mask();
-    m_script_query->value(XString(&port->buffer()[0]));
-    m_lsnOnQueryRequested->unmask();
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *m_script_query] = XString(&port->buffer()[0]);
+		tr.unmark(m_lsnOnQueryRequested);
+		if(tr.commit())
+			break;
+	}
 }
 
 XPort::XPort(XCharInterface *interface)
-	: m_pInterface(interface)
-{
+	: m_pInterface(interface) {
 }
-XPort::~XPort()
-{
+XPort::~XPort() {
 }

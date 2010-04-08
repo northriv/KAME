@@ -33,8 +33,8 @@ XYK7651::open() throw (XInterface::XInterfaceError &) {
 }
 void
 XYK7651::changeFunction(int /*ch*/, int ) {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened()) return;
 	if(*function() == 0) {
 		range()->clear();
 		range()->add("10mV");
@@ -53,14 +53,14 @@ XYK7651::changeFunction(int /*ch*/, int ) {
 }
 void
 XYK7651::changeOutput(int /*ch*/, bool x) {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened()) return;
 	interface()->sendf("O%uE", x ? 1 : 0);
 }
 void
 XYK7651::changeValue(int /*ch*/, double x, bool autorange) {
-	XScopedLock<XInterface> lock(*interface());
-	if(!interface()->isOpened()) return;
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened()) return;
 	if(autorange)
 		interface()->sendf("SA%.10fE", x);
 	else
@@ -69,7 +69,7 @@ XYK7651::changeValue(int /*ch*/, double x, bool autorange) {
 double
 XYK7651::max(int /*ch*/, bool autorange) const {
 	int ran = *range();
-	if(*function() == 0) {
+	if( *function() == 0) {
 		if(autorange || (ran == -1))
 			ran = 4;
 		return 10e-3 * pow(10.0, (double)ran);
@@ -83,9 +83,9 @@ XYK7651::max(int /*ch*/, bool autorange) const {
 void
 XYK7651::changeRange(int /*ch*/, int ran) {
 	{
-		XScopedLock<XInterface> lock(*interface());
-		if(!interface()->isOpened()) return;
-		if(*function() == 0) {
+		XScopedLock<XInterface> lock( *interface());
+		if( !interface()->isOpened()) return;
+		if( *function() == 0) {
 			if((ran == -1))
 				ran = 4;
 			ran += 2;
@@ -116,13 +116,13 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	range()->add("99mA");
 }
 void
-XMicroTaskTCS::queryStatus(int ch) {
+XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {
 	unsigned int ran[3];
 	unsigned int v[3];
 	unsigned int o[3];
 	{
-		XScopedLock<XInterface> lock(*interface());
-		if(!interface()->isOpened()) return;
+		XScopedLock<XInterface> lock( *interface());
+		if( !interface()->isOpened()) return;
 		interface()->query("STATUS?");
 		if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
 			&ran[0], &v[0], &o[0],
@@ -130,14 +130,14 @@ XMicroTaskTCS::queryStatus(int ch) {
 			&ran[2], &v[2], &o[2]) != 9)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 	}
-	value()->value(pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch]);
-	output()->value(o[ch]);
-	range()->value(ran[ch] - 1);
+	tr[ *value()] = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
+	tr[ *output()] = o[ch];
+	tr[ *range()] = ran[ch] - 1;
 }
 void
 XMicroTaskTCS::changeOutput(int ch, bool x) {
 	{
-		XScopedLock<XInterface> lock(*interface());
+		XScopedLock<XInterface> lock( *interface());
 		if(!interface()->isOpened()) return;
 		unsigned int v[3];
 		interface()->query("STATUS?");
@@ -158,7 +158,7 @@ XMicroTaskTCS::changeOutput(int ch, bool x) {
 void
 XMicroTaskTCS::changeValue(int ch, double x, bool autorange) {
 	{
-		XScopedLock<XInterface> lock(*interface());
+		XScopedLock<XInterface> lock( *interface());
 		if(!interface()->isOpened()) return;
 		if((x >= 0.099) || (x < 0))
 			throw XInterface::XInterfaceError(i18n("Value is out of range."), __FILE__, __LINE__);
@@ -183,7 +183,7 @@ XMicroTaskTCS::changeValue(int ch, double x, bool autorange) {
 void
 XMicroTaskTCS::changeRange(int ch, int newran) {
 	{
-		XScopedLock<XInterface> lock(*interface());
+		XScopedLock<XInterface> lock( *interface());
 		if(!interface()->isOpened()) return;
 		unsigned int ran[3], v[3];
 		interface()->query("STATUS?");
@@ -205,7 +205,7 @@ double
 XMicroTaskTCS::max(int ch, bool autorange) const {
 	if(autorange) return 0.099;
 	{
-		XScopedLock<XInterface> lock(*interface());
+		XScopedLock<XInterface> lock( *interface());
 		if(!interface()->isOpened()) return 0.099;
 		unsigned int ran[3];
 		interface()->query("STATUS?");

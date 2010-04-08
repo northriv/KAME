@@ -95,19 +95,25 @@ void
 XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
-	double ret = thermo->getRawValue( *temp());
-	m_lsnValue->mask();
-	value()->value(ret);    
-	m_lsnValue->unmask();
+	double ret = thermo->getRawValue(shot[ *temp()]);
+	for(Transaction tr( *value());; ++tr) {
+		tr[ *value()] = ret;
+		tr.unmark(m_lsnValue);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = *thermometer();
 	if( !thermo) return;
-	double ret = thermo->getTemp( *value());
-	m_lsnTemp->mask();
-	temp()->value(ret);
-	m_lsnTemp->unmask();
+	double ret = thermo->getTemp(shot[ *value()]);
+	for(Transaction tr( *temp());; ++tr) {
+		tr[ *temp()] = ret;
+		tr.unmark(m_lsnTemp);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {

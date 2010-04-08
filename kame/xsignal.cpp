@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -31,22 +31,6 @@ XListener::XListener(FLAGS flags) :
     }
 }
 XListener::~XListener() {}
-void
-XListener::mask() {
-    for(;;) {
-    	FLAGS old = m_flags;
-	    if(m_flags.compareAndSet(old, (FLAGS)(old | FLAG_MASKED)))
-	    	break;
-    }
-}
-void
-XListener::unmask() {
-    for(;;) {
-    	FLAGS old = m_flags;
-	    if(m_flags.compareAndSet(old, (FLAGS)(old & ~FLAG_MASKED)))
-	    	break;
-    }
-}
 
 unsigned int
 XListener::delay_ms() const {
@@ -58,15 +42,3 @@ XListener::delay_ms() const {
 	return delay;
 }
 
-_XTalkerBase::_XTalkerBase() : m_bMasked(false) {}
-_XTalkerBase::~_XTalkerBase() {}
-void
-_XTalkerBase::mask() {
-    ASSERT(!m_bMasked);
-    m_bMasked = true;
-}
-void
-_XTalkerBase::unmask() {
-    ASSERT(m_bMasked);
-    m_bMasked = false;
-}

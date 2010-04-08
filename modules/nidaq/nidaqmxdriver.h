@@ -193,8 +193,8 @@ protected:
 	virtual void open() throw (XInterface::XInterfaceError &) {this->start();}
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
 	virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
-	void onOpen(const shared_ptr<XInterface> &);
-	void onClose(const shared_ptr<XInterface> &);
+	void onOpen(const Snapshot &shot, XInterface *);
+	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
 	virtual void afterStop();
 private:
@@ -209,14 +209,18 @@ XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime,
 	m_interface(XNode::create<XNIDAQmxInterface>("Interface", false,
 												 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(
-		this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak( 
-    	this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onClose);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
+			this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
+	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
+	    	this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onClose);
+		if(tr.commit())
+			break;
+	}
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
+XNIDAQmxDriver<tDriver>::onOpen(const Snapshot &shot, XInterface *) {
 	try {
 		open();
 	}
@@ -227,7 +231,7 @@ XNIDAQmxDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::onClose(const shared_ptr<XInterface> &) {
+XNIDAQmxDriver<tDriver>::onClose(const Snapshot &shot, XInterface *) {
 	try {
 		this->stop();
 	}

@@ -55,17 +55,10 @@ XEntryListConnector::XEntryListConnector
 void
 XEntryListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
-		if((*it)->entry->driver().get() == driver) {
-			tcons::tlisttext text;
-			text.label = ( *it)->label;
-			text.str.reset(new XString(shot[ *( *it)->entry->value()].to_str()));
-			( *it)->tlkOnRecordRedirected->talk(text);
+		if(( *it)->entry->driver().get() == driver) {
+			( *it)->label->setText(shot[ *( *it)->entry->value()].to_str());
 		}
 	}
-}
-void
-XEntryListConnector::tcons::onRecordRedirected(const tlisttext &text) {
-    text.label->setText(text.str->c_str());
 }
 
 void
@@ -90,11 +83,6 @@ XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payloa
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
 		if(( *it)->entry == e.released) {
-			for(Transaction tr( *( *it)->driver);; ++tr) {
-				tr[ *( *it)->driver].onRecord().disconnect(m_lsnOnRecord);
-				if(tr.commit())
-					break;
-			}
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == ( *it)->label) m_pItem->removeRow(i);
 			}
@@ -113,15 +101,6 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_pItem->setText(i, 0, entry->getLabel().c_str());
 
 	shared_ptr<XDriver> driver = entry->driver();
-	for(Transaction tr( *driver);; ++tr) {
-		if(m_lsnOnRecord)
-			tr[ *driver].onRecord().connect(m_lsnOnRecord);
-		else
-			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
-				shared_from_this(), &XEntryListConnector::onRecord);
-		if(tr.commit())
-			break;
-	}
 
 	m_cons.push_back(shared_ptr<tcons>(new tcons));
 	m_cons.back()->entry = entry;
@@ -138,11 +117,13 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_cons.back()->condelta = xqcon_create<XQDoubleSpinBoxConnector>(entry->delta(), numDelta);
 	m_pItem->setCellWidget(i, 3, numDelta);
 	m_cons.back()->driver = driver;
-	m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);
-	m_cons.back()->lsnOnRecordRedirected = m_cons.back()->tlkOnRecordRedirected->connectWeak(
-		m_cons.back(), &XEntryListConnector::tcons::onRecordRedirected,
-		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-  
+	for(Transaction tr( *driver);; ++tr) {
+		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XEntryListConnector::onRecord,
+				XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		if(tr.commit())
+			break;
+	}
 
 	ASSERT(m_pItem->numRows() == (int)m_cons.size());
 }

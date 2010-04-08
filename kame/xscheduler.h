@@ -17,13 +17,12 @@
 #include <atomic_queue.h>
 
 //! Synchronize requests in talkers with main-thread
-//! \sa XTalker, XListener
-class XSignalBuffer
-{
+//! \sa Talker, XListener
+class XSignalBuffer {
 public:
 	XSignalBuffer();
 	~XSignalBuffer();
-	//! Called by XTalker
+	//! Called by Talker
 	void registerTransactionList(_XTransaction *);
 	//! be called by thread pool
 	bool synchronize(); //!< \return true if not busy

@@ -58,12 +58,13 @@ XInterface::getLabel() const
 void
 XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *)
 {
-	if(*control()) {
+	if(shot[ *control()]) {
 	    g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
 		start();
 	}
 	else {
-		m_tlkOnClose.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
+		Snapshot shot( *this);
+		shot.talk(shot[ *this].onClose(), this);
 //		stop();
 	}
 }
@@ -80,21 +81,26 @@ XInterface::start() {
 	}
 	catch (XInterfaceError &e) {
         e.print(getLabel() + i18n(": Opening interface failed, because "));
-		lsnOnControlChanged->mask();
-		control()->value(false);
-		lsnOnControlChanged->unmask();
+    	for(Transaction tr( *this);; ++tr) {
+    		tr[ *control()] = false;
+    		tr.unmark(lsnOnControlChanged);
+    		if(tr.commit())
+    			break;
+    	}
 		return;
 	}
 
-	device()->setUIEnabled(false);
-	port()->setUIEnabled(false);
-	address()->setUIEnabled(false);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *device()].setUIEnabled(false);
+		tr[ *port()].setUIEnabled(false);
+		tr[ *address()].setUIEnabled(false);
 
-	lsnOnControlChanged->mask();
-	control()->value(true);
-	lsnOnControlChanged->unmask();
-	
-	m_tlkOnOpen.talk(dynamic_pointer_cast<XInterface>(shared_from_this()));
+		tr[ *control()] = true;
+		tr.unmark(lsnOnControlChanged);
+		tr.mark(tr[ *this].onOpen(), this);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XInterface::stop() {
@@ -107,13 +113,16 @@ XInterface::stop() {
         e.print(getLabel() + i18n(": Closing port failed, because"));
 	}
 
-	device()->setUIEnabled(true);
-	port()->setUIEnabled(true);
-	address()->setUIEnabled(true);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *device()].setUIEnabled(true);
+		tr[ *port()].setUIEnabled(true);
+		tr[ *address()].setUIEnabled(true);
 
-	lsnOnControlChanged->mask();
-	control()->value(false);
-	lsnOnControlChanged->unmask();
-
+		tr[ *control()] = false;
+		tr.unmark(lsnOnControlChanged);
+		tr.mark(tr[ *this].onClose(), this);
+		if(tr.commit())
+			break;
+	}
 	//g_statusPrinter->clear();
 }

@@ -46,8 +46,8 @@ protected:
 	const shared_ptr<XDummyInterface> &interface() const {return m_interface;}
 private:
 	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
-	void onOpen(const shared_ptr<XInterface> &);
-	void onClose(const shared_ptr<XInterface> &);
+	void onOpen(const Snapshot &shot, XInterface *);
+	void onClose(const Snapshot &shot, XInterface *);
 	const shared_ptr<XDummyInterface> m_interface;
 };
 
@@ -58,14 +58,18 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
 	m_interface(XNode::create<XDummyInterface>("Interface", false,
 											   dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(
-    	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak(
-    	this->shared_from_this(), &XDummyDriver<tDriver>::onClose);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
+	    	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
+	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
+	    	this->shared_from_this(), &XDummyDriver<tDriver>::onClose);
+		if(tr.commit())
+			break;
+	}
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
+XDummyDriver<tDriver>::onOpen(const Snapshot &shot, XInterface *) {
 	try {
 		this->start();
 	}
@@ -76,7 +80,7 @@ XDummyDriver<tDriver>::onOpen(const shared_ptr<XInterface> &) {
 }
 template<class tDriver>
 void
-XDummyDriver<tDriver>::onClose(const shared_ptr<XInterface> &) {
+XDummyDriver<tDriver>::onClose(const Snapshot &shot, XInterface *) {
 	try {
 		this->stop();
 	}

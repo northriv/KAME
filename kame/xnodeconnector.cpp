@@ -199,15 +199,18 @@ XQLineEditConnector::onTextChanged(const QString &text) {
 void
 XQLineEditConnector::onTextChanged2(const QString &text) {
 	QPalette palette(m_pItem->palette());
-    m_lsnValueChanged->mask();
     try {
-		m_node->str(text);
+    	for(Transaction tr( *m_node);; ++tr) {
+    		tr[ *m_node].str(text);
+    		tr.unmark(m_lsnValueChanged);
+    		if(tr.commit())
+    			break;
+    	}
 		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
     	palette.setColor(QPalette::Text, Qt::red);
     }
-    m_lsnValueChanged->unmask();
 	m_pItem->setPalette(palette);
 }
 void
@@ -270,14 +273,22 @@ XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
 }
 void
 XQSpinBoxConnector::onChange(int val) {
-    m_lsnValueChanged->mask();
     if(m_iNode) {
-		m_iNode->value(val);
+    	for(Transaction tr( *m_iNode);; ++tr) {
+    		tr[ *m_iNode] = val;
+    		tr.unmark(m_lsnValueChanged);
+    		if(tr.commit())
+    			break;
+    	}
     }
     if(m_uINode) {
-		m_uINode->value(val);
+    	for(Transaction tr( *m_uINode);; ++tr) {
+    		tr[ *m_uINode] = val;
+    		tr.unmark(m_lsnValueChanged);
+    		if(tr.commit())
+    			break;
+    	}
     }
-    m_lsnValueChanged->unmask();
 }
 void
 XQSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -300,9 +311,12 @@ XKDoubleNumInputConnector::XKDoubleNumInputConnector(const shared_ptr<XDoubleNod
 }
 void
 XKDoubleNumInputConnector::onChange(double val) {
-    m_lsnValueChanged->mask();
-	m_node->value(val);
-    m_lsnValueChanged->unmask();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node] = val;
+		tr.unmark(m_lsnValueChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XKDoubleNumInputConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -320,9 +334,12 @@ XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode>
 }
 void
 XQDoubleSpinBoxConnector::onChange(double val) {
-    m_lsnValueChanged->mask();
-	m_node->value(val);
-    m_lsnValueChanged->unmask();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node] = val;
+		tr.unmark(m_lsnValueChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XQDoubleSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -459,7 +476,6 @@ XListQConnector::~XListQConnector() {
 }
 void
 XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
-	m_lsnMove->mask();
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
@@ -467,10 +483,10 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
 			throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
 		}
 		m_list->swap(tr, tr.list()->at(src), tr.list()->at(dst));
+		tr.unmark(m_lsnMove);
 		if(tr.commit())
 			break;
     }
-	m_lsnMove->unmask();
 }
 void
 XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
@@ -654,7 +670,7 @@ XKColorComboConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 
 XStatusPrinter::XStatusPrinter(QMainWindow *window) {
-    if(!window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
+    if( !window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
     m_pWindow = (window);
     m_pBar = (window->statusBar());
     m_pPopup  = (new KPassivePopup( window ));

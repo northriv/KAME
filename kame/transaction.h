@@ -377,7 +377,7 @@ public:
 
 	template <class T>
 	const typename T::Payload &operator[](const shared_ptr<T> &node) const {
-		return operator[](const_cast<const T&>(*node));
+		return operator[](const_cast<const T&>( *node));
 	}
 	template <class T>
 	const typename T::Payload &operator[](const T &node) const {

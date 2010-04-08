@@ -64,8 +64,15 @@ public:
 	void start();
 	void stop();
   
-	XTalker<shared_ptr<XInterface> > &onOpen() {return m_tlkOnOpen;}
-	XTalker<shared_ptr<XInterface> > &onClose() {return m_tlkOnClose;}
+	struct Payload : public XNode::Payload {
+		Talker<XInterface*, XInterface*> &onOpen() {return m_tlkOnOpen;}
+		const Talker<XInterface*, XInterface*> &onOpen() const {return m_tlkOnOpen;}
+		Talker<XInterface*, XInterface*> &onClose() {return m_tlkOnClose;}
+		const Talker<XInterface*, XInterface*> &onClose() const {return m_tlkOnClose;}
+	protected:
+		Talker<XInterface*, XInterface*> m_tlkOnOpen;
+		Talker<XInterface*, XInterface*> m_tlkOnClose;
+	};
 protected:  
 	virtual void open() throw (XInterfaceError &) = 0;
 	//! This can be called even if has already closed.
@@ -80,7 +87,6 @@ private:
 	const shared_ptr<XBoolNode> m_control;
 
 	shared_ptr<XListener> lsnOnControlChanged;
-	XTalker<shared_ptr<XInterface> > m_tlkOnOpen, m_tlkOnClose;
       
 	XRecursiveMutex m_mutex;
   

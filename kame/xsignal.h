@@ -30,24 +30,15 @@ template <class XN, typename tArg, typename tArgRef>
 class Talker;}
 
 //! Base class of listener, which holds pointers to object and function.
-//! Hold me by shared_ptr.
-class XListener
-{
+//! Hold instances by shared_ptr.
+class XListener {
 public:
 	virtual ~XListener();
-	//! block emission of signals to this listener.
-	//! use this with owner's responsibility.
-	//! \sa unmask(), _XTalkerBase::mask()
-	void mask();
-	//! un-block emission of signals to this listener.
-	//! use this with owner's responsibility.
-	//! \sa mask(), _XTalkerBase::unmask()
-	void unmask();
 	//! \return an appropriate delay for delayed transactions.
 	unsigned int delay_ms() const;
 
 	enum FLAGS {
-		FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02, FLAG_MASKED = 0x04,
+		FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02,
 		FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
 	};
 protected:
@@ -61,28 +52,15 @@ protected:
 
 #include "xsignal_prv.h"
 
-class _XTalkerBase
-{
+class _XTalkerBase {
 protected:
-	_XTalkerBase();
-
+	_XTalkerBase() {}
 public:
 	virtual ~_XTalkerBase();
-
-	//! block emission of signals from this talker.
-	//! use this with owner's responsibility.
-	//! \sa unmask()
-	void mask();
-	//! un-block emission of signals from this talker.
-	//! use this with owner's responsibility.
-	//! \sa mask()
-	void unmask();
 protected:
-	atomic<bool> m_bMasked;
 };
 
-struct _XTransaction
-{   
+struct _XTransaction {
 	_XTransaction() : registered_time(timeStamp()) {}
 	virtual ~_XTransaction() {}
 	const unsigned long registered_time;
@@ -96,8 +74,7 @@ void registerTransactionList(_XTransaction *);
 //! \p tArg: value which will be derivered
 //! \p tArgWrapper: copied argument, will be released by GC someday
 template <class tArg>
-class XTalker : public _XTalkerBase
-{
+class XTalker : public _XTalkerBase {
 public:
 	XTalker() {}
 	virtual ~XTalker() {}
@@ -105,7 +82,7 @@ public:
 	//! Associate XTalker to XListener
 	//! Talker will call user member function of \a listener.
 	//! This function can be called over once.
-	//! \sa disconnect(), mask(), unmask()
+	//! \sa disconnect()
 	//! XListener holds a pointer of a static function
 	//! \param func a pointer to static function
 	//! \param flags \sa XListener::FLAGS
@@ -114,7 +91,7 @@ public:
 	//! Associate XTalker to XListener
 	//! Talker will call user member function of \a listener.
 	//! This function can be called over once.
-	//! \sa disconnect(), mask(), unmask()
+	//! \sa disconnect()
 	//! XListener holds weak_ptr() of the instance
 	//! \param obj a pointer to object
 	//! \param func a pointer to member function
@@ -126,7 +103,7 @@ public:
 	//! Associate XTalker to XListener
 	//! Talker will call user member function of \a listener.
 	//! This function can be called over once.
-	//! \sa disconnect(), mask(), unmask()
+	//! \sa disconnect()
 	//! XListener holds shared_ptr() of the instance
 	//! \param obj a pointer to object
 	//! \param func a pointer to member function
@@ -184,7 +161,7 @@ private:
 					atomic_scoped_ptr<tArg> arg;
 					arg.swap(XTalker<tArg>::Transaction::listener->arg);
 					ASSERT(arg.get());
-					(*XTalker<tArg>::Transaction::listener)(*arg);
+					( *XTalker<tArg>::Transaction::listener)( *arg);
 				}
 				return skip;
 			}            
@@ -237,7 +214,7 @@ void
 XTalker<tArg>::connect(const shared_ptr<Listener> &lx) {
 	for(local_shared_ptr<ListenerList> old_list(m_listeners);;) {
 		local_shared_ptr<ListenerList> new_list(
-			old_list ? (new ListenerList(*old_list)) : (new ListenerList));
+			old_list ? (new ListenerList( *old_list)) : (new ListenerList));
 		// clean-up dead listeners.
 		for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
 			if(!it->lock())
@@ -254,7 +231,7 @@ void
 XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
 	for(local_shared_ptr<ListenerList> old_list(m_listeners);;) {
 		local_shared_ptr<ListenerList> new_list(
-			old_list ? (new ListenerList(*old_list)) : (new ListenerList));
+			old_list ? (new ListenerList( *old_list)) : (new ListenerList));
 		for(ListenerList_it it = new_list->begin(); it != new_list->end();) {
 			if(shared_ptr<Listener> listener = it->lock()) {
 				// clean dead listeners and matching one.
@@ -273,35 +250,32 @@ XTalker<tArg>::disconnect(const shared_ptr<XListener> &lx) {
 template <class tArg>
 void
 XTalker<tArg>::talk(const tArg &arg) {
-	if(m_bMasked) return;  
 	if(empty()) return;
 	local_shared_ptr<ListenerList> list(m_listeners);
 	if(!list) return;
 	for(ListenerList_it it = list->begin(); it != list->end(); it++) {
 		if(shared_ptr<Listener> listener = it->lock()) {
-			if((listener->m_flags & XListener::FLAG_MASKED) == 0) {
-				if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
-					try {
-						(*listener)(arg);
-					}
-					catch (XKameError &e) {
-						e.print();
-					}
-					catch (std::bad_alloc &) {
-						gErrPrint("Memory Allocation Failed!");
+			if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
+				try {
+					( *listener)(arg);
+				}
+				catch (XKameError &e) {
+					e.print();
+				}
+				catch (std::bad_alloc &) {
+					gErrPrint("Memory Allocation Failed!");
+				}
+			}
+			else {
+				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+					atomic_scoped_ptr<tArg> newarg(new tArg(arg) );
+					newarg.swap(listener->arg);
+					if( !newarg.get()) {
+						registerTransactionList(new TransactionAvoidDup(listener));
 					}
 				}
 				else {
-					if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-						atomic_scoped_ptr<tArg> newarg(new tArg(arg) );
-						newarg.swap(listener->arg);
-						if(!newarg.get()) {
-							registerTransactionList(new TransactionAvoidDup(listener));
-						}
-					}
-					else {
-						registerTransactionList(new TransactionAllowDup(listener, arg));
-					}
+					registerTransactionList(new TransactionAllowDup(listener, arg));
 				}
 			}
 		}

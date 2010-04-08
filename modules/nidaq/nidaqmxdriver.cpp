@@ -61,13 +61,12 @@ XTalker<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> >
 XNIDAQmxInterface::SoftwareTrigger::s_onChange;
 
 shared_ptr<XNIDAQmxInterface::SoftwareTrigger>
-XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
-{
+XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits) {
 	shared_ptr<SoftwareTrigger> p(new SoftwareTrigger(label, bits));
 	
 	//inserting the new trigger source to the list atomically.
 	for(local_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);;) {
-        local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
+        local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList( *old_list));
         new_list->push_back(p);
         if(s_virtualTrigList.compareAndSwap(old_list, new_list)) break;
     }
@@ -84,7 +83,7 @@ void
 XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
 	//performing it atomically.
 	for(local_shared_ptr<SoftwareTriggerList> old_list(s_virtualTrigList);;) {
-		local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList(*old_list));
+		local_shared_ptr<SoftwareTriggerList> new_list(new SoftwareTriggerList( *old_list));
 		new_list->erase(std::find(new_list->begin(), new_list->end(), p));
 		if(s_virtualTrigList.compareAndSwap(old_list, new_list)) break;
 	}
@@ -291,8 +290,7 @@ XNIDAQmxInterface::getNIDAQmxErrMessage()
 #endif //HAVE_NI_DAQMX
 }
 XString
-XNIDAQmxInterface::getNIDAQmxErrMessage(int status)
-{
+XNIDAQmxInterface::getNIDAQmxErrMessage(int status) {
 #ifdef HAVE_NI_DAQMX
 	char str[2048];
 	DAQmxGetErrorString(status, str, sizeof(str));
@@ -330,8 +328,7 @@ XNIDAQmxInterface::parseList(const char *str, std::deque<XString> &list)
 
 XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XInterface(name, runtime, driver),
-    m_productInfo(0L)
-{
+    m_productInfo(0L) {
 #ifdef HAVE_NI_DAQMX
 	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
@@ -344,8 +341,7 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 #endif //HAVE_NI_DAQMX
 }
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
-	: m_src(src), m_dst(dst)
-{
+	: m_src(src), m_dst(dst) {
 #ifdef HAVE_NI_DAQMX
 	if(pret) {
 		int ret = 0;
@@ -366,8 +362,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, 
 	}
 #endif //HAVE_NI_DAQMX
 }
-XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
-{
+XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute() {
 	if(!m_src.length()) return;
 	try {
 	    CHECK_DAQMX_RET(DAQmxDisconnectTerms(m_src.c_str(), m_dst.c_str()));
@@ -378,8 +373,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute()
 	}
 }
 void
-XNIDAQmxInterface::open() throw (XInterfaceError &)
-{
+XNIDAQmxInterface::open() throw (XInterfaceError &) {
 #ifdef HAVE_NI_DAQMX
 	char buf[256];
 
@@ -469,8 +463,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &)
 #endif //HAVE_NI_DAQMX
 }
 void
-XNIDAQmxInterface::close() throw (XInterfaceError &)
-{
+XNIDAQmxInterface::close() throw (XInterfaceError &) {
 	m_productInfo = NULL;
 	if(m_devname.length()) {
 		m_devname.clear();

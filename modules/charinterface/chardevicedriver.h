@@ -30,8 +30,8 @@ protected:
 	virtual void open() throw (XInterface::XInterfaceError &) {this->start();}
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
 	virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
-	void onOpen(const shared_ptr<XInterface> &);
-	void onClose(const shared_ptr<XInterface> &);
+	void onOpen(const Snapshot &shot, XInterface *);
+	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
 	virtual void afterStop() {close();}
 private:
@@ -48,14 +48,18 @@ XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool
 										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
 
     meas->interfaces()->insert(tr_meas, m_interface);
-    m_lsnOnOpen = interface()->onOpen().connectWeak(
-		this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
-    m_lsnOnClose = interface()->onClose().connectWeak( 
-    	this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onClose);
+	for(Transaction tr( *this);; ++tr) {
+	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
+			this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
+	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
+	    	this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onClose);
+		if(tr.commit())
+			break;
+	}
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &) {
+XCharDeviceDriver<tDriver, tInterface>::onOpen(const Snapshot &shot, XInterface *) {
 	try {
 		open();
 	}
@@ -66,7 +70,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const shared_ptr<XInterface> &) {
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver, tInterface>::onClose(const shared_ptr<XInterface> &) {
+XCharDeviceDriver<tDriver, tInterface>::onClose(const Snapshot &shot, XInterface *) {
 	try {
 		this->stop();
 	}

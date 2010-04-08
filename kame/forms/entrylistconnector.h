@@ -38,21 +38,14 @@ private:
 	const shared_ptr<XChartList> m_chartList;
 
 	struct tcons {
-		struct tlisttext {
-			QLabel *label;
-			shared_ptr<XString> str;
-		};
 		xqcon_ptr constore, condelta;
 		QLabel *label;
 		shared_ptr<XScalarEntry> entry;
 		shared_ptr<XDriver> driver;
-		shared_ptr<XTalker<tlisttext> > tlkOnRecordRedirected;
-		shared_ptr<XListener> lsnOnRecordRedirected;
-		void onRecordRedirected(const tlisttext &);
+		shared_ptr<XListener> lsnOnRecord;
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
-	shared_ptr<XListener> m_lsnOnRecord;
 	void onRecord(const Snapshot &shot, XDriver *driver);
 };
 

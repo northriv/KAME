@@ -28,7 +28,7 @@ public:
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int, int);
 	virtual double max(int ch, bool autorange) const;
-	virtual void queryStatus(int) {}
+	virtual void queryStatus(Transaction &, int) {}
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
 };
@@ -43,7 +43,7 @@ public:
 	virtual void changeValue(int ch, double x, bool autorange);
 	virtual void changeRange(int ch, int x);
 	virtual double max(int ch, bool autorange) const;
-	virtual void queryStatus(int ch);
+	virtual void queryStatus(Transaction &tr, int ch);
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
 };

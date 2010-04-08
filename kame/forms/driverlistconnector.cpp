@@ -82,15 +82,6 @@ XDriverListConnector::XDriverListConnector
 void
 XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XDriver> driver(static_pointer_cast<XDriver>(e.caught));
-	for(Transaction tr( *driver);; ++tr) {
-		if(m_lsnOnRecord)
-			tr[ *driver].onRecord().connect(m_lsnOnRecord);
-		else
-			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
-				shared_from_this(), &XDriverListConnector::onRecord);
-		if(tr.commit())
-			break;
-	}
   
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
@@ -102,10 +93,13 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
 	m_cons.back()->label = new QLabel(m_pItem);
 	m_pItem->setCellWidget(i, 2, m_cons.back()->label);
 	m_cons.back()->driver = driver;
-	m_cons.back()->tlkOnRecordRedirected.reset(new XTalker<tcons::tlisttext>);
-	m_cons.back()->lsnOnRecordRedirected = m_cons.back()->tlkOnRecordRedirected->connectWeak(
-        m_cons.back(), &XDriverListConnector::tcons::onRecordRedirected
-        , XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+	for(Transaction tr( *driver);; ++tr) {
+		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
+				shared_from_this(), &XDriverListConnector::onRecord,
+				XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+		if(tr.commit())
+			break;
+	}
 
 	ASSERT(m_pItem->numRows() == (int)m_cons.size());
 }
@@ -114,11 +108,6 @@ XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Paylo
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
 		ASSERT(m_pItem->numRows() == (int)m_cons.size());
 		if(( *it)->driver == e.released) {
-			for(Transaction tr( *( *it)->driver);; ++tr) {
-				tr[ *( *it)->driver].onRecord().disconnect(m_lsnOnRecord);
-				if(tr.commit())
-					break;
-			}
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 2) == ( *it)->label)
 					m_pItem->removeRow(i);
@@ -142,16 +131,9 @@ void
 XDriverListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->driver.get() == driver) {
-			tcons::tlisttext text;
-			text.label = ( *it)->label;
-			text.str.reset(new XString(shot[ *driver].time().getTimeStr()));
-			( *it)->tlkOnRecordRedirected->talk(text);
+			( *it)->label->setText(shot[ *driver].time().getTimeStr());
 		}
 	}
-}
-void
-XDriverListConnector::tcons::onRecordRedirected(const tlisttext &text) {
-    text.label->setText(text.str->c_str());
 }
 void
 XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
