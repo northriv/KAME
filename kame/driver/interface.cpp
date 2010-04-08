@@ -47,8 +47,7 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
 }
 
 XString
-XInterface::getLabel() const
-{
+XInterface::getLabel() const {
 	if(m_label.empty())
 		return driver()->getLabel();
 	else
@@ -56,8 +55,7 @@ XInterface::getLabel() const
 }
 
 void
-XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *)
-{
+XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 	if(shot[ *control()]) {
 	    g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
 		start();
@@ -104,7 +102,7 @@ XInterface::start() {
 }
 void
 XInterface::stop() {
-	XScopedLock<XInterface> lock(*this);
+	XScopedLock<XInterface> lock( *this);
   
 	try {
 		close();
@@ -120,7 +118,6 @@ XInterface::stop() {
 
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
-		tr.mark(tr[ *this].onClose(), this);
 		if(tr.commit())
 			break;
 	}
