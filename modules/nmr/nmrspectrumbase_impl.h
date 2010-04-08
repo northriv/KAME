@@ -318,12 +318,12 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 			colabs[i] = std::abs(wave[i]);
 			coldark[i] = sqrt(darkpsd[i]);
 		}
-		tr[ *m_peakPlot->maxCount()] = shot[ *this].m_peaks.size();
+		const std::deque<std::pair<double, double> > &peaks(shot[ *this].m_peaks);
+		int peaks_size = peaks.size();
+		tr[ *m_peakPlot->maxCount()] = peaks_size;
 		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
-		points.resize(shot[ *this].m_peaks.size());
-		const std::pair<double, double> *peaks( &shot[ *this].m_peaks[0]);
-		int size = shot[ *this].m_peaks.size();
-		for(int i = 0; i < size; i++) {
+		points.resize(peaks_size);
+		for(int i = 0; i < peaks_size; i++) {
 			double x = peaks[i].second;
 			int j = lrint(x - 0.5);
 			j = std::min(std::max(0, j), length - 2);
@@ -422,18 +422,17 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
 	double res = shot_this[ *this].res();
 	int iftlen = max_idx - min_idx + 1;
+	double wave_period = shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();
 	int npad = lrint(
-		6.0 / (res * shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval()) + 0.5); //# of pads in frequency domain.
+		6.0 / (res * wave_period) + 0.5); //# of pads in frequency domain.
 	//Truncation factor for IFFT.
 	int trunc2 = lrint(pow(2.0, ceil(log(iftlen * 0.03) / log(2.0))));
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
-	int tdsize = lrint(shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval() * res * iftlen);
+	int tdsize = lrint(wave_period * res * iftlen);
 	int iftorigin = lrint(shot_pulse[ *_pulse].waveFTPos() * shot_pulse[ *_pulse].interval() * res * iftlen);
 	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *_pulse].interval() * res * iftlen)));
-	if(abs(iftorigin) > iftlen/2)
-		throw XSkippedRecordError(__FILE__, __LINE__);
 	
 	if( !shot_this[ *this].m_ift || (shot_this[ *this].m_ift->length() != iftlen)) {
 		tr[ *this].m_ift.reset(new FFT(1, iftlen));
@@ -488,7 +487,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	std::vector<std::complex<double> > &wave(tr[ *this].m_wave);
 	std::vector<double> &weights(tr[ *this].m_weights);
 	std::vector<double> &darkpsd(tr[ *this].m_darkPSD);
-	psdcoeff /= shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();
+	psdcoeff /= wave_period;
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		wave[i] = fftwave[k] / (double)iftlen;

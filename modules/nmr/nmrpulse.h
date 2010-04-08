@@ -63,7 +63,7 @@ public:
 		double interval() const {return m_interval;}
 		//! time diff. of the first point from trigger [sec.]
 		double startTime() const {return m_startTime;}
-		//! Length of analyzed wave.
+		//! Length of the wave().
 		int waveWidth() const {return m_waveWidth;}
 		//! Position of the origin of FT.
 		int waveFTPos() const {return m_waveFTPos;}
