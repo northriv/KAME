@@ -341,8 +341,13 @@ void
 XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2) {
 	int len = SFLOAT_LRINT(1.0/painter->resScreen());
 	painter->beginLine(1.0);
-	if(shot[ *displayMajorGrid()] || shot[ *displayMinorGrid()]) {
+	bool disp_major = shot[ *displayMajorGrid()];
+	bool disp_minor = shot[ *displayMinorGrid()];
+	if(disp_major || disp_minor) {
 		XGraph::ScrPoint s1, s2;
+		unsigned int major_color = shot[ *majorGridColor()];
+		unsigned int minor_color = shot[ *minorGridColor()];
+		double intens = shot[ *intensity()];
 		for(int i = 0; i < len; i++) {
 			XGraph::GFloat x = (XGraph::GFloat)i/len;
 			graphToScreenFast(XGraph::GPoint((axis1 == m_curAxisX) ? x : 0.0,
@@ -353,20 +358,19 @@ XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis>
 								  (axis1 == m_curAxisZ) ? x : ((axis2 == m_curAxisZ) ? 1.0 : 0.0)),
 							  &s2);
 			XGraph::VFloat tempx;
-			switch(axis1->queryTic(len, i, &tempx))
-			{
+			switch(axis1->queryTic(len, i, &tempx)) {
 			case XAxis::MajorTic:
-				if(shot[ *displayMajorGrid()]) {
-					painter->setColor(*majorGridColor(),
-									  max(0.0, min(shot[ *intensity()] * 0.7, 0.5)) );
+				if(disp_major) {
+					painter->setColor(major_color,
+									  max(0.0, min(intens * 0.7, 0.5)) );
 					painter->setVertex(s1);
 					painter->setVertex(s2);
 				}
 				break;
 			case XAxis::MinorTic:
-				if(shot[ *displayMinorGrid()]) {
-					painter->setColor(shot[ *minorGridColor()],
-									  max(0.0, min(shot[ *intensity()] * 0.5, 0.5)) );
+				if(disp_minor) {
+					painter->setColor(minor_color,
+									  max(0.0, min(intens * 0.5, 0.5)) );
 					painter->setVertex(s1);
 					painter->setVertex(s2);
 				}
@@ -823,7 +827,8 @@ XAxis::_startAutoscale(const Snapshot &shot, bool clearscale) {
 		m_maxFixed = m_bLogscaleFixed ? 0 : - XGraph::VFLOAT_MAX;
 	}
 	else {
-		m_minFixed = m_bLogscaleFixed ? max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) :
+		m_minFixed = m_bLogscaleFixed ?
+			max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) :
 			(XGraph::VFloat)shot[ *minValue()];
 		m_maxFixed = shot[ *maxValue()];
 	}
@@ -844,7 +849,8 @@ XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {
         m_minFixed = x ? std::min(x * 1.01, x * 0.99) : -0.01;
     }
     XGraph::VFloat min_tmp = m_bLogscaleFixed ? 
-        max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) : (XGraph::VFloat)shot[ *minValue()];
+        max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) :
+        (XGraph::VFloat)shot[ *minValue()];
     if(m_minFixed != min_tmp) {
         minValue()->setFormat(ticLabelFormat()->to_str().c_str());
         tr[ *minValue()] = m_minFixed;
@@ -863,7 +869,7 @@ XAxis::performAutoFreq(const Snapshot &shot, float resolution) {
 	if(shot[ *autoFreq()] &&
 	   ( !m_bLogscaleFixed || (m_minFixed >= 0)) &&
 	   (m_minFixed < m_maxFixed)) {
-		float fac = max(0.7f, log10f(2e-3 / resolution) );
+		float fac = max(0.8f, log10f(2e-3 / resolution) );
 		m_majorFixed = (VFLOAT_POW((XGraph::VFloat)10.0,
 								   VFLOAT_RINT(VFLOAT_LOG10(m_maxFixed - m_minFixed) - fac)));
 		m_minorFixed = m_majorFixed / (XGraph::VFloat)2.0;
