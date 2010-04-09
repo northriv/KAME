@@ -1,16 +1,16 @@
 /***************************************************************************
- Copyright (C) 2002-2010 Kentaro Kitagawa
- kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2010 Kentaro Kitagawa
+		                   kitag@issp.u-tokyo.ac.jp
 
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU Library General Public
- License as published by the Free Software Foundation; either
- version 2 of the License, or (at your option) any later version.
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
 
- You should have received a copy of the GNU Library General 
- Public License and a list of authors along with this program; 
- see the files COPYING and AUTHORS.
- ***************************************************************************/
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
+		see the files COPYING and AUTHORS.
+***************************************************************************/
 //---------------------------------------------------------------------------
 #include "nmrpulse.h"
 #include "ui_nmrpulseform.h"
@@ -266,23 +266,23 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
 		wave[i] -= bg;
 	}
 
-	shared_ptr<SpectrumSolver> solverPNR = shot[ *m_solverPNR].solver();
+	SpectrumSolver &solverPNR(tr[ *m_solverPNR].solver());
 	if(bglength) {
-		if(shot[ *usePNR()] && solverPNR) {
+		if(shot[ *usePNR()]) {
 			int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
 			std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
 			for(unsigned int i = 0; i < bglength; i++) {
 				memin[i] = wave[pos + i + bgpos];
 			}
 			try {
-				solverPNR->exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
+				solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
 			}
 			catch (XKameError &e) {
 				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 			}
 			int imax = std::min((int)wave.size() - pos, (int)memout.size());
 			for(unsigned int i = 0; i < imax; i++) {
-				wave[i + pos] -= solverPNR->ifft()[i];
+				wave[i + pos] -= solverPNR.ifft()[i];
 			}
 		}
 	}
@@ -302,10 +302,11 @@ void XNMRPulseAnalyzer::rotNFFT(Transaction &tr, int ftpos, double ph,
 	int fftlen = ftwave.size();
 	//fft
 	std::vector<std::complex<double> > fftout(fftlen);
+	SpectrumSolver &solver(tr[ *m_solver].solver());
 	FFT::twindowfunc wndfunc = m_solver->windowFunc(shot);
 	double wndwidth = shot[ *windowWidth()] / 100.0;
 	try {
-		tr[ *this].m_solverRecorded->exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
+		solver.exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
@@ -313,7 +314,7 @@ void XNMRPulseAnalyzer::rotNFFT(Transaction &tr, int ftpos, double ph,
 
 	std::copy(fftout.begin(), fftout.end(), ftwave.begin());
 	
-	if(shot[ *this].m_solverRecorded->isFT()) {
+	if(solver.isFT()) {
 		std::vector<double> weight;
 		SpectrumSolver::window(length, -ftpos, wndfunc, wndwidth, weight);
 		double w = 0;
@@ -627,13 +628,13 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//[Hz]
 	tr[ *this].m_dFreq = 1.0 / fftlen / interval;
 	tr[ *this].m_ftWave.resize(fftlen);
-	tr[ *this].m_solverRecorded = shot_this[ *m_solver].solver();
+	const SpectrumSolver &solver(shot_this[ *m_solver].solver());
 
 	rotNFFT(tr, ftpos, ph, tr[ *this].m_wave, tr[ *this].m_ftWave);
-	if(shot_this[ *this].m_solverRecorded->peaks().size()) {
+	if(solver.peaks().size()) {
 		entryPeakAbs()->value(tr,
-			shot_this[ *this].m_solverRecorded->peaks()[0].first / (double)shot_this[ *this].m_wave.size());
-		double x = shot_this[ *this].m_solverRecorded->peaks()[0].second;
+			solver.peaks()[0].first / (double)shot_this[ *this].m_wave.size());
+		double x = solver.peaks()[0].second;
 		x = (x > fftlen / 2) ? (x - fftlen) : x;
 		entryPeakFreq()->value(tr,
 			0.001 * x * shot_this[ *this].m_dFreq);
@@ -669,6 +670,8 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		}
 	}
 
+	const SpectrumSolver &solver(shot[ *m_solver].solver());
+
 	int ftsize = shot[ *this].m_ftWave.size();
 	for(Transaction tr( *ftWaveGraph());; ++tr) {
 		tr[ *ftWaveGraph()].setRowCount(ftsize);
@@ -694,12 +697,12 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			colarg[i] = std::arg(z) / M_PI * 180;
 			coldark[i] = sqrt(darkpsd[j] * darknormalize);
 		}
-		tr[ *m_peakPlot->maxCount()] = shot[ *this].m_solverRecorded->peaks().size();
+		const std::vector<std::pair<double, double> > &peaks(solver.peaks());
+		int peaks_size = peaks.size();
+		tr[ *m_peakPlot->maxCount()] = peaks_size;
 		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
-		points.resize(shot[ *this].m_solverRecorded->peaks().size());
-		const std::pair<double, double> *peaks( &shot[ *this].m_solverRecorded->peaks()[0]);
-		int size = shot[ *this].m_solverRecorded->peaks().size();
-		for(int i = 0; i < size; i++) {
+		points.resize(peaks_size);
+		for(int i = 0; i < peaks_size; i++) {
 			double x = peaks[i].second;
 			x = (x > ftsize / 2) ? (x - ftsize) : x;
 			points[i] = XGraph::ValPoint(0.001 * x * dfreq, peaks[i].first * normalize);
@@ -712,7 +715,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 	for(Transaction tr( *waveGraph());; ++tr) {
 		int length = shot[ *this].m_dsoWave.size();
 		const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
-		const std::complex<double> *ifft( &shot[ *this].m_solverRecorded->ifft()[0]);
+		const std::complex<double> *ifft( &solver.ifft()[0]);
 		int dsowavestartpos = shot[ *this].m_dsoWaveStartPos;
 		double interval = shot[ *this].m_interval;
 		double starttime = shot[ *this].startTime();

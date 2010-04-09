@@ -1,15 +1,15 @@
 /***************************************************************************
- Copyright (C) 2002-2008 Kentaro Kitagawa
- kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2010 Kentaro Kitagawa
+		                   kitag@issp.u-tokyo.ac.jp
 
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU Library General Public
- License as published by the Free Software Foundation; either
- version 2 of the License, or (at your option) any later version.
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
 
- You should have received a copy of the GNU Library General 
- Public License and a list of authors along with this program; 
- see the files COPYING and AUTHORS.
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
+		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "fft.h"
 
@@ -114,16 +114,16 @@ FFT::exec(const std::vector<std::complex<double> >& wavein,
 	const std::complex<double> *pin = &wavein[0];
 	fftw_complex *pout = m_pBufin;
 	for(int i = 0; i < size; i++) {
-		(*pout)[0] = pin->real();
-		(*pout)[1] = pin->imag();
+		( *pout)[0] = pin->real();
+		( *pout)[1] = pin->imag();
 		pout++;
 		pin++;
 	}
-	fftw_execute(*m_fftplan);
+	fftw_execute( *m_fftplan);
 	const fftw_complex *pin2 = m_pBufout;
 	std::complex<double> *pout2 = &waveout[0];
 	for(int i = 0; i < size; i++) {
-		*pout2 = std::complex<double>((*pin2)[0], (*pin2)[1]);
+		*pout2 = std::complex<double>(( *pin2)[0], ( *pin2)[1]);
 		pout2++;
 		pin2++;
 	}
@@ -153,7 +153,7 @@ RFFT::exec(const std::vector<double>& wavein,
 	const fftw_complex *pin2 = m_pBufout;
 	std::complex<double> *pout2 = &waveout[0];
 	for(int i = 0; i < size / 2 + 1; i++) {
-		*pout2 = std::complex<double>((*pin2)[0], (*pin2)[1]);
+		*pout2 = std::complex<double>(( *pin2)[0], ( *pin2)[1]);
 		pout2++;
 		pin2++;
 	}
@@ -177,12 +177,12 @@ RIFFT::exec(const std::vector<std::complex<double> >& wavein,
 	const std::complex<double> *pin = &wavein[0];
 	fftw_complex *pout = m_pBufin;
 	for(int i = 0; i < size / 2 + 1; i++) {
-		(*pout)[0] = pin->real();
-		(*pout)[1] = pin->imag();
+		( *pout)[0] = pin->real();
+		( *pout)[1] = pin->imag();
 		pout++;
 		pin++;
 	}
-	fftw_execute(*m_fftplan);
+	fftw_execute( *m_fftplan);
 	const double *pin2 = m_pBufout;
 	double *pout2 = &waveout[0];
 	for(int i = 0; i < size; i++) {

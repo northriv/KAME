@@ -26,10 +26,32 @@ public:
 	~SpectrumSolverWrapper();
 
 	struct Payload : public XNode::Payload {
-		const shared_ptr<SpectrumSolver> &solver() const {return m_solver;}
+		Payload() : XNode::Payload() {}
+		Payload(const Payload &x) : XNode::Payload(x) {
+			if(x.m_wrapper)
+				m_wrapper.reset(x.m_wrapper->clone());
+		}
+		SpectrumSolver &solver() {return m_wrapper->solver();}
+		const SpectrumSolver &solver() const {return m_wrapper->solver();}
 	private:
 		friend class SpectrumSolverWrapper;
-		shared_ptr<SpectrumSolver> m_solver;
+		struct WrapperBase {
+			virtual ~WrapperBase() {}
+			virtual WrapperBase *clone() = 0;
+			virtual SpectrumSolver &solver() = 0;
+			virtual const SpectrumSolver &solver() const = 0;
+		};
+		template <class T>
+		struct Wrapper : public WrapperBase {
+			Wrapper(T *p) : m_solver(p) {}
+			virtual Wrapper* clone() { return new Wrapper(new T( *m_solver)); }
+			virtual T &solver() {return *m_solver; }
+			virtual const T &solver() const {return *m_solver; }
+		private:
+			Wrapper();
+			scoped_ptr<T> m_solver;
+		};
+		scoped_ptr<WrapperBase> m_wrapper;
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];

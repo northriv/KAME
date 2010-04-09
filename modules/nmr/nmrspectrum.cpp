@@ -124,9 +124,13 @@ XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &sh
 }
 void
 XNMRSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
-	values.resize(shot_this[ *this].wave().size());
-	for(unsigned int i = 0; i < shot_this[ *this].wave().size(); i++) {
-		double freq = shot_this[ *this].min() + i * shot_this[ *this].res();
-		values[i] = exp( -freq * 1e-6 / shot_this[ *centerFreq()]);
+	int wave_size = shot_this[ *this].wave().size();
+	double _min = shot_this[ *this].min();
+	double res = shot_this[ *this].res();
+	double cfreq = shot_this[ *centerFreq()];
+	values.resize(wave_size);
+	for(unsigned int i = 0; i < wave_size; i++) {
+		double freq = _min + i * res;
+		values[i] = exp( -freq * 1e-6 / cfreq);
 	}
 }

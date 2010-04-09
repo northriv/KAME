@@ -91,7 +91,6 @@ public:
 		double m_startTime;
 
 		//for FFT/MEM.
-		shared_ptr<SpectrumSolver> m_solverRecorded;
 		shared_ptr<FFT> m_ftDark;
 
 		XTime m_timeClearRequested;

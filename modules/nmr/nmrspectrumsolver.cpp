@@ -1,16 +1,16 @@
 /***************************************************************************
- Copyright (C) 2002-2008 Kentaro Kitagawa
- kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2010 Kentaro Kitagawa
+		                   kitag@issp.u-tokyo.ac.jp
 
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU Library General Public
- License as published by the Free Software Foundation; either
- version 2 of the License, or (at your option) any later version.
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
 
- You should have received a copy of the GNU Library General 
- Public License and a list of authors along with this program; 
- see the files COPYING and AUTHORS.
- ***************************************************************************/
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
+		see the files COPYING and AUTHORS.
+***************************************************************************/
 #include "nmrspectrumsolver.h"
 #include "ar.h"
 #include "freqest.h"
@@ -124,62 +124,68 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 
 void
 SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<SpectrumSolver> solver;
+	scoped_ptr<Payload::WrapperBase> wrapper;
 	bool has_window = true;
 	bool has_length = true;
 	if(m_selector) {
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
-			solver.reset(new MEMBurg(&SpectrumSolver::icAICc));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_BURG_AICc) {
+			wrapper.reset(new Payload::Wrapper<MEMBurg>(new MEMBurg( &SpectrumSolver::icAICc)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
-			solver.reset(new MEMBurg(&SpectrumSolver::icMDL));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_BURG_MDL) {
+			wrapper.reset(new Payload::Wrapper<MEMBurg>(new MEMBurg( &SpectrumSolver::icMDL)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
-			solver.reset(new YuleWalkerAR(&SpectrumSolver::icAICc));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_AR_YW_AICc) {
+			wrapper.reset(new Payload::Wrapper<YuleWalkerAR>(new YuleWalkerAR( &SpectrumSolver::icAICc)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
-			solver.reset(new YuleWalkerAR(&SpectrumSolver::icMDL));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
+			wrapper.reset(new Payload::Wrapper<YuleWalkerAR>(new YuleWalkerAR( &SpectrumSolver::icMDL)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC_AIC) {
-			solver.reset(new MUSIC(&SpectrumSolver::icAIC));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MUSIC_AIC) {
+			wrapper.reset(new Payload::Wrapper<MUSIC>(new MUSIC( &SpectrumSolver::icAIC)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MUSIC_MDL) {
-			solver.reset(new MUSIC(&SpectrumSolver::icMDL));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MUSIC_MDL) {
+			wrapper.reset(new Payload::Wrapper<MUSIC>(new MUSIC( &SpectrumSolver::icMDL)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_AIC) {
-			solver.reset(new EigenVectorMethod(&SpectrumSolver::icAIC));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_EV_AIC) {
+			wrapper.reset(new Payload::Wrapper<EigenVectorMethod>(new EigenVectorMethod( &SpectrumSolver::icAIC)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_EV_MDL) {
-			solver.reset(new EigenVectorMethod(&SpectrumSolver::icMDL));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_EV_MDL) {
+			wrapper.reset(new Payload::Wrapper<EigenVectorMethod>(new EigenVectorMethod( &SpectrumSolver::icMDL)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MVDL) {
-			solver.reset(new MVDL);
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MVDL) {
+			wrapper.reset(new Payload::Wrapper<MVDL>(new MVDL));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
-			solver.reset(new MEMStrict);
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
+			wrapper.reset(new Payload::Wrapper<MEMStrict>(new MEMStrict));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
-			solver.reset(new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>());
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
+			wrapper.reset(new Payload::Wrapper<CompositeSpectrumSolver<MEMStrict, EigenVectorMethod> >(
+				new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>()));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
-			solver.reset(new CompositeSpectrumSolver<MEMStrict, MEMBurg>());
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
+			wrapper.reset(new Payload::Wrapper<CompositeSpectrumSolver<MEMStrict, MEMBurg> >(
+				new CompositeSpectrumSolver<MEMStrict, MEMBurg>()));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_HQ) {
-			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icHQ));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_LS_HQ) {
+			wrapper.reset(new Payload::Wrapper<FreqEstLeastSquare>(new FreqEstLeastSquare( &SpectrumSolver::icHQ)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_AICc) {
-			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icAICc));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_LS_AICc) {
+			wrapper.reset(new Payload::Wrapper<FreqEstLeastSquare>(new FreqEstLeastSquare( &SpectrumSolver::icAICc)));
 		}
-		if(m_selector->to_str() == SPECTRUM_SOLVER_LS_MDL) {
-			solver.reset(new FreqEstLeastSquare(&SpectrumSolver::icMDL));
+		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_LS_MDL) {
+			wrapper.reset(new Payload::Wrapper<FreqEstLeastSquare>(new FreqEstLeastSquare( &SpectrumSolver::icMDL)));
 		}
 	}
-	if(!solver) {
-		solver.reset(new FFTSolver);
+	if( !wrapper) {
+		wrapper.reset(new Payload::Wrapper<FFTSolver>(new FFTSolver));
 	}
 	if(m_windowfunc)
 		m_windowfunc->setUIEnabled(has_window);
 	if(m_windowlength)
 		m_windowlength->setUIEnabled(has_length);
-	trans( *this).m_solver = solver;
+	for(Transaction tr( *this);; ++tr) {
+		wrapper.swap(tr[ *this].m_wrapper);
+		if(tr.commit())
+			break;
+	}
 }

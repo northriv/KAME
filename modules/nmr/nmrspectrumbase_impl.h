@@ -408,10 +408,14 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	
 	double th = FFT::windowFuncHamming(0.49);
 	int max_idx = 0;
-	int min_idx = shot_this[ *this].m_accum[bank].size() - 1;
+	const std::deque<std::complex<double> > &accum_wave(shot_this[ *this].m_accum[bank]);
+	const std::deque<double> &accum_weights(shot_this[ *this].m_accum_weights[bank]);
+	const std::deque<double> &accum_dark(shot_this[ *this].m_accum_dark[bank]);
+	int accum_size = accum_wave.size();
+	int min_idx = accum_size - 1;
 	int taps_max = 0; 
-	for(int i = 0; i < shot_this[ *this].m_accum[bank].size(); i++) {
-		if(shot_this[ *this].m_accum_weights[bank][i] > th) {
+	for(int i = 0; i < accum_size; i++) {
+		if(accum_weights[i] > th) {
 			min_idx = std::min(min_idx, i);
 			max_idx = std::max(max_idx, i);
 			taps_max++;
@@ -440,9 +444,6 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	
 	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
 	std::fill(fftwave.begin(), fftwave.end(), 0.0);
-	const std::deque<std::complex<double> > &accum_wave(shot_this[ *this].m_accum[bank]);
-	const std::deque<double> &accum_weights(shot_this[ *this].m_accum_weights[bank]);
-	const std::deque<double> &accum_dark(shot_this[ *this].m_accum_dark[bank]);
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		if(accum_weights[i] > th)
@@ -450,12 +451,12 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	}
 	tr[ *this].m_ift->exec(fftwave, iftwave);
 	
-	shared_ptr<SpectrumSolver> solver = shot_this[ *m_solver].solver();
+	SpectrumSolver &solver(tr[ *m_solver].solver());
 	std::vector<std::complex<double> > solverin;
 	FFT::twindowfunc wndfunc = m_solver->windowFunc(shot_this);
 	double wndwidth = shot_this[ *windowWidth()] / 100.0;
 	double psdcoeff = 1.0;
-	if(solver->isFT()) {
+	if(solver.isFT()) {
 		std::vector<double> weight;
 		SpectrumSolver::window(tdsize, -iftorigin, wndfunc, wndwidth, weight);
 		double w = 0;
@@ -478,7 +479,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		solverin[i] = iftwave[k];
 	}
 	try {
-		solver->exec(solverin, fftwave, -iftorigin, 0.1e-2, wndfunc, wndwidth);
+		solver.exec(solverin, fftwave, -iftorigin, 0.1e-2, wndfunc, wndwidth);
 	}
 	catch (XKameError &e) {
 		throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
@@ -499,13 +500,13 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	tr[ *this].m_peaks.clear();
 	int weights_size = shot_this[ *this].weights().size();
 	std::deque<std::pair<double, double> > &peaks(tr[ *this].m_peaks);
-	for(int i = 0; i < solver->peaks().size(); i++) {
-		double k = solver->peaks()[i].second;
+	for(int i = 0; i < solver.peaks().size(); i++) {
+		double k = solver.peaks()[i].second;
 		double j = (k > iftlen / 2) ? (k - iftlen) : k;
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
 		if((l >= 0) && (l < weights_size) && (weights[l] > th))
 			peaks.push_back(std::pair<double, double>(
-				solver->peaks()[i].first / (double)iftlen, j));
+				solver.peaks()[i].first / (double)iftlen, j));
 	}
 }

@@ -165,9 +165,12 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 
 void
 XNMRFSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
-	values.resize(shot_this[ *this].wave().size());
-	for(unsigned int i = 0; i < shot_this[ *this].wave().size(); i++) {
-		double freq = shot_this[ *this].min() + i * shot_this[ *this].res();
+	int wave_size = shot_this[ *this].wave().size();
+	double _min = shot_this[ *this].min();
+	double res = shot_this[ *this].res();
+	values.resize(wave_size);
+	for(unsigned int i = 0; i < wave_size; i++) {
+		double freq = _min + i * res;
 		values[i] = freq * 1e-6;
 	}
 }

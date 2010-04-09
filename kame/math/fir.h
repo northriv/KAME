@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -25,8 +25,7 @@
 
 //! FIR (Finite Impulse Response) Digital Filter.
 //! Accelerated by FFT.
-class FIR
-{
+class FIR {
 public:
 	//! makes coeff. for BPF. Window func. method.
 	//! \param taps odd num. a number of taps
