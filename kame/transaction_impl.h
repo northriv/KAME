@@ -331,7 +331,8 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 			++idx;
 		}
 	}
-	ASSERT(old_idx >= 0);
+	if(old_idx < 0)
+		throw NodeNotFoundError();
 
 	if( !packet->subpackets()->size()) {
 		packet->subpackets().reset();
@@ -426,8 +427,10 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 			y_idx = idx;
 		++idx;
 	}
-	ASSERT(x_idx >= 0);
-	ASSERT(y_idx >= 0);
+	if(x_idx < 0)
+		throw NodeNotFoundError();
+	if(y_idx < 0)
+		throw NodeNotFoundError();
 	local_shared_ptr<Packet> px = packet->subpackets()->at(x_idx);
 	local_shared_ptr<Packet> py = packet->subpackets()->at(y_idx);
 	packet->subpackets()->at(x_idx) = py;
@@ -561,7 +564,8 @@ local_shared_ptr<typename Node<XN>::Packet>&
 Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
 	bool copy_branch, int64_t tr_serial, bool set_missing) {
 	local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
-	ASSERT(foundpacket);
+	if( !foundpacket)
+		throw NodeNotFoundError();
 	return *foundpacket;
 }
 
@@ -570,7 +574,8 @@ const local_shared_ptr<typename Node<XN>::Packet> &
 Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
 	local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
 		const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
-	ASSERT(foundpacket);
+	if( !foundpacket)
+		throw NodeNotFoundError();
 	return *foundpacket;
 }
 

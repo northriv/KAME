@@ -160,7 +160,7 @@ public:
 	XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	virtual XString getLabel() const {return *label();}
 
-	virtual int clearAllPoints() = 0;
+	virtual void clearAllPoints(Transaction &tr) = 0;
 
 	//! obtains values from screen coordinate
 	//! if \a scr_prec > 0, value will be rounded around scr_prec
@@ -395,9 +395,10 @@ public:
 	XXYPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
 		XPlot(name, runtime, tr_graph, graph) {}
 
-	int clearAllPoints();
-	//! adds one point and draws
-	int addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
+	void clearAllPoints(Transaction &tr);
+	//! Adds one point and draws.
+	void addPoint(Transaction &tr,
+		XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
 
 	struct Payload : public XNode::Payload {
 		std::deque<XGraph::ValPoint> &points() {return m_points;}
@@ -413,7 +414,7 @@ protected:
 class XFuncPlot : public XPlot {
 public:
 	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-	int clearAllPoints() {return 0;}
+	void clearAllPoints(Transaction &tr) {}
 	virtual int validateAutoScale(const Snapshot &) {return 0;}
   
 	virtual double func(double x) const = 0;

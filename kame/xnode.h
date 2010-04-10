@@ -97,16 +97,10 @@ public:
 	shared_ptr<XNode> getChild(const XString &var) const;
 	shared_ptr<XNode> getParent() const;
 
-	void clearChildren();
-	int releaseChild(const shared_ptr<XNode> &node);
-
 	//! Enables/Disables control over GUI
 	void setUIEnabled(bool v);
 	//! Disables all operations on this node forever.
 	void disable();
-
-	virtual void insert(const shared_ptr<XNode> &ptr);
-	virtual bool insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion = false);
 
 	//! Data holder.
 	struct Payload : public Transactional::Node<XNode>::Payload {

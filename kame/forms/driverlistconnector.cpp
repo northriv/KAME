@@ -174,5 +174,5 @@ XDriverListConnector::onReleaseTouched(const Snapshot &shot, XTouchableNode *) {
 			driver = ( *it)->driver;
 		}
 	}    
-    if(driver) m_list->releaseChild(driver);
+    if(driver) m_list->release(driver);
 }

@@ -91,7 +91,7 @@ XGraphListConnector::onDeleteGraph (const Snapshot &shot, XTouchableNode *) {
 	if(shot_this.size()) {
 		if((n >= 0) && (n < (int)shot_this.list()->size())) {
 			shared_ptr<XNode> node = shot_this.list()->at(n);
-			m_graphlist->releaseChild(node);
+			m_graphlist->release(node);
 		}
 	}
 }

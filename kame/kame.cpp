@@ -187,7 +187,7 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 
 FrmKameMain::~FrmKameMain() {
 	m_pTimer->stop();
-
+//	while( !g_signalBuffer->synchronize()) {}
 	m_measure.reset();
 	g_signalBuffer.reset();
 }
@@ -309,10 +309,9 @@ FrmKameMain::processSignals() {
 }
 
 void
-FrmKameMain::closeEvent( QCloseEvent* ce )
-{
+FrmKameMain::closeEvent( QCloseEvent* ce ) {
 	bool opened = false;
-    Snapshot shot(*m_measure->interfaces());
+    Snapshot shot( *m_measure->interfaces());
     if(shot.size()) {
     	const XNode::NodeList &list(*shot.list());
 		for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
@@ -334,20 +333,17 @@ FrmKameMain::closeEvent( QCloseEvent* ce )
 	}
 }
 
-void FrmKameMain::fileCloseAction_activated()
-{
+void FrmKameMain::fileCloseAction_activated() {
 	m_conMeasRubyThread.reset();
 	m_measure->terminate();
 }
 
 
-void FrmKameMain::fileExitAction_activated()
-{
+void FrmKameMain::fileExitAction_activated() {
 	close();
 }
 
-void FrmKameMain::fileOpenAction_activated()
-{
+void FrmKameMain::fileOpenAction_activated() {
 	QString filename = KFileDialog::getOpenFileName (
 		KUrl(),
 		"*.kam|KAME2 Measurement files (*.kam)\n"
@@ -359,8 +355,7 @@ void FrmKameMain::fileOpenAction_activated()
 }
 
 
-void FrmKameMain::fileSaveAction_activated()
-{
+void FrmKameMain::fileSaveAction_activated() {
 	QString filename = KFileDialog::getSaveFileName (
 		KUrl(),
 		"*.kam|KAME2 Measurement files (*.kam)\n"
@@ -368,8 +363,7 @@ void FrmKameMain::fileSaveAction_activated()
 		"*.*|All files (*.*)",
 		this,
 		i18n("Save Measurement File") );
-	if(!filename.isEmpty())
-	{
+	if( !filename.isEmpty()) {
 		std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
 			XRubyWriter writer(m_measure, ofs);
@@ -379,20 +373,16 @@ void FrmKameMain::fileSaveAction_activated()
 }
 
 
-void FrmKameMain::helpAboutAction_activated()
-{
+void FrmKameMain::helpAboutAction_activated() {
 	KMessageBox::about( this,
 						i18n("K's Adaptive Measurement Engine."), "KAME");
 }
 
-void FrmKameMain::helpContentsAction_activated()
-{
+void FrmKameMain::helpContentsAction_activated() {
 }
 
 
-void FrmKameMain::helpIndexAction_activated()
-{
-
+void FrmKameMain::helpIndexAction_activated() {
 }
 
 /*
@@ -406,8 +396,7 @@ void FrmKameMain::helpIndexAction_activated()
   }
 */
 
-void FrmKameMain::mesStopAction_activated()
-{
+void FrmKameMain::mesStopAction_activated() {
 	m_measure->stop();
 /*
  *   m_pMesRunAction->setEnabled(true);
@@ -418,10 +407,8 @@ void FrmKameMain::mesStopAction_activated()
 }
 
 int
-FrmKameMain::openMes(const XString &filename)
-{
-	if(!filename.empty())
-	{
+FrmKameMain::openMes(const XString &filename) {
+	if( !filename.empty()) {
 		runNewScript("Open Measurement", filename );
 //		while(rbthread->isAlive()) {
 //			KApplication::kApplication()->processEvents();
@@ -454,22 +441,20 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
 	}
 	return rbthread;
 }
-void FrmKameMain::scriptRunAction_activated()
-{
+void FrmKameMain::scriptRunAction_activated() {
 	QString filename = KFileDialog::getOpenFileName (
 		KUrl(),
 		"*.seq|KAME Script files (*.seq)",
 		this,
 		i18n("Open Script File") );
-	if(!filename.isEmpty()) {
+	if( !filename.isEmpty()) {
 		static unsigned int thread_no = 1;
 		runNewScript(formatString("Thread%d", thread_no), filename );
 		thread_no++;
 	}
 }
 
-void FrmKameMain::scriptLineShellAction_activated()
-{
+void FrmKameMain::scriptLineShellAction_activated() {
     QString filename = KStandardDirs::locate("appdata", "rubylineshell.rb");
     if(filename.isEmpty()) {
         g_statusPrinter->printError("No KAME ruby support file installed.");
@@ -481,16 +466,14 @@ void FrmKameMain::scriptLineShellAction_activated()
 	}
 }
 
-void FrmKameMain::scriptDotSaveAction_activated()
-{
+void FrmKameMain::scriptDotSaveAction_activated() {
 	QString filename = KFileDialog::getSaveFileName (
 		KUrl(),
 		"*.dot|Graphviz dot files (*.dot)\n"
 		"*.*|All files (*.*)",
 		this,
 		i18n("Save Graphviz dot File") );
-	if(!filename.isEmpty())
-	{
+	if( !filename.isEmpty()) {
 		std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
 			XDotWriter writer(m_measure, ofs);
@@ -499,8 +482,7 @@ void FrmKameMain::scriptDotSaveAction_activated()
 	}
 }
 
-void FrmKameMain::fileLogAction_toggled( bool var)
-{
+void FrmKameMain::fileLogAction_toggled( bool var) {
 	g_bLogDbgPrint = var;
 }
 

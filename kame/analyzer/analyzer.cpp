@@ -103,8 +103,12 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
 	double val;
     val = shot[ *m_entry->value()];
     XTime time = shot[ *driver].time();
-    if(time)
-        m_chart->addPoint(time.sec() + time.usec() * 1e-6, val);
+    for(Transaction tr( *this);; ++tr) {
+		if(time)
+			m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
+		if(tr.commit())
+			break;
+    }
 }
 void
 XValChart::showChart(void) {
@@ -152,11 +156,11 @@ XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::R
 XValGraph::XValGraph(const char *name, bool runtime,
 					 Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries)
 	: XNode(name, runtime),
-	  m_graph(),
 	  m_graphForm(),
 	  m_axisX(create<tAxis>("AxisX", false, ref(tr_entries), entries)),
 	  m_axisY1(create<tAxis>("AxisY1", false, ref(tr_entries), entries)),
-	  m_axisZ(create<tAxis>("AxisZ", false, ref(tr_entries), entries)) {
+	  m_axisZ(create<tAxis>("AxisZ", false, ref(tr_entries), entries)),
+	  m_entries(entries) {
 	for(Transaction tr( *this);; ++tr) {
 	    m_lsnAxisChanged = tr[ *axisX()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XValGraph::onAxisChanged,
@@ -169,58 +173,73 @@ XValGraph::XValGraph(const char *name, bool runtime,
 }
 void
 XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
-    shared_ptr<XScalarEntry> entryx = *axisX();
-    shared_ptr<XScalarEntry> entryy1 = *axisY1();
-    shared_ptr<XScalarEntry> entryz = *axisZ();
-    
-	if(m_graph) releaseChild(m_graph);
-	m_graph = create<XGraph>(getName().c_str(), false);
-	m_graphForm.reset(new FrmGraph(g_pFrmMain));
-	m_graphForm->m_graphwidget->setGraph(m_graph);
-
-	if(!entryx || !entryy1) return;
-  
+    shared_ptr<XScalarEntry> entryx;
+    shared_ptr<XScalarEntry> entryy1;
+    shared_ptr<XScalarEntry> entryz;
 	for(Transaction tr( *this);; ++tr) {
-		m_livePlot =
-			m_graph->plots()->create<XXYPlot>(tr, (m_graph->getName() + "-Live").c_str(), false, ref(tr), m_graph);
-		tr[ *m_livePlot->label()] = m_graph->getLabel() + " Live";
-		m_storePlot =
-			m_graph->plots()->create<XXYPlot>(tr, (m_graph->getName() + "-Stored").c_str(), false, ref(tr), m_graph);
-		tr[ *m_storePlot->label()] = m_graph->getLabel() + " Stored";
+		const Snapshot &shot_this(tr);
+	    entryx = shot_this[ *axisX()];
+	    entryy1 = shot_this[ *axisY1()];
+	    entryz = shot_this[ *axisZ()];
 
-		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
-		shared_ptr<XAxis> axisx = dynamic_pointer_cast<XAxis>(axes_list.at(0));
-		shared_ptr<XAxis> axisy = dynamic_pointer_cast<XAxis>(axes_list.at(1));
+		if(tr[ *this].m_graph) release(tr, tr[ *this].m_graph);
+		tr[ *this].m_graph = create<XGraph>(tr, getName().c_str(), false);
+		shared_ptr<XGraph> graph(tr[ *this].m_graph);
+
+		if( !entryx || !entryy1) return;
+
+		tr[ *this].m_livePlot =
+			graph->plots()->create<XXYPlot>(tr,
+				(graph->getName() + "-Live").c_str(), false, ref(tr), graph);
+		tr[ *shot_this[ *this].m_livePlot->label()] = graph->getLabel() + " Live";
+		tr[ *this].m_storePlot =
+			graph->plots()->create<XXYPlot>(tr,
+				(graph->getName() + "-Stored").c_str(), false, ref(tr), graph);
+		tr[ *shot_this[ *this].m_storePlot->label()] = graph->getLabel() + " Stored";
+
+		const XNode::NodeList &axes_list( *tr.list(graph->axes()));
+		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
+		shared_ptr<XAxis> axisy = static_pointer_cast<XAxis>(axes_list.at(1));
 
 		tr[ *axisx->ticLabelFormat()] = entryx->value()->format();
 		tr[ *axisy->ticLabelFormat()] = entryy1->value()->format();
-		tr[ *m_livePlot->axisX()] = axisx;
-		tr[ *m_livePlot->axisY()] = axisy;
-		tr[ *m_storePlot->axisX()] = axisx;
-		tr[ *m_storePlot->axisY()] = axisy;
+		tr[ *shot_this[ *this].m_livePlot->axisX()] = axisx;
+		tr[ *shot_this[ *this].m_livePlot->axisY()] = axisy;
+		tr[ *shot_this[ *this].m_storePlot->axisX()] = axisx;
+		tr[ *shot_this[ *this].m_storePlot->axisY()] = axisy;
 
-		tr[ *axisx->length()] = 0.95 - tr[ *axisx->x()];
-		tr[ *axisy->length()] = 0.90 - tr[ *axisy->y()];
+		tr[ *axisx->length()] = 0.95 - shot_this[ *axisx->x()];
+		tr[ *axisy->length()] = 0.90 - shot_this[ *axisy->y()];
 		if(entryz) {
-			shared_ptr<XAxis> axisz = m_graph->axes()->create<XAxis>(
-				tr, "Z Axis", false, XAxis::DirAxisZ, false, ref(tr), m_graph);
+			shared_ptr<XAxis> axisz = graph->axes()->create<XAxis>(
+				tr, "Z Axis", false, XAxis::DirAxisZ, false, ref(tr), graph);
 			tr[ *axisz->ticLabelFormat()] = entryz->value()->format();
-			tr[ *m_livePlot->axisZ()] = axisz;
-			tr[ *m_storePlot->axisZ()] = axisz;
+			tr[ *shot_this[ *this].m_livePlot->axisZ()] = axisz;
+			tr[ *shot_this[ *this].m_storePlot->axisZ()] = axisz;
 	//	axisz->label()] = "Z Axis";
 			tr[ *axisz->label()] = entryz->getLabel();
 		}
 
-		tr[ *m_storePlot->pointColor()] = clGreen;
-		tr[ *m_storePlot->lineColor()] = clGreen;
-		tr[ *m_storePlot->barColor()] = clGreen;
-		tr[ *m_storePlot->displayMajorGrid()] = false;
-		tr[ *m_livePlot->maxCount()] = 4000;
-		tr[ *m_storePlot->maxCount()] = 4000;
+		tr[ *shot_this[ *this].m_storePlot->pointColor()] = clGreen;
+		tr[ *shot_this[ *this].m_storePlot->lineColor()] = clGreen;
+		tr[ *shot_this[ *this].m_storePlot->barColor()] = clGreen;
+		tr[ *shot_this[ *this].m_storePlot->displayMajorGrid()] = false;
+		tr[ *shot_this[ *this].m_livePlot->maxCount()] = 4000;
+		tr[ *shot_this[ *this].m_storePlot->maxCount()] = 4000;
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
-		tr[ *m_graph->label()] = getLabel();
+		tr[ *graph->label()] = getLabel();
 
+		if(tr.commit()) {
+			m_graphForm.reset(new FrmGraph(g_pFrmMain));
+			m_graphForm->m_graphwidget->setGraph(graph);
+			break;
+		}
+	}
+	for(Transaction tr( *m_entries.lock());; ++tr) {
+		if( !tr.isUpperOf( *entryx)) return;
+		if( !tr.isUpperOf( *entryy1)) return;
+		if(entryz && !tr.isUpperOf( *entryz)) return;
 		m_lsnLiveChanged = tr[ *entryx->value()].onValueChanged().connectWeakly(
 			shared_from_this(), &XValGraph::onLiveChanged);
 		tr[ *entryy1->value()].onValueChanged().connect(m_lsnLiveChanged);
@@ -230,7 +249,6 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 			shared_from_this(), &XValGraph::onStoreChanged);
 		tr[ *entryy1->storedValue()].onValueChanged().connect(m_lsnStoreChanged);
 		if(entryz) tr[ *entryz->storedValue()].onValueChanged().connect(m_lsnStoreChanged);
-
 		if(tr.commit())
 			break;
 	}
@@ -240,37 +258,59 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XValGraph::clearAllPoints() {
-	if(!m_graph) return;
-	m_storePlot->clearAllPoints();
-	m_livePlot->clearAllPoints();
+	for(Transaction tr( *this);; ++tr) {
+		if( !tr[ *this].m_graph) return;
+		tr[ *this].m_storePlot->clearAllPoints(tr);
+		tr[ *this].m_livePlot->clearAllPoints(tr);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
+	shared_ptr<XScalarEntry> entryx = shot_this[ *axisX()];
+	shared_ptr<XScalarEntry> entryy1 = shot_this[ *axisY1()];
+	shared_ptr<XScalarEntry> entryz = shot_this[ *axisZ()];
+	if( !entryx || !entryy1) return;
+	Snapshot shot_entries( *m_entries.lock());
+	if( !shot_entries.isUpperOf( *entryx)) return;
+	if( !shot_entries.isUpperOf( *entryy1)) return;
+	if(entryz && !shot_entries.isUpperOf( *entryz)) return;
+
 	double x, y, z = 0.0;
-    shared_ptr<XScalarEntry> entryx = *axisX();
-    shared_ptr<XScalarEntry> entryy1 = *axisY1();
-    shared_ptr<XScalarEntry> entryz = *axisZ();
-    
-    if(!entryx || !entryy1) return;
-    x = *entryx->value();
-    y = *entryy1->value();
-    if(entryz) z = *entryz->value();
-  
-    m_livePlot->addPoint(x, y, z);
+	x = shot_entries[ *entryx->value()];
+	y = shot_entries[ *entryy1->value()];
+	if(entryz) z = shot_entries[ *entryz->value()];
+
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *this].m_livePlot->addPoint(tr, x, y, z);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
+	shared_ptr<XScalarEntry> entryx = shot_this[ *axisX()];
+	shared_ptr<XScalarEntry> entryy1 = shot_this[ *axisY1()];
+	shared_ptr<XScalarEntry> entryz = shot_this[ *axisZ()];
+	if( !entryx || !entryy1) return;
+	Snapshot shot_entries( *m_entries.lock());
+	if( !shot_entries.isUpperOf( *entryx)) return;
+	if( !shot_entries.isUpperOf( *entryy1)) return;
+	if(entryz && !shot_entries.isUpperOf( *entryz)) return;
+
 	double x, y, z = 0.0;
-    shared_ptr<XScalarEntry> entryx = *axisX();
-    shared_ptr<XScalarEntry> entryy1 = *axisY1();
-    shared_ptr<XScalarEntry> entryz = *axisZ();
-    
-    if(!entryx || !entryy1) return;
-    x = *entryx->storedValue();
-    y = *entryy1->storedValue();
-    if(entryz) z = *entryz->storedValue();
-  
-    m_storePlot->addPoint(x, y, z);
+	x = shot_entries[ *entryx->storedValue()];
+	y = shot_entries[ *entryy1->storedValue()];
+	if(entryz) z = shot_entries[ *entryz->storedValue()];
+
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *this].m_storePlot->addPoint(tr, x, y, z);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XValGraph::showGraph() {

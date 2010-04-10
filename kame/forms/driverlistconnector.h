@@ -49,7 +49,7 @@ private:
 	shared_ptr<XListener> m_lsnOnCreateTouched, m_lsnOnReleaseTouched;
   
 	const xqcon_ptr m_conCreate, m_conRelease;
-	void onRecord(const Snapshot &shot, XDriver *driver);
+	void onRecord(const Snapshot &shot, XDriver *);
 	void onCreateTouched(const Snapshot &shot, XTouchableNode *);
 	void onReleaseTouched(const Snapshot &shot, XTouchableNode *);
 };

@@ -84,7 +84,6 @@ protected:
 	//! \sa time(), timeAwared()
 	void record(Transaction &tr,
 		const XTime &time_awared, const XTime &time_recorded);
-private:
 };
 
 class XDriverList : public XCustomTypeListNode<XDriver> {

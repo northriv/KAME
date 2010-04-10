@@ -59,16 +59,7 @@ XNode::getTypename() const {
     ASSERT(i + 1 < name.length());
     return name.substr(i + 1);
 }
-void
-XNode::insert(const shared_ptr<XNode> &ptr) {
-    ASSERT(ptr);
-    Transactional::Node<XNode>::insert(ptr);
-}
-bool
-XNode::insert(Transaction &tr, const shared_ptr<XNode> &ptr, bool online_after_insertion) {
-    ASSERT(ptr);
-    return Transactional::Node<XNode>::insert(tr, ptr, online_after_insertion);
-}
+
 void
 XNode::disable() {
 	trans(*this).disable();
@@ -76,23 +67,6 @@ XNode::disable() {
 void
 XNode::setUIEnabled(bool v) {
 	trans(*this).setUIEnabled(v);
-}
-void
-XNode::clearChildren() {
-    releaseAll();
-}
-int
-XNode::releaseChild(const shared_ptr<XNode> &node) {
-	for(Transaction tr( *this);; ++tr) {
-		shared_ptr<const NodeList> list(tr.list());
-		NodeList::const_iterator it = find(list->begin(), list->end(), node);
-		if(it == list->end())
-			return -1;
-		if( !release(tr, node))
-			continue;
-		if(tr.commit())
-			return 0;
-	}
 }
 
 shared_ptr<XNode>

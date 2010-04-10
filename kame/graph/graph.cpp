@@ -334,7 +334,11 @@ XPlot::findPoint(const Snapshot &shot, int start, const XGraph::GPoint &gmin, co
 
 void
 XPlot::onClearPoints(const Snapshot &, XTouchableNode *) {
-	clearAllPoints();
+	for(Transaction tr( *m_graph.lock());; ++tr) {
+		clearAllPoints(tr);
+		if(tr.commit())
+			break;
+	}
 }
 
 void
@@ -690,17 +694,12 @@ XPlot::validateAutoScale(const Snapshot &shot) {
 	return 0;
 }
 
-int
-XXYPlot::clearAllPoints() {
+void
+XXYPlot::clearAllPoints(Transaction &tr) {
+	tr[ *this].points().clear();
 	shared_ptr<XGraph> graph(m_graph.lock());
-	for(Transaction tr( *graph);; ++tr) {
-		tr[ *this].points().clear();
-		tr.mark(tr[ *graph].onUpdate(), graph.get());
-		if(tr.commit()) {
-			break;
-		}
-	}
-	return 0;
+	const Snapshot &shot(tr);
+	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
 void
@@ -712,23 +711,20 @@ XXYPlot::snapshot(const Snapshot &shot) {
 		m_ptsSnapped[i] = points[i];
 	}
 }
-int
-XXYPlot::addPoint(XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z, XGraph::VFloat w) {
+void
+XXYPlot::addPoint(Transaction &tr,
+	XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z, XGraph::VFloat w) {
 	XGraph::ValPoint npt(x, y, z, w);
 
 	shared_ptr<XGraph> graph(m_graph.lock());
-	for(Transaction tr( *graph);; ++tr) {
-		std::deque<XGraph::ValPoint> &points(tr[ *this].points());
-		while((points.size() >= tr[ *maxCount()]) && points.size()) {
-			points.pop_front();
-		}
-		points.push_back(npt);
-		tr.mark(tr[ *graph].onUpdate(), graph.get());
-		if(tr.commit()) {
-			break;
-		}
+
+	std::deque<XGraph::ValPoint> &points(tr[ *this].points());
+	const Snapshot &shot(tr);
+	while((points.size() >= shot[ *maxCount()]) && points.size()) {
+		points.pop_front();
 	}
-	return 0;
+	points.push_back(npt);
+	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
 XAxis::XAxis(const char *name, bool runtime,

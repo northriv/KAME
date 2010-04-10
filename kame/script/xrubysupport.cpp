@@ -211,7 +211,7 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild) {
 			struct rnode_ptr *st_child;
 			Data_Get_Struct(rbchild, struct rnode_ptr, st_child);
 			if(shared_ptr<XNode> child = st_child->ptr.lock()) {
-				lnode->releaseChild(child);
+				lnode->release(child);
 				return Qnil;  
 			}
 			else {

@@ -89,7 +89,7 @@ public:
 	//! If a listener is not mainthread model, the listener will be called later.
 	//! \param arg passing argument to all listeners
 	//! If listener avoids duplication, lock won't be passed to listener.
-	virtual _Message<XN>* createMessage(tArgRef arg);
+	virtual _Message<XN>* createMessage(tArgRef arg) const;
 	void talk(const Snapshot<XN> &shot, tArgRef arg) const {
 		_talk(shot, m_listeners, shared_ptr<UnmarkedListenerList>(), arg);
 	}
@@ -184,7 +184,7 @@ private:
 
 template <class XN, typename tArg, typename tArgRef>
 _Message<XN>*
-Talker<XN, tArg, tArgRef>::createMessage(tArgRef arg) {
+Talker<XN, tArg, tArgRef>::createMessage(tArgRef arg) const {
 	if( !m_listeners)
 		return 0;
 	return new Message(arg, m_listeners);

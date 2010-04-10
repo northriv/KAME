@@ -94,9 +94,9 @@ XMeasure::~XMeasure() {
 void XMeasure::initialize() {
 }
 void XMeasure::terminate() {
-	interfaces()->clearChildren();
-	drivers()->clearChildren();
-	thermometers()->clearChildren();
+	interfaces()->releaseAll();
+	drivers()->releaseAll();
+	thermometers()->releaseAll();
 	initialize();
 }
 void XMeasure::stop() {
@@ -122,8 +122,7 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		Snapshot shot( *scalarEntries());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
-			for(XNode::const_iterator it = list.begin(); it
-				!= list.end(); it++) {
+			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
 				shared_ptr<XScalarEntry> _entry = dynamic_pointer_cast<
 					XScalarEntry> ( *it);
 				if(_entry->driver() == driver) {
@@ -133,15 +132,14 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		}
 		if( !entry)
 			break;
-		scalarEntries()->releaseChild(entry);
+		scalarEntries()->release(entry);
 	}
 	for(;;) {
 		shared_ptr<XInterface> interface;
 		Snapshot shot( *interfaces());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
-			for(XNode::const_iterator it = list.begin(); it
-				!= list.end(); it++) {
+			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
 				shared_ptr<XInterface> _interface = dynamic_pointer_cast<
 					XInterface> ( *it);
 				if(_interface->driver() == driver) {
@@ -151,6 +149,6 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		}
 		if( !interface)
 			break;
-		interfaces()->releaseChild(interface);
+		interfaces()->release(interface);
 	}
 }

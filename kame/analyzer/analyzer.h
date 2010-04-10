@@ -126,13 +126,18 @@ public:
 	const shared_ptr<tAxis> &axisX() const {return m_axisX;}
 	const shared_ptr<tAxis> &axisY1() const {return m_axisY1;}
 	const shared_ptr<tAxis> &axisZ() const {return m_axisZ;}
+
+	struct Payload : public XNode::Payload {
+	private:
+		friend class XValGraph;
+		shared_ptr<XGraph> m_graph;
+		shared_ptr<XXYPlot> m_livePlot, m_storePlot;
+	};
 protected:
 private:
-	shared_ptr<XGraph> m_graph;
 	qshared_ptr<FrmGraph> m_graphForm;
 
 	shared_ptr<tAxis> m_axisX, m_axisY1, m_axisZ;
-	shared_ptr<XXYPlot> m_livePlot, m_storePlot;
 	shared_ptr<XListener> m_lsnAxisChanged;
 	void onAxisChanged(const Snapshot &shot, XValueNodeBase *node);
 
@@ -140,6 +145,8 @@ private:
 	shared_ptr<XListener> m_lsnStoreChanged;
 	void onLiveChanged(const Snapshot &shot, XValueNodeBase *node);
 	void onStoreChanged(const Snapshot &shot, XValueNodeBase *node);
+
+	weak_ptr<XScalarEntryList> m_entries;
 };
 
 class XGraphList : public XCustomTypeListNode<XValGraph> {

@@ -88,7 +88,7 @@ private:
 	shared_ptr<XListener> m_lsnOnRelease; 
 	shared_ptr<XListener> m_lsnOnLastLineChanged; 
 	shared_ptr<XListener> m_lsnOnFilenameChanged;
-	void onRecord(const Snapshot &shot, XDriver *driver);
+	void onRecord(const Snapshot &shot, XDriver *);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	void onLastLineChanged(const Snapshot &shot, XValueNodeBase *);
 	void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);

@@ -15,6 +15,7 @@
 #define entrylistconnectorH
 
 #include "xnodeconnector.h"
+#include "driver.h"
 //---------------------------------------------------------------------------
 
 class Q3Table;
@@ -46,7 +47,7 @@ private:
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
-	void onRecord(const Snapshot &shot, XDriver *driver);
+	void onRecord(const Snapshot &shot, XDriver*);
 };
 
 #endif

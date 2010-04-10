@@ -83,7 +83,7 @@ XRubyThreadConnector::~XRubyThreadConnector() {
         m_pForm->m_ptxtDefout->clear();
     }
 //    m_rubyThread->kill();
-    m_rubySupport->releaseChild(m_rubyThread);
+    m_rubySupport->release(m_rubyThread);
 }
 void
 XRubyThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {

@@ -79,6 +79,8 @@ public:
 
 	virtual ~Node();
 
+	struct NodeNotFoundError {};
+
 	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion = false);
 	void insert(const shared_ptr<XN> &var);
 	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
