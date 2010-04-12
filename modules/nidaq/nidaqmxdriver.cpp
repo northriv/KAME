@@ -334,9 +334,13 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<XString> list;
 	parseList(buf, list);
-	for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
-		CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-		device()->add(*it + " [" + buf + "]");
+	for(Transaction tr( *this);; ++tr) {
+		for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
+			CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+			tr[ *device()].add(*it + " [" + buf + "]");
+		}
+		if(tr.commit())
+			break;
 	}
 #endif //HAVE_NI_DAQMX
 }
@@ -377,7 +381,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 #ifdef HAVE_NI_DAQMX
 	char buf[256];
 
-	if(sscanf(device()->to_str().c_str(), "%256s", buf) != 1)
+	Snapshot shot( *this);
+	if(sscanf(shot[ *device()].to_str().c_str(), "%256s", buf) != 1)
 		throw XOpenInterfaceError(__FILE__, __LINE__);
 
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
@@ -421,7 +426,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				if(g_pciClockMaster.length())
 					break;
 			}
-			if(!g_pciClockMaster.length()) {
+			if( !g_pciClockMaster.length()) {
 				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					//Assuming M series only.
 					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
