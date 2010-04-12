@@ -37,7 +37,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	connect(magnet());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum - ") + getLabel() );
-	for(Transaction tr( *m_spectrum);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_spectrum].setLabel(0, "Field [T]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Field [T]");
 

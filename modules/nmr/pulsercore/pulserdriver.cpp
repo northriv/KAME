@@ -132,12 +132,6 @@ XPulser::XPulser(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		{
-			QComboBox*const combo[] = {
-				m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
-				m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7,
-				m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11,
-				m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
-			};
 	  		const char *desc[] = {
 	  			"Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
 	  			"QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
@@ -146,7 +140,6 @@ XPulser::XPulser(const char *name, bool runtime,
 	  		};
 			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 				m_portSel[i] = create<XComboNode>(tr, formatString("PortSel%u", i).c_str(), false);
-				m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot);
 				for(const char **p = &desc[0]; *p; p++)
 					tr[ *m_portSel[i]].add(*p);
 	//			m_portSel[i]->setUIEnabled(false);
@@ -240,8 +233,18 @@ XPulser::XPulser(const char *name, bool runtime,
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-		if(tr.commit())
+		if(tr.commit()) {
+			QComboBox*const combo[] = {
+				m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
+				m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7,
+				m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11,
+				m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
+			};
+			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+				m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot);
+			}
 			break;
+		}
 	}
   
 	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);

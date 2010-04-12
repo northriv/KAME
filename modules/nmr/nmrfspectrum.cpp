@@ -35,7 +35,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
-	for(Transaction tr( *m_spectrum);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
 

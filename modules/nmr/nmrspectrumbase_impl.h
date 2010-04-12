@@ -50,7 +50,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
     
 	connect(pulse());
 
-	for(Transaction tr( *m_spectrum);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
 		tr[ *m_spectrum].setColCount(6, labels);
 		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
