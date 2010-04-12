@@ -76,10 +76,10 @@ public:
 				return;
 			}
 			if(shared_ptr<TL> list = static_cast<const XPointerItemNode&>(node()).m_list.lock()) {
-				Snapshot shot(*list);
+				Snapshot shot( *list);
 				if(shot.size()) {
 					for(NodeList::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
-						if((*it)->getName() == var) {
+						if(( *it)->getName() == var) {
 							*this = *it;
 							return;
 						}
@@ -103,7 +103,7 @@ private:
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
 		if(shared_ptr<TL> list = m_list.lock()) {
 			ASSERT(node == list.get());
-			shot.talk(( **this)->onListChanged(), this);
+			Snapshot( *this).talk(( **this)->onListChanged(), this);
 		}
 	}
 	shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;
@@ -143,7 +143,7 @@ public:
 
 	struct Payload : public _XItemNode<TL, T1>::Payload {
 		Payload() : _XItemNode<TL, T1>::Payload() {}
-		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>)*this);}
+		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>) *this);}
 		Payload &operator=(const shared_ptr<XNode> &t) {
 			_XItemNode<TL, T1>::Payload::operator=(t);
 			return *this;
