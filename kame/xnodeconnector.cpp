@@ -577,8 +577,8 @@ XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 	m_pItem->blockSignals(false);
 }
 void
-XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *node) {
-	m_itemStrings = m_node->itemStrings(shot);
+XQComboBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
+	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
 	bool exist = false;
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
@@ -593,7 +593,7 @@ XQComboBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *node) {
 	}
 	if( !m_node->autoSetAny())
 		m_pItem->addItem(i18n("(UNSEL)"));
-    onValueChanged(Snapshot( *node), node);
+    onValueChanged(shot, e.emitter);
 }
 
 XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
@@ -630,14 +630,14 @@ XQListBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(false);
 }
 void
-XQListBoxConnector::onListChanged(const Snapshot &shot, XItemNodeBase *node) {
-	m_itemStrings = m_node->itemStrings(shot);
+XQListBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
+	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
 	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
 		it != m_itemStrings->end(); it++) {
 		m_pItem->insertItem(it->label);
 	}
-    onValueChanged(Snapshot( *node), node);
+    onValueChanged(shot, e.emitter);
 }
 
 XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node, KColorButton *item)

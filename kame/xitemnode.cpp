@@ -80,9 +80,7 @@ void
 XComboNode::Payload::add(const XString &str) {
 	m_strings.reset(new std::deque<XString>( *m_strings));
 	m_strings->push_back(str);
-	ListChangeEvent e;
-	e.emitter = static_cast<XItemNodeBase*>( &node());
-	e.shot_of_list = tr();
+	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
 	tr().mark(onListChanged(), e);
 	if(str == m_var.first) {
 		m_var.second = m_strings->size() - 1;
@@ -94,8 +92,7 @@ void
 XComboNode::Payload::clear() {
 	m_strings.reset(new std::deque<XString>( *m_strings));
     m_strings->clear();
-	e.emitter = static_cast<XItemNodeBase*>( &node());
-	e.shot_of_list = tr();
+	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
 	tr().mark(onListChanged(), e);
 	if(m_var.second >= 0) {
 	    m_var.second = -1;

@@ -334,7 +334,7 @@ private slots:
 protected slots:
 protected:
 	shared_ptr<XListener>  m_lsnListChanged;
-	virtual void onListChanged(const Snapshot &shot, XItemNodeBase *) = 0;
+	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) = 0;
 	shared_ptr<const std::deque<XItemNodeBase::Item> > m_itemStrings;
 };
 
@@ -350,7 +350,7 @@ protected slots:
 virtual void onSelect(int index);
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	virtual void onListChanged(const Snapshot &shot, XItemNodeBase *);
+	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e);
 	const shared_ptr<XItemNodeBase> m_node;
 	QComboBox *const m_pItem;
 	int findItem(const QString &);
@@ -368,7 +368,7 @@ protected slots:
 virtual void onSelect(int index);
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	virtual void onListChanged(const Snapshot &shot, XItemNodeBase *);
+	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e);
 	const shared_ptr<XItemNodeBase> m_node;
 	Q3ListBox *const m_pItem;
 };

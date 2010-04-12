@@ -31,8 +31,9 @@ public:
 	struct Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}
 		struct ListChangeEvent {
-			XItemNodeBase *emitter;
+			ListChangeEvent(const Snapshot &s, XItemNodeBase *e) : shot_of_list(s), emitter(e) {}
 			Snapshot shot_of_list;
+			XItemNodeBase *emitter;
 		};
 		Talker<ListChangeEvent> &onListChanged() {return m_tlkOnListChanged;}
 		const Talker<ListChangeEvent> &onListChanged() const {return m_tlkOnListChanged;}
@@ -107,9 +108,7 @@ private:
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
 		if(shared_ptr<TL> list = m_list.lock()) {
 			ASSERT(node == list.get());
-			Payload::ListChangeEvent e;
-			e.emitter = this;
-			e.shot_of_list = shot;
+			typename Payload::ListChangeEvent e(shot, this);
 			Snapshot( *this).talk(( **this)->onListChanged(), e);
 		}
 	}
