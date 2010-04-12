@@ -101,7 +101,7 @@ typedef XAliasListNode<XPlot> XPlotList;
 class XGraph : public XNode {
 public:
 	XGraph(const char *name, bool runtime);
-	virtual XString getLabel() const {return *label();}
+	virtual XString getLabel() const {return ( **label())->to_str();}
 
 	typedef float SFloat;
 	static const SFloat SFLOAT_MAX;
@@ -158,7 +158,7 @@ private:
 class XPlot : public XNode {
 public:
 	XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-	virtual XString getLabel() const {return *label();}
+	virtual XString getLabel() const {return ( **label())->to_str();}
 
 	virtual void clearAllPoints(Transaction &tr) = 0;
 
@@ -282,7 +282,7 @@ public:
 		  AxisDirection dir, bool rightOrTop, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	virtual ~XAxis() {}
 
-	virtual XString getLabel() const {return *label();}
+	virtual XString getLabel() const {return ( **label())->to_str();}
   
 	int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
 	//! obtains axis pos from value

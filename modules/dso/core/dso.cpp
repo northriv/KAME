@@ -104,27 +104,27 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->m_dockTrace1->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
 
-	singleSequence()->value(true);
-	firBandWidth()->value(1000.0);
-	firCenterFreq()->value(.0);
-	firSharpness()->value(4.5);
-  
 	for(Transaction tr( *this);; ++tr) {
+		tr[ *singleSequence()] = true;
+		tr[ *firBandWidth()] = 1000.0;
+		tr[ *firCenterFreq()] = .0;
+		tr[ *firSharpness()] = 4.5;
+
 		m_lsnOnCondChanged = tr[ *firEnabled()].onValueChanged().connectWeakly(
 			shared_from_this(), &XDSO::onCondChanged);
 		tr[ *firBandWidth()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *firCenterFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *firSharpness()].onValueChanged().connect(m_lsnOnCondChanged);
+		{
+			const char *modes[] = {"Never", "Averaging", "Sequence", 0L};
+			for(const char **mode = &modes[0]; *mode; mode++)
+				tr[ *fetchMode()].add(*mode);
+		}
+		tr[ *fetchMode()] = FETCHMODE_SEQ;
+
 		if(tr.commit())
 			break;
 	}
-  
-	{
-		const char *modes[] = {"Never", "Averaging", "Sequence", 0L};
-		for(const char **mode = &modes[0]; *mode; mode++)
-			fetchMode()->add(*mode);
-	}
-	fetchMode()->value(FETCHMODE_SEQ);
   
 	average()->setUIEnabled(false);
 	singleSequence()->setUIEnabled(false);
@@ -353,16 +353,16 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		std::deque<XString> channels;
 		{
-			XString chstr = trace1()->to_str();
+			XString chstr = shot[ *trace1()].to_str();
 			if( !chstr.empty())
 				channels.push_back(chstr);
-			chstr = trace2()->to_str();
+			chstr = shot[ *trace2()].to_str();
 			if( !chstr.empty())
 				channels.push_back(chstr);
-			chstr = trace3()->to_str();
+			chstr = shot[ *trace3()].to_str();
 			if( !chstr.empty())
 				channels.push_back(chstr);
-			chstr = trace4()->to_str();
+			chstr = shot[ *trace4()].to_str();
 			if( !chstr.empty())
 				channels.push_back(chstr);
 		}

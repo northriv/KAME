@@ -54,9 +54,6 @@ public:
     }
 	virtual ~XPointerItemNode() {}
 
-	operator shared_ptr<XNode>() const { return **this;}
-	void value(const shared_ptr<XNode> &x);
-
 	struct Payload : public XItemNodeBase::Payload {
 		Payload() : XItemNodeBase::Payload() {}
 		operator shared_ptr<XNode>() const { return m_var.lock();}
@@ -122,7 +119,7 @@ public:
 		:  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
 	}
 	virtual ~_XItemNode() {}
-	operator shared_ptr<T1>() const { return **this;}
+
 	struct Payload : public XPointerItemNode<TL>::Payload {
 		Payload() : XPointerItemNode<TL>::Payload() {}
 		operator shared_ptr<T1>() const {
@@ -143,7 +140,7 @@ public:
 		:  _XItemNode<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
 	}
 	virtual ~XItemNode() {}
-	operator shared_ptr<T2>() const { return **this;}
+
 	struct Payload : public _XItemNode<TL, T1>::Payload {
 		Payload() : _XItemNode<TL, T1>::Payload() {}
 		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>)*this);}
@@ -176,12 +173,6 @@ public:
 	explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
 	virtual ~XComboNode() {}
   
-	void add(const XString &str);
-	void clear();
-	operator int() const  { return **this;}
-	void value(int x);
-	void value(const XString &x);
-
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
 		return shot[ *this].itemStrings();
 	}
@@ -203,11 +194,5 @@ public:
 		std::pair<XString, int> m_var;
 	};
 };
-
-template <class TL>
-void
-XPointerItemNode<TL>::value(const shared_ptr<XNode> &t) {
-	trans(*this) = t;
-}
 
 #endif /*XITEMNODE_H_*/

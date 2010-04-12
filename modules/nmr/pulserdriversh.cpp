@@ -101,8 +101,12 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
     	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW,
     	PORTSEL_PULSE1, PORTSEL_PULSE2, PORTSEL_COMB_FM, PORTSEL_COMB
     };
-    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
-    	portSel(i)->value(ports[i]);
+	for(Transaction tr( *this);; ++tr) {
+	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
+	    	tr[ *portSel(i)] = ports[i];
+		}
+		if(tr.commit())
+			break;
 	}
 }
 
@@ -164,14 +168,17 @@ XSHPulser::setAUX2DA(Transaction &tr, double volt, int addr) {
 }
 int
 XSHPulser::insertPreamble(Transaction &tr, uint16_t startpattern) {
-	const double masterlevel = pow(10.0, *masterLevel() / 20.0);
-	const double qamlevel1 = *qamLevel1();
-	const double qamlevel2 = *qamLevel2();
+	const Snapshot &shot(tr);
+	const double masterlevel = pow(10.0, shot[ *masterLevel()] / 20.0);
+	const double qamlevel1 = shot[ *qamLevel1()];
+	const double qamlevel2 = shot[ *qamLevel2()];
 	tr[ *this].m_zippedPatterns.clear();
 	
 	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_OFFSET);
-	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset1() *1e-2 / masterlevel ) );
-	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(127.5 * *qamOffset2() *1e-2 / masterlevel ) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(
+		127.5 * shot[ *qamOffset1()] *1e-2 / masterlevel ) );
+	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(
+		127.5 * shot[ *qamOffset2()] *1e-2 / masterlevel ) );
 	tr[ *this].m_zippedPatterns.push_back(PATTERN_ZIPPED_COMMAND_SET_DA_TUNE_LEVEL);
 	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel1 * 0x100) );
 	tr[ *this].m_zippedPatterns.push_back((unsigned char)(signed char)rint(qamlevel2 * 0x100) );

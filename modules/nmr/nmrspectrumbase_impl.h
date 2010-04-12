@@ -95,20 +95,21 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
 		tr[ *m_spectrum].clearPoints();
+
+		tr[ *bandWidth()] = 50;
+		tr[ *bwList()].add("50%");
+		tr[ *bwList()].add("100%");
+		tr[ *bwList()].add("200%");
+		tr[ *bwList()] = 1;
+		tr[ *autoPhase()] = true;
+
+		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
+		tr[ *windowWidth()] = 100.0;
+
 		if(tr.commit())
 			break;
 	}
   
-	bandWidth()->value(50);
-	bwList()->add("50%");
-	bwList()->add("100%");
-	bwList()->add("200%");
-	bwList()->value(1);
-	autoPhase()->value(true);
-	
-	windowFunc()->str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
-	windowWidth()->value(100.0);
-
 	m_conBandWidth = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
 	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList, Snapshot( *m_bwList));
 	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
@@ -423,7 +424,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	}
 	if(max_idx <= min_idx)
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	shared_ptr<XNMRPulseAnalyzer> _pulse = *pulse();
+	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
 	double res = shot_this[ *this].res();
 	int iftlen = max_idx - min_idx + 1;
 	double wave_period = shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();

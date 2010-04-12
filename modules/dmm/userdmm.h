@@ -44,8 +44,12 @@ public:
 	XKE2182(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas) {
-		function()->add("VOLT");
-		function()->add("TEMP");
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *function()].add("VOLT");
+			tr[ *function()].add("TEMP");
+			if(tr.commit())
+				break;
+		}
 	}
 };
 
@@ -56,17 +60,21 @@ public:
 	XKE2000(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas) {
-		function()->add("VOLT:DC");
-		function()->add("VOLT:AC");
-		function()->add("CURR:DC");
-		function()->add("CURR:AC");
-		function()->add("RES");
-		function()->add("FRES");
-		function()->add("FREQ");
-		function()->add("TEMP");
-		function()->add("PER");
-		function()->add("DIOD");
-		function()->add("CONT");
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *function()].add("VOLT:DC");
+			tr[ *function()].add("VOLT:AC");
+			tr[ *function()].add("CURR:DC");
+			tr[ *function()].add("CURR:AC");
+			tr[ *function()].add("RES");
+			tr[ *function()].add("FRES");
+			tr[ *function()].add("FREQ");
+			tr[ *function()].add("TEMP");
+			tr[ *function()].add("PER");
+			tr[ *function()].add("DIOD");
+			tr[ *function()].add("CONT");
+			if(tr.commit())
+				break;
+		}
 
 		interface()->setGPIBWaitBeforeRead(20);
 	}
@@ -79,10 +87,14 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas)
 	{
-		function()->add("VOLT");
-		function()->add("CURR");
-		function()->add("RES");
-		function()->add("FRES");
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *function()].add("VOLT");
+			tr[ *function()].add("CURR");
+			tr[ *function()].add("RES");
+			tr[ *function()].add("FRES");
+			if(tr.commit())
+				break;
+		}
 	}
 };
 

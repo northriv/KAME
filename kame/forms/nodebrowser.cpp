@@ -125,7 +125,7 @@ XNodeBrowser::process() {
 			}
 			str += "<br>";
 		}
-		m_desc->str(str);
+		trans( *m_desc).str(str);
 	}
 	m_lastPointed = node;
 }

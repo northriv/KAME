@@ -150,12 +150,6 @@ class XValueNodeBase : public XNode {
 protected:
 	explicit XValueNodeBase(const char *name, bool runtime) : XNode(name, runtime), m_validator(0) {}
 public:
-	//! gets value as a string, which is used for scripting.
-	XString to_str() const { return (**this)->to_str();}
-	//! sets value as a string, which is used for scripting.
-	//! It throws exception when the validator throws.
-	void str(const XString &str) throw (XKameError &);
-
 	typedef void (*Validator)(XString &);
 	void setValidator(Validator x) {m_validator = x;}
 
@@ -191,9 +185,6 @@ public:
 	: XValueNodeBase(name, runtime) {}
 	virtual ~XIntNodeBase() {}
 
-	operator T() const {return **this;}
-	void value(T x);
-
 	struct Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {this->m_var = 0;}
 		virtual XString to_str() const;
@@ -213,9 +204,6 @@ class XDoubleNode : public XValueNodeBase {
 public:
 	explicit XDoubleNode(const char *name, bool runtime = false, const char *format = 0L);
 	virtual ~XDoubleNode() {}
-
-	operator double() const {return **this;}
-	void value(double x);
 
 	const char *format() const {return local_shared_ptr<XString>(m_format)->c_str();}
 	void setFormat(const char* format);
@@ -240,9 +228,6 @@ class XStringNode : public XValueNodeBase {
 public:
 	explicit XStringNode(const char *name, bool runtime = false);
 	virtual ~XStringNode() {}
-
-	operator XString() const {return **this;}
-	void value(const XString &x);
 
 	struct Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}

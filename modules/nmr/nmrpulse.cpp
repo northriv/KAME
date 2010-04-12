@@ -65,23 +65,27 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_form->m_btnAvgClear->setIcon(KIconLoader::global()->loadIcon("editdelete", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
 	m_form->m_btnSpectrum->setIcon(KIconLoader::global()->loadIcon("graph", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
 	
-	m_pnrSolverList->str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
-
 	connect(dso());
 	connect(pulser());
 
 	meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
 	meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
 
-	fromTrig()->value(-0.005);
-	width()->value(0.02);
-	bgPos()->value(0.03);
-	bgWidth()->value(0.03);
-	fftPos()->value(0.004);
-	fftLen()->value(16384);
-	numEcho()->value(1);
-	windowFunc()->str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
-	windowWidth()->value(100.0);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *m_pnrSolverList].str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
+		tr[ *fromTrig()] = -0.005;
+		tr[ *width()] = 0.02;
+		tr[ *bgPos()] = 0.03;
+		tr[ *bgWidth()] = 0.03;
+		tr[ *fftPos()] = 0.004;
+		tr[ *fftLen()] = 16384;
+		tr[ *numEcho()] = 1;
+		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
+		tr[ *windowWidth()] = 100.0;
+
+		if(tr.commit())
+			break;
+	}
 
 	m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
 
@@ -250,9 +254,9 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
 	Snapshot &shot(tr);
 
 	std::complex<double> bg = 0;
-	if (bglength) {
+	if(bglength) {
 		double normalize = 0.0;
-		for (int i = 0; i < bglength; i++) {
+		for(int i = 0; i < bglength; i++) {
 			double z = 1.0;
 			if( !shot[ *usePNR()])
 				z = FFT::windowFuncHamming( (double)i / bglength - 0.5);
@@ -262,7 +266,7 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
 		bg /= normalize;
 	}
 
-	for (int i = 0; i < wave.size(); i++) {
+	for(int i = 0; i < wave.size(); i++) {
 		wave[i] -= bg;
 	}
 
@@ -295,7 +299,7 @@ void XNMRPulseAnalyzer::rotNFFT(Transaction &tr, int ftpos, double ph,
 	int length = wave.size();
 	//phase advance
 	std::complex<double> cph(std::polar(1.0, ph));
-	for (int i = 0; i < length; i++) {
+	for(int i = 0; i < length; i++) {
 		wave[i] *= cph;
 	}
 
@@ -338,7 +342,7 @@ void XNMRPulseAnalyzer::onAvgClear(const Snapshot &shot, XTouchableNode *) {
 }
 void XNMRPulseAnalyzer::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 	if(node == exAvgIncr().get())
-		extraAvg()->value(0);
+		trans( *extraAvg()) = 0;
 	if((node == numEcho().get()) || (node == difFreq().get()) || (node == exAvgIncr().get()))
 		onAvgClear(shot, avgClear().get());
 	else
@@ -445,7 +449,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		if(_pulser) {
 			if((numechoes > shot_others[ *_pulser].echoNum()) ||
-				(fabs( *echoPeriod()*1e3 / (shot_others[ *_pulser].tau()*2.0) - 1.0) > 1e-4)) {
+				(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *_pulser].tau() * 2.0) - 1.0) > 1e-4)) {
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 			}
 		}
@@ -477,7 +481,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	tr[ *this].m_wave.resize(length);
 	tr[ *this].m_waveSum.resize(length);
-	int fftlen = FFT::fitLength(*fftLen());
+	int fftlen = FFT::fitLength(shot_this[ *fftLen()]);
 	if(fftlen != shot_this[ *this].m_darkPSD.size()) {
 		avgclear = true;		
 	}
@@ -556,7 +560,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			//Estimate power spectral density of dark side.
 			if( !shot_this[ *this].m_ftDark ||
 				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
-				tr[ *this].m_ftDark.reset(new FFT(-1, *fftLen()));
+				tr[ *this].m_ftDark.reset(new FFT(-1, shot_this[ *fftLen()]));
 			}
 			std::vector<std::complex<double> > darkin(fftlen, 0.0), darkout(fftlen);
 			int bginplen = std::min(bglength, fftlen);

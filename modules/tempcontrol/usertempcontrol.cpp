@@ -33,12 +33,17 @@ XITC503::XITC503(const char *name, bool runtime,
 void XITC503::open() throw (XInterface::XInterfaceError &) {
 	start();
 
-	if( !shared_ptr<XDCSource> ( *extDCSource())) {
-		heaterMode()->clear();
-		heaterMode()->add("PID");
-		heaterMode()->add("Man");
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()])) {
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("Man");
+		}
+		tr[ *powerRange()].setUIEnabled(false);
+		if(tr.commit())
+			break;
 	}
-	powerRange()->setUIEnabled(false);
 }
 double XITC503::getRaw(shared_ptr<XChannel> &channel) {
 	interface()->send("X");
@@ -61,11 +66,11 @@ void XITC503::onDChanged(double d) {
 	interface()->sendf("D%f", d);
 }
 void XITC503::onTargetTempChanged(double temp) {
-	if(heaterMode()->to_str() == "PID")
+	if(( **heaterMode())->to_str() == "PID")
 		interface()->sendf("T%f", temp);
 }
 void XITC503::onManualPowerChanged(double pow) {
-	if(heaterMode()->to_str() == "Man")
+	if(( **heaterMode())->to_str() == "Man")
 		interface()->sendf("O%f", pow);
 }
 void XITC503::onHeaterModeChanged(int) {
@@ -137,11 +142,12 @@ void XAVS47IB::onPowerRangeChanged(int ran) {
 	setPowerRange(ran);
 }
 void XAVS47IB::onCurrentChannelChanged(const shared_ptr<XChannel> &ch) {
+	Snapshot shot( *this);
 	interface()->send("ARN 0;INP 0;ARN 0;RAN 7");
 	interface()->sendf("DIS 0;MUX %u;ARN 0",
-		QString(currentChannel()->to_str()).toInt());
-	if( *ch->excitation() >= 1)
-		interface()->sendf("EXC %u", (unsigned int) ( *ch->excitation()));
+		QString(shot[ *currentChannel()].to_str()).toInt());
+	if(shot[ *ch->excitation()] >= 1)
+		interface()->sendf("EXC %u", (unsigned int) (shot[ *ch->excitation()]));
 	msecsleep(1500);
 	interface()->send("ARN 0;INP 1;ARN 0;RAN 6");
 	m_autorange_wait = 0;
@@ -150,19 +156,24 @@ void XAVS47IB::onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
-	if(ch != shared_ptr<XChannel> ( *currentChannel()))
+	Snapshot shot( *this);
+	if(ch != shared_ptr<XChannel>(shot[ *currentChannel()]))
 		return;
 	interface()->sendf("EXC %u", (unsigned int) exc);
 	m_autorange_wait = 0;
 
-	powerRange()->add("0");
-	powerRange()->add("1uW");
-	powerRange()->add("10uW");
-	powerRange()->add("100uW");
-	powerRange()->add("1mW");
-	powerRange()->add("10mW");
-	powerRange()->add("100mW");
-	powerRange()->add("1W");
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *powerRange()].add("0");
+		tr[ *powerRange()].add("1uW");
+		tr[ *powerRange()].add("10uW");
+		tr[ *powerRange()].add("100uW");
+		tr[ *powerRange()].add("1mW");
+		tr[ *powerRange()].add("10mW");
+		tr[ *powerRange()].add("100mW");
+		tr[ *powerRange()].add("1W");
+		if(tr.commit())
+			break;
+	}
 }
 double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 	return getRes();
@@ -173,14 +184,19 @@ double XAVS47IB::getTemp(shared_ptr<XChannel> &) {
 void XAVS47IB::open() throw (XInterface::XInterfaceError &) {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
-	currentChannel()->str(formatString("%d", (int) lrint(read("MUX"))));
-	onCurrentChannelChanged( *currentChannel());
+	trans( *currentChannel()).str(formatString("%d", (int) lrint(read("MUX"))));
+	onCurrentChannelChanged( **currentChannel());
 
 	start();
 
-	if( !shared_ptr<XDCSource> ( *extDCSource())) {
-		heaterMode()->clear();
-		heaterMode()->add("PID");
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()])) {
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("PID");
+		}
+		if(tr.commit())
+			break;
 	}
 }
 void XAVS47IB::afterStop() {
@@ -195,7 +211,7 @@ void XAVS47IB::afterStop() {
 }
 
 int XAVS47IB::setRange(unsigned int range) {
-	int rangebuf = (int) *powerRange();
+	int rangebuf = (int) **powerRange();
 	interface()->send("POW 0");
 	if(range > 7)
 		range = 7;
@@ -235,13 +251,14 @@ int XAVS47IB::getRange() {
 	return lrint(read("RAN"));
 }
 int XAVS47IB::setPoint() {
-	shared_ptr<XChannel> ch = *currentChannel();
+	Snapshot shot( *this);
+	shared_ptr<XChannel> ch = shot[ *currentChannel()];
 	if( !ch)
 		return -1;
-	shared_ptr<XThermometer> thermo = *ch->thermometer();
+	shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
 	if( !thermo)
 		return -1;
-	double res = thermo->getRawValue( *targetTemp());
+	double res = thermo->getRawValue(shot[ *targetTemp()]);
 	//the unit is 100uV
 	int val = lrint(10000.0 * res / pow(10.0, getRange() - 1));
 	val = std::min(val, 20000);
@@ -290,37 +307,39 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 void XCryocon::open() throw (XInterface::XInterfaceError &) {
 	Snapshot shot( *channels());
 	const XNode::NodeList &list( *shot.list());
-	shared_ptr<XChannel> ch0 = dynamic_pointer_cast<XChannel> (list.at(0));
-	shared_ptr<XChannel> ch1 = dynamic_pointer_cast<XChannel> (list.at(1));
+	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
+	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
 	interface()->query("INPUT A:VBIAS?");
-	ch0->excitation()->str(QString( &interface()->buffer()[0]).simplified());
+	trans( *ch0->excitation()).str(QString( &interface()->buffer()[0]).simplified());
 	interface()->query("INPUT B:VBIAS?");
-	ch1->excitation()->str(QString( &interface()->buffer()[0]).simplified());
+	trans( *ch1->excitation()).str(QString( &interface()->buffer()[0]).simplified());
 
-	powerRange()->clear();
+	trans( *powerRange()).clear();
 	interface()->query("HEATER:RANGE?");
-	powerRange()->str(QString( &interface()->buffer()[0]).simplified());
+	trans( *powerRange()).str(QString( &interface()->buffer()[0]).simplified());
 
-	if( !shared_ptr<XDCSource> ( *extDCSource())) {
+	if( !shared_ptr<XDCSource>( **extDCSource())) {
 		getChannel();
 		interface()->query("HEATER:PMAN?");
-		manualPower()->str(XString( &interface()->buffer()[0]));
+		trans( *manualPower()).str(XString( &interface()->buffer()[0]));
 		interface()->query("HEATER:PGAIN?");
-		prop()->str(XString( &interface()->buffer()[0]));
+		trans( *prop()).str(XString( &interface()->buffer()[0]));
 		interface()->query("HEATER:IGAIN?");
-		interval()->str(XString( &interface()->buffer()[0]));
+		trans( *interval()).str(XString( &interface()->buffer()[0]));
 		interface()->query("HEATER:DGAIN?");
-		deriv()->str(XString( &interface()->buffer()[0]));
+		trans( *deriv()).str(XString( &interface()->buffer()[0]));
 
-		if( !shared_ptr<XDCSource> ( *extDCSource())) {
-			heaterMode()->clear();
-			heaterMode()->add("OFF");
-			heaterMode()->add("PID");
-			heaterMode()->add("MAN");
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("OFF");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("MAN");
+			if(tr.commit())
+				break;
 		}
 		interface()->query("HEATER:TYPE?");
 		QString s( &interface()->buffer()[0]);
-		heaterMode()->str(s.simplified());
+		trans( *heaterMode()).str(s.simplified());
 	}
 
 	start();
@@ -328,25 +347,33 @@ void XCryocon::open() throw (XInterface::XInterfaceError &) {
 void XCryoconM32::open() throw (XInterface::XInterfaceError &) {
 	XCryocon::open();
 
-	powerRange()->add("HI");
-	powerRange()->add("MID");
-	powerRange()->add("LOW");
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *powerRange()].add("HI");
+		tr[ *powerRange()].add("MID");
+		tr[ *powerRange()].add("LOW");
+		if(tr.commit())
+			break;
+	}
 }
 void XCryoconM62::open() throw (XInterface::XInterfaceError &) {
 	XCryocon::open();
 
 	interface()->query("HEATER:LOAD?");
-	if(interface()->toInt() == 50) {
-		powerRange()->add("0.05W");
-		powerRange()->add("0.5W");
-		powerRange()->add("5.0W");
-		powerRange()->add("50W");
-	}
-	else {
-		powerRange()->add("0.03W");
-		powerRange()->add("0.3W");
-		powerRange()->add("2.5W");
-		powerRange()->add("25W");
+	for(Transaction tr( *this);; ++tr) {
+		if(interface()->toInt() == 50) {
+			tr[ *powerRange()].add("0.05W");
+			tr[ *powerRange()].add("0.5W");
+			tr[ *powerRange()].add("5.0W");
+			tr[ *powerRange()].add("50W");
+		}
+		else {
+			tr[ *powerRange()].add("0.03W");
+			tr[ *powerRange()].add("0.3W");
+			tr[ *powerRange()].add("2.5W");
+			tr[ *powerRange()].add("25W");
+		}
+		if(tr.commit())
+			break;
 	}
 }
 void XCryocon::onPChanged(double p) {
@@ -368,7 +395,7 @@ void XCryocon::onHeaterModeChanged(int) {
 	setHeaterMode();
 }
 void XCryocon::onPowerRangeChanged(int) {
-	interface()->send("HEATER:RANGE " + powerRange()->to_str());
+	interface()->send("HEATER:RANGE " + ( **powerRange())->to_str());
 }
 void XCryocon::onCurrentChannelChanged(const shared_ptr<XChannel> &ch) {
 	interface()->send("HEATER:SOURCE " + ch->getName());
@@ -378,7 +405,7 @@ void XCryocon::onExcitationChanged(const shared_ptr<XChannel> &ch, int) {
 	if( !interface()->isOpened())
 		return;
 	interface()->send("INPUT " + ch->getName() + ":VBIAS "
-		+ ch->excitation()->to_str());
+		+ ( **ch->excitation())->to_str());
 }
 void XCryocon::setTemp(double temp) {
 	if(temp > 0)
@@ -386,8 +413,8 @@ void XCryocon::setTemp(double temp) {
 	else
 		stopControl();
 
-	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel> (
-		*currentChannel()))->thermometer();
+	shared_ptr<XThermometer> thermo = **(shared_ptr<XChannel> (
+		**currentChannel()))->thermometer();
 	if(thermo)
 		setHeaterSetPoint(thermo->getRawValue(temp));
 	else
@@ -408,15 +435,16 @@ void XCryocon::getChannel() {
 	char s[3];
 	if(interface()->scanf("CH%s", s) != 1)
 		return;
-	currentChannel()->str(XString(s));
+	trans( *currentChannel()).str(XString(s));
 }
 void XCryocon::setHeaterMode(void) {
-	if(heaterMode()->to_str() == "Off")
+	Snapshot shot( *this);
+	if(shot[ *heaterMode()].to_str() == "Off")
 		stopControl();
 	else
 		control();
 
-	interface()->send("HEATER:TYPE " + heaterMode()->to_str());
+	interface()->send("HEATER:TYPE " + shot[ *heaterMode()].to_str());
 }
 double XCryocon::getHeater(void) {
 	interface()->query("HEATER:OUTP?");
@@ -453,11 +481,15 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create);
 	interface()->setEOS("");
-	powerRange()->add("0");
-	powerRange()->add("0.05W");
-	powerRange()->add("0.5W");
-	powerRange()->add("5W");
-	powerRange()->add("50W");
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *powerRange()].add("0");
+		tr[ *powerRange()].add("0.05W");
+		tr[ *powerRange()].add("0.5W");
+		tr[ *powerRange()].add("5W");
+		tr[ *powerRange()].add("50W");
+		if(tr.commit())
+			break;
+	}
 }
 void XNeoceraLTC21::control() {
 	interface()->send("SCONT;");
@@ -488,8 +520,9 @@ double XNeoceraLTC21::getHeater() {
 	return x;
 }
 void XNeoceraLTC21::setHeater() {
-	interface()->sendf("SPID1,%f,%f,%f,%f,100.0;", (double) *prop(),
-		(double) *interval(), (double) *deriv(), (double) *manualPower());
+	Snapshot shot( *this);
+	interface()->sendf("SPID1,%f,%f,%f,%f,100.0;", (double)shot[ *prop()],
+		(double)shot[ *interval()], (double)shot[ *deriv()], (double)shot[ *manualPower()]);
 }
 void XNeoceraLTC21::onPChanged(double /*p*/) {
 	setHeater();
@@ -529,34 +562,42 @@ void XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XNeoceraLTC21::open() throw (XInterface::XInterfaceError &) {
-	if( !shared_ptr<XDCSource> ( *extDCSource())) {
+	if( !shared_ptr<XDCSource>( **extDCSource())) {
 		interface()->query("QOUT?1;");
 		int sens, cmode, range;
 		if(interface()->scanf("%1d;%1d;%1d;", &sens, &cmode, &range) != 3)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		currentChannel()->str(formatString("%d", sens));
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *currentChannel()].str(formatString("%d", sens));
 
-		heaterMode()->clear();
-		heaterMode()->add("AUTO P");
-		heaterMode()->add("AUTO PI");
-		heaterMode()->add("AUTO PID");
-		heaterMode()->add("PID");
-		heaterMode()->add("TABLE");
-		heaterMode()->add("DEFAULT");
-		heaterMode()->add("MONITOR");
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("AUTO P");
+			tr[ *heaterMode()].add("AUTO PI");
+			tr[ *heaterMode()].add("AUTO PID");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("TABLE");
+			tr[ *heaterMode()].add("DEFAULT");
+			tr[ *heaterMode()].add("MONITOR");
 
-		heaterMode()->value(cmode);
-		powerRange()->value(range);
+			tr[ *heaterMode()] = cmode;
+			tr[ *powerRange()] = range;
+			if(tr.commit())
+				break;
+		}
 
 		interface()->query("QPID?1;");
 		double p, i, d, power, limit;
 		if(interface()->scanf("%lf;%lf;%lf;%lf;%lf;", &p, &i, &d, &power,
 			&limit) != 5)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		prop()->value(p);
-		interval()->value(i);
-		deriv()->value(d);
-		manualPower()->value(power);
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *prop()] = p;
+			tr[ *interval()] = i;
+			tr[ *deriv()] = d;
+			tr[ *manualPower()] = power;
+			if(tr.commit())
+				break;
+		}
 	}
 	start();
 }
@@ -598,16 +639,17 @@ void XLakeShore340::onDChanged(double d) {
 	interface()->sendf("PID 1,,,%f", d);
 }
 void XLakeShore340::onTargetTempChanged(double temp) {
-	shared_ptr<XThermometer> thermo = *(shared_ptr<XChannel> (
-		*currentChannel()))->thermometer();
+	Snapshot shot( *this);
+	shared_ptr<XThermometer> thermo = **(shared_ptr<XChannel> (
+		shot[ *currentChannel()]))->thermometer();
 	if(thermo) {
 		interface()->sendf("CSET 1,%s,3,1",
-			(const char*) currentChannel()->to_str().c_str());
+			(const char*)shot[ *currentChannel()].to_str().c_str());
 		temp = thermo->getRawValue(temp);
 	}
 	else {
 		interface()->sendf("CSET 1,%s,1,1",
-			(const char*) currentChannel()->to_str().c_str());
+			(const char*)shot[ *currentChannel()].to_str().c_str());
 	}
 	interface()->sendf("SETP 1,%f", temp);
 }
@@ -615,13 +657,14 @@ void XLakeShore340::onManualPowerChanged(double pow) {
 	interface()->sendf("MOUT 1,%f", pow);
 }
 void XLakeShore340::onHeaterModeChanged(int) {
-	if(heaterMode()->to_str() == "Off") {
+	Snapshot shot( *this);
+	if(shot[ *heaterMode()].to_str() == "Off") {
 		interface()->send("RANGE 0");
 	}
-	if(heaterMode()->to_str() == "PID") {
+	if(shot[ *heaterMode()].to_str() == "PID") {
 		interface()->send("CMODE 1");
 	}
-	if(heaterMode()->to_str() == "Man") {
+	if(shot[ *heaterMode()].to_str() == "Man") {
 		interface()->send("CMODE 3");
 	}
 }
@@ -645,29 +688,37 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 	if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	powerRange()->clear();
-	for(int i = 1; i < 6; i++) {
-		powerRange()->add(formatString("%.1f W", (double) pow(10.0, i - 5.0)
-			* pow(maxcurr, 2.0) * res));
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *powerRange()].clear();
+		for(int i = 1; i < 6; i++) {
+			tr[ *powerRange()].add(formatString("%.1f W", (double) pow(10.0, i - 5.0)
+				* pow(maxcurr, 2.0) * res));
+		}
+		if(tr.commit())
+			break;
 	}
-	if( !shared_ptr<XDCSource> ( *extDCSource())) {
+	if( !shared_ptr<XDCSource>( **extDCSource())) {
 		interface()->query("CSET? 1");
-		char ch[2];
-		if(interface()->scanf("%1s", ch) == 1)
-			currentChannel()->str(XString(ch));
+		for(Transaction tr( *this);; ++tr) {
+			char ch[2];
+			if(interface()->scanf("%1s", ch) == 1)
+				tr[ *currentChannel()].str(XString(ch));
 
-		heaterMode()->clear();
-		heaterMode()->add("Off");
-		heaterMode()->add("PID");
-		heaterMode()->add("Man");
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("Off");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("Man");
+			if(tr.commit())
+				break;
+		}
 
 		interface()->query("CMODE? 1");
 		switch(interface()->toInt()) {
 		case 1:
-			heaterMode()->str(XString("PID"));
+			trans( *heaterMode()).str(XString("PID"));
 			break;
 		case 3:
-			heaterMode()->str(XString("Man"));
+			trans( *heaterMode()).str(XString("Man"));
 			break;
 		default:
 			break;
@@ -675,19 +726,23 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 		interface()->query("RANGE?");
 		int range = interface()->toInt();
 		if(range == 0)
-			heaterMode()->str(XString("Off"));
+			trans( *heaterMode()).str(XString("Off"));
 		else
-			powerRange()->value(range - 1);
+			trans( *powerRange()) = range - 1;
 
 		interface()->query("MOUT? 1");
-		manualPower()->value(interface()->toDouble());
+		trans( *manualPower()) = interface()->toDouble();
 		interface()->query("PID? 1");
 		double p, i, d;
 		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		prop()->value(p);
-		interval()->value(i);
-		deriv()->value(d);
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *prop()] = p;
+			tr[ *interval()] = i;
+			tr[ *deriv()] = d;
+			if(tr.commit())
+				break;
+		}
 	}
 	start();
 }

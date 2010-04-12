@@ -319,7 +319,7 @@ XRuby::rvaluenode_set(VALUE self, VALUE var) {
 				return Qnil;
 			}
 			else {
-				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(vnode->to_str()) );
+				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(shot[ *vnode].to_str()) );
 				return XRuby::getValueOfNode(vnode);
 			}
 		}
@@ -351,7 +351,7 @@ XRuby::rvaluenode_load(VALUE self, VALUE var) {
 				return Qnil;
 			}
 			else {
-				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(vnode->to_str()) );
+				dbgPrint(QString("Ruby, Node %1, new value: %2.").arg(node->getName()).arg(shot[ *vnode].to_str()) );
 				return XRuby::getValueOfNode(vnode);
 			}
 		}
@@ -396,7 +396,7 @@ XRuby::rvaluenode_to_str(VALUE self) {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
 			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 			ASSERT(vnode);
-			return string2RSTRING(vnode->to_str());
+			return string2RSTRING(( **vnode)->to_str());
 		}
 		else {
 			throw XString("Node no longer exists\n");
@@ -429,29 +429,26 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 				throw formatString("Negative FIXNUM on %s\n", node->getName().c_str());
 			}
 		}
-		if(inode) { inode->value(integer); return 0; }
-		if(lnode) { lnode->value(integer); return 0; }
-		if(uinode) { uinode->value(integer); return 0; }
-		if(ulnode) { ulnode->value(integer); return 0; }
+		if(inode) { trans( *inode) = integer; return 0; }
+		if(lnode) { trans( *lnode) = integer; return 0; }
+		if(uinode) { trans( *uinode) = integer; return 0; }
+		if(ulnode) { trans( *ulnode) = integer; return 0; }
 		dbl = integer;
-		if(dnode) {dnode->value(dbl); return 0;}
-		throw formatString("FIXNUM is not appropreate on %s\n"
-			, node->getName().c_str());
+		if(dnode) { trans( *dnode) = dbl; return 0;}
+		throw formatString("FIXNUM is not appropreate on %s\n", node->getName().c_str());
 	case T_FLOAT:
 		dbl = RFLOAT(value)->value;
-		if(dnode) {dnode->value(dbl); return 0;}
-		throw formatString("FLOAT is not appropreate on %s\n"
-			, node->getName().c_str());
+		if(dnode) { trans( *dnode) = dbl; return 0;}
+		throw formatString("FLOAT is not appropreate on %s\n", node->getName().c_str());
 	case T_BIGNUM:
 		dbl = NUM2DBL(value);
-		if(dnode) {dnode->value(dbl); return 0;}
-		throw formatString("BIGNUM is not appropreate on %s\n"
-			, node->getName().c_str());
+		if(dnode) { trans( *dnode) = dbl; return 0;}
+		throw formatString("BIGNUM is not appropreate on %s\n", node->getName().c_str());
 		//    integer = lrint(dbl);
 		//    if(inode && (dbl <= INT_MAX)) {inode->value(integer); return 0;}
 	case T_STRING:
 		try {
-			node->str(XString(RSTRING(value)->ptr));
+			trans( *node).str(XString(RSTRING(value)->ptr));
 		}
 		catch (XKameError &e) {
 			throw formatString("Validation error %s on %s\n"
@@ -459,16 +456,13 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 		}
 		return 0;
 	case T_TRUE:
-		if(bnode) {bnode->value(true); return 0;}
-		throw formatString("TRUE is not appropreate on %s\n"
-			, node->getName().c_str());
+		if(bnode) { trans( *bnode) = true; return 0;}
+		throw formatString("TRUE is not appropreate on %s\n", node->getName().c_str());
 	case T_FALSE:
-		if(bnode) {bnode->value(false); return 0;}
-		throw formatString("FALSE is not appropreate on %s\n"
-			, node->getName().c_str());
+		if(bnode) { trans( *bnode) = false; return 0;}
+		throw formatString("FALSE is not appropreate on %s\n", node->getName().c_str());
 	default:
-		throw formatString("UNKNOWN TYPE is not appropreate on %s\n"
-			, node->getName().c_str());
+		throw formatString("UNKNOWN TYPE is not appropreate on %s\n", node->getName().c_str());
 	}
 	return -1;
 }
@@ -481,13 +475,14 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
 	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
 	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
 	shared_ptr<XStringNode> snode = dynamic_pointer_cast<XStringNode>(node);
-	if(dnode) {return rb_float_new((double) *dnode);}
-	if(inode) {return INT2NUM( *inode);}
-	if(uinode) {return UINT2NUM( *uinode);}
-	if(lnode) {return LONG2NUM( *lnode);}
-	if(ulnode) {return ULONG2NUM( *ulnode);}
-	if(bnode) {return ( *bnode) ? Qtrue : Qfalse;}
-	if(snode) {return string2RSTRING( *snode);}
+	Snapshot shot( *node);
+	if(dnode) {return rb_float_new((double)shot[ *dnode]);}
+	if(inode) {return INT2NUM(shot[ *inode]);}
+	if(uinode) {return UINT2NUM(shot[ *uinode]);}
+	if(lnode) {return LONG2NUM(shot[ *lnode]);}
+	if(ulnode) {return ULONG2NUM(shot[ *ulnode]);}
+	if(bnode) {return (shot[ *bnode]) ? Qtrue : Qfalse;}
+	if(snode) {return string2RSTRING(shot[ *snode]);}
 	return Qnil;
 }
 
@@ -501,9 +496,9 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 	Snapshot shot(*st->xruby);
 	if(shot.size()) {
 		for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
-			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>(*it);
+			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>( *it);
 			ASSERT(th);
-			if(id == *th->threadID())
+			if(id == shot[ *th->threadID()])
 				rubythread = th;
 		}
 	}

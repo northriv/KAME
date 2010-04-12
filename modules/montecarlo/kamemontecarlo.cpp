@@ -97,36 +97,41 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 	meas->scalarEntries()->insert(tr_meas, m_entryM);
 	meas->scalarEntries()->insert(tr_meas, m_entry2in2);
 	meas->scalarEntries()->insert(tr_meas, m_entry1in3);
-	m_targetTemp->value(100.0);
-	m_hdirx->value(1.0);
-	m_hdiry->value(1.0);
-	m_hdirz->value(1.0);
-	m_L->value(8);
-	m_cutoffReal->value(4.0);
-	m_cutoffRec->value(2.0);
-	m_alpha->value(0.5);
-	m_minTests->value(1.0);
-	m_minFlips->value(0.2);
-  
-//  for(const FFTAxis *axis = c_fftaxes; axis->desc; axis++) {
-//    m_fftAxisX->add(axis->desc);
-//    m_fftAxisY->add(axis->desc);
-//  }
-//  m_fftAxisX->value(0);
-//  m_fftAxisY->value(1);
-  
-	m_graph3D->add(GRAPH_3D_FFT_INTENS_ABS);
-	m_graph3D->add(GRAPH_3D_FFT_INTENS_X);
-	m_graph3D->add(GRAPH_3D_FFT_INTENS_Y);
-	m_graph3D->add(GRAPH_3D_FFT_INTENS_Z);
-	m_graph3D->add(GRAPH_3D_FFT_INTENS_M);
-	m_graph3D->add(GRAPH_REAL_M);
-	m_graph3D->add(GRAPH_REAL_H);
-	m_graph3D->add(GRAPH_REAL_P);
-	m_graph3D->add(GRAPH_REAL_H_B_SITE);
-	m_graph3D->add(GRAPH_REAL_H_8a_SITE);
-	m_graph3D->add(GRAPH_REAL_H_48f_SITE);
-	m_graph3D->add(GRAPH_FLIPS);
+
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *m_targetTemp] = 100.0;
+		tr[ *m_hdirx] = 1.0;
+		tr[ *m_hdiry] = 1.0;
+		tr[ *m_hdirz] = 1.0;
+		tr[ *m_L] = 8;
+		tr[ *m_cutoffReal] = 4.0;
+		tr[ *m_cutoffRec] = 2.0;
+		tr[ *m_alpha] = 0.5;
+		tr[ *m_minTests] = 1.0;
+		tr[ *m_minFlips] = 0.2;
+
+	//  for(const FFTAxis *axis = c_fftaxes; axis->desc; axis++) {
+	//    m_fftAxisX].add(axis->desc);
+	//    m_fftAxisY].add(axis->desc);
+	//  }
+	//  m_fftAxisX] = 0);
+	//  m_fftAxisY] = 1);
+
+		tr[ *m_graph3D].add(GRAPH_3D_FFT_INTENS_ABS);
+		tr[ *m_graph3D].add(GRAPH_3D_FFT_INTENS_X);
+		tr[ *m_graph3D].add(GRAPH_3D_FFT_INTENS_Y);
+		tr[ *m_graph3D].add(GRAPH_3D_FFT_INTENS_Z);
+		tr[ *m_graph3D].add(GRAPH_3D_FFT_INTENS_M);
+		tr[ *m_graph3D].add(GRAPH_REAL_M);
+		tr[ *m_graph3D].add(GRAPH_REAL_H);
+		tr[ *m_graph3D].add(GRAPH_REAL_P);
+		tr[ *m_graph3D].add(GRAPH_REAL_H_B_SITE);
+		tr[ *m_graph3D].add(GRAPH_REAL_H_8a_SITE);
+		tr[ *m_graph3D].add(GRAPH_REAL_H_48f_SITE);
+		tr[ *m_graph3D].add(GRAPH_FLIPS);
+		if(tr.commit())
+			break;
+	}
   
 	m_conLength = xqcon_create<XQLineEditConnector>(m_L, m_form->m_edLength);
 	m_conCutoffReal = xqcon_create<XQLineEditConnector>(m_cutoffReal, m_form->m_edCutoffReal);
@@ -340,50 +345,50 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 	bool calc8asite = false;
 	bool calc48fsite = false;
 	bool writeflips = false;
-	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_ABS) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_3D_FFT_INTENS_ABS) {
 		fftx = true;
 		ffty = true;
 		fftz = true;
 		fft_intens_abs = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_X) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_3D_FFT_INTENS_X) {
 		fftx = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Y) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_3D_FFT_INTENS_Y) {
 		ffty = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_Z) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_3D_FFT_INTENS_Z) {
 		fftz = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_3D_FFT_INTENS_M) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_3D_FFT_INTENS_M) {
 		fftx = true;
 		ffty = true;
 		fftz = true;
 		along_field_dir = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_M) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_M) {
 		calcasite = true;
 		along_field_dir = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_H) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_H) {
 		calcasite = true;
 		calch = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_P) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_P) {
 		calcasite = true;
 		calch = true;
 		calcp = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_H_B_SITE) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_H_B_SITE) {
 		calcbsite = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_H_8a_SITE) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_H_8a_SITE) {
 		calc8asite = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_REAL_H_48f_SITE) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_REAL_H_48f_SITE) {
 		calc48fsite = true;
 	}
-	if(m_graph3D->to_str() == GRAPH_FLIPS) {
+	if(shot[ *m_graph3D].to_str() == GRAPH_FLIPS) {
 		writeflips = true;
 	}
 

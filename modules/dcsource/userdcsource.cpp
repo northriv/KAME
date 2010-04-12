@@ -20,11 +20,15 @@ REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source
 XYK7651::XYK7651(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
-  function()->add("F1");
-  function()->add("F5");
-  channel()->disable();
-  interface()->setGPIBUseSerialPollOnRead(false);
-  interface()->setGPIBUseSerialPollOnWrite(false);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *function()].add("F1");
+		tr[ *function()].add("F5");
+		if(tr.commit())
+			break;
+	}
+	channel()->disable();
+	interface()->setGPIBUseSerialPollOnRead(false);
+	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XYK7651::open() throw (XInterface::XInterfaceError &) {
@@ -35,21 +39,26 @@ void
 XYK7651::changeFunction(int /*ch*/, int ) {
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened()) return;
-	if(*function() == 0) {
-		range()->clear();
-		range()->add("10mV");
-		range()->add("100mV");
-		range()->add("1V");
-		range()->add("10V");
-		range()->add("100V");
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if(shot[ *function()] == 0) {
+			tr[ *range()].clear();
+			tr[ *range()].add("10mV");
+			tr[ *range()].add("100mV");
+			tr[ *range()].add("1V");
+			tr[ *range()].add("10V");
+			tr[ *range()].add("100V");
+		}
+		else {
+			tr[ *range()].clear();
+			tr[ *range()].add("1mA");
+			tr[ *range()].add("10mA");
+			tr[ *range()].add("100mA");
+		}
+		if(tr.commit())
+			break;
 	}
-	else {
-		range()->clear();
-		range()->add("1mA");
-		range()->add("10mA");
-		range()->add("100mA");
-	}
-	interface()->send(function()->to_str() + "E");
+	interface()->send(( **function())->to_str() + "E");
 }
 void
 XYK7651::changeOutput(int /*ch*/, bool x) {
@@ -68,8 +77,9 @@ XYK7651::changeValue(int /*ch*/, double x, bool autorange) {
 }
 double
 XYK7651::max(int /*ch*/, bool autorange) const {
-	int ran = *range();
-	if( *function() == 0) {
+	Snapshot shot( *this);
+	int ran = shot[ *range()];
+	if(shot[ *function()] == 0) {
 		if(autorange || (ran == -1))
 			ran = 4;
 		return 10e-3 * pow(10.0, (double)ran);
@@ -82,10 +92,11 @@ XYK7651::max(int /*ch*/, bool autorange) const {
 }
 void
 XYK7651::changeRange(int /*ch*/, int ran) {
+	Snapshot shot( *this);
 	{
 		XScopedLock<XInterface> lock( *interface());
 		if( !interface()->isOpened()) return;
-		if( *function() == 0) {
+		if(shot[ *function()] == 0) {
 			if((ran == -1))
 				ran = 4;
 			ran += 2;
@@ -106,14 +117,18 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	interface()->setEOS("\n");
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(2);
-	channel()->add("1");
-	channel()->add("2");
-	channel()->add("3");
-	function()->disable();
-	range()->add("99uA");
-	range()->add("0.99uA");
-	range()->add("9.9mA");
-	range()->add("99mA");
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *channel()].add("1");
+		tr[ *channel()].add("2");
+		tr[ *channel()].add("3");
+		tr[ *function()].disable();
+		tr[ *range()].add("99uA");
+		tr[ *range()].add("0.99uA");
+		tr[ *range()].add("9.9mA");
+		tr[ *range()].add("99mA");
+		if(tr.commit())
+			break;
+	}
 }
 void
 XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {

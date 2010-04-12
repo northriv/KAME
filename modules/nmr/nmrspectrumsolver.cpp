@@ -48,34 +48,39 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	const shared_ptr<XDoubleNode> windowlength, bool leastsquareonly)
 	: XNode(name, runtime), m_selector(selector), m_windowfunc(windowfunc), m_windowlength(windowlength) {
 	if(windowfunc) {
-		windowfunc->add(WINDOW_FUNC_DEFAULT);
-		windowfunc->add(WINDOW_FUNC_HANNING);
-		windowfunc->add(WINDOW_FUNC_HAMMING);
-		windowfunc->add(WINDOW_FUNC_BLACKMAN);
-		windowfunc->add(WINDOW_FUNC_BLACKMAN_HARRIS);
-		windowfunc->add(WINDOW_FUNC_FLATTOP);
-		windowfunc->add(WINDOW_FUNC_KAISER_1);
-		windowfunc->add(WINDOW_FUNC_KAISER_2);
-		windowfunc->add(WINDOW_FUNC_KAISER_3);
+		for(Transaction tr( *windowfunc);; ++tr) {
+			tr[ *windowfunc].add(WINDOW_FUNC_DEFAULT);
+			tr[ *windowfunc].add(WINDOW_FUNC_HANNING);
+			tr[ *windowfunc].add(WINDOW_FUNC_HAMMING);
+			tr[ *windowfunc].add(WINDOW_FUNC_BLACKMAN);
+			tr[ *windowfunc].add(WINDOW_FUNC_BLACKMAN_HARRIS);
+			tr[ *windowfunc].add(WINDOW_FUNC_FLATTOP);
+			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_1);
+			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_2);
+			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_3);
+			if(tr.commit())
+				break;
+		}
 	}
 	if(selector) {
-		if( !leastsquareonly) {
-			selector->add(SPECTRUM_SOLVER_ZF_FFT);
-			selector->add(SPECTRUM_SOLVER_MEM_STRICT);
-	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_EV);
-			selector->add(SPECTRUM_SOLVER_MVDL);
-			selector->add(SPECTRUM_SOLVER_EV_MDL);
-			selector->add(SPECTRUM_SOLVER_MUSIC_MDL);
-			selector->add(SPECTRUM_SOLVER_MEM_BURG_AICc);
-			selector->add(SPECTRUM_SOLVER_MEM_BURG_MDL);
-			selector->add(SPECTRUM_SOLVER_AR_YW_AICc);
-			selector->add(SPECTRUM_SOLVER_AR_YW_MDL);
-	//		selector->add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
-		}
-		selector->add(SPECTRUM_SOLVER_LS_HQ);
-		selector->add(SPECTRUM_SOLVER_LS_AICc);
-		selector->add(SPECTRUM_SOLVER_LS_MDL);
 		for(Transaction tr( *selector);; ++tr) {
+			if( !leastsquareonly) {
+				tr[ *selector].add(SPECTRUM_SOLVER_ZF_FFT);
+				tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT);
+		//		tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT_EV);
+				tr[ *selector].add(SPECTRUM_SOLVER_MVDL);
+				tr[ *selector].add(SPECTRUM_SOLVER_EV_MDL);
+				tr[ *selector].add(SPECTRUM_SOLVER_MUSIC_MDL);
+				tr[ *selector].add(SPECTRUM_SOLVER_MEM_BURG_AICc);
+				tr[ *selector].add(SPECTRUM_SOLVER_MEM_BURG_MDL);
+				tr[ *selector].add(SPECTRUM_SOLVER_AR_YW_AICc);
+				tr[ *selector].add(SPECTRUM_SOLVER_AR_YW_MDL);
+		//		tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
+			}
+			tr[ *selector].add(SPECTRUM_SOLVER_LS_HQ);
+			tr[ *selector].add(SPECTRUM_SOLVER_LS_AICc);
+			tr[ *selector].add(SPECTRUM_SOLVER_LS_MDL);
+
 			m_lsnOnChanged = tr[ *selector].onValueChanged().connectWeakly(
 				shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
 			if(tr.commit()) {
@@ -87,10 +92,10 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 }
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 	if(m_windowfunc) {
-		m_windowfunc->clear();
+		trans( *m_windowfunc).clear();
 	}
 	if(m_selector) {
-		m_selector->clear();
+		trans( *m_selector).clear();
 	}
 }
 FFT::twindowfunc

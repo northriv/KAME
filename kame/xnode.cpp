@@ -90,17 +90,6 @@ XTouchableNode::Payload::touch() {
 	tr().mark(onTouch(), static_cast<XTouchableNode *>(&node()));
 }
 
-void
-XValueNodeBase::str(const XString &str) throw (XKameError &) {
-	trans(*this).str(str);
-}
-
-template <typename T, int base>
-void
-XIntNodeBase<T, base>::value(T t) {
-	trans(*this) = t;
-}
-
 template <typename T, int base>
 void
 XIntNodeBase<T, base>::Payload::_str(const XString &str) {
@@ -189,19 +178,11 @@ template class XIntNodeBase<bool, 10>;
 XStringNode::XStringNode(const char *name, bool runtime)
 	: XValueNodeBase(name, runtime) {}
 
-void
-XStringNode::value(const XString &t) {
-	trans(*this) = t;
-}
 XDoubleNode::XDoubleNode(const char *name, bool runtime, const char *format)
 	: XValueNodeBase(name, runtime) {
 	setFormat(format);
 }
 
-void
-XDoubleNode::value(double t) {
-	trans(*this) = t;
-}
 XString
 XDoubleNode::Payload::to_str() const {
     return formatDouble(

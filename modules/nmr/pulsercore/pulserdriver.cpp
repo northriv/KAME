@@ -116,116 +116,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
     m_formMore(new FrmPulserMore(g_pFrmMain)) {
-	{
-		QComboBox*const combo[] = {
-			m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
-			m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7, 
-			m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11, 
-			m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
-		};
-  		const char *desc[] = {
-  			"Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
-  			"QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
-  			"QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
-  			"QPSK-PS-Gate", 0L
-  		};
-		for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
-			m_portSel[i] = create<XComboNode>(formatString("PortSel%u", i).c_str(), false);
-			m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], Snapshot( *m_portSel[i]));
-			for(const char **p = &desc[0]; *p; p++)
-				m_portSel[i]->add(*p);
-//			m_portSel[i]->setUIEnabled(false);
-		}
-		portSel(0)->value(PORTSEL_GATE);
-		portSel(1)->value(PORTSEL_PREGATE);
-	}
-	
-    m_form->m_btnMoreConfig->setIcon(
-		KIconLoader::global()->loadIcon("configure",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    
-	rtime()->value(100.0);
-	tau()->value(100.0);
-	combPW()->value(5.0);
-	pw1()->value(5.0);
-	pw2()->value(10.0);
-	combNum()->value(1);
-	combPT()->value(20.0);
-	combP1()->value(0.2);
-	combP1Alt()->value(50.0);
-	aswSetup()->value(0.02);
-	aswHold()->value(0.23);
-	altSep()->value(0.25);
-	g2Setup()->value(5.0);
-	echoNum()->value(1);
-	combOffRes()->value(0.0);
-	drivenEquilibrium()->value(false);
-	numPhaseCycle()->add(NUM_PHASE_CYCLE_1);
-	numPhaseCycle()->add(NUM_PHASE_CYCLE_2);
-	numPhaseCycle()->add(NUM_PHASE_CYCLE_4);
-	numPhaseCycle()->add(NUM_PHASE_CYCLE_8);
-	numPhaseCycle()->add(NUM_PHASE_CYCLE_16);
-	numPhaseCycle()->value(NUM_PHASE_CYCLE_16);
-	p1Level()->value(-5.0);
-	p2Level()->value(-0.5);
-	combLevel()->value(-5.0);
-	masterLevel()->value(-10.0);
-	qamLevel1()->value(1.0);
-	qamLevel2()->value(1.0);
-	qswDelay()->value(5.0);
-	qswWidth()->value(10.0);
-	qswSoftSWOff()->value(1.0);
- 
-	combMode()->add(COMB_MODE_OFF);
-	combMode()->add(COMB_MODE_ON);
-	combMode()->add(COMB_MODE_P1_ALT);
-	combMode()->add(COMB_MODE_COMB_ALT);
-	combMode()->value(N_COMB_MODE_OFF);
-	rtMode()->add(RT_MODE_FIXREP);
-	rtMode()->add(RT_MODE_FIXREST);
-	rtMode()->value(1);
 
-	p1Func()->add(PULSE_FUNC_RECT);
-	p1Func()->add(PULSE_FUNC_HANNING);
-	p1Func()->add(PULSE_FUNC_HAMMING);
-	p1Func()->add(PULSE_FUNC_BLACKMAN);
-	p1Func()->add(PULSE_FUNC_BLACKMAN_HARRIS);
-	p1Func()->add(PULSE_FUNC_FLATTOP);
-	p1Func()->add(PULSE_FUNC_FLATTOP_LONG);
-	p1Func()->add(PULSE_FUNC_FLATTOP_LONG_LONG);
-	p1Func()->add(PULSE_FUNC_KAISER_1);
-	p1Func()->add(PULSE_FUNC_KAISER_2);
-	p1Func()->add(PULSE_FUNC_KAISER_3);
-	p1Func()->add(PULSE_FUNC_HALF_SIN);
-    p2Func()->add(PULSE_FUNC_RECT);
-    p2Func()->add(PULSE_FUNC_HANNING);
-    p2Func()->add(PULSE_FUNC_HAMMING);
-    p2Func()->add(PULSE_FUNC_BLACKMAN);
-    p2Func()->add(PULSE_FUNC_BLACKMAN_HARRIS);
-    p2Func()->add(PULSE_FUNC_FLATTOP);
-    p2Func()->add(PULSE_FUNC_FLATTOP_LONG);
-    p2Func()->add(PULSE_FUNC_FLATTOP_LONG_LONG);
-    p2Func()->add(PULSE_FUNC_KAISER_1);
-    p2Func()->add(PULSE_FUNC_KAISER_2);
-    p2Func()->add(PULSE_FUNC_KAISER_3);
-    p2Func()->add(PULSE_FUNC_HALF_SIN);
-	combFunc()->add(PULSE_FUNC_RECT);
-	combFunc()->add(PULSE_FUNC_HANNING);
-	combFunc()->add(PULSE_FUNC_HAMMING);
-	combFunc()->add(PULSE_FUNC_BLACKMAN);
-	combFunc()->add(PULSE_FUNC_BLACKMAN_HARRIS);
-	combFunc()->add(PULSE_FUNC_FLATTOP);
-	combFunc()->add(PULSE_FUNC_FLATTOP_LONG);
-	combFunc()->add(PULSE_FUNC_FLATTOP_LONG_LONG);
-	combFunc()->add(PULSE_FUNC_KAISER_1);
-	combFunc()->add(PULSE_FUNC_KAISER_2);
-	combFunc()->add(PULSE_FUNC_KAISER_3);
-	combFunc()->add(PULSE_FUNC_HALF_SIN);
-    
-	p1Func()->value(PULSE_FUNC_KAISER_2);
-	p2Func()->value(PULSE_FUNC_KAISER_2);
-	combFunc()->value(PULSE_FUNC_FLATTOP);
-  
 	m_form->setWindowTitle(i18n("Pulser Control") + " - " + getLabel() );
 	m_formMore->setWindowTitle(i18n("Pulser Control More Config.") + " - " + getLabel() );
 	m_form->statusBar()->hide();
@@ -233,7 +124,119 @@ XPulser::XPulser(const char *name, bool runtime,
   
 	m_conMoreConfigShow = xqcon_create<XQButtonConnector>(
         m_moreConfigShow, m_form->m_btnMoreConfig);
+
+    m_form->m_btnMoreConfig->setIcon(
+		KIconLoader::global()->loadIcon("configure",
+		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+
 	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		{
+			QComboBox*const combo[] = {
+				m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
+				m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7,
+				m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11,
+				m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
+			};
+	  		const char *desc[] = {
+	  			"Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
+	  			"QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
+	  			"QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
+	  			"QPSK-PS-Gate", 0L
+	  		};
+			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+				m_portSel[i] = create<XComboNode>(tr, formatString("PortSel%u", i).c_str(), false);
+				m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot);
+				for(const char **p = &desc[0]; *p; p++)
+					tr[ *m_portSel[i]].add(*p);
+	//			m_portSel[i]->setUIEnabled(false);
+			}
+			tr[ *portSel(0)] = PORTSEL_GATE;
+			tr[ *portSel(1)] = PORTSEL_PREGATE;
+		}
+
+	    tr[ *rtime()] = 100.0;
+	    tr[ *tau()] = 100.0;
+	    tr[ *combPW()] = 5.0;
+	    tr[ *pw1()] = 5.0;
+	    tr[ *pw2()] = 10.0;
+	    tr[ *combNum()] = 1;
+	    tr[ *combPT()] = 20.0;
+	    tr[ *combP1()] = 0.2;
+	    tr[ *combP1Alt()] = 50.0;
+	    tr[ *aswSetup()] = 0.02;
+	    tr[ *aswHold()] = 0.23;
+	    tr[ *altSep()] = 0.25;
+	    tr[ *g2Setup()] = 5.0;
+	    tr[ *echoNum()] = 1;
+	    tr[ *combOffRes()] = 0.0;
+	    tr[ *drivenEquilibrium()] = false;
+	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_1);
+	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_2);
+	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_4);
+	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_8);
+	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_16);
+	    tr[ *numPhaseCycle()] = NUM_PHASE_CYCLE_16;
+	    tr[ *p1Level()] = -5.0;
+	    tr[ *p2Level()] = -0.5;
+	    tr[ *combLevel()] = -5.0;
+	    tr[ *masterLevel()] = -10.0;
+	    tr[ *qamLevel1()] = 1.0;
+	    tr[ *qamLevel2()] = 1.0;
+	    tr[ *qswDelay()] = 5.0;
+	    tr[ *qswWidth()] = 10.0;
+	    tr[ *qswSoftSWOff()] = 1.0;
+
+	    tr[ *combMode()].add(COMB_MODE_OFF);
+	    tr[ *combMode()].add(COMB_MODE_ON);
+	    tr[ *combMode()].add(COMB_MODE_P1_ALT);
+	    tr[ *combMode()].add(COMB_MODE_COMB_ALT);
+	    tr[ *combMode()] = N_COMB_MODE_OFF;
+	    tr[ *rtMode()].add(RT_MODE_FIXREP);
+	    tr[ *rtMode()].add(RT_MODE_FIXREST);
+	    tr[ *rtMode()] = 1;
+
+	    tr[ *p1Func()].add(PULSE_FUNC_RECT);
+	    tr[ *p1Func()].add(PULSE_FUNC_HANNING);
+	    tr[ *p1Func()].add(PULSE_FUNC_HAMMING);
+	    tr[ *p1Func()].add(PULSE_FUNC_BLACKMAN);
+	    tr[ *p1Func()].add(PULSE_FUNC_BLACKMAN_HARRIS);
+	    tr[ *p1Func()].add(PULSE_FUNC_FLATTOP);
+	    tr[ *p1Func()].add(PULSE_FUNC_FLATTOP_LONG);
+	    tr[ *p1Func()].add(PULSE_FUNC_FLATTOP_LONG_LONG);
+	    tr[ *p1Func()].add(PULSE_FUNC_KAISER_1);
+	    tr[ *p1Func()].add(PULSE_FUNC_KAISER_2);
+	    tr[ *p1Func()].add(PULSE_FUNC_KAISER_3);
+	    tr[ *p1Func()].add(PULSE_FUNC_HALF_SIN);
+	    tr[ *p2Func()].add(PULSE_FUNC_RECT);
+	    tr[ *p2Func()].add(PULSE_FUNC_HANNING);
+	    tr[ *p2Func()].add(PULSE_FUNC_HAMMING);
+	    tr[ *p2Func()].add(PULSE_FUNC_BLACKMAN);
+	    tr[ *p2Func()].add(PULSE_FUNC_BLACKMAN_HARRIS);
+	    tr[ *p2Func()].add(PULSE_FUNC_FLATTOP);
+	    tr[ *p2Func()].add(PULSE_FUNC_FLATTOP_LONG);
+	    tr[ *p2Func()].add(PULSE_FUNC_FLATTOP_LONG_LONG);
+	    tr[ *p2Func()].add(PULSE_FUNC_KAISER_1);
+	    tr[ *p2Func()].add(PULSE_FUNC_KAISER_2);
+	    tr[ *p2Func()].add(PULSE_FUNC_KAISER_3);
+	    tr[ *p2Func()].add(PULSE_FUNC_HALF_SIN);
+	    tr[ *combFunc()].add(PULSE_FUNC_RECT);
+	    tr[ *combFunc()].add(PULSE_FUNC_HANNING);
+	    tr[ *combFunc()].add(PULSE_FUNC_HAMMING);
+	    tr[ *combFunc()].add(PULSE_FUNC_BLACKMAN);
+	    tr[ *combFunc()].add(PULSE_FUNC_BLACKMAN_HARRIS);
+	    tr[ *combFunc()].add(PULSE_FUNC_FLATTOP);
+	    tr[ *combFunc()].add(PULSE_FUNC_FLATTOP_LONG);
+	    tr[ *combFunc()].add(PULSE_FUNC_FLATTOP_LONG_LONG);
+	    tr[ *combFunc()].add(PULSE_FUNC_KAISER_1);
+	    tr[ *combFunc()].add(PULSE_FUNC_KAISER_2);
+	    tr[ *combFunc()].add(PULSE_FUNC_KAISER_3);
+	    tr[ *combFunc()].add(PULSE_FUNC_HALF_SIN);
+
+	    tr[ *p1Func()] = PULSE_FUNC_KAISER_2;
+	    tr[ *p2Func()] = PULSE_FUNC_KAISER_2;
+	    tr[ *combFunc()] = PULSE_FUNC_FLATTOP;
+
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
@@ -564,10 +567,10 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	const double _alt_sep = rintTermMilliSec(shot[ *altSep()]);
 	const int _echo_num = shot[ *echoNum()];
 	if(_asw_setup > 2.0 * _tau)
-		aswSetup()->value(2.0 * _tau);
+		trans( *aswSetup()) = 2.0 * _tau;
 	if(node != altSep().get()) {
 		if(_alt_sep != _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000) {
-			altSep()->value(_asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000);
+			trans( *altSep()) = _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000;
 			return;
 		}
 	}
@@ -607,11 +610,11 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
     writer->push((uint16_t)shot[ *combNum()]);
     writer->push((int16_t)shot[ *rtMode()]);
 	int npat = 16;
-	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_1) npat = 1;
-	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_2) npat = 2;
-	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_4) npat = 4;
-	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_8) npat = 8;
-	if(numPhaseCycle()->to_str() == NUM_PHASE_CYCLE_16) npat = 16;
+	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_1) npat = 1;
+	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_2) npat = 2;
+	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_4) npat = 4;
+	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_8) npat = 8;
+	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_16) npat = 16;
 	writer->push((uint16_t)npat);
 //! ver 3 records below
     writer->push((uint16_t)shot[ *invertPhase()]);
@@ -1044,11 +1047,12 @@ void
 XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 					  double pw, unsigned int to_center,
 					  tpulsefunc func, double dB, double freq, double phase) {
+	const Snapshot &shot(tr);
 	std::vector<std::complex<double> > &p = tr[ *this].m_qamWaveForm[pnum_minus_1];
 	double dma_ao_period = resolutionQAM();
 	to_center *= lrint(resolution() / dma_ao_period);
-	double delay1 = *qamDelay1() * 1e-3 / dma_ao_period;
-	double delay2 = *qamDelay2() * 1e-3 / dma_ao_period;
+	double delay1 = shot[ *qamDelay1()] * 1e-3 / dma_ao_period;
+	double delay2 = shot[ *qamDelay2()] * 1e-3 / dma_ao_period;
 	double dx = dma_ao_period / pw;
 	double dp = 2*M_PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);

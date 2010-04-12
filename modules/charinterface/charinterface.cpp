@@ -40,13 +40,13 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     m_script_send(create<XStringNode>("Send", true)),
     m_script_query(create<XStringNode>("Query", true)) {
 
-#ifdef USE_GPIB
-	device()->add("GPIB");
-#endif
-	device()->add("SERIAL");
-	device()->add("DUMMY");
-  
 	for(Transaction tr( *this);; ++tr) {
+	#ifdef USE_GPIB
+		tr[ *device()].add("GPIB");
+	#endif
+		tr[ *device()].add("SERIAL");
+		tr[ *device()].add("DUMMY");
+  
 		m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onSendRequested);
 		m_lsnOnQueryRequested = tr[ *m_script_query].onValueChanged().connectWeakly(
@@ -61,25 +61,24 @@ XCharInterface::setEOS(const char *str) {
 }
          
 void
-XCharInterface::open() throw (XInterfaceError &)
-{        
+XCharInterface::open() throw (XInterfaceError &) {
 	m_xport.reset();
-    
+    Snapshot shot( *this);
 	{
 		shared_ptr<XPort> port;
 	#ifdef USE_GPIB
-		if(device()->to_str() == "GPIB") {
+		if(shot[ *device()].to_str() == "GPIB") {
 			port.reset(new XGPIBPort(this));
 		}
 	#endif
-		if(device()->to_str() == "SERIAL") {
+		if(shot[ *device()].to_str() == "SERIAL") {
 			port.reset(new XSerialPort(this));
 		}
-		if(device()->to_str() == "DUMMY") {
+		if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));
 		}
           
-		if(!port) {
+		if( !port) {
 			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
           
@@ -88,13 +87,12 @@ XCharInterface::open() throw (XInterfaceError &)
 	}
 }
 void
-XCharInterface::close() throw (XInterfaceError &)
-{
+XCharInterface::close() throw (XInterfaceError &) {
 	m_xport.reset();
 }
 int
 XCharInterface::scanf(const char *fmt, ...) const {
-	if(!buffer().size())
+	if( !buffer().size())
 		throw XConvError(__FILE__, __LINE__);
 	bool addednull = false;
 	if(buffer().back() != '\0') {
@@ -107,7 +105,7 @@ XCharInterface::scanf(const char *fmt, ...) const {
 
 	va_start(ap, fmt);
 
-	ret = vsscanf(&buffer()[0], fmt, ap);
+	ret = vsscanf( &buffer()[0], fmt, ap);
 
 	va_end(ap);
 

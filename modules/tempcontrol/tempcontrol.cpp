@@ -109,14 +109,19 @@ void XTempControl::showForms() {
 }
 
 void XTempControl::start() {
-	if(shared_ptr<XDCSource> ( *extDCSource())) {
-		heaterMode()->clear();
-		heaterMode()->add("Off");
-		heaterMode()->add("PID");
-		heaterMode()->add("Man");
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if(shared_ptr<XDCSource>(shot[ *extDCSource()])) {
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("Off");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("Man");
+		}
+		else
+			tr[ *m_powerRange].setUIEnabled(true);
+		if(tr.commit())
+			break;
 	}
-	else
-		m_powerRange->setUIEnabled(true);
 
 	m_thread.reset(new XThread<XTempControl> (shared_from_this(),
 		&XTempControl::execute));
@@ -178,7 +183,7 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 	m_conThermometer.reset();
 	m_conExcitation.reset();
 	m_lsnOnExcitationChanged.reset();
-	shared_ptr<XChannel> channel = *m_setupChannel;
+	shared_ptr<XChannel> channel = shot[ *m_setupChannel];
 	if( !channel)
 		return;
 	m_conThermometer = xqcon_create<XQComboBoxConnector> (
@@ -249,11 +254,12 @@ void XTempControl::createChannels(
 }
 
 double XTempControl::pid(XTime time, double temp) {
-	double p = *prop();
-	double i = *interval();
-	double d = *deriv();
+	Snapshot shot( *this);
+	double p = shot[ *prop()];
+	double i = shot[ *interval()];
+	double d = shot[ *deriv()];
 
-	double dt = temp - *targetTemp();
+	double dt = temp - shot[ *targetTemp()];
 	double dxdt = 0.0;
 	double acc = 0.0;
 	if((i > 0) && (time - m_pidLastTime < i)) {
@@ -314,7 +320,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 				src_raw = getRaw(src_ch);
 				src_temp = ( !thermo) ? getTemp(src_ch) : thermo->getTemp(
 					src_raw);
-				m_sourceTemp->value(src_temp);
+				trans( *m_sourceTemp) = src_temp;
 			}
 			if(shot.size(m_channels)) {
 				const XNode::NodeList &list( *shot.list(m_channels));
@@ -351,7 +357,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 			tempAvg = (tempAvg - temp) * exp( -dt / tau) + temp;
 			tempErrAvg = (tempErrAvg - terr * terr) * exp( -dt / tau) + terr * terr;
 			tempErrAvg = std::min(tempErrAvg, src_temp * src_temp);
-			stabilized()->value(sqrt(tempErrAvg)); //stderr
+			trans( *stabilized()) = sqrt(tempErrAvg); //stderr
 
 			double power = 0.0;
 			if(shared_ptr<XDCSource> dcsrc = shot[ *extDCSource()]) {
@@ -373,7 +379,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 			else
 				power = getHeater();
 
-			heaterPower()->value(power);
+			trans( *heaterPower()) = power;
 		}
 		catch(XKameError &e) {
 			e.print(getLabel() + "; ");
@@ -382,7 +388,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
 
-	m_setupChannel->value(shared_ptr<XThermometer> ());
+	trans( *m_setupChannel) = shared_ptr<XThermometer>();
 
 	m_lsnOnPChanged.reset();
 	m_lsnOnIChanged.reset();
@@ -397,20 +403,26 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	return NULL;
 }
 void XTempControl::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-	extDCSourceChannel()->clear();
-	if(shared_ptr<XDCSource> dcsrc = *extDCSource()) {
-		shared_ptr<const std::deque<XItemNodeBase::Item> > strings(
-			dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
-		for(std::deque<XItemNodeBase::Item>::const_iterator it =
-			strings->begin(); it != strings->end(); it++) {
-			extDCSourceChannel()->add(it->label);
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		tr[ *extDCSourceChannel()].clear();
+		if(shared_ptr<XDCSource> dcsrc = shot[ *extDCSource()]) {
+			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(
+				dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
+			for(std::deque<XItemNodeBase::Item>::const_iterator it =
+				strings->begin(); it != strings->end(); it++) {
+				tr[ *extDCSourceChannel()].add(it->label);
+			}
 		}
+		if(tr.commit())
+			break;
 	}
 }
 void XTempControl::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onPChanged( *prop());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onPChanged(shot[ *prop()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -418,8 +430,9 @@ void XTempControl::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onIChanged( *interval());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onIChanged(shot[ *interval()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -427,8 +440,9 @@ void XTempControl::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onDChanged( *deriv());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onDChanged(shot[ *deriv()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -436,8 +450,9 @@ void XTempControl::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::onTargetTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onTargetTempChanged( *targetTemp());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onTargetTempChanged(shot[ *targetTemp()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -445,8 +460,9 @@ void XTempControl::onTargetTempChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::onManualPowerChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onManualPowerChanged( *manualPower());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onManualPowerChanged(shot[ *manualPower()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -455,8 +471,9 @@ void XTempControl::onManualPowerChanged(const Snapshot &shot, XValueNodeBase *) 
 void XTempControl::onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onHeaterModeChanged( *heaterMode());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onHeaterModeChanged(shot[ *heaterMode()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -464,8 +481,9 @@ void XTempControl::onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		if( !shared_ptr<XDCSource> ( *extDCSource()))
-			onPowerRangeChanged( *powerRange());
+		Snapshot shot( *this);
+		if( !shared_ptr<XDCSource>(shot[ *extDCSource()]))
+			onPowerRangeChanged(shot[ *powerRange()]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -474,7 +492,7 @@ void XTempControl::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 void XTempControl::onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
-		shared_ptr<XChannel> ch( *currentChannel());
+		shared_ptr<XChannel> ch( **currentChannel());
 		if( !ch)
 			return;
 		onCurrentChannelChanged(ch);

@@ -27,11 +27,11 @@ XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) 
 void
 XItemNodeBase::onTryAutoSet(const Snapshot &shot, XItemNodeBase *) {
 	if( !autoSetAny()) return;
-	XString var = to_str();
+	XString var = shot[ *this].to_str();
 	if(var.length()) return;
 	shared_ptr<const std::deque<Item> > items = itemStrings(shot);
 	if(items->size()) {
-		str(items->front().name);
+		trans( *this).str(items->front().name);
 	}
 }
 
@@ -42,31 +42,6 @@ _xpointeritemnode_throwConversionError() {
 
 XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)
 	: XItemNodeBase(name, runtime, auto_set_any) {
-}
-
-void
-XComboNode::value(const XString &s) {
-    try {
-        str(s);
-    }
-    catch (XKameError &e) {
-        e.print();
-    }
-}
-
-void
-XComboNode::value(int t) {
-	trans( *this) = t;
-}
-
-void
-XComboNode::add(const XString &str) {
-	trans( *this).add(str);
-}
-
-void
-XComboNode::clear() {
-	trans( *this).clear();
 }
 
 void

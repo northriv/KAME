@@ -59,7 +59,7 @@ XRubyWriter::write(
             if(ghost)
                 m_ofs << "\t# ";
         }
-        QString s(vnode->to_str());
+        QString s(shot[ *vnode].to_str());
         s.replace( QChar('\\'), "\\\\");
         s.replace( QChar('\n'), "\\n");
         s.replace( QChar('\r'), "\\r");

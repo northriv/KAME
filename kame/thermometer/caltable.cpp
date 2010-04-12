@@ -93,7 +93,7 @@ XConCalTable::XConCalTable
 
 void
 XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XThermometer> thermo = *thermometer();
+	shared_ptr<XThermometer> thermo = **thermometer();
 	if( !thermo) return;
 	double ret = thermo->getRawValue(shot[ *temp()]);
 	for(Transaction tr( *value());; ++tr) {
@@ -105,7 +105,7 @@ XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XThermometer> thermo = *thermometer();
+	shared_ptr<XThermometer> thermo = **thermometer();
 	if( !thermo) return;
 	double ret = thermo->getTemp(shot[ *value()]);
 	for(Transaction tr( *temp());; ++tr) {
@@ -117,7 +117,7 @@ XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
-	shared_ptr<XThermometer> thermo = *thermometer();
+	shared_ptr<XThermometer> thermo = **thermometer();
 	if( !thermo) {
 		for(Transaction tr( *m_wave);; ++tr) {
 			tr[ *m_wave].clearPoints();
@@ -127,10 +127,11 @@ XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 		return;
 	}
 	const int length = 1000;
-	double step = (log( *thermo->tempMax()) - log( *thermo->tempMin())) / length;
+	Snapshot shot_th( *thermo);
+	double step = (log(shot_th[ *thermo->tempMax()]) - log(shot_th[ *thermo->tempMin()])) / length;
 	for(Transaction tr( *m_wave);; ++tr) {
 		tr[ *m_wave].setRowCount(length);
-		double lt = log(*thermo->tempMin());
+		double lt = log(shot_th[ *thermo->tempMin()]);
 		for(int i = 0; i < length; ++i) {
 			double t = exp(lt);
 			double r = thermo->getRawValue(t);

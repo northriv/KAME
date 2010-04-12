@@ -379,8 +379,8 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 		if( !status) break;
 		if(XTime::now() - firsttime < 0.01) continue;
 		if(XTime::now() - firsttime > 0.05) break;
-		double p1max = *p1Max();
-		double p1min = *p1Min();
+		double p1max = shot_this[ *p1Max()];
+		double p1min = shot_this[ *p1Min()];
 		tr[ *this].m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
 		tr[ *this].m_params[1] = 1.0*(randMT19937() - 0.5);
 		tr[ *this].m_params[2] = 0.0;

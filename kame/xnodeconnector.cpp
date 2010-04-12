@@ -217,7 +217,7 @@ void
 XQLineEditConnector::onReturnPressed() {
 	QPalette palette(m_pItem->palette());
     try {
-		m_node->str(m_pItem->text());
+		trans( *m_node).str(m_pItem->text());
 		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
@@ -231,9 +231,10 @@ XQLineEditConnector::onExit() {
 	QPalette palette(m_pItem->palette());
 	palette.setColor(QPalette::Text, Qt::black);
 	m_pItem->setPalette(palette);
-	if(QString(m_node->to_str()) != m_pItem->text()) {
+	Snapshot shot( *m_node);
+	if(QString(shot[ *m_node].to_str()) != m_pItem->text()) {
 	    m_pItem->blockSignals(true);
-	    m_pItem->setText(m_node->to_str());
+	    m_pItem->setText(shot[ *m_node].to_str());
 	    m_pItem->blockSignals(false);
 		shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 		if(statusprinter) statusprinter->printMessage(i18n("Input canceled."));
@@ -365,7 +366,7 @@ XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
 void
 XKURLReqConnector::onSelect( const KUrl &l) {
     try {
-		m_node->str(m_pItem->text());
+		trans( *m_node).str(m_pItem->text());
     }
     catch (XKameError &e) {
         e.print();
@@ -433,7 +434,7 @@ XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &no
 
 void
 XQToggleButtonConnector::onClick() {
-    m_node->value(m_pItem->isChecked());
+    trans( *m_node) = m_pItem->isChecked();
 }
 
 void
@@ -521,9 +522,9 @@ void
 XQComboBoxConnector::onSelect(int idx) {
     try {
         if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(XString());
+            trans( *m_node).str(XString());
         else
-            m_node->str(m_itemStrings->at(idx).name);
+            trans( *m_node).str(m_itemStrings->at(idx).name);
     }
     catch (XKameError &e) {
         e.print();
@@ -606,10 +607,10 @@ XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
 void
 XQListBoxConnector::onSelect(int idx) {
     try {
-        if(!m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            m_node->str(XString());
+        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+            trans( *m_node).str(XString());
         else
-            m_node->str(m_itemStrings->at(idx).name);
+            trans( *m_node).str(m_itemStrings->at(idx).name);
     }
     catch (XKameError &e) {
         e.print();
@@ -647,7 +648,7 @@ XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node,
 }
 void
 XKColorButtonConnector::onClick(const QColor &newColor) {
-	m_node->value(newColor.rgb());
+	trans( *m_node) = newColor.rgb();
 }
 void
 XKColorButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -662,7 +663,7 @@ XKColorComboConnector::XKColorComboConnector(const shared_ptr<XHexNode> &node, K
 }
 void
 XKColorComboConnector::onClick(const QColor &newColor) {
-	m_node->value(newColor.rgb());
+	trans( *m_node) = newColor.rgb();
 }
 void
 XKColorComboConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {

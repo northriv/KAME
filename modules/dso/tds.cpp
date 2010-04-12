@@ -22,29 +22,33 @@ XTDS::XTDS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XDSO>(name, runtime, ref(tr_meas), meas) {
 	const char* ch[] = {"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2", 0L};
-	for(int i = 0; ch[i]; i++) {
-		trace1()->add(ch[i]);
-		trace2()->add(ch[i]);
-		trace3()->add(ch[i]);
-		trace4()->add(ch[i]);
-	}
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
-	for(int i = 0; sc[i]; i++) {
-		vFullScale1()->add(sc[i]);
-		vFullScale2()->add(sc[i]);
-		vFullScale3()->add(sc[i]);
-		vFullScale4()->add(sc[i]);
-	}
-	const char* tr[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
-	for(int i = 0; tr[i]; i++) {
-		trigSource()->add(tr[i]);
+	const char* trg[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
+	for(Transaction tr( *this);; ++tr) {
+		for(int i = 0; ch[i]; i++) {
+			tr[ *trace1()].add(ch[i]);
+			tr[ *trace2()].add(ch[i]);
+			tr[ *trace3()].add(ch[i]);
+			tr[ *trace4()].add(ch[i]);
+		}
+		for(int i = 0; sc[i]; i++) {
+			tr[ *vFullScale1()].add(sc[i]);
+			tr[ *vFullScale2()].add(sc[i]);
+			tr[ *vFullScale3()].add(sc[i]);
+			tr[ *vFullScale4()].add(sc[i]);
+		}
+		for(int i = 0; trg[i]; i++) {
+			tr[ *trigSource()].add(trg[i]);
+		}
+		if(tr.commit())
+			break;
 	}
 
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
 	interface()->setGPIBWaitBeforeSPoll(10); //10msec
 
-	recordLength()->value(10000);
+	trans( *recordLength()) = 10000;
 }
 
 void
@@ -54,7 +58,7 @@ XTDS::open() throw (XInterface::XInterfaceError &) {
 	char buf[10];
 	if(interface()->scanf(":ACQ%*s %9s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	singleSequence()->value(!strncmp(buf, "SEQ", 3));
+	trans( *singleSequence()) = !strncmp(buf, "SEQ", 3);
   
 	interface()->query("ACQ:MODE?");
 	if(interface()->scanf(":ACQ%*s %9s", buf) != 1)
@@ -64,27 +68,27 @@ XTDS::open() throw (XInterface::XInterfaceError &) {
 		int x;
 		if(interface()->scanf(":ACQ%*s %d", &x) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		average()->value(x);
+		trans( *average()) = x;
 	}
 	if( !strncmp(buf, "SAM", 3))
-		average()->value(1);
+		trans( *average()) = 1;
 	interface()->send("DATA:ENC RPB;WIDTH 2"); //MSB first RIB
   
 	start();
 }
 void 
 XTDS::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-	if( *average() == 1) {
+	if(shot[ *average()] == 1) {
 		interface()->send("ACQ:MODE SAMPLE");
 	}
 	else {
-		interface()->send("ACQ:MODE AVE;NUMAVG " + average()->to_str());
+		interface()->send("ACQ:MODE AVE;NUMAVG " + shot[ *average()].to_str());
 	}
 }
 
 void
 XTDS::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
-	if( *singleSequence()) {
+	if(shot[ *singleSequence()]) {
 		interface()->send("ACQ:STOPAFTER SEQUENCE;STATE ON");
 	}
 	else {
@@ -93,79 +97,79 @@ XTDS::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XTDS::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->send("TRIG:A:EDG:SOU " + trigSource()->to_str());
+	interface()->send("TRIG:A:EDG:SOU " + shot[ *trigSource()].to_str());
 }
 void
 XTDS::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
-    if( *trigPos() >= 0)
-		interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)*trigPos());
+    if(shot[ *trigPos()] >= 0)
+		interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)shot[ *trigPos()]);
     else
-		interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -( *trigPos() - 50.0)/100.0* *timeWidth());
+		interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(shot[ *trigPos()] - 50.0) / 100.0 * (double) **timeWidth());
 }
 void
 XTDS::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("TRIG:A:EDG:LEV %g", (double)*trigLevel());
+	interface()->sendf("TRIG:A:EDG:LEV %g", (double)shot[ *trigLevel()]);
 }
 void
 XTDS::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("TRIG:A:EDG:SLOP %s", (*trigFalling() ? "FALL" : "RISE"));
+	interface()->sendf("TRIG:A:EDG:SLOP %s", (shot[ *trigFalling()] ? "FALL" : "RISE"));
 }
 void
 XTDS::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("HOR:MAIN:SCALE %.1g", (double)*timeWidth()/10.0);
+	interface()->sendf("HOR:MAIN:SCALE %.1g", (double)shot[ *timeWidth()] / 10.0);
 }
 void
 XTDS::onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace1()->to_str();
+    XString ch = ( **trace1())->to_str();
 	if(ch.empty()) return;
-	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale1()->to_str().c_str())/10.0);
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(shot[ *vFullScale1()].to_str().c_str()) / 10.0);
 }
 void
 XTDS::onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace2()->to_str();
+    XString ch = ( **trace2())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale2()->to_str().c_str())/10.0);
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(shot[ *vFullScale2()].to_str().c_str()) / 10.0);
 }
 void
 XTDS::onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace3()->to_str();
+    XString ch = ( **trace3())->to_str();
 	if(ch.empty()) return;
-	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale3()->to_str().c_str())/10.0);
+	interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(shot[ *vFullScale3()].to_str().c_str())/10.0);
 }
 void
 XTDS::onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace4()->to_str();
+    XString ch = ( **trace4())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(vFullScale4()->to_str().c_str())/10.0);
+    interface()->sendf("%s:SCALE %.1g", ch.c_str(), atof(shot[ *vFullScale4()].to_str().c_str())/10.0);
 }
 void
 XTDS::onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace1()->to_str();
+    XString ch = ( **trace1())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset1());
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)shot[ *vOffset1()]);
 }
 void
 XTDS::onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace2()->to_str();
+    XString ch = ( **trace2())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset2());
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)shot[ *vOffset2()]);
 }
 void
 XTDS::onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace3()->to_str();
+    XString ch = ( **trace3())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset3());
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)shot[ *vOffset3()]);
 }
 void
 XTDS::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
-    XString ch = trace4()->to_str();
+    XString ch = ( **trace4())->to_str();
     if(ch.empty()) return;
-    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)*vOffset4());
+    interface()->sendf("%s:OFFSET %.8g", ch.c_str(), (double)shot[ *vOffset4()]);
 }
 void
 XTDS::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->send("HOR:RECORD " + 
-					  recordLength()->to_str());
+					  shot[ *recordLength()].to_str());
 }
 void
 XTDS::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {

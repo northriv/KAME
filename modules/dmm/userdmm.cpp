@@ -27,8 +27,8 @@ REGISTER_TYPE(XDriverList, SanwaPC5000, "SANWA PC5000 DMM");
 
 void
 XDMMSCPI::changeFunction() {
-    XString func = function()->to_str();
-    if(!func.empty())
+    XString func = ( **function())->to_str();
+    if( !func.empty())
         interface()->sendf(":CONF:%s", func.c_str());
 }
 double
@@ -58,14 +58,18 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 	const char *funcs[] = {
 		"DCV", "ACV", "ACDCV", "OHM", "OHMF", "DCI", "ACI", "ACDCI", "FREQ", "PER", "DSAC", "DSDC", "SSAC", "SSDC", ""
 	};
-	for(const char **func = funcs; strlen(*func); func++) {
-		function()->add(*func);
+	for(Transaction tr( *this);; ++tr) {
+		for(const char **func = funcs; strlen( *func); func++) {
+			tr[ *function()].add( *func);
+		}
+		if(tr.commit())
+			break;
 	}
 }
 void
 XHP3458A::changeFunction() {
-    XString func = function()->to_str();
-    if(!func.empty())
+    XString func = ( **function())->to_str();
+    if( !func.empty())
         interface()->sendf("FUNC %s;ARANGE ON", func.c_str());
 }
 double
@@ -89,13 +93,17 @@ XHP3478A::XHP3478A(const char *name, bool runtime,
 	const char *funcs[] = {
 		"DCV", "ACV", "OHM", "OHMF", "DCI", "ACI", ""
 	};
-	for(const char **func = funcs; strlen(*func); func++) {
-		function()->add(*func);
+	for(Transaction tr( *this);; ++tr) {
+		for(const char **func = funcs; strlen( *func); func++) {
+			tr[ *function()].add( *func);
+		}
+		if(tr.commit())
+			break;
 	}
 }
 void
 XHP3478A::changeFunction() {
-    int func = *function();
+    int func = **function();
     if(func < 0)
 		return;
 //    		throw XInterface::XInterfaceError(i18n("Select function!"), __FILE__, __LINE__);
@@ -122,10 +130,14 @@ XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
 		"AcV", "DcV", "Ac+DcV", "Cx", "Dx", "Dx", "TC", "TC", "TF", "Ohm",
 		"Conti", "AcA", "DcA", "Ac+DcA", "Hz", "Duty%", "%mA", "dB", "?", ""
 	};
-	for(const char **func = funcs; strlen(*func); func++) {
-		function()->add(*func);
+	for(Transaction tr( *this);; ++tr) {
+		for(const char **func = funcs; strlen( *func); func++) {
+			tr[ *function()].add( *func);
+		}
+		tr[ *function()].str(XString("?"));
+		if(tr.commit())
+			break;
 	}
-	function()->str(XString("?"));
 }
 void
 XSanwaPC500::changeFunction() {
@@ -145,9 +157,9 @@ XSanwaPC500::fetch() {
 		0x180, 0x201, 0x202, 0x203, 0x400, 0x800, 0x802, 0x2000
 	};
 	int f = (int)interface()->buffer()[4] + (int)interface()->buffer()[5] * 256u;
-	for(int i = 0; i < (int)sizeof(funcs)/(int)sizeof(int); i++) {
+	for(int i = 0; i < (int)sizeof(funcs) / (int)sizeof(int); i++) {
 		if(funcs[i] == f) {
-			function()->value(i);
+			trans( *function()) = i;
 		}
 	}
 
@@ -159,20 +171,20 @@ XSanwaPC500::fetch() {
 	if(buf.size() < 6)
 		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	buf[dlen - 3] = '\0';
-	if((XString(&buf[0]) == "+OL") || (XString(&buf[0]) == " OL")) {
+	if((XString( &buf[0]) == "+OL") || (XString( &buf[0]) == " OL")) {
 		return 1e99;
 	}
-	if(XString(&buf[0]) == "-OL") {
+	if(XString( &buf[0]) == "-OL") {
 		return -1e99;
 	}
 	if(buf.size() < 14)
 		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	double x;
-	if(sscanf(&buf[0], "%8lf", &x) != 1) {
+	if(sscanf( &buf[0], "%8lf", &x) != 1) {
 		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	}
 	double e;
-	if(sscanf(&buf[8], "E%2lf", &e) != 1) {
+	if(sscanf( &buf[8], "E%2lf", &e) != 1) {
 		throw XInterface::XInterfaceError(i18n("Format Error!"), __FILE__, __LINE__);
 	}
 	return x * pow(10.0, e);

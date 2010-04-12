@@ -22,27 +22,31 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
 	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
-	for(const char **it = cand; strlen(*it); it++) {
-		points()->add(*it);
+	for(Transaction tr( *this);; ++tr) {
+		for(const char **it = cand; strlen( *it); it++) {
+			tr[ *points()].add(*it);
+		}
+		if(tr.commit())
+			break;
 	}
 }
 
 void
 XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 	interface()->query("SENS:FREQ:START?");
-	startFreq()->value(interface()->toDouble() / 1e6);
+	trans( *startFreq()) = interface()->toDouble() / 1e6;
 	interface()->query("SENS:FREQ:STOP?");
-	stopFreq()->value(interface()->toDouble() / 1e6);
+	trans( *stopFreq()) = interface()->toDouble() / 1e6;
 	interface()->query("SENS:AVER:STAT?");
 	if(interface()->toUInt() == 0) {
-		average()->value(1);
+		trans( *average()) = 1;
 	}
 	else {
 		interface()->query("SENS:AVER:COUNT?");
-		average()->value(interface()->toUInt());
+		trans( *average()) = interface()->toUInt();
 	}
 	interface()->query("SENS:SWE:POIN?");
-	points()->str(formatString("%u", interface()->toUInt()));
+	trans( *points()).str(formatString("%u", interface()->toUInt()));
 	interface()->send("SENS:SWE:TIME:AUTO OFF");
 	interface()->query("SENS:SWE:TIME?");
 	double swet = interface()->toDouble();
@@ -53,15 +57,15 @@ XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 }
 void 
 XAgilentNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("SENS:FREQ:START %f MHZ", (double)*startFreq());
+	interface()->sendf("SENS:FREQ:START %f MHZ", (double)shot[ *startFreq()]);
 }
 void 
 XAgilentNetworkAnalyzer::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("SENS:FREQ:STOP %f MHZ", (double)*stopFreq());
+	interface()->sendf("SENS:FREQ:STOP %f MHZ", (double)shot[ *stopFreq()]);
 }
 void
 XAgilentNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-	unsigned int avg = *average();
+	unsigned int avg = shot[ *average()];
 	if(avg >= 2)
 		interface()->sendf("SENS:AVER:CLEAR;STAT ON;COUNT %u", avg);
 	else
@@ -69,11 +73,11 @@ XAgilentNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBase *
 }
 void
 XAgilentNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {	
-	interface()->sendf("SENS:SWE:POIN %s", points()->to_str().c_str());
+	interface()->sendf("SENS:SWE:POIN %s", shot[ *points()].to_str().c_str());
 }
 void
 XAgilentNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
-	XScopedLock<XInterface> lock(*interface());
+	XScopedLock<XInterface> lock( *interface());
 	if(num >= 8)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	interface()->queryf("CALC:MARK%u:STAT?", num + 1u);

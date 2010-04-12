@@ -99,7 +99,7 @@ XDCSource::visualize(const Snapshot &shot) {
 
 void 
 XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
-	int ch = *channel();
+	int ch = **channel();
     try {
         changeOutput(ch, shot[ *output()]);
     }
@@ -110,7 +110,7 @@ XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void 
 XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
-	int ch = *channel();
+	int ch = **channel();
     try {
         changeFunction(ch, shot[ *function()]);
     }
@@ -121,7 +121,7 @@ XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void 
 XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	int ch = *channel();
+	int ch = **channel();
     try {
         changeValue(ch, shot[ *value()], true);
     }
@@ -132,7 +132,7 @@ XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void 
 XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
-	int ch = *channel();
+	int ch = **channel();
     try {
         changeRange(ch, shot[ *range()]);
     }

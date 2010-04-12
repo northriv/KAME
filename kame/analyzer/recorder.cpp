@@ -37,9 +37,9 @@ XRawStream::~XRawStream() {
 XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
 	: XRawStream(name, runtime, driverlist),
 	  m_recording(create<XBoolNode>("Recording", true)) {
-    recording()->value(false);
     
 	for(Transaction tr( *this);; ++tr) {
+	    tr[ *recording()] = false;
 	    m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XRawStreamRecorder::onOpen);
 	    m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
@@ -79,11 +79,11 @@ XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload
 void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(m_pGFD);
-	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "wb");
+	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "wb");
 }
 void
 XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
-	if( !*recording())
+	if( !**recording())
 		if(m_pGFD) {
 			m_filemutex.lock();    
 			gzflush(m_pGFD, Z_FULL_FLUSH);
@@ -92,7 +92,7 @@ XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
-    if( *recording() && m_pGFD) {
+    if( **recording() && m_pGFD) {
         XPrimaryDriver *driver = dynamic_cast<XPrimaryDriver*>(d);
         if(driver) {
         	const XPrimaryDriver::RawData &rawdata(shot[ *driver].rawData());
@@ -139,10 +139,10 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_lastLine(create<XStringNode>("LastLine", true)),
 	  m_recording(create<XBoolNode>("Recording", true)) {
-    recording()->value(false);
-    lastLine()->setUIEnabled(false);
   
 	for(Transaction tr( *this);; ++tr) {
+	    tr[ *recording()] = false;
+	    tr[ *lastLine()].setUIEnabled(false);
 	    m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XTextWriter::onFilenameChanged);
 		if(tr.commit())
@@ -180,15 +180,14 @@ XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::Relea
 void
 XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
-	if(m_stream.good())
-	{
-		m_stream << lastLine()->to_str()
+	if(m_stream.good()) {
+		m_stream << shot[ *lastLine()].to_str()
 				 << std::endl;
 	}
 }
 void
 XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
-	if( *recording()) {
+	if( **recording()) {
 		if(shot[ *driver].time()) {
 			for(;;) {
 				Snapshot shot_entries( *m_entries);
@@ -198,7 +197,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 				bool triggered = false;
 				for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
 					shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>( *it);
-					if( !*entry->store()) continue;
+					if( !shot_entries[ *entry->store()]) continue;
 					shared_ptr<XDriver> d(entry->driver());
 					if( !d) continue;
 					if((d.get() == driver) && shot[ *entry].isTriggered()) {
@@ -218,7 +217,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 				}
 				buf.append(shot[ *driver].time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 				if(tr_entries.commit()) {
-					lastLine()->value(buf);
+					trans( *lastLine()) = buf;
 					return;
 				}
 			}
@@ -231,7 +230,7 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
-	m_stream.open((const char*)QString(filename()->to_str()).toLocal8Bit().data(), OFSMODE);
+	m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLocal8Bit().data(), OFSMODE);
 
 	if(m_stream.good()) {
 		for(Transaction tr( *this);; ++tr) {
@@ -251,13 +250,13 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 			const XNode::NodeList &entries_list( *shot_entries.list());
 			for(XNode::const_iterator it = entries_list.begin(); it != entries_list.end(); it++) {
 				shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>( *it);
-				if( !*entry->store()) continue;
+				if( !shot_entries[ *entry->store()]) continue;
 				buf.append(entry->getLabel());
 				buf.append(" ");
 			}
 		}
 		buf.append("Time");
-		lastLine()->value(buf);
+		trans( *lastLine()) = buf;
 	}
 	else {
 		m_lsnOnFlush.reset();
@@ -267,8 +266,8 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XTextWriter::onFlush(const Snapshot &shot, XValueNodeBase *) {
-    lastLine()->setUIEnabled(*recording());
-	if( !*recording()) {
+    lastLine()->setUIEnabled( **recording());
+	if( !**recording()) {
 		XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 		if(m_stream.good())
 			m_stream.flush();

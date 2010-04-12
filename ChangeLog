@@ -1,6 +1,7 @@
-* Sat Apr 11 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Mon Apr 12 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.2-1)
 - analyzer.cpp: Fix for XValGraph.
+- Get rid of obsolete functions.
 
 * Fri Apr 9 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.1-1)

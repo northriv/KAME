@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -54,13 +54,13 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_posString(create<XStringNode>("PosString", true)),
 	  m_periodicTerm(0) {
 
-    m_speed->add(SPEED_FASTEST);
-    m_speed->add(SPEED_FAST);
-    m_speed->add(SPEED_NORMAL);
-    m_speed->add(SPEED_SLOW);
-    m_speed->value(SPEED_FAST);
-    
     for(Transaction tr( *this);; ++tr) {
+        tr[ *m_speed].add(SPEED_FASTEST);
+        tr[ *m_speed].add(SPEED_FAST);
+        tr[ *m_speed].add(SPEED_NORMAL);
+        tr[ *m_speed].add(SPEED_SLOW);
+        tr[ *m_speed] = SPEED_FAST;
+
         m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
             shared_from_this(), &XRawStreamRecordReader::onOpen);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
@@ -95,7 +95,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 void
 XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(m_pGFD);
-	m_pGFD = gzopen(QString(filename()->to_str()).toLocal8Bit().data(), "rb");
+	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "rb");
 }
 void
 XRawStreamRecordReader::readHeader(void *fd)
@@ -139,7 +139,7 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
 			);
     // m_time must be copied before unlocking
     XTime time(m_time);
-    m_posString->value(time.getTimeStr());
+    trans( *m_posString) = time.getTimeStr();
     if( !driver || (size > MAX_RAW_RECORD_SIZE)) {
         if(gzseek(fd, size + sizeof(uint32_t), SEEK_CUR) == -1)
 			throw XIOError(__FILE__, __LINE__);
@@ -228,13 +228,14 @@ XRawStreamRecordReader::terminate() {
 
 void
 XRawStreamRecordReader::onPlayCondChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
     double ms = 1.0;
-    if(m_speed->to_str() == SPEED_FASTEST) ms = 0.1;
-    if(m_speed->to_str() == SPEED_FAST) ms = 10.0;
-    if(m_speed->to_str() == SPEED_NORMAL) ms = 30.0;
-    if(m_speed->to_str() == SPEED_SLOW) ms = 100.0;
-    if( !*m_fastForward && !*m_rewind) ms = 0;
-    if( *m_rewind) ms = -ms;
+    if(shot_this[ *m_speed].to_str() == SPEED_FASTEST) ms = 0.1;
+    if(shot_this[ *m_speed].to_str() == SPEED_FAST) ms = 10.0;
+    if(shot_this[ *m_speed].to_str() == SPEED_NORMAL) ms = 30.0;
+    if(shot_this[ *m_speed].to_str() == SPEED_SLOW) ms = 100.0;
+    if( !shot_this[ *m_fastForward] && !shot_this[ *m_rewind]) ms = 0;
+    if(shot_this[ *m_rewind]) ms = -ms;
     m_periodicTerm = ms;
     XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();

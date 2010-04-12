@@ -37,15 +37,21 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_taskDO(TASK_UNDEF),
 	m_taskDOCtr(TASK_UNDEF),
 	m_taskGateCtr(TASK_UNDEF) {
-	for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
-		portSel(i)->add("Pausing(PFI4)");
-    const int ports[] = {
-    	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
-    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW
-    };
-    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
-    	portSel(i)->value(ports[i]);
+
+	for(Transaction tr( *this);; ++tr) {
+		for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
+			tr[ *portSel(i)].add("Pausing(PFI4)");
+	    const int ports[] = {
+	    	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
+	    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW
+	    };
+	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
+	    	tr[ *portSel(i)] = ports[i];
+		}
+		if(tr.commit())
+			break;
 	}
+
 	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
 	
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
@@ -928,8 +934,8 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 	}
 
 	if(haveQAMPorts()) {
-		const double offset[] = { *qamOffset1(), *qamOffset2()};
-		const double level[] = { *qamLevel1(), *qamLevel2()};
+		const double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
+		const double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
 		  			  	
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 			//arrange range info.
@@ -941,14 +947,14 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 			}
 		}
 	    m_genAOZeroLevel = aoVoltToRaw(std::complex<double>(0.0));
-		std::complex<double> c(pow(10.0, *masterLevel()/20.0), 0);
+		std::complex<double> c(pow(10.0, shot[ *masterLevel()] / 20.0), 0);
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 				m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
 				for(std::vector<std::complex<double> >::const_iterator it = 
 						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
-					std::complex<double> z(*it * c);
+					std::complex<double> z( *it * c);
 					m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
 				}
 				c *= std::complex<double>(0,1);

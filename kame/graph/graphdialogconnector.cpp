@@ -75,7 +75,7 @@ XQGraphDialogConnector::onSelAxisChanged(const Snapshot &shot, XValueNodeBase *)
     m_conAxisMin.reset();
     m_conAxisMax.reset();
     m_conTicLabelFormat.reset();
-	shared_ptr<XAxis> axis = *m_selAxis;
+	shared_ptr<XAxis> axis = shot[ *m_selAxis];
 	if( !axis) {
 		return;
 	}
@@ -113,7 +113,7 @@ XQGraphDialogConnector::onSelPlotChanged(const Snapshot &shot, XValueNodeBase *)
     m_conColorPlotColorLow.reset();
     m_conColorPlotColorHigh.reset();
 
-	shared_ptr<XPlot> plot = *m_selPlot;
+	shared_ptr<XPlot> plot = shot[ *m_selPlot];
 	if( !plot) {
 		return;
 	}

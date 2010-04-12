@@ -222,7 +222,7 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 			m_stream.close();
 		m_stream.clear();
 		m_stream.open(
-			(const char*) QString(filename()->to_str().c_str()).toLocal8Bit().data(),
+			(const char*)QString(shot[ *filename()].to_str().c_str()).toLocal8Bit().data(),
 			OFSMODE);
 
 		for(Transaction tr(*this);; ++tr) {

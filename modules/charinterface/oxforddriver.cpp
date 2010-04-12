@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -20,13 +20,11 @@ XOxfordInterface::XOxfordInterface
     setGPIBWaitBeforeSPoll(10);
 }
 void
-XOxfordInterface::send(const XString &str) throw (XCommError &)
-{
+XOxfordInterface::send(const XString &str) throw (XCommError &) {
     this->send(str.c_str());
 }
 void
-XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
-{
+XOxfordInterface::send(const char *str) throw (XInterface::XCommError &) {
 	ASSERT(strlen(str));
 	if(str[0] == '$') {
 		XCharInterface::send(str);
@@ -37,17 +35,14 @@ XOxfordInterface::send(const char *str) throw (XInterface::XCommError &)
 	}
 }
 void
-XOxfordInterface::query(const XString &str) throw (XCommError &)
-{
+XOxfordInterface::query(const XString &str) throw (XCommError &) {
     query(str.c_str());
 }
 void
-XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
-{
+XOxfordInterface::query(const char *str) throw (XInterface::XCommError &) {
 	lock();
 	try {
-		for(int i = 0; i < 30; i++)
-		{
+		for(int i = 0; i < 30; i++) {
 			XCharInterface::send(str);
 			XCharInterface::receive();
 			if(buffer().size() >= 1)
@@ -67,8 +62,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &)
 }
 
 void
-XOxfordInterface::open() throw (XInterfaceError &)
-{
+XOxfordInterface::open() throw (XInterfaceError &) {
 	XCharInterface::open();
 	//    XDriver::Send("@0");
 	send("$Q2");
@@ -78,9 +72,8 @@ XOxfordInterface::open() throw (XInterfaceError &)
 }
 
 void
-XOxfordInterface::close() throw (XInterfaceError &)
-{
-    if(!isOpened()) return;
+XOxfordInterface::close() throw (XInterfaceError &) {
+    if( !isOpened()) return;
 	send("C0"); //local
 	XCharInterface::close();
 }

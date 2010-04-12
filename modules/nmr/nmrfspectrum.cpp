@@ -38,15 +38,15 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	for(Transaction tr( *m_spectrum);; ++tr) {
 		tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
+
+		tr[ *centerFreq()] = 20;
+		tr[ *sg1FreqOffset()] = 700;
+		tr[ *freqSpan()] = 200;
+		tr[ *freqStep()] = 1;
 		if(tr.commit())
 			break;
 	}
   
-	centerFreq()->value(20);
-	sg1FreqOffset()->value(700);
-	freqSpan()->value(200);
-	freqStep()->value(1);
-
 	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
 	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
@@ -69,13 +69,14 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 
 void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
-    if( *active()) {
+	Snapshot shot_this( *this);
+    if(shot_this[ *active()]) {
 		m_burstFreqCycleCount = 0;
 		m_burstPhaseCycleCount = 0;
-		shared_ptr<XSG> _sg1 = *sg1();
+		shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
 		if(_sg1)
-			_sg1->freq()->value( *centerFreq() - *freqSpan()/2e3 + *sg1FreqOffset());
-		Snapshot shot_this( *this);
+			trans( *_sg1->freq()) =
+				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
 		onClear(shot_this, clear().get());
 	}
 }
@@ -157,7 +158,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		}
 		
 		if(_sg1)
-			_sg1->freq()->value(newf + shot_this[ *sg1FreqOffset()]);
+			trans( *_sg1->freq()) = newf + shot_this[ *sg1FreqOffset()];
 		if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
 			trans( *active()) = false;
 	}	

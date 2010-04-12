@@ -40,16 +40,16 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	for(Transaction tr( *m_spectrum);; ++tr) {
 		tr[ *m_spectrum].setLabel(0, "Field [T]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Field [T]");
+
+		tr[ *centerFreq()] = 20;
+		tr[ *resolution()] = 0.001;
+		tr[ *fieldFactor()] = 1;
+		tr[ *maxValue()] = 5.0;
+		tr[ *minValue()] = 3.0;
 		if(tr.commit())
 			break;
 	}
   
-	centerFreq()->value(20);
-	resolution()->value(0.001);
-	fieldFactor()->value(1);
-	maxValue()->value(5.0);
-	minValue()->value(3.0);
-
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edFreq);
 	m_conResolution = xqcon_create<XQLineEditConnector>(m_resolution, m_form->m_edResolution);
 	m_conMin = xqcon_create<XQLineEditConnector>(m_minValue, m_form->m_edMin);

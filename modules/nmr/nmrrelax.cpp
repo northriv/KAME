@@ -35,8 +35,8 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #define P1DIST_LOG "Log"
 #define P1DIST_RECIPROCAL "Reciprocal"
 
-#define f(x) ((p1Dist()->to_str() == P1DIST_LINEAR) ? (1-(x)) * p1min + (x) * p1max : \
-	      ((p1Dist()->to_str() == P1DIST_LOG) ? p1min * exp((x) * log(p1max/p1min)) : \
+#define f(x) ((shot[ *p1Dist()].to_str() == P1DIST_LINEAR) ? (1-(x)) * p1min + (x) * p1max : \
+	      ((shot[ *p1Dist()].to_str() == P1DIST_LOG) ? p1min * exp((x) * log(p1max/p1min)) : \
 	       1/((1-(x))/p1min + (x)/p1max)))
 
 class XRelaxFuncPlot : public XFuncPlot {
@@ -48,16 +48,16 @@ public:
 	{}
 	~XRelaxFuncPlot() {}
 	virtual double func(double t) const {
-		shared_ptr<XRelaxFunc> func1 = *m_item;
-		if( !func1) return 0;
 		shared_ptr<XNMRT1> owner = m_owner.lock();
 		if( !owner) return 0;
 		Snapshot shot( *owner);
+		shared_ptr<XRelaxFunc> func1 = shot[ *m_item];
+		if( !func1) return 0;
 		double f, df;
 		double it1 = shot[ *owner].m_params[0];
 		double c = shot[ *owner].m_params[1];
 		double a = shot[ *owner].m_params[2];
-		func1->relax(&f, &df, t, it1);
+		func1->relax( &f, &df, t, it1);
 		return c * f + a;
 	}
 private:
@@ -124,7 +124,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     connect(pulse1());
     connect(pulse2());
 
-    m_windowFunc->value(SpectrumSolverWrapper::WINDOW_FUNC_HAMMING);
     m_windowWidthList.push_back(0.25);
     m_windowWidthList.push_back(0.5);
 //    m_windowWidthList.push_back(0.75);
@@ -132,16 +131,18 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 //    m_windowWidthList.push_back(1.25);
     m_windowWidthList.push_back(1.5);
     m_windowWidthList.push_back(2.0);
-    m_windowWidth->add("25%");
-    m_windowWidth->add("50%");
-//    m_windowWidth->add("75%");
-    m_windowWidth->add("100%");
-//    m_windowWidth->add("125%");
-    m_windowWidth->add("150%");
-    m_windowWidth->add("200%");
-    m_windowWidth->value(2);
-	for(Transaction tr( *m_wave);; ++tr) {
-		const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
+	for(Transaction tr( *this);; ++tr) {
+	    tr[ *m_windowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_HAMMING;
+	    tr[ *m_windowWidth].add("25%");
+	    tr[ *m_windowWidth].add("50%");
+	//    tr[ *m_windowWidth].add("75%");
+	    tr[ *m_windowWidth].add("100%");
+	//    tr[ *m_windowWidth].add("125%");
+	    tr[ *m_windowWidth].add("150%");
+	    tr[ *m_windowWidth].add("200%");
+	    tr[ *m_windowWidth] = 2;
+
+	    const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
 								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
 		tr[ *m_wave].setColCount(6, labels);
 		tr[ *m_wave].insertPlot(i18n("Relaxation"), 0, 1, -1, 2);
@@ -166,33 +167,30 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *plot3->barColor()].setUIEnabled(false);
 		tr[ *plot3->clearPoints()].setUIEnabled(false);
 		tr[ *m_wave].clearPoints();
+
+		tr[ *mode()].add("T1 Measurement");
+		tr[ *mode()].add("T2 Measurement");
+		tr[ *mode()].add("St.E. Measurement");
+		tr[ *mode()] = MEAS_T1;
+
+		tr[ *p1Dist()].add(P1DIST_LINEAR);
+		tr[ *p1Dist()].add(P1DIST_LOG);
+		tr[ *p1Dist()].add(P1DIST_RECIPROCAL);
+		tr[ *p1Dist()] = 1;
+
+		tr[ *relaxFunc()].str(XString("NMR I=1/2"));
+		tr[ *p1Min()] = 1.0;
+		tr[ *p1Max()] = 100.0;
+		tr[ *autoPhase()] = true;
+		tr[ *autoWindow()] = true;
+		tr[ *mInftyFit()] = true;
+		tr[ *smoothSamples()] = 200;
+
 		if(tr.commit())
 			break;
 	}
 
-	mode()->add("T1 Measurement");
-	mode()->add("T2 Measurement");
-	mode()->add("St.E. Measurement");
-	mode()->value(MEAS_T1);
-
-	p1Dist()->add(P1DIST_LINEAR);
-	p1Dist()->add(P1DIST_LOG);
-	p1Dist()->add(P1DIST_RECIPROCAL);
-	p1Dist()->value(1);
-
-	try {
-		relaxFunc()->str(XString("NMR I=1/2"));
-	}
-	catch (XKameError &e) {
-		e.print();
-	}
-	p1Min()->value(1.0);
-	p1Max()->value(100.0);
-	autoPhase()->value(true);
-	m_form->m_numPhase->setRange(-360.0, 360.0, 10.0, true);
-	autoWindow()->value(true);
-	mInftyFit()->value(true);
-	smoothSamples()->value(200);
+	m_form->m_numPhase->setRange( -360.0, 360.0, 10.0, true);
 
 	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
 	m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
@@ -256,14 +254,15 @@ XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
 }
 void
 XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
-	double x = randMT19937();
-	double p1min = *p1Min();
-	double p1max = *p1Max();
-	if((p1min <= 0) || (p1min >= p1max)) {
-      	gErrPrint(i18n("Invalid P1Min or P1Max."));
-      	return;
-	}
 	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		double x = randMT19937();
+		double p1min = shot[ *p1Min()];
+		double p1max = shot[ *p1Max()];
+		if((p1min <= 0) || (p1min >= p1max)) {
+	      	gErrPrint(i18n("Invalid P1Min or P1Max."));
+	      	return;
+		}
 		tr[ *this].m_params[0] = 1.0 / f(x);
 		tr[ *this].m_params[1] = 0.1;
 		tr[ *this].m_params[2] = 0.0;
@@ -651,7 +650,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 
 	for(Transaction tr( *m_wave);; ++tr) {
 		XString label;
-		switch( *mode()) {
+		switch(shot[ *mode()]) {
 		case MEAS_T1:
 			label = "P1 [ms]";
 			break;
@@ -700,37 +699,43 @@ XNMRT1::visualize(const Snapshot &shot) {
 
 void
 XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
-	if(shot[ *active()]) {
-		const shared_ptr<XPulser> _pulser = *pulser();
-		const shared_ptr<XNMRPulseAnalyzer> _pulse1 = *pulse1();
-		const shared_ptr<XNMRPulseAnalyzer> _pulse2 = *pulse2();
+	Snapshot shot_this( *this);
+	if(shot_this[ *active()]) {
+		const shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
+		const shared_ptr<XNMRPulseAnalyzer> _pulse1 = shot_this[ *pulse1()];
+		const shared_ptr<XNMRPulseAnalyzer> _pulse2 = shot_this[ *pulse2()];
 
-		Snapshot shot_this( *this);
 		onClearAll(shot_this, m_clearAll.get());
 		if( !_pulser || !_pulse1) {
 			gErrPrint(getLabel() + ": " + i18n("No pulser or No NMR Pulse Analyzer."));
 			return;
 		}
 
+		Snapshot shot_pulse1( *_pulse1);
+		Snapshot shot_pulser( *_pulser);
 		if(_pulse2 &&
-		   (( *_pulser->combMode() == XPulser::N_COMB_MODE_COMB_ALT) ||
-			( *_pulser->combMode() == XPulser::N_COMB_MODE_P1_ALT))) {
-			_pulse2->fromTrig()->value(
-				*_pulse1->fromTrig() + *_pulser->altSep());
-			_pulse2->width()->value( *_pulse1->width());
-			_pulse2->phaseAdv()->value( *_pulse1->phaseAdv());
-			_pulse2->bgPos()->value(
-				*_pulse1->bgPos() + *_pulser->altSep());
-			_pulse2->bgWidth()->value( *_pulse1->bgWidth());
-			_pulse2->fftPos()->value(
-				*_pulse1->fftPos() + *_pulser->altSep());
-			_pulse2->fftLen()->value( *_pulse1->fftLen());
-			_pulse2->windowFunc()->value( *_pulse1->windowFunc());
-			_pulse2->usePNR()->value( *_pulse1->usePNR());
-			_pulse2->pnrSolverList()->value( *_pulse1->pnrSolverList());
-			_pulse2->solverList()->value( *_pulse1->solverList());
-			_pulse2->numEcho()->value( *_pulse1->numEcho());
-			_pulse2->echoPeriod()->value( *_pulse1->echoPeriod());
+		   ((shot_pulser[ *_pulser->combMode()] == XPulser::N_COMB_MODE_COMB_ALT) ||
+			(shot_pulser[ *_pulser->combMode()] == XPulser::N_COMB_MODE_P1_ALT))) {
+			for(Transaction tr( *_pulse2);; ++tr) {
+				tr[ *_pulse2->fromTrig()] =
+					shot_pulse1[ *_pulse1->fromTrig()] + shot_pulser[ *_pulser->altSep()];
+				tr[ *_pulse2->width()] = (double)shot_pulse1[ *_pulse1->width()];
+				tr[ *_pulse2->phaseAdv()] = (double)shot_pulse1[ *_pulse1->phaseAdv()];
+				tr[ *_pulse2->bgPos()] =
+					shot_pulse1[ *_pulse1->bgPos()] + shot_pulser[ *_pulser->altSep()];
+				tr[ *_pulse2->bgWidth()] = (double)shot_pulse1[ *_pulse1->bgWidth()];
+				tr[ *_pulse2->fftPos()] =
+					shot_pulse1[ *_pulse1->fftPos()] + shot_pulser[ *_pulser->altSep()];
+				tr[ *_pulse2->fftLen()] = (int)shot_pulse1[ *_pulse1->fftLen()];
+				tr[ *_pulse2->windowFunc()] = (int)shot_pulse1[ *_pulse1->windowFunc()];
+				tr[ *_pulse2->usePNR()] = (bool)shot_pulse1[ *_pulse1->usePNR()];
+				tr[ *_pulse2->pnrSolverList()] = (int)shot_pulse1[ *_pulse1->pnrSolverList()];
+				tr[ *_pulse2->solverList()] = (int)shot_pulse1[ *_pulse1->solverList()];
+				tr[ *_pulse2->numEcho()] = (int)shot_pulse1[ *_pulse1->numEcho()];
+				tr[ *_pulse2->echoPeriod()] = (double)shot_pulse1[ *_pulse1->echoPeriod()];
+				if(tr.commit())
+					break;
+			}
 		}
 	}
 }

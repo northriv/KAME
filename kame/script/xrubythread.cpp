@@ -21,12 +21,13 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 	  m_threadID(create<XLongNode>("ThreadID", true)),
 	  m_lineinput(create<XStringNode>("LineInput", true)) {
 
-    m_threadID->value(-1);
-    m_filename->value(filename);
-    m_action->value(RUBY_THREAD_ACTION_STARTING);
-    m_status->value(RUBY_THREAD_STATUS_STARTING);
-    lineinput()->setUIEnabled(false);
 	for(Transaction tr( *this);; ++tr) {
+	    tr[ *m_threadID] = -1;
+	    tr[ *m_filename] = filename;
+	    tr[ *m_action] = RUBY_THREAD_ACTION_STARTING;
+	    tr[ *m_status] = RUBY_THREAD_STATUS_STARTING;
+	    tr[ *lineinput()].setUIEnabled(false);
+
 	    m_lsnOnLineChanged = tr[ *lineinput()].onValueChanged().connectWeakly(shared_from_this(),
 	        &XRubyThread::onLineChanged);
 		if(tr.commit())
@@ -36,24 +37,24 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
  
 bool
 XRubyThread::isRunning() const {
-    return (XString( *m_status) == RUBY_THREAD_STATUS_RUN);
+    return (( **m_status)->to_str() == RUBY_THREAD_STATUS_RUN);
 }
 bool
 XRubyThread::isAlive() const {
-    return (XString( *m_status) != RUBY_THREAD_STATUS_N_A);
+    return (( **m_status)->to_str() != RUBY_THREAD_STATUS_N_A);
 }
 void
 XRubyThread::kill() {
-    m_action->value(RUBY_THREAD_ACTION_KILL);
-	lineinput()->setUIEnabled(false);
+    trans( *m_action) = RUBY_THREAD_ACTION_KILL;
+	trans( *lineinput()).setUIEnabled(false);
 }
 void
 XRubyThread::resume() {
-    m_action->value(RUBY_THREAD_ACTION_WAKEUP);
+    trans( *m_action) = RUBY_THREAD_ACTION_WAKEUP;
 }
 void
 XRubyThread::onLineChanged(const Snapshot &shot, XValueNodeBase *) {
-	XString line = *lineinput();
+	XString line = shot[ *lineinput()];
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	m_lineBuffer.push_back(line);
 	for(Transaction tr( *this);; ++tr) {

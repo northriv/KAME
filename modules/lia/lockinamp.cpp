@@ -34,7 +34,11 @@ XLIA::XLIA(const char *name, bool runtime,
     m_autoScaleY(create<XBoolNode>("AutoScaleY", false)),
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
     m_form(new FrmLIA(g_pFrmMain)) {
-	fetchFreq()->value(1);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *fetchFreq()] = 1;
+		if(tr.commit())
+			break;
+	}
   
 	meas->scalarEntries()->insert(tr_meas, m_valueX);
 	meas->scalarEntries()->insert(tr_meas, m_valueY);
@@ -107,7 +111,7 @@ XLIA::visualize(const Snapshot &shot) {
 void 
 XLIA::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeOutput(*output());
+        changeOutput(shot[ *output()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing output, "));
@@ -117,7 +121,7 @@ XLIA::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 void 
 XLIA::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeFreq(*frequency());
+        changeFreq(shot[ *frequency()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing frequency, "));
@@ -127,7 +131,7 @@ XLIA::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
 void 
 XLIA::onSensitivityChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeSensitivity(*sensitivity());
+        changeSensitivity(shot[ *sensitivity()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing sensitivity, "));
@@ -137,7 +141,7 @@ XLIA::onSensitivityChanged(const Snapshot &shot, XValueNodeBase *) {
 void 
 XLIA::onTimeConstChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeTimeConst(*timeConst());
+        changeTimeConst(shot[ *timeConst()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing time const., "));
@@ -162,10 +166,10 @@ XLIA::execute(const atomic<bool> &terminated) {
 	}
 
 	while( !terminated) {
-		double fetch_freq = *fetchFreq();
+		double fetch_freq = **fetchFreq();
 		double wait = 0;
 		if(fetch_freq > 0) {
-			sscanf(timeConst()->to_str().c_str(), "%lf", &wait);
+			sscanf(( **timeConst())->to_str().c_str(), "%lf", &wait);
 			wait *= 1000.0 / fetch_freq;
 		}
 		if(wait > 0) msecsleep(lrint(wait));

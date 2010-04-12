@@ -446,7 +446,7 @@ XQGraphPainter::paintGL () {
     if(m_bIsRedrawNeeded) {
         shot = startDrawing();
         
-        QColor bgc = (QRgb)*m_graph->backGround();
+        QColor bgc = (QRgb)shot[ *m_graph->backGround()];
         glClearColor( bgc.red() /255.0f, bgc.green() /255.0f, bgc.blue() /255.0f, 1.0 );
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

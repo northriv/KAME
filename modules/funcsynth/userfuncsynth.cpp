@@ -21,19 +21,23 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XFuncSynth>(name, runtime, ref(tr_meas), meas) {
 
-	function()->add("SINUSOID");
-	function()->add("TRIANGLE");
-	function()->add("SQUARE");
-	function()->add("PRAMP");
-	function()->add("NRAMP");
-	function()->add("USER");
-	function()->add("VSQUARE");
-	mode()->add("NORMAL");
-	mode()->add("BURST");
-	mode()->add("SWEEP");
-	mode()->add("MODULATION");
-	mode()->add("NOISE");
-	mode()->add("DC");
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *function()].add("SINUSOID");
+		tr[ *function()].add("TRIANGLE");
+		tr[ *function()].add("SQUARE");
+		tr[ *function()].add("PRAMP");
+		tr[ *function()].add("NRAMP");
+		tr[ *function()].add("USER");
+		tr[ *function()].add("VSQUARE");
+		tr[ *mode()].add("NORMAL");
+		tr[ *mode()].add("BURST");
+		tr[ *mode()].add("SWEEP");
+		tr[ *mode()].add("MODULATION");
+		tr[ *mode()].add("NOISE");
+		tr[ *mode()].add("DC");
+		if(tr.commit())
+			break;
+	}
 }
 /*
   double
@@ -48,7 +52,7 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 */
 void
 XWAVEFACTORY::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("SIG %d", *output() ? 1 : 0);
+	interface()->sendf("SIG %d", shot[ *output()] ? 1 : 0);
 }
 
 void
@@ -58,32 +62,30 @@ XWAVEFACTORY::onTrigTouched(const Snapshot &shot, XTouchableNode *) {
 
 void
 XWAVEFACTORY::onModeChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("OMO %d", (int)*mode());
+	interface()->sendf("OMO %d", (int)shot[ *mode()]);
 }
 
 void
 XWAVEFACTORY::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FNC %d", (int)*function() + 1);
+	interface()->sendf("FNC %d", (int)shot[ *function()] + 1);
 }
 
 void
 XWAVEFACTORY::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FRQ %e" , (double)*freq());
+	interface()->sendf("FRQ %e" , (double)shot[ *freq()]);
 }
 
 void
-XWAVEFACTORY::onAmpChanged(const Snapshot &shot, XValueNodeBase *)
-{
-	interface()->sendf("AMV %e" , (double)*amp());
+XWAVEFACTORY::onAmpChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("AMV %e" , (double)shot[ *amp()]);
 }
 
 void
 XWAVEFACTORY::onPhaseChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("PHS %e" , (double)*phase());
+	interface()->sendf("PHS %e" , (double)shot[ *phase()]);
 }
-
 
 void
 XWAVEFACTORY::onOffsetChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf("OFS %e" , (double)*offset());
+    interface()->sendf("OFS %e" , (double)shot[ *offset()]);
 }

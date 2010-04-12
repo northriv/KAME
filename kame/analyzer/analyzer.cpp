@@ -34,7 +34,7 @@ XScalarEntry::XScalarEntry(const char *name, bool runtime, const shared_ptr<XDri
 	m_delta->setFormat(format);
 	m_storedValue->setFormat(format);
 	m_value->setFormat(format);
-	store()->value(false);
+	trans( *store()) = false;
 }
 void
 XScalarEntry::storeValue(Transaction &tr) {

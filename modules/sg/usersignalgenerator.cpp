@@ -40,15 +40,15 @@ XSG7200::changeFreq(double mhz) {
 }
 void
 XSG7200::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("LE%fDBM", (double)*oLevel());
+	interface()->sendf("LE%fDBM", (double)shot[ *oLevel()]);
 }
 void
 XSG7200::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->send(*fmON() ? "FMON" : "FMOFF");
+	interface()->send(shot[ *fmON()] ? "FMON" : "FMOFF");
 }
 void
 XSG7200::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->send(*amON() ? "AMON" : "AMOFF");
+	interface()->send(shot[ *amON()] ? "AMON" : "AMOFF");
 }
 
 XHP8643::XHP8643(const char *name, bool runtime,
@@ -64,15 +64,15 @@ XHP8643::changeFreq(double mhz) {
 }
 void
 XHP8643::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AMPL:LEV %f DBM", (double)*oLevel());
+	interface()->sendf("AMPL:LEV %f DBM", (double)shot[ *oLevel()]);
 }
 void
 XHP8643::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FMSTAT %s", *fmON() ? "ON" : "OFF");
+	interface()->sendf("FMSTAT %s", shot[ *fmON()] ? "ON" : "OFF");
 }
 void
 XHP8643::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AMSTAT %s", *amON() ? "ON" : "OFF");
+	interface()->sendf("AMSTAT %s", shot[ *amON()] ? "ON" : "OFF");
 }
 
 XHP8648::XHP8648(const char *name, bool runtime,
@@ -82,13 +82,12 @@ XHP8648::XHP8648(const char *name, bool runtime,
 }
 void
 XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("POW:AMPL %f DBM", (double)*oLevel());
+	interface()->sendf("POW:AMPL %f DBM", (double)shot[ *oLevel()]);
 }
 
 XHP8664::XHP8664(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
-{
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 }
 void
 XHP8664::changeFreq(double mhz) {
@@ -97,13 +96,13 @@ XHP8664::changeFreq(double mhz) {
 }
 void
 XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AMPL %f DBM", (double)*oLevel());
+	interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
 }
 void
 XHP8664::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FM:STAT %s", *fmON() ? "ON" : "OFF");
+	interface()->sendf("FM:STAT %s", shot[ *fmON()] ? "ON" : "OFF");
 }
 void
 XHP8664::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AM:STAT %s", *amON() ? "ON" : "OFF");
+	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
 }

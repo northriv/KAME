@@ -60,12 +60,16 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 		pcsHeater(), m_form->m_ledSwitchHeater);
 	m_conPersist = xqcon_create<XKLedConnector>(
 		persistent(), m_form->m_ledPersistent);
-	allowPersistent()->value(false);
-	targetField()->setUIEnabled(false);
-	sweepRate()->setUIEnabled(false);
-	targetField()->setUIEnabled(false);
-	sweepRate()->setUIEnabled(false);
-	allowPersistent()->setUIEnabled(false);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *allowPersistent()] = false;
+		tr[ *targetField()].setUIEnabled(false);
+		tr[ *sweepRate()].setUIEnabled(false);
+		tr[ *targetField()].setUIEnabled(false);
+		tr[ *sweepRate()].setUIEnabled(false);
+		tr[ *allowPersistent()].setUIEnabled(false);
+		if(tr.commit())
+			break;
+	}
 	//    Field->Value.Precision = 0.001;
 	//    Current->Value.Precision = 0.0001;
 }
@@ -107,7 +111,7 @@ XMagnetPS::visualize(const Snapshot &shot) {
 void
 XMagnetPS::onRateChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        setRate( *sweepRate());
+        setRate(shot[ *sweepRate()]);
     }
     catch (XKameError &e) {
 		e.print(getLabel() + "; ");
@@ -130,8 +134,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	try {
 		field_resolution = fieldResolution();
 		is_pcs_fitted = isPCSFitted();
-		sweepRate()->value(getSweepRate());
-		targetField()->value(getTargetField());
+		trans( *sweepRate()) = getSweepRate();
+		trans( *targetField()) = getTargetField();
 		last_pcsh = isPCSHeaterOn();
 	}
 	catch (XKameError&e) {
@@ -184,39 +188,44 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
  
 		finishWritingRaw(writer, XTime::now(), XTime::now());
       
-		magnetField()->value(magnet_field);
-		outputField()->value(output_field);
-		outputCurrent()->value(output_current);
-		outputVolt()->value(output_volt);
-		pcsHeater()->value(pcs_heater && is_pcs_fitted);
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *magnetField()] = magnet_field;
+			tr[ *outputField()] = output_field;
+			tr[ *outputCurrent()] = output_current;
+			tr[ *outputVolt()] = output_volt;
+			tr[ *pcsHeater()] = pcs_heater && is_pcs_fitted;
 
-		persistent()->value( !pcs_heater && pcsh_stable && is_pcs_fitted);
+			tr[ *persistent()] =  !pcs_heater && pcsh_stable && is_pcs_fitted;
+			if(tr.commit())
+				break;
+		}
 
 		//calicurate std. deviations in some periods
 		XTime newtime = XTime::now();
 		double dt = fabs(newtime - lasttime);
 		lasttime = newtime;
 		havg = (havg - magnet_field) * exp(-dt / 3.0) + magnet_field;
-		stabilized()->value(fabs(havg - *targetField())); //stderr
+		trans( *stabilized()) = fabs(havg - (double)**targetField()); //stderr
       
 		double dhdt = (magnet_field - lasth) / dt;
 		lasth = magnet_field;
 		dhavg = (dhavg - dhdt) * exp(-dt / 3.0) + dhdt;
       
 		try {
+			Snapshot shot( *this);
 			if(is_pcs_fitted) {
 				if(pcs_heater) {
 					//pcs heater is on
-					if(fabs(target_field - *targetField()) >= field_resolution) {
+					if(fabs(target_field - shot[ *targetField()]) >= field_resolution) {
 						if(pcsh_stable) {
-							setPoint( *targetField());
+							setPoint(shot[ *targetField()]);
 							toSetPoint();    
 						}
 					}
 					else {
 						if((fabs(dhavg) < field_resolution / 10) && 
 						   (fabs(magnet_field - target_field) < field_resolution) &&
-						   *allowPersistent() ) {
+							   shot[ *allowPersistent()]) {
 							//field is not sweeping, and persistent is allowed
 							m_statusPrinter->printMessage(getLabel() + " " + 
 														  i18n("Turning on Perisistent mode."));
@@ -227,7 +236,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 				}
 				else {
 					//pcs heater if off
-					if(fabs(magnet_field - *targetField()) >= field_resolution) {
+					if(fabs(magnet_field - shot[ *targetField()]) >= field_resolution) {
 						//start sweeping.
 						if(fabs(magnet_field - output_field) < field_resolution) {
 							if(fabs(target_field  - magnet_field) < field_resolution) {
@@ -260,8 +269,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			}
 			else {
 				// pcsh is not fitted.
-				if(fabs(target_field - *targetField()) >= field_resolution) {                
-					setPoint( *targetField());
+				if(fabs(target_field - shot[ *targetField()]) >= field_resolution) {
+					setPoint(shot[ *targetField()]);
 					toSetPoint();
 				}
 			}

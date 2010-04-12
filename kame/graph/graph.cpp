@@ -109,7 +109,7 @@ XGraph::setupRedraw(Transaction &tr, float resolution) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
 		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
 			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
-			axis->startAutoscale(shot, resolution, *axis->autoScale() );
+			axis->startAutoscale(shot, resolution, shot[ *axis->autoScale()]);
 		}
 	}
 	if(shot.size(plots())) {
@@ -848,11 +848,11 @@ XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {
         max((XGraph::VFloat)shot[ *minValue()], (XGraph::VFloat)0.0) :
         (XGraph::VFloat)shot[ *minValue()];
     if(m_minFixed != min_tmp) {
-        minValue()->setFormat(ticLabelFormat()->to_str().c_str());
+        minValue()->setFormat(shot[ *ticLabelFormat()].to_str().c_str());
         tr[ *minValue()] = m_minFixed;
     }
     if(m_maxFixed != shot[ *maxValue()]) {
-        maxValue()->setFormat(ticLabelFormat()->to_str().c_str());
+        maxValue()->setFormat(shot[ *ticLabelFormat()].to_str().c_str());
         tr[ *maxValue()] = m_maxFixed;
     }
     if(suppressupdate) {
@@ -981,7 +981,7 @@ XAxis::valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *s
 }
 XString
 XAxis::valToString(XGraph::VFloat val) {
-    return formatDouble(ticLabelFormat()->to_str().c_str(), val);
+    return formatDouble(( **ticLabelFormat())->to_str().c_str(), val);
 }
 
 XAxis::Tic

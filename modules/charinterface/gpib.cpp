@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -42,8 +42,7 @@ XMutex
 XNIGPIBPort::s_lock;
 
 XString
-XNIGPIBPort::gpibStatus(const XString &msg)
-{
+XNIGPIBPort::gpibStatus(const XString &msg) {
 	XString sta, err, cntl;
 	if(ThreadIbsta() & DCAS) sta += "DCAS ";
 	if(ThreadIbsta() & DTAS) sta += "DTAS ";
@@ -102,19 +101,17 @@ XNIGPIBPort::gpibStatus(const XString &msg)
 	}
 	return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
 		.arg(msg)
-		.arg((int)*m_pInterface->address())
+		.arg((int) **m_pInterface->address())
 		.arg(sta)
 		.arg(err)
 		.arg(cntl);
 }
 
 XNIGPIBPort::XNIGPIBPort(XCharInterface *interface)
-	: XPort(interface), m_ud(-1)
-{
+	: XPort(interface), m_ud(-1) {
 
 }
-XNIGPIBPort::~XNIGPIBPort()
-{
+XNIGPIBPort::~XNIGPIBPort() {
     try {
         gpib_close();
     }
@@ -122,9 +119,9 @@ XNIGPIBPort::~XNIGPIBPort()
     }
 } 
 void
-XNIGPIBPort::open() throw (XInterface::XCommError &)
-{
-	int port = QString(m_pInterface->port()->to_str()).toInt();
+XNIGPIBPort::open() throw (XInterface::XCommError &) {
+	Snapshot shot( *m_pInterface);
+	int port = QString(shot[ *m_pInterface->port()].to_str()).toInt();
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		if(s_cntOpened == 0) {
@@ -141,20 +138,19 @@ XNIGPIBPort::open() throw (XInterface::XCommError &)
 		eos = 0x1400 + m_pInterface->eos()[m_pInterface->eos().length() - 1];
 	}
 	m_ud = ibdev(port, 
-				 *m_pInterface->address(), 0, T3s, 1, eos);
+				 shot[ *m_pInterface->address()], 0, T3s, 1, eos);
 	if(m_ud < 0) {
 		throw XInterface::XCommError(
 			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
 	}
 	ibclr(m_ud);
 	ibeos(m_ud, eos);
-	addrtbl[0] = *m_pInterface->address();
+	addrtbl[0] = shot[ *m_pInterface->address()];
 	addrtbl[1] = NOADDR;
 	EnableRemote(port, addrtbl);
 }
 void
-XNIGPIBPort::gpib_close() throw (XInterface::XCommError &)
-{
+XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
 	if(m_ud >= 0) ibonl(m_ud, 0);
 	m_ud=-1;
 	{
@@ -163,16 +159,14 @@ XNIGPIBPort::gpib_close() throw (XInterface::XCommError &)
 	}
 }
 void
-XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &)
-{
+XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
     gpib_close();
     msecsleep(100);
     open();
 }
 
 void
-XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &)
-{
+XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &) {
 	ASSERT(m_pInterface->isOpened());
   
 	XString buf(str);
@@ -181,8 +175,7 @@ XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &)
 	this->write(buf.c_str(), buf.length());
 }
 void
-XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
-{
+XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	ASSERT(m_pInterface->isOpened());
   
 	gpib_spoll_before_write();
@@ -286,8 +279,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 	return len;
 }
 void
-XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
-{
+XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 	if(m_pInterface->gpibUseSerialPollOnRead())
 	{
 		for(int i = 0; ; i++)
@@ -325,22 +317,17 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &)
 	}
 }
 void 
-XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
-{
-	if(m_pInterface->gpibUseSerialPollOnWrite())
-	{
-		for(int i = 0; ; i++)
-		{
-			if(i > 10)
-			{
+XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
+	if(m_pInterface->gpibUseSerialPollOnWrite()) {
+		for(int i = 0; ; i++) {
+			if(i > 10) {
 				throw XInterface::XCommError(
 					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
 			msecsleep(m_pInterface->gpibWaitBeforeSPoll());
 			unsigned char spr;
 			int ret = ibrsp(m_ud,(char*)&spr);
-			if(ret & ERR)
-			{
+			if(ret & ERR) {
 				switch(ThreadIberr()) {
 				case EDVR:
 				case EFSO:
@@ -352,8 +339,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &)
 				gpib_reset();
 				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
-			if((spr & m_pInterface->gpibMAVbit()))
-			{
+			if((spr & m_pInterface->gpibMAVbit())) {
 				//MAV detected
 				if(i < 2) {
 					msecsleep(5*i + 5);

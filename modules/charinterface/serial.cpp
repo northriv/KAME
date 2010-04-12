@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -27,32 +27,28 @@
 #define TTY_WAIT 1 //ms
 
 XPosixSerialPort::XPosixSerialPort(XCharInterface *interface)
-	: XPort(interface), m_scifd(-1)
-{
+	: XPort(interface), m_scifd(-1) {
 
 }
-XPosixSerialPort::~XPosixSerialPort()
-{
+XPosixSerialPort::~XPosixSerialPort() {
     if(m_scifd >= 0) close(m_scifd);
 }
 void
-XPosixSerialPort::open() throw (XInterface::XCommError &)
-{
+XPosixSerialPort::open() throw (XInterface::XCommError &) {
+	Snapshot shot( *m_pInterface);
 	struct termios ttyios;
 	speed_t baudrate;
-	if((m_scifd = ::open(QString(m_pInterface->port()->to_str()).toLocal8Bit().data(),
-						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1)
-	{
+	if((m_scifd = ::open(QString(shot[ *m_pInterface->port()].to_str()).toLocal8Bit().data(),
+						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
     
 	tcsetpgrp(m_scifd, getpgrp());
       
-	bzero(&ttyios, sizeof(ttyios));
+	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
-	switch(static_cast<int>(m_pInterface->serialBaudRate()))
-	{
+	switch(static_cast<int>(m_pInterface->serialBaudRate())) {
 	case 2400: baudrate = B2400; break;
 	case 4800: baudrate = B4800; break;
 	case 9600: baudrate = B9600; break;
@@ -65,9 +61,9 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 		throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
 	}
 
-	cfsetispeed(&ttyios, baudrate);
-	cfsetospeed(&ttyios, baudrate);
-	cfmakeraw(&ttyios);
+	cfsetispeed( &ttyios, baudrate);
+	cfsetospeed( &ttyios, baudrate);
+	cfmakeraw( &ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
 	ttyios.c_cflag |= HUPCL | CLOCAL | CS8 | CREAD;
 	if(m_pInterface->serialStopBits() == 2)
@@ -79,21 +75,18 @@ XPosixSerialPort::open() throw (XInterface::XCommError &)
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
 		throw XInterface::XCommError(i18n("stty failed"), __FILE__, __LINE__);
 	
-    if(fcntl(m_scifd, F_SETFL, (~O_NONBLOCK) & fcntl(m_scifd, F_GETFL)) == - 1)
-	{
+    if(fcntl(m_scifd, F_SETFL, (~O_NONBLOCK) & fcntl(m_scifd, F_GETFL)) == - 1) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}
 }
 void
-XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &)
-{
+XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
     XString buf(str);
     buf += m_pInterface->eos();
     this->write(buf.c_str(), buf.length());
 }
 void
-XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
-{
+XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	ASSERT(m_pInterface->isOpened());
       
 	for (;;) {
@@ -118,8 +111,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
                 dbgPrint("Serial, EINTR, try to continue.");
                 continue;
             }
-            else
-			{
+            else {
 				throw XInterface::XCommError(i18n("write error"), __FILE__, __LINE__);
 			}
         }
@@ -128,8 +120,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
 	} while (wlen < size);
 }
 void
-XPosixSerialPort::receive() throw (XInterface::XCommError &)
-{
+XPosixSerialPort::receive() throw (XInterface::XCommError &) {
 	ASSERT(m_pInterface->isOpened());
     
 //   for(;;) {
@@ -147,8 +138,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 	const char *eos = m_pInterface->eos().c_str();
 	unsigned int eos_len = m_pInterface->eos().length();
 	unsigned int len = 0;
-	for(;;)
-	{
+	for(;;) {
 		if(buffer().size() <= len + 1) 
 			buffer().resize(len + MIN_BUFFER_SIZE);
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
@@ -166,8 +156,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 		}
 		len += rlen;
 		if(len >= eos_len) {
-			if(!strncmp(&buffer().at(len - eos_len), eos, eos_len))
-			{
+			if( !strncmp(&buffer().at(len - eos_len), eos, eos_len)) {
 				break;
 			}
 		}
@@ -177,8 +166,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &)
 	buffer().at(len) = '\0';
 }
 void
-XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
-{
+XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 	ASSERT(m_pInterface->isOpened());
    
 //   for(;;) {
@@ -194,8 +182,7 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &)
 	buffer().resize(length);
 	unsigned int len = 0;
    
-	while(len < length)
-	{
+	while(len < length) {
 		int rlen = ::read(m_scifd, &buffer().at(len), 1);
 		if(rlen == 0)
 			throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);

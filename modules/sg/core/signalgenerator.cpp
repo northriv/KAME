@@ -87,7 +87,7 @@ XSG::visualize(const Snapshot &shot) {
 }
 void
 XSG::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-    double _freq = *freq();
+    double _freq = shot[ *freq()];
     if(_freq <= 0) {
         gErrPrint(getLabel() + " " + i18n("Positive Value Needed."));
         return;

@@ -28,7 +28,11 @@ XDMM::XDMM(const char *name, bool runtime,
     m_waitInms(create<XUIntNode>("WaitInms", false)),
     m_form(new FrmDMM(g_pFrmMain)) {
 	meas->scalarEntries()->insert(tr_meas, m_entry);
-	m_waitInms->value(100);
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *m_waitInms] = 100;
+		if(tr.commit())
+			break;
+	}
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("DMM - ") + getLabel() );
 	m_function->setUIEnabled(false);
@@ -99,8 +103,8 @@ XDMM::execute(const atomic<bool> &terminated) {
 			break;
 	}
 	while( !terminated) {
-		msecsleep( *waitInms());
-		if(function()->to_str().empty()) continue;
+		msecsleep( **waitInms());
+		if(( **function())->to_str().empty()) continue;
       
 		shared_ptr<RawData> writer(new RawData);
 		double x;

@@ -508,12 +508,12 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
   
 	if(m_onScreenMsg.length() ) {
 		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
-	 	setColor( *m_graph->titleColor());
+	 	setColor(shot[ *m_graph->titleColor()]);
 		m_curAlign = Qt::AlignBottom | Qt::AlignLeft;
   		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
 	}
 	//Legends
-	if(*m_graph->drawLegends() &&
+	if(shot[ *m_graph->drawLegends()] &&
 			(m_selectionModeNow == SelNone)) {
 		if(shot.size(m_graph->plots())) {
 			const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
@@ -531,8 +531,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y2 = y1;
 			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-				selectFont(*plot->label(), XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+				shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+				selectFont(shot[ *plot->label()], XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 				y2 -= dy;
 			}
 			setColor(shot[ *m_graph->backGround()], 0.7);
@@ -553,8 +553,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			float y = y1;
 			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
 				setColor(shot[ *m_graph->titleColor()], 1.0);
-				shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
-				drawText(XGraph::ScrPoint(x2,y,z), *plot->label());
+				shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+				drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
 				plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
 			}
@@ -627,7 +627,7 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 	if(shot.size(m_graph->plots())) {
 		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
 		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>(*it);
+			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
 			XGraph::GPoint g1(0.0, 0.0, 0.0),
 				g2(1.0, 0.0, 0.0),
 				g3(0.0, 1.0, 0.0),
@@ -651,7 +651,7 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 			setVertex(s2);
 			setVertex(s4);
 			setVertex(s3);
-			shared_ptr<XAxis> axisz = *plot->axisZ();
+			shared_ptr<XAxis> axisz = shot[ *plot->axisZ()];
 			if(axisz) {
 				setVertex(s1);
 				setVertex(s2);
@@ -681,7 +681,7 @@ XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
 	if(shot.size(m_graph->plots())) {
 		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
 		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
+			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
 			plot->drawPlot(shot, this);
 		}
 	}
@@ -691,7 +691,7 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 	if(shot.size(m_graph->axes())) {
 		const XNode::NodeList &axes_list( *shot.list(m_graph->axes()));
 		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>( *it);
+			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 			if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
 				axis->drawAxis(shot, this);
 		}
