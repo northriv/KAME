@@ -216,6 +216,7 @@ XMonteCarloDriver::start() {
     m_hdiry->setUIEnabled(false);
     m_hdirz->setUIEnabled(false);
     for(Transaction tr( *this);; ++tr) {
+    	const Snapshot &shot(tr);
         tr[ *this].m_loop.reset(new MonteCarlo(2));
         tr[ *this].m_store.reset(new MonteCarlo(1));
         tr[ *this].m_sumDU = tr[ *this].m_loop->internalEnergy() * N_A;
@@ -238,24 +239,23 @@ XMonteCarloDriver::start() {
         m_lsnGraphChanged = tr[ *m_graph3D].onValueChanged().connectWeakly(
     		shared_from_this(), &XMonteCarloDriver::onGraphChanged);
 
-    	if(tr.commit())
+        int fftlen = MonteCarlo::length() * 4;
+        for(int d = 0; d < 3; d++) {
+            if(shot[ *this].m_fftlen > 0) {
+                fftw_destroy_plan(shot[ *this].m_fftplan[d]);
+                fftw_free(shot[ *this].m_pFFTin[d]);
+                fftw_free(shot[ *this].m_pFFTout[d]);
+            }
+            tr[ *this].m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+            tr[ *this].m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
+            tr[ *this].m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen,
+            	shot[ *this].m_pFFTin[d], shot[ *this].m_pFFTout[d],
+            	FFTW_FORWARD, FFTW_ESTIMATE);
+        }
+        tr[ *this].m_fftlen = fftlen;
+        if(tr.commit())
     		break;
     }
-
-    int fftlen = MonteCarlo::length() * 4;
-    for(int d = 0; d < 3; d++) {
-        if(shot[ *this].m_fftlen > 0) {
-            fftw_destroy_plan(shot[ *this].m_fftplan[d]);
-            fftw_free(shot[ *this].m_pFFTin[d]);
-            fftw_free(shot[ *this].m_pFFTout[d]);
-        }
-        trans( *this).m_pFFTin[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-        trans( *this).m_pFFTout[d] = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * fftlen * fftlen * fftlen);
-        trans( *this).m_fftplan[d] = fftw_plan_dft_3d(fftlen, fftlen, fftlen,
-        	shot[ *this].m_pFFTin[d], shot[ *this].m_pFFTout[d],
-        	FFTW_FORWARD, FFTW_ESTIMATE);
-    }
-    trans( *this).m_fftlen = fftlen;
 }
 void
 XMonteCarloDriver::stop() {
@@ -668,43 +668,41 @@ XMonteCarloDriver::onGraphChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XMonteCarloDriver::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
-	for(Transaction tr( *this);; ++tr) {
-		int size = tr[ *this].m_loop->length();
-		int spin_size = size*size*size*4*4;
-		int flips = (int)(tr[ *m_minFlips] * spin_size);
-		long double tests = tr[ *m_minTests] * spin_size;
-		execute(tr, flips, tests);
-		if(tr.commit())
-			break;
-	}
+	Snapshot shot_this( *this);
+	int size = shot_this[ *this].m_loop->length();
+	int spin_size = size*size*size*4*4;
+	int flips = (int)(shot_this[ *m_minFlips] * spin_size);
+	long double tests = shot_this[ *m_minTests] * spin_size;
+	execute(flips, tests);
 }
 void
 XMonteCarloDriver::onStepTouched(const Snapshot &shot, XTouchableNode *) {
-	for(Transaction tr( *this);; ++tr) {
-	    execute(tr, 1, 1);
-		if(tr.commit())
-			break;
-	}
+	execute(1, 1);
 }
 void
-XMonteCarloDriver::execute(Transaction &tr, int flips, long double tests) {
-    unsigned int size = tr[ *this].m_loop->length();
-    int spin_size = size*size*size*4*4;
-    MonteCarlo::Vector3<double> field_dir(tr[ *m_hdirx], tr[ *m_hdiry], tr[ *m_hdirz]);
-    field_dir.normalize();
-    MonteCarlo::Vector3<double> field(field_dir);
-    field *= tr[ *m_targetField];
-    MonteCarlo::Vector3<double> m;
-    tr[ *this].m_dU = tr[ *this].m_loop->exec(tr[ *m_targetTemp], field, &flips, &tests, &tr[ *this].m_DUav, &m) * N_A;
-    tr[ *this].m_testsTotal += tests;
-    tr[ *this].m_flippedTotal += flips;
-    fprintf(stderr, "Total flips = %g (%g per spin).\n",
-    	((double)tr[ *this].m_flippedTotal), ((double)tr[ *this].m_flippedTotal / spin_size));
-    tr[ *this].m_Mav = m.innerProduct(field_dir);
-    fprintf(stderr, "Total tests = %g (%g per spin).\n",
-    	((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / spin_size));
-    shared_ptr<RawData> writer(new RawData);
-    writer->resize(size*size*size*16);
-    tr[ *this].m_loop->write((char*)&writer->at(0));
-    finishWritingRaw(writer, XTime::now(), XTime::now());
+XMonteCarloDriver::execute(int flips, long double tests) {
+	for(Transaction tr( *this);; ++tr) {
+		unsigned int size = tr[ *this].m_loop->length();
+		int spin_size = size*size*size*4*4;
+		MonteCarlo::Vector3<double> field_dir(tr[ *m_hdirx], tr[ *m_hdiry], tr[ *m_hdirz]);
+		field_dir.normalize();
+		MonteCarlo::Vector3<double> field(field_dir);
+		field *= tr[ *m_targetField];
+		MonteCarlo::Vector3<double> m;
+		tr[ *this].m_dU = tr[ *this].m_loop->exec(tr[ *m_targetTemp], field, &flips, &tests, &tr[ *this].m_DUav, &m) * N_A;
+		tr[ *this].m_testsTotal += tests;
+		tr[ *this].m_flippedTotal += flips;
+		fprintf(stderr, "Total flips = %g (%g per spin).\n",
+			((double)tr[ *this].m_flippedTotal), ((double)tr[ *this].m_flippedTotal / spin_size));
+		tr[ *this].m_Mav = m.innerProduct(field_dir);
+		fprintf(stderr, "Total tests = %g (%g per spin).\n",
+			((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / spin_size));
+		shared_ptr<RawData> writer(new RawData);
+		writer->resize(size*size*size*16);
+		tr[ *this].m_loop->write((char*)&writer->at(0));
+		if(tr.commit()) {
+		    finishWritingRaw(writer, XTime::now(), XTime::now());
+			break;
+		}
+	}
 }

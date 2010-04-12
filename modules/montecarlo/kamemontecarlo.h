@@ -90,7 +90,7 @@ private:
 		m_conGraph3D;
 	qshared_ptr<FrmMonteCarlo> m_form;
 	shared_ptr<XWaveNGraph> m_wave3D;
-	void execute(Transaction &tr, int flips, long double tests);
+	void execute(int flips, long double tests);
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onGraphChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStepTouched(const Snapshot &shot, XTouchableNode *);

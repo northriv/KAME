@@ -139,7 +139,9 @@ Node<XN>::BranchPoint::negotiate(uint64_t &started_time) {
 		if(ms > 0) {
 			XTime t0 = XTime::now();
 			if(ms > 1000) {
-				fprintf(stderr, "Negotiating, %f sec. requested, limited to 1 sec.", ms*1e-3);
+				if(ms > 3000)
+					fprintf(stderr, "Nested transaction?, ");
+				fprintf(stderr, "Negotiating, %f sec. requested, limited to 1 sec. ", ms*1e-3);
 				fprintf(stderr, "for BP@0x%llx\n", (unsigned long long)(uintptr_t)this);
 				ms = 1000;
 			}
