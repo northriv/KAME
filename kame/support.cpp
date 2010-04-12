@@ -131,7 +131,7 @@ XKameError::msg() const {
 	return m_msg;
 }
 
-const char* XKameError::what() const {
+const char* XKameError::what() const throw() {
 	return m_msg.c_str();
 }
 

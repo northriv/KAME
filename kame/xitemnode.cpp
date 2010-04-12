@@ -25,11 +25,11 @@ XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) 
 	}
 }
 void
-XItemNodeBase::onTryAutoSet(const Snapshot &shot, XItemNodeBase *) {
+XItemNodeBase::onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent &e) {
 	if( !autoSetAny()) return;
 	XString var = shot[ *this].to_str();
 	if(var.length()) return;
-	shared_ptr<const std::deque<Item> > items = itemStrings(shot);
+	shared_ptr<const std::deque<Item> > items = itemStrings(e.shot_of_list);
 	if(items->size()) {
 		trans( *this).str(items->front().name);
 	}
@@ -80,7 +80,10 @@ void
 XComboNode::Payload::add(const XString &str) {
 	m_strings.reset(new std::deque<XString>( *m_strings));
 	m_strings->push_back(str);
-	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
+	ListChangeEvent e;
+	e.emitter = static_cast<XItemNodeBase*>( &node());
+	e.shot_of_list = tr();
+	tr().mark(onListChanged(), e);
 	if(str == m_var.first) {
 		m_var.second = m_strings->size() - 1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
@@ -91,7 +94,9 @@ void
 XComboNode::Payload::clear() {
 	m_strings.reset(new std::deque<XString>( *m_strings));
     m_strings->clear();
-	tr().mark(onListChanged(), static_cast<XItemNodeBase*>( &node()));
+	e.emitter = static_cast<XItemNodeBase*>( &node());
+	e.shot_of_list = tr();
+	tr().mark(onListChanged(), e);
 	if(m_var.second >= 0) {
 	    m_var.second = -1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));

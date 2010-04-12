@@ -127,7 +127,7 @@ struct XKameError : public std::exception {
 	void print(const XString &header);
 	static void print(const XString &msg, const char *file, int line, int _errno);
 	const XString &msg() const;
-	virtual const char* what() const;
+	virtual const char* what() const throw();
 private:
 	const XString m_msg;
 	const char *const m_file;
