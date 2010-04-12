@@ -107,7 +107,7 @@ private:
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
 		if(shared_ptr<TL> list = m_list.lock()) {
 			ASSERT(node == list.get());
-			typename Payload::ListChangeEvent e;
+			Payload::ListChangeEvent e;
 			e.emitter = this;
 			e.shot_of_list = shot;
 			Snapshot( *this).talk(( **this)->onListChanged(), e);
