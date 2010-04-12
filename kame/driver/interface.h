@@ -29,15 +29,19 @@ public:
  
 	struct XInterfaceError : public XKameError {
 		XInterfaceError(const XString &msg, const char *file, int line);
+        virtual ~XInterfaceError() throw() {}
 	};
 	struct XConvError : public XInterfaceError {
 		XConvError(const char *file, int line);
+        virtual ~XConvError() throw() {}
 	};
 	struct XCommError : public XInterfaceError {
 		XCommError(const XString &, const char *file, int line);
+        virtual ~XCommError() throw() {}
 	};
 	struct XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
+        virtual ~XOpenInterfaceError() throw() {}
 	};
  
 	void setLabel(const XString& str) {m_label = str;}

@@ -252,7 +252,7 @@ void
 XTalker<tArg>::talk(const tArg &arg) {
 	if(empty()) return;
 	local_shared_ptr<ListenerList> list(m_listeners);
-	if(!list) return;
+	if( !list) return;
 	for(ListenerList_it it = list->begin(); it != list->end(); it++) {
 		if(shared_ptr<Listener> listener = it->lock()) {
 			if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {

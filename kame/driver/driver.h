@@ -65,15 +65,18 @@ protected:
 	//! And, prints error message.
 	struct XRecordError : public XKameError {
 		XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
+        virtual ~XRecordError() throw() {}
 	};
 	//! Throwing this exception will skip signal emission, assuming record is kept valid.
 	struct XSkippedRecordError : public XRecordError {
 		XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
 		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
+        virtual ~XSkippedRecordError() throw() {}
 	};
 	//! The size of the raw record is not enough to continue analyzing.
 	struct XBufferUnderflowRecordError : public XRecordError {
 		XBufferUnderflowRecordError(const char *file, int line);
+        virtual ~XBufferUnderflowError() throw() {}
 	};
  
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().

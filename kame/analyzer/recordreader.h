@@ -35,19 +35,24 @@ private:
 	struct XRecordError : public XKameError {
         XRecordError(const XString &msg, const char *file, int line)
 			: XKameError(msg, file, line) {}
+        virtual ~XRecordError() throw() {}
 	};
 	struct XIOError : public XRecordError {
         XIOError(const char *file, int line);
         XIOError(const XString &msg, const char *file, int line);
+        virtual ~XIOError() throw() {}
 	};
 	struct XBufferOverflowError : public XIOError {
         XBufferOverflowError(const char *file, int line);
+        virtual ~XBufferOverflowError() throw() {}
 	};
 	struct XBrokenRecordError : public XRecordError {
         XBrokenRecordError(const char *file, int line);
+        virtual ~XBrokenRecordError() throw() {}
 	};
 	struct XNoDriverError : public XRecordError {
 		XNoDriverError(const XString &driver_name, const char *file, int line);
+        virtual ~XNoDriverError() throw() {}
 		XString name;
 	};
  
