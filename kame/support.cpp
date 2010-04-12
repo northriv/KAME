@@ -127,18 +127,19 @@ XKameError::print(const XString &msg, const char *file, int line, int _errno) {
 }
 
 const XString &
-XKameError::msg() const
-{
+XKameError::msg() const {
 	return m_msg;
 }
 
-double roundlog10(double val)
-{
+const char* XKameError::what() const {
+	return m_msg.c_str();
+}
+
+double roundlog10(double val) {
 	int i = lrint(log10(val));
 	return pow(10.0, (double)i);
 }
-double setprec(double val, double prec)
-{
+double setprec(double val, double prec) {
 	double x;
 
 	if(prec <= 1e-100) return val;
@@ -154,8 +155,7 @@ double setprec(double val, double prec)
 
 
 void
-_dbgPrint(const XString &str, const char *file, int line)
-{
+_dbgPrint(const XString &str, const char *file, int line) {
 	if(!g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
@@ -168,8 +168,7 @@ _dbgPrint(const XString &str, const char *file, int line)
 		<< std::endl;
 }
 void
-_gErrPrint(const XString &str, const char *file, int line)
-{
+_gErrPrint(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs
@@ -186,8 +185,7 @@ _gErrPrint(const XString &str, const char *file, int line)
 	if(statusprinter) statusprinter->printError(str);
 }
 void
-_gWarnPrint(const XString &str, const char *file, int line)
-{
+_gWarnPrint(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs

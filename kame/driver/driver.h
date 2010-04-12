@@ -76,7 +76,7 @@ protected:
 	//! The size of the raw record is not enough to continue analyzing.
 	struct XBufferUnderflowRecordError : public XRecordError {
 		XBufferUnderflowRecordError(const char *file, int line);
-        virtual ~XBufferUnderflowError() throw() {}
+        virtual ~XBufferUnderflowRecordError() throw() {}
 	};
  
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
