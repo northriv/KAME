@@ -422,7 +422,7 @@ XNIDAQmxDSO::createChannels() {
 	if(shot[ *trace1()] >= 0) {
 		CHECK_DAQMX_RET(
 			DAQmxCreateAIVoltageChan(m_task,
-									 trace1()->to_str().c_str(),
+									 shot[ *trace1()].to_str().c_str(),
 									 "",
 									 DAQmx_Val_Cfg_Default,
 									 -atof(shot[ *vFullScale1()].to_str().c_str()) / 2.0,
