@@ -516,7 +516,8 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
-    onListChanged(shot_of_list, node.get());
+    XItemNodeBase::Payload::ListChangeEvent e(shot_of_list, node.get());
+    onListChanged(Snapshot( *node), e);
 }
 void
 XQComboBoxConnector::onSelect(int idx) {
@@ -602,7 +603,9 @@ XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL(highlighted(int) ), this, SLOT( onSelect(int) ) );
     connect(item, SIGNAL(selected(int) ), this, SLOT( onSelect(int) ) );
-    onListChanged(shot_of_list, node.get());
+
+    XItemNodeBase::Payload::ListChangeEvent e(shot_of_list, node.get());
+    onListChanged(Snapshot( *node), e);
 }
 void
 XQListBoxConnector::onSelect(int idx) {
