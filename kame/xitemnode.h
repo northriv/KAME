@@ -30,14 +30,18 @@ public:
 
 	struct Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}
-		Talker<XItemNodeBase*, XItemNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
-		const Talker<XItemNodeBase*, XItemNodeBase*> &onListChanged() const {return m_tlkOnListChanged;}
+		struct ListChangeEvent {
+			XItemNodeBase *emitter;
+			Snapshot shot_of_list;
+		};
+		Talker<ListChangeEvent> &onListChanged() {return m_tlkOnListChanged;}
+		const Talker<ListChangeEvent> &onListChanged() const {return m_tlkOnListChanged;}
 	private:
-		TalkerSingleton<XItemNodeBase*, XItemNodeBase*> m_tlkOnListChanged;
+		TalkerSingleton<ListChangeEvent> m_tlkOnListChanged;
 	};
 private:
 	shared_ptr<XListener> m_lsnTryAutoSet;
-	void onTryAutoSet(const Snapshot &shot, XItemNodeBase *);
+	void onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent &e);
 };
 
 void
@@ -103,7 +107,10 @@ private:
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
 		if(shared_ptr<TL> list = m_list.lock()) {
 			ASSERT(node == list.get());
-			Snapshot( *this).talk(( **this)->onListChanged(), this);
+			ListChangeEvent e;
+			e.emitter = this;
+			e.shot_of_list = shot;
+			Snapshot( *this).talk(( **this)->onListChanged(), e);
 		}
 	}
 	shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;
