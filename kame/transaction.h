@@ -267,11 +267,13 @@ private:
 		SnapshotMode mode,
 		int64_t serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
 
+	//! \sa Transaction<XN>::commit().
 	bool commit(Transaction<XN> &tr);
 //	bool commit_at_super(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
 	//! Takes a snapshot.
+	//! \sa snapshot().
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
 	BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
@@ -389,12 +391,12 @@ public:
 	}
 	virtual ~Snapshot() {}
 
-	//! \return A Payload instance for \a node, which should be included in the snapshot.
+	//! \return Payload instance for \a node, which should be included in the snapshot.
 	template <class T>
 	const typename T::Payload &operator[](const shared_ptr<T> &node) const {
 		return operator[](const_cast<const T&>( *node));
 	}
-	//! \return A Payload instance for \a node, which should be included in the snapshot.
+	//! \return Payload instance for \a node, which should be included in the snapshot.
 	template <class T>
 	const typename T::Payload &operator[](const T &node) const {
 		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
@@ -453,9 +455,11 @@ public:
 	explicit SingleSnapshot(const T &node) : Snapshot<XN>(node, false) {}
 	virtual ~SingleSnapshot() {}
 
+	//! \return Payload instance for \a node.
 	const typename T::Payload *operator->() const {
 		return static_cast<const typename T::Payload *>(this->m_packet->payload().get());
 	}
+	//! \return Cast operator redirected to Payload.
 	template <class X>
 	operator X() const {
 		return (X)( *operator->());
@@ -505,7 +509,7 @@ public:
 			}
 		}
 	}
-	//! \return True if succeeded.
+	//! \return true if succeeded.
 	bool commit() {
 		Node<XN> &node(this->m_packet->node());
 		if( !isModified() || node.commit( *this)) {
@@ -539,17 +543,17 @@ public:
 			if( !time || (time > m_started_time))
 				node.m_link->m_transaction_started_time = m_started_time;
 		}
-		m_messages.clear();
+		m_messages.reset();
 		this->m_packet->node().snapshot( *this, m_multi_nodal);
 		return *this;
 	}
 
-	//! \return A copy-constructed Payload instance for \a node, which should be included in the transaction.
+	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	template <class T>
 	typename T::Payload &operator[](const shared_ptr<T> &node) {
 		return operator[]( *node);
 	}
-	//! \return A copy-constructed Payload instance for \a node, which should be included in the transaction.
+	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	template <class T>
 	typename T::Payload &operator[](T &node) {
 		ASSERT(isMultiNodal() || ( &node == &this->m_packet->node()));
@@ -565,17 +569,21 @@ public:
 	}
 	bool isMultiNodal() const {return m_multi_nodal;}
 
-	//! Reserves an event, to be emitted from \a talker with \a arg.
+	//! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
 	template <typename T, typename tArgRef>
 	void mark(T &talker, tArgRef arg) {
 		_Message<XN> *m = talker.createMessage(arg);
-		if(m)
-			m_messages.push_back(shared_ptr<_Message<XN> >(m));
+		if(m) {
+			if( !m_messages)
+				m_messages.reset(new MessageList);
+			m_messages->push_back(shared_ptr<_Message<XN> >(m));
+		}
 	}
-	//! Cancels events made toward \a x.
+	//! Cancels reserved events made toward \a x.
 	void unmark(const shared_ptr<XListener> &x) {
-		for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it)
-			( *it)->unmark(x);
+		if(m_messages)
+			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it)
+				( *it)->unmark(x);
 	}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
@@ -590,19 +598,19 @@ private:
 
 		m_oldpacket.reset();
 		//Messaging.
-		if(m_messages.size()) {
-			for(typename MessageList::iterator it = m_messages.begin(); it != m_messages.end(); ++it) {
+		if(m_messages) {
+			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
 				( *it)->talk( *this);
 			}
 		}
-		m_messages.clear();
+		m_messages.reset();
 	}
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
 	typedef std::deque<shared_ptr<_Message<XN> > > MessageList;
-	MessageList m_messages;
+	scoped_ptr<MessageList> m_messages;
 };
 
 template <class XN, typename T>
@@ -611,12 +619,15 @@ public:
 	explicit SingleTransaction(T &node) : Transaction<XN>(node, false) {}
 	virtual ~SingleTransaction() {}
 
+	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	typename T::Payload &operator*() {
 		return ( *this)[static_cast<T &>(this->m_packet->node())];
 	}
+	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	typename T::Payload *operator->() {
 		return &( **this);
 	}
+	//! \return Cast operator redirected to Payload.
 	template <class X>
 	operator X() const {
 		return (X)( *static_cast<const typename T::Payload *>(this->m_packet->payload().get()));

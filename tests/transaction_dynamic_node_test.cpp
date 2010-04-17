@@ -1,17 +1,19 @@
 /*
- * transaction_test.cpp
+ * transaction_dynamic_node_test.cpp
+ *
+ *  Test code of software transactional memory, for simultaneous transaction including
+ *  insertion/removal/swap of object links on tree-structure objects.
  */
 
 #include "support.h"
-#include "allocator.h"
+#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
 #include <stdint.h>
 
 #include "transaction.h"
-#include <atomic.h>
 
 #include "thread.cpp"
 
-atomic<int> objcnt = 0; //# of objects.
+atomic<int> objcnt = 0; //# of living objects.
 atomic<long> total = 0; //The sum of payloads.
 
 //#define TRANSACTIONAL_STRICT_ASSERT

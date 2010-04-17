@@ -14,6 +14,7 @@
 #ifndef xnodeH
 #define xnodeH
 
+#include "allocator.h"
 #include "transaction.h"
 #include "xsignal.h"
 #include "threadlocal.h"

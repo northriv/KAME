@@ -110,8 +110,8 @@ Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int rever
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) :
- m_linkedBy(x.m_linkedBy), m_packet(x.m_packet),
- m_ridx(x.m_ridx), m_bundle_serial(bundle_serial) {}
+	m_linkedBy(x.m_linkedBy), m_packet(x.m_packet),
+	m_ridx(x.m_ridx), m_bundle_serial(bundle_serial) {}
 
 template <class XN>
 void

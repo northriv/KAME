@@ -1,14 +1,15 @@
 /*
- * transaction_test.cpp
+ * transaction_negotiation_test.cpp
  *
+ * Test code of software transactional memory, for simultaneous transaction with different periodicities.
+ * The slower transaction would never succeed unless a proper wait is put on the faster loop.
  */
 
 #include "support.h"
-#include "allocator.h"
+#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
 #include <stdint.h>
 
 #include "transaction.h"
-#include <atomic.h>
 
 #include "thread.cpp"
 

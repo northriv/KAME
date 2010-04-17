@@ -3,7 +3,7 @@
 //#include "xtime.h"
 
 #include "support.h"
-#include "allocator.h"
+#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
 
 #include <stdint.h>
 

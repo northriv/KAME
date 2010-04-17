@@ -1,13 +1,14 @@
 /*
  * transaction_test.cpp
+ *
+ * Test code of software transactional memory, for simultaneous transaction on tree-structure objects.
  */
 
 #include "support.h"
-#include "allocator.h"
+#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
 #include <stdint.h>
 
 #include "transaction.h"
-#include <atomic.h>
 
 #include "thread.cpp"
 
