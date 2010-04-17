@@ -1,12 +1,9 @@
 /*
  * transaction_test.cpp
- *
- *  Created on: 2010/01/10
- *      Author: northriv
  */
 
 #include "support.h"
-//#include "allocator.h"
+#include "allocator.h"
 #include <stdint.h>
 
 #include "transaction.h"
@@ -14,8 +11,8 @@
 
 #include "thread.cpp"
 
-atomic<int> objcnt = 0;
-atomic<long> total = 0;
+atomic<int> objcnt = 0; //# of living objects.
+atomic<long> total = 0; //The sum. of payloads.
 
 //#define TRANSACTIONAL_STRICT_ASSERT
 
@@ -69,6 +66,7 @@ typename boost::enable_if<boost::is_base_of<LongNode, T>,
 #include "transaction_impl.h"
 template class Transactional::Node<LongNode>;
 
+//! Shared objects.
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void *
@@ -118,13 +116,12 @@ start_routine(void *) {
 #define NUM_THREADS 4
 
 int
-main(int argc, char **argv)
-{
+main(int argc, char **argv) {
     timeval tv;
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 50; k++) {
+    for(int k = 0; k < 10; k++) {
 		gn1.reset(LongNode::create<LongNode>());
 		gn2.reset(LongNode::create<LongNode>());
 		gn3.reset(LongNode::create<LongNode>());

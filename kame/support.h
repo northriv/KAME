@@ -118,8 +118,9 @@ _gErrPrint(const XString &str, const char *file, int line);
 void
 _gWarnPrint(const XString &str, const char *file, int line);
 
+#include <stdexcept>
 //! Base of exception
-struct XKameError : public std::exception {
+struct XKameError : public std::runtime_error {
 	virtual ~XKameError() throw() {}
 	//! errno is read and cleared after a construction
 	XKameError(const XString &s, const char *file, int line);

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
-
 
 bool g_bLogDbgPrint;
 bool g_bMLockAlways;
@@ -93,7 +92,7 @@ void my_assert(const char *file, int line)
 
 
 XKameError::XKameError(const XString &s, const char *file, int line)
-	: m_msg(s), m_file(file), m_line(line), m_errno(errno) {
+	: std::runtime_error(s.c_str()), m_msg(s), m_file(file), m_line(line), m_errno(errno) {
 	errno = 0;
 }
 void

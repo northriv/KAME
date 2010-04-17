@@ -5,6 +5,8 @@ set(support_SRCS
     support.cpp
  )
 
+add_executable(allocator_test allocator_test.cpp ${support_SRCS})
+target_link_libraries(allocator_test pthread)
 add_executable(atomic_shared_ptr_test atomic_shared_ptr_test.cpp ${support_SRCS})
 target_link_libraries(atomic_shared_ptr_test pthread)
 add_executable(atomic_scoped_ptr_test atomic_scoped_ptr_test.cpp ${support_SRCS})
@@ -20,6 +22,7 @@ target_link_libraries(transaction_negotiation_test pthread)
 add_executable(transaction_dynamic_node_test transaction_dynamic_node_test.cpp xtime.cpp ${support_SRCS})
 target_link_libraries(transaction_dynamic_node_test pthread)
 
+add_test(allocator_test allocator_test)
 add_test(atomic_shared_ptr_test atomic_shared_ptr_test)
 add_test(atomic_scoped_ptr_test atomic_scoped_ptr_test)
 add_test(atomic_queue_test atomic_queue_test)

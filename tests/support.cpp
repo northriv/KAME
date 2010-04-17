@@ -13,32 +13,7 @@
 ***************************************************************************/
 #include "support.h"
 #include "atomic.h"
-
-#include "allocator.h"
-template <int>
-FixedSizeAllocator<ALLOC_SIZE1> *FixedSizeAllocator<ALLOC_SIZE1>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE1>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE1>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE2> *FixedSizeAllocator<ALLOC_SIZE2>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE2>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE2>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE3> *FixedSizeAllocator<ALLOC_SIZE3>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE3>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE3>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE4> *FixedSizeAllocator<ALLOC_SIZE4>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE4>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE4>::s_allocators_cnt;
+#include "allocator.cpp"
 
 void my_assert(char const*s, int d) {
         fprintf(stderr, "Err:%s:%d\n", s, d);

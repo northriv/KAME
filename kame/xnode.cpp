@@ -11,32 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-//Memory pool.
-#include "allocator.h"
-template <int>
-FixedSizeAllocator<ALLOC_SIZE1> *FixedSizeAllocator<ALLOC_SIZE1>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE1>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE1>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE2> *FixedSizeAllocator<ALLOC_SIZE2>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE2>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE2>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE3> *FixedSizeAllocator<ALLOC_SIZE3>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE3>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE3>::s_allocators_cnt;
-template <int>
-FixedSizeAllocator<ALLOC_SIZE4> *FixedSizeAllocator<ALLOC_SIZE4>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE4>::s_curr_allocator_idx;
-template <int>
-int FixedSizeAllocator<ALLOC_SIZE4>::s_allocators_cnt;
 
 #include "transaction_impl.h"
 template class Transactional::Node<class XNode>;

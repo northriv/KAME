@@ -17,6 +17,7 @@
 
 //!\desc
 //! Lock-free new/delete operators for small objects.
+//! Memory pools won't be released once being secured.
 
 #include "support.h"
 #include "atomic.h"
@@ -32,13 +33,8 @@ template <int SIZE>
 class FixedSizeAllocator {
 	enum {MEMPOOL_COUNT = ALLOC_MEMPOOL_SIZE / SIZE};
 public:
-	FixedSizeAllocator() : m_mempool(new char[ALLOC_MEMPOOL_SIZE]), m_idx(0) {
-		fprintf(stderr, "new allocator for %dB, starting @ %llx, ending @ %llx\n", SIZE,
-			(unsigned long long)m_mempool, (unsigned long long)( &m_mempool[ALLOC_MEMPOOL_SIZE]));
-		memset(m_flags, 0, MEMPOOL_COUNT);
-		memoryBarrier();
-	}
-	~FixedSizeAllocator() { delete [] m_mempool; }
+	FixedSizeAllocator();
+	~FixedSizeAllocator();
 	inline void *allocate_pooled() {
 		for(int cnt = 0; cnt < MEMPOOL_COUNT; ++cnt) {
 			int idx = m_idx;
@@ -67,6 +63,7 @@ public:
 //		m_idx = idx;
 		return true;
 	}
+	static bool trySetupNewAllocator(int aidx);
 	static inline void *allocate(size_t size) {
 		int acnt = s_allocators_cnt;
 		int aidx = s_curr_allocator_idx;
@@ -74,7 +71,6 @@ public:
 			FixedSizeAllocator *alloc = s_allocators[aidx];
 			if(alloc) {
 				if(void *p = alloc->allocate_pooled()) {
-//					fprintf(stderr, "alloc %llx\n", (long long) p);
 					memset( p, 0, size);
 					return p;
 				}
@@ -83,15 +79,8 @@ public:
 					aidx = 0;
 			}
 			else {
-				alloc = new FixedSizeAllocator;
-				atomicInc( &s_allocators_cnt);
-				writeBarrier();
-				if(atomicCompareAndSet((FixedSizeAllocator *)0, alloc, &s_allocators[aidx]))
-					++acnt;
-				else {
-					delete alloc;
-					atomicDec( &s_allocators_cnt);
-				}
+				trySetupNewAllocator(aidx);
+				acnt = s_allocators_cnt;
 			}
 			s_curr_allocator_idx = aidx;
 		}
@@ -103,7 +92,6 @@ public:
 			FixedSizeAllocator *alloc = s_allocators[aidx];
 			if(alloc) {
 				if(alloc->deallocate_pooled(p)) {
-//					fprintf(stderr, "dealloc %llx\n", (long long) p);
 					s_curr_allocator_idx = aidx;
 					return true;
 				}

@@ -1,12 +1,10 @@
 /*
  * transaction_test.cpp
  *
- *  Created on: 2010/01/10
- *      Author: northriv
  */
 
 #include "support.h"
-//#include "allocator.h"
+#include "allocator.h"
 #include <stdint.h>
 
 #include "transaction.h"
@@ -15,8 +13,8 @@
 #include "thread.cpp"
 
 atomic<int> slow_threads = 0;
-atomic<int> objcnt = 0;
-atomic<long> total = 0;
+atomic<int> objcnt = 0; //# of objects.
+atomic<long> total = 0; //The sum of payloads.
 
 #define TRANSACTIONAL_STRICT_ASSERT
 
