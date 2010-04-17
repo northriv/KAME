@@ -16,7 +16,7 @@ cat $portfile | sed -e "s/checksums.*/checksums           md5 $md5/" -e "s/versi
 sudo mkdir -p $distdir
 sudo cp -f $tarfile $distdir
 
-cmd="sudo port -v -n -k upgrade kame +universal+debug"
+cmd="sudo port -v -n -k -u upgrade kame +universal+debug"
 echo $cmd
 $cmd 2>&1 | tee $logfile
 #rm -f /tmp/$file.tar.bz2

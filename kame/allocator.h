@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 1024)
+#define ALLOC_MEMPOOL_SIZE (1024 * 512)
 #define ALLOC_MAX_ALLOCATORS (1024 * 1024 * 1024 / ALLOC_MEMPOOL_SIZE)
 #define ALLOC_SIZE1 8
 #define ALLOC_SIZE2 16
@@ -100,6 +100,14 @@ inline void* operator new(size_t size) throw() {
 		return FixedSizeAllocator<ALLOC_SIZE16>::allocate(size);
 	return malloc(size);
 }
+inline void* operator new[](size_t size) throw() {
+	return operator new(size);
+}
+
 void operator delete(void* p) throw();
+
+inline void operator delete[](void* p) throw() {
+	operator delete(p);
+}
 
 #endif /* ALLOCATOR_H_ */

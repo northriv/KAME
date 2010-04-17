@@ -36,23 +36,30 @@ public:
 };
 class B : public A {
 public:
+	typedef long *plong;
     B(long x) : A(x) {
         ++objcnt;
 //        fprintf(stdout, "C");
+        arr = new plong[10];
+        for(int i = 0; i < 10; ++i)
+        	arr[i] = new long;
     }
     ~B() {
 		--objcnt;
+        for(int i = 0; i < 10; ++i)
+        	delete arr[i];
+		delete [] arr;
 //        fprintf(stdout, "D");
     }
     virtual long x() const {return -m_x;}
     virtual long xorg() const {return m_x;}
-    char dummy[32];
+    plong *arr;
 };
 
 void *
 start_routine(void *) {
 	printf("start\n");
-	for(int i = 0; i < 250; i++) {
+	for(int i = 0; i < 100; i++) {
 		A *a = new A(2);
 		A *b = new B(4);
 		delete a;
