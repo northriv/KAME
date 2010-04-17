@@ -15,11 +15,13 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
+#include <new>
+
 //!\desc
 //! Lock-free new/delete operators for small objects.
 //! Memory pools won't be released once being secured.
 
 void* operator new(size_t size) throw();
-void operator delete(void* p);
+void operator delete(void* p) throw();
 
 #endif /* ALLOCATOR_H_ */

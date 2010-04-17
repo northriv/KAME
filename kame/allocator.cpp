@@ -175,7 +175,7 @@ void* operator new(size_t size) throw() {
 		return FixedSizeAllocator<ALLOC_SIZE16>::allocate(size);
 	return malloc(size);
 }
-void operator delete(void* p) {
+void operator delete(void* p) throw() {
 	if(FixedSizeAllocator<ALLOC_SIZE1>::deallocate(p))
 		return;
 	if(FixedSizeAllocator<ALLOC_SIZE2>::deallocate(p))
