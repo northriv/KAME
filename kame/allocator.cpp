@@ -17,117 +17,39 @@
 #include "support.h"
 #include "atomic.h"
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 1024)
-#define ALLOC_MAX_ALLOCATORS (1024 * 1024 * 1024 / ALLOC_MEMPOOL_SIZE)
-#define ALLOC_SIZE1 8
-#define ALLOC_SIZE2 16
-#define ALLOC_SIZE3 24
-#define ALLOC_SIZE4 32
-#define ALLOC_SIZE5 40
-#define ALLOC_SIZE6 48
-#define ALLOC_SIZE7 56
-#define ALLOC_SIZE8 64
-#define ALLOC_SIZE9 80
-#define ALLOC_SIZE10 96
-#define ALLOC_SIZE11 112
-#define ALLOC_SIZE12 128
-#define ALLOC_SIZE13 160
-#define ALLOC_SIZE14 192
-#define ALLOC_SIZE15 224
-#define ALLOC_SIZE16 256
-
 template <int SIZE>
-class FixedSizeAllocator {
-	enum {MEMPOOL_COUNT = ALLOC_MEMPOOL_SIZE / SIZE};
-	typedef uint8_t FUINT;
-public:
-	FixedSizeAllocator();
-	~FixedSizeAllocator();
-	inline void *allocate_pooled() {
-		for(int cnt = 0; cnt < MEMPOOL_COUNT; ++cnt) {
-			int idx = m_idx;
-			if( !m_flags[idx]) {
+inline void *
+FixedSizeAllocator<SIZE>::allocate_pooled() {
+	for(int cnt = 0; cnt < MEMPOOL_COUNT; ++cnt) {
+		int idx = m_idx;
+		if( !m_flags[idx]) {
 //				if(atomicSwap(1, &m_flags[idx]) == 0) {
-				if(atomicCompareAndSet((FUINT)0, (FUINT)1, &m_flags[idx])) {
-					readBarrier();
-					return &m_mempool[idx * SIZE];
-				}
+			if(atomicCompareAndSet((FUINT)0, (FUINT)1, &m_flags[idx])) {
+				readBarrier();
+				return &m_mempool[idx * SIZE];
 			}
-			++idx;
-			if(idx == MEMPOOL_COUNT)
-				idx = 0;
-			m_idx = idx;
 		}
-		return 0;
+		++idx;
+		if(idx == MEMPOOL_COUNT)
+			idx = 0;
+		m_idx = idx;
 	}
-	inline bool deallocate_pooled(void *p) {
-		if((p < m_mempool) || (p >= &m_mempool[ALLOC_MEMPOOL_SIZE]))
-			return false;
-		int idx = static_cast<size_t>((char *)p - m_mempool) / SIZE;
-		ASSERT(m_flags[idx] == 1);
-		writeBarrier();
-		m_flags[idx] = 0;
-//		m_idx = idx;
-		return true;
-	}
-	static inline bool trySetupNewAllocator(int aidx);
-	static inline void *allocate(size_t size) {
-		int acnt = s_allocators_cnt;
-		int aidx = s_curr_allocator_idx;
-		for(int cnt = 0;; ++cnt) {
-			FixedSizeAllocator *alloc = s_allocators[aidx];
-			if(alloc) {
-				if(void *p = alloc->allocate_pooled()) {
-					for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-						static_cast<uint64_t *>(p)[i] = 0; //zero clear.
-					return p;
-				}
-				++aidx;
-				if((aidx >= acnt) && (cnt < acnt))
-					aidx = 0;
-			}
-			else {
-				trySetupNewAllocator(aidx);
-				acnt = s_allocators_cnt;
-			}
-			s_curr_allocator_idx = aidx;
-		}
-	}
-	static inline bool deallocate(void *p) {
-		int acnt = s_allocators_cnt;
-		int aidx = std::min(s_curr_allocator_idx, acnt - 1);
-		for(int cnt = 0; cnt < acnt; ++cnt) {
-			FixedSizeAllocator *alloc = s_allocators[aidx];
-			if(alloc) {
-				if(alloc->deallocate_pooled(p)) {
-					s_curr_allocator_idx = aidx;
-					return true;
-				}
-			}
-			if(aidx == 0)
-				aidx = acnt - 1;
-			else
-				--aidx;
-		}
-		return false;
-	}
-private:
-	char *m_mempool;
-	int m_idx;
-	FUINT m_flags[MEMPOOL_COUNT];
-	static FixedSizeAllocator *s_allocators[ALLOC_MAX_ALLOCATORS];
-	static int s_curr_allocator_idx;
-	static int s_allocators_cnt;
-	void* operator new(size_t size) throw() {
-		return malloc(size);
-	}
-	void operator delete(void* p) {
-		free(p);
-	}
-};
-
+	return 0;
+}
 template <int SIZE>
 inline bool
+FixedSizeAllocator<SIZE>::deallocate_pooled(void *p) {
+	if((p < m_mempool) || (p >= &m_mempool[ALLOC_MEMPOOL_SIZE]))
+		return false;
+	int idx = static_cast<size_t>((char *)p - m_mempool) / SIZE;
+	ASSERT(m_flags[idx] == 1);
+	writeBarrier();
+	m_flags[idx] = 0;
+//		m_idx = idx;
+	return true;
+}
+template <int SIZE>
+bool
 FixedSizeAllocator<SIZE>::trySetupNewAllocator(int aidx) {
 	FixedSizeAllocator *alloc = new FixedSizeAllocator;
 	atomicInc( &s_allocators_cnt);
@@ -139,42 +61,61 @@ FixedSizeAllocator<SIZE>::trySetupNewAllocator(int aidx) {
 	atomicDec( &s_allocators_cnt);
 	return false;
 }
-
-void* operator new(size_t size) throw() {
-	if(size <= ALLOC_SIZE1)
-		return FixedSizeAllocator<ALLOC_SIZE1>::allocate(size);
-	if(size <= ALLOC_SIZE2)
-		return FixedSizeAllocator<ALLOC_SIZE2>::allocate(size);
-	if(size <= ALLOC_SIZE3)
-		return FixedSizeAllocator<ALLOC_SIZE3>::allocate(size);
-	if(size <= ALLOC_SIZE4)
-		return FixedSizeAllocator<ALLOC_SIZE4>::allocate(size);
-	if(size <= ALLOC_SIZE5)
-		return FixedSizeAllocator<ALLOC_SIZE5>::allocate(size);
-	if(size <= ALLOC_SIZE6)
-		return FixedSizeAllocator<ALLOC_SIZE6>::allocate(size);
-	if(size <= ALLOC_SIZE7)
-		return FixedSizeAllocator<ALLOC_SIZE7>::allocate(size);
-	if(size <= ALLOC_SIZE8)
-		return FixedSizeAllocator<ALLOC_SIZE8>::allocate(size);
-	if(size <= ALLOC_SIZE9)
-		return FixedSizeAllocator<ALLOC_SIZE9>::allocate(size);
-	if(size <= ALLOC_SIZE10)
-		return FixedSizeAllocator<ALLOC_SIZE10>::allocate(size);
-	if(size <= ALLOC_SIZE11)
-		return FixedSizeAllocator<ALLOC_SIZE11>::allocate(size);
-	if(size <= ALLOC_SIZE12)
-		return FixedSizeAllocator<ALLOC_SIZE12>::allocate(size);
-	if(size <= ALLOC_SIZE13)
-		return FixedSizeAllocator<ALLOC_SIZE13>::allocate(size);
-	if(size <= ALLOC_SIZE14)
-		return FixedSizeAllocator<ALLOC_SIZE14>::allocate(size);
-	if(size <= ALLOC_SIZE15)
-		return FixedSizeAllocator<ALLOC_SIZE15>::allocate(size);
-	if(size <= ALLOC_SIZE16)
-		return FixedSizeAllocator<ALLOC_SIZE16>::allocate(size);
+template <int SIZE>
+inline void *
+FixedSizeAllocator<SIZE>::allocate(size_t size) {
+	int acnt = s_allocators_cnt;
+	int aidx = s_curr_allocator_idx;
+	for(int cnt = 0;; ++cnt) {
+		FixedSizeAllocator *alloc = s_allocators[aidx];
+		if(alloc) {
+			if(void *p = alloc->allocate_pooled()) {
+				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+					static_cast<uint64_t *>(p)[i] = 0; //zero clear.
+				return p;
+			}
+			++aidx;
+			if((aidx >= acnt) && (cnt < acnt))
+				aidx = 0;
+		}
+		else {
+			trySetupNewAllocator(aidx);
+			acnt = s_allocators_cnt;
+		}
+		s_curr_allocator_idx = aidx;
+	}
+}
+template <int SIZE>
+inline bool
+FixedSizeAllocator<SIZE>::deallocate(void *p) {
+	int acnt = s_allocators_cnt;
+	int aidx = std::min(s_curr_allocator_idx, acnt - 1);
+	for(int cnt = 0; cnt < acnt; ++cnt) {
+		FixedSizeAllocator *alloc = s_allocators[aidx];
+		if(alloc) {
+			if(alloc->deallocate_pooled(p)) {
+				s_curr_allocator_idx = aidx;
+				return true;
+			}
+		}
+		if(aidx == 0)
+			aidx = acnt - 1;
+		else
+			--aidx;
+	}
+	return false;
+}
+template <int SIZE>
+void*
+FixedSizeAllocator<SIZE>::operator new(size_t size) throw() {
 	return malloc(size);
 }
+template <int SIZE>
+void
+FixedSizeAllocator<SIZE>::operator delete(void* p) {
+	free(p);
+}
+
 void operator delete(void* p) throw() {
 	if(FixedSizeAllocator<ALLOC_SIZE1>::deallocate(p))
 		return;
