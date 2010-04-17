@@ -135,7 +135,7 @@ atomicCompareAndSet(T oldv, T newv, T *target ) {
 		"  lock; cmpxchg %2,%3;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret), "=a" (oldv)
-		: "r" (newv), "m" (*target), "1" (oldv)
+		: "q" (newv), "m" ( *target), "1" (oldv)
 		: "memory");
 	return ret;
 }
@@ -143,8 +143,8 @@ template <typename T>
 inline T atomicSwap(T v, T *target ) {
 	asm volatile (
 		"xchg %0,%1" //lock prefix is not needed.
-		: "=r" (v)
-		: "m" (*target), "0" (v)
+		: "=q" (v)
+		: "m" ( *target), "0" (v)
 		: "memory" );
 	return v;
 }
@@ -153,7 +153,7 @@ inline void atomicAdd(T *target, T x ) {
 	asm volatile (
 		"lock; add %1,%0"
 		:
-		: "m" (*target), "r" (x)
+		: "m" ( *target), "q" (x)
 		: "memory" );
 }
 //! \return true if new value is zero.
@@ -164,7 +164,7 @@ inline bool atomicAddAndTest(T *target, T x ) {
 		"lock; add %2,%1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
-		: "m" (*target), "r" (x)
+		: "m" ( *target), "q" (x)
 		: "memory" );
 	return ret;
 }
@@ -175,7 +175,7 @@ atomicInc(T *target ) {
 	asm volatile (
 		"lock; inc%z0 %0"
 		:
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 }
 template <typename T>
@@ -185,7 +185,7 @@ atomicInc(T *target ) {
 	asm volatile (
 		"lock; incq %0"
 		:
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 }
 template <typename T>
@@ -195,7 +195,7 @@ atomicDec(T *target ) {
 	asm volatile (
 		"lock; dec%z0 %0"
 		:
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 }
 template <typename T>
@@ -205,7 +205,7 @@ atomicDec(T *target ) {
 	asm volatile (
 		"lock; decq %0"
 		:
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 }
 //! \return zero flag.
