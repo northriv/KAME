@@ -67,7 +67,7 @@ public:
     }
 
     //! Tries to push an item.
-	//! \arg item to be added.
+	//! \param item to be added.
 	//! \return true if succeeded.
     bool atomicPush(T t) {
         ASSERT(t);
@@ -101,7 +101,7 @@ public:
 		return true;
     }
     //! Tries to pop the front item.
-	//! \arg item to be released.
+	//! \param item to be released.
 	//! \return true if succeeded.
     bool atomicPop(const_ref item) {
     	ASSERT(item);
@@ -269,7 +269,7 @@ public:
     }
 
 	//! Try to pop the front item.
-	//! \arg item to be released.
+	//! \param item to be released.
 	//! \return true if succeeded.
     bool atomicPop(key item) {
         if(m_queue.atomicPop(item)) {

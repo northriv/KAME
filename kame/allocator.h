@@ -15,33 +15,18 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-//!\desc
-//! Lock-free new/delete operators for small objects.
-//! Memory pools won't be released once being secured.
-
 #include <new>
 #include <stdint.h>
 #include <stdlib.h>
 
 #define ALLOC_MEMPOOL_SIZE (1024 * 512)
 #define ALLOC_MAX_ALLOCATORS (1024 * 1024 * 1024 / ALLOC_MEMPOOL_SIZE)
-#define ALLOC_SIZE1 8
-#define ALLOC_SIZE2 16
-#define ALLOC_SIZE3 24
-#define ALLOC_SIZE4 32
-#define ALLOC_SIZE5 40
-#define ALLOC_SIZE6 48
-#define ALLOC_SIZE7 56
-#define ALLOC_SIZE8 64
-#define ALLOC_SIZE9 80
-#define ALLOC_SIZE10 96
-#define ALLOC_SIZE11 112
-#define ALLOC_SIZE12 128
-#define ALLOC_SIZE13 160
-#define ALLOC_SIZE14 192
-#define ALLOC_SIZE15 224
-#define ALLOC_SIZE16 256
+#define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8
 
+//! Lock-free new(), new[](), delete(), delete[]() operators for small objects.\n
+//! This implement is based upon fixed-size allocators of the memory-pool model.\n
+//! Those memory pools won't be released once being secured in order to reduce efforts for locking of pools.
+//! \sa allocator_test.cpp.
 template <int SIZE>
 class FixedSizeAllocator {
 	enum {MEMPOOL_COUNT = ALLOC_MEMPOOL_SIZE / SIZE};
@@ -64,6 +49,23 @@ private:
 	void* operator new(size_t size) throw();
 	void operator delete(void* p);
 };
+
+#define ALLOC_SIZE1 (ALLOC_ALIGNMENT * 1)
+#define ALLOC_SIZE2 (ALLOC_ALIGNMENT * 2)
+#define ALLOC_SIZE3 (ALLOC_ALIGNMENT * 3)
+#define ALLOC_SIZE4 (ALLOC_ALIGNMENT * 4)
+#define ALLOC_SIZE5 (ALLOC_ALIGNMENT * 5)
+#define ALLOC_SIZE6 (ALLOC_ALIGNMENT * 6)
+#define ALLOC_SIZE7 (ALLOC_ALIGNMENT * 7)
+#define ALLOC_SIZE8 (ALLOC_ALIGNMENT * 8)
+#define ALLOC_SIZE9 (ALLOC_ALIGNMENT * 9)
+#define ALLOC_SIZE10 (ALLOC_ALIGNMENT * 10)
+#define ALLOC_SIZE11 (ALLOC_ALIGNMENT * 12)
+#define ALLOC_SIZE12 (ALLOC_ALIGNMENT * 16)
+#define ALLOC_SIZE13 (ALLOC_ALIGNMENT * 20)
+#define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 24)
+#define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 32)
+#define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 40)
 
 inline void* operator new(size_t size) throw() {
 	if(size <= ALLOC_SIZE1)
