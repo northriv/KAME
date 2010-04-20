@@ -195,7 +195,7 @@ protected:
 		  PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
 		  PORTSEL_QPSK_OLD_PSGATE = 15,
 		  /*PORTSEL_PAUSING = 16*/};
-	//! \arg func e.g. PORTSEL_GATE.
+	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
 	unsigned int selectedPorts(const Snapshot &shot, int func) const;
  

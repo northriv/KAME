@@ -40,7 +40,7 @@ public:
 	static void *allocate(size_t size) ;
 	static inline bool deallocate(void *p);
 private:
-	char *m_mempool;
+	char m_mempool[ALLOC_MEMPOOL_SIZE];
 	int m_idx;
 	FUINT m_flags[MEMPOOL_COUNT];
 	static FixedSizeAllocator *s_allocators[ALLOC_MAX_ALLOCATORS];

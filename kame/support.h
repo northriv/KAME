@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -72,7 +72,7 @@ public:
 #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
 void my_assert(const char *file, int line);
 inline void _my_assert(bool var, const char *file, int line) {
-	if (!var) my_assert(file, line);
+	if ( !var) my_assert(file, line);
 }
 inline void _my_cassert(size_t ) {}
 #endif

@@ -55,8 +55,8 @@ protected:
 class FFT : public FFTBase {
 public:
 	//! Create FFT plan.
-	//! \arg sign -1:FFT, 1:IFFT.
-	//! \arg length FFT length.
+	//! \param sign -1:FFT, 1:IFFT.
+	//! \param length FFT length.
 	FFT(int sign, int length);
 	virtual ~FFT();
 
@@ -70,7 +70,7 @@ private:
 class RFFT : public FFTBase {
 public:
 	//! Create real data FFT plan.
-	//! \arg length FFT length.
+	//! \param length FFT length.
 	RFFT(int length);
 	virtual ~RFFT();
 
@@ -85,7 +85,7 @@ private:
 class RIFFT : public FFTBase {
 public:
 	//! Create real data IFFT plan.
-	//! \arg length FFT length.
+	//! \param length FFT length.
 	RIFFT(int length);
 	virtual ~RIFFT();
 

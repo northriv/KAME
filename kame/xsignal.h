@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2009 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -14,10 +14,10 @@
 #ifndef signalH
 #define signalH
 
-#include <support.h>
-#include <xtime.h>
-#include <thread.h>
-#include <atomic_smart_ptr.h>
+#include "support.h"
+#include "xtime.h"
+#include "thread.h"
+#include "atomic_smart_ptr.h"
 #include <deque>
 
 //! Detect whether the current thread is the main thread.

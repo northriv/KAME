@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -134,8 +134,8 @@ public:
     ~MonteCarlo();
     
     //! \return Delta U [J/A site].
-    //! \arg flips # of flipping to be performed. # done is returned.
-    //! \arg tests Min # of tests to be performed. # done is returned.
+    //! \param flips # of flipping to be performed. # done is returned.
+    //! \param tests Min # of tests to be performed. # done is returned.
     double exec(double temp, Vector3<double> field,
 				int *flips, long double *tests, double *DUav, Vector3<double> *Mav);
     //! randomize spins
@@ -162,11 +162,11 @@ public:
     //! internal energy U [J/A site]
     double internalEnergy();
     //! prepare interactions.
-    //! \arg size # of lattices for one direction.
-    //! \arg dfactor Bulk demagnetization factor D (0 < D < 1).
-    //! \arg cutoff_real [L.U.].
-    //! \arg cutoff_rec [2pi/L].
-    //! \arg alpha Ewald convergence factor [1/L].
+    //! \param size # of lattices for one direction.
+    //! \param dfactor Bulk demagnetization factor D (0 < D < 1).
+    //! \param cutoff_real [L.U.].
+    //! \param cutoff_rec [2pi/L].
+    //! \param alpha Ewald convergence factor [1/L].
     //! \return # of interactions.
     static int setupField(int size, double dfactor,
 						  double cutoff_real, double cutoff_rec, double alpha);
@@ -320,7 +320,7 @@ private:
     //! For reciprocal space. with q-cutoff.
     std::vector<std::complex<Spin> > m_spins_rec[16];
     void makeReciprocalImage();
-    //! \arg diff e.g. -2, -1, 1, 2.
+    //! \param diff e.g. -2, -1, 1, 2.
     inline void modifyReciprocalImage(Spin diff, int site, int i, int j, int k);
 
     //! internal field from surrounding spins along ising axis [T].

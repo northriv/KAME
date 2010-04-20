@@ -146,7 +146,7 @@ protected:
 	//! Clears the count or starts a sequence measurement
 	virtual void startSequence() = 0;
 
-	//! \arg seq_busy true if the sequence is not finished.
+	//! \param seq_busy true if the sequence is not finished.
 	virtual int acqCount(bool *seq_busy) = 0;
 
 	//! Loads waveforms and settings from the instrument.

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2008 Kentaro Kitagawa
+		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,8 +29,7 @@
 
 //! Lock mutex during its life time.
 template <class Mutex>
-struct XScopedLock
-{
+struct XScopedLock {
     explicit XScopedLock(Mutex &mutex) : m_mutex(mutex) {
         m_mutex.lock();
     }
@@ -43,8 +42,7 @@ private:
 
 //! Lock mutex during its life time.
 template <class Mutex>
-struct XScopedTryLock
-{
+struct XScopedTryLock {
     explicit XScopedTryLock(Mutex &mutex) : m_mutex(mutex) {
 		m_bLocking = m_mutex.trylock();
     }
@@ -70,8 +68,7 @@ typedef XPthreadMutex XMutex;
 typedef XPthreadCondition XCondition;
 
 //! recursive mutex.
-class XRecursiveMutex
-{
+class XRecursiveMutex {
 public:
 	XRecursiveMutex() {
 		m_lockingthread = (threadid_t)-1;
@@ -121,8 +118,7 @@ private:
 
 //! create a new thread.
 template <class T>
-class XThread
-{
+class XThread {
 public:
 	/*! use resume() to start a thread.
 	 * \p X must be super class of \p T.
@@ -156,8 +152,7 @@ private:
 template <class T>
 template <class X>
 XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
-	: m_startarg(new targ)
-{
+	: m_startarg(new targ) {
 	m_startarg->obj = dynamic_pointer_cast<T>(t);
 	ASSERT(m_startarg->obj);
 	m_startarg->func = func;
@@ -166,8 +161,7 @@ XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> 
 
 template <class T>
 void
-XThread<T>::resume()
-{
+XThread<T>::resume() {
 	m_startarg->this_ptr = m_startarg;
 	int ret =
 		pthread_create((pthread_t*)&m_threadid, NULL,
@@ -177,8 +171,7 @@ XThread<T>::resume()
 }
 template <class T>
 void *
-XThread<T>::xthread_start_routine(void *x)
-{
+XThread<T>::xthread_start_routine(void *x) {
 	shared_ptr<targ> arg = ((targ *)x)->this_ptr;
 	if(g_bMLockAlways) {
 		if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
@@ -199,15 +192,13 @@ XThread<T>::xthread_start_routine(void *x)
 }
 template <class T>
 void 
-XThread<T>::waitFor(void **retval)
-{
+XThread<T>::waitFor(void **retval) {
 	pthread_join(m_threadid, retval);
 //  ASSERT(!ret);
 }
 template <class T>
 void 
-XThread<T>::terminate()
-{
+XThread<T>::terminate() {
     m_startarg->is_terminated = true;
 }
 

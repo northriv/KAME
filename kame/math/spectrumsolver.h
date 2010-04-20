@@ -39,9 +39,9 @@ public:
 	typedef double (*tfuncIC)(double sigma2, int p, int t);
 
 	//! Akachi's information criterion.
-	//! \arg loglikelifood ln(L).
-	//! \arg k # of parameters.
-	//! \arg n # of samples.
+	//! \param loglikelifood ln(L).
+	//! \param k # of parameters.
+	//! \param n # of samples.
 	static double icAIC(double loglikelifood, int k, int n);
 	//! Corrected Akachi's information criterion.
 	//! \sa icAIC

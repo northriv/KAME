@@ -47,10 +47,9 @@ class Talker : public Transactional::Talker<XNode, tArg, tArgRef> {};
 template <typename tArg, typename tArgRef = const tArg &>
 class TalkerSingleton : public virtual Transactional::TalkerSingleton<XNode, tArg, tArgRef>, public virtual Talker<tArg, tArgRef>  {};
 
-#define XNODE_OBJECT #warning XNODE_OBJECT is obsolete.
-
-//! XNode supports load/save for scripts/GUI, and signaling among threads.
-//! \sa create(), createOrphan()
+//! XNode supports accesses from scripts/GUI and shared_from_this(),
+//! in addition to the features of Transactional::Node.
+//! \sa Transactional::Node, create(), createOrphan().
 class XNode : public enable_shared_from_this<XNode>, public Transactional::Node<XNode> {
 public:
 	explicit XNode(const char *name, bool runtime = false);
@@ -89,7 +88,7 @@ public:
 	template <class _T, typename _X, typename _Y, typename _Z, typename _ZZ>
 	static shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z, _ZZ zz);
 
-	//! \return internal/script name. Use latin1 chars.
+	//! \return internal/scripting name. Use latin1 chars.
 	XString getName() const;
 	//! \return i18n name for UI.
 	virtual XString getLabel() const {return getName();}
@@ -98,12 +97,13 @@ public:
 	shared_ptr<XNode> getChild(const XString &var) const;
 	shared_ptr<XNode> getParent() const;
 
-	//! Enables/Disables control over GUI
+	//! Enables/disables controls over scripting/GUI.
 	void setUIEnabled(bool v);
-	//! Disables all operations on this node forever.
+	//! Disables all scripting/GUI operations on this node hereafter.
 	void disable();
 
 	//! Data holder.
+	//! \sa Transactional::Node::Payload.
 	struct Payload : public Transactional::Node<XNode>::Payload {
 		Payload() : Transactional::Node<XNode>::Payload(), m_flags(NODE_UI_ENABLED) {}
 		//! If true, operations are allowed by UI and scripts.

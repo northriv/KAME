@@ -24,37 +24,42 @@
 
 namespace Transactional {
 
-//! \desc
-//! Lock-free software transactional memory for treed objects. \n
-//! The Transaction supports transactional accesses of data (implemented as Payload or derived classes), and\n
-//! multiple insertion (hard-link)/removal (unlink) of objects to the tree. \n
-//! Transaction/snapshot of subtree can be taken at any node at any time.\n
-//! \n
-//! Example 1 for snapshot reading.\n
-//! { Snapshot<NodeA> shot1(node1); \n
-//! double x = shot1[node1]; //implicit conversion defined in NodeA::Payload.\n
-//! double y = shot1[node1].y();\n}\n
-//!\n
-//! Example 2 for simple writing.\n
-//! for(Transaction<NodeA> tr1(node1);; ++tr1) { \n
-//! tr1[node1] = tr1[node1] * 2.0;\n
-//! if(tr1.commit()) break;\n}\n
-//! \n
-//! Example 3 for adding a child node.\n
-//! for(Transaction<NodeA> tr1(node1);; ++tr1) { \n
-//! if(tr1.insert(node2)) break;\n
-//! if(tr1.commit()) break;\n}\n
-//! \n
-//! Other examples are shown in the test codes: transaction_test.cpp, transaction_dynamic_node_test.cpp,
-//! transaction_negotiation_test.cpp.\n
-
 template <class XN>
 class Snapshot;
 template <class XN>
 class Transaction;
 
-//! A basis of nodes which carries data sets for itself and for subnodes.\n
-//! \sa Snapshot, Transaction, XNode
+//! \brief This class is a basis of nodes which carries data sets for itself (Payload) and for subnodes.\n
+//! \details
+//! Tree-structure objects, consisting of Nodes, can be treated as
+//! lock-free software transactional memory by accessing through Transaction or Snapshot.\n
+//! Transaction supports transactional accesses of data
+//! (implemented as Payload or derived classes), and\n
+//! multiple insertion (hard-link)/removal (unlink) of objects to the tree. \n
+//! Transaction / Snapshot for subtree can be taken at any node at any time.\n
+//! \n
+//! Example 1 for snapshot reading.\n
+//! \code { Snapshot<NodeA> shot1(node1);
+//! 	double x = shot1[node1]; //using cast operator defined in NodeA::Payload.
+//! 	double y = shot1[node1].y();
+//! }
+//! \endcode\n
+//! Example 2 for simple writing.\n
+//! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
+//! 	tr1[node1] = tr1[node1] * 2.0; //using operator=() defined in Node::Payload.
+//! 	if(tr1.commit()) break;
+//! }
+//! \endcode\n
+//! Example 3 for adding a child node.\n
+//! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
+//! 	if(tr1.insert(node2)) break;
+//! 	if(tr1.commit()) break;
+//! }
+//! \endcode \n
+//! More real examples are shown in the test codes: transaction_test.cpp,
+//! transaction_dynamic_node_test.cpp, transaction_negotiation_test.cpp.\n
+//! \sa Snapshot, Transaction.
+//! \sa atomic_shared_ptr, XNode.
 template <class XN>
 class Node {
 public:
@@ -79,22 +84,39 @@ public:
 
 	typedef std::domain_error NodeNotFoundError;
 
-	//! adds hard link to \a var.
-	//! \arg online_after_insertion If true, \a var can be accessed through \a tr (not appropriate for a shared object).
+	//! Adds a hard link to \a var.
+	//! The subnode \a var will be storaged in the list of shared_ptr<XN>, NodeList.
+	//! \param[in] online_after_insertion If true, \a var can be accessed through \a tr (not appropriate for a shared object).
+	//! \return True if succeeded.
+	//! \sa release(), releaseAll(), swap().
 	bool insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion = false);
+	//! Adds a hard link to \a var.
+	//! The subnode \a var will be storaged in the list of shared_ptr<XN>, NodeList.
+	//! \sa release(), releaseAll(), swap().
 	void insert(const shared_ptr<XN> &var);
+	//! Removes a hard link to \a var from the list, NodeList.
+	//! \return True if succeeded.
+	//! \sa insert(), releaseAll(), swap().
 	bool release(Transaction<XN> &tr, const shared_ptr<XN> &var);
+	//! Removes a hard link to \a var from the list, NodeList.
+	//! \sa insert(), releaseAll(), swap().
 	void release(const shared_ptr<XN> &var);
+	//! Removes all links to the subnodes.
+	//! \sa insert(), release(), swap().
 	void releaseAll();
-	//! swaps orders in the child list.
+	//! Swaps orders in the subnode list.
+	//! \return True if succeeded.
+	//! \sa insert(), release(), releaseAll().
 	bool swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN> &y);
+	//! Swaps orders in the subnode list.
+	//! \sa insert(), release(), releaseAll().
 	void swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y);
 
-	//! finds a parent in \a shot.
+	//! Finds the parent node in \a shot.
 	XN *upperNode(Snapshot<XN> &shot);
 
 	//! Data holder and accessor for the node.
-	//! Re-implement members in its subclasses.
+	//! Derive Node<XN>::Payload as (\a subclass)::Payload.
 	//! The instances have to be capable of copy-construction and be safe to be shared reading.
 	struct Payload : public atomic_countable {
 		Payload() : m_node(0), m_serial(-1), m_tr(0) {}
@@ -214,8 +236,8 @@ private:
 	struct PacketWrapper : public atomic_countable {
 		PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial);
 		//! creates a wrapper not containing a packet but pointing to the upper node.
-		//! \arg bp \a m_link of the upper node.
-		//! \arg reverse_index The index for this node in the list of the upper node.
+		//! \param[in] bp \a m_link of the upper node.
+		//! \param[in] reverse_index The index for this node in the list of the upper node.
 		PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial);
 		PacketWrapper(const PacketWrapper &x, int64_t bundle_serial);
 		 ~PacketWrapper() {}
@@ -284,10 +306,10 @@ private:
 		UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
 	//! Unloads a subpacket to \a sublinkage from a snapshot.
 	//! it performs unbundling for all the super nodes.
-	//! \arg bundle_serial If not zero, consistency/collision wil be checked.
-	//! \arg null_linkage The current value of \a sublinkage and should not contain \a packet().
-	//! \arg oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
-	//! \arg newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
+	//! \param[in] bundle_serial If not zero, consistency/collision wil be checked.
+	//! \param[in] null_linkage The current value of \a sublinkage and should not contain \a packet().
+	//! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
+	//! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
 	//! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
 	static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 		const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
@@ -298,9 +320,9 @@ private:
 	shared_ptr<Linkage> m_link;
 
 	//! finds the packet for this node in the (un)bundled \a packet.
-	//! \arg superpacket The bundled packet.
-	//! \arg copy_branch If ture, new packets and packet lists will be copy-created for writing.
-	//! \arg tr_serial The serial number associated with the transaction.
+	//! \param[in,out] superpacket The bundled packet.
+	//! \param[in] copy_branch If ture, new packets and packet lists will be copy-created for writing.
+	//! \param[in] tr_serial The serial number associated with the transaction.
 	inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &superpacket,
 		bool copy_branch, int64_t tr_serial, bool set_missing, XN** uppernode);
 	local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
@@ -376,6 +398,7 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 }
 
 //! This class takes a snapshot for a subtree.
+//! \sa Node, Transaction, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Snapshot {
 public:
@@ -448,7 +471,8 @@ protected:
 	int64_t m_serial;
 	Snapshot() : m_packet() {}
 };
-
+//! Snapshot which does not care of subnodes.
+//! \sa Node, Snapshot, Transaction, SingleTransaction.
 template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
 public:
@@ -472,11 +496,12 @@ protected:
 namespace Transactional {
 
 //! Transactional writing for a subtree.
+//! \sa Node, Snapshot, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure for the persistence of the \a node.
-	//! \arg multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
+	//! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
 	explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
 		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
@@ -485,15 +510,15 @@ public:
 		ASSERT( &this->m_packet->node() == &node);
 		ASSERT( &this->m_oldpacket->node() == &node);
 	}
-	//! \arg x The snapshot containing the old value of \a node.
-	//! \arg multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
+	//! \param[in] x The snapshot containing the old value of \a node.
+	//! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
 	explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) : Snapshot<XN>(x),
 		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 	}
 	//! Prepares a transaction for a subtree beneath \a node.
-	//! \arg x The snapshot containing the old value of \a node.
+	//! \param[in] x The snapshot containing the old value of \a node.
 	Transaction(Node<XN> &node, const Snapshot<XN> &x) :
 		Snapshot<XN>(node, x),
 		m_oldpacket(this->m_packet), m_multi_nodal(true) {
@@ -613,6 +638,8 @@ private:
 	scoped_ptr<MessageList> m_messages;
 };
 
+//! Transaction which does not care of subnodes.
+//! \sa Node, Transaction, Snapshot, SingleSnapshot.
 template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
 public:

@@ -13,8 +13,8 @@
 ***************************************************************************/
 #ifndef XSCHEDULER_H_
 #define XSCHEDULER_H_
-#include <xsignal.h>
-#include <atomic_queue.h>
+#include "xsignal.h"
+#include "atomic_queue.h"
 
 //! Synchronize requests in talkers with main-thread
 //! \sa Talker, XListener

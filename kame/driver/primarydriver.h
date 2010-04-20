@@ -88,9 +88,9 @@ protected:
 	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
 
 	//! will call analyzeRaw()
-	//! \arg rawdata the data being processed.
-	//! \arg time_awared time when a visible phenomenon started
-	//! \arg time_recorded usually pass \p XTime::now()
+	//! \param rawdata the data being processed.
+	//! \param time_awared time when a visible phenomenon started
+	//! \param time_recorded usually pass \p XTime::now()
 	//! \sa Payload::timeAwared()
 	//! \sa Payload::time()
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,

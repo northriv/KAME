@@ -124,7 +124,7 @@ public:
 		void connect(uint32_t rising_edge_mask, 
 					 uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
 		void disconnect();
-		//! \arg blankterm in seconds.
+		//! \param blankterm in seconds.
 		void setBlankTerm(float64 blankterm) {
 			m_blankTerm = llrint(blankterm * freq());
 			memoryBarrier();

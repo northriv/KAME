@@ -61,17 +61,17 @@ public:
 
 		const double *cols(unsigned int n) const;
 		double *cols(unsigned int n);
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		int colX(unsigned int plotnum) const { return m_plots[plotnum].colx;}
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		int colY1(unsigned int plotnum) const { return m_plots[plotnum].coly1;}
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		int colY2(unsigned int plotnum) const { return m_plots[plotnum].coly2;}
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		int colWeight(unsigned int plotnum) const { return m_plots[plotnum].colweight;}
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		int colZ(unsigned int plotnum) const { return m_plots[plotnum].colz;}
-		//! \arg plotnum start with zero.
+		//! \param plotnum start with zero.
 		const shared_ptr<XXYPlot> &plot(unsigned int plotnum) const { return m_plots[plotnum].xyplot;}
 		const shared_ptr<XAxis> &axisx() const { return m_axisx;}
 		const shared_ptr<XAxis> &axisy() const { return m_axisy;}

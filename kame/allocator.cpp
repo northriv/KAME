@@ -18,8 +18,8 @@
 #include "atomic.h"
 
 template <int SIZE>
-FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_mempool(new char[ALLOC_MEMPOOL_SIZE]), m_idx(0) {
-	fprintf(stderr, "new allocator for %dB, starting @ %llx w/ len. of %llxB\n", SIZE,
+FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_idx(0) {
+	fprintf(stderr, "New memory pool for %dB, starting @ %llx w/ len. of %llxB\n", SIZE,
 		(unsigned long long)m_mempool, (unsigned long long)ALLOC_MEMPOOL_SIZE);
 	memset(m_flags, 0, MEMPOOL_COUNT);
 	C_ASSERT(SIZE % ALLOC_ALIGNMENT == 0);
@@ -28,7 +28,6 @@ FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_mempool(new char[ALLOC_MEMPO
 }
 template <int SIZE>
 FixedSizeAllocator<SIZE>::~FixedSizeAllocator() {
-	delete [] m_mempool;
 }
 
 template <int SIZE>
@@ -52,8 +51,6 @@ FixedSizeAllocator<SIZE>::allocate_pooled() {
 template <int SIZE>
 inline bool
 FixedSizeAllocator<SIZE>::deallocate_pooled(void *p) {
-	if((p < m_mempool) || (p >= &m_mempool[ALLOC_MEMPOOL_SIZE]))
-		return false;
 	int idx = static_cast<size_t>((char *)p - m_mempool) / SIZE;
 	ASSERT(m_flags[idx] == 1);
 	m_flags[idx] = 0;
@@ -104,12 +101,13 @@ inline bool
 FixedSizeAllocator<SIZE>::deallocate(void *p) {
 	int acnt = s_allocators_cnt;
 	int aidx = std::min(s_curr_allocator_idx, acnt - 1);
-	readBarrier(); //for alloc.
 	for(int cnt = 0; cnt < acnt; ++cnt) {
 		FixedSizeAllocator *alloc = s_allocators[aidx];
-		if(alloc->deallocate_pooled(p)) {
-//				s_curr_allocator_idx = aidx;
-			return true;
+		if((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE])) {
+			if(alloc->deallocate_pooled(p)) {
+	//				s_curr_allocator_idx = aidx;
+				return true;
+			}
 		}
 		if(aidx == 0)
 			aidx = acnt - 1;
@@ -130,7 +128,7 @@ FixedSizeAllocator<SIZE>::operator delete(void* p) {
 }
 
 void operator delete(void* p) throw() {
-	writeBarrier(); //for the pooled memory
+	memoryBarrier(); //for the pooled memory
 	if(FixedSizeAllocator<ALLOC_SIZE1>::deallocate(p))
 		return;
 	if(FixedSizeAllocator<ALLOC_SIZE2>::deallocate(p))
