@@ -30,9 +30,9 @@ public:
     XThreadLocal();
     ~XThreadLocal();
     //! \return return thread local object. Create an object if not allocated.
-    T &operator*() const;
+    inline T &operator*() const;
     //! \sa operator T&()
-    T *operator->() const;
+    inline T *operator->() const;
 private:
     mutable pthread_key_t m_key;
     static void delete_tls(void *var);
@@ -58,21 +58,22 @@ private:
 
 template <typename T>
 XThreadLocal<T>::XThreadLocal() {
-    int ret = pthread_key_create(&m_key, &XThreadLocal<T>::delete_tls);
-    ASSERT(!ret);
+    int ret = pthread_key_create( &m_key, &XThreadLocal<T>::delete_tls);
+    ASSERT( !ret);
 }
 template <typename T>
 XThreadLocal<T>::~XThreadLocal() {
+	delete static_cast<T *>(pthread_getspecific(m_key));
     int ret = pthread_key_delete(m_key);
-    ASSERT(!ret);
+    ASSERT( !ret);
 }
 template <typename T>
 void
 XThreadLocal<T>::delete_tls(void *var) {
-	delete static_cast<T*>(var);
+	delete static_cast<T *>(var);
 }
 template <typename T>
-T &XThreadLocal<T>::operator*() const {
+inline T &XThreadLocal<T>::operator*() const {
     void *p = pthread_getspecific(m_key);
     if(p == NULL) {
         int ret = pthread_setspecific(m_key, p = 
@@ -81,13 +82,13 @@ T &XThreadLocal<T>::operator*() const {
 #else
 									new T);
 #endif
-		ASSERT(!ret);
+		ASSERT( !ret);
 	}
     return *static_cast<T*>(p);
 }
 template <typename T>
-T *XThreadLocal<T>::operator->() const {
-	return &(**this);
+inline T *XThreadLocal<T>::operator->() const {
+	return &( **this);
 }
         
 #endif /*THREADLOCAL_H_*/

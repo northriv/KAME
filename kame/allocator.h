@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 512)
+#define ALLOC_MEMPOOL_SIZE (1024 * 256)
 #define ALLOC_MAX_ALLOCATORS (1024 * 1024 * 1024 / ALLOC_MEMPOOL_SIZE)
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8
 
@@ -39,6 +39,7 @@ public:
 	static bool trySetupNewAllocator(int aidx);
 	static void *allocate(size_t size) ;
 	static inline bool deallocate(void *p);
+	static void release_pools();
 private:
 	char m_mempool[ALLOC_MEMPOOL_SIZE];
 	int m_idx;
@@ -111,5 +112,7 @@ void operator delete(void* p) throw();
 inline void operator delete[](void* p) throw() {
 	operator delete(p);
 }
+
+void release_pools();
 
 #endif /* ALLOCATOR_H_ */

@@ -969,17 +969,17 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 	return BUNDLE_SUCCESS;
 }
 
-template <class XN>
-void
-Node<XN>::fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> > &subwrappers,
-	const local_shared_ptr<Packet> &packet) {
-	for(int i = 0; i < packet->size(); ++i) {
-		const local_shared_ptr<Packet> &subpacket(( *packet->subpackets())[i]);
-		subwrappers.push_back( *( *packet->subnodes())[i]->m_link);
-		if(subpacket)
-			fetchSubpackets(subwrappers, subpacket);
-	}
-}
+//template <class XN>
+//void
+//Node<XN>::fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> > &subwrappers,
+//	const local_shared_ptr<Packet> &packet) {
+//	for(int i = 0; i < packet->size(); ++i) {
+//		const local_shared_ptr<Packet> &subpacket(( *packet->subpackets())[i]);
+//		subwrappers.push_back( *( *packet->subnodes())[i]->m_link);
+//		if(subpacket)
+//			fetchSubpackets(subwrappers, subpacket);
+//	}
+//}
 //template <class XN>
 //bool
 //Node<XN>::commit_at_super(Transaction<XN> &tr) {

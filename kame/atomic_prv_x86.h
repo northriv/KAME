@@ -51,7 +51,7 @@ typedef uint_cas2 uint_cas_max;
 
 #ifdef HAVE_ATOMIC_RW64
 template <typename T>
-void atomicWrite64(const T &x, T *target) {
+inline void atomicWrite64(const T &x, T *target) {
 	C_ASSERT(sizeof(T) == 8);
 	asm volatile (
 		" movq %0, %%xmm0;"
@@ -62,7 +62,7 @@ void atomicWrite64(const T &x, T *target) {
 }
 
 template <typename T>
-void atomicRead64(T *x, const T &target) {
+inline void atomicRead64(T *x, const T &target) {
 	C_ASSERT(sizeof(T) == 8);
 	asm volatile (
 		" movq %0, %%xmm0;"
@@ -79,7 +79,7 @@ void atomicRead64(T *x, const T &target) {
 //! \param newv0 new value to \p target[0].
 //! \param newv1 new value to \p target[1].
 template <typename T>
-bool atomicCompareAndSet2(
+inline bool atomicCompareAndSet2(
 	T oldv0, T oldv1,
 	T newv0, T newv1, T *target ) {
 	unsigned char ret;
@@ -109,7 +109,7 @@ bool atomicCompareAndSet2(
 	return ret;
 }
 template <typename T, typename X>
-typename boost::enable_if_c<
+inline typename boost::enable_if_c<
 boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) == sizeof(int_cas2) * 2), bool>::type
 atomicCompareAndSet(
 	T oldv,
@@ -127,7 +127,7 @@ atomicCompareAndSet(
 
 //! \return true if old == *target and new value is assigned
 template <typename T>
-typename boost::enable_if_c<
+inline typename boost::enable_if_c<
 boost::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
 atomicCompareAndSet(T oldv, T newv, T *target ) {
 	unsigned char ret;

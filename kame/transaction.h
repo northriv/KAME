@@ -335,8 +335,8 @@ private:
 	inline local_shared_ptr<Packet> *forwardLookup(local_shared_ptr<Packet> &superpacket,
 		bool copy_branch, int64_t tr_serial, bool set_missing,
 		local_shared_ptr<Packet> *upperpacket, int *index) const;
-	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
-		const local_shared_ptr<Packet> &packet);
+//	static void fetchSubpackets(std::deque<local_shared_ptr<PacketWrapper> >  &subwrappers,
+//		const local_shared_ptr<Packet> &packet);
 	static void eraseSerials(local_shared_ptr<Packet> &packet, int64_t serial);
 protected:
 	//! Use \a create().

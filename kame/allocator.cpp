@@ -19,8 +19,6 @@
 
 template <int SIZE>
 FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_idx(0) {
-	fprintf(stderr, "New memory pool for %dB, starting @ %llx w/ len. of %llxB\n", SIZE,
-		(unsigned long long)m_mempool, (unsigned long long)ALLOC_MEMPOOL_SIZE);
 	memset(m_flags, 0, MEMPOOL_COUNT);
 	C_ASSERT(SIZE % ALLOC_ALIGNMENT == 0);
 	ASSERT((uintptr_t)m_mempool % ALLOC_ALIGNMENT == 0);
@@ -28,6 +26,13 @@ FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_idx(0) {
 }
 template <int SIZE>
 FixedSizeAllocator<SIZE>::~FixedSizeAllocator() {
+	for(int idx = 0; idx < MEMPOOL_COUNT; ++idx) {
+		if(m_flags[idx]) {
+			fprintf(stderr, "Leak found for %dB @ %llx.\n", SIZE,
+				(unsigned long long) &m_mempool[idx]);
+		}
+	}
+
 }
 
 template <int SIZE>
@@ -65,6 +70,8 @@ FixedSizeAllocator<SIZE>::trySetupNewAllocator(int aidx) {
 		writeBarrier(); //for alloc.
 		atomicInc( &s_allocators_cnt);
 //		writeBarrier();
+		fprintf(stderr, "New memory pool for %dB, starting @ %llx w/ len. of %llxB.\n", SIZE,
+			(unsigned long long)alloc->m_mempool, (unsigned long long)ALLOC_MEMPOOL_SIZE);
 		return true;
 	}
 	delete alloc;
@@ -117,6 +124,15 @@ FixedSizeAllocator<SIZE>::deallocate(void *p) {
 	return false;
 }
 template <int SIZE>
+void
+FixedSizeAllocator<SIZE>::release_pools() {
+	int acnt = s_allocators_cnt;
+	for(int aidx = 0; aidx < acnt; ++aidx) {
+		FixedSizeAllocator *alloc = s_allocators[aidx];
+		delete alloc;
+	}
+}
+template <int SIZE>
 void*
 FixedSizeAllocator<SIZE>::operator new(size_t size) throw() {
 	return malloc(size);
@@ -163,6 +179,26 @@ void operator delete(void* p) throw() {
 		return;
 	free(p);
 }
+
+void release_pools() {
+	FixedSizeAllocator<ALLOC_SIZE1>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE2>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE3>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE4>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE5>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE6>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE7>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE8>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE9>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE10>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE11>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE12>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE13>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE14>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE15>::release_pools();
+	FixedSizeAllocator<ALLOC_SIZE16>::release_pools();
+}
+
 template <int SIZE>
 FixedSizeAllocator<SIZE> *FixedSizeAllocator<SIZE>::s_allocators[ALLOC_MAX_ALLOCATORS];
 template <int SIZE>
@@ -186,3 +222,9 @@ template class FixedSizeAllocator<ALLOC_SIZE13>;
 template class FixedSizeAllocator<ALLOC_SIZE14>;
 template class FixedSizeAllocator<ALLOC_SIZE15>;
 template class FixedSizeAllocator<ALLOC_SIZE16>;
+
+//struct _PoolReleaser {
+//	~_PoolReleaser() {
+//		release_pools();
+//	}
+//} _pool_releaser;
