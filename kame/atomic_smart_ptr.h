@@ -118,16 +118,14 @@ private:
 template <typename T, typename Enable = void>
 struct atomic_shared_ptr_base {
 protected:
-	//! Non-atomic access to the internal pointer.
-	//! Never use this function for a shared instance.
-	//! \sa reset()
-
 	typedef _atomic_shared_ptr_gref<T> Ref;
 	typedef typename Ref::Refcnt Refcnt;
 	typedef uintptr_t _RefLocal;
 
 	static int deleter(Ref *p) { delete p; return 1; }
 
+	//! can be used to initialize the internal pointer \a m_ref.
+	//! \sa reset()
 	template<typename Y> void reset_unsafe(Y *y) {
 		m_ref = (_RefLocal)new Ref(static_cast<T*>(y));
 	}
@@ -151,6 +149,7 @@ protected:
 
 	static int deleter(T *p) { delete p; return 1;}
 
+	//! can be used to initialize the internal pointer \a m_ref.
 	template<typename Y> void reset_unsafe(Y *y) {
 		m_ref = (_RefLocal)static_cast<T*>(y);
 	}
@@ -166,7 +165,7 @@ protected:
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
 //! \sa atomic_shared_ptr, atomic_scoped_ptr, atomic_shared_ptr_test.cpp.
 template <typename T>
-class local_shared_ptr : public atomic_shared_ptr_base<T> {
+class local_shared_ptr : protected atomic_shared_ptr_base<T> {
 public:
 	local_shared_ptr() { this->m_ref = 0; }
 
@@ -200,14 +199,14 @@ public:
 	//! \param[in] t The pointer holded by this instance is replaced with that of \a t.
 	local_shared_ptr &operator=(const atomic_shared_ptr<T> &t) {
 		this->reset();
-		this->m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)t._scan_();
+		this->m_ref = reinterpret_cast<_RefLocal>(t._scan_());
 		return *this;
 	}
 	//! \param[in] y The pointer holded by this instance is replaced with that of \a y.
 	template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
 		C_ASSERT(sizeof(static_cast<const T*>(y.get())));
 		this->reset();
-		this->m_ref = (_RefLocal)(typename local_shared_ptr::Ref*)y._scan_();
+		this->m_ref = reinterpret_cast<_RefLocal>(y._scan_());
 		return *this;
 	}
 
@@ -216,9 +215,9 @@ public:
 	//! \param[in,out] x \p The pointer holded by \a x is atomically swapped with that of this instance.
 	void swap(atomic_shared_ptr<T> &x);
 
-	//! The pointer holded by this instance is atomically reset to null pointer.
+	//! The pointer holded by this instance is reset to null pointer.
 	inline void reset();
-	//! The pointer holded by this instance is atomically reset with a pointer \a y.
+	//! The pointer holded by this instance is reset with a pointer \a y.
 	template<typename Y> void reset(Y *y) { reset(); reset_unsafe(y); }
 
 	T *get() { return atomic_shared_ptr_base<T>::get(); }
@@ -259,11 +258,11 @@ protected:
 	Ref* _pref() const {return (Ref *)(this->m_ref);}
 };
 
-/*! This is an atomic variant of \a boost::shared_ptr<>.\n
+/*! This is an atomic variant of \a boost::shared_ptr, which can be shared by atomic and lock-free means.\n
 * \a atomic_shared_ptr can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
 * An instance of \a atomic_shared_ptr<T> holds:\n
-* 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct consisting of a pointer to the T-type object, and a global reference counter.\n
-* 	b) a local (temporary) reference counter, which is embedded in the above pointer by using the least significant bits that should be usually zero.\n
+* 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct. consisting of a pointer to a T-type object and a global reference counter.\n
+* 	b) a local (temporary) reference counter, which is embedded in the above pointer by using several LSBs that should be usually zero.\n
 * The values of a) and b), \a m_ref, are atomically handled with CAS machine codes.
 * The purpose of b) the local reference counter is to tell the "observation" to the shared target before increasing the global reference counter.
 * This process is implemented in \a _reserve_scan_().\n

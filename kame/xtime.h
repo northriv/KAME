@@ -23,8 +23,7 @@ void msecsleep(unsigned int ms);
 //! fetch CPU counter.
 unsigned int timeStamp();
 
-class XTime
-{
+class XTime {
 public:
     XTime() : tv_sec(0), tv_usec(0) {}
     XTime(long sec, long usec) : tv_sec(sec), tv_usec(usec) {}

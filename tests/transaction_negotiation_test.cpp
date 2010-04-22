@@ -77,7 +77,7 @@ void *
 start_routine(void *arg) {
 	printf("start\n");
 
-	int th_no = *(int*)arg;
+	int th_no = *(int *)arg;
 	int lps = 5000000;
 	bool wait = false;
 	if(th_no < NUM_SLOW_THREADS) {

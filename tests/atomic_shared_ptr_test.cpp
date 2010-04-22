@@ -81,7 +81,7 @@ start_routine(void *) {
 	    	if(gp1.compareAndSet(p, p1)) {
 	    		break;
 	    	}
-    		printf("f");
+//    		printf("f");
     	}
     	for(local_shared_ptr<A> p(gp3);;) {
     		if(p)
@@ -89,7 +89,7 @@ start_routine(void *) {
 	    	if(gp3.compareAndSwap(p, p1)) {
 	    		break;
 	    	}
-    		printf("f");
+//    		printf("f");
     	}
 	}
 	printf("finish\n");
