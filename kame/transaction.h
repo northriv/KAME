@@ -30,13 +30,26 @@ template <class XN>
 class Transaction;
 
 //! \brief This class is a basis of nodes which carries data sets for itself (Payload) and for subnodes.\n
-//! \details
 //! Tree-structure objects, consisting of Nodes, can be treated as
-//! lock-free software transactional memory by accessing through Transaction or Snapshot.\n
-//! Transaction supports transactional accesses of data
-//! (implemented as Payload or derived classes), and\n
-//! multiple insertion (hard-link)/removal (unlink) of objects to the tree. \n
-//! Transaction / Snapshot for subtree can be taken at any node at any time.\n
+//! lock-free software transactional memory (STM) by accessing through Transaction or Snapshot class.
+
+//! STM is a recent trend in a many-processor era for realizing scalable concurrent computing.
+//! As opposed to mutual exclusions (mutex, semaphore, spin lock, and so on), STM is optimistic for writing
+//! and a thread does not wait for other threads. Instead, commitment of transactional writing
+//! could sometimes fail and the operation will be restarted. The benefits of this optimistic approach are
+//! scalability and freeness of deadlocks.\n
+//! The class Transaction supports transactional accesses of data
+//! (implemented as Payload or T::Payload in derived classes T), and
+//! multiple insertion (hard-link)/removal (unlink) of objects to the tree.
+//! Transaction / Snapshot for subtree can be taken at any node at any time.
+//! Snapshot should always hold consistency of the contents of Payload including those for the subnodes.
+//! So this STM is pessimistic with respect to reading.\n
+//! Since this STM is implemented based on the object model (i.e. not of address/log-based model),
+//! accesses can be performed without huge additional costs.
+//! The unavoidable and main cost here is to copy-on-write Payload of the nodes referenced by
+//! Transaction::operator[] during a transaction.
+//! The smart pointer atomic_shared_ptr is a key material in this STM to realize snapshot
+//! reading and commitment of a transaction.\n
 //! \n
 //! Example 1 for snapshot reading.\n
 //! \code { Snapshot<NodeA> shot1(node1);
@@ -44,7 +57,7 @@ class Transaction;
 //! 	double y = shot1[node1].y();
 //! }
 //! \endcode\n
-//! Example 2 for simple writing.\n
+//! Example 2 for simple transactional writing.\n
 //! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
 //! 	tr1[node1] = tr1[node1] * 2.0; //using operator=() defined in Node::Payload.
 //! 	if(tr1.commit()) break;
@@ -204,9 +217,12 @@ private:
 		//! Points to the corresponding node.
 		const Node &node() const {return payload()->node();}
 
-		void _print() const;
+		//! \return false if the packet contains the up-to-date subpackets for all the subnodes.
 		bool missing() const { return m_missing;}
 
+		//! For debugging.
+		void _print() const;
+		//! For debugging.
 		bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
 
 		//! Generates a serial number assigned to bundling and transaction.\n
@@ -227,7 +243,6 @@ private:
 		local_shared_ptr<Payload> m_payload;
 		shared_ptr<PacketList> m_subpackets;
 		static atomic<int64_t> s_serial;
-		//! indicates whether the bundle contains the up-to-date subpackets or not.
 		bool m_missing;
 	};
 	//! A class wrapping Packet and providing indice and links for lookup.\n
@@ -246,13 +261,13 @@ private:
 		local_shared_ptr<Packet> &packet() {return m_packet;}
 
 		//! Points to the upper node that should have the up-to-date Packet when this lacks priority.
-		shared_ptr<Linkage> linkedBy() const {return m_linkedBy.lock();}
+		shared_ptr<Linkage> bundledBy() const {return m_bundledBy.lock();}
 		//! The index for this node in the list of the upper node.
 		int reverseIndex() const {return m_ridx;}
 		void setReverseIndex(int i) {m_ridx = i;}
 
 		void _print() const;
-		weak_ptr<Linkage> const m_linkedBy;
+		weak_ptr<Linkage> const m_bundledBy;
 		local_shared_ptr<Packet> m_packet;
 		int m_ridx;
 		int64_t m_bundle_serial;
@@ -397,7 +412,8 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 	return new T(a1, a2, a3, a4, a5, a6, a7);
 }
 
-//! This class takes a snapshot for a subtree.
+//! \brief This class takes a snapshot for a subtree.\n
+//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
 //! \sa Node, Transaction, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Snapshot {
@@ -471,7 +487,8 @@ protected:
 	int64_t m_serial;
 	Snapshot() : m_packet() {}
 };
-//! Snapshot which does not care of subnodes.
+//! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
+//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
 //! \sa Node, Snapshot, Transaction, SingleTransaction.
 template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
@@ -495,7 +512,8 @@ protected:
 #include "transaction_signal.h"
 namespace Transactional {
 
-//! Transactional writing for a subtree.
+//! \brief A class supporting transactional writing for a subtree.\n
+//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
 //! \sa Node, Snapshot, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Transaction : public Snapshot<XN> {
@@ -605,31 +623,19 @@ public:
 		}
 	}
 	//! Cancels reserved events made toward \a x.
-	void unmark(const shared_ptr<XListener> &x) {
+	//! \return # of unmarked events.
+	int unmark(const shared_ptr<XListener> &x) {
+		int canceled = 0;
 		if(m_messages)
 			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it)
-				( *it)->unmark(x);
+				canceled += ( *it)->unmark(x);
+		return canceled;
 	}
 private:
 	Transaction(const Transaction &tr); //non-copyable.
 	Transaction& operator=(const Transaction &tr); //non-copyable.
 	friend class Node<XN>;
-	void finalizeCommitment(Node<XN> &node) {
-		//Clears the time stamp linked to this object.
-		if(node.m_link->m_transaction_started_time >= m_started_time) {
-			node.m_link->m_transaction_started_time = 0;
-		}
-		m_started_time = 0;
-
-		m_oldpacket.reset();
-		//Messaging.
-		if(m_messages) {
-			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
-				( *it)->talk( *this);
-			}
-		}
-		m_messages.reset();
-	}
+	void finalizeCommitment(Node<XN> &node);
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	const bool m_multi_nodal;
@@ -638,7 +644,8 @@ private:
 	scoped_ptr<MessageList> m_messages;
 };
 
-//! Transaction which does not care of subnodes.
+//! \brief Transaction which does not care of contents (Payload) of subnodes.\n
+//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
 //! \sa Node, Transaction, Snapshot, SingleSnapshot.
 template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
@@ -665,6 +672,31 @@ protected:
 template <class XN>
 inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) :
 m_packet(x.m_packet), m_serial(x.m_serial) {}
+
+template <class XN>
+void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
+	//Clears the time stamp linked to this object.
+	if(node.m_link->m_transaction_started_time >= m_started_time) {
+		node.m_link->m_transaction_started_time = 0;
+	}
+	m_started_time = 0;
+
+	m_oldpacket.reset();
+	//Messaging.
+	if(m_messages) {
+		bool pending = false;
+		for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
+			if(( *it)->talk( *this))
+				pending = true;
+		}
+		if(pending) {
+			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
+				( *it)->talkDelayed();
+			}
+		}
+	}
+	m_messages.reset();
+}
 
 } //namespace Transactional
 

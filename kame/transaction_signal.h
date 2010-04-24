@@ -59,8 +59,10 @@ private:
 template <class XN>
 struct _Message {
 	virtual ~_Message() {}
-	virtual void talk(const Snapshot<XN> &shot) = 0;
-	virtual void unmark(const shared_ptr<XListener> &x) = 0;
+	//! \return true if any event is pending.
+	virtual bool talk(const Snapshot<XN> &shot) = 0;
+	virtual void talkDelayed() = 0;
+	virtual int unmark(const shared_ptr<XListener> &x) = 0;
 };
 
 //! M/M Listener and Talker model
@@ -91,7 +93,9 @@ public:
 	//! If listener avoids duplication, lock won't be passed to listener.
 	virtual _Message<XN>* createMessage(tArgRef arg) const;
 	void talk(const Snapshot<XN> &shot, tArgRef arg) const {
-		_talk(shot, m_listeners, shared_ptr<UnmarkedListenerList>(), arg);
+		Message m(arg, m_listeners);
+		if(m.talk(shot))
+			m.talkDelayed();
 	}
 
 	bool empty() const {return !m_listeners;}
@@ -137,30 +141,30 @@ private:
 				return skip;
 			}
 	};
-	inline static void _talk(const Snapshot<XN> &shot,
-		const shared_ptr<ListenerList> &list,
-		const shared_ptr<UnmarkedListenerList> &unmarked, tArgRef arg);
 protected:
 	struct Message : public _Message<XN> {
 		Message(tArgRef a, const shared_ptr<ListenerList> &l) : _Message<XN>(), arg(a), listeners(l) {}
 		tArg arg;
 		shared_ptr<ListenerList> listeners;
 		shared_ptr<UnmarkedListenerList> listeners_unmarked;
-		virtual void talk(const Snapshot<XN> &shot) {
-			_talk(shot, listeners, listeners_unmarked, arg);
-		}
-		virtual void unmark(const shared_ptr<XListener> &x) {
+		//! \return true if any event is pending.
+		virtual bool talk(const Snapshot<XN> &shot);
+		virtual void talkDelayed();
+		virtual int unmark(const shared_ptr<XListener> &x) {
 			if( !listeners)
-				return;
+				return 0;
+			int canceled = 0;
 			for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
 				if(shared_ptr<_Listener> listener = it->lock()) {
 					if(listener == x) {
 						if( !listeners_unmarked)
 							listeners_unmarked.reset(new UnmarkedListenerList);
 						listeners_unmarked->push_back(x);
+						++canceled;
 					}
 				}
 			}
+			return canceled;
 		}
 	};
 };
@@ -254,36 +258,68 @@ Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 }
 
 template <class XN, typename tArg, typename tArgRef>
-void
-Talker<XN, tArg, tArgRef>::_talk(const Snapshot<XN> &shot,
-	const shared_ptr<ListenerList> &listeners,
-	const shared_ptr<UnmarkedListenerList> &unmarked, tArgRef arg) {
-	if( !listeners) return;
+bool
+Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
+	if( !listeners) return false;
+	bool pending = false;
 	_Event event(shot, arg);
 	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
 		if(shared_ptr<_Listener> listener = it->lock()) {
-			if(unmarked &&
-				(std::find(unmarked->begin(), unmarked->end(), listener) != unmarked->end()))
+			if(listeners_unmarked &&
+				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
 				continue;
-			if(isMainThread() || ((listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) == 0)) {
-				try {
-					( *listener)(event);
-				}
-				catch (XKameError &e) {
-					e.print();
-				}
+			if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+				atomic_scoped_ptr<_Event> newevent(new _Event(event) );
+				newevent.swap(listener->arg);
+				if( !newevent.get())
+					pending = true;
+				else
+					unmark(listener);
 			}
 			else {
-				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-					atomic_scoped_ptr<_Event> newevent(new _Event(event) );
-					newevent.swap(listener->arg);
-					if( !newevent.get()) {
-						registerTransactionList(new EventWrapperAvoidDup(listener));
+				if(isMainThread() ||
+					!(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
+					try {
+						( *listener)(event);
+					}
+					catch (XKameError &e) {
+						e.print();
 					}
 				}
 				else {
 					registerTransactionList(new EventWrapperAllowDup(listener, event));
 				}
+			}
+		}
+	}
+	return pending;
+}
+
+template <class XN, typename tArg, typename tArgRef>
+void
+Talker<XN, tArg, tArgRef>::Message::talkDelayed() {
+	if( !listeners) return;
+	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
+		if(shared_ptr<_Listener> listener = it->lock()) {
+			if(listeners_unmarked &&
+				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
+				continue;
+			if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+//				if(isMainThread() ||
+//					!(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
+//					try {
+//						atomic_scoped_ptr<_Event> e;
+//						e.swap(listener->arg);
+//						ASSERT(e.get());
+//						( *listener)( *e);
+//					}
+//					catch (XKameError &e) {
+//						e.print();
+//					}
+//				}
+//				else {
+					registerTransactionList(new EventWrapperAvoidDup(listener));
+//				}
 			}
 		}
 	}
