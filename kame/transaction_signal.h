@@ -59,9 +59,7 @@ private:
 template <class XN>
 struct _Message {
 	virtual ~_Message() {}
-	//! \return true if any event is pending.
-	virtual bool talk(const Snapshot<XN> &shot) = 0;
-	virtual void talkDelayed() = 0;
+	virtual void talk(const Snapshot<XN> &shot) = 0;
 	virtual int unmark(const shared_ptr<XListener> &x) = 0;
 };
 
@@ -94,8 +92,7 @@ public:
 	virtual _Message<XN>* createMessage(tArgRef arg) const;
 	void talk(const Snapshot<XN> &shot, tArgRef arg) const {
 		Message m(arg, m_listeners);
-		if(m.talk(shot))
-			m.talkDelayed();
+		m.talk(shot);
 	}
 
 	bool empty() const {return !m_listeners;}
@@ -147,9 +144,7 @@ protected:
 		tArg arg;
 		shared_ptr<ListenerList> listeners;
 		shared_ptr<UnmarkedListenerList> listeners_unmarked;
-		//! \return true if any event is pending.
-		virtual bool talk(const Snapshot<XN> &shot);
-		virtual void talkDelayed();
+		virtual void talk(const Snapshot<XN> &shot);
 		virtual int unmark(const shared_ptr<XListener> &x) {
 			if( !listeners)
 				return 0;
@@ -258,10 +253,9 @@ Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 }
 
 template <class XN, typename tArg, typename tArgRef>
-bool
+void
 Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
-	if( !listeners) return false;
-	bool pending = false;
+	if( !listeners) return;
 	_Event event(shot, arg);
 	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
 		if(shared_ptr<_Listener> listener = it->lock()) {
@@ -272,9 +266,7 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
 				atomic_scoped_ptr<_Event> newevent(new _Event(event) );
 				newevent.swap(listener->arg);
 				if( !newevent.get())
-					pending = true;
-				else
-					unmark(listener);
+					registerTransactionList(new EventWrapperAvoidDup(listener));
 			}
 			else {
 				if(isMainThread() ||
@@ -289,37 +281,6 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
 				else {
 					registerTransactionList(new EventWrapperAllowDup(listener, event));
 				}
-			}
-		}
-	}
-	return pending;
-}
-
-template <class XN, typename tArg, typename tArgRef>
-void
-Talker<XN, tArg, tArgRef>::Message::talkDelayed() {
-	if( !listeners) return;
-	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
-		if(shared_ptr<_Listener> listener = it->lock()) {
-			if(listeners_unmarked &&
-				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
-				continue;
-			if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-//				if(isMainThread() ||
-//					!(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
-//					try {
-//						atomic_scoped_ptr<_Event> e;
-//						e.swap(listener->arg);
-//						ASSERT(e.get());
-//						( *listener)( *e);
-//					}
-//					catch (XKameError &e) {
-//						e.print();
-//					}
-//				}
-//				else {
-					registerTransactionList(new EventWrapperAvoidDup(listener));
-//				}
 			}
 		}
 	}

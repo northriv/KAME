@@ -28,7 +28,7 @@ typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 XQGraph::XQGraph( QWidget* parent, Qt::WFlags fl ) :
     QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba | QGL::DepthBuffer | QGL::AccumBuffer )
 			   , parent, 0, fl) {
-    if(!format().directRendering()) dbgPrint("direct rendering disabled");
+    if( !format().directRendering()) dbgPrint("direct rendering disabled");
 //      if(!layout() ) new QHBoxLayout(this);
 //      layout()->setAutoAdd(true);
 }
@@ -40,9 +40,9 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph) {
     m_conDialog.reset();
     m_painter.reset();
     m_graph = graph;
-    if(graph && !isHidden()) {
-		showEvent(NULL);
-    } 
+//    if(graph && !isHidden()) {
+//		showEvent(NULL);
+//    }
 }
 void
 XQGraph::mousePressEvent ( QMouseEvent* e) {

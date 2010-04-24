@@ -100,17 +100,17 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) :
-	m_linkedBy(), m_packet(x), m_ridx(PACKET_HAS_PRIORITY), m_bundle_serial(bundle_serial) {
+	m_bundledBy(), m_packet(x), m_ridx(PACKET_HAS_PRIORITY), m_bundle_serial(bundle_serial) {
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int reverse_index,
 	int64_t bundle_serial) :
-	m_linkedBy(bp), m_packet(), m_ridx(), m_bundle_serial(bundle_serial) {
+	m_bundledBy(bp), m_packet(), m_ridx(), m_bundle_serial(bundle_serial) {
 	setReverseIndex(reverse_index);
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) :
-	m_linkedBy(x.m_linkedBy), m_packet(x.m_packet),
+	m_bundledBy(x.m_bundledBy), m_packet(x.m_packet),
 	m_ridx(x.m_ridx), m_bundle_serial(bundle_serial) {}
 
 template <class XN>
@@ -118,7 +118,7 @@ void
 Node<XN>::PacketWrapper::_print() const {
 	printf("PacketWrapper: ");
 	if( !hasPriority()) {
-		printf("referred to BP@0x%llx, ", (unsigned long long)(uintptr_t)linkedBy().get());
+		printf("referred to BP@0x%llx, ", (unsigned long long)(uintptr_t)bundledBy().get());
 	}
 	printf("serial:%lld, ", (long long)m_bundle_serial);
 	if(packet()) {
@@ -313,7 +313,7 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 					}
 				}
 				else {
-					shared_ptr<Linkage> bp(nullsubwrapper->linkedBy());
+					shared_ptr<Linkage> bp(nullsubwrapper->bundledBy());
 					if((bp && (bp != m_link)) ||
 						( !bp && (nullsubwrapper->packet() != *pit))) {
 						tr.m_oldpacket.reset(new Packet( *tr.m_oldpacket)); //Following commitment should fail.
@@ -453,7 +453,7 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
 	local_shared_ptr<PacketWrapper> wrapper( *linkage);
 	if(wrapper->hasPriority())
 		return NULL;
-	shared_ptr<Linkage> linkage_upper(wrapper->linkedBy());
+	shared_ptr<Linkage> linkage_upper(wrapper->bundledBy());
 	if( !linkage_upper)
 		return NULL;
 	local_shared_ptr<Packet> *foundpacket;
@@ -594,7 +594,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 	SnapshotMode mode, int64_t serial, std::deque<CASInfo> *cas_infos) {
 	local_shared_ptr<PacketWrapper> oldwrapper(shot);
 	ASSERT( !shot->hasPriority());
-	shared_ptr<Linkage > linkage_upper(shot->linkedBy());
+	shared_ptr<Linkage > linkage_upper(shot->bundledBy());
 	if( !linkage_upper) {
 		if( *linkage == oldwrapper)
 			//Supernode has been destroyed.
@@ -783,7 +783,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 	uint64_t &started_time, int64_t bundle_serial) {
 
 	if( !subwrapper->hasPriority()) {
-		shared_ptr<Linkage > linkage(subwrapper->linkedBy());
+		shared_ptr<Linkage > linkage(subwrapper->bundledBy());
 		bool need_for_unbundle = false;
 		bool detect_collision = false;
 		if(linkage == m_link) {

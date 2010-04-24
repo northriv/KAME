@@ -15,20 +15,18 @@
 #define XSIGNAL_PRV_H_
 
 template <class Arg>
-class _XListenerImpl : public XListener
-{
+class _XListenerImpl : public XListener {
 protected:
 	_XListenerImpl(XListener::FLAGS flags)
 		: XListener(flags), arg() {}
 public:
 	virtual ~_XListenerImpl() {}
 	virtual void operator() (const Arg &) const = 0;
-	//! this is used when m_bAvoidDup is on.
+	//! is used when m_bAvoidDup is on.
 	atomic_scoped_ptr<Arg> arg;
 };
 template <class Arg>
-class _XListenerStatic : public _XListenerImpl<Arg>
-{
+class _XListenerStatic : public _XListenerImpl<Arg> {
 	friend class XTalker<Arg>;
 protected:
 	_XListenerStatic(void (*func)(const Arg &),
@@ -43,8 +41,7 @@ private:
 	void (*const m_func)(const Arg &);
 };
 template <class tClass, class Arg>
-class _XListenerWeak : public _XListenerImpl<Arg>
-{
+class _XListenerWeak : public _XListenerImpl<Arg> {
 	friend class XTalker<Arg>;
 protected:
 	_XListenerWeak(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
@@ -60,8 +57,7 @@ private:
 	const weak_ptr<tClass> m_obj;
 };
 template <class tClass, class Arg>
-class _XListenerShared : public _XListenerImpl<Arg>
-{
+class _XListenerShared : public _XListenerImpl<Arg> {
 	friend class XTalker<Arg>;
 protected:
 	_XListenerShared(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),

@@ -23,7 +23,7 @@
 #define ALLOC_MAX_ALLOCATORS (1024 * 1024 * 1024 / ALLOC_MEMPOOL_SIZE)
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8
 
-//! Lock-free new(), new[](), delete(), delete[]() operators for small objects.\n
+//! \brief Lock-free new(), new[](), delete(), delete[]() operators for small objects.\n
 //! This implement is based upon fixed-size allocators of the memory-pool model.\n
 //! Those memory pools won't be released once being secured in order to reduce efforts for locking of pools.
 //! \sa allocator_test.cpp.

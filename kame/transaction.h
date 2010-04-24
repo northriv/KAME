@@ -684,15 +684,8 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 	m_oldpacket.reset();
 	//Messaging.
 	if(m_messages) {
-		bool pending = false;
 		for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
-			if(( *it)->talk( *this))
-				pending = true;
-		}
-		if(pending) {
-			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
-				( *it)->talkDelayed();
-			}
+			( *it)->talk( *this);
 		}
 	}
 	m_messages.reset();

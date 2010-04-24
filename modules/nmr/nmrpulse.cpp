@@ -650,6 +650,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
+    printf("v");
 	if( !shot[ *this].time() || !shot[ *this].m_avcount) {
 		for(Transaction tr( *this);; ++tr) {
 			tr[ *ftWaveGraph()].clearPoints();

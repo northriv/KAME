@@ -2,6 +2,7 @@
 - (3.1.3-1)
 - allocator.cpp: Lock-free new()/delete() by memory pools.
 - atomic_shared_ptr.h: Faster local_shared_ptr.
+- xschedular.h, transaction_signal.h: Suppress unnecessary events also for the main thread when AVOID_DUP flag is set.
 
 * Mon Apr 12 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.2-1)

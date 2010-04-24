@@ -14,7 +14,11 @@
 #include "xscheduler.h"
  
 shared_ptr<XSignalBuffer> g_signalBuffer;
-unsigned int g_adaptiveDelay = 20;
+
+#define ADAPTIVE_DELAY_MIN 10
+#define ADAPTIVE_DELAY_MAX 100
+
+unsigned int g_adaptiveDelay = ADAPTIVE_DELAY_MIN;
 
 void 
 registerTransactionList(_XTransaction *transaction) {
@@ -69,31 +73,30 @@ XSignalBuffer::popOldest() {
 void 
 XSignalBuffer::registerTransactionList(_XTransaction *transaction) {
     unsigned long time(transaction->registered_time);
-    ASSERT( !isMainThread());
     for(;;) {
     	for(unsigned int i = 0; i < 20; i++) {
+        	if(isMainThread())
+        		break;
 			unsigned long cost = 0;
 			if( !m_queue.empty()) {
 				cost += time - m_oldest_timestamp;
 			}
-			if(cost > 100000uL) {
-				if(g_adaptiveDelay < 300) {
-					atomicInc(&g_adaptiveDelay);
-				}
-			}
-			if(cost < 10000uL) {
+			if(cost < (g_adaptiveDelay + 10) * 1000uL) {
 				for(;;) {
 					unsigned int delay = g_adaptiveDelay;
-					if(delay == 0) break;
+					if(delay <= ADAPTIVE_DELAY_MIN) break;
 					if(atomicCompareAndSet(delay, delay - 1, &g_adaptiveDelay)) {
 						break;
 					}
 				}
-			}
-			if(cost < 50000uL) {
 				break;
 			}
-			msecsleep(std::min(cost * i / 1000000uL, 10uL));
+			if(cost > 100000uL) {
+				if(g_adaptiveDelay < ADAPTIVE_DELAY_MAX) {
+					atomicInc( &g_adaptiveDelay);
+				}
+			}
+			msecsleep(std::min(cost / 1000000uL, 10uL));
 			time = timeStamp();
     	}
         try {
@@ -103,7 +106,10 @@ XSignalBuffer::registerTransactionList(_XTransaction *transaction) {
             break;
         }
         catch (Queue::nospace_error &) {
-            msecsleep(10);
+        	if(isMainThread())
+        		synchronize();
+        	else
+        		msecsleep(10);
         }
     }
 }
@@ -131,9 +137,6 @@ XSignalBuffer::synchronize() {
 		}
 		catch (XKameError &e) {
 			e.print();
-		}
-		catch (std::bad_alloc &) {
-			gErrPrint("Memory Allocation Failed!");
 		}
 		if(skip) {
 			m_skippedQueue.push_back(std::pair<_XTransaction*, unsigned long>(transaction, timeStamp()));

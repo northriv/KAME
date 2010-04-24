@@ -27,7 +27,7 @@
 #include <boost/utility/enable_if.hpp>
 #include <boost/type_traits.hpp>
 
-//! This is an atomic variant of \a boost::scoped_ptr.
+//! \brief This is an atomic variant of \a boost::scoped_ptr.
 //! An instance of atomic_scoped_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
 //! Namely, it is destructive reading.
 //! Use atomic_shared_ptr when the pointer is required to be shared among scopes and threads.\n
@@ -113,7 +113,7 @@ private:
 
 #define ATOMIC_SHARED_REF_ALIGNMENT (sizeof(uintptr_t))
 
-//! Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
+//! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
 //! A global referece counter (an instance of _atomic_shared_ptr_gref) will be created.
 template <typename T, typename Enable = void>
 struct atomic_shared_ptr_base {
@@ -132,11 +132,11 @@ protected:
 	T *get() { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
 	const T *get() const { return this->m_ref ? ((const Ref*)this->m_ref)->ptr : NULL; }
 
-	int _use_count() const {readBarrier(); return ((const Ref*)this->m_ref)->refcnt;}
+	int _use_count() const {return ((const Ref*)this->m_ref)->refcnt;}
 
 	_RefLocal m_ref;
 };
-//! Base class for atomic_shared_ptr with intrusive counting.
+//! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T>
 struct atomic_shared_ptr_base<T, typename boost::enable_if<boost::is_base_of<atomic_countable, T> >::type > {
 protected:
@@ -156,12 +156,12 @@ protected:
 	T *get() { return (T*)this->m_ref; }
 	const T *get() const { return (const T*)this->m_ref; }
 
-	int _use_count() const {readBarrier(); return ((const T*)this->m_ref)->refcnt;}
+	int _use_count() const {return ((const T*)this->m_ref)->refcnt;}
 
 	_RefLocal m_ref;
 };
 
-//! This class provides non-reentrant interfaces on atomic_shared_ptr: operator->(), operator*() and so on.\n
+//! \brief This class provides non-reentrant interfaces on atomic_shared_ptr: operator->(), operator*() and so on.\n
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
 //! \sa atomic_shared_ptr, atomic_scoped_ptr, atomic_shared_ptr_test.cpp.
 template <typename T>
@@ -176,16 +176,8 @@ public:
 		C_ASSERT(sizeof(static_cast<const T*>(y.get())));
 		this->m_ref = reinterpret_cast<_RefLocal>(y._scan_());
 	}
-	local_shared_ptr(const local_shared_ptr<T> &t) {
-		this->m_ref = t.m_ref;
-		if(_pref()) atomicInc(&_pref()->refcnt);
-	}
-	template<typename Y> local_shared_ptr(const local_shared_ptr<Y> &y) {
-		C_ASSERT(sizeof(static_cast<const T*>(y.get())));
-		this->m_ref = y.m_ref;
-		if(_pref()) atomicInc(&_pref()->refcnt);
-	}
-
+	inline local_shared_ptr(const local_shared_ptr<T> &t);
+	template<typename Y> inline local_shared_ptr(const local_shared_ptr<Y> &y);
 	inline ~local_shared_ptr();
 
 	local_shared_ptr &operator=(const local_shared_ptr &t) {
@@ -258,7 +250,8 @@ protected:
 	Ref* _pref() const {return (Ref *)(this->m_ref);}
 };
 
-/*! This is an atomic variant of \a boost::shared_ptr, which can be shared by atomic and lock-free means.\n
+/*! \brief This is an atomic variant of \a boost::shared_ptr, and can be shared by atomic and lock-free means.\n
+ *
 * \a atomic_shared_ptr can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
 * An instance of \a atomic_shared_ptr<T> holds:\n
 * 	a) a pointer to \a _atomic_shared_ptr_gref<T>, which is a struct. consisting of a pointer to a T-type object and a global reference counter.\n
@@ -342,14 +335,14 @@ protected:
 	Refcnt _refcnt() const {return (Refcnt)(this->m_ref & (uintptr_t)(ATOMIC_SHARED_REF_ALIGNMENT - 1));}
 
 	//internal functions below.
-	//! atomically scans \a m_ref and increases the global reference counter.
-	//! \a _scan_ is used for atomically coping the pointer.
+	//! Atomically scans \a m_ref and increases the global reference counter.
+	//! \a _scan_() is used for atomically coping the pointer.
 	inline Ref *_scan_() const;
-	//! atomically scans \a m_ref and increases the  local (temporary) reference counter.
-	//! use \a _leave_scan_ to release the temporary reference.
+	//! Atomically scans \a m_ref and increases the  local (temporary) reference counter.
+	//! use \a _leave_scan_() to release the temporary reference.
 	inline Ref *_reserve_scan_(Refcnt *) const;
-	//! tries to decrease local (temporary) reference counter.
-	//! In case the reference is lost, \a _leave_scan_ releases the global reference counter instead.
+	//! Tries to decrease local (temporary) reference counter.
+	//! In case the reference is lost, \a _leave_scan_() releases the global reference counter instead.
 	inline void _leave_scan_(Ref *) const;
 
 	template <bool NOSWAP>
@@ -358,13 +351,25 @@ private:
 };
 
 template <typename T>
+inline local_shared_ptr<T>::local_shared_ptr(const local_shared_ptr &y) {
+	C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+	this->m_ref = y.m_ref;
+	if(_pref())
+		atomicInc( &_pref()->refcnt);
+}
+
+template <typename T>
+template<typename Y>
+inline local_shared_ptr<T>::local_shared_ptr(const local_shared_ptr<Y> &y) {
+	C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+	this->m_ref = y.m_ref;
+	if(_pref())
+		atomicInc( &_pref()->refcnt);
+}
+
+template <typename T>
 inline local_shared_ptr<T>::~local_shared_ptr() {
-	Ref *pref = _pref();
-	if( !pref) return;
-	// decreasing global reference counter.
-	if(atomicDecAndTest( &pref->refcnt)) {
-		deleter(pref);
-	}
+	reset();
 }
 
 template <typename T>
@@ -373,7 +378,11 @@ local_shared_ptr<T>::reset() {
 	Ref *pref = _pref();
 	if( !pref) return;
 	// decreasing global reference counter.
-	if(atomicDecAndTest( &pref->refcnt)) {
+	if(unique()) {
+		pref->refcnt = 0;
+		deleter(pref);
+	}
+	else if(atomicDecAndTest( &pref->refcnt)) {
 		deleter(pref);
 	}
 	this->m_ref = 0;
