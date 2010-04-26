@@ -161,7 +161,7 @@ protected:
 	_RefLocal m_ref;
 };
 
-//! \brief This class provides non-reentrant interfaces on atomic_shared_ptr: operator->(), operator*() and so on.\n
+//! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
 //! \sa atomic_shared_ptr, atomic_scoped_ptr, atomic_shared_ptr_test.cpp.
 template <typename T>

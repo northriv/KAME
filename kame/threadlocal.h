@@ -14,7 +14,7 @@
 #ifndef THREADLOCAL_H_
 #define THREADLOCAL_H_
 
-#include <support.h>
+#include "support.h"
 
 #if defined __GNUC__ && __GNUC__ >= 4
 // #define USE__THREAD_TLS
@@ -24,8 +24,7 @@
 //! \p T must have constructor T()
 //! object \p T will be deleted only when the thread is finished.
 template <typename T>
-class XThreadLocal
-{
+class XThreadLocal {
 public:
     XThreadLocal();
     ~XThreadLocal();
@@ -41,8 +40,7 @@ private:
 #ifdef USE__THREAD_TLS
 
 template <typename T>
-class XThreadLocalPOD
-{
+class XThreadLocalPOD {
 public:
 	XThreadLocalPOD() {}
 	~XThreadLocalPOD() {}

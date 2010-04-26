@@ -21,29 +21,27 @@
 
 //---------------------------------------------------------------------------
 
-XPthreadMutex::XPthreadMutex()
-{
+XPthreadMutex::XPthreadMutex() {
 	pthread_mutexattr_t attr;
 	int ret;
-	ret = pthread_mutexattr_init(&attr);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+	ret = pthread_mutexattr_init( &attr);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 
-	ret = pthread_mutex_init(&m_mutex, &attr);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+	ret = pthread_mutex_init( &m_mutex, &attr);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 
-	ret = pthread_mutexattr_destroy(&attr);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+	ret = pthread_mutexattr_destroy( &attr);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 
-XPthreadMutex::~XPthreadMutex()
-{
-	int ret = pthread_mutex_destroy(&m_mutex);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+XPthreadMutex::~XPthreadMutex() {
+	int ret = pthread_mutex_destroy( &m_mutex);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 void
 XPthreadMutex::lock() {
-	int ret = pthread_mutex_lock(&m_mutex);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+	int ret = pthread_mutex_lock( &m_mutex);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 bool
 XPthreadMutex::trylock() {
@@ -53,26 +51,22 @@ XPthreadMutex::trylock() {
 }
 void
 XPthreadMutex::unlock() {
-	int ret = pthread_mutex_unlock(&m_mutex);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+	int ret = pthread_mutex_unlock( &m_mutex);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 
-XPthreadCondition::XPthreadCondition() : XPthreadMutex()
-{
-	int ret = pthread_cond_init(&m_cond, NULL);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+XPthreadCondition::XPthreadCondition() : XPthreadMutex() {
+	int ret = pthread_cond_init( &m_cond, NULL);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
-XPthreadCondition::~XPthreadCondition()
-{
-	int ret = pthread_cond_destroy(&m_cond);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+XPthreadCondition::~XPthreadCondition() {
+	int ret = pthread_cond_destroy( &m_cond);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 int
-XPthreadCondition::wait(int usec)
-{
+XPthreadCondition::wait(int usec) {
 	int ret;
-	if(usec > 0)
-	{
+	if(usec > 0) {
 		struct timespec abstime;
 		timeval tv;
 		long nsec;
@@ -91,14 +85,12 @@ XPthreadCondition::wait(int usec)
 	return ret;
 }
 void 
-XPthreadCondition::signal()
-{
-	int ret = pthread_cond_signal(&m_cond);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+XPthreadCondition::signal() {
+	int ret = pthread_cond_signal( &m_cond);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }
 void 
-XPthreadCondition::broadcast()
-{
-	int ret = pthread_cond_broadcast(&m_cond);
-	if(DEBUG_XTHREAD) ASSERT(!ret);
+XPthreadCondition::broadcast() {
+	int ret = pthread_cond_broadcast( &m_cond);
+	if(DEBUG_XTHREAD) ASSERT( !ret);
 }

@@ -17,6 +17,8 @@
 #include "support.h"
 #include "atomic.h"
 
+#include <string.h>
+
 template <int SIZE>
 FixedSizeAllocator<SIZE>::FixedSizeAllocator()  : m_idx(0) {
 	memset(m_flags, 0, MEMPOOL_COUNT);

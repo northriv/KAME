@@ -37,13 +37,13 @@ class Transaction;
 //! As opposed to mutual exclusions (mutex, semaphore, spin lock, and so on), STM is optimistic for writing
 //! and a thread does not wait for other threads. Instead, commitment of transactional writing
 //! could sometimes fail and the operation will be restarted. The benefits of this optimistic approach are
-//! scalability and freeness of deadlocks.\n
+//! scalability, composability, and freeness of deadlocks.\n
 //! The class Transaction supports transactional accesses of data
 //! (implemented as Payload or T::Payload in derived classes T), and
 //! multiple insertion (hard-link)/removal (unlink) of objects to the tree.
 //! Transaction / Snapshot for subtree can be taken at any node at any time.
-//! Snapshot should always hold consistency of the contents of Payload including those for the subnodes.
-//! So this STM is pessimistic with respect to reading.\n
+//! Of course, transactions for separate subtrees do not disturb each other.
+//! Snapshot should always hold consistency of the contents of Payload including those for the subnodes.\n
 //! Since this STM is implemented based on the object model (i.e. not of address/log-based model),
 //! accesses can be performed without huge additional costs.
 //! The unavoidable and main cost here is to copy-on-write Payload of the nodes referenced by
@@ -65,12 +65,13 @@ class Transaction;
 //! \endcode\n
 //! Example 3 for adding a child node.\n
 //! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
-//! 	if(tr1.insert(node2)) break;
+//! 	if( !tr1.insert(node2)) continue;
 //! 	if(tr1.commit()) break;
 //! }
 //! \endcode \n
 //! More real examples are shown in the test codes: transaction_test.cpp,
 //! transaction_dynamic_node_test.cpp, transaction_negotiation_test.cpp.\n
+//! \htmlonly Test package: <a href="../../../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
 //! \sa Snapshot, Transaction.
 //! \sa atomic_shared_ptr, XNode.
 template <class XN>
@@ -278,6 +279,7 @@ private:
 	struct Linkage : public atomic_shared_ptr<PacketWrapper> {
 		Linkage() : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
 		atomic<uint64_t> m_transaction_started_time;
+		//! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
 		inline void negotiate(uint64_t &started_time);
 	};
 
@@ -304,12 +306,17 @@ private:
 		SnapshotMode mode,
 		int64_t serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
 
+	//! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
+	//! If this node has been bundled at the super node, unbundle() will be called.
 	//! \sa Transaction<XN>::commit().
 	bool commit(Transaction<XN> &tr);
 //	bool commit_at_super(Transaction<XN> &tr);
 
 	enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
-	//! Takes a snapshot.
+	//! Bundles all the subpackets so that the whole packet can be treated atomically.
+	//! Namely this function takes a snapshot.
+	//! All the subpackets held by \a m_link at the subnodes will be
+	//! cleared and each PacketWrapper::bundledBy() will point to its upper node.
 	//! \sa snapshot().
 	BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
 		uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
@@ -319,8 +326,9 @@ private:
 	enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
 		UNBUNDLE_SUBVALUE_HAS_CHANGED,
 		UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
-	//! Unloads a subpacket to \a sublinkage from a snapshot.
+	//! Unbundles a subpacket to \a sublinkage from a snapshot.
 	//! it performs unbundling for all the super nodes.
+	//! The super nodes will lose priorities against their lower nodes.
 	//! \param[in] bundle_serial If not zero, consistency/collision wil be checked.
 	//! \param[in] null_linkage The current value of \a sublinkage and should not contain \a packet().
 	//! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.

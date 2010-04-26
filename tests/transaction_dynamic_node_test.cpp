@@ -174,7 +174,7 @@ main(int argc, char **argv) {
     gettimeofday(&tv, 0);
     srand(tv.tv_usec);
 
-    for(int k = 0; k < 50; k++) {
+    for(int k = 0; k < 10; k++) {
 		gn1.reset(LongNode::create<LongNode>());
 		gn2.reset(LongNode::create<LongNode>());
 		gn3.reset(LongNode::create<LongNode>());

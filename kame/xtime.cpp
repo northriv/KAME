@@ -13,7 +13,8 @@
 ***************************************************************************/
 #include "xtime.h"
 #include <sys/time.h>
-#include "errno.h"
+#include <errno.h>
+#include <string.h>
 
 void msecsleep(unsigned int ms) {
 	XTime t0(XTime::now());

@@ -14,8 +14,8 @@
 #ifndef threadH
 #define threadH
 //---------------------------------------------------------------------------
-#include <support.h>
-#include <atomic.h>
+#include "support.h"
+#include "atomic.h"
 
 #if defined __WIN32__ || defined WINDOWS
 #define threadID() GetCurrentThreadId()
@@ -24,7 +24,7 @@
 #define threadid_t pthread_t
 #define threadID() pthread_self()
 
-#include <threadlocal.h>
+#include "threadlocal.h"
 #include <sys/mman.h>
 
 //! Lock mutex during its life time.
@@ -60,10 +60,8 @@ private:
     bool m_bLocking;
 };
 
-#include <pthreadlock.h>
-//#include <spinlock.h>
+#include "pthreadlock.h"
 
-//typedef XAdaptiveSpinLock XMutex;
 typedef XPthreadMutex XMutex;
 typedef XPthreadCondition XCondition;
 
@@ -166,8 +164,7 @@ XThread<T>::resume() {
 	int ret =
 		pthread_create((pthread_t*)&m_threadid, NULL,
 					   &XThread<T>::xthread_start_routine , m_startarg.get());
-	dbgPrint(QString("New Thread 0x%1.").arg((uintptr_t)m_threadid, 0, 16));
-	ASSERT(!ret);
+	ASSERT( !ret);
 }
 template <class T>
 void *

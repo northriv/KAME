@@ -1,0 +1,40 @@
+CXX=g++
+CFLAGS=-I/usr/include -I/sw/include -I/opt/local/include -lpthread\
+	-Wall -g -msse2 -mfpmath=sse -march=nocona\
+	-O3 -funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \
+	-ffast-math -fno-tree-vectorize -ftree-vectorizer-verbose=3 -fno-unsafe-math-optimizations \
+	-D__sse2__
+
+#	-g3 -O0
+
+all : allocator_test atomic_shared_ptr_test atomic_scoped_ptr_test transaction_test transaction_dynamic_node_test transaction_negotiation_test
+
+clean :
+	rm -f *.o allocator_test atomic_shared_ptr_test atomic_scoped_ptr_test transaction_test transaction_dynamic_node_test transaction_negotiation_test
+
+support.o : support.cpp
+	$(CXX) $(CFLAGS) -c support.cpp -o support.o
+xtime.o : xtime.cpp
+	$(CXX) $(CFLAGS) -c xtime.cpp -o xtime.o
+allocator_test : support.o allocator_test.cpp
+	$(CXX) $(CFLAGS) support.o allocator_test.cpp -o allocator_test
+atomic_shared_ptr_test : support.o atomic_shared_ptr_test.cpp
+	$(CXX) $(CFLAGS) support.o atomic_shared_ptr_test.cpp -o atomic_shared_ptr_test
+atomic_scoped_ptr_test : support.o atomic_scoped_ptr_test.cpp
+	$(CXX) $(CFLAGS) support.o atomic_scoped_ptr_test.cpp -o atomic_scoped_ptr_test
+transaction_test : support.o xtime.o transaction_test.cpp
+	$(CXX) $(CFLAGS) support.o xtime.o transaction_test.cpp -o transaction_test
+transaction_dynamic_node_test : support.o xtime.o transaction_dynamic_node_test.cpp
+	$(CXX) $(CFLAGS) support.o xtime.o transaction_dynamic_node_test.cpp -o transaction_dynamic_node_test
+transaction_negotiation_test : support.o xtime.o transaction_negotiation_test.cpp
+	$(CXX) $(CFLAGS) support.o xtime.o transaction_negotiation_test.cpp -o transaction_negotiation_test
+
+check : allocator_test atomic_shared_ptr_test atomic_scoped_ptr_test transaction_test transaction_dynamic_node_test transaction_negotiation_test
+	./allocator_test &&\
+	./atomic_shared_ptr_test && \
+	./atomic_scoped_ptr_test && \
+	./transaction_test &&\
+	./transaction_dynamic_node_test &&\
+	./transaction_negotiation_test && \
+	echo 'done.'
+	
