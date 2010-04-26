@@ -16,6 +16,7 @@
 
 #include "atomic.h"
 #include <memory>
+#include <string.h>
 
 //! Atomic FIFO with a pre-defined size for POD-type data of non-zero values (e.g. pointers).
 //! \sa atomic_queue, atomic_pointer_queue
