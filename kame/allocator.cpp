@@ -29,7 +29,7 @@ FixedSizeAllocator<SIZE>::~FixedSizeAllocator() {
 	for(int idx = 0; idx < MEMPOOL_COUNT; ++idx) {
 		if(m_flags[idx]) {
 			fprintf(stderr, "Leak found for %dB @ %llx.\n", SIZE,
-				(unsigned long long) &m_mempool[idx]);
+				(unsigned long long)(uintptr_t) &m_mempool[idx]);
 		}
 	}
 
@@ -71,7 +71,8 @@ FixedSizeAllocator<SIZE>::trySetupNewAllocator(int aidx) {
 		atomicInc( &s_allocators_cnt);
 //		writeBarrier();
 		fprintf(stderr, "New memory pool for %dB, starting @ %llx w/ len. of %llxB.\n", SIZE,
-			(unsigned long long)alloc->m_mempool, (unsigned long long)ALLOC_MEMPOOL_SIZE);
+			(unsigned long long)(uintptr_t)alloc->m_mempool,
+			(unsigned long long)(uintptr_t)ALLOC_MEMPOOL_SIZE);
 		return true;
 	}
 	delete alloc;
