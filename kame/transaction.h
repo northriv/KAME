@@ -24,42 +24,38 @@
 
 namespace Transactional {
 
-template <class XN>
-class Snapshot;
-template <class XN>
-class Transaction;
-
-//! \brief This class is a basis of nodes which carries data sets for itself (Payload) and for subnodes.\n
-//! Tree-structure objects, consisting of Nodes, can be treated as
-//! lock-free software transactional memory (STM) by accessing through Transaction or Snapshot class.
-
-//! STM is a recent trend in a many-processor era for realizing scalable concurrent computing.
-//! As opposed to mutual exclusions (mutex, semaphore, spin lock, and so on), STM is optimistic for writing
-//! and a thread does not wait for other threads. Instead, commitment of transactional writing
+//! \page stmintro Brief introduction of software transactional memory using the class Node
+//!  Tree-structure objects, consisting of Node and derived classes, work as
+//! software transactional memory (STM) by accessing through Transaction or Snapshot class.\n
+//!  STM is a recent trend in a many-processor era for realizing scalable concurrent computing.
+//! As opposed to pessimistic mutual exclusions (mutex, semaphore, spin lock, and so on),
+//! STM takes an optimistic approach for writing,
+//! and each thread does not wait for other threads. Instead, commitment of transactional writing
 //! could sometimes fail and the operation will be restarted. The benefits of this optimistic approach are
 //! scalability, composability, and freeness of deadlocks.\n
-//! The class Transaction supports transactional accesses of data
-//! (implemented as Payload or T::Payload in derived classes T), and
+//!  The class Transaction supports transactional accesses of data,
+//! which were implemented as Node::Payload or T::Payload in derived classes T, and also handles
 //! multiple insertion (hard-link)/removal (unlink) of objects to the tree.
-//! Transaction / Snapshot for subtree can be taken at any node at any time.
+//! Transaction / Snapshot for subtree can be operated at any node at any time by lock-free means.
 //! Of course, transactions for separate subtrees do not disturb each other.
-//! Snapshot should always hold consistency of the contents of Payload including those for the subnodes.\n
 //! Since this STM is implemented based on the object model (i.e. not of address/log-based model),
 //! accesses can be performed without huge additional costs.
-//! The unavoidable and main cost here is to copy-on-write Payload of the nodes referenced by
-//! Transaction::operator[] during a transaction.
-//! The smart pointer atomic_shared_ptr is a key material in this STM to realize snapshot
-//! reading and commitment of a transaction.\n
+//! Snapshot always holds consistency of the contents of Node::Payload including those for the subnodes,
+//! and can be taken typically in O(1) time.
+//! During a transaction, unavoidable cost is to copy-on-write Payload of the nodes referenced by
+//! Transaction::operator[].\n
+//! The smart pointer atomic_shared_ptr, which adds a support for lock-free atomic update on shared_ptr,
+//! is a key material in this STM to realize snapshot reading and commitment of a transaction.\n
 //! \n
-//! Example 1 for snapshot reading.\n
+//! Example 1 for snapshot reading: reading two variables in a snapshot.\n
 //! \code { Snapshot<NodeA> shot1(node1);
-//! 	double x = shot1[node1]; //using cast operator defined in NodeA::Payload.
-//! 	double y = shot1[node1].y();
+//! 	double x = shot1[node1].m_x;
+//! 	double y = shot1[node1].m_y;
 //! }
 //! \endcode\n
-//! Example 2 for simple transactional writing.\n
+//! Example 2 for simple transactional writing: adding one atomically\n
 //! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
-//! 	tr1[node1] = tr1[node1] * 2.0; //using operator=() defined in Node::Payload.
+//! 	tr1[node1].m_x = tr1[node1].m_x + 1;
 //! 	if(tr1.commit()) break;
 //! }
 //! \endcode\n
@@ -71,9 +67,21 @@ class Transaction;
 //! \endcode \n
 //! More real examples are shown in the test codes: transaction_test.cpp,
 //! transaction_dynamic_node_test.cpp, transaction_negotiation_test.cpp.\n
-//! \htmlonly Test package: <a href="../../../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
+//! \htmlonly Test package: <a href="../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
+//! \sa Node, Snapshot, Transaction.
+//! \sa atomic_shared_ptr.
+
+template <class XN>
+class Snapshot;
+template <class XN>
+class Transaction;
+
+//! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
+//! See \ref stmintro for basic ideas of this STM and code examples.
+//!
+//! \tparam XN a class type used in the smart pointers of NodeList. \a XN must be a derived class of Node<XN> itself.
 //! \sa Snapshot, Transaction.
-//! \sa atomic_shared_ptr, XNode.
+//! \sa XNode.
 template <class XN>
 class Node {
 public:
@@ -421,7 +429,7 @@ T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
 }
 
 //! \brief This class takes a snapshot for a subtree.\n
-//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
+//! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Transaction, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Snapshot {
@@ -496,7 +504,7 @@ protected:
 	Snapshot() : m_packet() {}
 };
 //! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
-//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
+//! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Snapshot, Transaction, SingleTransaction.
 template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
@@ -521,7 +529,14 @@ protected:
 namespace Transactional {
 
 //! \brief A class supporting transactional writing for a subtree.\n
-//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
+//! See \ref stmintro for basic ideas of this STM and code examples.\n
+//!
+//! Transaction inherits features of Snapshot.
+//! Do something like the following to avoid a copy-on-write due to Transaction::operator[]():
+//! \code
+//! const Snapshot<NodeA> &shot(transaction_A);
+//! double x = shot[chidnode].m_x; //reading a value of m_x stored in transaction_A.
+//! \endcode
 //! \sa Node, Snapshot, SingleSnapshot, SingleTransaction.
 template <class XN>
 class Transaction : public Snapshot<XN> {
@@ -653,7 +668,7 @@ private:
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
-//! For the basic ideas of this software transactional memory and code examples, see the description of Node.
+//! See \ref stmintro for basic ideas of this STM and code examples.
 //! \sa Node, Transaction, Snapshot, SingleSnapshot.
 template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
