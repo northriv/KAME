@@ -18,14 +18,12 @@
 #include "atomic.h"
 
 #include <string.h>
-
-template <typename T>
-unsigned int count_bits(T x);
+#include <boost/utility/enable_if.hpp>
 
 //! Bit count / population count for 32bit.
 //! Referred to H. S. Warren, Jr., "Beautiful Code", O'Reilly.
-template <>
-inline unsigned int count_bits(uint32_t x) {
+template <typename T>
+inline typename boost::enable_if_c<sizeof(T) == 4, unsigned int>::type count_bits(T x) {
     x = x - ((x >> 1) & 0x55555555u);
     x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u);
     x = (x + (x >> 4)) & 0x0f0f0f0fu;
@@ -34,8 +32,9 @@ inline unsigned int count_bits(uint32_t x) {
     return x & 0xffu;
 }
 
-template <>
-inline unsigned int count_bits(uint64_t x) {
+//! Bit count / population count for 64bit.
+template <typename T>
+inline typename boost::enable_if_c<sizeof(T) == 8, unsigned int>::type count_bits(T x) {
     x = x - ((x >> 1) & 0x5555555555555555uLL);
     x = (x & 0x3333333333333333uLL) + ((x >> 2) & 0x3333333333333333uLL);
     x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0fuLL;
@@ -45,40 +44,71 @@ inline unsigned int count_bits(uint64_t x) {
     return x & 0xffu;
 }
 
+//! \return one bit at the first zero from the LSB in \a x.
+template <typename T>
+inline T find_zero_forward(T x) {
+	return ~((x) | (~x - 1u));
+}
+
+//! \return one bit at the first one from the LSB in \a x.
+template <typename T>
+inline T find_one_forward(T x) {
+	return x & (~x + 1u);
+}
+
 //! Folds "OR" operations. O(log X).
 //! Expecting inline expansions of codes.
+//! \tparam X number of zeros to be looked for.
 template <unsigned int X, unsigned int SHIFTS, typename T>
 inline T fold_bits(T x) {
 //	printf("%d, %llx\n", SHIFTS, x);
+	if(x == ~(T)0u)
+		return x; //already filled.
 	if(X <  2 * SHIFTS)
 		return x;
 	x = (x >> SHIFTS) | x;
 	if(X & SHIFTS)
 		x = (x >> SHIFTS) | x;
-	return fold_bits<X, (2 * SHIFTS < sizeof(T) * 8) ? 2 * SHIFTS : 1>(x);
+	return (2 * SHIFTS < sizeof(T) * 8) ?
+		fold_bits<X, (2 * SHIFTS < sizeof(T) * 8) ? 2 * SHIFTS : 1>(x) : x;
 }
 
-//! \return one bit at the first zero from LSB in \a x.
+//! Bit scan forward, counting zeros in the LSBs.
+//! \param x should be 2^n.
+//! \sa find_zero_forward(), find_first_oen().
 template <typename T>
-inline T find_first_zero(T x) {
-	return ~((x) | (~x - 1u));
+inline unsigned int count_zeros_forward(T x) {
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+	T ret;
+	asm ("bsf %1,%0": "=q" (ret) : "r" (x) :);
+	return ret;
+#else
+	return count_bits(x - 1);
+#endif
 }
 
-//! \return one bit at the first one from LSB in \a x.
-template <typename T>
-inline T find_first_one(T x) {
-	return x & (-x);
-}
+//template <int X, typename T>
+//inline T find_training_zeros_tedious(T x) {
+//	T ret = ((T)1u << X) - 1u;
+//	while(x & ret)
+//		ret = ret << 1;
+//	ret = find_one_forward(ret);
+//	if(ret > (T)1u << (sizeof(T) * 8 - X)) return 0; //checking if T has enough space in MSBs.
+//	return ret;
+//}
 
 //! Finds training zeros from LSB in \a x using O(log n) algorithm.
 //! \tparam X number of zeros to be looked for.
 //! \return one bit at the LSB of the training zeros if enough zeros are found.
 template <int X, typename T>
-T find_training_zeros(T x) {
+inline T find_training_zeros(T x) {
+//	if( !x) return 1u;
 	if(X == sizeof(T) * 8)
-		return !x ? 1u : 0; //a trivial case.
+		return !x ? 1u : 0u; //a trivial case.
 	x = fold_bits<X, 1>(x);
-	x = find_first_zero(x); //picking the first zero from LSB.
+	if(x == ~(T)0u)
+		return 0; //already filled.
+	x = find_zero_forward(x); //picking the first zero from LSB.
 	if(x > (T)1u << (sizeof(T) * 8 - X)) return 0; //checking if T has enough space in MSBs.
 	return x;
 }
@@ -92,8 +122,8 @@ PooledAllocator::PooledAllocator()  : m_idx(0) {
 PooledAllocator::~PooledAllocator() {
 	for(int idx = 0; idx < FLAGS_COUNT; ++idx) {
 		while(m_flags[idx]) {
-			int sidx = count_bits(find_first_one(m_flags[idx]) - 1);
-			int size = count_bits(find_first_zero(m_sizes[idx] >> sidx) - 1) + 1;
+			int sidx = count_bits(find_one_forward(m_flags[idx]) - 1);
+			int size = count_bits(find_zero_forward(m_sizes[idx] >> sidx) - 1) + 1;
 			fprintf(stderr, "Leak found for %dB @ %llx.\n", size,
 				(unsigned long long)(uintptr_t) &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALLOC_ALIGNMENT]);
 		}
@@ -105,10 +135,13 @@ inline void *
 PooledAllocator::allocate_pooled() {
 	for(int cnt = 0; cnt < FLAGS_COUNT; ++cnt) {
 		int idx = m_idx;
-		FUINT oldv = m_flags[idx];
-		if(FUINT cand = find_training_zeros<SIZE / ALLOC_ALIGNMENT>(oldv)) {
+		for(;;) {
+			FUINT oldv = m_flags[idx];
+			FUINT cand = find_training_zeros<SIZE / ALLOC_ALIGNMENT>(oldv);
+			if( !cand)
+				break;
 			FUINT ones = cand *
-				(2u * (((FUINT)1u << (SIZE / ALLOC_ALIGNMENT - 1u)) - 1u) + 1u); //N ones, no to cause compilation warning.
+				(2u * (((FUINT)1u << (SIZE / ALLOC_ALIGNMENT - 1u)) - 1u) + 1u); //N ones, not to cause compilation warning.
 //			ASSERT(count_bits(ones) == SIZE / ALLOC_ALIGNMENT);
 			FUINT newv = oldv | ones; //filling with SIZE ones.
 //			ASSERT( !(ones & oldv));
@@ -116,19 +149,17 @@ PooledAllocator::allocate_pooled() {
 				for(;;) {
 					FUINT sizes_old = m_sizes[idx];
 					FUINT sizes_new = (sizes_old | ones) & ~(cand << (SIZE / ALLOC_ALIGNMENT - 1u));
-					if(atomicCompareAndSet(sizes_old, sizes_new, &m_sizes[idx])) {
+//					ASSERT((~sizes_new & ones) == cand << (SIZE / ALLOC_ALIGNMENT - 1u));
+					if((sizes_old == sizes_new) ||
+						atomicCompareAndSet(sizes_old, sizes_new, &m_sizes[idx]))
 						break;
-					}
 				}
-				int sidx = count_bits(cand - 1);
+				int sidx = count_zeros_forward(cand);
 				return &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALLOC_ALIGNMENT];
 			}
-			readBarrier();
 		}
-		++idx;
-		if(idx == FLAGS_COUNT)
-			idx = 0;
-		m_idx = idx;
+		idx = (idx == FLAGS_COUNT - 1) ? 0 : idx + 1;
+		m_idx = idx; //hint for other threads.
 	}
 	return 0;
 }
@@ -138,8 +169,8 @@ PooledAllocator::deallocate_pooled(void *p) {
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
 	FUINT subones = ((FUINT)1u << sidx) - 1u;
-	FUINT ones = find_first_zero(m_sizes[idx] |  subones);
-	ones = (ones | (ones - 1)) & ~subones;
+	FUINT ones = find_zero_forward(m_sizes[idx] |  subones);
+	ones = (ones | (ones - 1u)) & ~subones;
 	for(;;) {
 		FUINT oldv = m_flags[idx];
 		FUINT newv = oldv & ~ones;
@@ -174,10 +205,13 @@ PooledAllocator::allocate() {
 	readBarrier(); //for alloc.
 	for(int cnt = 0;; ++cnt) {
 		if(cnt == acnt) {
-			trySetupNewAllocator(acnt);
+			readBarrier();
+			if(acnt == s_allocators_cnt)
+				trySetupNewAllocator(acnt);
 			acnt = s_allocators_cnt;
 			readBarrier(); //for alloc.
 			aidx = acnt - 1;
+//			cnt = 0;
 		}
 		PooledAllocator *alloc = s_allocators[aidx];
 		if(void *p = alloc->allocate_pooled<SIZE>()) {
@@ -201,7 +235,7 @@ PooledAllocator::deallocate(void *p) {
 		PooledAllocator *alloc = s_allocators[aidx];
 		if((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE])) {
 			if(alloc->deallocate_pooled(p)) {
-	//				s_curr_allocator_idx = aidx;
+//				s_curr_allocator_idx = aidx;
 				return true;
 			}
 		}
@@ -265,6 +299,13 @@ template void *PooledAllocator::allocate<ALLOC_SIZE18>();
 template void *PooledAllocator::allocate<ALLOC_SIZE19>();
 template void *PooledAllocator::allocate<ALLOC_SIZE20>();
 template void *PooledAllocator::allocate<ALLOC_SIZE21>();
+template void *PooledAllocator::allocate<ALLOC_SIZE22>();
+template void *PooledAllocator::allocate<ALLOC_SIZE23>();
+template void *PooledAllocator::allocate<ALLOC_SIZE24>();
+template void *PooledAllocator::allocate<ALLOC_SIZE25>();
+template void *PooledAllocator::allocate<ALLOC_SIZE26>();
+template void *PooledAllocator::allocate<ALLOC_SIZE27>();
+template void *PooledAllocator::allocate<ALLOC_SIZE28>();
 
 //struct _PoolReleaser {
 //	~_PoolReleaser() {

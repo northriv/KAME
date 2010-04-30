@@ -19,17 +19,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 512)
-#define ALLOC_MAX_ALLOCATORS (1024 * 1024 / ALLOC_MEMPOOL_SIZE  * 1024 * 4)
+#define ALLOC_MEMPOOL_SIZE (1024 * 1024) //1MB
+#define ALLOC_MAX_ALLOCATORS (1024 * 1024 / ALLOC_MEMPOOL_SIZE  * 1024 * 1) //1GB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8
 
 //! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Arbitrary sizes of memory in a unit of double-quad word less than 256B can be allocated from a memory pool.\n
+//! Arbitrary sizes of memory in a unit of double-quad word less than 256B/512B can be allocated from a memory pool.\n
 //! Those memory pools won't be released once being secured in order to reduce efforts for locking of pools.
 //! \sa allocator_test.cpp.
 class PooledAllocator {
-	typedef uint32_t FUINT;
-	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALLOC_ALIGNMENT / sizeof(FUINT) / 8};
 public:
 	PooledAllocator();
 	~PooledAllocator();
@@ -41,7 +39,10 @@ public:
 	static void *allocate() ;
 	static inline bool deallocate(void *p);
 	static void release_pools();
+
+	typedef uintptr_t FUINT;
 private:
+	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALLOC_ALIGNMENT / sizeof(FUINT) / 8};
 	char m_mempool[ALLOC_MEMPOOL_SIZE];
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
@@ -74,6 +75,13 @@ private:
 #define ALLOC_SIZE19 (ALLOC_ALIGNMENT * 24)
 #define ALLOC_SIZE20 (ALLOC_ALIGNMENT * 28)
 #define ALLOC_SIZE21 (ALLOC_ALIGNMENT * 32)
+#define ALLOC_SIZE22 (ALLOC_ALIGNMENT * 36)
+#define ALLOC_SIZE23 (ALLOC_ALIGNMENT * 40)
+#define ALLOC_SIZE24 (ALLOC_ALIGNMENT * 44)
+#define ALLOC_SIZE25 (ALLOC_ALIGNMENT * 48)
+#define ALLOC_SIZE26 (ALLOC_ALIGNMENT * 52)
+#define ALLOC_SIZE27 (ALLOC_ALIGNMENT * 56)
+#define ALLOC_SIZE28 (ALLOC_ALIGNMENT * 64)
 
 inline void* operator new(size_t size) throw() {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
@@ -119,6 +127,22 @@ inline void* operator new(size_t size) throw() {
 		return PooledAllocator::allocate<ALLOC_SIZE20>();
 	if(size <= ALLOC_SIZE21)
 		return PooledAllocator::allocate<ALLOC_SIZE21>();
+	if(sizeof(PooledAllocator::FUINT) > 4) {
+		if(size <= ALLOC_SIZE22)
+			return PooledAllocator::allocate<ALLOC_SIZE22>();
+		if(size <= ALLOC_SIZE23)
+			return PooledAllocator::allocate<ALLOC_SIZE23>();
+		if(size <= ALLOC_SIZE24)
+			return PooledAllocator::allocate<ALLOC_SIZE24>();
+		if(size <= ALLOC_SIZE25)
+			return PooledAllocator::allocate<ALLOC_SIZE25>();
+		if(size <= ALLOC_SIZE26)
+			return PooledAllocator::allocate<ALLOC_SIZE26>();
+		if(size <= ALLOC_SIZE27)
+			return PooledAllocator::allocate<ALLOC_SIZE27>();
+		if(size <= ALLOC_SIZE28)
+			return PooledAllocator::allocate<ALLOC_SIZE28>();
+	}
 	return malloc(size);
 }
 inline void* operator new[](size_t size) throw() {
