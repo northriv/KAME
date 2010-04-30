@@ -53,7 +53,7 @@ typedef uint_cas2 uint_cas_max;
 template <typename T>
 inline void atomicWrite64(const T &x, T *target) {
 	C_ASSERT(sizeof(T) == 8);
-	asm volatile (
+	asm (
 		" movq %0, %%xmm0;"
 		" movq %%xmm0, %1;"
 		:
@@ -64,7 +64,7 @@ inline void atomicWrite64(const T &x, T *target) {
 template <typename T>
 inline void atomicRead64(T *x, const T &target) {
 	C_ASSERT(sizeof(T) == 8);
-	asm volatile (
+	asm (
 		" movq %0, %%xmm0;"
 		" movq %%xmm0, %1;"
 		:
@@ -150,7 +150,7 @@ inline T atomicSwap(T v, T *target ) {
 }
 template <typename T>
 inline void atomicAdd(T *target, T x ) {
-	asm volatile (
+	asm (
 		"lock; add %1,%0"
 		:
 		: "m" ( *target), "q" (x)
@@ -172,7 +172,7 @@ template <typename T>
 inline
 typename boost::enable_if_c<(8 > sizeof(T)), void>::type
 atomicInc(T *target ) {
-	asm volatile (
+	asm (
 		"lock; inc%z0 %0"
 		:
 		: "m" ( *target)
@@ -182,7 +182,7 @@ template <typename T>
 inline
 typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
 atomicInc(T *target ) {
-	asm volatile (
+	asm (
 		"lock; incq %0"
 		:
 		: "m" ( *target)
@@ -192,7 +192,7 @@ template <typename T>
 inline
 typename boost::enable_if_c<(8 > sizeof(T)), void>::type
 atomicDec(T *target ) {
-	asm volatile (
+	asm (
 		"lock; dec%z0 %0"
 		:
 		: "m" ( *target)
@@ -202,7 +202,7 @@ template <typename T>
 inline
 typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
 atomicDec(T *target ) {
-	asm volatile (
+	asm (
 		"lock; decq %0"
 		:
 		: "m" ( *target)

@@ -122,8 +122,8 @@ PooledAllocator::PooledAllocator()  : m_idx(0) {
 PooledAllocator::~PooledAllocator() {
 	for(int idx = 0; idx < FLAGS_COUNT; ++idx) {
 		while(m_flags[idx]) {
-			int sidx = count_bits(find_one_forward(m_flags[idx]) - 1);
-			int size = count_bits(find_zero_forward(m_sizes[idx] >> sidx) - 1) + 1;
+			int sidx = count_bits(find_one_forward(m_flags[idx]) - 1u);
+			int size = count_bits(find_zero_forward(m_sizes[idx] >> sidx) - 1u) + 1;
 			fprintf(stderr, "Leak found for %dB @ %llx.\n", size,
 				(unsigned long long)(uintptr_t) &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALLOC_ALIGNMENT]);
 		}
@@ -299,13 +299,15 @@ template void *PooledAllocator::allocate<ALLOC_SIZE18>();
 template void *PooledAllocator::allocate<ALLOC_SIZE19>();
 template void *PooledAllocator::allocate<ALLOC_SIZE20>();
 template void *PooledAllocator::allocate<ALLOC_SIZE21>();
-template void *PooledAllocator::allocate<ALLOC_SIZE22>();
-template void *PooledAllocator::allocate<ALLOC_SIZE23>();
-template void *PooledAllocator::allocate<ALLOC_SIZE24>();
-template void *PooledAllocator::allocate<ALLOC_SIZE25>();
-template void *PooledAllocator::allocate<ALLOC_SIZE26>();
-template void *PooledAllocator::allocate<ALLOC_SIZE27>();
-template void *PooledAllocator::allocate<ALLOC_SIZE28>();
+#if defined __LP64__ || defined __LLP64__
+	template void *PooledAllocator::allocate<ALLOC_SIZE22>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE23>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE24>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE25>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE26>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE27>();
+	template void *PooledAllocator::allocate<ALLOC_SIZE28>();
+#endif
 
 //struct _PoolReleaser {
 //	~_PoolReleaser() {

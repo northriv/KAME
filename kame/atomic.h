@@ -179,7 +179,6 @@ public:
 			return false;
 		local_shared_ptr<T> newx(new T(newv));
 		bool ret = m_var.compareAndSet(oldx, newx);
-		if(ret) writeBarrier();
 		return ret;
 	}
 protected:
