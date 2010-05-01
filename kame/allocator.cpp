@@ -20,6 +20,9 @@
 #include <string.h>
 #include <boost/utility/enable_if.hpp>
 
+#include <sys/types.h>
+#include <sys/mman.h>
+
 //! Bit count / population count for 32bit.
 //! Referred to H. S. Warren, Jr., "Beautiful Code", O'Reilly.
 template <typename T>
@@ -113,7 +116,10 @@ inline T find_training_zeros(T x) {
 	return x;
 }
 
-PooledAllocator::PooledAllocator()  : m_idx(0) {
+PooledAllocator::PooledAllocator(char *addr)  : m_mempool(addr), m_idx(0) {
+	int ret = mprotect(addr, ALLOC_MEMPOOL_SIZE, PROT_READ | PROT_WRITE);
+	ASSERT( !ret);
+
 	memset(m_flags, 0, FLAGS_COUNT * sizeof(FUINT));
 	memset(m_sizes, 0, FLAGS_COUNT * sizeof(FUINT));
 	ASSERT((uintptr_t)m_mempool % ALLOC_ALIGNMENT == 0);
@@ -184,7 +190,25 @@ PooledAllocator::deallocate_pooled(void *p) {
 }
 bool
 PooledAllocator::trySetupNewAllocator(int aidx) {
-	PooledAllocator *alloc = new PooledAllocator;
+	if(aidx % NUM_ALLOCATORS_IN_SPACE == 0) {
+		while( !s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE]) {
+			int ps = getpagesize();
+			ASSERT(ALLOC_MEMPOOL_SIZE % ps == 0);
+			char *p = static_cast<char *>(
+				mmap(0, MMAP_SPACE_SIZE, PROT_NONE, MAP_ANON | MAP_PRIVATE, 0, 0));
+			ASSERT(p != MAP_FAILED);
+			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE])) {
+				fprintf(stderr, "New swap space, starting @ %llx w/ len. of %llxB.\n",
+					(unsigned long long)p,
+					(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
+				writeBarrier();
+				break;
+			}
+			munmap(p, MMAP_SPACE_SIZE);
+		}
+	}
+	PooledAllocator *alloc = new PooledAllocator(
+		s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE] + ALLOC_MEMPOOL_SIZE * (aidx % NUM_ALLOCATORS_IN_SPACE));
 	if(atomicCompareAndSet((PooledAllocator *)0, alloc, &s_allocators[aidx])) {
 		writeBarrier(); //for alloc.
 		atomicInc( &s_allocators_cnt);
@@ -229,20 +253,19 @@ PooledAllocator::allocate() {
 }
 inline bool
 PooledAllocator::deallocate(void *p) {
-	int acnt = s_allocators_cnt;
-	int aidx = std::min(s_curr_allocator_idx, acnt - 1);
-	for(int cnt = 0; cnt < acnt; ++cnt) {
-		PooledAllocator *alloc = s_allocators[aidx];
-		if((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE])) {
+	for(int cnt = 0; cnt < MMAP_SPACES_COUNT; ++cnt) {
+		char *mp = s_mmapped_spaces[cnt];
+		if( !mp)
+			break;
+		if((p >= mp) && (p < &mp[MMAP_SPACE_SIZE])) {
+			int aidx = (static_cast<char *>(p) - mp) / ALLOC_MEMPOOL_SIZE + cnt * NUM_ALLOCATORS_IN_SPACE;
+			PooledAllocator *alloc = s_allocators[aidx];
+//			ASSERT((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE]));
 			if(alloc->deallocate_pooled(p)) {
 //				s_curr_allocator_idx = aidx;
 				return true;
 			}
 		}
-		if(aidx == 0)
-			aidx = acnt - 1;
-		else
-			--aidx;
 	}
 	return false;
 }
@@ -277,6 +300,7 @@ void release_pools() {
 PooledAllocator *PooledAllocator::s_allocators[ALLOC_MAX_ALLOCATORS];
 int PooledAllocator::s_curr_allocator_idx;
 int PooledAllocator::s_allocators_cnt;
+char *PooledAllocator::s_mmapped_spaces[MMAP_SPACES_COUNT];
 
 template void *PooledAllocator::allocate<ALLOC_SIZE1>();
 template void *PooledAllocator::allocate<ALLOC_SIZE2>();

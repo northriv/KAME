@@ -19,8 +19,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 1024) //1MB
-#define ALLOC_MAX_ALLOCATORS (1024) //1GB max.
+#define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
+#define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 //! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
@@ -29,12 +29,7 @@
 //! \sa allocator_test.cpp.
 class PooledAllocator {
 public:
-	PooledAllocator();
 	~PooledAllocator();
-	template <unsigned int SIZE>
-	inline void *allocate_pooled();
-	inline bool deallocate_pooled(void *p);
-	static bool trySetupNewAllocator(int aidx);
 	template <unsigned int SIZE>
 	static void *allocate() ;
 	static inline bool deallocate(void *p);
@@ -42,11 +37,20 @@ public:
 
 	typedef uintptr_t FUINT;
 private:
+	PooledAllocator(char *addr);
+	template <unsigned int SIZE>
+	inline void *allocate_pooled();
+	inline bool deallocate_pooled(void *p);
+	static bool trySetupNewAllocator(int aidx);
 	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALLOC_ALIGNMENT / sizeof(FUINT) / 8};
-	char m_mempool[ALLOC_MEMPOOL_SIZE];
+	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 64, //64MiB
+		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
+		MMAP_SPACES_COUNT = ALLOC_MAX_ALLOCATORS / NUM_ALLOCATORS_IN_SPACE};
+	char *m_mempool;
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
 	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
+	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static PooledAllocator *s_allocators[ALLOC_MAX_ALLOCATORS];
 	static int s_curr_allocator_idx;
 	static int s_allocators_cnt;
