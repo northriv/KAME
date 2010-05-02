@@ -19,8 +19,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 256) //256KiB
-#define ALLOC_MAX_ALLOCATORS (1024 * 4) //2GiB max.
+#define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
+#define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 //! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
@@ -51,9 +51,10 @@ private:
 	char *m_mempool;
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
+	int m_used_flags;
 	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
-	static PooledAllocator *s_allocators[ALLOC_MAX_ALLOCATORS];
+	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
 	static int s_curr_allocator_idx;
 	static int s_allocators_cnt;
 	void* operator new(size_t size) throw();
