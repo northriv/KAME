@@ -219,9 +219,9 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 		writeBarrier(); //for alloc.
 		atomicInc( &s_allocators_cnt);
 //		writeBarrier();
-		fprintf(stderr, "New memory pool for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
-			(unsigned long long)(uintptr_t)alloc->m_mempool,
-			(unsigned long long)(uintptr_t)ALLOC_MEMPOOL_SIZE);
+//		fprintf(stderr, "New memory pool for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
+//			(unsigned long long)(uintptr_t)alloc->m_mempool,
+//			(unsigned long long)(uintptr_t)ALLOC_MEMPOOL_SIZE);
 		return true;
 	}
 	delete alloc;
@@ -247,6 +247,7 @@ PooledAllocator<ALIGN>::allocate() {
 		}
 		PooledAllocator *alloc = s_allocators[aidx];
 		if(void *p = alloc->allocate_pooled<SIZE>()) {
+			s_curr_allocator_idx = aidx;
 //			fprintf(stderr, "a: %llx\n", (unsigned long long)(uintptr_t)p);
 			readBarrier(); //for the pooled memory.
 			for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)

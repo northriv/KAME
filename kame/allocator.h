@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
+#define ALLOC_MEMPOOL_SIZE (1024 * 256) //256KiB
 #define ALLOC_MAX_ALLOCATORS (1024 * 4) //2GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
