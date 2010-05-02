@@ -20,13 +20,15 @@
 #include <stdlib.h>
 
 #define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
-#define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
+#define ALLOC_MAX_ALLOCATORS (1024 * 4) //2GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 //! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Arbitrary sizes of memory in a unit of double-quad word less than 256B/512B can be allocated from a memory pool.\n
+//! Arbitrary sizes of memory in a unit of double-quad word less than 4KiB
+//! can be allocated from a memory pool. The larger memory is provided by malloc().\n
 //! Those memory pools won't be released once being secured in order to reduce efforts for locking of pools.
 //! \sa allocator_test.cpp.
+template <unsigned int ALIGN>
 class PooledAllocator {
 public:
 	~PooledAllocator();
@@ -42,8 +44,8 @@ private:
 	inline void *allocate_pooled();
 	inline bool deallocate_pooled(void *p);
 	static bool trySetupNewAllocator(int aidx);
-	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALLOC_ALIGNMENT / sizeof(FUINT) / 8};
-	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 64, //64MiB
+	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALIGN / sizeof(FUINT) / 8};
+	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 16, //16MiB
 		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
 		MMAP_SPACES_COUNT = ALLOC_MAX_ALLOCATORS / NUM_ALLOCATORS_IN_SPACE};
 	char *m_mempool;
@@ -57,6 +59,17 @@ private:
 	void* operator new(size_t size) throw();
 	void operator delete(void* p);
 };
+
+#define ALLOC_ALIGN1 (ALLOC_ALIGNMENT)
+#if defined __LP64__ || defined __LLP64__
+	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 8)
+	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
+#else
+	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 4)
+	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 16)
+	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 : \
+		(((size) % ALLOC_ALIGN3 != 0) || ((size) == ALLOC_ALIGN2 * 32) ? ALLOC_ALIGN2 : ALLOC_ALIGN3))
+#endif
 
 #define ALLOC_SIZE1 (ALLOC_ALIGNMENT * 1)
 #define ALLOC_SIZE2 (ALLOC_ALIGNMENT * 2)
@@ -72,90 +85,59 @@ private:
 #define ALLOC_SIZE12 (ALLOC_ALIGNMENT * 12)
 #define ALLOC_SIZE13 (ALLOC_ALIGNMENT * 13)
 #define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 14)
-#define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 16)
-#define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 18)
-#define ALLOC_SIZE17 (ALLOC_ALIGNMENT * 20)
-#define ALLOC_SIZE18 (ALLOC_ALIGNMENT * 22)
-#define ALLOC_SIZE19 (ALLOC_ALIGNMENT * 24)
-#define ALLOC_SIZE20 (ALLOC_ALIGNMENT * 28)
-#define ALLOC_SIZE21 (ALLOC_ALIGNMENT * 32)
-#if defined __LP64__ || defined __LLP64__
-	#define ALLOC_SIZE22 (ALLOC_ALIGNMENT * 36)
-	#define ALLOC_SIZE23 (ALLOC_ALIGNMENT * 40)
-	#define ALLOC_SIZE24 (ALLOC_ALIGNMENT * 44)
-	#define ALLOC_SIZE25 (ALLOC_ALIGNMENT * 48)
-	#define ALLOC_SIZE26 (ALLOC_ALIGNMENT * 52)
-	#define ALLOC_SIZE27 (ALLOC_ALIGNMENT * 56)
-	#define ALLOC_SIZE28 (ALLOC_ALIGNMENT * 64)
-#endif
+#define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
+
+void* __allocate_large_size_or_malloc(size_t size) throw();
+
+#define __ALLOCATE_9_16X(X, size) {\
+	if(size <= ALLOC_SIZE16 * X) {\
+		if(size <= ALLOC_SIZE9 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * X)>::allocate<ALLOC_SIZE9 * X>();\
+		if(size <= ALLOC_SIZE10 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE10 * X)>::allocate<ALLOC_SIZE10 * X>();\
+		if(size <= ALLOC_SIZE11 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE11 * X)>::allocate<ALLOC_SIZE11 * X>();\
+		if(size <= ALLOC_SIZE12 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE12 * X)>::allocate<ALLOC_SIZE12 * X>();\
+		if(size <= ALLOC_SIZE13 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE13 * X)>::allocate<ALLOC_SIZE13 * X>();\
+		if(size <= ALLOC_SIZE14 * X)\
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14 * X)>::allocate<ALLOC_SIZE14 * X>();\
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * X)>::allocate<ALLOC_SIZE16 * X>();\
+	}\
+}
 
 inline void* operator new(size_t size) throw() {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
 	if(size <= ALLOC_SIZE1)
-		return PooledAllocator::allocate<ALLOC_SIZE1>();
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE1)>::allocate<ALLOC_SIZE1>();
 	if(size <= ALLOC_SIZE2)
-		return PooledAllocator::allocate<ALLOC_SIZE2>();
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE2)>::allocate<ALLOC_SIZE2>();
 	if(size <= ALLOC_SIZE3)
-		return PooledAllocator::allocate<ALLOC_SIZE3>();
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE3)>::allocate<ALLOC_SIZE3>();
 	if(size <= ALLOC_SIZE4)
-		return PooledAllocator::allocate<ALLOC_SIZE4>();
-	if(size <= ALLOC_SIZE5)
-		return PooledAllocator::allocate<ALLOC_SIZE5>();
-	if(size <= ALLOC_SIZE6)
-		return PooledAllocator::allocate<ALLOC_SIZE6>();
-	if(size <= ALLOC_SIZE7)
-		return PooledAllocator::allocate<ALLOC_SIZE7>();
-	if(size <= ALLOC_SIZE8)
-		return PooledAllocator::allocate<ALLOC_SIZE8>();
-	if(size <= ALLOC_SIZE9)
-		return PooledAllocator::allocate<ALLOC_SIZE9>();
-	if(size <= ALLOC_SIZE10)
-		return PooledAllocator::allocate<ALLOC_SIZE10>();
-	if(size <= ALLOC_SIZE11)
-		return PooledAllocator::allocate<ALLOC_SIZE11>();
-	if(size <= ALLOC_SIZE12)
-		return PooledAllocator::allocate<ALLOC_SIZE12>();
-	if(size <= ALLOC_SIZE13)
-		return PooledAllocator::allocate<ALLOC_SIZE13>();
-	if(size <= ALLOC_SIZE14)
-		return PooledAllocator::allocate<ALLOC_SIZE14>();
-	if(size <= ALLOC_SIZE15)
-		return PooledAllocator::allocate<ALLOC_SIZE15>();
-	if(size <= ALLOC_SIZE16)
-		return PooledAllocator::allocate<ALLOC_SIZE16>();
-	if(size <= ALLOC_SIZE17)
-		return PooledAllocator::allocate<ALLOC_SIZE17>();
-	if(size <= ALLOC_SIZE18)
-		return PooledAllocator::allocate<ALLOC_SIZE18>();
-	if(size <= ALLOC_SIZE19)
-		return PooledAllocator::allocate<ALLOC_SIZE19>();
-	if(size <= ALLOC_SIZE20)
-		return PooledAllocator::allocate<ALLOC_SIZE20>();
-	if(size <= ALLOC_SIZE21)
-		return PooledAllocator::allocate<ALLOC_SIZE21>();
-#if defined __LP64__ || defined __LLP64__
-	if(size <= ALLOC_SIZE22)
-		return PooledAllocator::allocate<ALLOC_SIZE22>();
-	if(size <= ALLOC_SIZE23)
-		return PooledAllocator::allocate<ALLOC_SIZE23>();
-	if(size <= ALLOC_SIZE24)
-		return PooledAllocator::allocate<ALLOC_SIZE24>();
-	if(size <= ALLOC_SIZE25)
-		return PooledAllocator::allocate<ALLOC_SIZE25>();
-	if(size <= ALLOC_SIZE26)
-		return PooledAllocator::allocate<ALLOC_SIZE26>();
-	if(size <= ALLOC_SIZE27)
-		return PooledAllocator::allocate<ALLOC_SIZE27>();
-	if(size <= ALLOC_SIZE28)
-		return PooledAllocator::allocate<ALLOC_SIZE28>();
-#endif
-	return malloc(size);
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE4)>::allocate<ALLOC_SIZE4>();
+	if(size <= ALLOC_SIZE8) {
+		if(size <= ALLOC_SIZE5)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE5)>::allocate<ALLOC_SIZE5>();
+		if(size <= ALLOC_SIZE6)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
+		if(size <= ALLOC_SIZE7)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE7)>::allocate<ALLOC_SIZE7>();
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
+	}
+	__ALLOCATE_9_16X(1, size);
+	return __allocate_large_size_or_malloc(size);
 }
 inline void* operator new[](size_t size) throw() {
 	return operator new(size);
 }
 
-void operator delete(void* p) throw();
+void __deallocate_pooled_or_free(void* p) throw();
+
+inline void operator delete(void* p) throw() {
+	return __deallocate_pooled_or_free(p);
+}
 
 inline void operator delete[](void* p) throw() {
 	operator delete(p);
