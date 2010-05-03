@@ -116,6 +116,23 @@ inline T find_training_zeros(T x) {
 	return x;
 }
 
+
+void *malloc_mmap(size_t size) {
+//		fprintf(stderr, "mmap(), %d\n", (int)size);
+		void *p = (
+			mmap(0, size + ALLOC_ALIGNMENT, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
+		ASSERT(p != MAP_FAILED);
+		*static_cast<size_t *>(p) = size + ALLOC_ALIGNMENT;
+		return static_cast<char *>(p) + ALLOC_ALIGNMENT;
+}
+void free_munmap(void *p) {
+		p = static_cast<void *>(static_cast<char *>(p) - ALLOC_ALIGNMENT);
+		size_t size = *static_cast<size_t *>(p);
+	//	fprintf(stderr, "unmmap(), %d\n", (int)size);
+		int ret = munmap(p, size);
+		ASSERT( !ret);
+}
+
 template <unsigned int ALIGN>
 PooledAllocator<ALIGN>::PooledAllocator(char *addr)  : m_mempool(addr), m_idx(0) {
 	memset(m_flags, 0, FLAGS_COUNT * sizeof(FUINT));
@@ -150,14 +167,15 @@ PooledAllocator<ALIGN>::allocate_pooled(int aidx) {
 			ones = cand *
 				(2u * (((FUINT)1u << (SIZE / ALIGN - 1u)) - 1u) + 1u); //N ones, not to overflow.
 //			ASSERT(count_bits(ones) == SIZE / ALIGN);
-			FUINT newv = oldv | ones; //filling with SIZE ones.
 //			ASSERT( !(ones & oldv));
 			if(oldv == 0) {
-				m_flags[idx] = newv;
+				m_flags[idx] = ones;
 				break;
 			}
-			else if(atomicCompareAndSet(oldv, newv, &m_flags[idx])) {
-				break;
+			else {
+				FUINT newv = oldv | ones; //filling with SIZE ones.
+				if(atomicCompareAndSet(oldv, newv, &m_flags[idx]))
+					break;
 			}
 		}
 		idx = (idx + 1) % FLAGS_COUNT;
@@ -185,16 +203,17 @@ PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
 	int midx = static_cast<size_t>((char *)p - m_mempool) / ALIGN;
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
-	FUINT subones = ((FUINT)1u << sidx) - 1u;
-	FUINT ones = find_zero_forward(m_sizes[idx] |  subones);
-	ones = (ones | (ones - 1u)) & ~subones;
+
+	FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
+	nones = ~((nones | (nones - 1u)) << sidx);
+
 	writeBarrier(); //for the pooled memory
 	for(;;) {
 		FUINT oldv = m_flags[idx];
-		FUINT newv = oldv & ~ones;
+		FUINT newv = oldv & nones;
 //		fprintf(stderr, "d: %llx, %d, %x, %x, %x\n", (unsigned long long)(uintptr_t)p, idx, oldv, newv, ones);
-		ASSERT(( ~oldv & ones) == 0); //checking for double free.
 		if(atomicCompareAndSet(oldv, newv, &m_flags[idx])) {
+			ASSERT(( oldv | nones) == ~(FUINT)0); //checking for double free.
 //			m_idx = idx; //writing a hint for a next allocation.
 			if(newv == 0)
 				return true;
@@ -223,9 +242,8 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 	if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_allocators[aidx])) {
 		char *addr =
 			s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE] + ALLOC_MEMPOOL_SIZE * (aidx % NUM_ALLOCATORS_IN_SPACE);
-		uintptr_t alloc = reinterpret_cast<uintptr_t>(new PooledAllocator(addr));
-
 		int ret = mprotect(addr, ALLOC_MEMPOOL_SIZE, PROT_READ | PROT_WRITE);
+		uintptr_t alloc = reinterpret_cast<uintptr_t>(new PooledAllocator(addr));
 		ASSERT( !ret);
 		writeBarrier(); //for alloc.
 		s_allocators[aidx] = alloc;
@@ -320,9 +338,9 @@ inline bool
 PooledAllocator<ALIGN>::deallocate(void *p) {
 	for(int cnt = 0; cnt < MMAP_SPACES_COUNT; ++cnt) {
 		char *mp = s_mmapped_spaces[cnt];
+		if( !mp)
+			break;
 		if((p >= mp) && (p < &mp[MMAP_SPACE_SIZE])) {
-			if( !mp)
-				break;
 			int aidx = (static_cast<char *>(p) - mp) / ALLOC_MEMPOOL_SIZE + cnt * NUM_ALLOCATORS_IN_SPACE;
 			uintptr_t alloc = s_allocators[aidx];
 			alloc &= ~(uintptr_t)1u;
@@ -364,12 +382,12 @@ PooledAllocator<ALIGN>::release_pools() {
 template <unsigned int ALIGN>
 void*
 PooledAllocator<ALIGN>::operator new(size_t size) throw() {
-	return malloc(size);
+	return malloc_mmap(size);
 }
 template <unsigned int ALIGN>
 void
 PooledAllocator<ALIGN>::operator delete(void* p) {
-	free(p);
+	free_munmap(p);
 }
 
 void* __allocate_large_size_or_malloc(size_t size) throw() {
@@ -380,12 +398,6 @@ void* __allocate_large_size_or_malloc(size_t size) throw() {
 	__ALLOCATE_9_16X(32, size); //to 4KB.
 
 	return malloc(size);
-//	fprintf(stderr, "mmap(), %d\n", (int)size);
-//	void *p = (
-//		mmap(0, size + ALLOC_ALIGNMENT, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
-//	ASSERT(p != MAP_FAILED);
-//	*static_cast<size_t *>(p) = size + ALLOC_ALIGNMENT;
-//	return static_cast<char *>(p) + ALLOC_ALIGNMENT;
 }
 
 void __deallocate_pooled_or_free(void* p) throw() {
@@ -398,11 +410,6 @@ void __deallocate_pooled_or_free(void* p) throw() {
 		return;
 #endif
 	free(p);
-//	p = static_cast<void *>(static_cast<char *>(p) - ALLOC_ALIGNMENT);
-//	size_t size = *static_cast<size_t *>(p);
-////	fprintf(stderr, "unmmap(), %d\n", (int)size);
-//	int ret = munmap(p, size);
-//	ASSERT( !ret);
 }
 
 void release_pools() {
