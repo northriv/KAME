@@ -19,14 +19,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
+#define ALLOC_MEMPOOL_SIZE (1024 * 256) //256KiB
 #define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 //! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
 //! Arbitrary sizes of memory in a unit of double-quad word less than 4KiB
-//! can be allocated from a memory pool. The larger memory is provided by malloc().\n
-//! Those memory pools won't be released once being secured in order to reduce efforts for locking of pools.
+//! can be allocated from a memory pool. The larger memory is provided by malloc().
 //! \sa allocator_test.cpp.
 template <unsigned int ALIGN>
 class PooledAllocator {
@@ -51,7 +50,7 @@ private:
 	char *m_mempool;
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
-	int m_used_flags;
+	int m_flags_inc_cnt, m_flags_dec_cnt;
 	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
