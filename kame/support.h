@@ -21,7 +21,9 @@
 #include <config.h>
 #endif
 
-#include "allocator.h"
+#ifdef __APPLE__
+	#include "allocator.h"
+#endif
 
 #ifdef WORDS_BIGENDIAN
 #ifndef __BIG_ENDIAN__

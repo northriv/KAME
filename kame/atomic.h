@@ -32,7 +32,12 @@ public:
 	atomic_pod_cas(const atomic_pod_cas &t) : m_var(t) {}
 	~atomic_pod_cas() {}
 	operator T() const {readBarrier(); return m_var;}
-	atomic_pod_cas &operator=(T t) {m_var = t; writeBarrier(); return *this;}
+	atomic_pod_cas &operator=(T t) {
+		m_var = t; writeBarrier(); return *this;
+	}
+	atomic_pod_cas &operator=(const atomic_pod_cas &x) {
+		m_var = x.m_var; writeBarrier(); return *this;
+	}
 	T swap(T newv) {
 		T old = atomicSwap(newv, &m_var);
 		writeBarrier();
@@ -58,9 +63,9 @@ public:
 	operator T() const {
 		readBarrier();
 #ifdef HAVE_ATOMIC_RW64
-		C_ASSERT(sizeof(T) == 8);
-		T x __attribute__((aligned(8)));
-		atomicRead64(&x, m_var);
+		union { T x; int64_t for_align;};
+		C_ASSERT(__alignof__(x) >= 8);
+		atomicRead64( &x, m_var);
 		return x;
 #else
 		for(;;) {
@@ -73,9 +78,7 @@ public:
 	}
 	atomic_pod_cas2 &operator=(T t) {
 #ifdef HAVE_ATOMIC_RW64
-		C_ASSERT(sizeof(T) == 8);
-		volatile T x __attribute__((aligned(8))) = t;
-		atomicWrite64(x, &m_var);
+		atomicWrite64(t, &m_var);
 #else
 		for(;;) {
 			T oldv = m_var;
@@ -84,6 +87,10 @@ public:
 		}
 #endif
 		writeBarrier();
+		return *this;
+	}
+	atomic_pod_cas2 &operator=(const atomic_pod_cas2 &x) {
+		*this = (T)x;
 		return *this;
 	}
 	T swap(T newv) {
@@ -101,7 +108,10 @@ public:
 		return ret;
 	}
 protected:
-	T m_var __attribute__((aligned(sizeof(int_cas2)*2)));
+	union {
+		T m_var;
+		int64_t _for_alignment;
+	};
 };
 
 //! atomic access to POD type capable of CAS2.
@@ -171,6 +181,10 @@ public:
 	}
 	atomic &operator=(T t) {
 		m_var.reset(new T(t));
+		return *this;
+	}
+	atomic &operator=(const atomic &x) {
+		m_var = x.m_var;
 		return *this;
 	}
 	bool compareAndSet(const T &oldv, const T &newv) {

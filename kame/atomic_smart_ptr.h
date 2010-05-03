@@ -111,7 +111,7 @@ private:
 	Refcnt refcnt;
 };
 
-#define ATOMIC_SHARED_REF_ALIGNMENT (sizeof(uintptr_t))
+#define ATOMIC_SHARED_REF_ALIGNMENT (sizeof(int64_t))
 
 //! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
 //! A global referece counter (an instance of _atomic_shared_ptr_gref) will be created.
@@ -134,7 +134,10 @@ protected:
 
 	int _use_count() const {return ((const Ref*)this->m_ref)->refcnt;}
 
-	_RefLocal m_ref;
+	union {
+		_RefLocal m_ref;
+		int64_t _for_alignment;
+	};
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T>
