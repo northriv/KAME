@@ -119,12 +119,13 @@ inline T find_training_zeros(T x) {
 template <unsigned int ALIGN>
 PooledAllocator<ALIGN>::PooledAllocator(char *addr)  : m_mempool(addr), m_idx(0) {
 	memset(m_flags, 0, FLAGS_COUNT * sizeof(FUINT));
-	memset(m_sizes, 0, FLAGS_COUNT * sizeof(FUINT));
+//	memset(m_sizes, 0, FLAGS_COUNT * sizeof(FUINT));
 	ASSERT((uintptr_t)m_mempool % ALIGN == 0);
 //	memoryBarrier();
 }
 template <unsigned int ALIGN>
-PooledAllocator<ALIGN>::~PooledAllocator() {
+void
+PooledAllocator<ALIGN>::report_leaks() {
 	for(int idx = 0; idx < FLAGS_COUNT; ++idx) {
 		while(m_flags[idx]) {
 			int sidx = count_zeros_forward(find_one_forward(m_flags[idx]));
@@ -159,11 +160,12 @@ PooledAllocator<ALIGN>::allocate_pooled(int aidx) {
 				break;
 			}
 		}
-		idx = (idx == FLAGS_COUNT - 1) ? 0 : idx + 1;
+		idx = (idx + 1) % FLAGS_COUNT;
 		if(idx == m_idx)
 			return 0;
 	}
-	m_idx = idx;
+
+	m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % FLAGS_COUNT);
 
 	if(oldv == 0)
 		atomicInc( &s_flags_inc_cnt[aidx]);
@@ -186,6 +188,7 @@ PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
 	FUINT subones = ((FUINT)1u << sidx) - 1u;
 	FUINT ones = find_zero_forward(m_sizes[idx] |  subones);
 	ones = (ones | (ones - 1u)) & ~subones;
+	writeBarrier(); //for the pooled memory
 	for(;;) {
 		FUINT oldv = m_flags[idx];
 		FUINT newv = oldv & ~ones;
@@ -203,22 +206,20 @@ PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
 template <unsigned int ALIGN>
 bool
 PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
-	if(aidx % NUM_ALLOCATORS_IN_SPACE == 0) {
-		while( !s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE]) {
-			int ps = getpagesize();
-			ASSERT(ALLOC_MEMPOOL_SIZE % ps == 0);
-			char *p = static_cast<char *>(
-				mmap(0, MMAP_SPACE_SIZE, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
-			ASSERT(p != MAP_FAILED);
-			if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE])) {
-				fprintf(stderr, "Reserve swap space for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
-					(unsigned long long)p,
-					(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
-				writeBarrier();
-				break;
-			}
-			munmap(p, MMAP_SPACE_SIZE);
+	while( !s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE]) {
+		int ps = getpagesize();
+		ASSERT(ALLOC_MEMPOOL_SIZE % ps == 0);
+		char *p = static_cast<char *>(
+			mmap(0, MMAP_SPACE_SIZE, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
+		ASSERT(p != MAP_FAILED);
+		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE])) {
+			fprintf(stderr, "Reserve swap space for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
+				(unsigned long long)p,
+				(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
+			writeBarrier();
+			break;
 		}
+		munmap(p, MMAP_SPACE_SIZE);
 	}
 	if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_allocators[aidx])) {
 		char *addr =
@@ -346,6 +347,7 @@ PooledAllocator<ALIGN>::release_pools() {
 	for(int aidx = 0; aidx < acnt; ++aidx) {
 		uintptr_t alloc = s_allocators[aidx];
 		alloc &= ~(uintptr_t)1u;
+		reinterpret_cast<PooledAllocator *>(alloc)->report_leaks();
 		delete reinterpret_cast<PooledAllocator *>(alloc);
 		s_allocators[aidx] = 0;
 	}
@@ -388,7 +390,6 @@ void* __allocate_large_size_or_malloc(size_t size) throw() {
 }
 
 void __deallocate_pooled_or_free(void* p) throw() {
-	writeBarrier(); //for the pooled memory
 	if(PooledAllocator<ALLOC_ALIGN1>::deallocate(p))
 		return;
 	if(PooledAllocator<ALLOC_ALIGN2>::deallocate(p))
