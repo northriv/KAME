@@ -43,6 +43,7 @@ private:
 	inline void *allocate_pooled(int aidx);
 	inline bool deallocate_pooled(void *p);
 	static bool trySetupNewAllocator(int aidx);
+	static void releaseAllocator(uintptr_t alloc, int aidx);
 	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALIGN / sizeof(FUINT) / 8};
 	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 16, //16MiB
 		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
