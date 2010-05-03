@@ -53,7 +53,7 @@ private:
 	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
-	static int s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS], s_flags_dec_cnt[ALLOC_MAX_ALLOCATORS];
+	static int s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];
 	static int s_curr_allocator_idx;
 	static int s_allocators_ubound;
 	void* operator new(size_t size) throw();

@@ -238,7 +238,7 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 //		fprintf(stderr, "New memory pool for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
 //			(unsigned long long)(uintptr_t)alloc->m_mempool,
 //			(unsigned long long)(uintptr_t)ALLOC_MEMPOOL_SIZE);
-		printf("n");
+//		printf("n");
 		return true;
 	}
 	return false;
@@ -318,7 +318,7 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 							//releasing memory.
 							mprotect(reinterpret_cast<PooledAllocator *>(alloc)->m_mempool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
 	//						fprintf(stderr, "Freed: %llx\n", (unsigned long long)(uintptr_t)reinterpret_cast<PooledAllocator *>(alloc)->m_mempool);
-							printf("r");
+//							printf("r");
 							delete palloc;
 							writeBarrier();
 
