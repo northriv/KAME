@@ -14,9 +14,6 @@
 #ifndef xnodeH
 #define xnodeH
 
-#ifdef __MACOSX__
-	#include "allocator.h"
-#endif
 #include "transaction.h"
 #include "xsignal.h"
 #include "threadlocal.h"
