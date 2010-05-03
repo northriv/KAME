@@ -1,6 +1,6 @@
 * Thu Apr 29 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.4-1)
-- allocator.cpp: any size allocator for less than 256B, realized by O(log n) training zero lookup.
+- allocator.cpp: variable size allocator for less than 256/512B, realized by O(log n) training zero lookup.
 
 * Sun Apr 18 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.3-1)

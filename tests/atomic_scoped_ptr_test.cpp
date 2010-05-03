@@ -3,7 +3,7 @@
 //#include "xtime.h"
 
 #include "support.h"
-
+#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
 #include <stdint.h>
 
 //
@@ -58,7 +58,7 @@ atomic_scoped_ptr<A> gp1, gp2, gp3;
 
 void *
 start_routine(void *) {
-	for(int i = 0; i < 100000; i++) {
+	for(int i = 0; i < 1000000; i++) {
     	atomic_scoped_ptr<A> p1(new A(1));
     	atomic_scoped_ptr<A> p2(new B(2));
     	atomic_scoped_ptr<A> p3;

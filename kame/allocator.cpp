@@ -175,8 +175,6 @@ PooledAllocator<ALIGN>::allocate_pooled() {
 
 	int sidx = count_zeros_forward(cand);
 
-	writeBarrier(); //for the size and counter.
-
 	return &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 }
 template <unsigned int ALIGN>
@@ -274,6 +272,8 @@ PooledAllocator<ALIGN>::allocate() {
 	//			fprintf(stderr, "a: %llx\n", (unsigned long long)(uintptr_t)p);
 //				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
 //					static_cast<uint64_t *>(p)[i] = 0; //zero clear.
+
+				writeBarrier(); //for the size and counter.
 				s_allocators[aidx] = alloc;
 				return p;
 			}
@@ -302,7 +302,7 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 			if(palloc->deallocate_pooled(p)) {
 				for(;;) {
 					int dc = palloc->m_flags_dec_cnt;
-					int ic = palloc->m_flags_inc_cnt;
+					int ic = palloc->m_flags_inc_cnt; // *palloc must not be accessed between the following CASs.
 					if(atomicCompareAndSet(dc, dc + 1, &palloc->m_flags_dec_cnt)) {
 						if(dc + 1 == ic) {
 							if(atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx])) {
@@ -313,8 +313,9 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 									mprotect(reinterpret_cast<PooledAllocator *>(alloc)->m_mempool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
 			//						fprintf(stderr, "Freed: %llx\n", (unsigned long long)(uintptr_t)reinterpret_cast<PooledAllocator *>(alloc)->m_mempool);
 			//						printf("r");
-									delete reinterpret_cast<PooledAllocator *>(alloc);
+									delete palloc;
 									writeBarrier();
+
 									s_allocators[aidx] = 0;
 									//decreasing upper boundary.
 									while(int acnt = s_allocators_ubound) {
