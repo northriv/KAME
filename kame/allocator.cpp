@@ -302,41 +302,36 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 //			ASSERT((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE]));
 			PooledAllocator *palloc = reinterpret_cast<PooledAllocator *>(alloc);
 			if(palloc->deallocate_pooled(p)) {
-				 {
-					if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(alloc & 1u)) {
-						 {
-							int aidx_just_become_vacant = aidx;
-							for(int aidx = s_allocators_ubound - 1; aidx >= 0; --aidx) {
-								if(s_flags_inc_cnt[aidx])
-									continue;
-								uintptr_t alloc = s_allocators[aidx];
-								if( !alloc || (alloc & 1u) || (aidx == aidx_just_become_vacant))
-									continue;
-								if(atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx])) {
-									readBarrier();
-									PooledAllocator *palloc = reinterpret_cast<PooledAllocator *>(alloc);
-									//checking if the pool is really vacant.
-									if( !s_flags_inc_cnt[aidx]) {
-										//releasing memory.
-										mprotect(reinterpret_cast<PooledAllocator *>(alloc)->m_mempool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
-				//						fprintf(stderr, "Freed: %llx\n", (unsigned long long)(uintptr_t)reinterpret_cast<PooledAllocator *>(alloc)->m_mempool);
-										printf("r");
-										delete palloc;
-										writeBarrier();
+				if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(alloc & 1u)) {
+//							int aidx_just_become_vacant = aidx;
+//							for(int aidx = s_allocators_ubound - 1; aidx >= 0; --aidx) {
+//								if(s_flags_inc_cnt[aidx])
+//									continue;
+//								uintptr_t alloc = s_allocators[aidx];
+//								if( !alloc || (alloc & 1u) || (aidx == aidx_just_become_vacant))
+//									continue;
+					if(atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx])) {
+						readBarrier();
+						PooledAllocator *palloc = reinterpret_cast<PooledAllocator *>(alloc);
+						//checking if the pool is really vacant.
+						if( !s_flags_inc_cnt[aidx]) {
+							//releasing memory.
+							mprotect(reinterpret_cast<PooledAllocator *>(alloc)->m_mempool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
+	//						fprintf(stderr, "Freed: %llx\n", (unsigned long long)(uintptr_t)reinterpret_cast<PooledAllocator *>(alloc)->m_mempool);
+							printf("r");
+							delete palloc;
+							writeBarrier();
 
-										s_allocators[aidx] = 0;
-										//decreasing upper boundary.
-										while(int acnt = s_allocators_ubound) {
-											if(s_allocators[acnt - 1])
-												break;
-											atomicCompareAndSet(acnt, acnt - 1, &s_allocators_ubound);
-										}
-									}
-									else {
-										s_allocators[aidx] = alloc;
-									}
-								}
+							s_allocators[aidx] = 0;
+							//decreasing upper boundary.
+							while(int acnt = s_allocators_ubound) {
+								if(s_allocators[acnt - 1])
+									break;
+								atomicCompareAndSet(acnt, acnt - 1, &s_allocators_ubound);
 							}
+						}
+						else {
+							s_allocators[aidx] = alloc;
 						}
 					}
 				}
@@ -426,8 +421,6 @@ template <unsigned int ALIGN>
 int PooledAllocator<ALIGN>::s_curr_allocator_idx;
 template <unsigned int ALIGN>
 int PooledAllocator<ALIGN>::s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];
-template <unsigned int ALIGN>
-int PooledAllocator<ALIGN>::s_flags_dec_cnt[ALLOC_MAX_ALLOCATORS];
 template <unsigned int ALIGN>
 int PooledAllocator<ALIGN>::s_allocators_ubound;
 template <unsigned int ALIGN>
