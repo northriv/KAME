@@ -234,8 +234,9 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 		ASSERT( !ret);
 		writeBarrier(); //for alloc.
 		s_allocators[aidx] = alloc;
-		while(aidx == s_allocators_cnt) {
-			if(atomicCompareAndSet(aidx, aidx + 1, &s_allocators_cnt))
+		int acnt = s_allocators_ubound;
+		while(aidx >= acnt) {
+			if(atomicCompareAndSet(acnt, aidx + 1, &s_allocators_ubound))
 				break;
 		}
 //		writeBarrier();
@@ -252,19 +253,19 @@ template <unsigned int SIZE>
 inline void *
 PooledAllocator<ALIGN>::allocate() {
 	C_ASSERT(SIZE % ALIGN == 0);
-	int acnt = s_allocators_cnt;
+	int acnt = s_allocators_ubound;
 	int aidx = std::min(s_curr_allocator_idx, acnt - 1);
 	for(int cnt = 0;; ++cnt) {
 		if(cnt == acnt) {
 			readBarrier();
-			if(acnt == s_allocators_cnt) {
-				for(aidx = 0; aidx <= acnt; ++aidx)
+			if(acnt >= s_allocators_ubound) {
+				for(aidx = 0; aidx < ALLOC_MAX_ALLOCATORS - 1; ++aidx)
 					if( !s_allocators[aidx])
 						break;
 				trySetupNewAllocator(aidx);
 			}
 			else {
-				acnt = s_allocators_cnt;
+				acnt = s_allocators_ubound;
 				aidx = std::min(s_curr_allocator_idx, acnt - 1);
 			}
 			cnt = 0;
@@ -314,6 +315,12 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 						delete reinterpret_cast<PooledAllocator *>(alloc);
 						writeBarrier();
 						s_allocators[aidx] = 0;
+						//decreasing upper boundary.
+						while(int acnt = s_allocators_ubound) {
+							if(s_allocators[acnt - 1])
+								break;
+							atomicCompareAndSet(acnt, acnt - 1, &s_allocators_ubound);
+						}
 					}
 					else {
 						s_allocators[aidx] = alloc;
@@ -328,14 +335,14 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 template <unsigned int ALIGN>
 void
 PooledAllocator<ALIGN>::release_pools() {
-	int acnt = s_allocators_cnt;
+	int acnt = s_allocators_ubound;
 	for(int aidx = 0; aidx < acnt; ++aidx) {
 		uintptr_t alloc = s_allocators[aidx];
 		alloc &= ~(uintptr_t)1u;
 		delete reinterpret_cast<PooledAllocator *>(alloc);
 		s_allocators[aidx] = 0;
 	}
-	s_allocators_cnt = 0;
+	s_allocators_ubound = 0;
 	for(int cnt = 0; cnt < MMAP_SPACES_COUNT; ++cnt) {
 		char *mp = s_mmapped_spaces[cnt];
 		if( !mp)
@@ -404,7 +411,7 @@ uintptr_t PooledAllocator<ALIGN>::s_allocators[ALLOC_MAX_ALLOCATORS];
 template <unsigned int ALIGN>
 int PooledAllocator<ALIGN>::s_curr_allocator_idx;
 template <unsigned int ALIGN>
-int PooledAllocator<ALIGN>::s_allocators_cnt;
+int PooledAllocator<ALIGN>::s_allocators_ubound;
 template <unsigned int ALIGN>
 char *PooledAllocator<ALIGN>::s_mmapped_spaces[MMAP_SPACES_COUNT];
 

@@ -55,7 +55,7 @@ private:
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
 	static int s_curr_allocator_idx;
-	static int s_allocators_cnt;
+	static int s_allocators_ubound;
 	void* operator new(size_t size) throw();
 	void operator delete(void* p);
 };
