@@ -65,8 +65,8 @@ inline T find_one_forward(T x) {
 template <unsigned int X, unsigned int SHIFTS, typename T>
 inline T fold_bits(T x) {
 //	printf("%d, %llx\n", SHIFTS, x);
-	if(x == ~(T)0u)
-		return x; //already filled.
+//	if(x == ~(T)0u)
+//		return x; //already filled.
 	if(X <  2 * SHIFTS)
 		return x;
 	x = (x >> SHIFTS) | x;
@@ -169,33 +169,36 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
-	FUINT oldv, one;
-	int idx = this->m_idx;
+	FUINT one;
+	FUINT *pflag = &this->m_flags[this->m_idx];
+	FUINT *pflag_org = pflag;
 	for(;;) {
-		oldv = this->m_flags[idx];
+		FUINT oldv = *pflag;
 		if( ~oldv) {
 			one = find_zero_forward(oldv);
-			ASSERT(count_bits(one) == SIZE / ALIGN);
-			ASSERT( !(one & oldv));
+//			ASSERT(count_bits(one) == SIZE / ALIGN);
+//			ASSERT( !(one & oldv));
 			if(oldv == 0) {
-				this->m_flags[idx] = one;
+				*pflag = one;
+				atomicInc( &this->s_flags_inc_cnt[aidx]);
+				writeBarrier(); //for the counter.
 				break;
 			}
 			else {
 				FUINT newv = oldv | one; //set a flag.
-				if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx]))
+				if(atomicCompareAndSet(oldv, newv, pflag))
 					break;
 			}
 		}
-		idx = (idx + 1) % FLAGS_COUNT;
-		if(idx == this->m_idx)
+		pflag++;
+		if(pflag == &this->m_flags[FLAGS_COUNT])
+			pflag = this->m_flags;
+		if(pflag == pflag_org)
 			return 0;
 	}
 
+	int idx = pflag - this->m_flags;
 	this->m_idx = idx;
-
-	if(oldv == 0)
-		atomicInc( &this->s_flags_inc_cnt[aidx]);
 
 	int sidx = count_zeros_forward(one);
 
@@ -231,10 +234,11 @@ template <unsigned int ALIGN, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
-	FUINT oldv, ones, cand;
-	int idx = this->m_idx;
+	FUINT ones, cand;
+	FUINT *pflag = &this->m_flags[this->m_idx];
+	FUINT *pflag_org = pflag;
 	for(;;) {
-		oldv = this->m_flags[idx];
+		FUINT oldv = *pflag;
 		cand = find_training_zeros<SIZE / ALIGN>(oldv);
 		if(cand) {
 			ones = cand *
@@ -242,24 +246,26 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 //			ASSERT(count_bits(ones) == SIZE / ALIGN);
 //			ASSERT( !(ones & oldv));
 			if(oldv == 0) {
-				this->m_flags[idx] = ones;
+				*pflag = ones;
+				atomicInc( &this->s_flags_inc_cnt[aidx]);
+				writeBarrier(); //for the counter.
 				break;
 			}
 			else {
 				FUINT newv = oldv | ones; //filling with SIZE ones.
-				if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx]))
+				if(atomicCompareAndSet(oldv, newv, pflag))
 					break;
 			}
 		}
-		idx = (idx + 1) % FLAGS_COUNT;
-		if(idx == this->m_idx)
+		pflag++;
+		if(pflag == &this->m_flags[FLAGS_COUNT])
+			pflag = this->m_flags;
+		if(pflag == pflag_org)
 			return 0;
 	}
 
+	int idx = pflag - this->m_flags;
 	this->m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % FLAGS_COUNT);
-
-	if(oldv == 0)
-		atomicInc( &this->s_flags_inc_cnt[aidx]);
 
 	FUINT sizes_old = m_sizes[idx];
 	FUINT sizes_new = (sizes_old | ones) & ~(cand << (SIZE / ALIGN - 1u));
@@ -346,13 +352,12 @@ PooledAllocator<ALIGN, FS, DUMMY>::allocate() {
 		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx]))) {
 			readBarrier();
 			if(void *p = reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>(aidx)) {
-				s_curr_allocator_idx = aidx;
 	//			fprintf(stderr, "a: %llx\n", (unsigned long long)(uintptr_t)p);
 //				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
 //					static_cast<uint64_t *>(p)[i] = 0; //zero clear.
 
-				writeBarrier(); //for the size and counter.
 				s_allocators[aidx] = alloc;
+				s_curr_allocator_idx = aidx;
 				return p;
 			}
 			s_allocators[aidx] = alloc;
@@ -466,7 +471,6 @@ PooledAllocator<ALIGN, FS, DUMMY>::operator delete(void* p) {
 }
 
 void* __allocate_large_size_or_malloc(size_t size) throw() {
-	__ALLOCATE_9_16X(2, size);
 	__ALLOCATE_9_16X(4, size);
 	__ALLOCATE_9_16X(8, size);
 	__ALLOCATE_9_16X(16, size);
@@ -556,6 +560,13 @@ template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE12)>::allocate<ALLOC_SIZE12
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE13)>::allocate<ALLOC_SIZE13>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * 2)>::allocate<ALLOC_SIZE9 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE10 * 2)>::allocate<ALLOC_SIZE10 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE11 * 2)>::allocate<ALLOC_SIZE11 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE12 * 2)>::allocate<ALLOC_SIZE12 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE13 * 2)>::allocate<ALLOC_SIZE13 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14 * 2)>::allocate<ALLOC_SIZE14 * 2>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * 2)>::allocate<ALLOC_SIZE16 * 2>();
 
 //struct _PoolReleaser {
 //	~_PoolReleaser() {

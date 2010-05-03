@@ -18,8 +18,9 @@
 #include <new>
 #include <stdint.h>
 #include <stdlib.h>
+#include <limits>
 
-#define ALLOC_MEMPOOL_SIZE (1024 * 512) //512KiB
+#define ALLOC_MEMPOOL_SIZE (1024 * 256) //256KiB
 #define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
@@ -143,6 +144,7 @@ inline void* operator new(size_t size) throw() {
 		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
 	}
 	__ALLOCATE_9_16X(1, size);
+	__ALLOCATE_9_16X(2, size);
 	return __allocate_large_size_or_malloc(size);
 }
 inline void* operator new[](size_t size) throw() {
@@ -160,5 +162,58 @@ inline void operator delete[](void* p) throw() {
 }
 
 void release_pools();
+
+template<typename T>
+class allocator {
+public:
+	typedef size_t size_type;
+	typedef ptrdiff_t difference_type;
+	typedef T* pointer;
+	typedef const T* const_pointer;
+	typedef T& reference;
+	typedef const T& const_reference;
+	typedef T value_type;
+
+	template<class Y>
+	struct rebind {
+		typedef allocator<Y> other;
+	};
+
+	allocator() throw () { }
+	allocator(const allocator&) throw () { }
+	template<typename Y> allocator(const allocator<Y> &) throw () {}
+	~allocator() throw () {}
+
+	pointer allocate(size_type num, const void *hint = 0) {
+		return (pointer) (operator new(num * sizeof(T)));
+	}
+	void construct(pointer p, const T& value) {
+		new((void*) p) T(value);
+	}
+
+	void deallocate(pointer p, size_type num) {
+		operator delete((void *) p);
+	}
+	void destroy(pointer p) {
+		p->~T();
+	}
+
+	pointer address(reference value) const {
+		return &value;
+	}
+	const_pointer address(const_reference value) const {
+		return &value;
+	}
+
+	size_type max_size() const throw () {
+		return std::numeric_limits<size_t>::max() / sizeof(T);
+	}
+};
+
+template <class T1, class T2>
+bool operator==(const allocator<T1>&, const allocator<T2>&) throw() { return true; }
+
+template <class T1, class T2>
+bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() { return false; }
 
 #endif /* ALLOCATOR_H_ */
