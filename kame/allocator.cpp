@@ -133,35 +133,108 @@ void free_munmap(void *p) {
 		ASSERT( !ret);
 }
 
-template <unsigned int ALIGN>
-PooledAllocator<ALIGN>::PooledAllocator(char *addr)  : m_mempool(addr), m_idx(0) {
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+PooledAllocator<ALIGN, FS, DUMMY>::PooledAllocator(char *addr)  : m_mempool(addr), m_idx(0) {
 	memset(m_flags, 0, FLAGS_COUNT * sizeof(FUINT));
 //	memset(m_sizes, 0, FLAGS_COUNT * sizeof(FUINT));
-	ASSERT((uintptr_t)m_mempool % ALIGN == 0);
 //	memoryBarrier();
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
-PooledAllocator<ALIGN>::report_leaks() {
+PooledAllocator<ALIGN, FS, DUMMY>::report_leaks() {
 	for(int idx = 0; idx < FLAGS_COUNT; ++idx) {
 		while(m_flags[idx]) {
 			int sidx = count_zeros_forward(find_one_forward(m_flags[idx]));
+			fprintf(stderr, "Leak found for %dB @ %llx.\n", (int)(ALIGN),
+				(unsigned long long)(uintptr_t) &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN]);
+			m_flags[idx] &= ~(1u << sidx);
+		}
+	}
+}
+template <unsigned int ALIGN, bool DUMMY>
+void
+PooledAllocator<ALIGN, false, DUMMY>::report_leaks() {
+	for(int idx = 0; idx < FLAGS_COUNT; ++idx) {
+		while(this->m_flags[idx]) {
+			int sidx = count_zeros_forward(find_one_forward(this->m_flags[idx]));
 			int size = count_zeros_forward(find_zero_forward(m_sizes[idx] >> sidx)) + 1;
 			fprintf(stderr, "Leak found for %dB @ %llx.\n", (int)(size * ALIGN),
-				(unsigned long long)(uintptr_t) &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN]);
-			m_flags[idx] &= ~((2 *(((FUINT)1u << (size - 1)) - 1u) + 1u) << sidx);
+				(unsigned long long)(uintptr_t) &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN]);
+			this->m_flags[idx] &= ~((2 *(((FUINT)1u << (size - 1)) - 1u) + 1u) << sidx);
 		}
 	}
 }
 
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
-PooledAllocator<ALIGN>::allocate_pooled(int aidx) {
-	FUINT oldv, ones, cand;
-	int idx = m_idx;
+PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
+	FUINT oldv, one;
+	int idx = this->m_idx;
 	for(;;) {
-		oldv = m_flags[idx];
+		oldv = this->m_flags[idx];
+		if( ~oldv) {
+			one = find_zero_forward(oldv);
+			ASSERT(count_bits(one) == SIZE / ALIGN);
+			ASSERT( !(one & oldv));
+			if(oldv == 0) {
+				this->m_flags[idx] = one;
+				break;
+			}
+			else {
+				FUINT newv = oldv | one; //set a flag.
+				if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx]))
+					break;
+			}
+		}
+		idx = (idx + 1) % FLAGS_COUNT;
+		if(idx == this->m_idx)
+			return 0;
+	}
+
+	this->m_idx = idx;
+
+	if(oldv == 0)
+		atomicInc( &this->s_flags_inc_cnt[aidx]);
+
+	int sidx = count_zeros_forward(one);
+
+	return &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline bool
+PooledAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
+	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
+	int idx = midx / (sizeof(FUINT) * 8);
+	unsigned int sidx = midx % (sizeof(FUINT) * 8);
+
+	FUINT none = ~((FUINT)1u << sidx);
+
+	writeBarrier(); //for the pooled memory
+	for(;;) {
+		FUINT oldv = this->m_flags[idx];
+		FUINT newv = oldv & none;
+//		fprintf(stderr, "d: %llx, %d, %x, %x, %x\n", (unsigned long long)(uintptr_t)p, idx, oldv, newv, ones);
+		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
+			ASSERT(( oldv | none) == ~(FUINT)0); //checking for double free.
+//			m_idx = idx; //writing a hint for a next allocation.
+			if(newv == 0)
+				return true;
+			break;
+		}
+	}
+	return false;
+}
+
+
+template <unsigned int ALIGN, bool DUMMY>
+template <unsigned int SIZE>
+inline void *
+PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
+	FUINT oldv, ones, cand;
+	int idx = this->m_idx;
+	for(;;) {
+		oldv = this->m_flags[idx];
 		cand = find_training_zeros<SIZE / ALIGN>(oldv);
 		if(cand) {
 			ones = cand *
@@ -169,24 +242,24 @@ PooledAllocator<ALIGN>::allocate_pooled(int aidx) {
 //			ASSERT(count_bits(ones) == SIZE / ALIGN);
 //			ASSERT( !(ones & oldv));
 			if(oldv == 0) {
-				m_flags[idx] = ones;
+				this->m_flags[idx] = ones;
 				break;
 			}
 			else {
 				FUINT newv = oldv | ones; //filling with SIZE ones.
-				if(atomicCompareAndSet(oldv, newv, &m_flags[idx]))
+				if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx]))
 					break;
 			}
 		}
 		idx = (idx + 1) % FLAGS_COUNT;
-		if(idx == m_idx)
+		if(idx == this->m_idx)
 			return 0;
 	}
 
-	m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % FLAGS_COUNT);
+	this->m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % FLAGS_COUNT);
 
 	if(oldv == 0)
-		atomicInc( &s_flags_inc_cnt[aidx]);
+		atomicInc( &this->s_flags_inc_cnt[aidx]);
 
 	FUINT sizes_old = m_sizes[idx];
 	FUINT sizes_new = (sizes_old | ones) & ~(cand << (SIZE / ALIGN - 1u));
@@ -195,12 +268,12 @@ PooledAllocator<ALIGN>::allocate_pooled(int aidx) {
 
 	int sidx = count_zeros_forward(cand);
 
-	return &m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+	return &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool DUMMY>
 inline bool
-PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
-	int midx = static_cast<size_t>((char *)p - m_mempool) / ALIGN;
+PooledAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
+	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
 
@@ -209,10 +282,10 @@ PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
 
 	writeBarrier(); //for the pooled memory
 	for(;;) {
-		FUINT oldv = m_flags[idx];
+		FUINT oldv = this->m_flags[idx];
 		FUINT newv = oldv & nones;
 //		fprintf(stderr, "d: %llx, %d, %x, %x, %x\n", (unsigned long long)(uintptr_t)p, idx, oldv, newv, ones);
-		if(atomicCompareAndSet(oldv, newv, &m_flags[idx])) {
+		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
 			ASSERT(( oldv | nones) == ~(FUINT)0); //checking for double free.
 //			m_idx = idx; //writing a hint for a next allocation.
 			if(newv == 0)
@@ -222,9 +295,9 @@ PooledAllocator<ALIGN>::deallocate_pooled(void *p) {
 	}
 	return false;
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
-PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
+PooledAllocator<ALIGN, FS, DUMMY>::trySetupNewAllocator(int aidx) {
 	while( !s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE]) {
 		int ps = getpagesize();
 		ASSERT(ALLOC_MEMPOOL_SIZE % ps == 0);
@@ -232,7 +305,8 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 			mmap(0, MMAP_SPACE_SIZE, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
 		ASSERT(p != MAP_FAILED);
 		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE])) {
-			fprintf(stderr, "Reserve swap space for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
+			fprintf(stderr, "Reserve swap space for %dB %s, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
+				DUMMY ? "fixed" : "aligned",
 				(unsigned long long)p,
 				(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
 			break;
@@ -241,9 +315,10 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 	}
 	if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_allocators[aidx])) {
 		char *addr =
-			s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE] + ALLOC_MEMPOOL_SIZE * (aidx % NUM_ALLOCATORS_IN_SPACE);
+			s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE] +
+			ALLOC_MEMPOOL_SIZE * (aidx % NUM_ALLOCATORS_IN_SPACE);
 		int ret = mprotect(addr, ALLOC_MEMPOOL_SIZE, PROT_READ | PROT_WRITE);
-		uintptr_t alloc = reinterpret_cast<uintptr_t>(new PooledAllocator(addr));
+		uintptr_t alloc = reinterpret_cast<uintptr_t>(new PooledAllocator<ALIGN, DUMMY, DUMMY>(addr));
 		ASSERT( !ret);
 		writeBarrier(); //for alloc.
 		s_allocators[aidx] = alloc;
@@ -261,17 +336,16 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 	}
 	return false;
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
-PooledAllocator<ALIGN>::allocate() {
-	C_ASSERT(SIZE % ALIGN == 0);
+PooledAllocator<ALIGN, FS, DUMMY>::allocate() {
 	int aidx = s_curr_allocator_idx;
 	for(int cnt = 0;; ++cnt) {
 		uintptr_t alloc = s_allocators[aidx];
 		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx]))) {
 			readBarrier();
-			if(void *p = reinterpret_cast<PooledAllocator *>(alloc)->allocate_pooled<SIZE>(aidx)) {
+			if(void *p = reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>(aidx)) {
 				s_curr_allocator_idx = aidx;
 	//			fprintf(stderr, "a: %llx\n", (unsigned long long)(uintptr_t)p);
 //				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
@@ -298,9 +372,9 @@ PooledAllocator<ALIGN>::allocate() {
 //		s_curr_allocator_idx = aidx;
 	}
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
-PooledAllocator<ALIGN>::releaseAllocator(uintptr_t alloc, int aidx) {
+PooledAllocator<ALIGN, FS, DUMMY>::releaseAllocator(uintptr_t alloc, int aidx) {
 //							int aidx_just_become_vacant = aidx;
 //							for(int aidx = s_allocators_ubound - 1; aidx >= 0; --aidx) {
 //								if(s_flags_inc_cnt[aidx])
@@ -310,7 +384,8 @@ PooledAllocator<ALIGN>::releaseAllocator(uintptr_t alloc, int aidx) {
 //									continue;
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx])) {
 		readBarrier();
-		PooledAllocator *palloc = reinterpret_cast<PooledAllocator *>(alloc);
+		PooledAllocator<ALIGN, DUMMY, DUMMY> *palloc =
+			reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
 		//checking if the pool is really vacant.
 		if( !s_flags_inc_cnt[aidx]) {
 			//releasing memory.
@@ -333,9 +408,9 @@ PooledAllocator<ALIGN>::releaseAllocator(uintptr_t alloc, int aidx) {
 		}
 	}
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline bool
-PooledAllocator<ALIGN>::deallocate(void *p) {
+PooledAllocator<ALIGN, FS, DUMMY>::deallocate(void *p) {
 	for(int cnt = 0; cnt < MMAP_SPACES_COUNT; ++cnt) {
 		char *mp = s_mmapped_spaces[cnt];
 		if( !mp)
@@ -345,7 +420,7 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 			uintptr_t alloc = s_allocators[aidx];
 			alloc &= ~(uintptr_t)1u;
 //			ASSERT((p >= alloc->m_mempool) && (p < &alloc->m_mempool[ALLOC_MEMPOOL_SIZE]));
-			PooledAllocator *palloc = reinterpret_cast<PooledAllocator *>(alloc);
+			PooledAllocator<ALIGN, DUMMY, DUMMY> *palloc = reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
 			if(palloc->deallocate_pooled(p)) {
 				if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(s_allocators[aidx] & 1u)) {
 					releaseAllocator(alloc, aidx);
@@ -357,15 +432,15 @@ PooledAllocator<ALIGN>::deallocate(void *p) {
 	}
 	return false;
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
-PooledAllocator<ALIGN>::release_pools() {
+PooledAllocator<ALIGN, FS, DUMMY>::release_pools() {
 	int acnt = s_allocators_ubound;
 	for(int aidx = 0; aidx < acnt; ++aidx) {
 		uintptr_t alloc = s_allocators[aidx];
 		alloc &= ~(uintptr_t)1u;
-		reinterpret_cast<PooledAllocator *>(alloc)->report_leaks();
-		delete reinterpret_cast<PooledAllocator *>(alloc);
+		reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->report_leaks();
+		delete reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
 		s_allocators[aidx] = 0;
 	}
 	s_allocators_ubound = 0;
@@ -379,15 +454,15 @@ PooledAllocator<ALIGN>::release_pools() {
 		ASSERT( !ret);
 	}
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 void*
-PooledAllocator<ALIGN>::operator new(size_t size) throw() {
-	return malloc_mmap(size);
+PooledAllocator<ALIGN, FS, DUMMY>::operator new(size_t size) throw() {
+	return malloc(size);
 }
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
-PooledAllocator<ALIGN>::operator delete(void* p) {
-	free_munmap(p);
+PooledAllocator<ALIGN, FS, DUMMY>::operator delete(void* p) {
+	free(p);
 }
 
 void* __allocate_large_size_or_malloc(size_t size) throw() {
@@ -401,7 +476,21 @@ void* __allocate_large_size_or_malloc(size_t size) throw() {
 }
 
 void __deallocate_pooled_or_free(void* p) throw() {
+	if(PooledAllocator<ALLOC_SIZE1, true>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE2, true>::deallocate(p))
+		return;
 	if(PooledAllocator<ALLOC_ALIGN1>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE3, true>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE4, true>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE5, true>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE6, true>::deallocate(p))
+		return;
+	if(PooledAllocator<ALLOC_SIZE7, true>::deallocate(p))
 		return;
 	if(PooledAllocator<ALLOC_ALIGN2>::deallocate(p))
 		return;
@@ -413,6 +502,13 @@ void __deallocate_pooled_or_free(void* p) throw() {
 }
 
 void release_pools() {
+	PooledAllocator<ALLOC_SIZE1, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE2, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE3, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE4, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE5, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE6, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE7, true>::release_pools();
 	PooledAllocator<ALLOC_ALIGN1>::release_pools();
 	PooledAllocator<ALLOC_ALIGN2>::release_pools();
 #if defined ALLOC_ALIGN3
@@ -420,16 +516,16 @@ void release_pools() {
 #endif
 }
 
-template <unsigned int ALIGN>
-uintptr_t PooledAllocator<ALIGN>::s_allocators[ALLOC_MAX_ALLOCATORS];
-template <unsigned int ALIGN>
-int PooledAllocator<ALIGN>::s_curr_allocator_idx;
-template <unsigned int ALIGN>
-int PooledAllocator<ALIGN>::s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];
-template <unsigned int ALIGN>
-int PooledAllocator<ALIGN>::s_allocators_ubound;
-template <unsigned int ALIGN>
-char *PooledAllocator<ALIGN>::s_mmapped_spaces[MMAP_SPACES_COUNT];
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+uintptr_t PooledAllocator<ALIGN, FS, DUMMY>::s_allocators[ALLOC_MAX_ALLOCATORS];
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+int PooledAllocator<ALIGN, FS, DUMMY>::s_curr_allocator_idx;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+int PooledAllocator<ALIGN, FS, DUMMY>::s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+int PooledAllocator<ALIGN, FS, DUMMY>::s_allocators_ubound;
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+char *PooledAllocator<ALIGN, FS, DUMMY>::s_mmapped_spaces[MMAP_SPACES_COUNT];
 
 template class PooledAllocator<ALLOC_ALIGN1>;
 template class PooledAllocator<ALLOC_ALIGN2>;
@@ -437,13 +533,21 @@ template class PooledAllocator<ALLOC_ALIGN2>;
 	template class PooledAllocator<ALLOC_ALIGN3>;
 #endif
 
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE1)>::allocate<ALLOC_SIZE1>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE2)>::allocate<ALLOC_SIZE2>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE3)>::allocate<ALLOC_SIZE3>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE4)>::allocate<ALLOC_SIZE4>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE5)>::allocate<ALLOC_SIZE5>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE7)>::allocate<ALLOC_SIZE7>();
+template class PooledAllocator<ALLOC_SIZE1, true>;
+template class PooledAllocator<ALLOC_SIZE2, true>;
+template class PooledAllocator<ALLOC_SIZE3, true>;
+template class PooledAllocator<ALLOC_SIZE4, true>;
+template class PooledAllocator<ALLOC_SIZE5, true>;
+template class PooledAllocator<ALLOC_SIZE6, true>;
+template class PooledAllocator<ALLOC_SIZE7, true>;
+
+template void *PooledAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
+template void *PooledAllocator<ALLOC_SIZE2, true>::allocate<ALLOC_SIZE2>();
+template void *PooledAllocator<ALLOC_SIZE3, true>::allocate<ALLOC_SIZE3>();
+template void *PooledAllocator<ALLOC_SIZE4, true>::allocate<ALLOC_SIZE4>();
+template void *PooledAllocator<ALLOC_SIZE5, true>::allocate<ALLOC_SIZE5>();
+template void *PooledAllocator<ALLOC_SIZE6, true>::allocate<ALLOC_SIZE6>();
+template void *PooledAllocator<ALLOC_SIZE7, true>::allocate<ALLOC_SIZE7>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9)>::allocate<ALLOC_SIZE9>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE10)>::allocate<ALLOC_SIZE10>();

@@ -27,17 +27,17 @@
 //! Arbitrary sizes of memory in a unit of double-quad word less than 4KiB
 //! can be allocated from a memory pool. The larger memory is provided by malloc().
 //! \sa allocator_test.cpp.
-template <unsigned int ALIGN>
+template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PooledAllocator {
 public:
 	template <unsigned int SIZE>
-	static void *allocate() ;
+	static void *allocate();
 	static inline bool deallocate(void *p);
 	static void release_pools();
 	void report_leaks();
 
 	typedef uintptr_t FUINT;
-private:
+protected:
 	PooledAllocator(char *addr);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
@@ -45,13 +45,12 @@ private:
 	static bool trySetupNewAllocator(int aidx);
 	static void releaseAllocator(uintptr_t alloc, int aidx);
 	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALIGN / sizeof(FUINT) / 8};
-	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 16, //16MiB
+	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 8, //8MiB
 		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
 		MMAP_SPACES_COUNT = ALLOC_MAX_ALLOCATORS / NUM_ALLOCATORS_IN_SPACE};
 	char *m_mempool;
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
-	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
 	static int s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];
@@ -59,6 +58,22 @@ private:
 	static int s_allocators_ubound;
 	void* operator new(size_t size) throw();
 	void operator delete(void* p);
+};
+
+template <unsigned int ALIGN, bool DUMMY>
+class PooledAllocator<ALIGN, false, DUMMY> : public PooledAllocator<ALIGN, true, false> {
+public:
+	void report_leaks();
+	typedef typename PooledAllocator<ALIGN, true, false>::FUINT FUINT;
+protected:
+	enum {FLAGS_COUNT = PooledAllocator<ALIGN, true, false>::FLAGS_COUNT};
+	PooledAllocator(char *addr) : PooledAllocator<ALIGN, true, false>(addr) {}
+	template <unsigned int SIZE>
+	inline void *allocate_pooled(int aidx);
+	inline bool deallocate_pooled(void *p);
+private:
+	template <unsigned int, bool, bool> friend class PooledAllocator;
+	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT)
@@ -111,20 +126,20 @@ void* __allocate_large_size_or_malloc(size_t size) throw();
 inline void* operator new(size_t size) throw() {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
 	if(size <= ALLOC_SIZE1)
-		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE1)>::allocate<ALLOC_SIZE1>();
+		return PooledAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
 	if(size <= ALLOC_SIZE2)
-		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE2)>::allocate<ALLOC_SIZE2>();
+		return PooledAllocator<ALLOC_SIZE2, true>::allocate<ALLOC_SIZE2>();
 	if(size <= ALLOC_SIZE3)
-		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE3)>::allocate<ALLOC_SIZE3>();
+		return PooledAllocator<ALLOC_SIZE3, true>::allocate<ALLOC_SIZE3>();
 	if(size <= ALLOC_SIZE4)
-		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE4)>::allocate<ALLOC_SIZE4>();
+		return PooledAllocator<ALLOC_SIZE4, true>::allocate<ALLOC_SIZE4>();
 	if(size <= ALLOC_SIZE8) {
 		if(size <= ALLOC_SIZE5)
-			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE5)>::allocate<ALLOC_SIZE5>();
+			return PooledAllocator<ALLOC_SIZE5, true>::allocate<ALLOC_SIZE5>();
 		if(size <= ALLOC_SIZE6)
-			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
+			return PooledAllocator<ALLOC_SIZE6, true>::allocate<ALLOC_SIZE6>();
 		if(size <= ALLOC_SIZE7)
-			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE7)>::allocate<ALLOC_SIZE7>();
+			return PooledAllocator<ALLOC_SIZE7, true>::allocate<ALLOC_SIZE7>();
 		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
 	}
 	__ALLOCATE_9_16X(1, size);
