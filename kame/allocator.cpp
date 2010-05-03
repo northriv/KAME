@@ -216,7 +216,6 @@ PooledAllocator<ALIGN>::trySetupNewAllocator(int aidx) {
 			fprintf(stderr, "Reserve swap space for %dB aligned, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
 				(unsigned long long)p,
 				(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
-			writeBarrier();
 			break;
 		}
 		munmap(p, MMAP_SPACE_SIZE);

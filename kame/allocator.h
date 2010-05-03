@@ -30,11 +30,11 @@
 template <unsigned int ALIGN>
 class PooledAllocator {
 public:
-	~PooledAllocator();
 	template <unsigned int SIZE>
 	static void *allocate() ;
 	static inline bool deallocate(void *p);
 	static void release_pools();
+	void report_leaks();
 
 	typedef uintptr_t FUINT;
 private:
