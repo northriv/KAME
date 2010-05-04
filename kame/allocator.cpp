@@ -14,7 +14,6 @@
 
 #include "allocator_prv.h"
 
-#include "support.h"
 #include "atomic.h"
 
 #include <string.h>

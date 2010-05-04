@@ -22,7 +22,7 @@ bool g_bUseMLock;
 #include <iostream>
 #include <fstream>
 
-#include <thread.h>
+#include "thread.h"
 #define KAME_LOG_FILENAME "/tmp/kame.log"
 
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
@@ -70,8 +70,7 @@ void kame_gc::operator delete(void *obj) {
 #ifdef __linux__
 #include <execinfo.h>
 #endif
-void my_assert(const char *file, int line)
-{
+int _my_assert(const char *file, int line) {
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	XString msg = formatString("assertion failed %s:%d\n",file,line);
 	g_debugofs << msg;
@@ -87,6 +86,7 @@ void my_assert(const char *file, int line)
 	close(fd);
 #endif
 	abort();
+	return -1;
 }
 #endif // NDEBUG
 

@@ -3,7 +3,10 @@
 //#include "xtime.h"
 
 #include "support.h"
-#include "allocator.h" //lock-free custom new()/delete(). Comment this out to use the original operators.
+
+//For inline expansion of lock-free custom new()/delete() operators.
+//Comment out this and '#include "allocator.cpp"' in support.cpp to use the original operators.
+#include "allocator.h"
 
 #include <stdint.h>
 

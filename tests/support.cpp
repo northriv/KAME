@@ -15,9 +15,10 @@
 #include "atomic.h"
 #include "allocator.cpp"
 
-void my_assert(char const*s, int d) {
+int _my_assert(char const*s, int d) {
         fprintf(stderr, "Err:%s:%d\n", s, d);
         abort();
+        return -1;
 }
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__

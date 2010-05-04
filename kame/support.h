@@ -21,8 +21,6 @@
 #include <config.h>
 #endif
 
-#include "allocator.h"
-
 #ifdef WORDS_BIGENDIAN
 #ifndef __BIG_ENDIAN__
 #define __BIG_ENDIAN__
