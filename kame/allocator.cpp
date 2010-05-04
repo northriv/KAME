@@ -171,8 +171,7 @@ inline void *
 PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 	FUINT one;
 	FUINT *pflag = &this->m_flags[this->m_idx];
-	FUINT *pflag_org = pflag;
-	for(;;) {
+	for(int cnt = 0;;) {
 		FUINT oldv = *pflag;
 		if( ~oldv) {
 			one = find_zero_forward(oldv);
@@ -194,7 +193,8 @@ PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 		pflag++;
 		if(pflag == &this->m_flags[FLAGS_COUNT])
 			pflag = this->m_flags;
-		if(pflag == pflag_org)
+		cnt++;
+		if(cnt >= FLAGS_COUNT)
 			return 0;
 	}
 
@@ -235,11 +235,10 @@ template <unsigned int ALIGN, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
-	FUINT ones, cand;
+	FUINT oldv, ones, cand;
 	FUINT *pflag = &this->m_flags[this->m_idx];
-	FUINT *pflag_org = pflag;
-	for(;;) {
-		FUINT oldv = *pflag;
+	for(int cnt = 0;;) {
+		oldv = *pflag;
 		cand = find_training_zeros<SIZE / ALIGN>(oldv);
 		if(cand) {
 			ones = cand *
@@ -249,7 +248,6 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 			if(oldv == 0) {
 				*pflag = ones;
 				atomicInc( &this->s_flags_inc_cnt[aidx]);
-				writeBarrier(); //for the counter.
 				break;
 			}
 			else {
@@ -262,7 +260,8 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 		pflag++;
 		if(pflag == &this->m_flags[FLAGS_COUNT])
 			pflag = this->m_flags;
-		if(pflag == pflag_org)
+		cnt++;
+		if(cnt >= FLAGS_COUNT)
 			return 0;
 	}
 
@@ -272,7 +271,10 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 	FUINT sizes_old = m_sizes[idx];
 	FUINT sizes_new = (sizes_old | ones) & ~(cand << (SIZE / ALIGN - 1u));
 //					ASSERT((~sizes_new & ones) == cand << (SIZE / ALIGN - 1u));
-	m_sizes[idx] = sizes_new;
+	if((oldv == 0) || (sizes_old != sizes_new)) {
+		m_sizes[idx] = sizes_new;
+		writeBarrier(); //for the counter and m_sizes.
+	}
 
 	int sidx = count_zeros_forward(cand);
 
@@ -476,7 +478,8 @@ void* __allocate_large_size_or_malloc(size_t size) throw() {
 	__ALLOCATE_9_16X(4, size);
 	__ALLOCATE_9_16X(8, size);
 	__ALLOCATE_9_16X(16, size);
-	__ALLOCATE_9_16X(32, size); //to 4KB.
+	__ALLOCATE_9_16X(32, size);
+	__ALLOCATE_9_16X(64, size);
 
 	return malloc(size);
 }
@@ -494,16 +497,16 @@ void __deallocate_pooled_or_free(void* p) throw() {
 		return;
 	if(PooledAllocator<ALLOC_SIZE5, true>::deallocate(p))
 		return;
-	if(PooledAllocator<ALLOC_SIZE6, true>::deallocate(p))
+	if(PooledAllocator<ALLOC_ALIGN2>::deallocate(p))
 		return;
 	if(PooledAllocator<ALLOC_SIZE7, true>::deallocate(p))
-		return;
-	if(PooledAllocator<ALLOC_ALIGN2>::deallocate(p))
 		return;
 #if defined ALLOC_ALIGN3
 	if(PooledAllocator<ALLOC_ALIGN3>::deallocate(p))
 		return;
 #endif
+	if(PooledAllocator<ALLOC_SIZE9, true>::deallocate(p))
+		return;
 	free(p);
 }
 
@@ -513,8 +516,8 @@ void release_pools() {
 	PooledAllocator<ALLOC_SIZE3, true>::release_pools();
 	PooledAllocator<ALLOC_SIZE4, true>::release_pools();
 	PooledAllocator<ALLOC_SIZE5, true>::release_pools();
-	PooledAllocator<ALLOC_SIZE6, true>::release_pools();
 	PooledAllocator<ALLOC_SIZE7, true>::release_pools();
+	PooledAllocator<ALLOC_SIZE9, true>::release_pools();
 	PooledAllocator<ALLOC_ALIGN1>::release_pools();
 	PooledAllocator<ALLOC_ALIGN2>::release_pools();
 #if defined ALLOC_ALIGN3
@@ -570,22 +573,20 @@ template class PooledAllocator<ALLOC_SIZE2, true>;
 template class PooledAllocator<ALLOC_SIZE3, true>;
 template class PooledAllocator<ALLOC_SIZE4, true>;
 template class PooledAllocator<ALLOC_SIZE5, true>;
-template class PooledAllocator<ALLOC_SIZE6, true>;
 template class PooledAllocator<ALLOC_SIZE7, true>;
+template class PooledAllocator<ALLOC_SIZE9, true>;
 
 template void *PooledAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
 template void *PooledAllocator<ALLOC_SIZE2, true>::allocate<ALLOC_SIZE2>();
 template void *PooledAllocator<ALLOC_SIZE3, true>::allocate<ALLOC_SIZE3>();
 template void *PooledAllocator<ALLOC_SIZE4, true>::allocate<ALLOC_SIZE4>();
 template void *PooledAllocator<ALLOC_SIZE5, true>::allocate<ALLOC_SIZE5>();
-template void *PooledAllocator<ALLOC_SIZE6, true>::allocate<ALLOC_SIZE6>();
+template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
 template void *PooledAllocator<ALLOC_SIZE7, true>::allocate<ALLOC_SIZE7>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9)>::allocate<ALLOC_SIZE9>();
+template void *PooledAllocator<ALLOC_SIZE9, true>::allocate<ALLOC_SIZE9>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE10)>::allocate<ALLOC_SIZE10>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE11)>::allocate<ALLOC_SIZE11>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE12)>::allocate<ALLOC_SIZE12>();
-template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE13)>::allocate<ALLOC_SIZE13>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
 template void *PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * 2)>::allocate<ALLOC_SIZE9 * 2>();

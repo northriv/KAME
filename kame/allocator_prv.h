@@ -21,10 +21,10 @@
 #include <limits>
 
 #define ALLOC_MEMPOOL_SIZE (1024 * 256) //256KiB
-#define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
+#define ALLOC_MAX_ALLOCATORS (1024 * 4) //2GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
-//! \brief Memory blocks in a unit of double-quad word less than 4KiB
+//! \brief Memory blocks in a unit of double-quad word less than 8KiB
 //! can be allocated from fixed-size or variable-size memory pools.
 //! \tparam FS determines fixed-size or variable-size.
 //! \sa allocator_test.cpp.
@@ -46,7 +46,7 @@ protected:
 	static bool trySetupNewAllocator(int aidx);
 	static void releaseAllocator(uintptr_t alloc, int aidx);
 	enum {FLAGS_COUNT = ALLOC_MEMPOOL_SIZE / ALIGN / sizeof(FUINT) / 8};
-	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 8, //8MiB
+	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 16, //16MiB
 		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
 		MMAP_SPACES_COUNT = ALLOC_MAX_ALLOCATORS / NUM_ALLOCATORS_IN_SPACE};
 	char *m_mempool;
@@ -77,15 +77,18 @@ private:
 	FUINT m_sizes[FLAGS_COUNT]; //zero at the MSB indicates the end of the allocated area.
 };
 
-#define ALLOC_ALIGN1 (ALLOC_ALIGNMENT)
+#define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
 #if defined __LP64__ || defined __LLP64__
-	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 8)
+	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 16)
 	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
+//	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
 #else
-	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 4)
-	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 16)
-	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 : \
+	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 8)
+	#define ALLOC_ALIGN3 (ALLOC_ALIGNMENT * 32)
+	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 :\
 		(((size) % ALLOC_ALIGN3 != 0) || ((size) == ALLOC_ALIGN2 * 32) ? ALLOC_ALIGN2 : ALLOC_ALIGN3))
+//	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 32) ? ALLOC_ALIGN1 :
+//		(((size) <= ALLOC_ALIGN2 * 32) ? ALLOC_ALIGN2 : ALLOC_ALIGN3))
 #endif
 
 #define ALLOC_SIZE1 (ALLOC_ALIGNMENT * 1)
@@ -138,12 +141,22 @@ inline void* __new_redirected(std::size_t size) throw(std::bad_alloc) {
 		if(size <= ALLOC_SIZE5)
 			return PooledAllocator<ALLOC_SIZE5, true>::allocate<ALLOC_SIZE5>();
 		if(size <= ALLOC_SIZE6)
-			return PooledAllocator<ALLOC_SIZE6, true>::allocate<ALLOC_SIZE6>();
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE6)>::allocate<ALLOC_SIZE6>();
 		if(size <= ALLOC_SIZE7)
 			return PooledAllocator<ALLOC_SIZE7, true>::allocate<ALLOC_SIZE7>();
 		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE8)>::allocate<ALLOC_SIZE8>();
 	}
-	__ALLOCATE_9_16X(1, size);
+	if(size <= ALLOC_SIZE16) {
+		if(size <= ALLOC_SIZE9)
+			return PooledAllocator<ALLOC_SIZE9, true>::allocate<ALLOC_SIZE9>();
+		if(size <= ALLOC_SIZE10)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE10)>::allocate<ALLOC_SIZE10>();
+		if(size <= ALLOC_SIZE12)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE12)>::allocate<ALLOC_SIZE12>();
+		if(size <= ALLOC_SIZE14)
+			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
+		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
+	}
 	__ALLOCATE_9_16X(2, size);
 	return __allocate_large_size_or_malloc(size);
 }
