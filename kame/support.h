@@ -62,7 +62,7 @@ public:
 #define C_ASSERT(expr)
 #define DEBUG_XTHREAD 0
 #else
-#define ASSERT(expr) ((expr) ? _my_assert( __FILE__, __LINE__) : 0)
+#define ASSERT(expr) {if( !(expr)) _my_assert( __FILE__, __LINE__);}
 #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
 inline void _my_cassert(size_t ) {}
 int _my_assert(char const*s, int d);
