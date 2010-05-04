@@ -24,7 +24,7 @@
 #define ALLOC_MAX_ALLOCATORS (1024 * 4) //2GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
-//! \brief Memory blocks in a unit of double-quad word less than 8KiB
+//! \brief Memory blocks in a unit of double-quad word
 //! can be allocated from fixed-size or variable-size memory pools.
 //! \tparam FS determines fixed-size or variable-size.
 //! \sa allocator_test.cpp.
@@ -107,9 +107,9 @@ private:
 #define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 14)
 #define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
 
-void* __allocate_large_size_or_malloc(size_t size) throw();
+void* allocate_large_size_or_malloc(size_t size) throw();
 
-#define __ALLOCATE_9_16X(X, size) {\
+#define ALLOCATE_9_16X(X, size) {\
 	if(size <= ALLOC_SIZE16 * X) {\
 		if(size <= ALLOC_SIZE9 * X)\
 			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE9 * X)>::allocate<ALLOC_SIZE9 * X>();\
@@ -127,7 +127,7 @@ void* __allocate_large_size_or_malloc(size_t size) throw();
 	}\
 }
 
-inline void* __new_redirected(std::size_t size) throw(std::bad_alloc) {
+inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
 	if(size <= ALLOC_SIZE1)
 		return PooledAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
@@ -157,8 +157,8 @@ inline void* __new_redirected(std::size_t size) throw(std::bad_alloc) {
 			return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
 		return PooledAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
 	}
-	__ALLOCATE_9_16X(2, size);
-	return __allocate_large_size_or_malloc(size);
+	ALLOCATE_9_16X(2, size);
+	return allocate_large_size_or_malloc(size);
 }
 
 //void* operator new(std::size_t size) throw(std::bad_alloc);
@@ -171,7 +171,7 @@ inline void* __new_redirected(std::size_t size) throw(std::bad_alloc) {
 //void operator delete[](void* p) throw();
 //void operator delete[](void* p, const std::nothrow_t&) throw();
 
-void __deallocate_pooled_or_free(void* p) throw();
+void deallocate_pooled_or_free(void* p) throw();
 
 void release_pools();
 

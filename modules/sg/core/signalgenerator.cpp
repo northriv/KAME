@@ -87,15 +87,15 @@ XSG::visualize(const Snapshot &shot) {
 }
 void
 XSG::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-    double _freq = shot[ *freq()];
-    if(_freq <= 0) {
+    double freq__ = shot[ *freq()];
+    if(freq__ <= 0) {
         gErrPrint(getLabel() + " " + i18n("Positive Value Needed."));
         return;
     }
     XTime time_awared(XTime::now());
-    changeFreq(_freq);
+    changeFreq(freq__);
 
     shared_ptr<RawData> writer(new RawData);
-    writer->push(_freq);
+    writer->push(freq__);
     finishWritingRaw(writer, time_awared, XTime::now());
 }

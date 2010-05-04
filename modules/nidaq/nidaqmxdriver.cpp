@@ -77,7 +77,7 @@ XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits)
 XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
 	: m_label(label), m_bits(bits),
 	  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
- 	_clear();
+ 	clear_();
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
@@ -90,7 +90,7 @@ XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger>
 	onChange().talk(p);
 }
 void
-XNIDAQmxInterface::SoftwareTrigger::_clear() {
+XNIDAQmxInterface::SoftwareTrigger::clear_() {
 	uint64_t x;
 	while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
 		m_fastQueue.atomicPop(t);
@@ -124,7 +124,7 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 		m_endOfBlank = 0;
 		if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
 		m_freq = freq;
-		_clear();
+		clear_();
 	}
 	onStart().talk(shared_from_this());
 }
@@ -132,14 +132,14 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 void
 XNIDAQmxInterface::SoftwareTrigger::stop() {
 	XScopedLock<XMutex> lock(m_mutex);
-	_clear();
+	clear_();
 	m_endOfBlank = (uint64_t)-1LL;
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask, 
 											uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XMutex> lock(m_mutex);
-	_clear();
+	clear_();
 	if(m_risingEdgeMask || m_fallingEdgeMask)
 		throw XInterface::XInterfaceError(
 			i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
@@ -149,22 +149,22 @@ XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask,
 void
 XNIDAQmxInterface::SoftwareTrigger::disconnect() {
 	XScopedLock<XMutex> lock(m_mutex);
-	_clear();
+	clear_();
 	m_risingEdgeMask = 0;
 	m_fallingEdgeMask = 0;
 }
 uint64_t
-XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _freq) {
+XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 freq__) {
 	unsigned int freq_em = lrint(freq());
-	unsigned int freq_rc = lrint(_freq);
-	unsigned int _gcd = gcd(freq_em, freq_rc);
+	unsigned int freq_rc = lrint(freq__);
+	unsigned int gcd__ = gcd(freq_em, freq_rc);
 	
 	uint64_t cnt;
 	if(m_slowQueueSize) {
 		XScopedLock<XMutex> lock(m_mutex);
 		if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
 			if((cnt < m_slowQueue.front()) || !m_slowQueueSize) {
-				cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+				cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
 				if(cnt >= threshold)
 					return 0uLL;
 				if(m_fastQueue.atomicPop(t))
@@ -175,7 +175,7 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 		if( !m_slowQueueSize)
 			return 0uLL;
 		cnt = m_slowQueue.front();
-		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+		cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
 		if(cnt >= threshold)
 			return 0uLL;
 		m_slowQueue.pop_front();			
@@ -183,7 +183,7 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 		return cnt;
 	}
 	if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
-		cnt = (cnt * (freq_rc / _gcd)) / (freq_em / _gcd);
+		cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
 		if(cnt >= threshold)
 			return 0uLL;
 		if(m_fastQueue.atomicPop(t))
@@ -193,11 +193,11 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 _fre
 }
 
 void
-XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
+XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 freq__) {
 	unsigned int freq_em= lrint(freq());
-	unsigned int freq_rc = lrint(_freq);
-	unsigned int _gcd = gcd(freq_em, freq_rc);
-	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
+	unsigned int freq_rc = lrint(freq__);
+	unsigned int gcd__ = gcd(freq_em, freq_rc);
+	now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
 
 	XScopedLock<XMutex> lock(m_mutex);
 	uint64_t x;
@@ -213,11 +213,11 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 _freq) {
 	}
 }
 void
-XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 _freq) {
+XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 freq__) {
 	unsigned int freq_em= lrint(freq());
-	unsigned int freq_rc = lrint(_freq);
-	unsigned int _gcd = gcd(freq_em, freq_rc);
-	now = (now * (freq_em / _gcd)) / (freq_rc / _gcd);
+	unsigned int freq_rc = lrint(freq__);
+	unsigned int gcd__ = gcd(freq_em, freq_rc);
+	now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
 		
 	XScopedLock<XMutex> lock(m_mutex);
 	++m_slowQueueSize;

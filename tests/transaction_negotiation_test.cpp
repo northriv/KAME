@@ -61,7 +61,7 @@ typedef Transactional::Snapshot<LongNode> Snapshot;
 typedef Transactional::Transaction<LongNode> Transaction;
 
 #define trans(node) for(Transaction \
-	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,
@@ -196,9 +196,9 @@ main(int argc, char **argv)
 			shared_ptr<LongNode> p211(LongNode::create<LongNode>());
 			p2->insert(p21);
 			p21->insert(p211);
-			p2->_print();
-			p21->_print();
-			p211->_print();
+			p2->print_();
+			p21->print_();
+			p211->print_();
 			p2->insert(p211);
 			p21->insert(p22);
 			p211->insert(p22);

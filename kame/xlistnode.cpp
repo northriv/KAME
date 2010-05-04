@@ -46,6 +46,6 @@ XListNodeBase::Payload::listChangeEvent() {
 	tr().mark(onListChanged(), static_cast<XListNodeBase*>(&node()));
 }
 
-shared_ptr<XNode> _empty_creator(const char *, bool ) {
+shared_ptr<XNode> empty_creator_(const char *, bool ) {
     return shared_ptr<XNode>();
 }

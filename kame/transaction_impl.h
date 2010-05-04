@@ -38,7 +38,7 @@ Node<XN>::Packet::Packet() : m_missing(false) {}
 
 template <class XN>
 void
-Node<XN>::Packet::_print() const {
+Node<XN>::Packet::print_() const {
 	printf("Packet: ");
 	printf("%s@0x%llx, ", typeid(*this).name(), (unsigned long long)(uintptr_t)&node());
 	printf("BP@0x%llx, ", (unsigned long long)(uintptr_t)node().m_link.get());
@@ -48,7 +48,7 @@ Node<XN>::Packet::_print() const {
 		printf("%d subnodes : [ \n", (int)size());
 		for(int i = 0; i < size(); i++) {
 			if(subpackets()->at(i)) {
-				subpackets()->at(i)->_print();
+				subpackets()->at(i)->print_();
 				printf("; ");
 			}
 			else {
@@ -92,7 +92,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 	}
 	catch (int &line) {
 		fprintf(stderr, "Line %d, losing consistensy on node 0x%llx:\n", line, (unsigned long long)&node());
-		rootpacket->_print();
+		rootpacket->print_();
 		throw *this;
 	}
 	return true;
@@ -115,14 +115,14 @@ Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_se
 
 template <class XN>
 void
-Node<XN>::PacketWrapper::_print() const {
+Node<XN>::PacketWrapper::print_() const {
 	printf("PacketWrapper: ");
 	if( !hasPriority()) {
 		printf("referred to BP@0x%llx, ", (unsigned long long)(uintptr_t)bundledBy().get());
 	}
 	printf("serial:%lld, ", (long long)m_bundle_serial);
 	if(packet()) {
-		packet()->_print();
+		packet()->print_();
 	}
 	else {
 		printf("absent, ");
@@ -171,12 +171,12 @@ Node<XN>::~Node() {
 }
 template <class XN>
 void
-Node<XN>::_print() const {
+Node<XN>::print_() const {
 	local_shared_ptr<PacketWrapper> packet( *m_link);
 //	printf("Node:0x%llx, ", (unsigned long long)(uintptr_t)this);
 //	printf("BP:0x%llx, ", (unsigned long long)(uintptr_t)m_link.get());
 //	printf(" packet: ");
-	packet->_print();
+	packet->print_();
 }
 
 template <class XN>

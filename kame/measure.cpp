@@ -123,10 +123,10 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
 			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XScalarEntry> _entry = dynamic_pointer_cast<
+				shared_ptr<XScalarEntry> entr = dynamic_pointer_cast<
 					XScalarEntry> ( *it);
-				if(_entry->driver() == driver) {
-					entry = _entry;
+				if(entr->driver() == driver) {
+					entry = entr;
 				}
 			}
 		}
@@ -140,10 +140,10 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
 			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XInterface> _interface = dynamic_pointer_cast<
+				shared_ptr<XInterface> intf = dynamic_pointer_cast<
 					XInterface> ( *it);
-				if(_interface->driver() == driver) {
-					interface = _interface;
+				if(intf->driver() == driver) {
+					interface = intf;
 				}
 			}
 		}

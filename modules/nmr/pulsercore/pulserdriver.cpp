@@ -564,16 +564,16 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	XTime time_awared = XTime::now();
 	Snapshot shot( *this);
   
-	const double _tau = rintTermMicroSec(shot[ *tau()]);
-	const double _asw_setup = rintTermMilliSec(shot[ *aswSetup()]);
-	const double _asw_hold = rintTermMilliSec(shot[ *aswHold()]);
-	const double _alt_sep = rintTermMilliSec(shot[ *altSep()]);
-	const int _echo_num = shot[ *echoNum()];
-	if(_asw_setup > 2.0 * _tau)
-		trans( *aswSetup()) = 2.0 * _tau;
+	const double tau__ = rintTermMicroSec(shot[ *tau()]);
+	const double asw_setup__ = rintTermMilliSec(shot[ *aswSetup()]);
+	const double asw_hold__ = rintTermMilliSec(shot[ *aswHold()]);
+	const double alt_sep__ = rintTermMilliSec(shot[ *altSep()]);
+	const int echo_num__ = shot[ *echoNum()];
+	if(asw_setup__ > 2.0 * tau__)
+		trans( *aswSetup()) = 2.0 * tau__;
 	if(node != altSep().get()) {
-		if(_alt_sep != _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000) {
-			trans( *altSep()) = _asw_setup + _asw_hold + (_echo_num - 1) * 2 * _tau/1000;
+		if(alt_sep__ != asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000) {
+			trans( *altSep()) = asw_setup__ + asw_hold__ + (echo_num__ - 1) * 2 * tau__/1000;
 			return;
 		}
 	}
@@ -597,14 +597,14 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
     writer->push((int16_t)shot[ *combMode()]);
     writer->push((int16_t)0); //reserve
     writer->push((double)rintTermMilliSec(shot[ *rtime()]));
-    writer->push((double)_tau);
+    writer->push((double)tau__);
     writer->push((double)shot[ *pw1()]);
     writer->push((double)shot[ *pw2()]);
     writer->push((double)rintTermMilliSec(shot[ *combP1()]));
-    writer->push((double)_alt_sep);
+    writer->push((double)alt_sep__);
     writer->push((double)rintTermMilliSec(shot[ *combP1Alt()]));
-    writer->push((double)_asw_setup);
-    writer->push((double)_asw_hold);
+    writer->push((double)asw_setup__);
+    writer->push((double)asw_hold__);
 //! ver 2 records below
     writer->push((double)shot[ *difFreq()]);
     writer->push((double)shot[ *combPW()]);
@@ -683,60 +683,60 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 	unsigned int qpskmask = qpskamask | qpskbmask |
 		qpskinvmask | qpsknoninvmask | qpskpsgatemask | PAT_QAM_PHASE_MASK;
 	
-	uint64_t _rtime = rintSampsMilliSec(shot[ *this].rtime());
-	uint64_t _tau = rintSampsMicroSec(shot[ *this].tau());
-	uint64_t _asw_setup = rintSampsMilliSec(shot[ *this].aswSetup());
-	uint64_t _asw_hold = rintSampsMilliSec(shot[ *this].aswHold());
-	uint64_t _alt_sep = rintSampsMilliSec(shot[ *this].altSep());
-	uint64_t _pw1 = haveQAMPorts() ? 
+	uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
+	uint64_t tau__ = rintSampsMicroSec(shot[ *this].tau());
+	uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
+	uint64_t asw_hold__ = rintSampsMilliSec(shot[ *this].aswHold());
+	uint64_t alt_sep__ = rintSampsMilliSec(shot[ *this].altSep());
+	uint64_t pw1__ = haveQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].pw1()/2)*2 : rintSampsMicroSec(shot[ *this].pw1()/2)*2;
-	uint64_t _pw2 = haveQAMPorts() ?
+	uint64_t pw2__ = haveQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].pw2()/2)*2 : rintSampsMicroSec(shot[ *this].pw2()/2)*2;
-	uint64_t _comb_pw = haveQAMPorts() ?
+	uint64_t comb_pw__ = haveQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].combPW()/2)*2 : rintSampsMicroSec(shot[ *this].combPW()/2)*2;
-	uint64_t _comb_pt = rintSampsMicroSec(shot[ *this].combPT());
-	uint64_t _comb_p1 = rintSampsMilliSec(shot[ *this].combP1());
-	uint64_t _comb_p1_alt = rintSampsMilliSec(shot[ *this].combP1Alt());
-	uint64_t _g2_setup = ceilSampsMicroSec(shot[ *g2Setup()]);
-	int _echo_num = shot[ *this].echoNum();
-	int _comb_num = shot[ *this].combNum();
-	int _comb_mode = shot[ *this].combMode();
-	int _rt_mode = shot[ *this].rtMode();
-	int _num_phase_cycle = shot[ *this].numPhaseCycle();
+	uint64_t comb_pt__ = rintSampsMicroSec(shot[ *this].combPT());
+	uint64_t comb_p1__ = rintSampsMilliSec(shot[ *this].combP1());
+	uint64_t comb_p1_alt__ = rintSampsMilliSec(shot[ *this].combP1Alt());
+	uint64_t g2_setup__ = ceilSampsMicroSec(shot[ *g2Setup()]);
+	int echo_num__ = shot[ *this].echoNum();
+	int comb_num__ = shot[ *this].combNum();
+	int comb_mode__ = shot[ *this].combMode();
+	int rt_mode__ = shot[ *this].rtMode();
+	int num_phase_cycle__ = shot[ *this].numPhaseCycle();
   
-	bool comb_mode_alt = ((_comb_mode == N_COMB_MODE_P1_ALT) ||
-								(_comb_mode == N_COMB_MODE_COMB_ALT));
-	bool saturation_wo_comb = (_comb_num == 0);
+	bool comb_mode_alt = ((comb_mode__ == N_COMB_MODE_P1_ALT) ||
+								(comb_mode__ == N_COMB_MODE_COMB_ALT));
+	bool saturation_wo_comb = (comb_num__ == 0);
 	bool driven_equilibrium = shot[ *drivenEquilibrium()];
-	uint64_t _qsw_delay = rintSampsMicroSec(shot[ *qswDelay()]);
-	uint64_t _qsw_width = rintSampsMicroSec(shot[ *qswWidth()]);
-	uint64_t _qsw_softswoff = std::min(_qsw_width, rintSampsMicroSec(shot[ *qswSoftSWOff()]));
-	bool _qsw_pi_only = shot[ *qswPiPulseOnly()];
+	uint64_t qsw_delay__ = rintSampsMicroSec(shot[ *qswDelay()]);
+	uint64_t qsw_width__ = rintSampsMicroSec(shot[ *qswWidth()]);
+	uint64_t qsw_softswoff__ = std::min(qsw_width__, rintSampsMicroSec(shot[ *qswSoftSWOff()]));
+	bool qsw_pi_only__ = shot[ *qswPiPulseOnly()];
 	int comb_rot_num = lrint(shot[ *combOffRes()] * (shot[ *this].combPW() / 1000.0 * 4));
   
-	bool _induce_emission = shot[ *induceEmission()];
-	uint64_t _induce_emission_pw = _comb_pw;
-	if((_comb_mode == N_COMB_MODE_OFF))
-		_num_phase_cycle = std::min(_num_phase_cycle, 4);
+	bool induce_emission__ = shot[ *induceEmission()];
+	uint64_t induce_emission___pw = comb_pw__;
+	if((comb_mode__ == N_COMB_MODE_OFF))
+		num_phase_cycle__ = std::min(num_phase_cycle__, 4);
   
-	bool _invert_phase = shot[ *this].invertPhase();
-	bool _conserve_ste_phase = shot[ *conserveStEPhase()];
+	bool invert_phase__ = shot[ *this].invertPhase();
+	bool conserve_ste_phase__ = shot[ *conserveStEPhase()];
 
 	//patterns correspoinding to 0, pi/2, pi, -pi/2
 	const unsigned int qpskIQ[4] = {0, 1, 3, 2};
 	const unsigned int qpskOLD[4] = {2, 3, 4, 5};
 
 	//unit of phase is pi/2
-#define __qpsk(phase) ((((phase) + (_invert_phase ? 2 : 0)) % 4))
-#define _qpsk(phase)  ( \
-  	((qpskIQ[__qpsk(phase)] & 1) ? qpskamask : 0) | \
-  	((qpskIQ[__qpsk(phase)] & 2) ? qpskbmask : 0) | \
-  	((qpskOLD[__qpsk(phase)] & 1) ? qpskpsgatemask : 0) | \
-  	((qpskOLD[__qpsk(phase)] & 2) ? qpsknoninvmask : 0) | \
-  	((qpskOLD[__qpsk(phase)] & 4) ? qpskinvmask : 0) | \
-  	(__qpsk(phase) * PAT_QAM_PHASE))
-	const unsigned int qpsk[4] = {_qpsk(0), _qpsk(1), _qpsk(2), _qpsk(3)};
-	const unsigned int qpskinv[4] = {_qpsk(2), _qpsk(3), _qpsk(0), _qpsk(1)};
+#define qpsk_ph__(phase) ((((phase) + (invert_phase__ ? 2 : 0)) % 4))
+#define qpsk__(phase)  ( \
+  	((qpskIQ[qpsk_ph__(phase)] & 1) ? qpskamask : 0) | \
+  	((qpskIQ[qpsk_ph__(phase)] & 2) ? qpskbmask : 0) | \
+  	((qpskOLD[qpsk_ph__(phase)] & 1) ? qpskpsgatemask : 0) | \
+  	((qpskOLD[qpsk_ph__(phase)] & 2) ? qpsknoninvmask : 0) | \
+  	((qpskOLD[qpsk_ph__(phase)] & 4) ? qpskinvmask : 0) | \
+  	(qpsk_ph__(phase) * PAT_QAM_PHASE))
+	const unsigned int qpsk[4] = {qpsk__(0), qpsk__(1), qpsk__(2), qpsk__(3)};
+	const unsigned int qpskinv[4] = {qpsk__(2), qpsk__(3), qpsk__(0), qpsk__(1)};
 
 	//comb phases
 	const uint32_t comb_ste_cancel[MAX_NUM_PHASE_CYCLE] = {
@@ -752,10 +752,10 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 		0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2
 	};
 	//pi pulse phases
-	const uint32_t _p2[MAX_NUM_PHASE_CYCLE] = {
+	const uint32_t p2__[MAX_NUM_PHASE_CYCLE] = {
 		0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3
 	};
-	const uint32_t *p2 = _conserve_ste_phase ? p1 : _p2;
+	const uint32_t *p2 = conserve_ste_phase__ ? p1 : p2__;
 
 	//subsequent pi pulse phases for multiple echoes or for st.e.
 	const uint32_t p2multi[MAX_NUM_PHASE_CYCLE] = {
@@ -778,194 +778,194 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
   
 	uint64_t pos = 0;
             
-	int echonum = _echo_num;
+	int echonum = echo_num__;
   
-	bool former_of_alt = !_invert_phase;
-	for(int i = 0; i < _num_phase_cycle * (comb_mode_alt ? 2 : 1); i++) {
-		int j = (i / (comb_mode_alt ? 2 : 1)) % _num_phase_cycle; //index for phase cycling
-		if(_invert_phase)
-			j = _num_phase_cycle - 1 - j;
+	bool former_of_alt = !invert_phase__;
+	for(int i = 0; i < num_phase_cycle__ * (comb_mode_alt ? 2 : 1); i++) {
+		int j = (i / (comb_mode_alt ? 2 : 1)) % num_phase_cycle__; //index for phase cycling
+		if(invert_phase__)
+			j = num_phase_cycle__ - 1 - j;
 		former_of_alt = !former_of_alt;
-		bool comb_off_res = ((_comb_mode != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
+		bool comb_off_res = ((comb_mode__ != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             
-		uint64_t _p1 = 0;
-		if((_comb_mode != N_COMB_MODE_OFF) &&
-		   !((_comb_mode == N_COMB_MODE_COMB_ALT) && former_of_alt && !(comb_rot_num != 0))) {
-			_p1 = ((former_of_alt || (_comb_mode != N_COMB_MODE_P1_ALT)) ? _comb_p1 : _comb_p1_alt);
+		uint64_t p1__ = 0;
+		if((comb_mode__ != N_COMB_MODE_OFF) &&
+		   !((comb_mode__ == N_COMB_MODE_COMB_ALT) && former_of_alt && !(comb_rot_num != 0))) {
+			p1__ = ((former_of_alt || (comb_mode__ != N_COMB_MODE_P1_ALT)) ? comb_p1__ : comb_p1_alt__);
 		}
 
 		uint64_t rest;
-		if(_rt_mode == N_RT_MODE_FIXREST)
-			rest = _rtime;
+		if(rt_mode__ == N_RT_MODE_FIXREST)
+			rest = rtime__;
 		else
-			rest = _rtime - _p1;
+			rest = rtime__ - p1__;
     
-		if(saturation_wo_comb && (_p1 > 0)) rest = 0;
+		if(saturation_wo_comb && (p1__ > 0)) rest = 0;
       
 		if(rest > 0) pos += rest;
       
 		//comb pulses
-		if((_p1 > 0) && !saturation_wo_comb) {
-			uint64_t combpt = std::max(_comb_pt, _comb_pw + _g2_setup);
-			uint64_t cpos = pos - combpt * _comb_num;
+		if((p1__ > 0) && !saturation_wo_comb) {
+			uint64_t combpt = std::max(comb_pt__, comb_pw__ + g2_setup__);
+			uint64_t cpos = pos - combpt * comb_num__;
      
-			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
-			patterns_cheap.insert(tpat(cpos - _comb_pw/2 - _g2_setup, ~(uint32_t)0, combmask));
-			bool _g2_each = (_g2_setup * 2 + _comb_pw) < combpt;
-			for(int k = 0; k < _comb_num; k++) {
-				const uint32_t *comb = (_conserve_ste_phase) ?
+			patterns_cheap.insert(tpat(cpos - comb_pw__/2 - g2_setup__, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
+			patterns_cheap.insert(tpat(cpos - comb_pw__/2 - g2_setup__, ~(uint32_t)0, combmask));
+			bool g2_each__ = (g2_setup__ * 2 + comb_pw__) < combpt;
+			for(int k = 0; k < comb_num__; k++) {
+				const uint32_t *comb = (conserve_ste_phase__) ?
 					 ((k % 2 == 0) ? ste_p1 : ste_p2) : comb_ste_cancel;
-				patterns.insert(tpat(cpos + _comb_pw/2, qpsk[comb[j]], qpskmask));
+				patterns.insert(tpat(cpos + comb_pw__/2, qpsk[comb[j]], qpskmask));
 				cpos += combpt;
-				cpos -= _comb_pw/2;
-				if(_g2_each || (k == 0))
-					patterns_cheap.insert(tpat(cpos - _g2_setup, g2mask, g2mask));
+				cpos -= comb_pw__/2;
+				if(g2_each__ || (k == 0))
+					patterns_cheap.insert(tpat(cpos - g2_setup__, g2mask, g2mask));
 				patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
 				patterns.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
-				cpos += _comb_pw;      
+				cpos += comb_pw__;
 				patterns.insert(tpat(cpos, 0 , g1mask));
 				patterns.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
-				if(_g2_each || (k == _comb_num - 1))
+				if(g2_each__ || (k == comb_num__ - 1))
 					patterns.insert(tpat(cpos, 0, g2mask));
-				if( ! _qsw_pi_only) {
-					patterns.insert(tpat(cpos + _qsw_delay, ~(uint32_t)0 , qswmask));
-					patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
-					patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width/2 + _qsw_softswoff/2), ~(uint32_t)0 , qswmask));
-					patterns.insert(tpat(cpos + (_qsw_delay + _qsw_width), 0 , qswmask));
+				if( ! qsw_pi_only__) {
+					patterns.insert(tpat(cpos + qsw_delay__, ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
+					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__), 0 , qswmask));
 				}
 
-				cpos -= _comb_pw/2;
+				cpos -= comb_pw__/2;
 			}
-			patterns.insert(tpat(cpos + _comb_pw/2, 0, combmask));
-			patterns.insert(tpat(cpos + _comb_pw/2, ~(uint32_t)0, combfmmask));
+			patterns.insert(tpat(cpos + comb_pw__/2, 0, combmask));
+			patterns.insert(tpat(cpos + comb_pw__/2, ~(uint32_t)0, combfmmask));
 		}   
-		pos += _p1;
+		pos += p1__;
        
 		//pi/2 pulse
-		bool _g2_kept_p1p2 = false;
-		if(_pw1/2) {
+		bool g2_kept_p1p2 = false;
+		if(pw1__/2) {
 			//on
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, qpsk[p1[j]], qpskmask));
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, g2mask));
-			patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, trig2mask));
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, pulse1mask));
-			patterns.insert(tpat(pos - _pw1/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, g1mask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, qpsk[p1[j]], qpskmask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, trig2mask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
+			patterns.insert(tpat(pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
 			//off
-			patterns.insert(tpat(pos + _pw1/2, 0, g1mask));
-			patterns.insert(tpat(pos + _pw1/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
-			if( !_pw2/2 || (_g2_setup * 2 + _pw1/2 + _pw2/2 < _tau)) {
-				patterns.insert(tpat(pos + _pw1/2, 0, g2mask));
+			patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
+			patterns.insert(tpat(pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + pw1__/2, 0, pulse1mask));
+			if( !pw2__/2 || (g2_setup__ * 2 + pw1__/2 + pw2__/2 < tau__)) {
+				patterns.insert(tpat(pos + pw1__/2, 0, g2mask));
 			}
 			else {
-				_g2_kept_p1p2 = true;
+				g2_kept_p1p2 = true;
 			}
-			if( ! _qsw_pi_only) {
-				patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width/2 + _qsw_softswoff/2), ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+			if( ! qsw_pi_only__) {
+				patterns.insert(tpat(pos + pw1__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__), 0 , qswmask));
 			}
 		}
 		//for pi pulses
-		patterns.insert(tpat(pos + _pw1/2, qpsk[p2[j]], qpskmask));
-		patterns.insert(tpat(pos + _pw1/2, ~(uint32_t)0, pulse2mask));
+		patterns.insert(tpat(pos + pw1__/2, qpsk[p2[j]], qpskmask));
+		patterns.insert(tpat(pos + pw1__/2, ~(uint32_t)0, pulse2mask));
      
 		//2tau
-		pos += 2*_tau;
-		//    patterns.insert(tpat(pos - _asw_setup, -1, aswmask | rfswmask, 0));
-		patterns.insert(tpat(pos - _asw_setup, ~(uint32_t)0, aswmask));
+		pos += 2*tau__;
+		//    patterns.insert(tpat(pos - asw_setup__, -1, aswmask | rfswmask, 0));
+		patterns.insert(tpat(pos - asw_setup__, ~(uint32_t)0, aswmask));
 		patterns.insert(tpat(pos -
-			(( !former_of_alt && comb_mode_alt) ? _alt_sep : 0), ~(uint32_t)0, trig1mask));
+			(( !former_of_alt && comb_mode_alt) ? alt_sep__ : 0), ~(uint32_t)0, trig1mask));
                 
 		//induce emission
-		if(_induce_emission) {
-			patterns.insert(tpat(pos - _induce_emission_pw/2, ~(uint32_t)0, g3mask));
-			patterns.insert(tpat(pos - _induce_emission_pw/2, PAT_QAM_PULSE_IDX_INDUCE_EMISSION, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - _induce_emission_pw/2, qpsk[pindem[j]], qpskmask));
-			patterns.insert(tpat(pos + _induce_emission_pw/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _induce_emission_pw/2, 0, g3mask));
+		if(induce_emission__) {
+			patterns.insert(tpat(pos - induce_emission___pw/2, ~(uint32_t)0, g3mask));
+			patterns.insert(tpat(pos - induce_emission___pw/2, PAT_QAM_PULSE_IDX_INDUCE_EMISSION, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos - induce_emission___pw/2, qpsk[pindem[j]], qpskmask));
+			patterns.insert(tpat(pos + induce_emission___pw/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + induce_emission___pw/2, 0, g3mask));
 		}
 
 		//pi pulses 
-		pos -= 3*_tau;
+		pos -= 3*tau__;
 		for(int k = 0; k < echonum; k++) {
-			pos += 2*_tau;
-			if(_pw2/2) {
-				patterns.insert(tpat(pos - _pw2/2, 0, trig2mask));
+			pos += 2*tau__;
+			if(pw2__/2) {
+				patterns.insert(tpat(pos - pw2__/2, 0, trig2mask));
 				//on
-				if( !_g2_kept_p1p2) {
-					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpsk[(k == 0) ? p2[j] : p2multi[j]], qpskmask));
-					patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
+				if( !g2_kept_p1p2) {
+					patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, qpsk[(k == 0) ? p2[j] : p2multi[j]], qpskmask));
+					patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, ~(uint32_t)0, g2mask));
 				}
 
-				patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-				patterns.insert(tpat(pos - _pw2/2, ~(uint32_t)0, g1mask));
+				patterns.insert(tpat(pos - pw2__/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
+				patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
 				//off
-				patterns.insert(tpat(pos + _pw2/2, 0, PAT_QAM_PULSE_IDX_MASK));
-				patterns.insert(tpat(pos + _pw2/2, 0, g1mask));
-				patterns.insert(tpat(pos + _pw2/2, 0, pulse2mask));
-				patterns.insert(tpat(pos + _pw2/2, 0, g2mask));
-				_g2_kept_p1p2 = false;
+				patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
+				patterns.insert(tpat(pos + pw2__/2, 0, g1mask));
+				patterns.insert(tpat(pos + pw2__/2, 0, pulse2mask));
+				patterns.insert(tpat(pos + pw2__/2, 0, g2mask));
+				g2_kept_p1p2 = false;
 				//QSW
-				patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width/2 + _qsw_softswoff/2), ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+				patterns.insert(tpat(pos + pw2__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__), 0 , qswmask));
 			}
 		}
-		if(_g2_kept_p1p2)
+		if(g2_kept_p1p2)
 			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
-		patterns.insert(tpat(pos + _tau + _asw_hold, 0, aswmask | trig1mask));
+		patterns.insert(tpat(pos + tau__ + asw_hold__, 0, aswmask | trig1mask));
 		//induce emission
-		if(_induce_emission) {
-			patterns.insert(tpat(pos + _tau + _asw_hold - _induce_emission_pw/2, ~(uint32_t)0, g3mask));
-			patterns.insert(tpat(pos + _tau + _asw_hold - _induce_emission_pw/2, PAT_QAM_PULSE_IDX_INDUCE_EMISSION, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _tau + _asw_hold - _induce_emission_pw/2, qpsk[pindem[j]], qpskmask));
-			patterns.insert(tpat(pos + _tau + _asw_hold + _induce_emission_pw/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _tau + _asw_hold + _induce_emission_pw/2, 0, g3mask));
+		if(induce_emission__) {
+			patterns.insert(tpat(pos + tau__ + asw_hold__ - induce_emission___pw/2, ~(uint32_t)0, g3mask));
+			patterns.insert(tpat(pos + tau__ + asw_hold__ - induce_emission___pw/2, PAT_QAM_PULSE_IDX_INDUCE_EMISSION, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + tau__ + asw_hold__ - induce_emission___pw/2, qpsk[pindem[j]], qpskmask));
+			patterns.insert(tpat(pos + tau__ + asw_hold__ + induce_emission___pw/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + tau__ + asw_hold__ + induce_emission___pw/2, 0, g3mask));
 		}
 
 		if(driven_equilibrium) {
-			pos += 2*_tau;
+			pos += 2*tau__;
 			//pi pulse 
 			//on
-			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, qpskinv[p2[j]], qpskmask));
-			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, g2mask));
-			patterns_cheap.insert(tpat(pos - _pw2/2 - _g2_setup, ~(uint32_t)0, pulse2mask));
-			patterns.insert(tpat(pos - _pw2/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - _pw2/2, ~(uint32_t)0, g1mask));
+			patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, qpskinv[p2[j]], qpskmask));
+			patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+			patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, ~(uint32_t)0, pulse2mask));
+			patterns.insert(tpat(pos - pw2__/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
 			//off
-			patterns.insert(tpat(pos + _pw2/2, 0, pulse2mask));
-			patterns.insert(tpat(pos + _pw2/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _pw2/2, 0, g1mask | g2mask));
-			patterns.insert(tpat(pos + _pw2/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-			if(_qsw_softswoff) {
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
-				patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width/2 + _qsw_softswoff/2), ~(uint32_t)0 , qswmask));
+			patterns.insert(tpat(pos + pw2__/2, 0, pulse2mask));
+			patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + pw2__/2, 0, g1mask | g2mask));
+			patterns.insert(tpat(pos + pw2__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
+			if(qsw_softswoff__) {
+				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
 			}
-			patterns.insert(tpat(pos + _pw2/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
-			pos += _tau;
+			patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__), 0 , qswmask));
+			pos += tau__;
 			//pi/2 pulse
 			//on
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, qpskinv[p1[j]], qpskmask));
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, pulse1mask));
-			patterns_cheap.insert(tpat(pos - _pw1/2 - _g2_setup, ~(uint32_t)0, g2mask));
-			patterns.insert(tpat(pos - _pw1/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - _pw1/2, ~(uint32_t)0, g1mask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, qpskinv[p1[j]], qpskmask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
+			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+			patterns.insert(tpat(pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
 			//off
-			patterns.insert(tpat(pos + _pw1/2, 0, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos + _pw1/2, 0, g1mask));
-			patterns.insert(tpat(pos + _pw1/2, 0, pulse1mask));
-			patterns.insert(tpat(pos + _pw1/2, qpsk[p1[j]], qpskmask));
-			patterns.insert(tpat(pos + _pw1/2, 0, g2mask));
-			if( ! _qsw_pi_only) {
-				patterns.insert(tpat(pos + _pw1/2 + _qsw_delay, ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width/2 - _qsw_softswoff/2), 0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width/2 + _qsw_softswoff/2), ~(uint32_t)0 , qswmask));
-				patterns.insert(tpat(pos + _pw1/2 + (_qsw_delay + _qsw_width), 0 , qswmask));
+			patterns.insert(tpat(pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
+			patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
+			patterns.insert(tpat(pos + pw1__/2, 0, pulse1mask));
+			patterns.insert(tpat(pos + pw1__/2, qpsk[p1[j]], qpskmask));
+			patterns.insert(tpat(pos + pw1__/2, 0, g2mask));
+			if( ! qsw_pi_only__) {
+				patterns.insert(tpat(pos + pw1__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
+				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__), 0 , qswmask));
 			}
 		}
 	}
@@ -1018,29 +1018,29 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
     		tr[ *this].m_qamWaveForm[i].clear();
     		
-		double _tau = shot[ *this].tau();
-		double _dif_freq = shot[ *this].difFreq();
+		double tau__ = shot[ *this].tau();
+		double dif_freq__ = shot[ *this].difFreq();
 	
-		bool _induce_emission = shot[ *induceEmission()];
-		double _induce_emission_phase = shot[ *induceEmissionPhase()] / 180.0 * M_PI;
+		bool induce_emission__ = shot[ *induceEmission()];
+		double induce_emission___phase = shot[ *induceEmissionPhase()] / 180.0 * M_PI;
 
 		makeWaveForm(tr, PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1,
 			shot[ *this].pw1()*1e-3,
-			_pw1/2, pulseFunc(shot[ *p1Func()].to_str() ),
-			shot[ *p1Level()], _dif_freq * 1e3, -2 * M_PI * _dif_freq * 2 * _tau);
+			pw1__/2, pulseFunc(shot[ *p1Func()].to_str() ),
+			shot[ *p1Level()], dif_freq__ * 1e3, -2 * M_PI * dif_freq__ * 2 * tau__);
 		makeWaveForm(tr, PAT_QAM_PULSE_IDX_P2/PAT_QAM_PULSE_IDX - 1,
 			shot[ *this].pw2()*1e-3,
-			_pw2/2, pulseFunc(shot[ *p2Func()].to_str() ),
-			shot[ *p2Level()], _dif_freq * 1e3, -2 * M_PI * _dif_freq * 2 * _tau);
+			pw2__/2, pulseFunc(shot[ *p2Func()].to_str() ),
+			shot[ *p2Level()], dif_freq__ * 1e3, -2 * M_PI * dif_freq__ * 2 * tau__);
 		makeWaveForm(tr, PAT_QAM_PULSE_IDX_PCOMB/PAT_QAM_PULSE_IDX - 1,
 			shot[ *this].combPW()*1e-3,
-			_comb_pw/2, pulseFunc(shot[ *combFunc()].to_str() ),
-			shot[ *combLevel()], shot[ *combOffRes()] + _dif_freq *1000.0);
-		if(_induce_emission) {
+			comb_pw__/2, pulseFunc(shot[ *combFunc()].to_str() ),
+			shot[ *combLevel()], shot[ *combOffRes()] + dif_freq__ *1000.0);
+		if(induce_emission__) {
 			makeWaveForm(tr, PAT_QAM_PULSE_IDX_INDUCE_EMISSION/PAT_QAM_PULSE_IDX - 1,
 				shot[ *this].combPW()*1e-3,
-				 _induce_emission_pw/2, pulseFunc(shot[ *combFunc()].to_str() ),
-				 shot[ *combLevel()], shot[ *combOffRes()] + _dif_freq *1000.0, _induce_emission_phase);
+				 induce_emission___pw/2, pulseFunc(shot[ *combFunc()].to_str() ),
+				 shot[ *combLevel()], shot[ *combOffRes()] + dif_freq__ *1000.0, induce_emission___phase);
 		}
     }
 	createNativePatterns(tr);

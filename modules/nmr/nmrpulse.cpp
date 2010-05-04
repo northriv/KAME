@@ -336,9 +336,9 @@ void XNMRPulseAnalyzer::onAvgClear(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
 	requestAnalysis();
 
-	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
-	if(_dso)
-		trans( *_dso->restart()).touch(); //Restart averaging in DSO.
+	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
+	if(dso__)
+		trans( *dso__->restart()).touch(); //Restart averaging in DSO.
 }
 void XNMRPulseAnalyzer::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 	if(node == exAvgIncr().get())
@@ -351,44 +351,44 @@ void XNMRPulseAnalyzer::onCondChanged(const Snapshot &shot, XValueNodeBase *node
 bool XNMRPulseAnalyzer::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-	const shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
-	if (emitter == _pulser.get())
+	const shared_ptr<XPulser> pulse__ = shot_this[ *pulser()];
+	if (emitter == pulse__.get())
 		return false;
-	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
-	if( !_dso)
+	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
+	if( !dso__)
 		return false;
 	//    //Request for clear.
-	//    if(m_timeClearRequested > _dso->timeAwared()) return true;
-	//    if(_pulser && (_dso->timeAwared() < _pulser->time())) return false;
+	//    if(m_timeClearRequested > dso__->timeAwared()) return true;
+	//    if(pulse__ && (dso__->timeAwared() < pulse__->time())) return false;
 	return true;
 }
 void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
-	const shared_ptr<XDSO> _dso = shot_this[ *dso()];
-	ASSERT(_dso);
+	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
+	ASSERT(dso__);
 
-	const Snapshot &shot_dso((emitter == _dso.get()) ? shot_emitter : shot_others);
-	ASSERT(shot_dso[ *_dso].time() );
+	const Snapshot &shot_dso((emitter == dso__.get()) ? shot_emitter : shot_others);
+	ASSERT(shot_dso[ *dso__].time() );
 
-	if(shot_dso[ *_dso].numChannels() < 1) {
+	if(shot_dso[ *dso__].numChannels() < 1) {
 		throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
 	}
-	if(shot_dso[ *_dso].numChannels() < 2) {
+	if(shot_dso[ *dso__].numChannels() < 2) {
 		throw XSkippedRecordError(i18n("Two channels needed in DSO"), __FILE__, __LINE__);
 	}
-	if( !shot_dso[ *_dso->singleSequence()]) {
+	if( !shot_dso[ *dso__->singleSequence()]) {
 		m_statusPrinter->printWarning(i18n("Use sequential average in DSO."));
 	}
-	int dso_len = shot_dso[ *_dso].length();
+	int dso_len = shot_dso[ *dso__].length();
 
-	double interval = shot_dso[ *_dso].timeInterval();
+	double interval = shot_dso[ *dso__].timeInterval();
 	if (interval <= 0) {
 		throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
-	int pos = lrint(shot_this[ *fromTrig()] *1e-3 / interval + shot_dso[ *_dso].trigPos());
-	double starttime = (pos - shot_dso[ *_dso].trigPos()) * interval;
+	int pos = lrint(shot_this[ *fromTrig()] *1e-3 / interval + shot_dso[ *dso__].trigPos());
+	double starttime = (pos - shot_dso[ *dso__].trigPos()) * interval;
 	if(pos >= dso_len) {
 		throw XSkippedRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
 	}
@@ -418,7 +418,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(i18n("Invalid Length for BG. sub."), __FILE__, __LINE__);
 	}
 
-	shared_ptr<XPulser> _pulser(shot_this[ *pulser()]);
+	shared_ptr<XPulser> pulse__(shot_this[ *pulser()]);
 	
 	int echoperiod = lrint(shot_this[ *echoPeriod()] / 1000 /interval);
 	int numechoes = shot_this[ *numEcho()];
@@ -447,9 +447,9 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 			}
 		}
-		if(_pulser) {
-			if((numechoes > shot_others[ *_pulser].echoNum()) ||
-				(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *_pulser].tau() * 2.0) - 1.0) > 1e-4)) {
+		if(pulse__) {
+			if((numechoes > shot_others[ *pulse__].echoNum()) ||
+				(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4)) {
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 			}
 		}
@@ -462,7 +462,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
 	}
 	tr[ *this].m_waveWidth = length;
-	bool skip = (shot_this[ *this].m_timeClearRequested > shot_dso[ *_dso].timeAwared());
+	bool skip = (shot_this[ *this].m_timeClearRequested > shot_dso[ *dso__].timeAwared());
 	bool avgclear = skip;
 
 	if(interval != shot_this[ *this].m_interval) {
@@ -492,12 +492,12 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	// Phase Inversion Cycling
 	bool picenabled = shot_this[ *m_picEnabled];
 	bool inverted = false;
-	if(picenabled && ( !_pulser || !shot_others[ *_pulser].time())) {
+	if(picenabled && ( !pulse__ || !shot_others[ *pulse__].time())) {
 		picenabled = false;
 		gErrPrint(getLabel() + ": " + i18n("No active pulser!"));
 	}
-	if(_pulser) {
-		inverted = shot_others[ *_pulser].invertPhase();
+	if(pulse__) {
+		inverted = shot_others[ *pulse__].invertPhase();
 	}
 
 	int avgnum = std::max((unsigned int)shot_this[ *extraAvg()], 1u) * (picenabled ? 2 : 1);
@@ -522,9 +522,9 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> *dsowave( &tr[ *this].m_dsoWave[0]);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
-		ASSERT(shot_dso[ *_dso].numChannels() );
-		rawwavecos = shot_dso[ *_dso].wave(0);
-		rawwavesin = shot_dso[ *_dso].wave(1);
+		ASSERT(shot_dso[ *dso__].numChannels() );
+		rawwavecos = shot_dso[ *dso__].wave(0);
+		rawwavesin = shot_dso[ *dso__].wave(1);
 		for(unsigned int i = 0; i < dso_len; i++) {
 			dsowave[i] = std::complex<double>(rawwavecos[i], rawwavesin[i]) * (inverted ? -1.0 : 1.0);
 		}
@@ -552,7 +552,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> *wavesum( &tr[ *this].m_waveSum[0]);
 	double *darkpsdsum( &tr[ *this].m_darkPSDSum[0]);
 	//Incremental/Sequential average.
-	if((emitter == _dso.get()) || ( !shot_this[ *this].m_avcount)) {
+	if((emitter == dso__.get()) || ( !shot_this[ *this].m_avcount)) {
 		for(int i = 0; i < length; i++) {
 			wavesum[i] += dsowave[pos + i];
 		}
@@ -615,7 +615,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	for(int i = 0; i < fftlen; i++) {
 		darkpsd[i] = darkpsdsum[i] * darknormalize;
 	}
-	int ftpos = lrint( shot_this[ *fftPos()] * 1e-3 / interval + shot_dso[ *_dso].trigPos() - pos);
+	int ftpos = lrint( shot_this[ *fftPos()] * 1e-3 / interval + shot_dso[ *dso__].trigPos() - pos);
 
 	if(shot_this[ *difFreq()] != 0.0) {
 		//Digital IF.
@@ -644,7 +644,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			0.001 * x * shot_this[ *this].m_dFreq);
 	}
 	
-	m_isPulseInversionRequested = picenabled && (shot_this[ *this].m_avcount % 2 == 1) && (emitter == _dso.get());
+	m_isPulseInversionRequested = picenabled && (shot_this[ *this].m_avcount % 2 == 1) && (emitter == dso__.get());
 
 	if( !shot_this[ *exAvgIncr()] && (avgnum != shot_this[ *this].m_avcount))
 		throw XSkippedRecordError(__FILE__, __LINE__);
@@ -662,11 +662,11 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 	}
 
 	if(m_isPulseInversionRequested.compareAndSet((int)true, (int)false)) {
-		shared_ptr<XPulser> _pulser = shot[ *pulser()];
-		if(_pulser) {
-			for(Transaction tr( *_pulser);; ++tr) {
-				if(tr[ *_pulser].time()) {
-					tr[ *_pulser->invertPhase()] = !tr[ *_pulser->invertPhase()];
+		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
+		if(pulse__) {
+			for(Transaction tr( *pulse__);; ++tr) {
+				if(tr[ *pulse__].time()) {
+					tr[ *pulse__->invertPhase()] = !tr[ *pulse__->invertPhase()];
 				}
 				if(tr.commit())
 					break;

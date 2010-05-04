@@ -75,9 +75,9 @@ private:
 	XTime m_time;
 
 	//! change position without parsing
-	void _first(void *) throw (XIOError &);
-	void _previous(void *) throw (XRecordError &);
-	void _next(void *) throw (XRecordError &);
+	void first__(void *) throw (XIOError &);
+	void previous__(void *) throw (XRecordError &);
+	void next__(void *) throw (XRecordError &);
 	void goToHeader(void *) throw (XRecordError &);
 
 	void readHeader(void *) throw (XRecordError &);

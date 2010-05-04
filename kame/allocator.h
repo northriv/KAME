@@ -18,12 +18,12 @@
 #include "allocator_prv.h"
 
 //! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Memory blocks in a unit of double-quad word less than 4KiB
+//! Memory blocks in a unit of double-quad word less than 8KiB
 //! can be allocated from fixed-size or variable-size memory pools.
 //! The larger memory is provided by standard malloc().
 //! \sa PooledAllocator, allocator_test.cpp.
 extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
-	return __new_redirected(size);
+	return new_redirected(size);
 }
 extern inline void* operator new(std::size_t size, const std::nothrow_t&) throw() {
 	return operator new(size);
@@ -35,10 +35,10 @@ extern inline void* operator new[](std::size_t size, const std::nothrow_t&) thro
 	return operator new(size);
 }
 
-extern void __deallocate_pooled_or_free(void* p) throw();
+extern void deallocate_pooled_or_free(void* p) throw();
 
 extern inline void operator delete(void* p) throw() {
-	return __deallocate_pooled_or_free(p);
+	return deallocate_pooled_or_free(p);
 }
 extern inline void operator delete(void* p, const std::nothrow_t&) throw() {
 	operator delete(p);

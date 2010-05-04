@@ -48,31 +48,31 @@ static std::deque<shared_ptr<XStatusPrinter> > s_statusPrinterCreating;
 static std::deque<shared_ptr<XQConnector> > s_conCreating;
 static std::map<const QWidget*, weak_ptr<XNode> > s_widgetMap;
 
-void _sharedPtrQDeleter(QObject *obj) {
+void sharedPtrQDeleter_(QObject *obj) {
     if(isMainThread())
         delete obj;
     else
         obj->deleteLater();
 }
 
-_XQConnectorHolder::_XQConnectorHolder(XQConnector *con) :
+XQConnectorHolder__::XQConnectorHolder__(XQConnector *con) :
     QObject(0L) {
     m_connector = s_conCreating.back();
     s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
     ASSERT(con->shared_from_this());
 }
-_XQConnectorHolder::~_XQConnectorHolder() {
+XQConnectorHolder__::~XQConnectorHolder__() {
     if(m_connector)
         disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
 }
 bool
-_XQConnectorHolder::isAlive() const {
+XQConnectorHolder__::isAlive() const {
     return m_connector;
 }
 
 void
-_XQConnectorHolder::destroyed () {
+XQConnectorHolder__::destroyed () {
 	disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
 	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_connector->m_pWidget);
 	ASSERT(it != s_widgetMap.end());

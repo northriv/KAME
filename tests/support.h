@@ -28,10 +28,10 @@
 #define C_ASSERT(expr)
 #define DEBUG_XTHREAD 0
 #else
-#define ASSERT(expr) {if( !(expr)) _my_assert( __FILE__, __LINE__);}
-#define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
-inline void _my_cassert(size_t ) {}
-int _my_assert(char const*s, int d);
+#define ASSERT(expr) {if( !(expr)) my_assert( __FILE__, __LINE__);}
+#define C_ASSERT(expr) my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
+inline void my_cassert(size_t ) {}
+int my_assert(char const*s, int d);
 #define DEBUG_XTHREAD 1
 #endif
 
@@ -73,7 +73,7 @@ struct XKameError : public std::runtime_error {
 	XKameError(const XString &s, const char *file, int line);
 	void print();
 	void print(const XString &header);
-	static void print(const XString &msg, const char *file, int line, int _errno);
+	static void print(const XString &msg, const char *file, int line, int errno_);
 	const XString &msg() const;
 	virtual const char* what() const throw();
 private:
@@ -85,16 +85,16 @@ private:
 
 
 //! Debug printing.
-#define dbgPrint(msg) _dbgPrint(msg, __FILE__, __LINE__)
+#define dbgPrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__)
 void
-_dbgPrint(const XString &str, const char *file, int line);
+dbgPrint_redirected(const XString &str, const char *file, int line);
 //! Global Error Message/Printing.
-#define gErrPrint(msg) _gErrPrint(msg, __FILE__, __LINE__)
-#define gWarnPrint(msg) _gWarnPrint(msg, __FILE__, __LINE__)
+#define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
+#define gWarnPrint(msg) gWarnPrint_redirected(msg, __FILE__, __LINE__)
 void
-_gErrPrint(const XString &str, const char *file, int line);
+gErrPrint_redirected(const XString &str, const char *file, int line);
 void
-_gWarnPrint(const XString &str, const char *file, int line);
+gWarnPrint_redirected(const XString &str, const char *file, int line);
 
 //! If true, use mlockall MCL_FUTURE.
 extern bool g_bMLockAlways;

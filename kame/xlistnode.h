@@ -102,41 +102,41 @@ public:
         const XString &type, const XString &name) = 0;
 };  
 
-shared_ptr<XNode> _empty_creator(const char *, bool = false);
+shared_ptr<XNode> empty_creator_(const char *, bool = false);
 template <typename X>
-shared_ptr<XNode> _empty_creator(const char *, bool, X) {
+shared_ptr<XNode> empty_creator_(const char *, bool, X) {
     return shared_ptr<XNode>();
 }
 template <typename X, typename Y>
-shared_ptr<XNode> _empty_creator(const char *, bool, X, Y) {
+shared_ptr<XNode> empty_creator_(const char *, bool, X, Y) {
     return shared_ptr<XNode>();
 }
 template <typename X, typename Y, typename Z>
-shared_ptr<XNode> _empty_creator(const char *, bool, X, Y, Z) {
+shared_ptr<XNode> empty_creator_(const char *, bool, X, Y, Z) {
     return shared_ptr<XNode>();
 }
 template <typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<XNode> _empty_creator(const char *, bool, X, Y, Z, ZZ) {
+shared_ptr<XNode> empty_creator_(const char *, bool, X, Y, Z, ZZ) {
     return shared_ptr<XNode>();
 }
 template <typename T>
-shared_ptr<XNode> _creator(const char *name, bool runtime) {
+shared_ptr<XNode> creator_(const char *name, bool runtime) {
     return XNode::createOrphan<T>(name, runtime);
 }
 template <typename T, typename X>
-shared_ptr<XNode> _creator(const char *name, bool runtime, X x) {
+shared_ptr<XNode> creator_(const char *name, bool runtime, X x) {
     return XNode::createOrphan<T>(name, runtime, x);
 }
 template <typename T, typename X, typename Y>
-shared_ptr<XNode> _creator(const char *name, bool runtime, X x, Y y) {
+shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y) {
     return XNode::createOrphan<T>(name, runtime, x, y);
 }
 template <typename T, typename X, typename Y, typename Z>
-shared_ptr<XNode> _creator(const char *name, bool runtime, X x, Y y, Z z) {
+shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y, Z z) {
     return XNode::createOrphan<T>(name, runtime, x, y, z);
 }
 template <typename T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<XNode> _creator(const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
+shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
     return XNode::createOrphan<T>(name, runtime, x, y, z, zz);
 }
 
@@ -153,7 +153,7 @@ struct XTypeHolder {
 	template <class tChild>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-			tFunc create_typed = _creator<tChild>;
+			tFunc create_typed = creator_<tChild>;
 			if( !label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
@@ -170,16 +170,16 @@ struct XTypeHolder {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
-		return _empty_creator;
+		return empty_creator_;
 	}
 	std::deque<tFunc> creators;
 	std::deque<XString> names, labels;
 };
 
-#define DEFINE_TYPE_HOLDER_W_FUNC(_tFunc) \
-  typedef XTypeHolder<_tFunc> TypeHolder; \
+#define DEFINE_TYPE_HOLDER_W_FUNC(tFunc__) \
+  typedef XTypeHolder<tFunc__> TypeHolder; \
   static TypeHolder s_types; \
-  static _tFunc creator(const XString &tp) {return s_types.creator(tp);} \
+  static tFunc__ creator(const XString &tp) {return s_types.creator(tp);} \
   static std::deque<XString> &typenames() {return s_types.names;} \
   static std::deque<XString> &typelabels() {return s_types.labels;}
 
@@ -211,10 +211,10 @@ struct XTypeHolder {
 #define DECLARE_TYPE_HOLDER(list) \
     list::TypeHolder list::s_types;
 
-#define _REGISTER_TYPE_2(list, type, name, label) list::TypeHolder::Creator<type> \
+#define REGISTER_TYPE_2__(list, type, name, label) list::TypeHolder::Creator<type> \
     g_driver_type_ ## name(list::s_types, # name, label);
     
-#define REGISTER_TYPE(list, type, label) _REGISTER_TYPE_2(list, X ## type, type, label)
+#define REGISTER_TYPE(list, type, label) REGISTER_TYPE_2__(list, X ## type, type, label)
 
 class XStringList : public  XListNode<XStringNode> {
 public:

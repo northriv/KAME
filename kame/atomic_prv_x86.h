@@ -117,12 +117,11 @@ atomicCompareAndSet(
 	union {
 		T x;
 		uint_cas2 w[2];
-	} _newv, _oldv;
-	_newv.x = newv;
-	_oldv.x = oldv;
+	} newv_, oldv_;
+	newv_.x = newv;
+	oldv_.x = oldv;
 
-	return atomicCompareAndSet2(_oldv.w[0], _oldv.w[1], _newv.w[0], _newv.w[1],
-		(uint_cas2*)(target));
+	return atomicCompareAndSet2(oldv_.w[0], oldv_.w[1], newv_.w[0], newv_.w[1], (uint_cas2*)(target));
 }
 
 //! \return true if old == *target and new value is assigned

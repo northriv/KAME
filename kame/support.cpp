@@ -46,31 +46,11 @@ static void __attribute__ ((constructor)) trapfpe (void)
 #endif
 #endif // __linux__
 
-#ifdef HAVE_LIBGCCPP
-static void kame_cleanup(void *obj, void *data) {
-	char *msg = (char*)data;
-	gErrPrint(QString("Memory Leak! addr=%1, %2")
-			  .arg((unsigned int)obj, 0, 16)
-			  .arg(msg));
-	free(msg);
-}
-void *kame_gc::operator new(size_t size) {
-	char *buf = (char*)malloc(256);
-	snprintf(buf, 256, "size=%u, time=%s",
-			 (unsigned int)size, (const char*)XTime::now().getTimeStr().utf8());
-	return ::operator new(size, UseGC, kame_cleanup, buf);
-}
-void kame_gc::operator delete(void *obj) {
-	GC_register_finalizer_ignore_self( GC_base(obj), 0, 0, 0, 0 );
-	gc::operator delete(obj);
-}
-#endif
-
 #ifndef NDEBUG
 #ifdef __linux__
 #include <execinfo.h>
 #endif
-int _my_assert(const char *file, int line) {
+int my_assert(const char *file, int line) {
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	XString msg = formatString("assertion failed %s:%d\n",file,line);
 	g_debugofs << msg;
@@ -104,24 +84,24 @@ XKameError::print() {
 	print("");
 }
 void
-XKameError::print(const XString &msg, const char *file, int line, int _errno) {
-	if(_errno) {
+XKameError::print(const XString &msg, const char *file, int line, int errno_) {
+	if(errno_) {
 		errno = 0;
 		char buf[256];
 	#ifdef __linux__
-		char *s = strerror_r(_errno, buf, sizeof(buf));
-		_gErrPrint(msg + " " + s, file, line);
+		char *s = strerror_r(errno_, buf, sizeof(buf));
+		gErrPrint_redirected(msg + " " + s, file, line);
 	#else
-		strerror_r(_errno, buf, sizeof(buf));
-		if(!errno)
-			_gErrPrint(msg + " " + buf, file, line);
+		strerror_r(errno_, buf, sizeof(buf));
+		if( !errno_)
+			gErrPrint_redirected(msg + " " + buf, file, line);
 		else
-			_gErrPrint(msg + " (strerror failed)", file, line);
+			gErrPrint_redirected(msg + " (strerror failed)", file, line);
 	#endif
 		errno = 0;
 	}
 	else {
-		_gErrPrint(msg, file, line);
+		gErrPrint_redirected(msg, file, line);
 	}
 }
 
@@ -154,7 +134,7 @@ double setprec(double val, double prec) {
 
 
 void
-_dbgPrint(const XString &str, const char *file, int line) {
+dbgPrint_redirected(const XString &str, const char *file, int line) {
 	if(!g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
@@ -167,7 +147,7 @@ _dbgPrint(const XString &str, const char *file, int line) {
 		<< std::endl;
 }
 void
-_gErrPrint(const XString &str, const char *file, int line) {
+gErrPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs
@@ -184,7 +164,7 @@ _gErrPrint(const XString &str, const char *file, int line) {
 	if(statusprinter) statusprinter->printError(str);
 }
 void
-_gWarnPrint(const XString &str, const char *file, int line) {
+gWarnPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
 		g_debugofs

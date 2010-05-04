@@ -25,8 +25,8 @@
 	/*#define CHECK_DAQMX_RET(ret, msg) {dbgPrint(# ret);\
 	  if(CHECK_DAQMX_ERROR(ret, msg) > 0) {gWarnPrint(QString(msg) + " " + XNIDAQmxInterface::getNIDAQmxErrMessage()); } }
 	*/
-	#define CHECK_DAQMX_RET(ret) {int _code = ret; \
-		if(CHECK_DAQMX_ERROR(_code) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(_code)); } }
+	#define CHECK_DAQMX_RET(ret) {int code__ = ret; \
+		if(CHECK_DAQMX_ERROR(code__) > 0) {gWarnPrint(XNIDAQmxInterface::getNIDAQmxErrMessage(code__)); } }
 #else
 	#define CHECK_DAQMX_ERROR(ret) (0)
 	#define CHECK_DAQMX_RET(ret)
@@ -143,7 +143,7 @@ public:
 			return s_virtualTrigList;
 		}
 	private:
-		void _clear();
+		void clear__();
 		const XString m_label;
 		XString m_armTerm;
 		unsigned int m_bits;

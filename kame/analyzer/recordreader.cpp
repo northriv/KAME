@@ -187,18 +187,18 @@ XRawStreamRecordReader::gzgetline(void*fd, unsigned char*buf, unsigned int len, 
 	throw XBufferOverflowError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::_first(void *fd)
+XRawStreamRecordReader::first__(void *fd)
 	throw (XRawStreamRecordReader::XIOError &) {
 	gzrewind(fd);
 }
 void
-XRawStreamRecordReader::_previous(void *fd)
+XRawStreamRecordReader::previous__(void *fd)
 	throw (XRawStreamRecordReader::XRecordError &) {
 	if(gzseek(fd, -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 	goToHeader(fd);
 }
 void
-XRawStreamRecordReader::_next(void *fd)
+XRawStreamRecordReader::next__(void *fd)
 	throw (XRawStreamRecordReader::XRecordError &) {
 	readHeader(fd);
 	uint32_t headersize = sizeof(uint32_t) //allsize
@@ -257,7 +257,7 @@ XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock();
-			_first(m_pGFD);
+			first__(m_pGFD);
 			parseOne(m_pGFD, m_filemutex);
 			g_statusPrinter->printMessage(i18n("First"));
 		}
@@ -286,8 +286,8 @@ XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
 	if(m_pGFD) {
 		try {
 			m_filemutex.lock(); 
-			_previous(m_pGFD);
-			_previous(m_pGFD);
+			previous_(m_pGFD);
+			previous__(m_pGFD);
 			parseOne(m_pGFD, m_filemutex);
 			g_statusPrinter->printMessage(i18n("Previous"));
 		}
@@ -312,8 +312,8 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
 		try {
 			m_filemutex.lock(); 
 			if(ms < 0.0) {
-				_previous(m_pGFD);
-				_previous(m_pGFD);
+				previous__(m_pGFD);
+				previous__(m_pGFD);
 			}
 			parseOne(m_pGFD, m_filemutex);
 		}

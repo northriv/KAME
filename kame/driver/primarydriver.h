@@ -51,10 +51,10 @@ protected:
 		template <typename tVar>
 		inline void push(tVar);
 	private:
-		inline void _push_char(char);
-		inline void _push_int16_t(int16_t);
-		inline void _push_int32_t(int32_t);
-		inline void _push_double(double);
+		inline void push_char(char);
+		inline void push_int16_t(int16_t);
+		inline void push_int32_t(int32_t);
+		inline void push_double(double);
 	};
 
 	struct RawDataReader {
@@ -76,10 +76,10 @@ protected:
 		RawDataReader();
 		const_iterator it;
 		const std::vector<char> &m_data;
-		inline char _pop_char();
-		inline int16_t _pop_int16_t();
-		inline int32_t _pop_int32_t();
-		inline double _pop_double();
+		inline char pop_char();
+		inline int16_t pop_int16_t();
+		inline int32_t pop_int32_t();
+		inline double pop_double();
 	};
 
 	//! This function will be called when raw data are written.
@@ -105,11 +105,11 @@ public:
 };
 
 inline void
-XPrimaryDriver::RawData::_push_char(char x) {
+XPrimaryDriver::RawData::push_char(char x) {
     push_back(x);
 }
 inline void
-XPrimaryDriver::RawData::_push_int16_t(int16_t x) {
+XPrimaryDriver::RawData::push_int16_t(int16_t x) {
     int16_t y = x;
     char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
@@ -121,7 +121,7 @@ XPrimaryDriver::RawData::_push_int16_t(int16_t x) {
 	}
 }
 inline void
-XPrimaryDriver::RawData::_push_int32_t(int32_t x) {
+XPrimaryDriver::RawData::push_int32_t(int32_t x) {
 	int32_t y = x;
 	char *p = reinterpret_cast<char *>(&y);
 #ifdef __BIG_ENDIAN__
@@ -133,7 +133,7 @@ XPrimaryDriver::RawData::_push_int32_t(int32_t x) {
 	}
 }
 inline void
-XPrimaryDriver::RawData::_push_double(double x) {
+XPrimaryDriver::RawData::push_double(double x) {
 	C_ASSERT(sizeof(double) == 8); // for compatibility.
 	double y = x;
 	char *p = reinterpret_cast<char *>( &y);
@@ -146,12 +146,12 @@ XPrimaryDriver::RawData::_push_double(double x) {
 	}
 }
 inline char
-XPrimaryDriver::RawDataReader::_pop_char() {
+XPrimaryDriver::RawDataReader::pop_char() {
 	char c = *(it++);
 	return c;
 }
 inline int16_t
-XPrimaryDriver::RawDataReader::_pop_int16_t() {
+XPrimaryDriver::RawDataReader::pop_int16_t() {
 	union {
 		int16_t x;
 		char p[sizeof(int16_t)];
@@ -166,7 +166,7 @@ XPrimaryDriver::RawDataReader::_pop_int16_t() {
 	return uni.x;
 }
 inline int32_t
-XPrimaryDriver::RawDataReader::_pop_int32_t() {
+XPrimaryDriver::RawDataReader::pop_int32_t() {
 	union {
 		int32_t x;
 		char p[sizeof(int32_t)];
@@ -181,7 +181,7 @@ XPrimaryDriver::RawDataReader::_pop_int32_t() {
 	return uni.x;
 }
 inline double
-XPrimaryDriver::RawDataReader::_pop_double() {
+XPrimaryDriver::RawDataReader::pop_double() {
 	union {
 		double x;
 		char p[sizeof(double)];
@@ -199,32 +199,32 @@ XPrimaryDriver::RawDataReader::_pop_double() {
 template <>
 inline char XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(char) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return _pop_char();
+	return pop_char();
 }
 template <>
 inline unsigned char XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(char) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return static_cast<unsigned char>(_pop_char());
+	return static_cast<unsigned char>(pop_char());
 }
 template <>
 inline int16_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(int16_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return _pop_int16_t();
+	return pop_int16_t();
 }
 template <>
 inline uint16_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(int16_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return static_cast<uint16_t>(_pop_int16_t());
+	return static_cast<uint16_t>(pop_int16_t());
 }
 template <>
 inline int32_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(int32_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return _pop_int32_t();
+	return pop_int32_t();
 }
 template <>
 inline uint32_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(int32_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	return static_cast<uint32_t>(_pop_int32_t());
+	return static_cast<uint32_t>(pop_int32_t());
 }
 template <>
 inline float XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
@@ -234,39 +234,39 @@ inline float XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordE
 		float y;
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
-	uni.x = _pop_int32_t();
+	uni.x = pop_int32_t();
 	return uni.y;
 }
 template <>
 inline double XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(double) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	C_ASSERT(sizeof(double) == 8);
-	return _pop_double();
+	return pop_double();
 }
 
 template <>
 inline void XPrimaryDriver::RawData::push(char x) {
-	_push_char(x);
+	push_char(x);
 }
 template <>
 inline void XPrimaryDriver::RawData::push(unsigned char x) {
-	_push_char(static_cast<char>(x));
+	push_char(static_cast<char>(x));
 }
 template <>
 inline void XPrimaryDriver::RawData::push(int16_t x) {
-	_push_int16_t(x);
+	push_int16_t(x);
 }
 template <>
 inline void XPrimaryDriver::RawData::push(uint16_t x) {
-	_push_int16_t(static_cast<int16_t>(x));
+	push_int16_t(static_cast<int16_t>(x));
 }
 template <>
 inline void XPrimaryDriver::RawData::push(int32_t x) {
-	_push_int32_t(x);
+	push_int32_t(x);
 }
 template <>
 inline void XPrimaryDriver::RawData::push(uint32_t x) {
-	_push_int32_t(static_cast<int32_t>(x));
+	push_int32_t(static_cast<int32_t>(x));
 }
 template <>
 inline void XPrimaryDriver::RawData::push(float f) {
@@ -276,11 +276,11 @@ inline void XPrimaryDriver::RawData::push(float f) {
 	} uni;
 	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
 	uni.y = f;
-	_push_int32_t(uni.x);
+	push_int32_t(uni.x);
 }
 template <>
 inline void XPrimaryDriver::RawData::push(double x) {
-	_push_double(x);
+	push_double(x);
 }
 
 #endif /*PRIMARYDRIVER_H_*/

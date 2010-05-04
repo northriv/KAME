@@ -93,11 +93,11 @@ XTouchableNode::Payload::touch() {
 
 template <typename T, int base>
 void
-XIntNodeBase<T, base>::Payload::_str(const XString &str) {
+XIntNodeBase<T, base>::Payload::str_(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<int, 10>::Payload::_str(const XString &str) {
+XIntNodeBase<int, 10>::Payload::str_(const XString &str) {
     bool ok;
     int var = QString(str).toInt(&ok, 10);
     if(!ok)
@@ -106,7 +106,7 @@ XIntNodeBase<int, 10>::Payload::_str(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<unsigned int, 10>::Payload::_str(const XString &str) {
+XIntNodeBase<unsigned int, 10>::Payload::str_(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toUInt(&ok);
     if(!ok)
@@ -115,7 +115,7 @@ XIntNodeBase<unsigned int, 10>::Payload::_str(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<long, 10>::Payload::_str(const XString &str) {
+XIntNodeBase<long, 10>::Payload::str_(const XString &str) {
     bool ok;
     long var = QString(str).toLong(&ok, 10);
     if(!ok)
@@ -124,7 +124,7 @@ XIntNodeBase<long, 10>::Payload::_str(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<unsigned long, 10>::Payload::_str(const XString &str) {
+XIntNodeBase<unsigned long, 10>::Payload::str_(const XString &str) {
     bool ok;
     unsigned long var = QString(str).toULong(&ok);
     if(!ok)
@@ -133,7 +133,7 @@ XIntNodeBase<unsigned long, 10>::Payload::_str(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<unsigned long, 16>::Payload::_str(const XString &str) {
+XIntNodeBase<unsigned long, 16>::Payload::str_(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toULong(&ok, 16);
     if(!ok)
@@ -142,7 +142,7 @@ XIntNodeBase<unsigned long, 16>::Payload::_str(const XString &str) {
 }
 template <>
 void
-XIntNodeBase<bool, 10>::Payload::_str(const XString &str) {
+XIntNodeBase<bool, 10>::Payload::str_(const XString &str) {
 	bool ok;
 	bool x = QString(str).toInt(&ok);
     if(ok) {
@@ -190,7 +190,7 @@ XDoubleNode::Payload::to_str() const {
     	static_cast<const XDoubleNode&>(node()).format(), m_var);
 }
 void
-XDoubleNode::Payload::_str(const XString &str) {
+XDoubleNode::Payload::str_(const XString &str) {
 	bool ok;
     double var = QString(str).toDouble(&ok);
     if(!ok)

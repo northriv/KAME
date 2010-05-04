@@ -67,7 +67,7 @@ XDMM::stop() {
 void
 XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	double x = reader.pop<double>();
-	tr[ *this]._write(x);
+	tr[ *this].write_(x);
 	m_entry->value(tr, x);
 }
 void

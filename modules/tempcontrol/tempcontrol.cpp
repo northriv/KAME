@@ -508,10 +508,10 @@ void XTempControl::onExcitationChanged(const Snapshot &shot, XValueNodeBase *nod
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
 			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XChannel> _ch =
+				shared_ptr<XChannel> ch__ =
 					dynamic_pointer_cast<XChannel> ( *it);
-				if(_ch->excitation().get() == node)
-					ch = _ch;
+				if(ch__->excitation().get() == node)
+					ch = ch__;
 			}
 		}
 		if( !ch)

@@ -509,7 +509,7 @@ XNIDAQmxDSO::createChannels() {
 		return;
 	}
 
-	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_task, 0, &XNIDAQmxDSO::onTaskDone_, this));
 
 	setupTiming();
 }
@@ -549,7 +549,7 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 	}
 }
 int32
-XNIDAQmxDSO::_onTaskDone(TaskHandle task, int32 status, void *data) {
+XNIDAQmxDSO::onTaskDone_(TaskHandle task, int32 status, void *data) {
 	XNIDAQmxDSO *obj = static_cast<XNIDAQmxDSO*>(data);
 	obj->onTaskDone(task, status);
 	return status;

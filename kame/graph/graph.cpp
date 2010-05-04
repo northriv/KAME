@@ -784,7 +784,7 @@ XAxis::XAxis(const char *name, bool runtime,
 			if(dir == DirAxisX) tr[ *y()] = 1.0- tr[ *y()];
 		}
 
-		_startAutoscale(tr, true);
+		startAutoscale_(tr, true);
 
 		tr[ *maxValue()].onValueChanged().connect(graph->lsnPropertyChanged());
 		tr[ *minValue()].onValueChanged().connect(graph->lsnPropertyChanged());
@@ -815,7 +815,7 @@ XAxis::XAxis(const char *name, bool runtime,
 
 
 void
-XAxis::_startAutoscale(const Snapshot &shot, bool clearscale) {
+XAxis::startAutoscale_(const Snapshot &shot, bool clearscale) {
 	m_bLogscaleFixed = shot[ *logScale()];
 	m_bAutoscaleFixed = shot[ *autoScale()];
 	if(clearscale) {
@@ -833,7 +833,7 @@ XAxis::_startAutoscale(const Snapshot &shot, bool clearscale) {
 }
 void
 XAxis::startAutoscale(const Snapshot &shot, float, bool clearscale) {
-    _startAutoscale(shot, clearscale);
+    startAutoscale__(shot, clearscale);
 }
 void
 XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {
@@ -964,11 +964,11 @@ XAxis::axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *
 }
 XGraph::GFloat
 XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) {
-	XGraph::SFloat _x = scr.x - shot[ *x()];
-	XGraph::SFloat _y = scr.y - shot[ *y()];
-	XGraph::SFloat _z = scr.z - shot[ *z()];
-	XGraph::GFloat pos = ((m_direction == DirAxisX) ? _x : 
-						  ((m_direction == DirAxisY) ? _y : _z)) / (XGraph::SFloat)shot[ *length()];
+	XGraph::SFloat x__ = scr.x - shot[ *x()];
+	XGraph::SFloat y__ = scr.y - shot[ *y()];
+	XGraph::SFloat z__ = scr.z - shot[ *z()];
+	XGraph::GFloat pos = ((m_direction == DirAxisX) ? x__ :
+						  ((m_direction == DirAxisY) ? y__ : z__)) / (XGraph::SFloat)shot[ *length()];
 	return pos;
 }
 XGraph::VFloat

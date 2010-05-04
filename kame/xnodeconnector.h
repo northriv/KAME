@@ -23,7 +23,7 @@
 
 class QWidget;
 
-void _sharedPtrQDeleter(QObject *);
+void sharedPtrQDeleter_(QObject *);
 
 template <class T>
 class qshared_ptr : public shared_ptr<T> {
@@ -34,7 +34,7 @@ public:
         : shared_ptr<T>(static_cast<const shared_ptr<Y> &>(p) ) {}
     template <class Y>
     explicit qshared_ptr(Y * p)
-        : shared_ptr<T>(p, _sharedPtrQDeleter) {
+        : shared_ptr<T>(p, sharedPtrQDeleter_) {
 		ASSERT(isMainThread());
 	}
     template <class Y>
@@ -46,11 +46,11 @@ public:
 
 class XQConnector;
 
-class _XQConnectorHolder : public QObject {
+class XQConnectorHolder__ : public QObject {
 	Q_OBJECT
 public:
-	_XQConnectorHolder(XQConnector *con);
-	~_XQConnectorHolder();
+	XQConnectorHolder__(XQConnector *con);
+	~XQConnectorHolder__();
 	bool isAlive() const;
 private slots:
 		protected slots:
@@ -60,7 +60,7 @@ protected:
 public:
 };
 
-typedef qshared_ptr<_XQConnectorHolder> xqcon_ptr;
+typedef qshared_ptr<XQConnectorHolder__> xqcon_ptr;
 
 #include <xnodeconnector_prv.h>
 
@@ -108,7 +108,7 @@ public:
 private slots:
 protected slots:
 protected:
-	friend class _XQConnectorHolder;
+	friend class XQConnectorHolder__;
 	bool isItemAlive() const {return m_pWidget;}
 	shared_ptr<XListener> m_lsnUIEnabled;
 	void onUIFlagsChanged(const Snapshot &shot, XNode *node);

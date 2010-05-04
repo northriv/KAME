@@ -51,7 +51,7 @@ MonteCarlo::dipoleFieldReal(const Vector3<double> &v, int site2, Vector3<double>
     double r = LATTICE_CONST/4.0 * sqrt((double)r2int);
     double ir = 1.0/r;
     double alphar = s_alpha*r;
-    double ir_eff = _erfc(alphar)*ir;
+    double ir_eff = erfc__(alphar)*ir;
     double derfc = 2.0*s_alpha/sqrt(M_PI)*exp(-alphar*alphar);
     double ir3_eff = ir*ir*(ir_eff + derfc);
     double ir5_eff = ir*ir*(ir3_eff + 2.0/3.0*s_alpha*s_alpha*derfc);
@@ -113,7 +113,7 @@ MonteCarlo::setupField(int size, double dfactor,
     int cutoff_real = (int)ceil(radius - 0.01);
     alpha /= LATTICE_CONST;
     s_alpha = alpha;
-    double mag_cutoff = _erfc(alpha*LATTICE_CONST*radius);
+    double mag_cutoff = erfc_(alpha*LATTICE_CONST*radius);
     fprintf(stderr, "Magnitude at the cutoff boundary for real = %g%%\n", 100.0*mag_cutoff);
     s_cutoff_real = cutoff_real;
     s_cutoff_real_radius = radius;

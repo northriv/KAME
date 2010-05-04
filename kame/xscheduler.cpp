@@ -21,7 +21,7 @@ shared_ptr<XSignalBuffer> g_signalBuffer;
 unsigned int g_adaptiveDelay = ADAPTIVE_DELAY_MIN;
 
 void 
-registerTransactionList(_XTransaction *transaction) {
+registerTransactionList(XTransaction__ *transaction) {
 	g_signalBuffer->registerTransactionList(transaction);
 }
 
@@ -30,9 +30,9 @@ XSignalBuffer::XSignalBuffer()
 }
 XSignalBuffer::~XSignalBuffer() {
 }
-_XTransaction *
+XTransaction__ *
 XSignalBuffer::popOldest() {
-	_XTransaction *item = 0L, *skipped_item = 0L;
+	XTransaction__ *item = 0L, *skipped_item = 0L;
 	if(m_queue.size()) {
 		item = m_queue.front();
 		if(m_skippedQueue.size()) {
@@ -71,7 +71,7 @@ XSignalBuffer::popOldest() {
 	return skipped_item;
 }
 void 
-XSignalBuffer::registerTransactionList(_XTransaction *transaction) {
+XSignalBuffer::registerTransactionList(XTransaction__ *transaction) {
     unsigned long time(transaction->registered_time);
     for(;;) {
     	for(unsigned int i = 0; i < 20; i++) {
@@ -126,7 +126,7 @@ XSignalBuffer::synchronize() {
 			dotalk = !m_skippedQueue.empty();
 			break;
 		}
-		_XTransaction *transaction = popOldest();
+		XTransaction__ *transaction = popOldest();
 		if( !transaction) {
 			dotalk = false;
 			break;
@@ -139,7 +139,7 @@ XSignalBuffer::synchronize() {
 			e.print();
 		}
 		if(skip) {
-			m_skippedQueue.push_back(std::pair<_XTransaction*, unsigned long>(transaction, timeStamp()));
+			m_skippedQueue.push_back(std::pair<XTransaction__*, unsigned long>(transaction, timeStamp()));
 			skipped_cnt++;
 		}
 		else {

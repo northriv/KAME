@@ -167,10 +167,10 @@ bool
 XNMRSpectrumBase<FRM>::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-    shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
-    if( !_pulse) return false;
+    shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    if( !pulse__) return false;
     if(emitter == this) return true;
-    return (emitter == _pulse.get()) && checkDependencyImpl(shot_this, shot_emitter, shot_others, emitter);
+    return (emitter == pulse__.get()) && checkDependencyImpl(shot_this, shot_emitter, shot_others, emitter);
 }
 template <class FRM>
 void
@@ -178,30 +178,30 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
 
-	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
-	ASSERT( _pulse );
-	const Snapshot &shot_pulse((emitter == _pulse.get()) ? shot_emitter : shot_others);
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+	ASSERT( pulse__ );
+	const Snapshot &shot_pulse((emitter == pulse__.get()) ? shot_emitter : shot_others);
  
-	if(shot_pulse[ *_pulse->exAvgIncr()]) {
+	if(shot_pulse[ *pulse__->exAvgIncr()]) {
 		m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	bool clear = (shot_this[ *this].m_timeClearRequested > shot_pulse[ *_pulse].timeAwared());
+	bool clear = (shot_this[ *this].m_timeClearRequested > shot_pulse[ *pulse__].timeAwared());
   
-	double interval = shot_pulse[ *_pulse].interval();
-	double df = shot_pulse[ *_pulse].dFreq();
+	double interval = shot_pulse[ *pulse__].interval();
+	double df = shot_pulse[ *pulse__].dFreq();
 	
 	double res = getFreqResHint(shot_this);
 	res = df * std::max(1L, lrint(res / df - 0.5));
 	
-	double _max = getMaxFreq(shot_this);
-	double _min = getMinFreq(shot_this);
+	double max__ = getMaxFreq(shot_this);
+	double min__ = getMinFreq(shot_this);
 	
-	if(_max <= _min) {
+	if(max__ <= min__) {
 		throw XSkippedRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
 	}
-	if(res * 65536 * 2 < _max - _min) {
+	if(res * 65536 * 2 < max__ - min__) {
 		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
 	}
 
@@ -217,7 +217,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		}
 	}
 	else {
-		int diff = lrint(shot_this[ *this].min() / res) - lrint(_min / res);
+		int diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 			for(int i = 0; i < diff; i++) {
 				tr[ *this].m_accum[bank].push_front(0.0);
@@ -233,8 +233,8 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 			}
 		}
 	}
-	tr[ *this].m_min = _min;
-	int length = lrint((_max - _min) / res);
+	tr[ *this].m_min = min__;
+	int length = lrint((max__ - min__) / res);
 	for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 		tr[ *this].m_accum[bank].resize(length, 0.0);
 		tr[ *this].m_accum_weights[bank].resize(length, 0);
@@ -250,11 +250,11 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	if(clear) {
 		tr[ *m_spectrum].clearPoints();
 		tr[ *this].m_peaks.clear();
-		trans( *_pulse->avgClear()).touch();
+		trans( *pulse__->avgClear()).touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	if(emitter == _pulse.get()) {
+	if(emitter == pulse__.get()) {
 		fssum(tr, shot_pulse, shot_others);
 		m_isInstrumControlRequested = true;
 	}
@@ -342,10 +342,10 @@ template <class FRM>
 void
 XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const Snapshot &shot_others) {
 	const Snapshot &shot_this(tr);
-	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
 
-	int len = shot_pulse[ *_pulse].ftWidth();
-	double df = shot_pulse[ *_pulse].dFreq();
+	int len = shot_pulse[ *pulse__].ftWidth();
+	double df = shot_pulse[ *pulse__].dFreq();
 	if((len == 0) || (df == 0)) {
 		throw XRecordError(i18n("Invalid waveform."), __FILE__, __LINE__);
 	}
@@ -364,17 +364,17 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 	if( !shot_this[ *this].m_preFFT || (shot_this[ *this].m_preFFT->length() != len)) {
 		tr[ *this].m_preFFT.reset(new FFT(-1, len));
 	}
-	int wlen = std::min(len, (int)shot_pulse[ *_pulse].wave().size());
-	int woff = -shot_pulse[ *_pulse].waveFTPos()
-		+ len * ((shot_pulse[ *_pulse].waveFTPos() > 0) ? ((int)shot_pulse[ *_pulse].waveFTPos() / len + 1) : 0);
-	const std::complex<double> *pulse_wave( &shot_pulse[ *_pulse].wave()[0]);
+	int wlen = std::min(len, (int)shot_pulse[ *pulse__].wave().size());
+	int woff = -shot_pulse[ *pulse__].waveFTPos()
+		+ len * ((shot_pulse[ *pulse__].waveFTPos() > 0) ? ((int)shot_pulse[ *pulse__].waveFTPos() / len + 1) : 0);
+	const std::complex<double> *pulse_wave( &shot_pulse[ *pulse__].wave()[0]);
 	for(int i = 0; i < wlen; i++) {
 		int j = (i + woff) % len;
 		ftwavein[j] = pulse_wave[i];
 	}
 	tr[ *this].m_preFFT->exec(ftwavein, ftwaveout);
 	bw /= 2.0;
-	double normalize = 1.0 / (double)shot_pulse[ *_pulse].wave().size();
+	double normalize = 1.0 / (double)shot_pulse[ *pulse__].wave().size();
 	double darknormalize = shot_this[ *this].res() / df;
 	for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 		double min = shot_this[ *this].min();
@@ -383,7 +383,7 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 		std::deque<std::complex<double> > &accum_wave(tr[ *this].m_accum[bank]);
 		std::deque<double> &accum_weights(tr[ *this].m_accum_weights[bank]);
 		std::deque<double> &accum_dark(tr[ *this].m_accum_dark[bank]);
-		const double *pulse_dark( &shot_pulse[ *_pulse].darkPSD()[0]);
+		const double *pulse_dark( &shot_pulse[ *pulse__].darkPSD()[0]);
 		for(int i = -bw / 2; i <= bw / 2; i++) {
 			double freq = i * df;
 			int idx = lrint((cfreq + freq - min) / res);
@@ -424,10 +424,10 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	}
 	if(max_idx <= min_idx)
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
 	double res = shot_this[ *this].res();
 	int iftlen = max_idx - min_idx + 1;
-	double wave_period = shot_pulse[ *_pulse].waveWidth() * shot_pulse[ *_pulse].interval();
+	double wave_period = shot_pulse[ *pulse__].waveWidth() * shot_pulse[ *pulse__].interval();
 	int npad = lrint(
 		6.0 / (res * wave_period) + 0.5); //# of pads in frequency domain.
 	//Truncation factor for IFFT.
@@ -436,8 +436,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
 	int tdsize = lrint(wave_period * res * iftlen);
-	int iftorigin = lrint(shot_pulse[ *_pulse].waveFTPos() * shot_pulse[ *_pulse].interval() * res * iftlen);
-	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *_pulse].interval() * res * iftlen)));
+	int iftorigin = lrint(shot_pulse[ *pulse__].waveFTPos() * shot_pulse[ *pulse__].interval() * res * iftlen);
+	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *pulse__].interval() * res * iftlen)));
 	
 	if( !shot_this[ *this].m_ift || (shot_this[ *this].m_ift->length() != iftlen)) {
 		tr[ *this].m_ift.reset(new FFT(1, iftlen));

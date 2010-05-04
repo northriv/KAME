@@ -41,7 +41,7 @@ public:
 		unsigned int length() const {return m_trace.size();}
 		const double *trace() const {return &m_trace[0];}
 
-		std::vector<double> &_trace() {return m_trace;}
+		std::vector<double> &trace_() {return m_trace;}
 		double m_startFreq;
 		double m_freqInterval;
 	private:

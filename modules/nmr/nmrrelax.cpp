@@ -212,8 +212,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
 
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
-	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas));
-	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas));
+	m_conPulse1 = xqcon_create<XQComboBoxConnector>(mpulse1__, m_form->m_cmbPulse1, ref(tr_meas));
+	m_conPulse2 = xqcon_create<XQComboBoxConnector>(mpulse2__, m_form->m_cmbPulse2, ref(tr_meas));
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
@@ -333,34 +333,34 @@ bool
 XNMRT1::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-    shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
-    shared_ptr<XNMRPulseAnalyzer> _pulse1 = shot_this[ *pulse1()];
-    shared_ptr<XNMRPulseAnalyzer> _pulse2 = shot_this[ *pulse2()];
-    if( !_pulser || !_pulse1) return false;
+    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+    shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
+    shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
+    if( !pulser__ || !pulse1__) return false;
     if(emitter == this) return true;
-    if(emitter == _pulser.get()) return false;
-	ASSERT((emitter == _pulse1.get()) || (emitter == _pulse2.get()));
+    if(emitter == pulser__.get()) return false;
+	ASSERT((emitter == pulse1__.get()) || (emitter == pulse2__.get()));
 
-    const Snapshot &shot_pulse1((emitter == _pulse1.get()) ? shot_emitter : shot_others);
-    const Snapshot &shot_pulse2((emitter == _pulse2.get()) ? shot_emitter : shot_others);
+    const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
+    const Snapshot &shot_pulse2((emitter == pulse2__.get()) ? shot_emitter : shot_others);
 
-    if(shot_others[ *_pulser].time() > shot_pulse1[ *_pulse1].time()) return false;
+    if(shot_others[ *pulser__].time() > shot_pulse1[ *pulse1__].time()) return false;
 
-	switch(shot_others[ *_pulser].combMode()) {
+	switch(shot_others[ *pulser__].combMode()) {
 	default:
-		if(emitter == _pulse2.get())
+		if(emitter == pulse2__.get())
 			return false;
 		return true;
 	case XPulser::N_COMB_MODE_COMB_ALT:
 	case XPulser::N_COMB_MODE_P1_ALT:
-		if( !_pulse2) {
+		if( !pulse2__) {
 			m_statusPrinter->printError(i18n("2 Pulse Analyzers needed."));
 			return false;
 		}
-	    if(shot_pulse1[ *_pulse1].time() != shot_pulse2[ *_pulse2].time()) return false;
+	    if(shot_pulse1[ *pulse1__].time() != shot_pulse2[ *pulse2__].time()) return false;
 		return true;
 	}
-//    return (_pulser->time() < _pulse1->timeAwared()) && (_pulser->time() < _pulse1->time());
+//    return (pulser__->time() < pulse1__->timeAwared()) && (pulser__->time() < pulse1__->time());
 }
 
 void
@@ -383,28 +383,28 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		m_statusPrinter->printWarning(i18n("Too many Samples."), true);
 	}
 
-	int _mode = shot_this[ *mode()];
-	shared_ptr<XNMRPulseAnalyzer> _pulse1 = shot_this[ *pulse1()];
-	shared_ptr<XNMRPulseAnalyzer> _pulse2 = shot_this[ *pulse2()];
-    const Snapshot &shot_pulse1((emitter == _pulse1.get()) ? shot_emitter : shot_others);
-    const Snapshot &shot_pulse2((emitter == _pulse2.get()) ? shot_emitter : shot_others);
+	int mode__ = shot_this[ *mode()];
+	shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
+	shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
+    const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
+    const Snapshot &shot_pulse2((emitter == pulse2__.get()) ? shot_emitter : shot_others);
 
-	shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
+	shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
 	const Snapshot &shot_pulser(shot_others);
-	ASSERT( _pulser );
-	if(shot_pulser[ *_pulser].time()) {
+	ASSERT( pulser__ );
+	if(shot_pulser[ *pulser__].time()) {
 		//Check consitency.
-		switch (_mode) {
+		switch (mode__) {
 		case MEAS_T1:
 			break;
 		case MEAS_T2:
 			break;
 		case MEAS_ST_E:
-			if((shot_pulser[ *_pulser].tau() != shot_pulser[ *_pulser].combPT()) ||
-					(shot_pulser[ *_pulser].combNum() != 2) ||
-					( !shot_pulser[ *_pulser->conserveStEPhase()]) ||
-					(shot_pulser[ *_pulser].pw1() != 0.0) ||
-					(shot_pulser[ *_pulser].pw2() != shot_pulser[ *_pulser].combPW()))
+			if((shot_pulser[ *pulser__].tau() != shot_pulser[ *pulser__].combPT()) ||
+					(shot_pulser[ *pulser__].combNum() != 2) ||
+					( !shot_pulser[ *pulser__->conserveStEPhase()]) ||
+					(shot_pulser[ *pulser__].pw1() != 0.0) ||
+					(shot_pulser[ *pulser__].pw2() != shot_pulser[ *pulser__].combPW()))
 				m_statusPrinter->printWarning(i18n("Strange St.E. settings."));
 			break;
 		}
@@ -412,64 +412,64 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	// read spectra from NMRPulseAnalyzers
 	if( emitter != this) {
-		ASSERT( _pulse1 );
-		ASSERT( shot_pulse1[ *_pulse1].time() );
-		ASSERT( shot_pulser[ *_pulser].time() );
-		ASSERT( emitter != _pulser.get() );
+		ASSERT( pulse1__ );
+		ASSERT( shot_pulse1[ *pulse1__].time() );
+		ASSERT( shot_pulser[ *pulser__].time() );
+		ASSERT( emitter != pulser__.get() );
 
-		if(shot_pulse1[ *_pulse1->exAvgIncr()]) {
+		if(shot_pulse1[ *pulse1__->exAvgIncr()]) {
 			m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
 
 		std::deque<std::complex<double> > cmp1, cmp2;
-		double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *_pulse1].interval();
-		analyzeSpectrum(tr, shot_pulse1[ *_pulse1].wave(),
-			shot_pulse1[ *_pulse1].waveFTPos(), cfreq, cmp1);
+		double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
+		analyzeSpectrum(tr, shot_pulse1[ *pulse1__].wave(),
+			shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
 		Payload::RawPt pt1, pt2;
-		if(_pulse2) {
-			analyzeSpectrum(tr, shot_pulse2[ *_pulse2].wave(),
-				shot_pulse2[ *_pulse2].waveFTPos(), cfreq, cmp2);
+		if(pulse2__) {
+			analyzeSpectrum(tr, shot_pulse2[ *pulse2__].wave(),
+				shot_pulse2[ *pulse2__].waveFTPos(), cfreq, cmp2);
 			pt2.value_by_cond.resize(cmp2.size());
 		}
 		pt1.value_by_cond.resize(cmp1.size());
-		switch(shot_pulser[ *_pulser].combMode()) {
+		switch(shot_pulser[ *pulser__].combMode()) {
         default:
 			throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
         case XPulser::N_COMB_MODE_COMB_ALT:
-			if(_mode != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
-			ASSERT(_pulse2);
-            pt1.p1 = shot_pulser[ *_pulser].combP1();
+			if(mode__ != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
+			ASSERT(pulse2__);
+            pt1.p1 = shot_pulser[ *pulser__].combP1();
             for(int i = 0; i < cmp1.size(); i++)
             	pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
             tr[ *this].m_pts.push_back(pt1);
             break;
         case XPulser::N_COMB_MODE_P1_ALT:
-			if(_mode == MEAS_T2)
+			if(mode__ == MEAS_T2)
                 throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
-			ASSERT(_pulse2);
-            pt1.p1 = shot_pulser[ *_pulser].combP1();
+			ASSERT(pulse2__);
+            pt1.p1 = shot_pulser[ *pulser__].combP1();
             std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
             tr[ *this].m_pts.push_back(pt1);
-            pt2.p1 = shot_pulser[ *_pulser].combP1Alt();
+            pt2.p1 = shot_pulser[ *pulser__].combP1Alt();
             std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
             tr[ *this].m_pts.push_back(pt2);
             break;
         case XPulser::N_COMB_MODE_ON:
-			if(_mode != MEAS_T2) {
-                pt1.p1 = shot_pulser[ *_pulser].combP1();
+			if(mode__ != MEAS_T2) {
+                pt1.p1 = shot_pulser[ *pulser__].combP1();
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
                 break;
 			}
 			m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
         case XPulser::N_COMB_MODE_OFF:
-			if(_mode != MEAS_T2) {
+			if(mode__ != MEAS_T2) {
 				m_statusPrinter->printWarning(i18n("Do not use T1 mode! Skipping."));
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
 			//T2 measurement
-            pt1.p1 = 2.0 * shot_pulser[ *_pulser].tau();
+            pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau();
             std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
             tr[ *this].m_pts.push_back(pt1);
             break;
@@ -478,13 +478,13 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	tr[ *this].m_sumpts.clear();
 
-	if(shot_this[ *this].m_timeClearRequested > shot_pulse1[ *_pulse1].timeAwared()) {
+	if(shot_this[ *this].m_timeClearRequested > shot_pulse1[ *pulse1__].timeAwared()) {
 		tr[ *this].m_pts.clear();
 		tr[ *m_wave].clearPoints();
 		tr[ *m_fitStatus] = "";
-		trans( *_pulse1->avgClear()).touch();
-		if(_pulse2)
-			trans( *_pulse2->avgClear()).touch();
+		trans( *pulse1__->avgClear()).touch();
+		if(pulse2__)
+			trans( *pulse2__->avgClear()).touch();
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
@@ -510,8 +510,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			if((idx < 0) || (idx >= sum_size)) continue;
 			double p1 = it->p1;
 			//For St.E., T+tau = P1+3*tau.
-			if(_mode == MEAS_ST_E)
-				p1 += 3 * shot_pulser[ *_pulser].tau() * 1e-3;
+			if(mode__ == MEAS_ST_E)
+				p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
 			sumpts[idx].isigma += 1.0;
 			sumpts[idx].p1 += p1;
 			for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
@@ -539,10 +539,10 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	for(unsigned int i = 0; i < corr.size(); i++) {
 		corr[i] -= sum_c[i]*sum_t/(double)n;
-		corr[i] *= ((_mode == MEAS_T1) ? 1 : -1);
+		corr[i] *= ((mode__ == MEAS_T1) ? 1 : -1);
 	}
 
-	bool _absfit = shot_this[ *absFit()];
+	bool absfit__ = shot_this[ *absFit()];
 
 	std::deque<double> phase_by_cond(corr.size(), shot_this[ *phase()] / 180.0 * M_PI);
 	int cond = -1;
@@ -552,7 +552,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			phase_by_cond[i] = std::arg(corr[i]);
 		}
 		if(shot_this[ *autoWindow()]) {
-			double sn2 = _absfit ? std::abs(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
+			double sn2 = absfit__ ? std::abs(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
 			sn2 = sn2 * sn2 / shot_this[ *this].m_convolutionCache[i]->power;
 			if(maxsn2 < sn2) {
 				maxsn2 = sn2;
@@ -598,7 +598,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		if(it->isigma == 0) continue;
 		it->p1 = it->p1 / it->isigma;
 		it->c =  it->value_by_cond[cond] * cph / it->isigma;
-		it->var = (_absfit) ? std::abs(it->c) : std::real(it->c);
+		it->var = (absfit__) ? std::abs(it->c) : std::real(it->c);
 		it->isigma = sqrt(it->isigma);
     }
 
@@ -623,9 +623,9 @@ XNMRT1::visualize(const Snapshot &shot) {
 
 	//set new P1s
 	if(shot[ *active()] && m_isPulserControlRequested.compareAndSet((int)true, (int)false)) {
-		shared_ptr<XPulser> _pulser = shot[ *pulser()];
-		if(_pulser) {
-			for(Transaction tr( *_pulser);; ++tr) {
+		shared_ptr<XPulser> pulser__ = shot[ *pulser()];
+		if(pulser__) {
+			for(Transaction tr( *pulser__);; ++tr) {
 				double p1min = shot[ *p1Min()];
 				double p1max = shot[ *p1Max()];
 				double x = randMT19937();
@@ -635,11 +635,11 @@ XNMRT1::visualize(const Snapshot &shot) {
 				switch(shot[ *mode()]) {
 				case MEAS_T1:
 				case MEAS_ST_E:
-					tr[ *_pulser->combP1()] = np1;
-					tr[ *_pulser->combP1Alt()] = np2;
+					tr[ *pulser__->combP1()] = np1;
+					tr[ *pulser__->combP1Alt()] = np2;
 					break;
 				case MEAS_T2:
-					tr[ *_pulser->tau()] = np1 / 2.0;
+					tr[ *pulser__->tau()] = np1 / 2.0;
 					break;
 				}
 				if(tr.commit())
@@ -701,38 +701,38 @@ void
 XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
 	if(shot_this[ *active()]) {
-		const shared_ptr<XPulser> _pulser = shot_this[ *pulser()];
-		const shared_ptr<XNMRPulseAnalyzer> _pulse1 = shot_this[ *pulse1()];
-		const shared_ptr<XNMRPulseAnalyzer> _pulse2 = shot_this[ *pulse2()];
+		const shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+		const shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
+		const shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
 
 		onClearAll(shot_this, m_clearAll.get());
-		if( !_pulser || !_pulse1) {
+		if( !pulser__ || !pulse1__) {
 			gErrPrint(getLabel() + ": " + i18n("No pulser or No NMR Pulse Analyzer."));
 			return;
 		}
 
-		Snapshot shot_pulse1( *_pulse1);
-		Snapshot shot_pulser( *_pulser);
-		if(_pulse2 &&
-		   ((shot_pulser[ *_pulser->combMode()] == XPulser::N_COMB_MODE_COMB_ALT) ||
-			(shot_pulser[ *_pulser->combMode()] == XPulser::N_COMB_MODE_P1_ALT))) {
-			for(Transaction tr( *_pulse2);; ++tr) {
-				tr[ *_pulse2->fromTrig()] =
-					shot_pulse1[ *_pulse1->fromTrig()] + shot_pulser[ *_pulser->altSep()];
-				tr[ *_pulse2->width()] = (double)shot_pulse1[ *_pulse1->width()];
-				tr[ *_pulse2->phaseAdv()] = (double)shot_pulse1[ *_pulse1->phaseAdv()];
-				tr[ *_pulse2->bgPos()] =
-					shot_pulse1[ *_pulse1->bgPos()] + shot_pulser[ *_pulser->altSep()];
-				tr[ *_pulse2->bgWidth()] = (double)shot_pulse1[ *_pulse1->bgWidth()];
-				tr[ *_pulse2->fftPos()] =
-					shot_pulse1[ *_pulse1->fftPos()] + shot_pulser[ *_pulser->altSep()];
-				tr[ *_pulse2->fftLen()] = (int)shot_pulse1[ *_pulse1->fftLen()];
-				tr[ *_pulse2->windowFunc()] = (int)shot_pulse1[ *_pulse1->windowFunc()];
-				tr[ *_pulse2->usePNR()] = (bool)shot_pulse1[ *_pulse1->usePNR()];
-				tr[ *_pulse2->pnrSolverList()] = (int)shot_pulse1[ *_pulse1->pnrSolverList()];
-				tr[ *_pulse2->solverList()] = (int)shot_pulse1[ *_pulse1->solverList()];
-				tr[ *_pulse2->numEcho()] = (int)shot_pulse1[ *_pulse1->numEcho()];
-				tr[ *_pulse2->echoPeriod()] = (double)shot_pulse1[ *_pulse1->echoPeriod()];
+		Snapshot shot_pulse1( *pulse1__);
+		Snapshot shot_pulser( *pulser__);
+		if(pulse2__ &&
+		   ((shot_pulser[ *pulser__->combMode()] == XPulser::N_COMB_MODE_COMB_ALT) ||
+			(shot_pulser[ *pulser__->combMode()] == XPulser::N_COMB_MODE_P1_ALT))) {
+			for(Transaction tr( *pulse2__);; ++tr) {
+				tr[ *pulse2__->fromTrig()] =
+					shot_pulse1[ *pulse1__->fromTrig()] + shot_pulser[ *pulser__->altSep()];
+				tr[ *pulse2__->width()] = (double)shot_pulse1[ *pulse1__->width()];
+				tr[ *pulse2__->phaseAdv()] = (double)shot_pulse1[ *pulse1__->phaseAdv()];
+				tr[ *pulse2__->bgPos()] =
+					shot_pulse1[ *pulse1__->bgPos()] + shot_pulser[ *pulser__->altSep()];
+				tr[ *pulse2__->bgWidth()] = (double)shot_pulse1[ *pulse1__->bgWidth()];
+				tr[ *pulse2__->fftPos()] =
+					shot_pulse1[ *pulse1__->fftPos()] + shot_pulser[ *pulser__->altSep()];
+				tr[ *pulse2__->fftLen()] = (int)shot_pulse1[ *pulse1__->fftLen()];
+				tr[ *pulse2__->windowFunc()] = (int)shot_pulse1[ *pulse1__->windowFunc()];
+				tr[ *pulse2__->usePNR()] = (bool)shot_pulse1[ *pulse1__->usePNR()];
+				tr[ *pulse2__->pnrSolverList()] = (int)shot_pulse1[ *pulse1__->pnrSolverList()];
+				tr[ *pulse2__->solverList()] = (int)shot_pulse1[ *pulse1__->solverList()];
+				tr[ *pulse2__->numEcho()] = (int)shot_pulse1[ *pulse1__->numEcho()];
+				tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
 				if(tr.commit())
 					break;
 			}

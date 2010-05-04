@@ -77,11 +77,11 @@ bool
 XNMRSpectrum::checkDependencyImpl(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-    shared_ptr<XMagnetPS> _magnet = shot_this[ *magnet()];
-    shared_ptr<XDMM> _dmm = shot_this[ *magnet()];
-    if( !(_magnet || _dmm)) return false;
-    if(emitter == _magnet.get()) return false;
-    if(emitter == _dmm.get()) return false;
+    shared_ptr<XMagnetPS> magnet__ = shot_this[ *magnet()];
+    shared_ptr<XDMM> dmm__ = shot_this[ *magnet()];
+    if( !(magnet__ || dmm__)) return false;
+    if(emitter == magnet__.get()) return false;
+    if(emitter == dmm__.get()) return false;
     return true;
 }
 double
@@ -104,17 +104,17 @@ XNMRSpectrum::getMaxFreq(const Snapshot &shot_this) const {
 }
 double
 XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
-	shared_ptr<XMagnetPS> _magnet = shot_this[ *magnet()];
-    shared_ptr<XDMM> _dmm = shot_this[ *magnet()];
-	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
+	shared_ptr<XMagnetPS> magnet__ = shot_this[ *magnet()];
+    shared_ptr<XDMM> dmm__ = shot_this[ *magnet()];
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
 
-	ASSERT( _magnet || _dmm );
+	ASSERT( magnet__ || dmm__ );
 	double field;
-	if(_magnet) {
-		field = shot_others[ *_magnet].magnetField();
+	if(magnet__) {
+		field = shot_others[ *magnet__].magnetField();
 	}
 	else {
-		field = shot_others[ *_dmm].value();
+		field = shot_others[ *dmm__].value();
 	}
 
 	field *= shot_this[ *fieldFactor()];
@@ -125,12 +125,12 @@ XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &sh
 void
 XNMRSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
 	int wave_size = shot_this[ *this].wave().size();
-	double _min = shot_this[ *this].min();
+	double min__ = shot_this[ *this].min();
 	double res = shot_this[ *this].res();
 	double cfreq = shot_this[ *centerFreq()];
 	values.resize(wave_size);
 	for(unsigned int i = 0; i < wave_size; i++) {
-		double freq = _min + i * res;
+		double freq = min__ + i * res;
 		values[i] = exp( -freq * 1e-6 / cfreq);
 	}
 }

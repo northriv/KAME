@@ -34,7 +34,7 @@ public:
 	
 	struct Payload : public XPrimaryDriver::Payload {
 		double value() const {return m_var;}
-		void _write(double var) {m_var = var;}
+		void write__(double var) {m_var = var;}
 	private:
 		double m_var;
 	};

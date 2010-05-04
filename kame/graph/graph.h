@@ -355,7 +355,7 @@ private:
   
 	const weak_ptr<XGraph> m_graph;
   
-	void _startAutoscale(const Snapshot &shot, bool clearscale);
+	void startAutoscale__(const Snapshot &shot, bool clearscale);
 	void drawLabel(const Snapshot &shot, XQGraphPainter *painter);
 	void performAutoFreq(const Snapshot &shot, float resolution);
   

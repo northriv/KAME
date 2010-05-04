@@ -166,7 +166,7 @@ public:
 		Transaction<XN> *m_tr;
 	};
 
-	void _print() const;
+	void print_() const;
 
 	struct NodeList : public std::vector<shared_ptr<XN> > {
 		NodeList() : std::vector<shared_ptr<XN> >() {}
@@ -230,7 +230,7 @@ private:
 		bool missing() const { return m_missing;}
 
 		//! For debugging.
-		void _print() const;
+		void print_() const;
 		//! For debugging.
 		bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
 
@@ -275,7 +275,7 @@ private:
 		int reverseIndex() const {return m_ridx;}
 		void setReverseIndex(int i) {m_ridx = i;}
 
-		void _print() const;
+		void print_() const;
 		weak_ptr<Linkage> const m_bundledBy;
 		local_shared_ptr<Packet> m_packet;
 		int m_ridx;
@@ -479,10 +479,10 @@ public:
 	}
 	//! Whether \a lower is a child of this or not.
 	bool isUpperOf(const XN &lower) const {
-		const shared_ptr<const typename Node<XN>::NodeList> _list(list());
-		if( !_list)
+		const shared_ptr<const typename Node<XN>::NodeList> lx(list());
+		if( !lx)
 			return false;
-		for(typename Node<XN>::NodeList::const_iterator it = _list->begin(); it != _list->end(); ++it) {
+		for(typename Node<XN>::NodeList::const_iterator it = lx->begin(); it != lx->end(); ++it) {
 			if(it->get() == &lower)
 				return true;
 		}
@@ -490,7 +490,7 @@ public:
 	}
 
 	void print() {
-		m_packet->_print();
+		m_packet->print_();
 	}
 
 	//! Sends an event from \a talker with \a arg.
@@ -638,11 +638,11 @@ public:
 	//! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
 	template <typename T, typename tArgRef>
 	void mark(T &talker, tArgRef arg) {
-		_Message<XN> *m = talker.createMessage(arg);
+		Message__<XN> *m = talker.createMessage(arg);
 		if(m) {
 			if( !m_messages)
 				m_messages.reset(new MessageList);
-			m_messages->push_back(shared_ptr<_Message<XN> >(m));
+			m_messages->push_back(shared_ptr<Message__<XN> >(m));
 		}
 	}
 	//! Cancels reserved events made toward \a x.
@@ -663,7 +663,7 @@ private:
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
-	typedef std::deque<shared_ptr<_Message<XN> > > MessageList;
+	typedef std::deque<shared_ptr<Message__<XN> > > MessageList;
 	scoped_ptr<MessageList> m_messages;
 };
 

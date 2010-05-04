@@ -25,7 +25,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	: XNMRSpectrumBase<FrmNMRFSpectrum>(name, runtime, ref(tr_meas), meas),
 	  m_sg1(create<XItemNode<XDriverList, XSG> >(
 		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
-	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
+	  msg1__FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
@@ -47,11 +47,11 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 			break;
 	}
   
-	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
+	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(msg1__FreqOffset, m_form->m_edSG1FreqOffset);
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
 	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
 	m_conFreqStep = xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep);
-	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas));
+	m_conSG1 = xqcon_create<XQComboBoxConnector>(msg1__, m_form->m_cmbSG1, ref(tr_meas));
 	m_form->m_numBurstCount->setRange(0, 15);
 	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
@@ -73,9 +73,9 @@ XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
     if(shot_this[ *active()]) {
 		m_burstFreqCycleCount = 0;
 		m_burstPhaseCycleCount = 0;
-		shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
-		if(_sg1)
-			trans( *_sg1->freq()) =
+		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+		if(sg1__)
+			trans( *sg1__->freq()) =
 				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
 		onClear(shot_this, clear().get());
 	}
@@ -88,10 +88,10 @@ bool
 XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
-    if( !_sg1) return false;
-	shared_ptr<XNMRPulseAnalyzer> _pulse = shot_this[ *pulse()];
-    if(shot_emitter[ *_pulse].timeAwared() < shot_others[ *_sg1].time()) return false;
+    shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+    if( !sg1__) return false;
+	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *sg1__].time()) return false;
     return true;
 }
 double
@@ -112,21 +112,21 @@ XNMRFSpectrum::getFreqResHint(const Snapshot &shot_this) const {
 }
 double
 XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
-    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
-	ASSERT( _sg1 );
-	ASSERT(shot_others[ *_sg1].time() );
-    double freq = shot_others[ *_sg1].freq() - shot_this[ *sg1FreqOffset()]; //MHz
+    shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+	ASSERT( sg1__ );
+	ASSERT(shot_others[ *sg1__].time() );
+    double freq = shot_others[ *sg1__].freq() - shot_this[ *sg1FreqOffset()]; //MHz
 	return freq * 1e6;
 }
 void
 XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 	//set new freq
 	if(shot_this[ *active()]) {
-	    shared_ptr<XSG> _sg1 = shot_this[ *sg1()];
-		if( ! _sg1)
+	    shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+		if( ! sg1__)
 			return;
-		Snapshot shot_sg( *_sg1);
-		if( !shot_sg[ *_sg1].time())
+		Snapshot shot_sg( *sg1__);
+		if( !shot_sg[ *sg1__].time())
 			return;
 
 		double freq = getCurrentCenterFreq(shot_this, shot_sg) * 1e-6;
@@ -157,8 +157,8 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 			newf += freq_step;
 		}
 		
-		if(_sg1)
-			trans( *_sg1->freq()) = newf + shot_this[ *sg1FreqOffset()];
+		if(sg1__)
+			trans( *sg1__->freq()) = newf + shot_this[ *sg1FreqOffset()];
 		if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
 			trans( *active()) = false;
 	}	
@@ -167,11 +167,11 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 void
 XNMRFSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
 	int wave_size = shot_this[ *this].wave().size();
-	double _min = shot_this[ *this].min();
+	double min__ = shot_this[ *this].min();
 	double res = shot_this[ *this].res();
 	values.resize(wave_size);
 	for(unsigned int i = 0; i < wave_size; i++) {
-		double freq = _min + i * res;
+		double freq = min__ + i * res;
 		values[i] = freq * 1e-6;
 	}
 }

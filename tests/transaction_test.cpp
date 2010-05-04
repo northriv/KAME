@@ -59,7 +59,7 @@ public:
 };
 
 #define trans(node) for(Transaction \
-	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<LongNode, T>,
@@ -78,7 +78,7 @@ void *
 start_routine(void *) {
 	printf("start\n");
 	for(int i = 0; i < 2500; i++) {
-		//		gn1->_print();
+		//		gn1->print_();
 		for(Transaction tr1(*gn1); ; ++tr1){
 //			tr1.print();
 			const Snapshot &ctr1(tr1); // For reading.
@@ -148,11 +148,11 @@ main(int argc, char **argv) {
 			if(tr1.commit())
 				break;
 		}
-		gn1->_print();
+		gn1->print_();
 		gn1->release(gn2);
-		gn1->_print();
+		gn1->print_();
 		gn1->insert(gn2);
-		gn1->_print();
+		gn1->print_();
 		for(Transaction tr1(*gn2); ; ++tr1){
 			tr1[ *gn2] = tr1[ *gn2] - 1;
 			tr1[ *gn3] = 0;
@@ -241,7 +241,7 @@ main(int argc, char **argv) {
 				printf("f");
 			}
 			trans(*p22) = 0;
-			p2114->_print();
+			p2114->print_();
 			trans(*p2114) = 0;
 			trans(*p2113) = 0;
 
@@ -255,9 +255,9 @@ main(int argc, char **argv) {
 				printf("f");
 			}
 		}
-		gn1->_print();
+		gn1->print_();
 		gn1->release(p1);
-		gn1->_print();
+		gn1->print_();
 
 	pthread_t threads[NUM_THREADS];
 		for(int i = 0; i < NUM_THREADS; i++) {

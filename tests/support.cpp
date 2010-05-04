@@ -15,7 +15,7 @@
 #include "atomic.h"
 #include "allocator.cpp"
 
-int _my_assert(char const*s, int d) {
+int my_assert(char const*s, int d) {
         fprintf(stderr, "Err:%s:%d\n", s, d);
         abort();
         return -1;

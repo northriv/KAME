@@ -110,7 +110,7 @@ public:
 protected:
 	union {
 		T m_var;
-		int64_t _for_alignment;
+		int64_t for_alignment;
 	};
 };
 

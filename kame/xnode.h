@@ -35,7 +35,7 @@ struct SingleTransaction : public Transactional::SingleTransaction<XNode, T> {
 };
 
 #define trans(node) for(Transaction \
-	__implicit_tr(node, false); !__implicit_tr.isModified() || !__implicit_tr.commitOrNext(); ) __implicit_tr[node]
+	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
 typename boost::enable_if<boost::is_base_of<XNode, T>,
@@ -79,16 +79,16 @@ public:
 	template <class T, typename X, typename Y, typename Z, typename ZZ>
 	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
 
-	template <class _T>
-	static shared_ptr<_T> createOrphan(const char *name, bool runtime = false);
-	template <class _T, typename _X>
-	static shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x);
-	template <class _T, typename _X, typename _Y>
-	static shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y);
-	template <class _T, typename _X, typename _Y, typename _Z>
-	static shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z);
-	template <class _T, typename _X, typename _Y, typename _Z, typename _ZZ>
-	static shared_ptr<_T> createOrphan(const char *name, bool runtime, _X x, _Y y, _Z z, _ZZ zz);
+	template <class T__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime = false);
+	template <class T__, typename X__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x);
+	template <class T__, typename X__, typename Y__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y);
+	template <class T__, typename X__, typename Y__, typename Z__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y, Z__ z);
+	template <class T__, typename X__, typename Y__, typename Z__, typename ZZ__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y, Z__ z, ZZ__ zz);
 
 	//! \return internal/scripting name. Use latin1 chars.
 	XString getName() const;
@@ -166,14 +166,14 @@ public:
 		    XString sc(str);
 		    if(static_cast<XValueNodeBase&>(node()).m_validator)
 		    	(*static_cast<XValueNodeBase&>(node()).m_validator)(sc);
-		    _str(sc);
+		    str_(sc);
 		    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
 		}
 		Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() {return m_tlkOnValueChanged;}
 		const Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() const {return m_tlkOnValueChanged;}
 	protected:
 		//! This may throw exception due to format issues.
-		virtual void _str(const XString &) = 0;
+		virtual void str_(const XString &) = 0;
 		TalkerSingleton<XValueNodeBase*, XValueNodeBase*> m_tlkOnValueChanged;
 	};
 protected:
@@ -198,7 +198,7 @@ public:
 			return *this;
 		}
 	protected:
-		virtual void _str(const XString &);
+		virtual void str_(const XString &);
 		T m_var;
 	};
 };
@@ -221,7 +221,7 @@ public:
 			return *this;
 		}
 	protected:
-		virtual void _str(const XString &);
+		virtual void str_(const XString &);
 		double m_var;
 	};
 	atomic_shared_ptr<XString> m_format;
@@ -242,7 +242,7 @@ public:
 			return *this;
 		}
 	protected:
-		virtual void _str(const XString &str) {m_var = str;}
+		virtual void str_(const XString &str) {m_var = str;}
 		XString m_var;
 	};
 };

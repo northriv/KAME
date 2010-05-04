@@ -52,29 +52,29 @@ protected:
 
 #include "xsignal_prv.h"
 
-class _XTalkerBase {
+class XTalkerBase__ {
 protected:
-	_XTalkerBase() {}
+	XTalkerBase__() {}
 public:
-	virtual ~_XTalkerBase() {}
+	virtual ~XTalkerBase__() {}
 protected:
 };
 
-struct _XTransaction {
-	_XTransaction() : registered_time(timeStamp()) {}
-	virtual ~_XTransaction() {}
+struct XTransaction__ {
+	XTransaction__() : registered_time(timeStamp()) {}
+	virtual ~XTransaction__() {}
 	const unsigned long registered_time;
 	virtual bool talkBuffered() = 0;
 };
 
-void registerTransactionList(_XTransaction *);
+void registerTransactionList(XTransaction__ *);
 
 //! M/M Listener and Talker model
 //! \sa XListener, XSignalStore
 //! \p tArg: value which will be derivered
 //! \p tArgWrapper: copied argument, will be released by GC someday
 template <class tArg>
-class XTalker : public _XTalkerBase {
+class XTalker : public XTalkerBase__ {
 public:
 	XTalker() {}
 	virtual ~XTalker() {}
@@ -124,7 +124,7 @@ public:
 
 	bool empty() const {readBarrier(); return !m_listeners;}
 private:
-	typedef _XListenerImpl<tArg> Listener;
+	typedef XListenerImpl__<tArg> Listener;
 	typedef std::deque<weak_ptr<Listener> > ListenerList;
 	typedef typename ListenerList::iterator ListenerList_it;
 	typedef typename ListenerList::const_iterator ListenerList_const_it;
@@ -132,9 +132,9 @@ private:
 	atomic_shared_ptr<ListenerList> m_listeners;
 	void connect(const shared_ptr<Listener> &);
 
-	struct Transaction : public _XTransaction {   
+	struct Transaction : public XTransaction__ {
 		Transaction(const shared_ptr<Listener> &l) :
-			_XTransaction(), listener(l) {}
+			XTransaction__(), listener(l) {}
 		const shared_ptr<Listener> listener;
 		virtual bool talkBuffered() = 0;
 	};
@@ -175,7 +175,7 @@ XTalker<tArg>::connectStatic(
 	void (*func)(const tArg &),
 	int flags) {
 	shared_ptr<Listener> listener(
-		new _XListenerStatic<tArg>(func, (XListener::FLAGS)flags) );
+		new XListenerStatic__<tArg>(func, (XListener::FLAGS)flags) );
 	connect(listener);
 	return listener;
 }
@@ -186,7 +186,7 @@ XTalker<tArg>::connectShared(const shared_ptr<tObj> &obj,
 	void (tClass::*func)(const tArg &),
 	int flags) {
 	shared_ptr<Listener> listener(
-		new _XListenerShared<tClass, tArg>(
+		new XListenerShared__<tClass, tArg>(
 			dynamic_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
 	connect(listener);
 	return listener;
@@ -198,7 +198,7 @@ XTalker<tArg>::connectWeak(const shared_ptr<tObj> &obj,
 	void (tClass::*func)(const tArg &),
 	int flags) {
 	shared_ptr<Listener> listener(
-		new _XListenerWeak<tClass, tArg>(
+		new XListenerWeak__<tClass, tArg>(
 			dynamic_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
 	connect(listener);
 	return listener;

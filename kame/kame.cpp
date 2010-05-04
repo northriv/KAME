@@ -315,8 +315,8 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     if(shot.size()) {
     	const XNode::NodeList &list(*shot.list());
 		for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-			shared_ptr<XInterface> _interface = dynamic_pointer_cast<XInterface>(*it);
-			if(_interface->isOpened()) opened = true;
+			shared_ptr<XInterface> intf = dynamic_pointer_cast<XInterface>(*it);
+			if(intf->isOpened()) opened = true;
 		}
 	}
 	if(opened) {

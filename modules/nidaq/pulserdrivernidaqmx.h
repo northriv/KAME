@@ -72,7 +72,7 @@ private:
 		uint64_t tonext; //!< in samps for buffer.
 	};
 
-	static int32 _onTaskDone(TaskHandle task, int32 status, void*);
+	static int32 onTaskDone__(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
 	scoped_ptr<std::vector<GenPattern> > m_genPatternList;

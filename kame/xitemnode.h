@@ -46,7 +46,7 @@ private:
 };
 
 void
-_xpointeritemnode_throwConversionError();
+xpointeritemnode_throwConversionError_();
 
 template <class TL>
 class XPointerItemNode : public XItemNodeBase {
@@ -75,7 +75,7 @@ public:
 		    return *this;
 		}
 	protected:
-		virtual void _str(const XString &var) {
+		virtual void str_(const XString &var) {
 			if(var.empty()) {
 				*this = shared_ptr<XNode>();
 				return;
@@ -91,7 +91,7 @@ public:
 					}
 				}
 			}
-			_xpointeritemnode_throwConversionError();
+			xpointeritemnode_throwConversionError_();
 		}
 		weak_ptr<XNode> m_var;
 	};
@@ -118,13 +118,13 @@ protected:
 };
 //! A pointer to a XListNode TL, T1 is value type
 template <class TL, class T1>
-class _XItemNode : public XPointerItemNode<TL> {
+class XItemNode__ : public XPointerItemNode<TL> {
 public:
-	_XItemNode(const char *name, bool runtime, Transaction &tr_list,
+	XItemNode__(const char *name, bool runtime, Transaction &tr_list,
 		const shared_ptr<TL> &list, bool auto_set_any = false)
 		:  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
 	}
-	virtual ~_XItemNode() {}
+	virtual ~XItemNode__() {}
 
 	struct Payload : public XPointerItemNode<TL>::Payload {
 		Payload() : XPointerItemNode<TL>::Payload() {}
@@ -139,19 +139,19 @@ public:
 };
 //! A pointer to a XListNode TL, T is value type
 template <class TL, class T1, class T2 = T1>
-class XItemNode : public _XItemNode<TL, T1> {
+class XItemNode : public XItemNode__<TL, T1> {
 public:
 	XItemNode(const char *name, bool runtime, Transaction &tr_list,
 		const shared_ptr<TL> &list, bool auto_set_any = false)
-		:  _XItemNode<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
+		:  XItemNode__<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
 	}
 	virtual ~XItemNode() {}
 
-	struct Payload : public _XItemNode<TL, T1>::Payload {
-		Payload() : _XItemNode<TL, T1>::Payload() {}
+	struct Payload : public XItemNode__<TL, T1>::Payload {
+		Payload() : XItemNode__<TL, T1>::Payload() {}
 		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>) *this);}
 		Payload &operator=(const shared_ptr<XNode> &t) {
-			_XItemNode<TL, T1>::Payload::operator=(t);
+			XItemNode__<TL, T1>::Payload::operator=(t);
 			return *this;
 		}
 	};
@@ -194,7 +194,7 @@ public:
 		Payload &operator=(const XString &);
 		virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const;
 	protected:
-		virtual void _str(const XString &);
+		virtual void str_(const XString &);
 	private:
 		shared_ptr<std::deque<XString> > m_strings;
 		std::pair<XString, int> m_var;

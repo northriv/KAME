@@ -186,7 +186,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
     CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
 									  formatString("%s/port0", intfDO()->devName()).c_str(),
 									  "", DAQmx_Val_ChanForAllLines));
-	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::onTaskDone_, this));
 
 	XString do_clk_src;
 	
@@ -202,7 +202,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
 												   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 												   freq, 0.5));
-	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::_onTaskDone, this));
+	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::onTaskDone_, this));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskDOCtr, DAQmx_Val_ContSamps, 1000));
 	    intfCtr()->synchronizeClock(m_taskDOCtr);
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
@@ -293,7 +293,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
 											 formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
 											 -1.0, 1.0, DAQmx_Val_Volts, NULL));
-	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::_onTaskDone, this));
+	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::onTaskDone_, this));
 		
 	float64 freq = 1e3 / resolutionQAM();
 	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq);
@@ -390,7 +390,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 */	
 }
 int32
-XNIDAQmxPulser::_onTaskDone(TaskHandle task, int32 status, void *data) {
+XNIDAQmxPulser::onTaskDone_(TaskHandle task, int32 status, void *data) {
 	XNIDAQmxPulser *obj = static_cast<XNIDAQmxPulser*>(data);
 	obj->onTaskDone(task, status);
 	return status;

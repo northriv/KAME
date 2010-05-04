@@ -135,7 +135,7 @@ XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) thro
 	buf[len] = '\0';
 	sscanf(buf, "%u", &len);
 	tr[ *this].m_freqInterval = (stop - start) / (samples - 1);
-	tr[ *this]._trace().resize(samples);
+	tr[ *this].trace_().resize(samples);
 
 	convertRawBlock(reader, tr, len);
 }
@@ -149,13 +149,13 @@ XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
 void
 XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	unsigned int len) throw (XRecordError&) {
-	unsigned int samples = tr[ *this]._trace().size();
+	unsigned int samples = tr[ *this].trace_().size();
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	if(len / sizeof(float) > samples)
 		throw XRecordError(i18n("Select scalar plot."), __FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this]._trace()[i] = reader.pop<float>();
+		tr[ *this].trace_()[i] = reader.pop<float>();
 	}
 }
 
@@ -168,11 +168,11 @@ XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 void
 XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	unsigned int len) throw (XRecordError&) {
-	unsigned int samples = tr[ *this]._trace().size();
+	unsigned int samples = tr[ *this].trace_().size();
 	if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this]._trace()[i] = reader.pop<float>();
+		tr[ *this].trace_()[i] = reader.pop<float>();
 		reader.pop<float>();
 	}
 }

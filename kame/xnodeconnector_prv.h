@@ -18,21 +18,21 @@
 //! function for creating XQConnector instances
 template <class T, class A, class B>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b) {
-    xqcon_ptr pHolder(new _XQConnectorHolder( new
+    xqcon_ptr pHolder(new XQConnectorHolder__( new
 											  T(a, b)));
     return pHolder;
 }
 //! function for creating XQConnector instances
 template <class T, class A, class B, typename C>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c) {
-    xqcon_ptr pHolder(new _XQConnectorHolder( new
+    xqcon_ptr pHolder(new XQConnectorHolder__( new
 											  T(a, b, c)));        
     return pHolder;
 }
 //! function for creating XQConnector instances
 template <class T, class A, class B, typename C, typename D>
 xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d) {
-    xqcon_ptr pHolder(new _XQConnectorHolder( new
+    xqcon_ptr pHolder(new XQConnectorHolder__( new
 											  T(a, b, c, d)));        
     return pHolder;
 }

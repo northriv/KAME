@@ -23,13 +23,13 @@ public:
 	XSignalBuffer();
 	~XSignalBuffer();
 	//! Called by Talker
-	void registerTransactionList(_XTransaction *);
+	void registerTransactionList(XTransaction__ *);
 	//! be called by thread pool
 	bool synchronize(); //!< \return true if not busy
 private:
-	typedef atomic_pointer_queue<_XTransaction, 1000> Queue;
-	typedef std::deque<std::pair<_XTransaction*, unsigned long> > SkippedQueue;
-	_XTransaction *popOldest();
+	typedef atomic_pointer_queue<XTransaction__, 1000> Queue;
+	typedef std::deque<std::pair<XTransaction__*, unsigned long> > SkippedQueue;
+	XTransaction__ *popOldest();
 	Queue m_queue;
 	SkippedQueue m_skippedQueue;
 	atomic<unsigned long> m_oldest_timestamp;
