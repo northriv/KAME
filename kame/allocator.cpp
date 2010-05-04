@@ -315,7 +315,7 @@ PooledAllocator<ALIGN, FS, DUMMY>::trySetupNewAllocator(int aidx) {
 		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[aidx / NUM_ALLOCATORS_IN_SPACE])) {
 			fprintf(stderr, "Reserve swap space for %dB %s, starting @ %llx w/ len. of %llxB.\n", (int)ALIGN,
 				DUMMY ? "fixed" : "aligned",
-				(unsigned long long)p,
+				(unsigned long long)(uintptr_t)p,
 				(unsigned long long)(uintptr_t)MMAP_SPACE_SIZE);
 			break;
 		}
