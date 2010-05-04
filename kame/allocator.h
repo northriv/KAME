@@ -21,7 +21,7 @@
 //! Memory blocks in a unit of double-quad word less than 8KiB
 //! can be allocated from fixed-size or variable-size memory pools.
 //! The larger memory is provided by standard malloc().
-//! \sa PooledAllocator, allocator_test.cpp.
+//! \sa PoolAllocator, allocator_test.cpp.
 extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
 	return new_redirected(size);
 }
