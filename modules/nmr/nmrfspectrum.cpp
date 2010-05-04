@@ -25,7 +25,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	: XNMRSpectrumBase<FrmNMRFSpectrum>(name, runtime, ref(tr_meas), meas),
 	  m_sg1(create<XItemNode<XDriverList, XSG> >(
 		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
-	  msg1__FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
+	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
@@ -47,11 +47,11 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 			break;
 	}
   
-	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(msg1__FreqOffset, m_form->m_edSG1FreqOffset);
+	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
 	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
 	m_conFreqStep = xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep);
-	m_conSG1 = xqcon_create<XQComboBoxConnector>(msg1__, m_form->m_cmbSG1, ref(tr_meas));
+	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas));
 	m_form->m_numBurstCount->setRange(0, 15);
 	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);

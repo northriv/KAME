@@ -212,8 +212,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
 
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
-	m_conPulse1 = xqcon_create<XQComboBoxConnector>(mpulse1__, m_form->m_cmbPulse1, ref(tr_meas));
-	m_conPulse2 = xqcon_create<XQComboBoxConnector>(mpulse2__, m_form->m_cmbPulse2, ref(tr_meas));
+	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas));
+	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas));
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
