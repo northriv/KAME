@@ -59,24 +59,16 @@ public:
 #endif
 #endif
 
-#define DEBUG_XTHREAD 1
-
-#ifdef DEBUG_XTHREAD
-#else
-#define DEBUG_XTHREAD 0
-#endif
-#undef ASSERT
 #ifdef NDEBUG
 #define ASSERT(expr)
 #define C_ASSERT(expr)
+#define DEBUG_XTHREAD 0
 #else
-#define ASSERT(expr) _my_assert((expr), __FILE__, __LINE__)
+#define ASSERT(expr) ((expr) ? _my_assert( __FILE__, __LINE__) : 0)
 #define C_ASSERT(expr) _my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
-void my_assert(const char *file, int line);
-inline void _my_assert(bool var, const char *file, int line) {
-	if ( !var) my_assert(file, line);
-}
 inline void _my_cassert(size_t ) {}
+int _my_assert(char const*s, int d);
+#define DEBUG_XTHREAD 1
 #endif
 
 //boost
