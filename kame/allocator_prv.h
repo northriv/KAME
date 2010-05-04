@@ -49,9 +49,11 @@ protected:
 	enum {MMAP_SPACE_SIZE = 1024 * 1024 * 16, //16MiB
 		NUM_ALLOCATORS_IN_SPACE = MMAP_SPACE_SIZE / ALLOC_MEMPOOL_SIZE,
 		MMAP_SPACES_COUNT = ALLOC_MAX_ALLOCATORS / NUM_ALLOCATORS_IN_SPACE};
+
 	char *m_mempool;
 	int m_idx; //a hint for searching in a sparse area.
 	FUINT m_flags[FLAGS_COUNT]; //every bit indicates occupancy in m_mempool.
+
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT]; //swap space given by mmap(PROT_NONE).
 	static uintptr_t s_allocators[ALLOC_MAX_ALLOCATORS];
 	static int s_flags_inc_cnt[ALLOC_MAX_ALLOCATORS];

@@ -137,7 +137,7 @@ protected:
 	union {
 		RefLocal_ m_ref;
 		int64_t for_alignment__;
-	};
+	} __attribute__((aligned(8)));
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T>

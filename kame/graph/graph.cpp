@@ -833,7 +833,7 @@ XAxis::startAutoscale_(const Snapshot &shot, bool clearscale) {
 }
 void
 XAxis::startAutoscale(const Snapshot &shot, float, bool clearscale) {
-    startAutoscale__(shot, clearscale);
+    startAutoscale_(shot, clearscale);
 }
 void
 XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {

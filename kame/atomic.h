@@ -63,10 +63,9 @@ public:
 	operator T() const {
 		readBarrier();
 #ifdef HAVE_ATOMIC_RW64
-		union { T x; int64_t for_align;};
-		C_ASSERT(__alignof__(x) >= 8);
-		atomicRead64( &x, m_var);
-		return x;
+		union { T x; int64_t for_align;} __attribute__((aligned(8))) x;
+		atomicRead64( &x.x, m_var);
+		return x.x;
 #else
 		for(;;) {
 			T oldv = m_var;

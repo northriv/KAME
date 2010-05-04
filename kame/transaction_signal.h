@@ -57,8 +57,8 @@ private:
 };
 
 template <class XN>
-struct Message_ {
-	virtual ~Message_() {}
+struct Message__ {
+	virtual ~Message__() {}
 	virtual void talk(const Snapshot<XN> &shot) = 0;
 	virtual int unmark(const shared_ptr<XListener> &x) = 0;
 };
@@ -89,7 +89,7 @@ public:
 	//! If a listener is not mainthread model, the listener will be called later.
 	//! \param arg passing argument to all listeners
 	//! If listener avoids duplication, lock won't be passed to listener.
-	virtual Message_<XN>* createMessage(tArgRef arg) const;
+	virtual Message__<XN>* createMessage(tArgRef arg) const;
 	void talk(const Snapshot<XN> &shot, tArgRef arg) const {
 		Message m(arg, m_listeners);
 		m.talk(shot);
@@ -139,8 +139,8 @@ private:
 			}
 	};
 protected:
-	struct Message : public Message_<XN> {
-		Message(tArgRef a, const shared_ptr<ListenerList> &l) : Message_<XN>(), arg(a), listeners(l) {}
+	struct Message : public Message__<XN> {
+		Message(tArgRef a, const shared_ptr<ListenerList> &l) : Message__<XN>(), arg(a), listeners(l) {}
 		tArg arg;
 		shared_ptr<ListenerList> listeners;
 		shared_ptr<UnmarkedListenerList> listeners_unmarked;
@@ -169,7 +169,7 @@ class TalkerSingleton : public Talker<XN, tArg, tArgRef> {
 public:
 	TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(0) {}
 	TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(0) {}
-	virtual Message_<XN>* createMessage(tArgRef arg) {
+	virtual Message__<XN>* createMessage(tArgRef arg) {
 		if(m_marked) {
 			static_cast<typename Talker<XN, tArg, tArgRef>::Message *>(m_marked)->arg = arg;
 			return 0;
@@ -178,11 +178,11 @@ public:
 		return m_marked;
 	}
 private:
-	Message_<XN> *m_marked;
+	Message__<XN> *m_marked;
 };
 
 template <class XN, typename tArg, typename tArgRef>
-Message_<XN>*
+Message__<XN>*
 Talker<XN, tArg, tArgRef>::createMessage(tArgRef arg) const {
 	if( !m_listeners)
 		return 0;
