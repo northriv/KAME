@@ -89,14 +89,13 @@ using boost::reference_wrapper;
 #include <QString>
 #include <klocale.h>
 
-class XString : public std::basic_string<char, std::char_traits<char>, allocator<char> > {
-typedef std::basic_string<char, std::char_traits<char>, allocator<char> > base_type;
+class XString : public std::string {
+typedef std::string base_type;
 public:
 	XString() : base_type() {}
 	XString(const char *str) : base_type(str) {}
 	XString(const QString &str) : base_type(str.toUtf8().data()) {}
 	XString(const base_type &str) : base_type(str) {}
-	XString(const std::string &str) : base_type(str.c_str()) {}
 	operator QString() const {return QString::fromUtf8(c_str());}
 	XString operator+(const char *s) {return *this + base_type(s);}
 };
