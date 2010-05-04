@@ -21,9 +21,7 @@
 #include <config.h>
 #endif
 
-#ifdef __APPLE__
-	#include "allocator.h"
-#endif
+#include "allocator.h"
 
 #ifdef WORDS_BIGENDIAN
 #ifndef __BIG_ENDIAN__
@@ -101,13 +99,16 @@ using boost::reference_wrapper;
 #include <QString>
 #include <klocale.h>
 
-struct XString : public std::string {
-	XString() : std::string() {}
-	XString(const char *str) : std::string(str) {}
-	XString(const QString &str) : std::string(str.toUtf8().data()) {}
-	XString(const std::string &str) : std::string(str) {}
+class XString : public std::basic_string<char, std::char_traits<char>, allocator<char> > {
+typedef std::basic_string<char, std::char_traits<char>, allocator<char> > base_type;
+public:
+	XString() : base_type() {}
+	XString(const char *str) : base_type(str) {}
+	XString(const QString &str) : base_type(str.toUtf8().data()) {}
+	XString(const base_type &str) : base_type(str) {}
+	XString(const std::string &str) : base_type(str.c_str()) {}
 	operator QString() const {return QString::fromUtf8(c_str());}
-	XString operator+(const char *s) {return *this + XString(s);}
+	XString operator+(const char *s) {return *this + base_type(s);}
 };
 
 //! Debug printing.

@@ -189,6 +189,7 @@ PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 				if(atomicCompareAndSet(oldv, newv, pflag))
 					break;
 			}
+			continue;
 		}
 		pflag++;
 		if(pflag == &this->m_flags[FLAGS_COUNT])
@@ -256,6 +257,7 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 				if(atomicCompareAndSet(oldv, newv, pflag))
 					break;
 			}
+			continue;
 		}
 		pflag++;
 		if(pflag == &this->m_flags[FLAGS_COUNT])
