@@ -12,7 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 
-#include "allocator.h"
+#include "allocator_prv.h"
 
 #include "support.h"
 #include "atomic.h"
@@ -520,6 +520,32 @@ void release_pools() {
 #if defined ALLOC_ALIGN3
 	PooledAllocator<ALLOC_ALIGN3>::release_pools();
 #endif
+}
+
+void* operator new(std::size_t size) throw(std::bad_alloc) {
+	return __new_redirected(size);
+}
+void* operator new(std::size_t size, const std::nothrow_t&) throw() {
+	return operator new(size);
+}
+void* operator new[](std::size_t size) throw(std::bad_alloc) {
+	return operator new(size);
+}
+void* operator new[](std::size_t size, const std::nothrow_t&) throw() {
+	return operator new(size);
+}
+
+void operator delete(void* p) throw() {
+	return __deallocate_pooled_or_free(p);
+}
+void operator delete(void* p, const std::nothrow_t&) throw() {
+	operator delete(p);
+}
+void operator delete[](void* p) throw() {
+	operator delete(p);
+}
+void operator delete[](void* p, const std::nothrow_t&) throw() {
+	operator delete(p);
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
