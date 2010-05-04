@@ -50,6 +50,7 @@ typedef uint_cas2 uint_cas_max;
 #endif
 
 #ifdef HAVE_ATOMIC_RW64
+//! \param x must be aligned to 8bytes.
 template <typename T>
 inline void atomicWrite64(const T &x, T *target) {
 	C_ASSERT(sizeof(T) == 8);
@@ -61,8 +62,10 @@ inline void atomicWrite64(const T &x, T *target) {
 		: "memory", "%xmm0");
 }
 
+//! \param x must be aligned to 8bytes.
 template <typename T>
 inline void atomicRead64(T *x, const T &target) {
+	C_ASSERT(__alignof__(T) >= 8);
 	C_ASSERT(sizeof(T) == 8);
 	asm (
 		" movq %0, %%xmm0;"

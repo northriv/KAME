@@ -143,7 +143,7 @@ public:
 			return s_virtualTrigList;
 		}
 	private:
-		void clear__();
+		void clear_();
 		const XString m_label;
 		XString m_armTerm;
 		unsigned int m_bits;

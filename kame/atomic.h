@@ -63,9 +63,10 @@ public:
 	operator T() const {
 		readBarrier();
 #ifdef HAVE_ATOMIC_RW64
-		union { T x; int64_t for_align;} __attribute__((aligned(8))) x;
-		atomicRead64( &x.x, m_var);
-		return x.x;
+		int32_t for_align[3];
+		T *p = reinterpret_cast<T *>(reinterpret_cast<uintptr_t>( &for_align[1]) & ~(uintptr_t)7u);
+		atomicRead64(p, m_var);
+		return *p;
 #else
 		for(;;) {
 			T oldv = m_var;
@@ -77,7 +78,10 @@ public:
 	}
 	atomic_pod_cas2 &operator=(T t) {
 #ifdef HAVE_ATOMIC_RW64
-		atomicWrite64(t, &m_var);
+		int32_t for_align[3];
+		T *p = reinterpret_cast<T *>(reinterpret_cast<uintptr_t>( &for_align[1]) & ~(uintptr_t)7u);
+		*p = t;
+		atomicWrite64( *p, &m_var);
 #else
 		for(;;) {
 			T oldv = m_var;

@@ -107,7 +107,7 @@ private:
 	void setupTiming();
 	void createChannels();
 	void acquire(const atomic<bool> &terminated);
-	static int32 onTaskDone__(TaskHandle task, int32 status, void*);
+	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
 	XRecursiveMutex m_readMutex;

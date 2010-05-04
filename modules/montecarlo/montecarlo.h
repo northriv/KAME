@@ -25,7 +25,7 @@
 
 #include <gsl/gsl_sf_erf.h>
 //! erfc(x)=1-erf(x)=(2/sqrt(PI))int_x^inf exp(-t^2)dt
-#define erfc__(x) gsl_sf_erfc(x)
+#define erfc_(x) gsl_sf_erfc(x)
 
 #include <iostream>
 #include <complex>

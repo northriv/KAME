@@ -111,8 +111,6 @@ private:
 	Refcnt refcnt;
 };
 
-#define ATOMIC_SHARED_REF_ALIGNMENT (sizeof(int64_t))
-
 //! \brief Base class for atomic_shared_ptr without intrusive counting, so-called "simple counted".\n
 //! A global referece counter (an instance of atomic_shared_ptr_gref_) will be created.
 template <typename T, typename Enable = void>
@@ -137,15 +135,13 @@ protected:
 	union {
 		RefLocal_ m_ref;
 		int64_t for_alignment__;
-	} __attribute__((aligned(8)));
+	}; // __attribute__((aligned(8)));
+	enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(intptr_t))};
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T>
 struct atomic_shared_ptr_base<T, typename boost::enable_if<boost::is_base_of<atomic_countable, T> >::type > {
 protected:
-	//! Non-atomic access to the internal pointer.
-	//! Never use this function for a shared instance.
-	//! \sa reset().
 	typedef T Ref;
 	typedef typename atomic_countable::Refcnt Refcnt;
 	typedef uintptr_t RefLocal_;
@@ -162,6 +158,7 @@ protected:
 	int use_count__() const {return ((const T*)this->m_ref)->refcnt;}
 
 	RefLocal_ m_ref;
+	enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(double))};
 };
 
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
@@ -332,10 +329,10 @@ protected:
 	typedef typename atomic_shared_ptr_base<T>::Refcnt Refcnt;
 	typedef typename atomic_shared_ptr_base<T>::RefLocal_ RefLocal_;
 	//! A pointer to global reference struct.
-	Ref* pref_() const {return (Ref*)(this->m_ref & (~(uintptr_t)(ATOMIC_SHARED_REF_ALIGNMENT - 1)));}
+	Ref* pref_() const {return (Ref*)(this->m_ref & (~(uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1)));}
 	//! Local (temporary) reference counter.
 	//! Local reference counter is a trick to tell the observation to other threads.
-	Refcnt refcnt_() const {return (Refcnt)(this->m_ref & (uintptr_t)(ATOMIC_SHARED_REF_ALIGNMENT - 1));}
+	Refcnt refcnt_() const {return (Refcnt)(this->m_ref & (uintptr_t)(this->ATOMIC_SHARED_REF_ALIGNMENT - 1));}
 
 	//internal functions below.
 	//! Atomically scans \a m_ref and increases the global reference counter.
@@ -412,7 +409,7 @@ atomic_shared_ptr<T>::reserve_scan_(Refcnt *rcnt) const {
 			fprintf(stderr, "max_rcnt=%d\n", rcnt_max);
 		}
 		*/
-		if(rcnt_new >= ATOMIC_SHARED_REF_ALIGNMENT) {
+		if(rcnt_new >= this->ATOMIC_SHARED_REF_ALIGNMENT) {
 			// This would never happen.
 			usleep(1);
 			continue;
