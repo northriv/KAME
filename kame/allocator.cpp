@@ -12,6 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 
+//#define GUARDIAN 0xaaaaaaaauLL
+//#define FILLING_AFTER_ALLOC 0x55555555uLL
+
 #include "allocator_prv.h"
 #include "support.h"
 
@@ -140,6 +143,10 @@ inline PooledAllocator<ALIGN, FS, DUMMY>::PooledAllocator(char *addr)  : m_mempo
 //	memset(m_flags, 0, FLAGS_COUNT * sizeof(FUINT));
 //	memset(m_sizes, 0, FLAGS_COUNT * sizeof(FUINT));
 //	memoryBarrier();
+#ifdef GUARDIAN
+	for(unsigned int i = 0; i < ALLOC_MEMPOOL_SIZE / sizeof(uint64_t); ++i)
+		reinterpret_cast<uint64_t *>(addr)[i] = GUARDIAN; //filling
+#endif
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 void
@@ -199,13 +206,14 @@ PooledAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 		if(cnt >= FLAGS_COUNT)
 			return 0;
 	}
-
 	int idx = pflag - this->m_flags;
 
 	int sidx = count_zeros_forward(one);
 
 	this->m_idx = idx;
-	return &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+
+	void *p = &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline bool
@@ -216,6 +224,10 @@ PooledAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
 
 	FUINT none = ~((FUINT)1u << sidx);
 
+#ifdef GUARDIAN
+	for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
+		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
+#endif
 	writeBarrier(); //for the pooled memory
 	for(;;) {
 		FUINT oldv = this->m_flags[idx];
@@ -276,11 +288,12 @@ PooledAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 		m_sizes[idx] = sizes_new;
 		writeBarrier(); //for the counter and m_sizes.
 	}
-
 	int sidx = count_zeros_forward(cand);
 
 	this->m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % FLAGS_COUNT);
-	return &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+
+	void *p = &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
+	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline bool
@@ -292,6 +305,11 @@ PooledAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 	FUINT nones = find_zero_forward(m_sizes[idx] >> sidx);
 	nones = ~((nones | (nones - 1u)) << sidx);
 
+#ifdef GUARDIAN
+	int size = count_bits(~nones);
+	for(unsigned int i = 0; i < size * ALIGN / sizeof(uint64_t); ++i)
+		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
+#endif
 	writeBarrier(); //for the pooled memory
 	for(;;) {
 		FUINT oldv = this->m_flags[idx];
@@ -357,11 +375,21 @@ PooledAllocator<ALIGN, FS, DUMMY>::allocate() {
 		uintptr_t alloc = s_allocators[aidx];
 		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &s_allocators[aidx]))) {
 			readBarrier();
-			if(void *p = reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>(aidx)) {
+			if(void *p =
+				reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>(aidx)) {
 	//			fprintf(stderr, "a: %llx\n", (unsigned long long)(uintptr_t)p);
-//				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
-//					static_cast<uint64_t *>(p)[i] = 0; //zero clear.
-
+#ifdef GUARDIAN
+				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
+					if(static_cast<uint64_t *>(p)[i] != GUARDIAN) {
+						fprintf(stderr, "Memory tainted between %llx:64\n",
+							(unsigned long long)(uintptr_t) &static_cast<uint64_t *>(p)[i]);
+					}
+				}
+#endif
+#ifdef FILLING_AFTER_ALLOC
+				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
+					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC; //filling
+#endif
 				s_allocators[aidx] = alloc;
 				s_curr_allocator_idx = aidx;
 				return p;
@@ -399,8 +427,17 @@ PooledAllocator<ALIGN, FS, DUMMY>::releaseAllocator(uintptr_t alloc, int aidx) {
 			reinterpret_cast<PooledAllocator<ALIGN, DUMMY, DUMMY> *>(alloc);
 		//checking if the pool is really vacant.
 		if( !s_flags_inc_cnt[aidx]) {
+			void *ppool = reinterpret_cast<PooledAllocator *>(alloc)->m_mempool;
+#ifdef GUARDIAN
+			for(unsigned int i = 0; i < ALLOC_MEMPOOL_SIZE / sizeof(uint64_t); ++i) {
+				if(static_cast<uint64_t *>(ppool)[i] != GUARDIAN) {
+					fprintf(stderr, "Memory tainted between %llx:64\n",
+						(unsigned long long)(uintptr_t) &static_cast<uint64_t *>(ppool)[i]);
+				}
+			}
+#endif
 			//releasing memory.
-			mprotect(reinterpret_cast<PooledAllocator *>(alloc)->m_mempool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
+			mprotect(ppool, ALLOC_MEMPOOL_SIZE, PROT_NONE);
 //						fprintf(stderr, "Freed: %llx\n", (unsigned long long)(uintptr_t)reinterpret_cast<PooledAllocator *>(alloc)->m_mempool);
 //							printf("r");
 			delete palloc;
@@ -461,7 +498,6 @@ PooledAllocator<ALIGN, FS, DUMMY>::release_pools() {
 			break;
 		int ret = munmap(mp, MMAP_SPACE_SIZE);
 		s_mmapped_spaces[cnt] = 0;
-//		int ret = mprotect(mp, MMAP_SPACE_SIZE, PROT_NONE);
 		ASSERT( !ret);
 	}
 }
