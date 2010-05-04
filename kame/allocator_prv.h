@@ -24,9 +24,9 @@
 #define ALLOC_MAX_ALLOCATORS (1024 * 8) //4GiB max.
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
-//! \brief Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Arbitrary sizes of memory in a unit of double-quad word less than 4KiB
-//! can be allocated from a memory pool. The larger memory is provided by malloc().
+//! \brief Memory blocks in a unit of double-quad word less than 4KiB
+//! can be allocated from fixed-size or variable-size memory pools.
+//! \tparam FS determines fixed-size or variable-size.
 //! \sa allocator_test.cpp.
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PooledAllocator {

@@ -10,5 +10,5 @@
 <body>
 <div class="navigation" id="top" style="text-align: right;"><small>
 <a href="$relpath$../index.html">
-KAME: C++ program for measurement instruments</a>
+KAME: C++ program for laboratory measurement</a>
 </small></div>
