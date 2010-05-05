@@ -62,33 +62,19 @@ public:
 	~atomic_pod_cas2() {}
 	operator T() const {
 		readBarrier();
-#ifdef HAVE_ATOMIC_RW64
-		int32_t for_align[3];
-		T *p = reinterpret_cast<T *>(reinterpret_cast<uintptr_t>( &for_align[1]) & ~(uintptr_t)7u);
-		atomicRead64(p, m_var);
-		return *p;
-#else
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, oldv, &m_var)) {
 				return oldv;
 			}
 		}
-#endif
 	}
 	atomic_pod_cas2 &operator=(T t) {
-#ifdef HAVE_ATOMIC_RW64
-		int32_t for_align[3];
-		T *p = reinterpret_cast<T *>(reinterpret_cast<uintptr_t>( &for_align[1]) & ~(uintptr_t)7u);
-		*p = t;
-		atomicWrite64( *p, &m_var);
-#else
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, t, &m_var))
 				break;
 		}
-#endif
 		writeBarrier();
 		return *this;
 	}

@@ -91,6 +91,7 @@ protected:
 	static int s_flags_inc_cnt[ALLOC_CHUNKS_COUNT];
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
+	static int s_chunks_of_type_vacancy;
 };
 
 //! Partially specialized class for variable-size allocators.
