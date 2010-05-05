@@ -14,6 +14,7 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
+#define LEAVE_VACANT_CHUNKS 2 //keep at least this # of chunks.
 
 #include "allocator_prv.h"
 #include "support.h"
@@ -444,6 +445,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
+	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
+		return false;
+	}
 	int aidx = palloc->m_idx_of_type;
 	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {

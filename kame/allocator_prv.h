@@ -22,7 +22,7 @@
 
 #define ALLOC_CHUNK_SIZE (1024 * 256) //256KiB
 #if defined __LP64__ || defined __LLP64__
-	#define ALLOC_MAX_CHUNKS (1024 * 32) //16GiB max.
+	#define ALLOC_MAX_CHUNKS (1024 * 64) //16GiB max.
 	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 64) //64MiB
 #else
 	#define ALLOC_MAX_CHUNKS (1024 * 8) //2GiB max.
