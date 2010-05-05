@@ -21,20 +21,22 @@
 #include <limits>
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
-#define GROWTH_MMAP_SIZE(x) (x / 4 * 5)
+#define GROWTH_CHUNK_SIZE(x) (x / 4 * 5)
 #if defined __LP64__ || defined __LLP64__
 	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 32)
-	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 64) //64MiB
+	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
 	#define ALLOC_MAX_MMAP_ENTRIES 32 //100GiB approx.
 #else
 	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 4)
-	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 16) //16MiB
+	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
 	#define ALLOC_MAX_MMAP_ENTRIES 32 //30GiB approx.
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 class PoolAllocatorBase {
 public:
+	template <int CCNT, int CHUNK_SIZE>
+	static inline bool deallocate_(void *p, char *mp);
 	static inline bool deallocate(void *p);
 	static void release_chunks();
 protected:
@@ -42,7 +44,7 @@ protected:
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
-	static void deallocate_chunk(int cidx);
+	static void deallocate_chunk(int cidx, int chunk_size);
 
 	//! A chunk, memory block.
 	char *m_mempool;
@@ -52,8 +54,6 @@ private:
 		ALLOC_MAX_CHUNKS = NUM_ALLOCATORS_IN_SPACE * ALLOC_MAX_MMAP_ENTRIES};
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
-	static int s_chunk_sizes[ALLOC_MAX_MMAP_ENTRIES];
-	static int s_mmapped_sizes[ALLOC_MAX_MMAP_ENTRIES];
 	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
 };
 
@@ -81,12 +81,12 @@ protected:
 	static bool trySetupNewAllocator(int aidx);
 	static bool releaseAllocator(PoolAllocator *alloc);
 
-	//! A hint for searching in a chunk.
-	int m_idx;
 	//! Every bit indicates occupancy in m_mempool.
 	FUINT *m_flags;
-	int m_idx_of_type;
+	//! A hint for searching in a chunk.
+	int m_idx;
 	int m_count;
+	int m_idx_of_type;
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
 	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
