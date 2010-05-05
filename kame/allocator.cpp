@@ -14,7 +14,7 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-#define LEAVE_VACANT_CHUNKS 2 //keep at least this # of chunks.
+#define LEAVE_VACANT_CHUNKS 2 //keep at least this # of chunks. Set to 0 to avoid fragmentations.
 
 #include "allocator_prv.h"
 #include "support.h"
@@ -445,13 +445,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
+	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
+	int aidx = palloc->m_idx_of_type;
+//	if(s_curr_chunk_idx ==  aidx) {
+//		s_curr_chunk_idx = (aidx > 0) ? aidx - 1 : 0;
+//	}
+
 	atomicInc( &s_chunks_of_type_vacancy);
 	if(s_chunks_of_type_vacancy <= s_chunks_of_type_ubound) {
 		return false;
 	}
 
-	int aidx = palloc->m_idx_of_type;
-	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {
 		readBarrier();
 		//checking if the pool is really vacant.
