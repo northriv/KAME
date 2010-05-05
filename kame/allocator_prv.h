@@ -21,22 +21,23 @@
 #include <limits>
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
-#define GROWTH_CHUNK_SIZE(x) (x / 4 * 5)
+#define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
+#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 #if defined __LP64__ || defined __LLP64__
-	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 32)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
-	#define ALLOC_MAX_MMAP_ENTRIES 32 //100GiB approx.
+	#define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
 #else
-	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 4)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
-	#define ALLOC_MAX_MMAP_ENTRIES 32 //30GiB approx.
+	#define ALLOC_MAX_MMAP_ENTRIES 16 //11GiB approx.
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
+#define ALLOC_MAX_CHUNKS_OF_TYPE \
+	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES / 4)
 
 class PoolAllocatorBase {
 public:
-	template <int CCNT, int CHUNK_SIZE>
-	static inline bool deallocate_(void *p, char *mp);
+	template <int CCNT, ssize_t CHUNK_SIZE>
+	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);
 	static void release_chunks();
 protected:
@@ -44,7 +45,7 @@ protected:
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
-	static void deallocate_chunk(int cidx, int chunk_size);
+	static void deallocate_chunk(int cidx, ssize_t chunk_size);
 
 	//! A chunk, memory block.
 	char *m_mempool;
@@ -72,7 +73,7 @@ public:
 	typedef uintptr_t FUINT;
 protected:
 	friend class PoolAllocatorBase;
-	static PoolAllocator *create(int size);
+	static PoolAllocator *create(ssize_t size);
 	static void destroy(PoolAllocator *);
 
 	template <unsigned int SIZE>
@@ -104,7 +105,7 @@ public:
 	void report_leaks();
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	static PoolAllocator *create(int size);
+	static PoolAllocator *create(ssize_t size);
 	static void destroy(PoolAllocator *);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
