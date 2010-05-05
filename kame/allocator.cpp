@@ -445,9 +445,18 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
-	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
-		return false;
+	if(LEAVE_VACANT_CHUNKS) {
+		int acnt = s_chunks_of_type_ubound;
+		int num_vacancy = 0;
+		for(int aidx = 0; aidx < acnt; ++aidx) {
+			if( !s_chunks_of_type[aidx])
+				++num_vacancy;
+		}
+		if(num_vacancy < LEAVE_VACANT_CHUNKS) {
+			return false;
+		}
 	}
+
 	int aidx = palloc->m_idx_of_type;
 	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {
