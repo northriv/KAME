@@ -22,10 +22,10 @@
 
 #define ALLOC_CHUNK_SIZE (1024 * 256) //256KiB
 #if defined __LP64__ || defined __LLP64__
-	#define ALLOC_MAX_CHUNKS (1024 * 8) //2GiB max per configuration.
-	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 32) //32MiB
+	#define ALLOC_MAX_CHUNKS (1024 * 32) //16GiB max.
+	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 64) //64MiB
 #else
-	#define ALLOC_MAX_CHUNKS (1024 * 2) //512MiB max per configuration.
+	#define ALLOC_MAX_CHUNKS (1024 * 8) //2GiB max.
 	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 16) //16MiB
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
@@ -38,8 +38,6 @@ public:
 	static void release_chunks();
 protected:
 	virtual bool deallocate_pooled(void *p) = 0;
-	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MMAP_RESERVE_SIZE / ALLOC_CHUNK_SIZE,
-		MMAP_SPACES_COUNT = ALLOC_MAX_CHUNKS / NUM_ALLOCATORS_IN_SPACE};
 	void* operator new(size_t size) throw();
 	void operator delete(void* p);
 
@@ -50,10 +48,11 @@ protected:
 	char *m_mempool;
 
 private:
+	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MMAP_RESERVE_SIZE / ALLOC_CHUNK_SIZE,
+		MMAP_SPACES_COUNT = ALLOC_MAX_CHUNKS / NUM_ALLOCATORS_IN_SPACE};
 	//! Swap spaces given by anonymous mmap().
 	static char *s_mmapped_spaces[MMAP_SPACES_COUNT];
 	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
-	static int s_chunks_ubound;
 };
 
 //! \brief Memory blocks in a unit of double-quad word
@@ -77,7 +76,8 @@ protected:
 	virtual bool deallocate_pooled(void *p);
 	static bool trySetupNewAllocator(int aidx);
 	static bool releaseAllocator(PoolAllocator *alloc);
-	enum {FLAGS_COUNT = ALLOC_CHUNK_SIZE / ALIGN / sizeof(FUINT) / 8};
+	enum {FLAGS_COUNT = ALLOC_CHUNK_SIZE / ALIGN / sizeof(FUINT) / 8,
+		ALLOC_CHUNKS_COUNT = ALLOC_MAX_CHUNKS / 4};
 
 	//! A hint for searching in a chunk.
 	int m_idx;
@@ -86,9 +86,9 @@ protected:
 	int m_idx_of_type;
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
-	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS];
+	static uintptr_t s_chunks_of_type[ALLOC_CHUNKS_COUNT];
 	//! # of flags that having non-zero values.
-	static int s_flags_inc_cnt[ALLOC_MAX_CHUNKS];
+	static int s_flags_inc_cnt[ALLOC_CHUNKS_COUNT];
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
 };
@@ -138,6 +138,7 @@ private:
 #define ALLOC_SIZE12 (ALLOC_ALIGNMENT * 12)
 #define ALLOC_SIZE13 (ALLOC_ALIGNMENT * 13)
 #define ALLOC_SIZE14 (ALLOC_ALIGNMENT * 14)
+#define ALLOC_SIZE15 (ALLOC_ALIGNMENT * 15)
 #define ALLOC_SIZE16 (ALLOC_ALIGNMENT * 16)
 
 void* allocate_large_size_or_malloc(size_t size) throw();
@@ -156,6 +157,8 @@ void* allocate_large_size_or_malloc(size_t size) throw();
 			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE13 * X)>::allocate<ALLOC_SIZE13 * X>();\
 		if(size <= ALLOC_SIZE14 * X)\
 			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE14 * X)>::allocate<ALLOC_SIZE14 * X>();\
+		if(size <= ALLOC_SIZE15 * X)\
+			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE15 * X)>::allocate<ALLOC_SIZE15 * X>();\
 		return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * X)>::allocate<ALLOC_SIZE16 * X>();\
 	}\
 }
@@ -184,10 +187,16 @@ inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 			return PoolAllocator<ALLOC_SIZE9, true>::allocate<ALLOC_SIZE9>();
 		if(size <= ALLOC_SIZE10)
 			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE10)>::allocate<ALLOC_SIZE10>();
+		if(size <= ALLOC_SIZE11)
+			return PoolAllocator<ALLOC_SIZE11, true>::allocate<ALLOC_SIZE11>();
 		if(size <= ALLOC_SIZE12)
 			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE12)>::allocate<ALLOC_SIZE12>();
+		if(size <= ALLOC_SIZE13)
+			return PoolAllocator<ALLOC_SIZE13, true>::allocate<ALLOC_SIZE13>();
 		if(size <= ALLOC_SIZE14)
 			return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE14)>::allocate<ALLOC_SIZE14>();
+		if(size <= ALLOC_SIZE15)
+			return PoolAllocator<ALLOC_SIZE15, true>::allocate<ALLOC_SIZE15>();
 		return PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16)>::allocate<ALLOC_SIZE16>();
 	}
 	ALLOCATE_9_16X(2, size);
