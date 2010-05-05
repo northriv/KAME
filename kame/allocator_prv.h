@@ -20,38 +20,40 @@
 #include <stdlib.h>
 #include <limits>
 
-#define ALLOC_CHUNK_SIZE (1024 * 256) //256KiB
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
+#define GROWTH_MMAP_SIZE(x) (x / 4 * 5)
 #if defined __LP64__ || defined __LLP64__
-	#define ALLOC_MAX_CHUNKS (1024 * 64) //16GiB max.
-	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 64) //64MiB
+	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 32)
+	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 64) //64MiB
+	#define ALLOC_MAX_MMAP_ENTRIES 32 //100GiB approx.
 #else
-	#define ALLOC_MAX_CHUNKS (1024 * 8) //2GiB max.
-	#define ALLOC_MMAP_RESERVE_SIZE (1024 * 1024 * 16) //16MiB
+	#define ALLOC_MAX_CHUNKS_OF_TYPE (1024 * 4)
+	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 16) //16MiB
+	#define ALLOC_MAX_MMAP_ENTRIES 32 //30GiB approx.
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 
 class PoolAllocatorBase {
 public:
-	virtual ~PoolAllocatorBase() {}
-
 	static inline bool deallocate(void *p);
 	static void release_chunks();
 protected:
 	virtual bool deallocate_pooled(void *p) = 0;
-	void* operator new(size_t size) throw();
-	void operator delete(void* p);
 
-	static bool allocate_chunk(PoolAllocatorBase *p);
+	template <class ALLOC>
+	static ALLOC *allocate_chunk();
 	static void deallocate_chunk(int cidx);
 
 	//! A chunk, memory block.
 	char *m_mempool;
 
 private:
-	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MMAP_RESERVE_SIZE / ALLOC_CHUNK_SIZE,
-		MMAP_SPACES_COUNT = ALLOC_MAX_CHUNKS / NUM_ALLOCATORS_IN_SPACE};
+	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE,
+		ALLOC_MAX_CHUNKS = NUM_ALLOCATORS_IN_SPACE * ALLOC_MAX_MMAP_ENTRIES};
 	//! Swap spaces given by anonymous mmap().
-	static char *s_mmapped_spaces[MMAP_SPACES_COUNT];
+	static char *s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
+	static int s_chunk_sizes[ALLOC_MAX_MMAP_ENTRIES];
+	static int s_mmapped_sizes[ALLOC_MAX_MMAP_ENTRIES];
 	static PoolAllocatorBase *s_chunks[ALLOC_MAX_CHUNKS];
 };
 
@@ -62,7 +64,6 @@ private:
 template <unsigned int ALIGN, bool FS = false, bool DUMMY = true>
 class PoolAllocator : public PoolAllocatorBase {
 public:
-	virtual ~PoolAllocator() { }
 	template <unsigned int SIZE>
 	static void *allocate();
 	static void release_pools();
@@ -70,25 +71,27 @@ public:
 
 	typedef uintptr_t FUINT;
 protected:
-	PoolAllocator();
+	friend class PoolAllocatorBase;
+	static PoolAllocator *create(int size);
+	static void destroy(PoolAllocator *);
+
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
 	virtual bool deallocate_pooled(void *p);
 	static bool trySetupNewAllocator(int aidx);
 	static bool releaseAllocator(PoolAllocator *alloc);
-	enum {FLAGS_COUNT = ALLOC_CHUNK_SIZE / ALIGN / sizeof(FUINT) / 8,
-		ALLOC_CHUNKS_COUNT = ALLOC_MAX_CHUNKS / 4};
 
 	//! A hint for searching in a chunk.
 	int m_idx;
 	//! Every bit indicates occupancy in m_mempool.
-	FUINT m_flags[FLAGS_COUNT];
+	FUINT *m_flags;
 	int m_idx_of_type;
+	int m_count;
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
-	static uintptr_t s_chunks_of_type[ALLOC_CHUNKS_COUNT];
+	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
 	//! # of flags that having non-zero values.
-	static int s_flags_inc_cnt[ALLOC_CHUNKS_COUNT];
+	static int s_flags_inc_cnt[ALLOC_MAX_CHUNKS_OF_TYPE];
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
 	static int s_chunks_of_type_vacancy;
@@ -101,14 +104,16 @@ public:
 	void report_leaks();
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	enum {FLAGS_COUNT = PoolAllocator<ALIGN, true, false>::FLAGS_COUNT};
+	static PoolAllocator *create(int size);
+	static void destroy(PoolAllocator *);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
 	virtual bool deallocate_pooled(void *p);
 private:
+	friend class PoolAllocatorBase;
 	template <unsigned int, bool, bool> friend class PoolAllocator;
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
-	FUINT m_sizes[FLAGS_COUNT];
+	FUINT *m_sizes;
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
