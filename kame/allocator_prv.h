@@ -32,7 +32,7 @@
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
-	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES / 4)
+	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES)
 
 class PoolAllocatorBase {
 public:

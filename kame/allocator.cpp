@@ -374,7 +374,8 @@ PoolAllocatorBase::allocate_chunk() {
 	ALLOC *palloc;
 	for(;;) {
 		if(cidx >= ALLOC_MAX_CHUNKS) {
-			throw std::bad_alloc();//"# of chunks exceeds the limit."
+			fprintf(stderr, "# of chunks exceeds the limit.\n");
+			throw std::bad_alloc();
 		}
 		if( !s_chunks[cidx]) {
 			if(atomicCompareAndSet((PoolAllocatorBase *)0, reinterpret_cast<PoolAllocatorBase *>(1u), &s_chunks[cidx])) {
@@ -395,8 +396,10 @@ PoolAllocatorBase::allocate_chunk() {
 		ssize_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 		char *p = static_cast<char *>(
 			mmap(0, mmap_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
-		if(p == MAP_FAILED)
+		if(p == MAP_FAILED) {
+			fprintf(stderr, "mmap() failed.\n");
 			throw std::bad_alloc();
+		}
 		writeBarrier();
 		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE])) {
 			readBarrier();
@@ -481,8 +484,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 			aidx = 0;
 		if(cnt == acnt) {
 			for(aidx = 0;; ++aidx) {
-				if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE)
-					throw std::bad_alloc();//"# of chunks exceeds the limit."
+				if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE) {
+					fprintf(stderr, "# of chunks for %d align. exceeds the limit.\n", ALIGN);
+					throw std::bad_alloc();
+				}
 				if( !s_chunks_of_type[aidx])
 					break;
 			}
