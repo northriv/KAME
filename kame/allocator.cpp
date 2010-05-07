@@ -153,9 +153,12 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline void PoolAllocator<ALIGN, FS, DUMMY>::destroy(PoolAllocator *p) {
-	p->~PoolAllocator();
+inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 	free(p);
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline void PoolAllocator<ALIGN, FS, DUMMY>::suicide() {
+	delete this;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(ssize_t size) {
@@ -174,9 +177,8 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
-inline void PoolAllocator<ALIGN, false, DUMMY>::destroy(PoolAllocator *p) {
-	p->~PoolAllocator();
-	free(p);
+inline void PoolAllocator<ALIGN, false, DUMMY>::suicide() {
+	delete this;
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -534,8 +536,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
 				atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
 			}
 			atomicDec( &s_chunks_of_type_vacancy);
-			PoolAllocator<ALIGN, DUMMY, DUMMY>::destroy(
-				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc));
+			static_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(palloc)->suicide();
 			return true;
 		}
 		else {

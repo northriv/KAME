@@ -72,10 +72,6 @@ public:
 
 	typedef uintptr_t FUINT;
 protected:
-	friend class PoolAllocatorBase;
-	static PoolAllocator *create(ssize_t size);
-	static void destroy(PoolAllocator *);
-
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
 	virtual bool deallocate_pooled(void *p);
@@ -96,6 +92,13 @@ protected:
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
 	static int s_chunks_of_type_vacancy;
+
+	void operator delete(void *) throw();
+private:
+	friend class PoolAllocatorBase;
+
+	static PoolAllocator *create(ssize_t size);
+	inline void suicide();
 };
 
 //! Partially specialized class for variable-size allocators.
@@ -105,14 +108,17 @@ public:
 	void report_leaks();
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
-	static PoolAllocator *create(ssize_t size);
-	static void destroy(PoolAllocator *);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled(int aidx);
 	virtual bool deallocate_pooled(void *p);
+
 private:
 	friend class PoolAllocatorBase;
 	template <unsigned int, bool, bool> friend class PoolAllocator;
+
+	static PoolAllocator *create(ssize_t size);
+	inline void suicide();
+
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT *m_sizes;
 };
