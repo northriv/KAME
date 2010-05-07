@@ -40,8 +40,8 @@ template <class XN>
 void
 Node<XN>::Packet::print_() const {
 	printf("Packet: ");
-	printf("%s@0x%llx, ", typeid(*this).name(), (unsigned long long)(uintptr_t)&node());
-	printf("BP@0x%llx, ", (unsigned long long)(uintptr_t)node().m_link.get());
+	printf("%s@%p, ", typeid(*this).name(), &node());
+	printf("BP@%p, ", node().m_link.get());
 	if(missing())
 		printf("missing, ");
 	if(size()) {
@@ -52,7 +52,7 @@ Node<XN>::Packet::print_() const {
 				printf("; ");
 			}
 			else {
-				printf("%s@0x%llx, w/o packet, ", typeid(*this).name(), (unsigned long long)(uintptr_t)subnodes()->at(i).get());
+				printf("%s@%p, w/o packet, ", typeid(*this).name(), subnodes()->at(i).get());
 			}
 		}
 		printf("]\n");
@@ -91,7 +91,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 		}
 	}
 	catch (int &line) {
-		fprintf(stderr, "Line %d, losing consistensy on node 0x%llx:\n", line, (unsigned long long)&node());
+		fprintf(stderr, "Line %d, losing consistensy on node %p:\n", line, &node());
 		rootpacket->print_();
 		throw *this;
 	}
@@ -118,7 +118,7 @@ void
 Node<XN>::PacketWrapper::print_() const {
 	printf("PacketWrapper: ");
 	if( !hasPriority()) {
-		printf("referred to BP@0x%llx, ", (unsigned long long)(uintptr_t)bundledBy().get());
+		printf("referred to BP@%p, ", bundledBy().get());
 	}
 	printf("serial:%lld, ", (long long)m_bundle_serial);
 	if(packet()) {
@@ -142,7 +142,7 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
 				if(ms > 3000)
 					fprintf(stderr, "Nested transaction?, ");
 				fprintf(stderr, "Negotiating, %f sec. requested, limited to 1 sec. ", ms*1e-3);
-				fprintf(stderr, "for BP@0x%llx\n", (unsigned long long)(uintptr_t)this);
+				fprintf(stderr, "for BP@%p\n", this);
 				ms = 1000;
 			}
 			t0 += ms * 1e-3;
@@ -173,8 +173,8 @@ template <class XN>
 void
 Node<XN>::print_() const {
 	local_shared_ptr<PacketWrapper> packet( *m_link);
-//	printf("Node:0x%llx, ", (unsigned long long)(uintptr_t)this);
-//	printf("BP:0x%llx, ", (unsigned long long)(uintptr_t)m_link.get());
+//	printf("Node:%p, ", this);
+//	printf("BP:%p, ", m_link.get());
 //	printf(" packet: ");
 	packet->print_();
 }

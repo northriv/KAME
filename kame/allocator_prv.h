@@ -98,7 +98,6 @@ private:
 	friend class PoolAllocatorBase;
 
 	static PoolAllocator *create(ssize_t size);
-	inline void suicide(); //faster than the use of virtual destructor w/ RTTI.
 };
 
 //! Partially specialized class for variable-size allocators.
@@ -117,7 +116,6 @@ private:
 	template <unsigned int, bool, bool> friend class PoolAllocator;
 
 	static PoolAllocator *create(ssize_t size);
-	inline void suicide();
 
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT *m_sizes;
