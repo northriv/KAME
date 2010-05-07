@@ -98,7 +98,7 @@ private:
 	friend class PoolAllocatorBase;
 
 	static PoolAllocator *create(ssize_t size);
-	inline void suicide();
+	inline void suicide(); //faster than the use of virtual destructor w/ RTTI.
 };
 
 //! Partially specialized class for variable-size allocators.

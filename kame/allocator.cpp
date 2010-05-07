@@ -152,14 +152,6 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 		p->m_flags[i] = 0; //zero clear.
 	return p;
 }
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
-	free(p);
-}
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline void PoolAllocator<ALIGN, FS, DUMMY>::suicide() {
-	delete this;
-}
 template <unsigned int ALIGN, bool DUMMY>
 inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(ssize_t size) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
@@ -175,6 +167,14 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	for(int i = 0; i < count; ++i)
 		p->m_flags[i] = 0; //zero clear.
 	return p;
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
+	free(p);
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline void PoolAllocator<ALIGN, FS, DUMMY>::suicide() {
+	delete this;
 }
 template <unsigned int ALIGN, bool DUMMY>
 inline void PoolAllocator<ALIGN, false, DUMMY>::suicide() {
@@ -249,39 +249,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 	void *p = &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 	return p;
 }
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-bool
-PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
-	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
-	int idx = midx / (sizeof(FUINT) * 8);
-	unsigned int sidx = midx % (sizeof(FUINT) * 8);
-
-	FUINT none = ~((FUINT)1u << sidx);
-
-#ifdef GUARDIAN
-	for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
-		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
-#endif
-	writeBarrier(); //for the pooled memory
-	for(;;) {
-		FUINT oldv = this->m_flags[idx];
-		FUINT newv = oldv & none;
-//		fprintf(stderr, "d: %llx, %d, %x, %x, %x\n", (unsigned long long)(uintptr_t)p, idx, oldv, newv, ones);
-		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
-			ASSERT(( oldv | none) == ~(FUINT)0); //checking for double free.
-//			m_idx = idx; //writing a hint for a next allocation.
-			if(newv == 0) {
-				int aidx = m_idx_of_type;
-				if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(s_chunks_of_type[aidx] & 1u)) {
-					return releaseAllocator(this);
-				}
-			}
-			break;
-		}
-	}
-	return false;
-}
-
 
 template <unsigned int ALIGN, bool DUMMY>
 template <unsigned int SIZE>
@@ -368,6 +335,39 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 	}
 	return false;
 }
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+bool
+PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
+	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
+	int idx = midx / (sizeof(FUINT) * 8);
+	unsigned int sidx = midx % (sizeof(FUINT) * 8);
+
+	FUINT none = ~((FUINT)1u << sidx);
+
+#ifdef GUARDIAN
+	for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
+		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
+#endif
+	writeBarrier(); //for the pooled memory
+	for(;;) {
+		FUINT oldv = this->m_flags[idx];
+		FUINT newv = oldv & none;
+//		fprintf(stderr, "d: %llx, %d, %x, %x, %x\n", (unsigned long long)(uintptr_t)p, idx, oldv, newv, ones);
+		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
+			ASSERT(( oldv | none) == ~(FUINT)0); //checking for double free.
+//			m_idx = idx; //writing a hint for a next allocation.
+			if(newv == 0) {
+				int aidx = m_idx_of_type;
+				if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(s_chunks_of_type[aidx] & 1u)) {
+					return releaseAllocator(this);
+				}
+			}
+			break;
+		}
+	}
+	return false;
+}
+
 template <class ALLOC>
 ALLOC *
 PoolAllocatorBase::allocate_chunk() {
@@ -579,23 +579,6 @@ inline bool
 PoolAllocatorBase::deallocate(void *p) {
 	if(deallocate_<0, ALLOC_MIN_CHUNK_SIZE>(p))
 		return true;
-// ssize_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
-//	for(int cnt = 0; cnt < ALLOC_MAX_MMAP_ENTRIES; ++cnt) {
-//		char *mp = s_mmapped_spaces[cnt];
-//		if( !mp)
-//			break;
-//		ssize_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
-//		if((p >= mp) && (p < &mp[mmap_size])) {
-//			int cidx =
-//				(static_cast<char *>(p) - mp) / chunk_size + cnt * NUM_ALLOCATORS_IN_SPACE;
-//			PoolAllocatorBase *palloc = s_chunks[cidx];
-//			if(palloc->deallocate_pooled(p)) {
-//				deallocate_chunk(cidx, chunk_size);
-//			}
-//			return true;
-//		}
-//		chunk_size = GROW_CHUNK_SIZE(chunk_size);
-//	}
 	return false;
 }
 void
