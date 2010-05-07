@@ -91,7 +91,6 @@ protected:
 	static int s_flags_inc_cnt[ALLOC_MAX_CHUNKS_OF_TYPE];
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
-	static int s_chunks_of_type_vacancy;
 
 	void operator delete(void *) throw();
 private:

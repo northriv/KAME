@@ -14,7 +14,7 @@
 
 //#define GUARDIAN 0xaaaaaaaauLL
 //#define FILLING_AFTER_ALLOC 0x55555555uLL
-#define LEAVE_VACANT_CHUNKS 1 //keep at least this # of chunks. Set to 0 to avoid fragmentations.
+#define LEAVE_VACANT_CHUNKS 1 //keep at least this # of chunks.
 
 #include "allocator_prv.h"
 #include "support.h"
@@ -318,7 +318,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 //			m_idx = idx; //writing a hint for a next allocation.
 			if(newv == 0) {
 				int aidx = this->m_idx_of_type;
-				if(atomicDecAndTest( &this->s_flags_inc_cnt[aidx]) && ~(this->s_chunks_of_type[aidx] & 1u)) {
+				if(atomicDecAndTest( &this->s_flags_inc_cnt[aidx])) {
 					if(releaseAllocator(this)) {
 						delete this; //suicide.
 						return true;
@@ -355,7 +355,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
 //			m_idx = idx; //writing a hint for a next allocation.
 			if(newv == 0) {
 				int aidx = m_idx_of_type;
-				if(atomicDecAndTest( &s_flags_inc_cnt[aidx]) && ~(s_chunks_of_type[aidx] & 1u)) {
+				if(atomicDecAndTest( &s_flags_inc_cnt[aidx])) {
 					if(releaseAllocator(this)) {
 						delete this; //suicide.
 						return true;
@@ -505,16 +505,15 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
 PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
+	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
+		return false;
+	}
+
 	uintptr_t alloc = reinterpret_cast<uintptr_t>(palloc);
 	int aidx = palloc->m_idx_of_type;
 //	if(s_curr_chunk_idx ==  aidx) {
 //		s_curr_chunk_idx = (aidx > 0) ? aidx - 1 : 0;
 //	}
-
-	atomicInc( &s_chunks_of_type_vacancy);
-	if(s_chunks_of_type_vacancy <= s_chunks_of_type_ubound) {
-		return false;
-	}
 
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {
 		readBarrier();
@@ -536,7 +535,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
 					break;
 				atomicCompareAndSet(acnt, acnt - 1, &s_chunks_of_type_ubound);
 			}
-			atomicDec( &s_chunks_of_type_vacancy);
 			return true;
 		}
 		else {
@@ -610,7 +608,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::release_pools() {
 		s_chunks_of_type[aidx] = 0;
 	}
 	s_chunks_of_type_ubound = 0;
-	s_chunks_of_type_vacancy = 0;
 }
 
 void* allocate_large_size_or_malloc(size_t size) throw() {
@@ -685,8 +682,6 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 int PoolAllocator<ALIGN, FS, DUMMY>::s_flags_inc_cnt[ALLOC_MAX_CHUNKS_OF_TYPE];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_vacancy;
 
 template class PoolAllocator<ALLOC_ALIGN1>;
 template class PoolAllocator<ALLOC_ALIGN2>;
