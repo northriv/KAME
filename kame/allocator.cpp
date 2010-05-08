@@ -539,7 +539,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC; //filling
 #endif
 				s_chunks_of_type[aidx] = alloc;
-				if(cnt) s_curr_chunk_idx = aidx;
 				return p;
 			}
 			s_chunks_of_type[aidx] = alloc;
@@ -548,6 +547,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 		++aidx;
 		if((aidx >= acnt) || (aidx == ALLOC_MAX_CHUNKS_OF_TYPE))
 			aidx = 0;
+		s_curr_chunk_idx = aidx;
+		writeBarrier();
 		if(cnt == acnt) {
 			for(aidx = 0;; ++aidx) {
 				if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE) {
@@ -561,7 +562,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 				continue;
 			cnt = 0;
 		}
-//		s_curr_chunk_idx = aidx;
 	}
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
