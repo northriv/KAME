@@ -539,7 +539,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC; //filling
 #endif
 				s_chunks_of_type[aidx] = alloc;
-				s_curr_chunk_idx = aidx;
+				if(cnt) s_curr_chunk_idx = aidx;
 				return p;
 			}
 			s_chunks_of_type[aidx] = alloc;
