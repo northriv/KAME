@@ -500,13 +500,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::trySetupNewAllocator(int aidx) {
 
 		palloc->m_idx_of_type = aidx;
 
-		writeBarrier(); //for alloc.
-		s_chunks_of_type[aidx] = reinterpret_cast<uintptr_t>(palloc);
 		for(;;) {
 			int acnt = s_chunks_of_type_ubound;
 			if((aidx < acnt) || atomicCompareAndSet(acnt, aidx + 1, &s_chunks_of_type_ubound))
 				break;
 		}
+		writeBarrier(); //for alloc.
+		s_chunks_of_type[aidx] = reinterpret_cast<uintptr_t>(palloc);
 //		writeBarrier();
 //		fprintf(stderr, "New memory pool for %dB aligned, starting @ %p w/ len. of %pB.\n", (int)ALIGN,
 //			alloc->m_mempool, (uintptr_t)ALLOC_CHUNK_SIZE);
@@ -561,6 +561,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 				cnt = 0;
 		}
 		s_curr_chunk_idx = aidx;
+		readBarrier();
 	}
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>

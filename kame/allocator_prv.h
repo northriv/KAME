@@ -21,12 +21,12 @@
 #include <limits>
 
 #ifdef __linux__
-	#define ALLOC_TLS __thread //TLS for allocations, but the cost is too huge.
+	#define ALLOC_TLS// __thread //TLS for allocations, but the cost is too huge.
 #else
 	#define ALLOC_TLS
 #endif
 
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 128) //128KiB
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
 #define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 #if defined __LP64__ || defined __LLP64__
