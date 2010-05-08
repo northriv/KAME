@@ -110,6 +110,7 @@ main(int argc, char **argv) {
 			return -1;
 		}
     }
+//    report_statistics();
 	printf("succeeded\n");
 	return 0;
 }

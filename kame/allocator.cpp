@@ -148,6 +148,8 @@ inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(
 	p->m_flags = reinterpret_cast<FUINT *>( &area[size_alloc]);
 	p->m_count = count;
 	p->m_idx = 0;
+	p->m_flags_nonzero_cnt = 0;
+	p->m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
 		p->m_flags[i] = 0; //zero clear.
 	return p;
@@ -164,6 +166,9 @@ inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::c
 	p->m_sizes = reinterpret_cast<FUINT *>( &area[size_alloc + sizeof(FUINT) * count]);
 	p->m_count = count;
 	p->m_idx = 0;
+	p->m_available_bits = sizeof(FUINT) * 8;
+	p->m_flags_nonzero_cnt = 0;
+	p->m_flags_filled_cnt = 0;
 	for(int i = count - 1; i >= 0 ; --i)
 		p->m_flags[i] = 0; //zero clear.
 	return p;
@@ -185,6 +190,36 @@ PoolAllocator<ALIGN, FS, DUMMY>::report_leaks() {
 		}
 	}
 }
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+void
+PoolAllocator<ALIGN, FS, DUMMY>::report_statistics(size_t &chunk_size, size_t &used_size) {
+	chunk_size = m_count * ALIGN * sizeof(FUINT) * 8;
+	printf("Chunk @%p, size of 0x%llx, ", m_mempool, (unsigned long long)chunk_size);
+	used_size = 0;
+	for(int idx = 0; idx < m_count; ++idx) {
+		used_size += count_bits(m_flags[idx]);
+	}
+	used_size *= ALIGN;
+	printf("for fixed %dB, nonzero=%.1f%%, filled=%.1f%%, filling = %.2f%%\n", ALIGN,
+		(double)m_flags_nonzero_cnt / m_count * 100.0,
+		(double)m_flags_filled_cnt / m_count * 100.0,
+		(double)used_size / chunk_size * 100.0);
+}
+template <unsigned int ALIGN, bool DUMMY>
+void
+PoolAllocator<ALIGN, false, DUMMY>::report_statistics(size_t &chunk_size, size_t &used_size) {
+	chunk_size = this->m_count * ALIGN * sizeof(FUINT) * 8;
+	printf("Chunk @%p, size of 0x%llx, ", this->m_mempool, (unsigned long long)chunk_size);
+	used_size = 0;
+	for(int idx = 0; idx < this->m_count; ++idx) {
+		used_size += count_bits(this->m_flags[idx]);
+	}
+	used_size *= ALIGN;
+	printf("for variable %dB, nonzero=%.2f%%, available=%d, filling = %.2f%%\n", ALIGN,
+		(double)this->m_flags_nonzero_cnt / this->m_count * 100,
+		m_available_bits,
+		(double)used_size / chunk_size * 100.0);
+}
 template <unsigned int ALIGN, bool DUMMY>
 void
 PoolAllocator<ALIGN, false, DUMMY>::report_leaks() {
@@ -204,7 +239,8 @@ template <unsigned int SIZE>
 inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 	FUINT one;
-	FUINT *pflag = &this->m_flags[this->m_idx];
+	int idx = this->m_idx;
+	FUINT *pflag = &this->m_flags[idx];
 	for(FUINT *pend = &this->m_flags[this->m_count];;) {
 		FUINT oldv = *pflag;
 		if( ~oldv) {
@@ -213,26 +249,30 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 //			ASSERT( !(one & oldv));
 			if(oldv == 0) {
 				*pflag = one;
-				atomicInc( &this->s_flags_inc_cnt[aidx]);
+				atomicInc( &this->m_flags_nonzero_cnt);
 				writeBarrier(); //for the counter.
 				break;
 			}
 			else {
 				FUINT newv = oldv | one; //set a flag.
-				if(atomicCompareAndSet(oldv, newv, pflag))
+				if(atomicCompareAndSet(oldv, newv, pflag)) {
+					if(newv == ~(FUINT)0u) {
+						atomicInc( &this->m_flags_filled_cnt);
+						writeBarrier(); //for the counter.
+					}
 					break;
+				}
 			}
 			continue;
 		}
 		pflag++;
 		if(pflag == pend) {
-			if((pend != &this->m_flags[this->m_count]) || (this->m_idx == 0))
-				return 0;
 			pflag = this->m_flags;
-			pend = &this->m_flags[this->m_idx];
 		}
+		if(this->m_flags_filled_cnt == this->m_count)
+			return 0;
 	}
-	int idx = pflag - this->m_flags;
+	idx = pflag - this->m_flags;
 
 	int sidx = count_zeros_forward(one);
 
@@ -246,8 +286,11 @@ template <unsigned int ALIGN, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
 PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
+	if(m_available_bits < SIZE / ALIGN)
+		return 0;
 	FUINT oldv, ones, cand;
-	FUINT *pflag = &this->m_flags[this->m_idx];
+	int idx = this->m_idx;
+	FUINT *pflag = &this->m_flags[idx];
 	for(FUINT *pend = &this->m_flags[this->m_count];;) {
 		oldv = *pflag;
 		cand = find_training_zeros<SIZE / ALIGN>(oldv);
@@ -258,7 +301,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 //			ASSERT( !(ones & oldv));
 			if(oldv == 0) {
 				*pflag = ones;
-				atomicInc( &this->s_flags_inc_cnt[aidx]);
+				atomicInc( &this->m_flags_nonzero_cnt);
 				break;
 			}
 			else {
@@ -270,14 +313,23 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
 		}
 		pflag++;
 		if(pflag == pend) {
-			if((pend != &this->m_flags[this->m_count]) || (this->m_idx == 0))
-				return 0;
-			pflag = this->m_flags;
-			pend = &this->m_flags[this->m_idx];
+			if((pend != &this->m_flags[this->m_count]) || (idx == 0)) {
+				if(this->m_flags_nonzero_cnt == this->m_count) {
+					m_available_bits = SIZE / ALIGN - 1u;
+					writeBarrier();
+					return 0;
+				}
+				pflag = &this->m_flags[idx];
+				pend = &this->m_flags[this->m_count];
+			}
+			else {
+				pflag = this->m_flags;
+				pend = &this->m_flags[idx];
+			}
 		}
 	}
 
-	int idx = pflag - this->m_flags;
+	idx = pflag - this->m_flags;
 
 	FUINT sizes_old = m_sizes[idx];
 	FUINT sizes_new = (sizes_old | ones) & ~(cand << (SIZE / ALIGN - 1u));
@@ -304,27 +356,36 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 	nones = ~((nones | (nones - 1u)) << sidx);
 
 #ifdef GUARDIAN
-	int size = count_bits(~nones);
+	int size = count_bits( ~nones);
 	for(unsigned int i = 0; i < size * ALIGN / sizeof(uint64_t); ++i)
 		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
 #endif
-	writeBarrier(); //for the pooled memory
 	for(;;) {
 		FUINT oldv = this->m_flags[idx];
 		FUINT newv = oldv & nones;
 //		fprintf(stderr, "d: %p, %d, %x, %x, %x\n", p, idx, oldv, newv, ones);
 		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
 			ASSERT(( oldv | nones) == ~(FUINT)0); //checking for double free.
-//			m_idx = idx; //writing a hint for a next allocation.
 			if(newv == 0) {
-				int aidx = this->m_idx_of_type;
-				if(atomicDecAndTest( &this->s_flags_inc_cnt[aidx])) {
+				m_available_bits = sizeof(FUINT) * 8;
+				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
 					if(releaseAllocator(this)) {
 						delete this; //suicide.
 						return true;
 					}
 					else
 						return false;
+				}
+			}
+			else {
+				unsigned int size = count_bits( ~newv);
+				for(;;) {
+					unsigned int bits = m_available_bits;
+					if(bits >= size)
+						break;
+					if(atomicCompareAndSet(bits, (unsigned int)size, &m_available_bits)) {
+						break;
+					}
 				}
 			}
 			break;
@@ -353,9 +414,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
 		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
 			ASSERT(( oldv | none) == ~(FUINT)0); //checking for double free.
 //			m_idx = idx; //writing a hint for a next allocation.
+			if(oldv == ~(FUINT)0u)
+				atomicDec( &this->m_flags_filled_cnt);
 			if(newv == 0) {
-				int aidx = m_idx_of_type;
-				if(atomicDecAndTest( &s_flags_inc_cnt[aidx])) {
+				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
 					if(releaseAllocator(this)) {
 						delete this; //suicide.
 						return true;
@@ -518,7 +580,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
 	if(atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx])) {
 		readBarrier();
 		//checking if the pool is really vacant.
-		if( !s_flags_inc_cnt[aidx]) {
+		if( !palloc->m_flags_nonzero_cnt) {
 #ifdef GUARDIAN
 			void *ppool = reinterpret_cast<PoolAllocator *>(alloc)->m_mempool;
 			for(unsigned int i = 0; i < ALLOC_CHUNK_SIZE / sizeof(uint64_t); ++i) {
@@ -644,6 +706,21 @@ void release_pools() {
 #endif
 	PoolAllocatorBase::release_chunks();
 }
+void report_statistics() {
+	size_t chunk_size = 0;
+	size_t used_size = 0;
+	for(int cidx = 0; cidx < PoolAllocatorBase::ALLOC_MAX_CHUNKS; ++cidx) {
+		PoolAllocatorBase *palloc = PoolAllocatorBase::s_chunks[cidx];
+		if(palloc) {
+			size_t cs, us;
+			palloc->report_statistics(cs, us);
+			chunk_size += cs;
+			used_size += us;
+		}
+	}
+	printf("Total chunk size = 0x%llxB, filling = %.2f%%\n", (unsigned long long)chunk_size,
+		(double)used_size / chunk_size * 100.0);
+}
 
 void* operator new(std::size_t size) throw(std::bad_alloc) {
 	return new_redirected(size);
@@ -678,8 +755,6 @@ template <unsigned int ALIGN, bool FS, bool DUMMY>
 uintptr_t PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int PoolAllocator<ALIGN, FS, DUMMY>::s_curr_chunk_idx;
-template <unsigned int ALIGN, bool FS, bool DUMMY>
-int PoolAllocator<ALIGN, FS, DUMMY>::s_flags_inc_cnt[ALLOC_MAX_CHUNKS_OF_TYPE];
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 int PoolAllocator<ALIGN, FS, DUMMY>::s_chunks_of_type_ubound;
 

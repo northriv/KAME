@@ -40,6 +40,7 @@ public:
 	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);
 	static void release_chunks();
+	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
 protected:
 	virtual bool deallocate_pooled(void *p) = 0;
 
@@ -51,6 +52,7 @@ protected:
 	char *m_mempool;
 
 private:
+	friend void report_statistics();
 	enum {NUM_ALLOCATORS_IN_SPACE = ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE,
 		ALLOC_MAX_CHUNKS = NUM_ALLOCATORS_IN_SPACE * ALLOC_MAX_MMAP_ENTRIES};
 	//! Swap spaces given by anonymous mmap().
@@ -69,6 +71,7 @@ public:
 	static void *allocate();
 	static void release_pools();
 	void report_leaks();
+	virtual void report_statistics(size_t &chunk_size, size_t &used_size);
 
 	typedef uintptr_t FUINT;
 protected:
@@ -84,11 +87,13 @@ protected:
 	int m_idx;
 	int m_count;
 	int m_idx_of_type;
+	//! # of flags that having non-zero values.
+	int m_flags_nonzero_cnt;
+	//! # of flags that having fully filled values.
+	int m_flags_filled_cnt;
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
 	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
-	//! # of flags that having non-zero values.
-	static int s_flags_inc_cnt[ALLOC_MAX_CHUNKS_OF_TYPE];
 	static int s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
 
@@ -104,6 +109,7 @@ template <unsigned int ALIGN, bool DUMMY>
 class PoolAllocator<ALIGN, false, DUMMY> : public PoolAllocator<ALIGN, true, false> {
 public:
 	void report_leaks();
+	virtual void report_statistics(size_t &chunk_size, size_t &used_size);
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	template <unsigned int SIZE>
@@ -118,6 +124,7 @@ private:
 
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT *m_sizes;
+	unsigned int m_available_bits;
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
@@ -226,5 +233,6 @@ inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 void deallocate_pooled_or_free(void* p) throw();
 
 void release_pools();
+void report_statistics();
 
 #endif /* ALLOCATOR_PRV_H_ */
