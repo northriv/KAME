@@ -26,7 +26,7 @@
 	#define ALLOC_TLS
 #endif
 
-#define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
+#define ALLOC_MIN_CHUNK_SIZE (1024 * 128) //128KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
 #define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 #if defined __LP64__ || defined __LLP64__
@@ -82,7 +82,7 @@ public:
 	typedef uintptr_t FUINT;
 protected:
 	template <unsigned int SIZE>
-	inline void *allocate_pooled(int aidx);
+	inline void *allocate_pooled();
 	virtual bool deallocate_pooled(void *p);
 	static bool trySetupNewAllocator(int aidx);
 	static bool releaseAllocator(PoolAllocator *alloc);
@@ -120,7 +120,7 @@ public:
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	template <unsigned int SIZE>
-	inline void *allocate_pooled(int aidx);
+	inline void *allocate_pooled();
 	virtual bool deallocate_pooled(void *p);
 
 private:

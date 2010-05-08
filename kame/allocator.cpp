@@ -237,7 +237,7 @@ PoolAllocator<ALIGN, false, DUMMY>::report_leaks() {
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
-PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
+PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled() {
 	FUINT one;
 	int idx = this->m_idx;
 	FUINT *pflag = &this->m_flags[idx];
@@ -285,7 +285,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(int aidx) {
 template <unsigned int ALIGN, bool DUMMY>
 template <unsigned int SIZE>
 inline void *
-PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(int aidx) {
+PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled() {
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
 	FUINT oldv, ones, cand;
@@ -521,11 +521,12 @@ inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 	int aidx = s_curr_chunk_idx;
 	for(int cnt = 0;; ++cnt) {
-		uintptr_t alloc = s_chunks_of_type[aidx];
-		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &s_chunks_of_type[aidx]))) {
+		uintptr_t *palloc = &s_chunks_of_type[aidx];
+		uintptr_t alloc = *palloc;
+		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &*palloc))) {
 			readBarrier();
 			if(void *p =
-				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>(aidx)) {
+				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>()) {
 	//			fprintf(stderr, "a: %p\n", p);
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
@@ -538,10 +539,10 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i)
 					static_cast<uint64_t *>(p)[i] = FILLING_AFTER_ALLOC; //filling
 #endif
-				s_chunks_of_type[aidx] = alloc;
+				*palloc = alloc;
 				return p;
 			}
-			s_chunks_of_type[aidx] = alloc;
+			*palloc = alloc;
 		}
 		int acnt = s_chunks_of_type_ubound;
 		++aidx;
