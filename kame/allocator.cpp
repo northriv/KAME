@@ -560,7 +560,6 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 				cnt = 0;
 		}
 		s_curr_chunk_idx = aidx;
-//		writeBarrier();
 	}
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
