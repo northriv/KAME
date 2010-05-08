@@ -20,6 +20,12 @@
 #include <stdlib.h>
 #include <limits>
 
+#ifdef __linux__
+	#define ALLOC_TLS __thread //TLS for allocations.
+#else
+	#define ALLOC_TLS
+#endif
+
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
 #define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
@@ -94,7 +100,8 @@ protected:
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
 	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
-	static int s_curr_chunk_idx;
+
+	static int ALLOC_TLS s_curr_chunk_idx;
 	static int s_chunks_of_type_ubound;
 
 	void operator delete(void *) throw();
