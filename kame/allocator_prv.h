@@ -20,11 +20,11 @@
 #include <stdlib.h>
 #include <limits>
 
-#ifdef __linux__
-	#define ALLOC_TLS __thread //TLS for allocations.
-#else
+//#ifdef __linux__
+//	#define ALLOC_TLS __thread //TLS for allocations, but the cost is too huge.
+//#else
 	#define ALLOC_TLS
-#endif
+//#endif
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
