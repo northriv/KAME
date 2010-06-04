@@ -371,10 +371,8 @@ XNIDAQmxDSO::setupTiming() {
 	fprintf(stderr, "Using on-brd bufsize=%d\n", (int)onbrd_size);
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
-		//!\todo uncomment
-//		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / shot[ *timeWidth()]) * 1.0));
-//		bufsize = std::max(bufsize, (unsigned int)onbrd_size);
-		bufsize = onbrd_size / num_ch;
+		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / shot[ *timeWidth()]) * 1.0));
+		bufsize = std::max(bufsize, (unsigned int)onbrd_size / num_ch);
 	}
 
 	CHECK_DAQMX_RET(
@@ -407,7 +405,17 @@ XNIDAQmxDSO::setupTiming() {
 	m_interval = 1.0 / rate;
 
 	setupTrigger();
+
 	startSequence();
+
+	{
+		//!\todo comment this out.
+		int32 val;
+		CHECK_DAQMX_RET(DAQmxGetAIDataXferMech(m_task,
+									  shot[ *trace1()].to_str().c_str(),
+									  &val));
+		fprintf(stderr, "Data Transfer method: %d\n", val);
+	}
 }
 void
 XNIDAQmxDSO::createChannels() {
@@ -440,12 +448,6 @@ XNIDAQmxDSO::createChannels() {
 			DAQmxGetAIDevScalingCoeff(m_task,
 									  shot[ *trace1()].to_str().c_str(),
 									  m_coeffAI[0], CAL_POLY_ORDER));
-		//!\todo uncomment this.
-		int32 val;
-		CHECK_DAQMX_RET(DAQmxGetAIDataXferMech(m_task,
-									  shot[ *trace1()].to_str().c_str(),
-									  &val));
-		fprintf(stderr, "Data Transfer method: %d\n", val);
 	}
 	if(shot[ *trace2()] >= 0) {
 		CHECK_DAQMX_RET(
@@ -823,7 +825,7 @@ XNIDAQmxDSO::startSequence() {
 	m_record_av.clear();
 
 	if(m_softwareTrigger) {
-		if(!m_lsnOnSoftTrigStarted)
+		if( !m_lsnOnSoftTrigStarted)
 			m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeak(
 				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStarted);
 		if(m_running) {
