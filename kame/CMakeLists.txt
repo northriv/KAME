@@ -24,8 +24,9 @@ include_directories(
 
 ########### next target ###############
 
+#    allocator.cpp
+
 set(kame_SRCS
-    allocator.cpp
     measure.cpp
     kame.cpp
     xnodeconnector.cpp

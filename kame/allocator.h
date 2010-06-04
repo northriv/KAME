@@ -25,29 +25,8 @@
 extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
 	return new_redirected(size);
 }
-extern inline void* operator new(std::size_t size, const std::nothrow_t&) throw() {
-	return operator new(size);
-}
 extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
-	return operator new(size);
-}
-extern inline void* operator new[](std::size_t size, const std::nothrow_t&) throw() {
-	return operator new(size);
-}
-
-extern void deallocate_pooled_or_free(void* p) throw();
-
-extern inline void operator delete(void* p) throw() {
-	return deallocate_pooled_or_free(p);
-}
-extern inline void operator delete(void* p, const std::nothrow_t&) throw() {
-	operator delete(p);
-}
-extern inline void operator delete[](void* p) throw() {
-	operator delete(p);
-}
-extern inline void operator delete[](void* p, const std::nothrow_t&) throw() {
-	operator delete(p);
+	return new_redirected(size);
 }
 
 extern void release_pools();

@@ -29,7 +29,7 @@
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 
 #define TASK_UNDEF ((TaskHandle)-1)
-#define NUM_MAX_CH 2
+#define NUM_MAX_CH 4
 
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -363,7 +363,7 @@ XNIDAQmxDSO::setupTiming() {
 	}
 	m_recordBuf.resize(len * num_ch);
 	if(g_bUseMLock) {
-		mlock(&m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
+		mlock( &m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
 	}
 
 	uInt32 onbrd_size;
@@ -371,8 +371,10 @@ XNIDAQmxDSO::setupTiming() {
 	fprintf(stderr, "Using on-brd bufsize=%d\n", (int)onbrd_size);
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
-		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / shot[ *timeWidth()]) * 1.0));
-		bufsize = std::max(bufsize, (unsigned int)onbrd_size);
+		//!\todo uncomment
+//		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / shot[ *timeWidth()]) * 1.0));
+//		bufsize = std::max(bufsize, (unsigned int)onbrd_size);
+		bufsize = onbrd_size / num_ch;
 	}
 
 	CHECK_DAQMX_RET(
@@ -438,6 +440,12 @@ XNIDAQmxDSO::createChannels() {
 			DAQmxGetAIDevScalingCoeff(m_task,
 									  shot[ *trace1()].to_str().c_str(),
 									  m_coeffAI[0], CAL_POLY_ORDER));
+		//!\todo uncomment this.
+		int32 val;
+		CHECK_DAQMX_RET(DAQmxGetAIDataXferMech(m_task,
+									  shot[ *trace1()].to_str().c_str(),
+									  &val));
+		fprintf(stderr, "Data Transfer method: %d\n", val);
 	}
 	if(shot[ *trace2()] >= 0) {
 		CHECK_DAQMX_RET(

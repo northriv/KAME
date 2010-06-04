@@ -121,7 +121,7 @@ inline T find_training_zeros(T x) {
 }
 
 
-void *malloc_mmap(size_t size) {
+inline void *malloc_mmap(size_t size) {
 //		fprintf(stderr, "mmap(), %d\n", (int)size);
 		void *p = (
 			mmap(0, size + ALLOC_ALIGNMENT, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
@@ -129,48 +129,53 @@ void *malloc_mmap(size_t size) {
 		*static_cast<size_t *>(p) = size + ALLOC_ALIGNMENT;
 		return static_cast<char *>(p) + ALLOC_ALIGNMENT;
 }
-void free_munmap(void *p) {
+inline void free_munmap(void *p) {
 		p = static_cast<void *>(static_cast<char *>(p) - ALLOC_ALIGNMENT);
 		size_t size = *static_cast<size_t *>(p);
 	//	fprintf(stderr, "unmmap(), %d\n", (int)size);
 		int ret = munmap(p, size);
 		ASSERT( !ret);
 }
-
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(ssize_t size) {
-	int count = size / ALIGN / sizeof(FUINT) / 8;
+inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
+	PoolAllocatorBase(ppool),
+	m_flags(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)])),
+	m_idx(0),
+	m_count(count) {
+	m_flags_nonzero_cnt = 0;
+	m_flags_filled_cnt = 0;
+	for(int i = count - 1; i >= 0 ; --i)
+		m_flags[i] = 0; //zero clear.
+#ifdef GUARDIAN
+	for(unsigned int i = 0; i < count * sizeof(FUINT) * 8 * ALIGN / sizeof(uint64_t); ++i)
+		reinterpret_cast<uint64_t *>(ppool)[i] = GUARDIAN; //filling
+#endif
+}
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline PoolAllocator<ALIGN, FS, DUMMY> *PoolAllocator<ALIGN, FS, DUMMY>::create(ssize_t size, char *ppool) {
 	ssize_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
+	int count = size / ALIGN / sizeof(FUINT) / 8;
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count));
 	if( !area)
-		throw std::bad_alloc();
-	PoolAllocator *p = new(area) PoolAllocator;
-	p->m_flags = reinterpret_cast<FUINT *>( &area[size_alloc]);
-	p->m_count = count;
-	p->m_idx = 0;
-	p->m_flags_nonzero_cnt = 0;
-	p->m_flags_filled_cnt = 0;
-	for(int i = count - 1; i >= 0 ; --i)
-		p->m_flags[i] = 0; //zero clear.
+		return 0;
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
-inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(ssize_t size) {
+inline PoolAllocator<ALIGN, false, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
+	PoolAllocator<ALIGN, true, false>(count, addr, ppool),
+	m_sizes(reinterpret_cast<FUINT *>( &addr[(sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT)
+	                                         + sizeof(FUINT) * count])) {
+	m_available_bits = sizeof(FUINT) * 8;
+}
+template <unsigned int ALIGN, bool DUMMY>
+inline PoolAllocator<ALIGN, false, DUMMY> *PoolAllocator<ALIGN, false, DUMMY>::create(ssize_t size, char *ppool) {
 	int count = size / ALIGN / sizeof(FUINT) / 8;
 	ssize_t size_alloc = (sizeof(PoolAllocator) + sizeof(FUINT) - 1) * sizeof(FUINT);
 	char *area = static_cast<char *>(malloc(size_alloc + sizeof(FUINT) * count * 2));
 	if( !area)
-		throw std::bad_alloc();
-	PoolAllocator *p = new(area) PoolAllocator;
-	p->m_flags = reinterpret_cast<FUINT *>( &area[size_alloc]);
-	p->m_sizes = reinterpret_cast<FUINT *>( &area[size_alloc + sizeof(FUINT) * count]);
-	p->m_count = count;
-	p->m_idx = 0;
-	p->m_available_bits = sizeof(FUINT) * 8;
-	p->m_flags_nonzero_cnt = 0;
-	p->m_flags_filled_cnt = 0;
-	for(int i = count - 1; i >= 0 ; --i)
-		p->m_flags[i] = 0; //zero clear.
+		return 0;
+	PoolAllocator *p = new(area) PoolAllocator(count, area, ppool);
 	return p;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
@@ -240,10 +245,10 @@ inline void *
 PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled() {
 	FUINT one;
 	int idx = this->m_idx;
-	FUINT *pflag = &this->m_flags[idx];
-	for(FUINT *pend = &this->m_flags[this->m_count];;) {
+	for(;;) {
+		FUINT *pflag = &this->m_flags[idx];
 		FUINT oldv = *pflag;
-		if( ~oldv) {
+		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
 //			ASSERT(count_bits(one) == SIZE / ALIGN);
 //			ASSERT( !(one & oldv));
@@ -265,14 +270,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled() {
 			}
 			continue;
 		}
-		pflag++;
-		if(pflag == pend) {
-			pflag = this->m_flags;
-		}
 		if(this->m_flags_filled_cnt == this->m_count)
 			return 0;
+		idx++;
+		if(idx == this->m_count) {
+			idx = 0;
+		}
 	}
-	idx = pflag - this->m_flags;
 
 	int sidx = count_zeros_forward(one);
 
@@ -315,9 +319,12 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled() {
 		if(pflag == pend) {
 			if((pend != &this->m_flags[this->m_count]) || (idx == 0)) {
 				if(this->m_flags_nonzero_cnt == this->m_count) {
-					m_available_bits = SIZE / ALIGN - 1u;
-					writeBarrier();
-					return 0;
+					readBarrier();
+					if(this->m_flags_nonzero_cnt == this->m_count) {
+						m_available_bits = SIZE / ALIGN - 1u;
+						writeBarrier();
+						return 0;
+					}
 				}
 				pflag = &this->m_flags[idx];
 				pend = &this->m_flags[this->m_count];
@@ -340,15 +347,17 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled() {
 	}
 	int sidx = count_zeros_forward(cand);
 
-	this->m_idx = (SIZE / ALIGN <= sizeof(FUINT) * 8 / 2) ?  idx : ((idx + 1) % this->m_count);
+	this->m_idx = idx;
 
 	void *p = &this->m_mempool[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 	return p;
 }
 template <unsigned int ALIGN, bool DUMMY>
 bool
-PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
-	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
+PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
+	writeBarrier(); //for the contents written by the user.
+
+	int midx = (p - this->m_mempool) / ALIGN;
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
 
@@ -360,16 +369,17 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 	for(unsigned int i = 0; i < size * ALIGN / sizeof(uint64_t); ++i)
 		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
 #endif
+	FUINT *pflags = &this->m_flags[idx];
 	for(;;) {
-		FUINT oldv = this->m_flags[idx];
+		FUINT oldv = *pflags;
 		FUINT newv = oldv & nones;
 //		fprintf(stderr, "d: %p, %d, %x, %x, %x\n", p, idx, oldv, newv, ones);
-		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
+		if(atomicCompareAndSet(oldv, newv, pflags)) {
 			ASSERT(( oldv | nones) == ~(FUINT)0); //checking for double free.
 			if(newv == 0) {
 				m_available_bits = sizeof(FUINT) * 8;
 				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
-					if(releaseAllocator(this)) {
+					if(release_allocator(this)) {
 						delete this; //suicide.
 						return true;
 					}
@@ -377,7 +387,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 						return false;
 				}
 			}
-			else {
+			else if(m_available_bits != sizeof(FUINT) * 8) {
 				unsigned int size = count_bits( ~newv);
 				for(;;) {
 					unsigned int bits = m_available_bits;
@@ -395,8 +405,10 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(void *p) {
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
-PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
-	int midx = static_cast<size_t>((char *)p - this->m_mempool) / ALIGN;
+PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
+	writeBarrier(); //for the contents written by the user.
+
+	int midx = (p - this->m_mempool) / ALIGN;
 	int idx = midx / (sizeof(FUINT) * 8);
 	unsigned int sidx = midx % (sizeof(FUINT) * 8);
 
@@ -406,19 +418,19 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(void *p) {
 	for(unsigned int i = 0; i < ALIGN / sizeof(uint64_t); ++i)
 		static_cast<uint64_t *>(p)[i] = GUARDIAN; //filling
 #endif
-	writeBarrier(); //for the pooled memory
+	FUINT *pflags = &this->m_flags[idx];
 	for(;;) {
-		FUINT oldv = this->m_flags[idx];
+		FUINT oldv = *pflags;
 		FUINT newv = oldv & none;
 //		fprintf(stderr, "d: %p, %d, %x, %x, %x\n", p, idx, oldv, newv, ones);
-		if(atomicCompareAndSet(oldv, newv, &this->m_flags[idx])) {
+		if(atomicCompareAndSet(oldv, newv, pflags)) {
 			ASSERT(( oldv | none) == ~(FUINT)0); //checking for double free.
 //			m_idx = idx; //writing a hint for a next allocation.
 			if(oldv == ~(FUINT)0u)
 				atomicDec( &this->m_flags_filled_cnt);
-			if(newv == 0) {
+			else if(newv == 0) {
 				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
-					if(releaseAllocator(this)) {
+					if(release_allocator(this)) {
 						delete this; //suicide.
 						return true;
 					}
@@ -437,7 +449,6 @@ inline ALLOC *
 PoolAllocatorBase::allocate_chunk() {
 	int cidx = 0;
 	ssize_t chunk_size = ALLOC_MIN_CHUNK_SIZE;
-	ALLOC *palloc;
 	for(;;) {
 		if(cidx >= ALLOC_MAX_CHUNKS) {
 			fprintf(stderr, "# of chunks exceeds the limit.\n");
@@ -446,8 +457,6 @@ PoolAllocatorBase::allocate_chunk() {
 		if( !s_chunks[cidx]) {
 			if(atomicCompareAndSet((PoolAllocatorBase *)0, reinterpret_cast<PoolAllocatorBase *>(1u), &s_chunks[cidx])) {
 				writeBarrier();
-				palloc = ALLOC::create(chunk_size);
-				s_chunks[cidx] = static_cast<PoolAllocatorBase *>(palloc);
 				break;
 			}
 			continue;
@@ -464,6 +473,7 @@ PoolAllocatorBase::allocate_chunk() {
 			mmap(0, mmap_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
 		if(p == MAP_FAILED) {
 			fprintf(stderr, "mmap() failed.\n");
+			s_chunks[cidx] = 0;
 			return 0;
 		}
 		writeBarrier();
@@ -474,22 +484,27 @@ PoolAllocatorBase::allocate_chunk() {
 		}
 		munmap(p, mmap_size);
 	}
-	readBarrier();
 	char *addr =
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
 	int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
 	ASSERT( !ret);
 
-	palloc->m_mempool = addr;
-#ifdef GUARDIAN
-for(unsigned int i = 0; i < chunk_size / sizeof(uint64_t); ++i)
-	reinterpret_cast<uint64_t *>(addr)[i] = GUARDIAN; //filling
-#endif
+	ALLOC *palloc = ALLOC::create(chunk_size, addr);
+	s_chunks[cidx] = palloc;
+
 	return palloc;
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
-PoolAllocator<ALIGN, FS, DUMMY>::trySetupNewAllocator(int aidx) {
+PoolAllocator<ALIGN, FS, DUMMY>::create_allocator(int &aidx) {
+	for(aidx = 0;; ++aidx) {
+		if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE) {
+			fprintf(stderr, "# of chunks for %d align. exceeds the limit.\n", ALIGN);
+			throw std::bad_alloc();
+		}
+		if( !s_chunks_of_type[aidx])
+			break;
+	}
 	if(atomicCompareAndSet((uintptr_t)0u, (uintptr_t)1u, &s_chunks_of_type[aidx])) {
 		PoolAllocator<ALIGN, DUMMY, DUMMY> *palloc =
 			allocate_chunk<PoolAllocator<ALIGN, DUMMY, DUMMY> >();
@@ -523,7 +538,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 	for(int cnt = 0;; ++cnt) {
 		uintptr_t *palloc = &s_chunks_of_type[aidx];
 		uintptr_t alloc = *palloc;
-		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, &*palloc))) {
+		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, palloc))) {
 			readBarrier();
 			if(void *p =
 				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>()) {
@@ -545,28 +560,29 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 			*palloc = alloc;
 		}
 		int acnt = s_chunks_of_type_ubound;
-		++aidx;
-		if((aidx >= acnt) || (aidx == ALLOC_MAX_CHUNKS_OF_TYPE))
-			aidx = 0;
-		if(cnt == acnt) {
-			for(aidx = 0;; ++aidx) {
-				if(aidx >= ALLOC_MAX_CHUNKS_OF_TYPE) {
-					fprintf(stderr, "# of chunks for %d align. exceeds the limit.\n", ALIGN);
-					throw std::bad_alloc();
-				}
-				if( !s_chunks_of_type[aidx])
+		if(cnt >= acnt) {
+			readBarrier();
+			while(cnt >= s_chunks_of_type_ubound) {
+				if(create_allocator(aidx))
 					break;
+				readBarrier();
+				continue;
 			}
-			if(trySetupNewAllocator(aidx))
-				cnt = 0;
+			s_curr_chunk_idx = aidx;
+			continue;
+		}
+		++aidx;
+		if(aidx >= acnt) {
+			readBarrier();
+			if(aidx >= s_chunks_of_type_ubound)
+				aidx = 0;
 		}
 		s_curr_chunk_idx = aidx;
-		readBarrier();
 	}
 }
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 bool
-PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
+PoolAllocator<ALIGN, FS, DUMMY>::release_allocator(PoolAllocator *palloc) {
 	if(s_chunks_of_type_ubound <= LEAVE_VACANT_CHUNKS) {
 		return false;
 	}
@@ -605,7 +621,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::releaseAllocator(PoolAllocator *palloc) {
 	}
 	return false;
 }
-void
+inline void
 PoolAllocatorBase::deallocate_chunk(int cidx, ssize_t chunk_size) {
 	void *addr =
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
@@ -621,11 +637,11 @@ PoolAllocatorBase::deallocate_(void *p) {
 	char *mp = s_mmapped_spaces[CCNT];
 	if((CCNT > 0) && !mp)
 		return false;
-	if((p >= mp) && (p < &mp[CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE])) {
-		int cidx =
-			(static_cast<char *>(p) - mp) / CHUNK_SIZE + CCNT * NUM_ALLOCATORS_IN_SPACE;
+	ptrdiff_t pdiff = static_cast<char *>(p) - mp;
+	if((pdiff >= 0) && (pdiff < CHUNK_SIZE * NUM_ALLOCATORS_IN_SPACE)) {
+		int cidx = pdiff / CHUNK_SIZE + CCNT * NUM_ALLOCATORS_IN_SPACE;
 		PoolAllocatorBase *palloc = s_chunks[cidx];
-		if(palloc->deallocate_pooled(p)) {
+		if(palloc->deallocate_pooled(static_cast<char *>(p))) {
 			deallocate_chunk(cidx, CHUNK_SIZE);
 		}
 		return true;
@@ -682,7 +698,7 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	return malloc(size);
 }
 
-void deallocate_pooled_or_free(void* p) throw() {
+inline void deallocate_pooled_or_free(void* p) throw() {
 	if(PoolAllocatorBase::deallocate(p))
 		return;
 	free(p);
@@ -726,26 +742,36 @@ void* operator new(std::size_t size) throw(std::bad_alloc) {
 	return new_redirected(size);
 }
 void* operator new(std::size_t size, const std::nothrow_t&) throw() {
-	return operator new(size);
+	try {
+		return operator new(size);
+	}
+	catch (std::bad_alloc &) {
+		return 0;
+	}
 }
 void* operator new[](std::size_t size) throw(std::bad_alloc) {
 	return operator new(size);
 }
 void* operator new[](std::size_t size, const std::nothrow_t&) throw() {
-	return operator new(size);
+	try {
+		return operator new(size);
+	}
+	catch (std::bad_alloc &) {
+		return 0;
+	}
 }
 
 void operator delete(void* p) throw() {
 	return deallocate_pooled_or_free(p);
 }
 void operator delete(void* p, const std::nothrow_t&) throw() {
-	operator delete(p);
+	return deallocate_pooled_or_free(p);
 }
 void operator delete[](void* p) throw() {
-	operator delete(p);
+	return operator delete(p);
 }
 void operator delete[](void* p, const std::nothrow_t&) throw() {
-	operator delete(p);
+	return operator delete(p);
 }
 
 

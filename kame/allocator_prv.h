@@ -21,20 +21,22 @@
 #include <limits>
 
 #ifdef __linux__
-	#define ALLOC_TLS// __thread //TLS for allocations, but the cost is too huge.
+//	#define ALLOC_TLS __thread //TLS for allocations, could be better for NUMA.
+	#define ALLOC_TLS
 #else
 	#define ALLOC_TLS
 #endif
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
-#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 #if defined __LP64__ || defined __LLP64__
+	#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
 	#define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
 #else
+	#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
-	#define ALLOC_MAX_MMAP_ENTRIES 16 //11GiB approx.
+	#define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
 #endif
 #define ALLOC_ALIGNMENT (sizeof(double)) //i.e. 8B
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
@@ -48,14 +50,15 @@ public:
 	static void release_chunks();
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size) = 0;
 protected:
-	virtual bool deallocate_pooled(void *p) = 0;
+	PoolAllocatorBase(char *ppool) : m_mempool(ppool) {}
+	virtual bool deallocate_pooled(char *p) = 0;
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
 	static void deallocate_chunk(int cidx, ssize_t chunk_size);
 
 	//! A chunk, memory block.
-	char *m_mempool;
+	char * const m_mempool;
 
 private:
 	friend void report_statistics();
@@ -81,22 +84,23 @@ public:
 
 	typedef uintptr_t FUINT;
 protected:
+	PoolAllocator(int count, char *addr, char *ppool);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled();
-	virtual bool deallocate_pooled(void *p);
-	static bool trySetupNewAllocator(int aidx);
-	static bool releaseAllocator(PoolAllocator *alloc);
+	virtual bool deallocate_pooled(char *p);
+	static bool create_allocator(int &aidx);
+	static bool release_allocator(PoolAllocator *alloc);
 
 	//! Every bit indicates occupancy in m_mempool.
-	FUINT *m_flags;
+	FUINT * const m_flags;
 	//! A hint for searching in a chunk.
 	int m_idx;
-	int m_count;
-	int m_idx_of_type;
+	const int m_count;
 	//! # of flags that having non-zero values.
 	int m_flags_nonzero_cnt;
 	//! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
+	int m_idx_of_type;
 
 	//! Pointers to PooledAllocator. The LSB bit is set when allocation/releasing/creation is in progress.
 	static uintptr_t s_chunks_of_type[ALLOC_MAX_CHUNKS_OF_TYPE];
@@ -108,7 +112,7 @@ protected:
 private:
 	friend class PoolAllocatorBase;
 
-	static PoolAllocator *create(ssize_t size);
+	static PoolAllocator *create(ssize_t size, char *ppool);
 };
 
 //! Partially specialized class for variable-size allocators.
@@ -119,18 +123,19 @@ public:
 	virtual void report_statistics(size_t &chunk_size, size_t &used_size);
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
+	PoolAllocator(int count, char *addr, char *ppool);
 	template <unsigned int SIZE>
 	inline void *allocate_pooled();
-	virtual bool deallocate_pooled(void *p);
+	virtual bool deallocate_pooled(char *p);
 
 private:
 	friend class PoolAllocatorBase;
 	template <unsigned int, bool, bool> friend class PoolAllocator;
 
-	static PoolAllocator *create(ssize_t size);
+	static PoolAllocator *create(ssize_t size, char *ppool);
 
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
-	FUINT *m_sizes;
+	FUINT * const m_sizes;
 	unsigned int m_available_bits;
 };
 
@@ -236,8 +241,6 @@ inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 //void operator delete(void* p, const std::nothrow_t&) throw();
 //void operator delete[](void* p) throw();
 //void operator delete[](void* p, const std::nothrow_t&) throw();
-
-void deallocate_pooled_or_free(void* p) throw();
 
 void release_pools();
 void report_statistics();

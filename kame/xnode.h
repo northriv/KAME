@@ -15,7 +15,8 @@
 #define xnodeH
 
 //For inline expansion of lock-free custom new()/delete() operators.
-#include "allocator.h"
+//!\todo uncomment
+//#include "allocator.h"
 
 #include "transaction.h"
 #include "xsignal.h"
