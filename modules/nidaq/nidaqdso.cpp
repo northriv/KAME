@@ -372,7 +372,7 @@ XNIDAQmxDSO::setupTiming() {
 	unsigned int bufsize = len;
 	if(m_softwareTrigger) {
 		bufsize = std::max(bufsize * 8, (unsigned int)lrint((len / shot[ *timeWidth()]) * 1.0));
-		bufsize = std::max(bufsize, (unsigned int)onbrd_size / num_ch);
+		bufsize = std::max(bufsize, (unsigned int)(onbrd_size / num_ch));
 	}
 
 	CHECK_DAQMX_RET(
@@ -414,7 +414,7 @@ XNIDAQmxDSO::setupTiming() {
 		CHECK_DAQMX_RET(DAQmxGetAIDataXferMech(m_task,
 									  shot[ *trace1()].to_str().c_str(),
 									  &val));
-		fprintf(stderr, "Data Transfer method: %d\n", val);
+		fprintf(stderr, "Data Transfer method: %d\n", (int)val);
 	}
 }
 void

@@ -481,7 +481,8 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
 		if( !tr.size() || src > tr.size() || (dst > tr.size())) {
-			throw XKameError(i18n("Invalid range of selections."), __FILE__, __LINE__);
+			gErrPrint(i18n("Invalid range of selections."));
+			return;
 		}
 		m_list->swap(tr, tr.list()->at(src), tr.list()->at(dst));
 		tr.unmark(m_lsnMove);
