@@ -64,7 +64,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const Snapshot &shot, XInterface 
 		open();
 	}
 	catch (XInterface::XInterfaceError& e) {
-		e.print(this->getLabel() + i18n(": Opening interface failed, because "));
+		e.print(this->getLabel() + i18n(": Opening driver failed, because "));
 		close();
 	}
 }

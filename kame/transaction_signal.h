@@ -256,30 +256,47 @@ template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
 	if( !listeners) return;
-	Event__ event(shot, arg);
+	//Writing deferred events to event pool.
 	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
 		if(shared_ptr<Listener__> listener = it->lock()) {
 			if(listeners_unmarked &&
 				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
 				continue;
-			if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-				atomic_scoped_ptr<Event__> newevent(new Event__(event) );
-				newevent.swap(listener->arg);
-				if( !newevent.get())
-					registerTransactionList(new EventWrapperAvoidDup(listener));
-			}
-			else {
-				if(isMainThread() ||
-					!(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
-					try {
-						( *listener)(event);
-					}
-					catch (XKameError &e) {
-						e.print();
-					}
+			if(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) {
+				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
+					atomic_scoped_ptr<Event__> newevent(new Event__(shot, arg) );
+					newevent.swap(listener->arg);
+					if( !newevent.get())
+						registerTransactionList(new EventWrapperAvoidDup(listener));
 				}
 				else {
-					registerTransactionList(new EventWrapperAllowDup(listener, event));
+					if(isMainThread()) {
+						try {
+							( *listener)(Event__(shot, arg));
+						}
+						catch (XKameError &e) {
+							e.print();
+						}
+					}
+					else {
+						registerTransactionList(new EventWrapperAllowDup(listener, Event__(shot, arg)));
+					}
+				}
+			}
+		}
+	}
+	//Immediate events.
+	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
+		if(shared_ptr<Listener__> listener = it->lock()) {
+			if(listeners_unmarked &&
+				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
+				continue;
+			if( !(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
+				try {
+					( *listener)(Event__(shot, arg));
+				}
+				catch (XKameError &e) {
+					e.print();
 				}
 			}
 		}

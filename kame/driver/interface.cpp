@@ -63,13 +63,12 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 	else {
 		Snapshot shot( *this);
 		shot.talk(shot[ *this].onClose(), this);
-//		stop();
 	}
 }
 
 void
 XInterface::start() {
-	XScopedLock<XInterface> lock(*this);
+	XScopedLock<XInterface> lock( *this);
 	try {
 		if(isOpened()) {
 			gErrPrint(getLabel() + i18n("Port has already opened"));
@@ -95,9 +94,10 @@ XInterface::start() {
 
 		tr[ *control()] = true;
 		tr.unmark(lsnOnControlChanged);
-		tr.mark(tr[ *this].onOpen(), this);
-		if(tr.commit())
+		if(tr.commit()) {
+			tr.talk(tr[ *this].onOpen(), this);
 			break;
+		}
 	}
 }
 void
@@ -108,7 +108,7 @@ XInterface::stop() {
 		close();
 	}
 	catch (XInterfaceError &e) {
-        e.print(getLabel() + i18n(": Closing port failed, because"));
+        e.print(getLabel() + i18n(": Closing interface failed, because"));
 	}
 
 	for(Transaction tr( *this);; ++tr) {
@@ -118,8 +118,9 @@ XInterface::stop() {
 
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
-		if(tr.commit())
+		if(tr.commit()) {
 			break;
+		}
 	}
 	//g_statusPrinter->clear();
 }

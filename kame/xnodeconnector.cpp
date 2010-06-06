@@ -155,7 +155,12 @@ XQButtonConnector::~XQButtonConnector() {
 }
 void
 XQButtonConnector::onClick() {
-	trans( *m_node).touch();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node].touch();
+		tr.unmark(m_lsnTouch);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XQButtonConnector::onTouch(const Snapshot &shot, XTouchableNode *node) {
@@ -217,7 +222,12 @@ void
 XQLineEditConnector::onReturnPressed() {
 	QPalette palette(m_pItem->palette());
     try {
-		trans( *m_node).str(m_pItem->text());
+		for(Transaction tr( *m_node);; ++tr) {
+			tr[ *m_node].str(m_pItem->text());
+			tr.unmark(m_lsnValueChanged);
+			if(tr.commit())
+				break;
+		}
 		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
@@ -366,7 +376,12 @@ XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
 void
 XKURLReqConnector::onSelect( const KUrl &l) {
     try {
-		trans( *m_node).str(m_pItem->text());
+		for(Transaction tr( *m_node);; ++tr) {
+			tr[ *m_node].str(m_pItem->text());
+			tr.unmark(m_lsnValueChanged);
+			if(tr.commit())
+				break;
+		}
     }
     catch (XKameError &e) {
         e.print();
@@ -434,7 +449,12 @@ XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &no
 
 void
 XQToggleButtonConnector::onClick() {
-    trans( *m_node) = m_pItem->isChecked();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node] = m_pItem->isChecked();
+		tr.unmark(m_lsnValueChanged);
+		if(tr.commit())
+			break;
+	}
 }
 
 void
@@ -480,8 +500,8 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
-		if( !tr.size() || src > tr.size() || (dst > tr.size())) {
-			gErrPrint(i18n("Invalid range of selections."));
+		if( !tr.size() || src >= tr.size() || (dst >= tr.size())) {
+//			gErrPrint(i18n("Invalid range of selections."));
 			return;
 		}
 		m_list->swap(tr, tr.list()->at(src), tr.list()->at(dst));
@@ -523,10 +543,15 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 void
 XQComboBoxConnector::onSelect(int idx) {
     try {
-        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            trans( *m_node).str(XString());
-        else
-            trans( *m_node).str(m_itemStrings->at(idx).name);
+		for(Transaction tr( *m_node);; ++tr) {
+	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+	            tr[ *m_node].str(XString());
+	        else
+	            tr[ *m_node].str(m_itemStrings->at(idx).name);
+			tr.unmark(m_lsnValueChanged);
+			if(tr.commit())
+				break;
+		}
     }
     catch (XKameError &e) {
         e.print();
@@ -611,10 +636,15 @@ XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
 void
 XQListBoxConnector::onSelect(int idx) {
     try {
-        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
-            trans( *m_node).str(XString());
-        else
-            trans( *m_node).str(m_itemStrings->at(idx).name);
+		for(Transaction tr( *m_node);; ++tr) {
+	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+	            tr[ *m_node].str(XString());
+	        else
+	            tr[ *m_node].str(m_itemStrings->at(idx).name);
+			tr.unmark(m_lsnValueChanged);
+			if(tr.commit())
+				break;
+		}
     }
     catch (XKameError &e) {
         e.print();
@@ -652,7 +682,12 @@ XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node,
 }
 void
 XKColorButtonConnector::onClick(const QColor &newColor) {
-	trans( *m_node) = newColor.rgb();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node] = newColor.rgb();
+		tr.unmark(m_lsnValueChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XKColorButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -667,7 +702,12 @@ XKColorComboConnector::XKColorComboConnector(const shared_ptr<XHexNode> &node, K
 }
 void
 XKColorComboConnector::onClick(const QColor &newColor) {
-	trans( *m_node) = newColor.rgb();
+	for(Transaction tr( *m_node);; ++tr) {
+		tr[ *m_node] = newColor.rgb();
+		tr.unmark(m_lsnValueChanged);
+		if(tr.commit())
+			break;
+	}
 }
 void
 XKColorComboConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
