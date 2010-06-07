@@ -414,15 +414,6 @@ XNIDAQmxDSO::setupTiming() {
 	setupTrigger();
 
 	startSequence();
-
-	{
-		//!\todo comment this out.
-		int32 val;
-		CHECK_DAQMX_RET(DAQmxGetAIDataXferMech(m_task,
-									  shot[ *trace1()].to_str().c_str(),
-									  &val));
-		fprintf(stderr, "Data Transfer method: %d\n", (int)val);
-	}
 }
 void
 XNIDAQmxDSO::createChannels() {
