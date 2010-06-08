@@ -301,18 +301,11 @@ XNIDAQmxDSO::setupTrigger() {
 
 	char ch[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
-	//!\todo donot use address staff.
-	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI ||
-		(shot[ *interface()->address()] & 1)) {
+	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI) {
 		CHECK_DAQMX_RET(DAQmxSetAIDataXferMech(m_task, ch,
 											   DAQmx_Val_Interrupts));
 	}
-	else if(shot[ *interface()->address()] & 2) {
-		CHECK_DAQMX_RET(DAQmxSetAIDataXferMech(m_task, ch,
-											   DAQmx_Val_DMA));
-	}
-	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI ||
-		(shot[ *interface()->address()] & 4)) {
+	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AI) {
 		uInt32 bufsize;
 		CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &bufsize));
 		CHECK_DAQMX_RET(

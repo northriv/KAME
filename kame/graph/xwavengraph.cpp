@@ -57,7 +57,8 @@ void XWaveNGraph::init() {
 	}
 
 	for(Transaction tr(*this);; ++tr) {
-		m_lsnOnIconChanged = tr[ *this].onIconChanged().connect( *this,
+		m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
+			shared_from_this(),
 			&XWaveNGraph::onIconChanged, XListener::FLAG_MAIN_THREAD_CALL
 				| XListener::FLAG_AVOID_DUP);
 		tr.mark(tr[ *this].onIconChanged(), false);
