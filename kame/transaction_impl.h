@@ -138,12 +138,12 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
 		int ms = ((int64_t)started_time - transaction_started_time);
 		if(ms > 0) {
 			XTime t0 = XTime::now();
-			if(ms > 1000) {
-				if(ms > 3000)
+			if(ms > 2000) {
+				if(ms > 4000)
 					fprintf(stderr, "Nested transaction?, ");
-				fprintf(stderr, "Negotiating, %f sec. requested, limited to 1 sec. ", ms*1e-3);
+				fprintf(stderr, "Negotiating, %f sec. requested, limited to 2 sec. ", ms*1e-3);
 				fprintf(stderr, "for BP@%p\n", this);
-				ms = 1000;
+				ms = 2000;
 			}
 			t0 += ms * 1e-3;
 			while(t0 > XTime::now()) {
