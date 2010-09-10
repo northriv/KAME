@@ -14,6 +14,7 @@ kde4_add_ui_files(montecarlo_SRCS
   montecarloform.ui  )
 
 kde4_add_library(montecarlo MODULE ${montecarlo_SRCS})
+add_dependencies(montecarlo kame)
 ########### install files ###############
 install(TARGETS montecarlo LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 #AM_CXXFLAGS = $(CXXFLAGS) \

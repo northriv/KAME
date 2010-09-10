@@ -15,6 +15,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 
 void msecsleep(unsigned int ms) {
 	XTime t0(XTime::now());

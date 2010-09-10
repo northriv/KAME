@@ -11,6 +11,7 @@ kde4_add_ui_files(lia_SRCS
   lockinampform.ui  )
 
 kde4_add_library(lia MODULE ${lia_SRCS})
+add_dependencies(lia kame)
 ########### install files ###############
 install(TARGETS lia LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

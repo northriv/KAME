@@ -195,7 +195,7 @@ XTDS::acqCount(bool *seq_busy) {
 double
 XTDS::getTimeInterval() {
 	interface()->query("WFMP?");
-	char *cp = strstr(&interface()->buffer()[0], "XIN");
+	const char *cp = strstr(&interface()->buffer()[0], "XIN");
 	if( !cp) throw XInterface::XConvError(__FILE__, __LINE__);
 	double x;
 	int ret = sscanf(cp, "%*s %lf", &x);

@@ -10,5 +10,6 @@ set(sg_SRCS
  )
 
 add_library(sg MODULE ${sg_SRCS})
+add_dependencies(sg kame)
 ########### install files ###############
 install(TARGETS sg LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

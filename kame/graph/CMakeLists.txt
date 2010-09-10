@@ -22,5 +22,4 @@ kde4_add_ui_files(graph_SRCS
 
 kde4_add_library(graph STATIC ${graph_SRCS})
 
-
 ########### install files ###############

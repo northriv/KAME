@@ -14,5 +14,6 @@ set(nidaq_SRCS
 
 add_library(nidaq MODULE ${nidaq_SRCS})
 target_link_libraries(nidaq ${NIDAQMX_LIBRARY})
+add_dependencies(nidaq kame)
 ########### install files ###############
 install(TARGETS nidaq LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)

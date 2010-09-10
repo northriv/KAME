@@ -12,5 +12,6 @@ set(charinterface_SRCS
 
 add_library(charinterface MODULE ${charinterface_SRCS})
 target_link_libraries(charinterface ${GPIB_LIBRARY})
+add_dependencies(charinterface kame)
 ########### install files ###############
 install(TARGETS charinterface LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)

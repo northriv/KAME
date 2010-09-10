@@ -42,7 +42,7 @@ set(kame_SRCS
     )
 
 kde4_add_executable(kame ${kame_SRCS})
-target_link_libraries(kame thermometer forms kamemath script analyzer driver icons graph 
+target_link_libraries(kame forms thermometer kamemath script analyzer driver icons graph 
     m
     ${GLU_LIBRARY} ${FTGL_LIBRARY} ${FREETYPE_LIBRARIES}
     ${RUBY_LIBRARY} ${GSL_LIBRARY} ${FFTW3_LIBRARY}

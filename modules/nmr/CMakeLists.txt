@@ -33,6 +33,7 @@ kde4_add_ui_files(nmr_SRCS
 )
  
 kde4_add_library(nmr MODULE ${nmr_SRCS} ${nmrpulser_SRCS})
+add_dependencies(nmr kame)
 ########### install files ###############
 install(TARGETS nmr LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

@@ -59,6 +59,7 @@ using boost::dynamic_pointer_cast;
 using boost::ref;
 using boost::reference_wrapper;
 
+#include <stdio.h>
 #include <math.h>
 #include <string>
 #include <QString>

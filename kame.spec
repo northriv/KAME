@@ -15,12 +15,12 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
 Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
 Requires: libgfortran, atlas-sse2, ftgl >= %{ftglver}
-BuildPreReq: ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
-BuildPreReq: libgfortran, atlas-sse2-devel
-BuildPreReq: libidn-devel, ftgl-devel >= %{ftglver}
-BuildPreReq: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
-BuildPreReq: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
-BuildPreReq: gcc-c++ >= 4.0
+BuildRequires: ruby, ruby-devel, gsl-devel, boost-devel, libtool-ltdl-devel, fftw-devel
+BuildRequires: libgfortran, atlas-sse2-devel
+BuildRequires: libidn-devel, ftgl-devel >= %{ftglver}
+BuildRequires: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
+BuildRequires: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
+BuildRequires: gcc-c++ >= 4.0
 
 Source0: %{name}-%{version}.tar.bz2
 
@@ -34,7 +34,7 @@ Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame = %{version}
 Requires: linux-gpib
-BuildPreReq: linux-gpib-devel
+BuildRequires: linux-gpib-devel
 %description modules-standard
 K's adaptive measurement engine.
 Many standard drivers.
@@ -53,7 +53,7 @@ Group: Applications/Engineering
 Summary: KAME, K's adaptive measurement engine. Modules.
 Requires: kame-modules-nmr = %{version}
 Requires: nidaqmxef
-BuildPreReq: nidaqmxcapii
+BuildRequires: nidaqmxcapii
 %description modules-nidaq
 K's adaptive measurement engine.
 NMR drivers.

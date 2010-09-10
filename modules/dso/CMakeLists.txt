@@ -12,6 +12,7 @@ set(dso_SRCS
  )
 
 add_library(dso MODULE ${dso_SRCS})
+add_dependencies(dso kame)
 ########### install files ###############
 install(TARGETS dso LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

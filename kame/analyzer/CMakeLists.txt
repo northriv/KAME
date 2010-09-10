@@ -11,4 +11,5 @@ set(analyzer_SRCS
 	analyzer.cpp)
 
 kde4_add_library(analyzer STATIC ${analyzer_SRCS})
+add_dependencies(analyzer graph driver)
 ########### install files ###############

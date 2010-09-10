@@ -10,5 +10,6 @@ set(thermometer_SRCS
 )
 
 kde4_add_library(thermometer STATIC ${thermometer_SRCS})
+add_dependencies(thermometer forms graph)
 
 ########### install files ###############

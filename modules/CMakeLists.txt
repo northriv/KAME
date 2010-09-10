@@ -19,5 +19,5 @@ add_subdirectory(montecarlo)
 add_subdirectory(nidaq)
 add_subdirectory(networkanalyzer)
 
-
+add_dependencies(testdriver kame)
 ########### install files ###############

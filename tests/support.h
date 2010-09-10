@@ -51,6 +51,7 @@ using boost::ref;
 using boost::reference_wrapper;
 
 #include <math.h>
+#include <stdio.h>
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 struct X86CPUSpec {

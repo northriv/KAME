@@ -13,6 +13,8 @@ set(script_SRCS
  )
 
 kde4_add_library(script STATIC ${script_SRCS})
+add_dependencies(script forms)
+
 ########### install files ###############
 
 install(FILES  xrubysupport.rb rubylineshell.rb DESTINATION ${DATA_INSTALL_DIR}/kame)
