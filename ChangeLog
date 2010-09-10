@@ -1,3 +1,7 @@
+* Fri Sep 10 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.1.9-1)
+- for Fedora 13
+
 * Tue Jun 8 2010 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.7-1)
 - nidaqdso.cpp: Fix buffer size for recent computers.
