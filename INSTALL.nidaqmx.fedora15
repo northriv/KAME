@@ -1,0 +1,62 @@
+#HOW-TO setup National Instruments DAQmx drivers.
+
+#Install yum-utils and rpmdevtools.
+rpmdev-setuptree
+
+#Modify SELinux policy.
+#(memory protection) allow_execheap		
+#(memory protection) allow_execmod	
+
+cd (NIDAQ802 directory)
+LANG=C ./INSTALL
+cd (KAL21 directory)
+#
+LANG=C ./INSTALL
+
+#(Optionally) configure your RTSI cable like the following.
+#see http://zone.ni.com/devzone/cda/tut/p/id/4620
+nidaqmxconfig --export daq.config
+cat << EOF >> daq.config
+[DAQmxRTSICable RTSICable0]
+RTSI.ConnDevs=Dev1,Dev2
+EOF
+nidaqmxconfig --import daq.config
+
+
+##patch for KAL2.1
+@@ -241,6 +241,9 @@
+static int nNIKAL100_open(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
+static int nNIKAL100_release(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
+static int nNIKAL100_ioctl(nLinux_inode *the_inode, nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
++#ifdef HAVE_UNLOCKED_IOCTL
++static long nNIKAL100_unlockedIoctl(nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
++#endif
+#ifdef HAVE_COMPAT_IOCTL
+static long nNIKAL100_compatIoctl(nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
+#endif
+@@ -512,7 +515,11 @@
+{
+    .open = nNIKAL100_open,
+    .release = nNIKAL100_release,
++#ifdef HAVE_UNLOCKED_IOCTL
++   .unlocked_ioctl = nNIKAL100_unlockedIoctl,
++#else
+    .ioctl = nNIKAL100_ioctl,
++#endif
+#ifdef HAVE_COMPAT_IOCTL
+    .compat_ioctl = nNIKAL100_compatIoctl,
+#endif
+@@ -1798,6 +1805,13 @@
+ 
+    return status;
+}
++#ifdef HAVE_UNLOCKED_IOCTL
++static long nNIKAL100_unlockedIoctl(nLinux_fileHandle *filePtr, unsigned int command,
++   unsigned long param)
++{
++   return (long)nNIKAL100_ioctl(NULL, filePtr, command, param);
++}
++#endif
+#ifdef HAVE_COMPAT_IOCTL
+static long nNIKAL100_compatIoctl(nLinux_fileHandle *filePtr, unsigned int command,
+    unsigned long param)
