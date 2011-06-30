@@ -1,5 +1,8 @@
 #HOW-TO setup National Instruments DAQmx drivers.
 
+Curentrly NOT working.!!
+
+
 #Install yum-utils and rpmdevtools.
 rpmdev-setuptree
 
@@ -9,9 +12,7 @@ rpmdev-setuptree
 
 cd (NIDAQ802 directory)
 LANG=C ./INSTALL
-cd (KAL21 directory)
-#
-LANG=C ./INSTALL
+#Patch KAL2.1 to be compiled with the latest kernel. See https://decibel.ni.com/content/thread/9252
 
 #(Optionally) configure your RTSI cable like the following.
 #see http://zone.ni.com/devzone/cda/tut/p/id/4620
@@ -23,7 +24,7 @@ EOF
 nidaqmxconfig --import daq.config
 
 
-##patch for KAL2.1
+##patch for KAL2.1 from https://decibel.ni.com/content/thread/9252
 @@ -241,6 +241,9 @@
 static int nNIKAL100_open(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
 static int nNIKAL100_release(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
