@@ -1,14 +1,14 @@
 /***************************************************************************
 		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "pulserdrivernidaqmx.h"
@@ -29,7 +29,7 @@ inline T *fastFill(T* p, T x, unsigned int cnt);
 XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas):
     XNIDAQmxDriver<XPulser>(name, runtime, ref(tr_meas), meas),
-    m_pausingBit(0), m_pausingCount(0), 
+    m_pausingBit(0), m_pausingCount(0),
 	m_running(false),
     m_resolutionDO(RESOLUTION_UNDEF),
     m_resolutionAO(RESOLUTION_UNDEF),
@@ -53,9 +53,9 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	}
 
 	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
-	
+
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
-	
+
 	//memory locks.
  	if(g_bUseMLock) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
@@ -75,13 +75,13 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) 
 
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
-	
+
 	if(m_resolutionDO == RESOLUTION_UNDEF)
 		m_resolutionDO = 1.0 / intfDO()->maxDORate(1);
 	fprintf(stderr, "Using DO rate = %f[kHz]\n", 1.0/m_resolutionDO);
 	setupTasksDO(use_ao_clock);
-		
-	m_suspendDO = true; 	
+
+	m_suspendDO = true;
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 													  &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
@@ -90,12 +90,12 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) 
 void
 XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-	
+
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
 	if(intfAO()->maxAORate(2) == 0)
 		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
-	
+
 	if((m_resolutionDO == RESOLUTION_UNDEF) || (m_resolutionAO == RESOLUTION_UNDEF))
 	{
 		double do_rate = intfDO()->maxDORate(1);
@@ -112,9 +112,9 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
 	}
 	fprintf(stderr, "Using AO rate = %f[kHz]\n", 1.0/m_resolutionAO);
 
-	setupTasksAODO();	
+	setupTasksAODO();
 
-	m_suspendDO = true; 	
+	m_suspendDO = true;
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 													  &XNIDAQmxPulser::executeWriteDO));
 	m_threadWriteDO->resume();
@@ -135,7 +135,7 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
 	catch (XInterface::XInterfaceError &e) {
 		e.print();
 	}
-	
+
 	if(m_threadWriteAO) {
 		m_threadWriteAO->terminate();
 	}
@@ -145,17 +145,17 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
 
 	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
-	
+
 	clearTasks();
 
-	m_resolutionDO = RESOLUTION_UNDEF;    
-	m_resolutionAO = RESOLUTION_UNDEF;    
+	m_resolutionDO = RESOLUTION_UNDEF;
+	m_resolutionAO = RESOLUTION_UNDEF;
 
 	intfDO()->stop();
 	intfAO()->stop();
 	intfCtr()->stop();
 }
-void 
+void
 XNIDAQmxPulser::clearTasks() {
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskAO));
@@ -178,18 +178,18 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	if(m_taskDOCtr != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskDOCtr));
 	if(m_taskGateCtr != TASK_UNDEF)
-	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskGateCtr)); 
+	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskGateCtr));
 
 	float64 freq = 1e3 / resolution();
 
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDO));
-    CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO, 
+    CHECK_DAQMX_RET(DAQmxCreateDOChan(m_taskDO,
 									  formatString("%s/port0", intfDO()->devName()).c_str(),
 									  "", DAQmx_Val_ChanForAllLines));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDO, 0, &XNIDAQmxPulser::onTaskDone_, this));
 
 	XString do_clk_src;
-	
+
 	if(use_ao_clock) {
 		do_clk_src = formatString("/%s/ao/SampleClock", intfAO()->devName());
 	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
@@ -199,7 +199,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		XString ctrdev = formatString("%s/ctr0", intfCtr()->devName());
 		//Continuous pulse train generation. Duty = 50%.
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
-		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr, 
+		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr,
 												   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 												   freq, 0.5));
 	   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskDOCtr, 0, &XNIDAQmxPulser::onTaskDone_, this));
@@ -207,27 +207,28 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    intfCtr()->synchronizeClock(m_taskDOCtr);
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
-   
-	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq);
+
+	unsigned int buf_size_hint = (unsigned int)lrint(1.0 * freq); //1sec.
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 										  do_clk_src.c_str(),
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
 //    intfDO()->synchronizeClock(m_taskDO);
-	
+
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize > buf_size_hint * 2) {
+	if(onbrdsize / 8 > buf_size_hint) {
 /*		if(m_pausingBit) {
 			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, buf_size_hint * 2));
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 		}
-*/		buf_size_hint = onbrdsize / 2;
+*/
+		buf_size_hint = onbrdsize / 8;
 	}
-	if(m_pausingBit)
-		buf_size_hint /= 4;
+//	if(m_pausingBit)
+//		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -236,7 +237,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_bufSizeHintDO = std::min(m_bufSizeHintDO, 16384u);
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO / 4);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
-	
+
 	{
 		char ch[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
@@ -249,17 +250,17 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 													  DAQmx_Val_OnBrdMemNotFull));
 		}
 	}
-	
+
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
 		m_pausingCh = formatString("%s/ctr1", intfCtr()->devName());
 		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName());
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
-		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr, 
-												   m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low, 
+		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr,
+												   m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low,
 												   PAUSING_BLANK_BEFORE * resolution() * 1e-3,
-												   PAUSING_BLANK_AFTER * resolution() * 1e-3, 
+												   PAUSING_BLANK_AFTER * resolution() * 1e-3,
 												   m_pausingCount * resolution() * 1e-3));
 		CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskGateCtr,
 											   DAQmx_Val_FiniteSamps, 1));
@@ -288,20 +289,20 @@ void
 XNIDAQmxPulser::setupTasksAODO() {
 	if(m_taskAO != TASK_UNDEF)
 	    CHECK_DAQMX_RET(DAQmxClearTask(m_taskAO));
-	
+
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskAO));
 	CHECK_DAQMX_RET(DAQmxCreateAOVoltageChan(m_taskAO,
 											 formatString("%s/ao0:1", intfAO()->devName()).c_str(), "",
 											 -1.0, 1.0, DAQmx_Val_Volts, NULL));
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::onTaskDone_, this));
-		
+
 	float64 freq = 1e3 / resolutionQAM();
-	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq);
-	
+	unsigned int buf_size_hint = (unsigned int)lrint(1.0 * freq); //1sec.
+
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
-    
+
     int oversamp = lrint(resolution() / resolutionQAM());
 	setupTasksDO(oversamp == 1);
     if(oversamp != 1) {
@@ -319,7 +320,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 													 DAQmx_Val_Rising));
 		}
     }
-	
+
 	if(m_pausingBit) {
 		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Falling));
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
@@ -335,23 +336,24 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize > buf_size_hint * 2) {
+	if(onbrdsize / 8 > buf_size_hint) {
 /*		if(m_pausingBit) {
 			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 		}
-*/		buf_size_hint = onbrdsize / 2;
+*/
+		buf_size_hint = onbrdsize / 8;
 	}
-	if(m_pausingBit)
-		buf_size_hint /= 4;
+//	if(m_pausingBit)
+//		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = bufsize / 8;
 	if(m_pausingBit)
 		m_bufSizeHintAO = std::min(m_bufSizeHintAO, 16384u);
-	
+
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO / 4);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
@@ -362,10 +364,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
 												   DAQmx_Val_Interrupts));
 		}
-		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
+//		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
-		}
+//		}
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
 
@@ -373,7 +375,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		//obtain range info.
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
 			m_coeffAODev[ch][i] = 0.0;
-		CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO, 
+		CHECK_DAQMX_RET(DAQmxGetAODevScalingCoeff(m_taskAO,
 												  formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
 												  m_coeffAODev[ch], CAL_POLY_ORDER));
 		CHECK_DAQMX_RET(DAQmxGetAODACRngHigh(m_taskAO,
@@ -383,11 +385,11 @@ XNIDAQmxPulser::setupTasksAODO() {
 											formatString("%s/ao%d", intfAO()->devName(), ch).c_str(),
 											&m_lowerLimAO[ch]));
 	}
-	
+
 /*	CHECK_DAQMX_RET(DAQmxSetAOIdleOutputBehavior(m_taskAO,
 	formatString("%s/ao0:1", intfAO()->devName()).c_str(),
 	DAQmx_Val_ZeroVolts));
-*/	
+*/
 }
 int32
 XNIDAQmxPulser::onTaskDone_(TaskHandle task, int32 status, void *data) {
@@ -439,12 +441,12 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		m_suspendAO = true;
 		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
-		
+
 		stopPulseGen();
-		
+
 		unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
 		m_aswBit = selectedPorts(shot, PORTSEL_ASW);
-	
+
 		if(CLEAR_TASKS_EVERYTIME ||
 		   (m_taskDO == TASK_UNDEF) ||
 		   (m_pausingBit != pausingbitnext)) {
@@ -491,7 +493,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			m_genAOIndex = 0;
 			m_genBufAO.resize(m_bufSizeHintAO);
 		}
-		
+
 		const unsigned int cnt_preample = 1000;
 		m_genTotalCountDO += cnt_preample;
 		//synchronize the software trigger.
@@ -507,7 +509,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			fastFill(&m_genBufAO[0], m_genAOZeroLevel, cnt_preample_ao);
 			int32 samps;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_preample_ao,
-												false, 0.5, 
+												false, 0.5,
 												DAQmx_Val_GroupByScanNumber,
 												m_genBufAO[0].ch,
 												&samps, NULL));
@@ -533,12 +535,12 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		}
 		//write pre-ample.
 		fastFill( &m_genBufDO[0], (tRawDO)0, cnt_preample);
-		
+
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_preample,
-											 false, 0.0, 
+											 false, 0.0,
 											 DAQmx_Val_GroupByScanNumber,
 											 &m_genBufDO[0],
 											 &samps, NULL));
@@ -552,7 +554,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			for(unsigned int cnt = 0; cnt < size;) {
 				samps = std::min(size - cnt, m_transferSizeHintDO);
 				CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps,
-													 false, 0.0, 
+													 false, 0.0,
 													 DAQmx_Val_GroupByScanNumber,
 													 &m_genBufDO[cnt],
 													 &samps, NULL));
@@ -561,7 +563,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			}
 		}
 		genBankDO();
-		
+
 		{
 			char ch[256];
 			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
@@ -585,9 +587,9 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	m_suspendDO = false;
 //	fprintf(stderr, "Starting AO....\n");
 	if(m_taskAO != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));	
+		CHECK_DAQMX_RET(DAQmxStartTask(m_taskAO));
 	m_suspendAO = false;
-	m_running = true;	
+	m_running = true;
 }
 void
 XNIDAQmxPulser::stopPulseGen() {
@@ -657,7 +659,7 @@ XNIDAQmxPulser::aoVoltToRaw(const std::complex<double> &volt)
 	return z;
 }
 inline bool
-XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag, 
+XNIDAQmxPulser::tryOutputSuspend(const atomic<bool> &flag,
 								 XRecursiveMutex &mutex, const atomic<bool> &terminated) {
 	if(flag) {
 		mutex.unlock();
@@ -707,7 +709,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminated, const atomic<bool> &s
 			if(terminated)
 				break;
 			int32 written;
-			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0, 
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0,
 												DAQmx_Val_GroupByScanNumber,
 												m_genBufAO[cnt].ch,
 												&written, NULL));
@@ -752,7 +754,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 			if(terminated)
 				break;
 			int32 written;
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0, 
+			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0,
 												 DAQmx_Val_GroupByScanNumber,
 												 &m_genBufDO[cnt],
 												 &written, NULL));
@@ -768,7 +770,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 		e.print(getLabel());
 		m_suspendDO = true;
 		m_suspendAO = true;
- 		return; 	
+ 		return;
 	}
 	return;
 }
@@ -784,9 +786,9 @@ XNIDAQmxPulser::genBankDO() {
 	const uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	const uint64_t pausing_cnt_blank_after = 1;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	
+
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
-	
+
 	tRawDO *pDO = &m_genBufDO[0];
 	const unsigned int size = m_bufSizeHintDO;
 	for(unsigned int samps_rest = size; samps_rest;) {
@@ -812,13 +814,13 @@ XNIDAQmxPulser::genBankDO() {
 				}
 			}
 			if(samps_rest < pausing_cnt_blank_before + pausing_cnt_blank_after)
-				break; 
+				break;
 		}
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
 		//write digital pattern.
 		pDO = fastFill(pDO, patDO, gen_cnt);
-		
+
 		tonext -= gen_cnt;
 		samps_rest -= gen_cnt;
 		ASSERT(samps_rest < size);
@@ -875,7 +877,7 @@ XNIDAQmxPulser::genBankAO() {
 				pAO = fastFill(pAO, raw_zero, lps);
 			}
 			if(samps_rest / oversamp_ao < pausing_cnt_blank_before + pausing_cnt_blank_after)
-				break; 
+				break;
 		}
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext * oversamp_ao);
@@ -936,7 +938,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 	if(haveQAMPorts()) {
 		const double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
 		const double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
-		  			  	
+
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 			//arrange range info.
 			double x = 1.0;
@@ -952,7 +954,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
 				m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
-				for(std::vector<std::complex<double> >::const_iterator it = 
+				for(std::vector<std::complex<double> >::const_iterator it =
 						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 					std::complex<double> z( *it * c);
 					m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));

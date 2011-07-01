@@ -293,6 +293,8 @@ XString
 XNIDAQmxInterface::getNIDAQmxErrMessage(int status) {
 #ifdef HAVE_NI_DAQMX
 	char str[2048];
+	DAQmxGetExtendedErrorInfo(str, sizeof(str));
+	fprintf(stderr, "%s\n", str);
 	DAQmxGetErrorString(status, str, sizeof(str));
 	errno = 0;
 	return XString(str);
