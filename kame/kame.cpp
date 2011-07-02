@@ -1,14 +1,14 @@
 /***************************************************************************
 		Copyright (C) 2002-2010 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
-		
+
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
 		License as published by the Free Software Foundation; either
 		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
+
+		You should have received a copy of the GNU Library General
+		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include <QTimer>
@@ -50,7 +50,9 @@ QWidget *g_pFrmMain = 0L;
 
 FrmKameMain::FrmKameMain()
 	:KMainWindow(NULL) {
-	resize(QSize(QApplication::desktop()->width(), height()).expandedTo(sizeHint()) );
+	resize(QSize(
+			std::min(1280, QApplication::desktop()->width()),
+			height()).expandedTo(sizeHint()) );
 
 	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
@@ -129,11 +131,9 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
 
-//	resize(QSize(width(), 480 ));
-   
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
-      
+
     // signals and slots connections
     connect( m_pFileCloseAction, SIGNAL( activated() ), this, SLOT( fileCloseAction_activated() ) );
     connect( m_pFileExitAction, SIGNAL( activated() ), this, SLOT( fileExitAction_activated() ) );
@@ -148,14 +148,14 @@ FrmKameMain::FrmKameMain()
     connect( m_pScriptLineShellAction, SIGNAL( activated() ), this, SLOT( scriptLineShellAction_activated() ) );
     connect( m_pScriptDotSaveAction, SIGNAL( activated() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
-    
+
 	connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()));
 	connect(qApp, SIGNAL( lastWindowClosed() ), qApp, SLOT( quit() ) );
-   
+
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
 	m_pTimer->start(0);
-	
+
 	scriptLineShellAction_activated();
 }
 
@@ -303,7 +303,7 @@ FrmKameMain::processSignals() {
 			GC_gcollect();
 			last = XTime::now();
 		}
-	#endif    
+	#endif
 	}
 	usleep(500);
 }
@@ -328,7 +328,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 		printf("quit\n");
 		m_conMeasRubyThread.reset();
 		m_measure->terminate();
-   
+
 		m_measure.reset();
 	}
 }
