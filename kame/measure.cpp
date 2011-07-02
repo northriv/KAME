@@ -13,7 +13,12 @@
 ***************************************************************************/
 #include "measure.h"#include "kame.h"#include "xrubysupport.h"#include "primarydriver.h"#include "interface.h"#include "analyzer.h"#include "recorder.h"#include "recordreader.h"#include "thermometer.h"#include "caltable.h"#include "analyzer.h"
 #include "driverlistconnector.h"#include "interfacelistconnector.h"#include "entrylistconnector.h"#include "graphlistconnector.h"#include "recordreaderconnector.h"#include "nodebrowser.h"
-#include "ui_graphtool.h"#include "ui_interfacetool.h"#include "ui_drivertool.h"#include "ui_scalarentrytool.h"#include <q3textbrowser.h>#include <kfiledialog.h>#include <kstandarddirs.h>#include <kmessagebox.h>
+#include "ui_caltableform.h"
+#include "ui_drivercreate.h"
+#include "ui_nodebrowserform.h"
+#include "ui_recordreaderform.h"
+#include "ui_rubythreadtool.h"
+#include "ui_graphtool.h"#include "ui_interfacetool.h"#include "ui_drivertool.h"#include "ui_scalarentrytool.h"#include <q3textbrowser.h>#include <kfiledialog.h>#include <kstandarddirs.h>#include <kmessagebox.h>
 shared_ptr<XStatusPrinter> g_statusPrinter;
 
 XMeasure::XMeasure(const char *name, bool runtime) :
