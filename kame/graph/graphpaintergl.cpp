@@ -438,7 +438,7 @@ XQGraphPainter::paintGL () {
 		if(m_lastFrame.size())
 			m_updatedTime = time_started;
 		else
-			m_updatedTime = XTime::XTime();
+			m_updatedTime = XTime::XTime;
     }
         
     Snapshot shot( *m_graph);
@@ -569,7 +569,7 @@ XQGraphPainter::paintGL () {
     }
     else {
     	m_lastFrame.clear();
-		m_updatedTime = XTime::XTime();
+		m_updatedTime = XTime::XTime;
     }
 
     drawOnScreenViewObj(shot);
