@@ -11,6 +11,7 @@ set(magnetps_SRCS
 
 add_library(magnetps MODULE ${magnetps_SRCS})
 add_dependencies(magnetps kame)
+target_link_libraries(magnetps charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
 install(TARGETS magnetps LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 
