@@ -1,11 +1,11 @@
 #HOW-TO setup National Instruments DAQmx drivers.
 
-#Install yum-utils and rpmdevtools.
-rpmdev-setuptree
-
 #Modify SELinux policy.
-#(memory protection) allow_execheap		
-#(memory protection) allow_execmod	
+#(memory protection) allow_execstack	
+
+#Do NOT use PAE kernel, or add "mem=4096M" boot option.
+#Also it is highly recommended to disable IOMMU by passing "iommu=off", or switch it off in the BIOS (Vt-d).
+#"vmalloc=256M" may be a necessary option to allocate enough large size of buffers.
 
 cd (NIDAQ802 directory)
 LANG=C ./INSTALL

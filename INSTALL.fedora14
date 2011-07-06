@@ -1,0 +1,29 @@
+#HOW-TO build KAME in Fedora 14.
+
+#Use pirut or sudo yum -y install to get the following packages:
+gsl-devel, fftw-devel, atlas-sse2-devel, libgfortran,
+ ruby,ruby-devel, kdelibs-devel, kernel-devel,
+ libtool-ltdl-devel, libart_lgpl, ftgl-devel and so on.
+rpmdevtools
+(ccache)
+(redhat-rpm-config) #for debuginfo.
+
+#Prepare for rpmbuild.
+rpmdev-setuptree
+
+#For linux-gpib
+rpmbuild --define="kversion `uname -r`" --rebuild linux-gpib-kmod-{ver}.src.rpm
+rpmbuild --rebuild linux-gpib-{ver}.src.rpm
+#Install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
+#For PCI(e) device(s), edit /etc/modprobe.d/modprobe.conf.local like the following.
+alias char-major-160 gpib_common
+alias gpib0 tnt4882
+install tnt4882 PATH=/sbin:/usr/sbin:/usr/local/sbin:$PATH;modprobe --ignore-install tnt4882;sleep 3;gpib_config --minor 0
+
+#see INSTALL.nidaqmx.fedora14 if you need National Instruments DAQmx support.
+
+#w/o DAQmx, use option --define="build_nidaqmx 0"
+rpmbuild -ba kame-*.spec or rpmbuild --rebuild kame-*.src.rpm
+#install the rpm
+
+#if you don't like rpm, see INSTALL.
