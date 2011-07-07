@@ -19,7 +19,7 @@ BuildRequires: ruby, ruby-devel, gsl-devel, boost-devel, libtool, libtool-ltdl-d
 BuildRequires: gcc-gfortran, atlas-sse2-devel
 BuildRequires: libidn-devel, ftgl-devel >= %{ftglver}
 BuildRequires: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
-BuildRequires: libart_lgpl-devel, zlib-devel, libpng-devel, libjpeg-devel
+BuildRequires: zlib-devel, libpng-devel, libjpeg-devel
 BuildRequires: gcc-c++ >= 4.0
 
 Source0: %{name}-%{version}.tar.bz2
