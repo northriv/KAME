@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
 
 bool g_bLogDbgPrint;
 bool g_bMLockAlways;
@@ -150,6 +151,7 @@ void
 gErrPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
+		fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.c_str());
 		g_debugofs
 			<< (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
 							 .arg((uintptr_t)threadID(), 0, 16)
@@ -158,7 +160,7 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
 							 .arg(line)
 							 .arg(str)).toUtf8().data()
 			<< std::endl;
-		fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.c_str());
+		sync(); //ensures disk writing.
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 	if(statusprinter) statusprinter->printError(str);
@@ -167,6 +169,7 @@ void
 gWarnPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
+		fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.c_str());
 		g_debugofs
 			<< (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
 							 .arg((uintptr_t)threadID(), 0, 16)
@@ -175,7 +178,6 @@ gWarnPrint_redirected(const XString &str, const char *file, int line) {
 							 .arg(line)
 							 .arg(str)).toUtf8().data()
 			<< std::endl;
-		fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.c_str());
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 	if(statusprinter) statusprinter->printWarning(str);
