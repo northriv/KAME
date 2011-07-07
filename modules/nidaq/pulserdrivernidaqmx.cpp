@@ -119,10 +119,7 @@ XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
 		e.print();
 	}
 
-	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	{
-		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
-
 		clearTasks();
 
 		m_resolutionDO = RESOLUTION_UNDEF;
@@ -416,12 +413,9 @@ void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
-		XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
+		stopPulseGen(); //terminating threads and outputs.
+
 		{
-			XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
-
-			stopPulseGen();
-
 			unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
 			m_aswBit = selectedPorts(shot, PORTSEL_ASW);
 
@@ -576,17 +570,17 @@ XNIDAQmxPulser::stopPulseGen() {
 
 	if(m_threadWriteAO)
 		m_threadWriteAO->terminate();
+	m_threadWriteAO->waitFor();
 	m_threadWriteAO.reset();
-	XScopedLock<XRecursiveMutex> lockAO(m_mutexAO);
 	{
 		if(m_threadWriteDO)
 			m_threadWriteDO->terminate();
+		m_threadWriteDO->waitFor();
 		m_threadWriteDO.reset();
-		XScopedLock<XRecursiveMutex> lockDO(m_mutexDO);
 
 		m_softwareTrigger->stop();
 
-//		if(m_running) {
+		if(m_running) {
 			{
 				char ch[256];
 				CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
@@ -619,7 +613,7 @@ XNIDAQmxPulser::stopPulseGen() {
 			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Unreserve));
 			if(m_taskGateCtr != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Unreserve));
-//		}
+		}
 
 		m_running = false;
 	}
@@ -658,11 +652,6 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminating) {
 
 void
 XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminating) {
-	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
-
-	if(terminating)
-		return;
-
  	const double dma_ao_period = resolutionQAM();
 	const unsigned int size = m_genBufAO.size();
 	try {
@@ -703,11 +692,6 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminating) {
 }
 void
 XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminating) {
-	XScopedLock<XRecursiveMutex> lock(m_mutexDO);
-
-	if(terminating)
-		return;
-
  	const double dma_do_period = resolution();
 	const unsigned int size = m_genBufDO.size();
 	try {

@@ -95,7 +95,7 @@ private:
 	unsigned int m_transferSizeHintDO;
 	unsigned int m_transferSizeHintAO;
 	uint64_t m_genTotalCountDO;
-	atomic<bool> m_running;
+	bool m_running;
 protected:	
 	double m_resolutionDO, m_resolutionAO;
 	TaskHandle m_taskAO, m_taskDO,
@@ -126,7 +126,6 @@ private:
 	
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_totalLock;
-	XRecursiveMutex m_mutexAO, m_mutexDO;
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/
