@@ -143,8 +143,8 @@ private:
 	void writeBufDO(const BufDO &buf, const atomic<bool> &terminating);
 	void *executeWriteAO(const atomic<bool> &);
 	void *executeWriteDO(const atomic<bool> &);
-	void genBankDO(const BufDO &buf);
-	void genBankAO(const BufAO &buf);
+	void genBankDO(BufDO &buf);
+	void genBankAO(BufAO &buf);
 	void *executeGenBankAO(const atomic<bool> &);
 	void *executeGenBankDO(const atomic<bool> &);
 
