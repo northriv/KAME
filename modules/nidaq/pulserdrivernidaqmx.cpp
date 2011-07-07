@@ -568,15 +568,20 @@ void
 XNIDAQmxPulser::stopPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
+	//Stops pattern generation.
 	if(m_threadWriteAO)
 		m_threadWriteAO->terminate();
-	m_threadWriteAO->waitFor();
-	m_threadWriteAO.reset();
-	{
-		if(m_threadWriteDO)
-			m_threadWriteDO->terminate();
+	if(m_threadWriteDO)
+		m_threadWriteDO->terminate();
+	if(m_threadWriteAO) {
+		m_threadWriteAO->waitFor();
+		m_threadWriteAO.reset();
+	}
+	if(m_threadWriteDO) {
 		m_threadWriteDO->waitFor();
 		m_threadWriteDO.reset();
+	}
+	{
 
 		m_softwareTrigger->stop();
 
@@ -597,6 +602,7 @@ XNIDAQmxPulser::stopPulseGen() {
 				}
 				CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
 			}
+			fprintf(stderr, "a\n");
 			if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 			if(m_taskDOCtr != TASK_UNDEF)
@@ -606,6 +612,7 @@ XNIDAQmxPulser::stopPulseGen() {
 				CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone (m_taskGateCtr, 0.1));
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 			}
+			fprintf(stderr, "b\n");
 			if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			if(m_taskDOCtr != TASK_UNDEF)
