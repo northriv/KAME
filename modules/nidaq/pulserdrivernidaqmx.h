@@ -101,10 +101,35 @@ protected:
 	TaskHandle m_taskAO, m_taskDO,
 		m_taskDOCtr, m_taskGateCtr;
 private:
+	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
+	void genBankDO(int bankidx);
+	void genBankAO(int bankidx);
+	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO, m_threadGenBufAO;
+	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO, m_threadGenBufDO;
+	void writeBufAO(const atomic<bool> &terminating);
+	void writeBufDO(const atomic<bool> &terminating);
+	void *executeWriteAO(const atomic<bool> &);
+	void *executeWriteDO(const atomic<bool> &);
+
 	enum {PORTSEL_PAUSING = 16};
-	std::vector<tRawDO> m_genBufDO;
+	struct BufDO {
+		void resize(ssize_t s) {m_size = s; ASSERT(s <= data.size());}
+		std::vector<tRawDO> data;
+		ssize_t size() const {return m_size;}
+		ssize_t reserved() const {return data.size();}
+	private:
+		ssize_t m_size;
+	} m_bufBanksDO[2]; //!< Double buffer containing generated patterns for DO.
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
-	std::vector<tRawAOSet> m_genBufAO;
+	struct BufAO {
+		void resize(ssize_t s) {m_size = s; ASSERT(s <= data.size());}
+		std::vector<tRawAOSet> data;
+		ssize_t size() const {return m_size;}
+		ssize_t reserved() const {return data.size();}
+	private:
+		ssize_t m_size;
+	} m_bufBanksAO[2]; //!< Double buffer containing generated patterns for AO.
+	atomic<int> m_curBankOfBufDO, m_curBankOfBufAO; //!< indicating generated patterns to be sent to the device, value of -1 means empty.
 	tRawAOSet m_genAOZeroLevel;
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
@@ -113,16 +138,6 @@ private:
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
-	
-	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
-	void genBankDO();
-	void genBankAO();
-	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
-	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	void writeBufAO(const atomic<bool> &terminating);
-	void writeBufDO(const atomic<bool> &terminating);
-	void *executeWriteAO(const atomic<bool> &);
-	void *executeWriteDO(const atomic<bool> &);
 	
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_totalLock;

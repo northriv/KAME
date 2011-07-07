@@ -448,12 +448,16 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			m_genLastPatItDO = m_genPatternList->begin();
 			m_genRestSampsDO = m_genPatternList->front().tonext;
 			m_genTotalCountDO = m_genPatternList->front().tonext;
-			m_genBufDO.resize(m_bufSizeHintDO);
+			m_curBankOfBufDO = -1;
+			m_bufBanksDO[0].data.resize(m_bufSizeHintDO);
+			m_bufBanksDO[1].data.resize(m_bufSizeHintDO);
 			if(m_taskAO != TASK_UNDEF) {
 				m_genLastPatItAO = m_genPatternList->begin();
 				m_genRestSampsAO = m_genPatternList->front().tonext;
 				m_genAOIndex = 0;
-				m_genBufAO.resize(m_bufSizeHintAO);
+				m_curBankOfBufAO = -1;
+				m_bufBanksAO[0].data.resize(m_bufSizeHintAO);
+				m_bufBanksAO[1].data.resize(m_bufSizeHintAO);
 			}
 
 			const unsigned int cnt_prezeros = 1000;
@@ -725,7 +729,13 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminating) {
 		}
 		if(terminating)
 			return;
-	 	genBankDO();
+		{
+			bankidx = 0;
+			genBankDO(bankidx);
+			if(m_curBankOfBufDO.compareAndSet(-1, bankidx)) {
+			}
+//			bankidx = 0
+		}
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
@@ -740,7 +750,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminating) {
 	return;
 }
 void
-XNIDAQmxPulser::genBankDO() {
+XNIDAQmxPulser::genBankDO(int bankidx) {
 	GenPatternIterator it = m_genLastPatItDO;
 	uint32_t pat = it->pattern;
 	uint64_t tonext = m_genRestSampsDO;
@@ -754,8 +764,8 @@ XNIDAQmxPulser::genBankDO() {
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
-	tRawDO *pDO = &m_genBufDO[0];
-	const unsigned int size = m_bufSizeHintDO;
+	tRawDO *pDO = &m_bufBanksDO[bankidx].data[0];
+	const unsigned int size = m_bufBanksDO[bankidx].reserved();
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//patterns of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
@@ -801,14 +811,13 @@ XNIDAQmxPulser::genBankDO() {
 			total += tonext;
 		}
 	}
-	m_genBufDO.resize((unsigned int)(pDO - &m_genBufDO[0]));
-	ASSERT(pDO == &m_genBufDO[m_genBufDO.size()]);
+	m_bufBanksDO[bankidx].resize((unsigned int)(pDO - &m_genBufDO[0]));
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;
 	m_genTotalCountDO = total;
 }
 void
-XNIDAQmxPulser::genBankAO() {
+XNIDAQmxPulser::genBankAO(int bankidx) {
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	GenPatternIterator it = m_genLastPatItAO;
@@ -822,9 +831,9 @@ XNIDAQmxPulser::genBankAO() {
 	uint64_t pausing_cnt_blank_after = 1;
 	const uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 
-	tRawAOSet *pAO = &m_genBufAO[0];
+	tRawAOSet *pAO = &m_bufBanksAO[bankidx].data[0];
 	const tRawAOSet raw_zero = m_genAOZeroLevel;
-	const unsigned int size = m_bufSizeHintAO;
+	const unsigned int size = m_bufBanksAO[bankidx].reserved();
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 
@@ -878,8 +887,7 @@ XNIDAQmxPulser::genBankAO() {
 			tonext = it->tonext;
 		}
 	}
-	m_genBufAO.resize((unsigned int)(pAO - &m_genBufAO[0]));
-	ASSERT(pAO == &m_genBufAO[m_genBufAO.size()]);
+	m_bufBanksAO[bankidx].resize((unsigned int)(pAO - &m_genBufAO[0]));
 	ASSERT(m_genBufAO.size() % oversamp_ao == 0);
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
