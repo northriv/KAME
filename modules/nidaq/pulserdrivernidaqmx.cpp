@@ -416,97 +416,92 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		stopPulseGen(); //terminating threads and outputs.
 
 		{
-			unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
-			m_aswBit = selectedPorts(shot, PORTSEL_ASW);
-
-			{
-				uInt32 bufsize;
-				CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-				if( !m_pausingBit & (bufsize < 2047uL))
-					throw XInterface::XInterfaceError(
-						i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
-								   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
-			}
-			if(m_taskAO != TASK_UNDEF) {
-				uInt32 bufsize;
-				CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
-				if( !m_pausingBit & (bufsize < 8192uL))
-					throw XInterface::XInterfaceError(
-						i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
-								   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
-			}
-
-			//swaps generated pattern lists to new ones.
-			m_genPatternList.reset();
-			m_genPatternListNext.swap(m_genPatternList);
-			for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
-				m_genPulseWaveAO[j].reset();
-				m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
-			}
-
-			//prepares patterns.
-			m_genLastPatItDO = m_genPatternList->begin();
-			m_genRestSampsDO = m_genPatternList->front().tonext;
-			m_genTotalCountDO = m_genPatternList->front().tonext;
-			m_bufBanksDO[0].reserve(m_bufSizeHintDO);
-			m_bufBanksDO[1].reserve(m_bufSizeHintDO);
-			if(m_taskAO != TASK_UNDEF) {
-				m_genLastPatItAO = m_genPatternList->begin();
-				m_genRestSampsAO = m_genPatternList->front().tonext;
-				m_genAOIndex = 0;
-				m_bufBanksAO[0].reserve(m_bufSizeHintAO);
-				m_bufBanksAO[1].reserve(m_bufSizeHintAO);
-			}
-
-			const unsigned int cnt_prezeros = 1000;
-			m_genTotalCountDO += cnt_prezeros;
-			//synchronizes with the software trigger.
-			m_softwareTrigger->start(1e3 / resolution());
-
-			//prefilling of the buffers.
-			if(m_taskAO != TASK_UNDEF) {
-				//writes preceding zeros.
-				const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
-				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
-				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-				const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-				std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
-				int32 samps;
-				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
-													false, 0.5,
-													DAQmx_Val_GroupByScanNumber,
-													zeros[0].ch,
-													&samps, NULL));
-				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
-				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-			}
-			//writes preceding zeros.
-			std::vector<tRawDO> zeros(cnt_prezeros, 0);
-
-			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
-			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-			int32 samps;
-			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_prezeros,
-												 false, 0.0,
-												 DAQmx_Val_GroupByScanNumber,
-												 &zeros[0],
-												 &samps, NULL));
-			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
-			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-
-			{
-				char ch[256];
-				CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
-				CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
-			}
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-			if(m_taskDOCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-			if(m_taskGateCtr != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-			if(m_taskAO != TASK_UNDEF)
-				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
+			if( !m_pausingBit & (bufsize < 2047uL))
+				throw XInterface::XInterfaceError(
+					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 		}
+		if(m_taskAO != TASK_UNDEF) {
+			uInt32 bufsize;
+			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
+			if( !m_pausingBit & (bufsize < 8192uL))
+				throw XInterface::XInterfaceError(
+					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
+		}
+
+		//swaps generated pattern lists to new ones.
+		m_genPatternList.reset();
+		m_genPatternListNext.swap(m_genPatternList);
+		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
+			m_genPulseWaveAO[j].reset();
+			m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
+		}
+
+		//prepares patterns.
+		m_genLastPatItDO = m_genPatternList->begin();
+		m_genRestSampsDO = m_genPatternList->front().tonext;
+		m_genTotalCountDO = m_genPatternList->front().tonext;
+		m_bufBanksDO[0].reserve(m_bufSizeHintDO);
+		m_bufBanksDO[1].reserve(m_bufSizeHintDO);
+		if(m_taskAO != TASK_UNDEF) {
+			m_genLastPatItAO = m_genPatternList->begin();
+			m_genRestSampsAO = m_genPatternList->front().tonext;
+			m_genAOIndex = 0;
+			m_bufBanksAO[0].reserve(m_bufSizeHintAO);
+			m_bufBanksAO[1].reserve(m_bufSizeHintAO);
+		}
+
+		const unsigned int cnt_prezeros = 1000;
+		m_genTotalCountDO += cnt_prezeros;
+		//synchronizes with the software trigger.
+		m_softwareTrigger->start(1e3 / resolution());
+
+		//prefilling of the buffers.
+		if(m_taskAO != TASK_UNDEF) {
+			//writes preceding zeros.
+			const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
+			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+			const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
+			std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+			int32 samps;
+			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
+												false, 0.5,
+												DAQmx_Val_GroupByScanNumber,
+												zeros[0].ch,
+												&samps, NULL));
+			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+		}
+		//writes preceding zeros.
+		std::vector<tRawDO> zeros(cnt_prezeros, 0);
+
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+		int32 samps;
+		CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_prezeros,
+											 false, 0.0,
+											 DAQmx_Val_GroupByScanNumber,
+											 &zeros[0],
+											 &samps, NULL));
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+
+		{
+			char ch[256];
+			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
+		}
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+		if(m_taskDOCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+		if(m_taskGateCtr != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+		if(m_taskAO != TASK_UNDEF)
+			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 	}
 
 	//Starting threads that writing buffers concurrently.
