@@ -31,21 +31,21 @@ public:
 	atomic_pod_cas(T t) : m_var(t) {}
 	atomic_pod_cas(const atomic_pod_cas &t) : m_var(t) {}
 	~atomic_pod_cas() {}
-	operator T() const {readBarrier(); return m_var;}
+	operator T() const { T x = m_var; readBarrier(); return x;}
 	atomic_pod_cas &operator=(T t) {
-		m_var = t; writeBarrier(); return *this;
+		writeBarrier(); m_var = t; return *this;
 	}
 	atomic_pod_cas &operator=(const atomic_pod_cas &x) {
-		m_var = x.m_var; writeBarrier(); return *this;
+		writeBarrier(); m_var = x.m_var; return *this;
 	}
 	T swap(T newv) {
-		T old = atomicSwap(newv, &m_var);
 		writeBarrier();
+		T old = atomicSwap(newv, &m_var);
 		return old;
 	}
 	bool compareAndSet(T oldv, T newv) {
+		writeBarrier();
 		bool ret = atomicCompareAndSet(oldv, newv, &m_var);
-		if(ret) writeBarrier();
 		return ret;
 	}
 protected:
@@ -61,21 +61,21 @@ public:
 	atomic_pod_cas2(const atomic_pod_cas2 &t) : m_var(t) {}
 	~atomic_pod_cas2() {}
 	operator T() const {
-		readBarrier();
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, oldv, &m_var)) {
+				readBarrier();
 				return oldv;
 			}
 		}
 	}
 	atomic_pod_cas2 &operator=(T t) {
+		writeBarrier();
 		for(;;) {
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, t, &m_var))
 				break;
 		}
-		writeBarrier();
 		return *this;
 	}
 	atomic_pod_cas2 &operator=(const atomic_pod_cas2 &x) {
@@ -84,16 +84,16 @@ public:
 	}
 	T swap(T newv) {
 		for(;;) {
+			writeBarrier();
 			T oldv = m_var;
 			if(atomicCompareAndSet(oldv, newv, &m_var)) {
-				writeBarrier();
 				return oldv;
 			}
 		}
 	}
 	bool compareAndSet(T oldv, T newv) {
+		writeBarrier();
 		bool ret = atomicCompareAndSet(oldv, newv, &m_var);
-		if(ret) writeBarrier();
 		return ret;
 	}
 protected:
@@ -145,18 +145,20 @@ public:
 	//! Note that the return value is atomically given.
 	atomic &operator-=(T t) {atomicAdd( &this->m_var, -t); writeBarrier(); return *this;}
 	bool decAndTest() {
-		bool ret = atomicDecAndTest( &this->m_var);
 		writeBarrier();
+		bool ret = atomicDecAndTest( &this->m_var);
+		readBarrier();
 		return ret;
 	}
 	bool addAndTest(T t) {
-		bool ret = atomicAddAndTest( &this->m_var, t);
 		writeBarrier();
+		bool ret = atomicAddAndTest( &this->m_var, t);
+		readBarrier();
 		return ret;
 	}
 };
 
-//! Atomic access for a copy-able class which does not require transactional writings.
+//! Atomic access for a copy-able class which does not require transactional writing.
 template <typename T, class Enable>
 class atomic {
 public:
