@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2010 Kentaro Kitagawa
+		Copyright (C) 2002-2011 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ protected:
 	virtual void close() throw (XInterface::XInterfaceError &);
 	
     double resolutionQAM() const {return m_resolutionAO;}
-	//! existense of AO ports.
+	//! \return Existense of AO ports.
     virtual bool haveQAMPorts() const = 0;
 
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
@@ -50,7 +50,7 @@ protected:
     //! Converts RelPatList to native patterns.
     virtual void createNativePatterns(Transaction &tr);
 
-    //! minimum period of pulses [ms]
+    //! \return Minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     
 	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
@@ -96,7 +96,6 @@ private:
 	unsigned int m_transferSizeHintAO;
 	uint64_t m_genTotalCountDO;
 	atomic<bool> m_running;
-	atomic<bool> m_suspendDO, m_suspendAO;
 protected:	
 	double m_resolutionDO, m_resolutionAO;
 	TaskHandle m_taskAO, m_taskDO,
@@ -120,8 +119,8 @@ private:
 	void genBankAO();
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	void writeBufAO(const atomic<bool> &terminated, const atomic<bool> &suspended);
-	void writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended);
+	void writeBufAO(const atomic<bool> &terminating);
+	void writeBufDO(const atomic<bool> &terminating);
 	void *executeWriteAO(const atomic<bool> &);
 	void *executeWriteDO(const atomic<bool> &);
 	
@@ -129,8 +128,7 @@ private:
 	XRecursiveMutex m_totalLock;
 	XRecursiveMutex m_mutexAO, m_mutexDO;
   
-	inline bool tryOutputSuspend(const atomic<bool> &flag,
-								 XRecursiveMutex &mutex, const atomic<bool> &terminated);
+	inline bool tryOutputSuspend(XRecursiveMutex &mutex, const atomic<bool> &terminating);
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/

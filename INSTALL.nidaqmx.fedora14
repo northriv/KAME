@@ -3,7 +3,7 @@
 #Modify SELinux policy.
 #(memory protection) allow_execstack	
 
-#Do NOT use PAE kernel, or add "mem=4096M" boot option.
+#Do NOT use PAE kernel, or add "mem=4096M" to the boot option.
 #Also it is highly recommended to disable IOMMU by passing "iommu=off", or switch it off in the BIOS (Vt-d).
 #"vmalloc=256M" may be a necessary option to allocate enough large size of buffers.
 

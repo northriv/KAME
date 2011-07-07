@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2010 Kentaro Kitagawa
+		Copyright (C) 2002-2011 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or

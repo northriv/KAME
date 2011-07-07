@@ -1,4 +1,4 @@
-#HOW-TO build KAME in Fedora 13.
+#HOW-TO build KAME in Fedora 10.
 
 #Use pirut or sudo yum -y install to get the following packages:
 gsl-devel, fftw-devel, atlas-sse2-devel, libgfortran,
@@ -12,7 +12,7 @@ rpmdevtools
 rpmdev-setuptree
 
 #For linux-gpib
-rpmbuild --define="kversion `uname -r`" --define='kvariants ""' --target=`uname -m` --rebuild linux-gpib-kmod-{ver}.src.rpm
+rpmbuild --define="kversion `uname -r`" --rebuild linux-gpib-kmod-{ver}.src.rpm
 rpmbuild --rebuild linux-gpib-{ver}.src.rpm
 #Install the rpms: linux-gpib-{ver}.*.rpm, kmod-linux-gpib-{ver}-*.*.rpm
 #For PCI(e) device(s), edit /etc/modprobe.d/modprobe.conf.local like the following.
