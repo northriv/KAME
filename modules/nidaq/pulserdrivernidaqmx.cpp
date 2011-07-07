@@ -626,19 +626,19 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminating) {
 
  	//Starting a child thread generating patterns concurrently.
 	XThread<XNIDAQmxPulser> th_genbuf(new XThread<XNIDAQmxPulser>(shared_from_this(),
-													  &XNIDAQmxPulser::executeGenBufAO));
+													  &XNIDAQmxPulser::executeGenBankAO));
 	th_genbuf.resume();
 	//Waiting until the double buffer has been filled.
 	while( !terminating) {
 		if((m_bufBanksAO[0].size()) && (m_bufBanksAO[1].size()))
 			break;
-		usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_do_period / 8));
+		usleep(lrint(1e3 * m_bufBanksAO[0].capacity() * dma_ao_period / 8));
 	}
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksAO[bankidx].size() == 0) {
 			fprintf(stderr, "AO buffer underrun.\n");
-			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_do_period / 8));
+			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_ao_period / 8));
 			continue;
 		}
 		readBarrier();
@@ -658,13 +658,13 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminating) {
 
  	//Starting a child thread generating patterns concurrently.
 	XThread<XNIDAQmxPulser> th_genbuf(new XThread<XNIDAQmxPulser>(shared_from_this(),
-													  &XNIDAQmxPulser::executeGenBufDO));
+													  &XNIDAQmxPulser::executeGenBankDO));
 	th_genbuf.resume();
 	//Waiting until the double buffer has been filled.
 	while( !terminating) {
 		if((m_bufBanksDO[0].size()) && (m_bufBanksDO[1].size()))
 			break;
-		usleep(lrint(1e3 * m_bufBanksDO[bankidx].capacity() * dma_do_period / 8));
+		usleep(lrint(1e3 * m_bufBanksDO[0].capacity() * dma_do_period / 8));
 	}
 	int bankidx = 0;
 	while( !terminating) {
@@ -707,7 +707,7 @@ XNIDAQmxPulser::writeBufAO(const BufAO &buf, const atomic<bool> &terminating) {
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0,
 												DAQmx_Val_GroupByScanNumber,
-												buf.data[cnt].ch,
+												&buf.data[cnt].ch,
 												&written, NULL));
 			if(written != samps)
 				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
@@ -815,7 +815,7 @@ XNIDAQmxPulser::genBankDO(const BufDO &buf) {
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
-	tRawDO *pDO = &buf.data[0];
+	const tRawDO *pDO = &buf.data[0];
 	ssize_t size = buf.capacity();
 	for(unsigned int samps_rest = size; samps_rest;) {
 		//patterns of digital lines.
@@ -883,7 +883,7 @@ XNIDAQmxPulser::genBankAO(const BufAO &buf) {
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 
-	tRawAOSet *pAO = &buf.data[0];
+	const tRawAOSet *pAO = &buf.data[0];
 	tRawAOSet raw_zero = m_genAOZeroLevel;
 	ssize_t size = buf.capacity();
 	for(unsigned int samps_rest = size; samps_rest >= oversamp_ao;) {

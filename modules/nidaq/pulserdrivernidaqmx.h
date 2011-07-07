@@ -101,8 +101,6 @@ protected:
 	TaskHandle m_taskAO, m_taskDO,
 		m_taskDOCtr, m_taskGateCtr;
 private:
-	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
-
 	enum {PORTSEL_PAUSING = 16};
 	struct BufDO {
 		void reserve(ssize_t s) {data.resize(s); clear(); }
@@ -135,6 +133,7 @@ private:
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
+	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
 
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
