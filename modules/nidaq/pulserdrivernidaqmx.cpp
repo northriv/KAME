@@ -448,14 +448,12 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			m_genLastPatItDO = m_genPatternList->begin();
 			m_genRestSampsDO = m_genPatternList->front().tonext;
 			m_genTotalCountDO = m_genPatternList->front().tonext;
-			m_curBankOfBufDO = CUR_BANK_ABSENT;
 			m_bufBanksDO[0].reserve(m_bufSizeHintDO);
 			m_bufBanksDO[1].reserve(m_bufSizeHintDO);
 			if(m_taskAO != TASK_UNDEF) {
 				m_genLastPatItAO = m_genPatternList->begin();
 				m_genRestSampsAO = m_genPatternList->front().tonext;
 				m_genAOIndex = 0;
-				m_curBankOfBufAO = CUR_BANK_ABSENT;
 				m_bufBanksAO[0].reserve(m_bufSizeHintAO);
 				m_bufBanksAO[1].reserve(m_bufSizeHintAO);
 			}
@@ -472,18 +470,18 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 				const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-				fastFill(&m_genBufAO[0], m_genAOZeroLevel, cnt_prezeros_ao);
+				std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
 				int32 samps;
 				CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
 													false, 0.5,
 													DAQmx_Val_GroupByScanNumber,
-													m_genBufAO[0].ch,
+													zeros[0].ch,
 													&samps, NULL));
 				CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			}
 			//writes preceding zeros.
-			fastFill( &m_genBufDO[0], (tRawDO)0, cnt_prezeros);
+			std::vector<tRawDO> zeros(cnt_prezeros, 0);
 
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
@@ -491,7 +489,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_prezeros,
 												 false, 0.0,
 												 DAQmx_Val_GroupByScanNumber,
-												 &m_genBufDO[0],
+												 &zeros[0],
 												 &samps, NULL));
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
