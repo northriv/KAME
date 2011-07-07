@@ -196,17 +196,17 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize / 8 > buf_size_hint) {
+	if(onbrdsize / 2 > buf_size_hint) {
 /*		if(m_pausingBit) {
 			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, buf_size_hint * 2));
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 		}
 */
-		buf_size_hint = onbrdsize / 8;
+		buf_size_hint = onbrdsize / 2;
 	}
-//	if(m_pausingBit)
-//		buf_size_hint /= 4;
+	if(m_pausingBit)
+		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
@@ -660,7 +660,7 @@ void
 XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminating) {
 	XScopedLock<XRecursiveMutex> lock(m_mutexAO);
 
-	if(tryOutputSuspend(m_mutexAO, terminating))
+	if(terminating)
 		return;
 
  	const double dma_ao_period = resolutionQAM();
@@ -670,7 +670,7 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminating) {
 			int32 samps;
 			samps = std::min(size - cnt, m_transferSizeHintAO);
 			for(;;) {
-				if(tryOutputSuspend(m_mutexAO, terminating))
+				if(terminating)
 					return;
 				uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
@@ -702,10 +702,10 @@ XNIDAQmxPulser::writeBufAO(const atomic<bool> &terminating) {
 	return;
 }
 void
-XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &suspended) {
+XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminating) {
 	XScopedLock<XRecursiveMutex> lock(m_mutexDO);
 
-	if(tryOutputSuspend(suspended, m_mutexDO, terminated))
+	if(terminating)
 		return;
 
  	const double dma_do_period = resolution();
@@ -715,9 +715,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 			int32 samps;
 			samps = std::min(size - cnt, m_transferSizeHintDO);
 			for(;;) {
-				if(tryOutputSuspend(suspended, m_mutexDO, terminated))
-					return;
-				if(terminated)
+				if(terminating)
 					return;
 				uInt32 space;
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
@@ -725,8 +723,6 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 					break;
 				usleep(lrint(1e3 * samps * dma_do_period));
 			}
-			if(terminated)
-				break;
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0,
 												 DAQmx_Val_GroupByScanNumber,
@@ -736,7 +732,7 @@ XNIDAQmxPulser::writeBufDO(const atomic<bool> &terminated, const atomic<bool> &s
 				fprintf(stderr, "%d != %d\n", (int)written, (int)samps);
 			cnt += written;
 		}
-		if(terminated)
+		if(terminating)
 			return;
 	 	genBankDO();
 	}
