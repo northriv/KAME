@@ -653,8 +653,9 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminating) {
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksAO[bankidx].size() == 0) {
-			fprintf(stderr, "AO buffer underrun.\n");
-			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_ao_period / 8));
+			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_ao_period));
+			if(m_bufBanksAO[bankidx].size() == 0)
+				fprintf(stderr, "AO buffer underrun.\n");
 			continue;
 		}
 		readBarrier();
@@ -687,7 +688,9 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminating) {
 	while( !terminating) {
 		if(m_bufBanksDO[bankidx].size() == 0) {
 			fprintf(stderr, "DO buffer underrun.\n");
-			usleep(lrint(1e3 * m_bufBanksDO[bankidx].capacity() * dma_do_period / 8));
+			usleep(lrint(1e3 * m_bufBanksDO[bankidx].capacity() * dma_do_period));
+			if(m_bufBanksDO[bankidx].size() == 0)
+				fprintf(stderr, "DO buffer underrun.\n");
 			continue;
 		}
 		readBarrier();
@@ -850,7 +853,7 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = pausing_cnt / 2; // pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = pausing_cnt; // pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
@@ -920,7 +923,7 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = pausing_cnt / 2; // pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = pausing_cnt; // pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	tRawAOSet *pAO = &buf.data[0];
 	tRawAOSet raw_zero = m_genAOZeroLevel;
