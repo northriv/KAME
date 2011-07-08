@@ -103,6 +103,8 @@ protected:
 		m_taskDOCtr, m_taskGateCtr;
 private:
 	enum {PORTSEL_PAUSING = 16};
+
+	enum {NUM_BUF_BANKS = 8};
 	struct BufDO {
 		void reserve(ssize_t s) {data.resize(s); clear(); }
 		//! Sets length to be sent.
@@ -113,7 +115,7 @@ private:
 		ssize_t capacity() const {return data.size();}
 	private:
 		ssize_t m_size;
-	} m_bufBanksDO[2]; //!< Double buffer containing generated patterns for DO.
+	} m_bufBanksDO[NUM_BUF_BANKS]; //!< Buffers containing generated patterns for DO.
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
 	struct BufAO {
 		void reserve(ssize_t s) {data.resize(s); clear(); }
@@ -125,7 +127,7 @@ private:
 		ssize_t capacity() const {return data.size();}
 	private:
 		ssize_t m_size;
-	} m_bufBanksAO[2]; //!< Double buffer containing generated patterns for AO.
+	} m_bufBanksAO[NUM_BUF_BANKS]; //!< Buffers containing generated patterns for AO.
 	tRawAOSet m_genAOZeroLevel;
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
