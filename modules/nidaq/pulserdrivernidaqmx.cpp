@@ -308,6 +308,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 
 	//Buffer setup.
 	uInt32 onbrdsize, bufsize;
+	CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 4096u));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
 	if(onbrdsize / 2 > buf_size_hint) {
@@ -413,8 +414,20 @@ void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 	{
-		stopPulseGen(); //terminating threads and outputs.
+		stopPulseGen();
 
+		unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
+		m_aswBit = selectedPorts(shot, PORTSEL_ASW);
+
+		if((m_taskDO == TASK_UNDEF) ||
+		   (m_pausingBit != pausingbitnext)) {
+			m_pausingBit = pausingbitnext;
+			clearTasks();
+			if(haveQAMPorts())
+				setupTasksAODO();
+			else
+				setupTasksDO(false);
+		}
 		{
 			uInt32 bufsize;
 			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
