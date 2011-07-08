@@ -114,7 +114,7 @@ private:
 		ssize_t size() const {return m_size;}
 		ssize_t capacity() const {return data.size();}
 	private:
-		ssize_t m_size;
+		atomic<ssize_t> m_size;
 	} m_bufBanksDO[NUM_BUF_BANKS]; //!< Buffers containing generated patterns for DO.
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
 	struct BufAO {

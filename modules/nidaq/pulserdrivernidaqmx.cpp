@@ -308,7 +308,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 
 	//Buffer setup.
 	uInt32 onbrdsize, bufsize;
-	CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 4096u));
+//	CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 4096u));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
 	if(onbrdsize / 2 > buf_size_hint) {
@@ -583,6 +583,7 @@ XNIDAQmxPulser::abortPulseGen() {
 				CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 				uInt32 num_lines;
 				CHECK_DAQMX_RET(DAQmxGetDONumLines(m_taskDO, ch, &num_lines));
+				//Sets open-state except for the pausing bit.
 				XString chtri;
 				for(unsigned int i = 0; i < num_lines; i++) {
 					if(m_pausingBit &&
@@ -849,12 +850,13 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = pausing_cnt / 2; // pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
 	tRawDO *pDO = &buf.data[0];
-	ssize_t size = buf.capacity();
-	for(unsigned int samps_rest = size; samps_rest;) {
+	ssize_t capacity = buf.capacity();
+	for(unsigned int samps_rest = capacity; samps_rest;) {
 		//patterns of digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
 		//No QAM nor ASW.
@@ -862,11 +864,10 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 			//generates a pausing trigger.
 			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
-				(uint64_t)(samps_rest / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
-				(tonext - 1) / pausing_period);
+				(uint64_t)(samps_rest / pausing_cost), (tonext - 1) / pausing_period);
 			patDO &= ~pausingbit;
 			if(lps) {
-				samps_rest -= lps * (pausing_cnt_blank_before + pausing_cnt_blank_after);
+				samps_rest -= lps * pausing_cost;
 				tonext -= lps * pausing_period;
 				tRawDO patDO_or_p = patDO | pausingbit;
 				for(unsigned int lp = 0; lp < lps; lp++) {
@@ -876,7 +877,7 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 						*pDO++ = patDO;
 				}
 			}
-			if(samps_rest < pausing_cnt_blank_before + pausing_cnt_blank_after)
+			if(samps_rest < pausing_cost)
 				break;
 		}
 		//number of samples to be written into buffer.
@@ -903,7 +904,6 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 	m_genLastPatItDO = it;
 	m_genTotalCountDO = total;
 	//Here ensures the pattern data is ready.
-	writeBarrier();
 	buf.resize((unsigned int)(pDO - &buf.data[0]));
 }
 void
@@ -920,6 +920,7 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = pausing_cnt / 2; // pausing_cnt_blank_before + pausing_cnt_blank_after;
 
 	tRawAOSet *pAO = &buf.data[0];
 	tRawAOSet raw_zero = m_genAOZeroLevel;
@@ -932,15 +933,14 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 			//generates a pausing trigger.
 			ASSERT(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
-				(uint64_t)(samps_rest / oversamp_ao / (pausing_cnt_blank_before + pausing_cnt_blank_after)),
-				(tonext - 1) / pausing_period);
+				(uint64_t)(samps_rest / oversamp_ao / pausing_cost), (tonext - 1) / pausing_period);
 			if(lps) {
 				tonext -= lps * pausing_period;
-				lps *= oversamp_ao * (pausing_cnt_blank_before + pausing_cnt_blank_after);
-				samps_rest -= lps;
-				pAO = fastFill(pAO, raw_zero, lps);
+				lps *= oversamp_ao;
+				samps_rest -= lps * pausing_cost;
+				pAO = fastFill(pAO, raw_zero, lps * (pausing_cnt_blank_before + pausing_cnt_blank_after));
 			}
-			if(samps_rest / oversamp_ao < pausing_cnt_blank_before + pausing_cnt_blank_after)
+			if(samps_rest / oversamp_ao < pausing_cost)
 				break;
 		}
 		//number of samples to be written into buffer.
@@ -981,7 +981,6 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 	m_genRestSampsAO = tonext;
 	m_genLastPatItAO = it;
 	m_genAOIndex = aoidx;
-	writeBarrier();
 	//Here ensures the pattern data is ready.
 	buf.resize((unsigned int)(pAO - &buf.data[0]));
 }
