@@ -336,10 +336,10 @@ XNIDAQmxPulser::setupTasksAODO() {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferMech(m_taskAO, ch,
 												   DAQmx_Val_Interrupts));
 		}
-//		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
+		if(intfAO()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_XFER_COND_AO) {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
-//		}
+		}
 		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
 
