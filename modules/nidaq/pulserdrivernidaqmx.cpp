@@ -183,7 +183,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		m_softwareTrigger->setArmTerm(do_clk_src.c_str());
 	}
 
-	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq); //2sec.
+	unsigned int buf_size_hint = (unsigned int)lrint(1.0 * freq); //1sec.
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 										  do_clk_src.c_str(),
@@ -207,7 +207,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
-	m_bufSizeHintDO = bufsize / NUM_BUF_BANKS / 2;
+	m_bufSizeHintDO = bufsize / NUM_BUF_BANKS;
 	m_transferSizeHintDO = m_bufSizeHintDO; //std::min((unsigned int)onbrdsize / 4, m_bufSizeHintDO / 4);
 	m_bufSizeHintDO = m_transferSizeHintDO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
@@ -271,7 +271,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskAO, 0, &XNIDAQmxPulser::onTaskDone_, this));
 
 	float64 freq = 1e3 / resolutionQAM();
-	unsigned int buf_size_hint = (unsigned int)lrint(2.0 * freq); //2sec.
+	unsigned int buf_size_hint = (unsigned int)lrint(1.0 * freq); //1sec.
 
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
@@ -317,14 +317,14 @@ XNIDAQmxPulser::setupTasksAODO() {
 			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
 		}
 */
-		buf_size_hint = onbrdsize / 2;
+		buf_size_hint = onbrdsize / 1;
 	}
 	if(m_pausingBit)
 		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
-	m_bufSizeHintAO = bufsize / NUM_BUF_BANKS / 2;
+	m_bufSizeHintAO = bufsize / NUM_BUF_BANKS / 1;
 	m_transferSizeHintAO = m_bufSizeHintAO; //std::min((unsigned int)onbrdsize / 4, m_bufSizeHintAO / 4);
 	m_bufSizeHintAO = m_transferSizeHintAO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));

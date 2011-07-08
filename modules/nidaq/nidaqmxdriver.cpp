@@ -19,11 +19,11 @@ using boost::math::gcd;
 
 const XNIDAQmxInterface::ProductInfo
 XNIDAQmxInterface::sc_productInfoList[] = {
-	{"PCI-6110", "S", FLAG_BUGGY_XFER_COND_AO, 5000uL, 1000uL, 0, 0},
-	{"PXI-6110", "S", FLAG_BUGGY_XFER_COND_AO, 5000uL, 1000uL, 0, 0},
-	{"PCI-6111", "S", FLAG_BUGGY_XFER_COND_AO, 5000uL, 1000uL, 0, 0},
-	{"PXI-6111", "S", FLAG_BUGGY_XFER_COND_AO, 5000uL, 1000uL, 0, 0},
-	{"PCI-6115", "S", FLAG_BUGGY_XFER_COND_AO, 10000uL, 1000uL, 10000uL, 10000uL}, //Safe AO rate reduced from 2.5MSps.
+	{"PCI-6110", "S", 0, 5000uL, 1000uL, 0, 0},
+	{"PXI-6110", "S", 0, 5000uL, 1000uL, 0, 0},
+	{"PCI-6111", "S", 0, 5000uL, 1000uL, 0, 0},
+	{"PXI-6111", "S", 0, 5000uL, 1000uL, 0, 0},
+	{"PCI-6115", "S", 0, 10000uL, 2500uL, 10000uL, 10000uL},
 	{"PCI-6120", "S", 0, 800uL, 2500uL, 5000uL, 5000uL},
 	{"PCI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
 	{"PXI-6220", "M", 0, 250uL, 0, 1000uL, 1000uL},
