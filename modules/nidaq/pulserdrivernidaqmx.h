@@ -140,8 +140,8 @@ private:
 
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	bool m_isThreadWriteAOSleeping;
-	bool m_isThreadWriteDOSleeping;
+	bool m_isThreadWriteAOReady;
+	bool m_isThreadWriteDOReady;
 	void writeBufAO(const BufAO &buf, const atomic<bool> &terminating);
 	void writeBufDO(const BufDO &buf, const atomic<bool> &terminating);
 	void *executeWriteAO(const atomic<bool> &);

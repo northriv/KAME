@@ -193,21 +193,14 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize / 2 > buf_size_hint) {
-/*		if(m_pausingBit) {
-			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskDO, buf_size_hint * 2));
-			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
-			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
-		}
-*/
-		buf_size_hint = onbrdsize / 2;
-	}
 	if(m_pausingBit)
 		buf_size_hint /= 4;
-	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
+	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
+	if(bufsize < buf_size_hint)
+		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
-	m_bufSizeHintDO = bufsize / NUM_BUF_BANKS;
+	m_bufSizeHintDO = buf_size_hint / NUM_BUF_BANKS;
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize, m_bufSizeHintDO) / 2;
 	m_bufSizeHintDO = m_transferSizeHintDO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
@@ -311,21 +304,15 @@ XNIDAQmxPulser::setupTasksAODO() {
 //	CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 4096u));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
-	if(onbrdsize / 2 > buf_size_hint) {
-/*		if(m_pausingBit) {
-			CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, buf_size_hint * 2));
-			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
-			fprintf(stderr, "On-board bufsize is modified to %d\n", (int)onbrdsize);
-		}
-*/
-		buf_size_hint = onbrdsize / 1;
-	}
 	if(m_pausingBit)
 		buf_size_hint /= 4;
-	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
+//	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
+	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
+	if(bufsize < buf_size_hint)
+		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
-	m_bufSizeHintAO = bufsize / NUM_BUF_BANKS / 1;
+	m_bufSizeHintAO = buf_size_hint / NUM_BUF_BANKS / 1;
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize, m_bufSizeHintAO) / 2;
 	m_bufSizeHintAO = m_transferSizeHintAO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
@@ -520,20 +507,21 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	//Starting threads that writing buffers concurrently.
 	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 													  &XNIDAQmxPulser::executeWriteDO));
-	m_isThreadWriteDOSleeping = false;
+	m_isThreadWriteDOReady = false;
 	m_threadWriteDO->resume();
-	//Wating for buffer filling.
-	while( !m_isThreadWriteDOSleeping) {
-		usleep(1000);
-	}
-
 	if(m_taskAO != TASK_UNDEF) {
 		m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 														  &XNIDAQmxPulser::executeWriteAO));
-		m_isThreadWriteAOSleeping = false;
+		m_isThreadWriteAOReady = false;
 		m_threadWriteAO->resume();
+	}
+	//Wating for buffer filling.
+	while( !m_isThreadWriteDOReady) {
+		usleep(1000);
+	}
+	if(m_taskAO != TASK_UNDEF) {
 		//Wating for buffer filling.
-		while( !m_isThreadWriteAOSleeping) {
+		while( !m_isThreadWriteAOReady) {
 			usleep(1000);
 		}
 	}
@@ -644,18 +632,14 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminating) {
 	XThread<XNIDAQmxPulser> th_genbuf(shared_from_this(),
 													  &XNIDAQmxPulser::executeGenBankAO);
 	th_genbuf.resume();
-	//Waiting until the buffers has been filled.
-	while( !terminating) {
-		if(m_bufBanksAO[NUM_BUF_BANKS - 1].size())
-			break;
-		usleep(lrint(1e3 * m_bufBanksAO[0].capacity() * dma_ao_period / 8));
-	}
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksAO[bankidx].size() == 0) {
+//			uInt32 space;
+//			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
+//			if(space >= (uInt32)m_bufBanksAO[bankidx].capacity())
+//				fprintf(stderr, "AO buffer underrun.\n");
 			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_ao_period));
-			if(m_bufBanksAO[bankidx].size() == 0)
-				fprintf(stderr, "AO buffer underrun.\n");
 			continue;
 		}
 		readBarrier();
@@ -663,7 +647,10 @@ XNIDAQmxPulser::executeWriteAO(const atomic<bool> &terminating) {
 		m_bufBanksAO[bankidx].clear();
 		readBarrier();
 		++bankidx;
-		if(bankidx >= NUM_BUF_BANKS) bankidx = 0;
+		if(bankidx >= NUM_BUF_BANKS) {
+			bankidx = 0;
+			m_isThreadWriteAOReady = true;
+		}
 	}
 
 	th_genbuf.terminate();
@@ -678,19 +665,14 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminating) {
 	XThread<XNIDAQmxPulser> th_genbuf(shared_from_this(),
 													  &XNIDAQmxPulser::executeGenBankDO);
 	th_genbuf.resume();
-	//Waiting until the buffers has been filled.
-	while( !terminating) {
-		if(m_bufBanksDO[NUM_BUF_BANKS - 1].size())
-			break;
-		usleep(lrint(1e3 * m_bufBanksDO[0].capacity() * dma_do_period / 8));
-	}
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksDO[bankidx].size() == 0) {
-			fprintf(stderr, "DO buffer underrun.\n");
+//			uInt32 space;
+//			CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
+//			if(space >= (uInt32)m_bufBanksDO[bankidx].capacity())
+//				fprintf(stderr, "DO buffer underrun.\n");
 			usleep(lrint(1e3 * m_bufBanksDO[bankidx].capacity() * dma_do_period));
-			if(m_bufBanksDO[bankidx].size() == 0)
-				fprintf(stderr, "DO buffer underrun.\n");
 			continue;
 		}
 		readBarrier();
@@ -698,7 +680,10 @@ XNIDAQmxPulser::executeWriteDO(const atomic<bool> &terminating) {
 		m_bufBanksDO[bankidx].clear();
 		readBarrier();
 		++bankidx;
-		if(bankidx >= NUM_BUF_BANKS) bankidx = 0;
+		if(bankidx >= NUM_BUF_BANKS) {
+			bankidx = 0;
+			m_isThreadWriteDOReady = true;
+		}
 	}
 
 	th_genbuf.terminate();
@@ -721,10 +706,9 @@ XNIDAQmxPulser::writeBufAO(const BufAO &buf, const atomic<bool> &terminating) {
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
 				if(space >= (uInt32)samps)
 					break;
-				m_isThreadWriteAOSleeping = true;
+				m_isThreadWriteAOReady = true;
 				usleep(lrint(1e3 * (samps - space) * dma_ao_period));
 			}
-			m_isThreadWriteAOSleeping = false;
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0,
 												DAQmx_Val_GroupByScanNumber,
@@ -771,10 +755,9 @@ XNIDAQmxPulser::writeBufDO(const BufDO &buf, const atomic<bool> &terminating) {
 				CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskDO, &space));
 				if(space >= (uInt32)samps)
 					break;
-				m_isThreadWriteDOSleeping = true;
+				m_isThreadWriteDOReady = true;
 				usleep(lrint(1e3 * (samps - space) * dma_do_period));
 			}
-			m_isThreadWriteDOSleeping = false;
 			int32 written;
 			CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0,
 												 DAQmx_Val_GroupByScanNumber,
