@@ -509,7 +509,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 													  &XNIDAQmxPulser::executeWriteDO));
 	m_isThreadWriteDOSleeping = false;
 	m_threadWriteDO->resume();
-	//Wating for prefilling.
+	//Wating for buffer filling.
 	while( !m_isThreadWriteDOSleeping) {
 		usleep(1000);
 	}
@@ -519,7 +519,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 														  &XNIDAQmxPulser::executeWriteAO));
 		m_isThreadWriteAOSleeping = false;
 		m_threadWriteAO->resume();
-		//Wating for prefilling.
+		//Wating for buffer filling.
 		while( !m_isThreadWriteAOSleeping) {
 			usleep(1000);
 		}
@@ -541,7 +541,7 @@ void
 XNIDAQmxPulser::stopPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
-	//Stops pattern generation.
+	//Stops threads.
 	if(m_threadWriteAO)
 		m_threadWriteAO->terminate();
 	if(m_threadWriteDO)
@@ -554,6 +554,12 @@ XNIDAQmxPulser::stopPulseGen() {
 		m_threadWriteDO->waitFor();
 		m_threadWriteDO.reset();
 	}
+	abortPulseGen();
+}
+void
+XNIDAQmxPulser::abortPulseGen() {
+	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+
 	{
 
 		m_softwareTrigger->stop();
@@ -598,6 +604,7 @@ XNIDAQmxPulser::stopPulseGen() {
 		m_running = false;
 	}
 }
+
 inline XNIDAQmxPulser::tRawAOSet
 XNIDAQmxPulser::aoVoltToRaw(const std::complex<double> &volt) {
 	const double volts[] = {volt.real(), volt.imag()};
@@ -713,11 +720,18 @@ XNIDAQmxPulser::writeBufAO(const BufAO &buf, const atomic<bool> &terminating) {
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		try {
-			stopPulseGen();
-		}
-		catch (XInterface::XInterfaceError &e) {
-//			e.print(getLabel());
+
+		terminating = true;
+		XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+		if(m_running) {
+			m_threadWriteDO->terminate();
+			msecsleep(300);
+			try {
+				abortPulseGen();
+			}
+			catch (XInterface::XInterfaceError &e) {
+	//			e.print(getLabel());
+			}
 		}
 		return;
 	}
@@ -756,13 +770,22 @@ XNIDAQmxPulser::writeBufDO(const BufDO &buf, const atomic<bool> &terminating) {
 	}
 	catch (XInterface::XInterfaceError &e) {
 		e.print(getLabel());
-		try {
-			stopPulseGen();
+
+		terminating = true;
+		XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+		if(m_running) {
+			if(m_threadWriteAO) {
+				m_threadWriteAO->terminate();
+				msecsleep(300);
+			}
+			try {
+				abortPulseGen();
+			}
+			catch (XInterface::XInterfaceError &e) {
+	//			e.print(getLabel());
+			}
+			return;
 		}
-		catch (XInterface::XInterfaceError &e) {
-//			e.print(getLabel());
-		}
- 		return;
 	}
 	return;
 }
@@ -773,6 +796,7 @@ XNIDAQmxPulser::executeGenBankDO(const atomic<bool> &terminating) {
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksDO[bankidx].size()) {
+			//Waiting until previous data have been sent.
 			usleep(lrint(1e3 * m_bufBanksDO[bankidx].capacity() * dma_do_period / 8));
 			continue;
 		}
@@ -787,6 +811,7 @@ XNIDAQmxPulser::executeGenBankAO(const atomic<bool> &terminating) {
 	int bankidx = 0;
 	while( !terminating) {
 		if(m_bufBanksAO[bankidx].size()) {
+			//Waiting until previous data have been sent.
 			usleep(lrint(1e3 * m_bufBanksAO[bankidx].capacity() * dma_ao_period / 8));
 			continue;
 		}
@@ -860,6 +885,7 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 	m_genRestSampsDO = tonext;
 	m_genLastPatItDO = it;
 	m_genTotalCountDO = total;
+	//Here ensures the pattern data is ready.
 	writeBarrier();
 	buf.resize((unsigned int)(pDO - &buf.data[0]));
 }
@@ -939,6 +965,7 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 	m_genLastPatItAO = it;
 	m_genAOIndex = aoidx;
 	writeBarrier();
+	//Here ensures the pattern data is ready.
 	buf.resize((unsigned int)(pAO - &buf.data[0]));
 }
 
@@ -996,9 +1023,11 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
+		fprintf(stderr, "B\n");
 		startPulseGen(shot);
 	}
 	else {
+		fprintf(stderr, "C\n");
 		stopPulseGen();
 	}
 }

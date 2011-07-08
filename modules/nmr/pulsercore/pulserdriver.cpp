@@ -1072,6 +1072,7 @@ void
 XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
+		fprintf(stderr, "A\n");
 		changeOutput(shot, shot[ *output()], blankpattern);
 	}
 	catch (XKameError &e) {

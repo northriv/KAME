@@ -58,6 +58,7 @@ protected:
 private:
 	void startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &);
 	void stopPulseGen();
+	void abortPulseGen();
 	
 	void clearTasks();
 	void setupTasksDO(bool use_ao_clock);
