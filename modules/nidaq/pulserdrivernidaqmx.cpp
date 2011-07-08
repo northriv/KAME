@@ -192,17 +192,17 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
-	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
+	fprintf(stderr, "DO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
 		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	if(bufsize < buf_size_hint)
-		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, buf_size_hint));
+		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
-	fprintf(stderr, "Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
+	fprintf(stderr, "DO Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_bufSizeHintDO = buf_size_hint / NUM_BUF_BANKS;
+	fprintf(stderr, "DO Ring bufsize = %d\n", (int)m_bufSizeHintDO * NUM_BUF_BANKS);
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize, m_bufSizeHintDO) / 2;
-	m_bufSizeHintDO = m_transferSizeHintDO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
 	{
@@ -303,18 +303,17 @@ XNIDAQmxPulser::setupTasksAODO() {
 	uInt32 onbrdsize, bufsize;
 //	CHECK_DAQMX_RET(DAQmxSetBufOutputOnbrdBufSize(m_taskAO, 4096u));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
-	fprintf(stderr, "On-board bufsize = %d\n", (int)onbrdsize);
+	fprintf(stderr, "AO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
 		buf_size_hint /= 4;
-//	CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	if(bufsize < buf_size_hint)
-		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, buf_size_hint));
+		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
-	fprintf(stderr, "Using bufsize = %d\n", (int)bufsize);
+	fprintf(stderr, "AO Using bufsize = %d\n", (int)bufsize);
 	m_bufSizeHintAO = buf_size_hint / NUM_BUF_BANKS / 1;
+	fprintf(stderr, "AO Ring bufsize = %d\n", (int)m_bufSizeHintAO * NUM_BUF_BANKS);
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize, m_bufSizeHintAO) / 2;
-	m_bufSizeHintAO = m_transferSizeHintAO * 1;
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	{
@@ -495,13 +494,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
 		}
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-		if(m_taskDOCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-		if(m_taskGateCtr != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-		if(m_taskAO != TASK_UNDEF)
-			CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 	}
 
 	//Starting threads that writing buffers concurrently.
@@ -525,6 +517,14 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			usleep(1000);
 		}
 	}
+
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	if(m_taskGateCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+	if(m_taskAO != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
 	//	fprintf(stderr, "Prefilling done.\n");
 	//Slaves must start before the master.
@@ -836,7 +836,7 @@ XNIDAQmxPulser::genBankDO(BufDO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = pausing_cnt; // pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
@@ -906,7 +906,7 @@ XNIDAQmxPulser::genBankAO(BufAO &buf) {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = pausing_cnt; // pausing_cnt_blank_before + pausing_cnt_blank_after;
+	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
 	tRawAOSet *pAO = &buf.data[0];
 	tRawAOSet raw_zero = m_genAOZeroLevel;
