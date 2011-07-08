@@ -104,7 +104,7 @@ protected:
 private:
 	enum {PORTSEL_PAUSING = 16};
 
-	enum {NUM_BUF_BANKS = 8};
+	enum {NUM_BUF_BANKS = 16};
 	struct BufDO {
 		void reserve(ssize_t s) {data.resize(s); clear(); }
 		//! Sets length to be sent.
