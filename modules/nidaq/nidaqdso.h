@@ -55,7 +55,7 @@ protected:
 	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	virtual double getTimeInterval();
-	//! clear count or start sequence measurement
+	//! Clears count or start sequence measurement
 	virtual void startSequence();
 	virtual int acqCount(bool *seq_busy);
 

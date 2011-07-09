@@ -162,7 +162,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &) {
 }
 void
 XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &) {
-	XScopedLock<XInterface> lock(*interface());
+	XScopedLock<XInterface> lock( *interface());
 
 	m_lsnOnSoftTrigChanged.reset();
 
@@ -188,7 +188,7 @@ XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &) {
 }
 void
 XNIDAQmxDSO::clearAcquision() {
-	XScopedLock<XInterface> lock(*interface());
+	XScopedLock<XInterface> lock( *interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
@@ -206,7 +206,7 @@ XNIDAQmxDSO::clearAcquision() {
 }
 void
 XNIDAQmxDSO::disableTrigger() {
-	XScopedLock<XInterface> lock(*interface());
+	XScopedLock<XInterface> lock( *interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
@@ -324,7 +324,7 @@ XNIDAQmxDSO::setupSoftwareTrigger() {
 	for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
 			it = list->begin(); it != list->end(); it++) {
 		for(unsigned int i = 0; i < ( *it)->bits(); i++) {
-			if(src == formatString("%s/line%d", (*it)->label(), i)) {
+			if(src == formatString("%s/line%d", ( *it)->label(), i)) {
 				m_softwareTrigger = *it;
 				m_softwareTrigger->connect(
 					!shot[ *trigFalling()] ? (1uL << i) : 0,

@@ -327,7 +327,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 			CHECK_DAQMX_RET(DAQmxSetAODataXferReqCond(m_taskAO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
 		}
-		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
+//		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
 
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
@@ -1025,11 +1025,9 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
-		fprintf(stderr, "B\n");
 		startPulseGen(shot);
 	}
 	else {
-		fprintf(stderr, "C\n");
 		stopPulseGen();
 	}
 }
