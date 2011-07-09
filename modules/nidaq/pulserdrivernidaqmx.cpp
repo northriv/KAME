@@ -605,6 +605,7 @@ void *
 XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
  	double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();
+ 	uint64_t written_total_ao = 0, written_total_do = 0;
 
  	//Starting a child thread generating patterns concurrently.
 	XThread<XNIDAQmxPulser> th_genbuf(shared_from_this(),
@@ -630,13 +631,15 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			if(samps_ao > samps_do) {
 				written = writeToDAQmxAO(pAO, m_transferSizeHintAO);
 				if(written) m_patBufAO.finReading(written);
+				written_total_ao += written;
 			}
 			else {
 				written = writeToDAQmxDO(pDO, m_transferSizeHintDO);
 				if(written) m_patBufDO.finReading(written);
+				written_total_do += written;
 			}
-			if( !written)
-				m_isThreadWriterReady = true; //Not enough space is left in the device.
+			if((written_total_do > m_ringBufSizeDO) && ( !pAO || (written_total_ao > m_ringBufSizeDO)))
+				m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
 		}
 		catch (XInterface::XInterfaceError &e) {
 			e.print(getLabel());
