@@ -80,8 +80,8 @@ private:
 	scoped_ptr<std::vector<GenPattern> > m_genPatternListNext;
 	typedef std::vector<GenPattern>::iterator GenPatternIterator;
 
-	GenPatternIterator m_genLastPatItAO, m_genLastPatItDO;
-	uint64_t m_genRestSampsAO, m_genRestSampsDO;
+	GenPatternIterator m_genLastPatIt;
+	uint64_t m_genRestSamps;
 	enum { NUM_AO_CH = 2};
 	unsigned int m_genAOIndex;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
@@ -91,11 +91,11 @@ private:
 	XString m_pausingCh;
 	XString m_pausingSrcTerm;
 	XString m_pausingGateTerm;
-	unsigned int m_bufSizeHintDO;
-	unsigned int m_bufSizeHintAO;
+	unsigned int m_ringBufSizeDO;
+	unsigned int m_ringBufSizeAO;
 	unsigned int m_transferSizeHintDO;
 	unsigned int m_transferSizeHintAO;
-	uint64_t m_genTotalCountDO;
+	uint64_t m_genTotalCount;
 	bool m_running;
 protected:	
 	double m_resolutionDO, m_resolutionAO;
@@ -104,31 +104,52 @@ protected:
 private:
 	enum {PORTSEL_PAUSING = 16};
 
-	enum {NUM_BUF_BANKS = 16};
-	struct BufDO {
-		void reserve(ssize_t s) {data.resize(s); clear(); }
-		//! Sets length to be sent.
-		void resize(ssize_t s) {m_size = s; ASSERT(s <= data.size());}
-		void clear() {resize(0); }
-		std::vector<tRawDO> data;
-		ssize_t size() const {return m_size;}
-		ssize_t capacity() const {return data.size();}
+	template <typename T>
+	struct RingBuffer {
+		enum {CHUNK_DIVISOR = 16};
+		void reserve(ssize_t s) {data.resize(s); m_curReadPos = 0; m_endOfWritten = 0;}
+		const T*curReadPos() const { return &m_data[m_curReadPos];}
+		ssize_t writtenSize() const {
+			ssize_t end_of_written = m_endOfWritten;
+			if(m_curReadPos <= end_of_written) {
+				return end_of_written - m_curReadPos;
+			}
+			return m_end - m_curReadPos;
+		}
+		void finReading(ssize_t size_read) {
+			ssize_t p = m_curReadPos + size_read;
+			if((m_endOfWritten < m_curReadPos) && (p == m_end)) p = 0;
+			m_curReadPos = p;
+		}
+		ssize_t chunkSize() {
+			return data.size() / CHUNK_DIVISOR;
+		}
+		T *curWritePos() {
+			ssize_t readpos = m_curReadPos;
+			if((readpos <= m_endOfWritten) || (readpos >= m_endOfWritten + chunkSize()))
+				return &m_data[m_endOfWritten];
+			return NULL;
+		}
+		void finWriting(T *pend) {
+			ssize_t pos = pend - &data[0];
+			if(pos > data.size() - chunkSize()) {
+				m_end = pos;
+				m_endOfWritten = 0;
+			}
+			else
+				m_endOfWritten = pos;
+		}
 	private:
-		atomic<ssize_t> m_size;
-	} m_bufBanksDO[NUM_BUF_BANKS]; //!< Buffers containing generated patterns for DO.
+		atomic<ssize_t> m_curReadPos, m_endOfWritten;
+		atomic<ssize_t> m_end;
+		std::vector<T> m_data;
+	};
 	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
-	struct BufAO {
-		void reserve(ssize_t s) {data.resize(s); clear(); }
-		//! Sets length to be sent.
-		void resize(ssize_t s) {m_size = s; ASSERT(s <= data.size());}
-		void clear() {resize(0); }
-		std::vector<tRawAOSet> data;
-		ssize_t size() const {return m_size;}
-		ssize_t capacity() const {return data.size();}
-	private:
-		ssize_t m_size;
-	} m_bufBanksAO[NUM_BUF_BANKS]; //!< Buffers containing generated patterns for AO.
+	RingBuffer<tRawDO> m_patBufDO; //!< Buffer containing generated patterns for DO.
+	RingBuffer<tRawAOSet>  m_patBufAO; //!< Buffer containing generated patterns for AO.
+
 	tRawAOSet m_genAOZeroLevel;
+
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	enum { CAL_POLY_ORDER = 4};
@@ -138,18 +159,16 @@ private:
 	double m_lowerLimAO[NUM_AO_CH];
 	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
 
-	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteAO;
-	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriteDO;
-	bool m_isThreadWriteAOReady;
-	bool m_isThreadWriteDOReady;
-	void writeBufAO(const BufAO &buf, const atomic<bool> &terminating);
-	void writeBufDO(const BufDO &buf, const atomic<bool> &terminating);
-	void *executeWriteAO(const atomic<bool> &);
-	void *executeWriteDO(const atomic<bool> &);
-	void genBankDO(BufDO &buf);
-	void genBankAO(BufAO &buf);
-	void *executeGenBankAO(const atomic<bool> &);
-	void *executeGenBankDO(const atomic<bool> &);
+	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriter;
+	bool m_isThreadWriterReady;
+	//! \return Succeeded or not.
+	template <bool UseAO>
+	inline bool fillBuffer();
+	//! \return Counts being sent.
+	ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
+	ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
+	void *executeWriter(const atomic<bool> &);
+	void *executeFillBuffer(const atomic<bool> &);
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_totalLock;
