@@ -621,15 +621,20 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			samps_ao = m_patBufAO.writtenSize();
 		}
 		if((samps_do < m_transferSizeHintDO) && (samps_ao < m_transferSizeHintAO)) {
-			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period, 1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
+			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period,
+				1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
 			continue;
 		}
 		try {
 			ssize_t written;
-			if(samps_ao > samps_do)
+			if(samps_ao > samps_do) {
 				written = writeToDAQmxAO(pAO, m_transferSizeHintAO);
-			else
+				if(written) m_patBufAO.finReading(written);
+			}
+			else {
 				written = writeToDAQmxDO(pDO, m_transferSizeHintDO);
+				if(written) m_patBufDO.finReading(written);
+			}
 			if( !written)
 				m_isThreadWriterReady = true; //Not enough space is left in the device.
 		}
