@@ -798,14 +798,14 @@ XNIDAQmxPulser::fillBuffer() {
 void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 	while( !terminating) {
-		bool is_buffer_not_full;
+		bool buffer_not_full;
 		if(m_taskAO != TASK_UNDEF) {
-			is_buffer_not_full = fillBuffer<true>();
+			buffer_not_full = fillBuffer<true>();
 		}
 		else {
-			is_buffer_not_full = fillBuffer<false>();
+			buffer_not_full = fillBuffer<false>();
 		}
-		if( !is_buffer_not_full) {
+		if( !buffer_not_full) {
 			//Waiting until previous data have been sent.
 		 	double dma_do_period = resolution();
 			usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));
