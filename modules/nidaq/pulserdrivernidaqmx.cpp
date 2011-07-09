@@ -493,25 +493,13 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	}
 
 	//Starting threads that writing buffers concurrently.
-	m_threadWriteDO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-													  &XNIDAQmxPulser::executeWriteDO));
-	m_isThreadWriteDOReady = false;
-	m_threadWriteDO->resume();
-	if(m_taskAO != TASK_UNDEF) {
-		m_threadWriteAO.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
-														  &XNIDAQmxPulser::executeWriteAO));
-		m_isThreadWriteAOReady = false;
-		m_threadWriteAO->resume();
-	}
+	m_threadWriter.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
+													  &XNIDAQmxPulser::executeWriter));
+	m_isThreadWriterReady = false;
+	m_threadWriter->resume();
 	//Wating for buffer filling.
-	while( !m_isThreadWriteDOReady) {
+	while( !m_isThreadWriterReady) {
 		usleep(1000);
-	}
-	if(m_taskAO != TASK_UNDEF) {
-		//Wating for buffer filling.
-		while( !m_isThreadWriteAOReady) {
-			usleep(1000);
-		}
 	}
 
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
@@ -539,17 +527,10 @@ XNIDAQmxPulser::stopPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
 
 	//Stops threads.
-	if(m_threadWriteAO)
-		m_threadWriteAO->terminate();
-	if(m_threadWriteDO)
-		m_threadWriteDO->terminate();
-	if(m_threadWriteAO) {
-		m_threadWriteAO->waitFor();
-		m_threadWriteAO.reset();
-	}
-	if(m_threadWriteDO) {
-		m_threadWriteDO->waitFor();
-		m_threadWriteDO.reset();
+	if(m_threadWriter) {
+		m_threadWriter->terminate();
+		m_threadWriter->waitFor();
+		m_threadWriter.reset();
 	}
 	abortPulseGen();
 }
@@ -633,7 +614,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
 		ssize_t samps_do = m_patBufDO.writtenSize();
-		const tRawDO *pAO = NULL;
+		const tRawAOSet *pAO = NULL;
 		ssize_t samps_ao = 0;
 		if(m_taskAO != TASK_UNDEF) {
 			pAO = m_patBufAO.curReadPos();
@@ -675,7 +656,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 }
 
 ssize_t
-XNIDAQmxPulser::writeToDAQmxAO(const tRawAO *pAO, ssize_t samps) {
+XNIDAQmxPulser::writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps) {
 	uInt32 space;
 	CHECK_DAQMX_RET(DAQmxGetWriteSpaceAvail(m_taskAO, &space));
 	if(space < (uInt32)samps)
@@ -683,7 +664,7 @@ XNIDAQmxPulser::writeToDAQmxAO(const tRawAO *pAO, ssize_t samps) {
 	int32 written;
 	CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, samps, false, 0.0,
 										DAQmx_Val_GroupByScanNumber,
-										const_cast<tRawAOSet&>(buf.data[cnt]).ch,
+										const_cast<tRawAOSet *>(pAO)->ch,
 										&written, NULL));
 	return written;
 }
@@ -696,7 +677,7 @@ XNIDAQmxPulser::writeToDAQmxDO(const tRawDO *pDO, ssize_t samps) {
 	int32 written;
 	CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, samps, false, 0.0,
 										 DAQmx_Val_GroupByScanNumber,
-										 &const_cast<tRawDO &>(buf.data[cnt]),
+										 const_cast<tRawDO *>(pDO),
 										 &written, NULL));
 	return written;
 }
@@ -730,7 +711,7 @@ XNIDAQmxPulser::fillBuffer() {
 	tRawAOSet raw_zero = m_genAOZeroLevel;
 	ssize_t capacity = m_patBufDO.chunkSize();
 	if(UseAO)
-		capacity = std::min(capacity, m_patBufAO.chunkSize() / oversamp_ao);
+		capacity = std::min(capacity, m_patBufAO.chunkSize() / (ssize_t)oversamp_ao);
 	for(unsigned int samps_rest = capacity; samps_rest;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//Bits for digital lines.
@@ -812,14 +793,14 @@ XNIDAQmxPulser::fillBuffer() {
 void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 	while( !terminating) {
-		bool is_buffer_empty;
+		bool is_buffer_not_full;
 		if(m_taskAO != TASK_UNDEF) {
-			is_buffer_empty = fillBuffer<true>();
+			is_buffer_not_full = fillBuffer<true>();
 		}
 		else {
-			is_buffer_empty = fillBuffer<false>();
+			is_buffer_not_full = fillBuffer<false>();
 		}
-		if( !is_buffer_empty) {
+		if( !is_buffer_not_full) {
 			//Waiting until previous data have been sent.
 		 	double dma_do_period = resolution();
 			usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));

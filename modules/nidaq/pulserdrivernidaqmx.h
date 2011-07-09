@@ -107,7 +107,7 @@ private:
 	template <typename T>
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
-		void reserve(ssize_t s) {data.resize(s); m_curReadPos = 0; m_endOfWritten = 0;}
+		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0;}
 		const T*curReadPos() const { return &m_data[m_curReadPos];}
 		ssize_t writtenSize() const {
 			ssize_t end_of_written = m_endOfWritten;
@@ -122,7 +122,7 @@ private:
 			m_curReadPos = p;
 		}
 		ssize_t chunkSize() {
-			return data.size() / CHUNK_DIVISOR;
+			return m_data.size() / CHUNK_DIVISOR;
 		}
 		T *curWritePos() {
 			ssize_t readpos = m_curReadPos;
@@ -131,8 +131,8 @@ private:
 			return NULL;
 		}
 		void finWriting(T *pend) {
-			ssize_t pos = pend - &data[0];
-			if(pos > data.size() - chunkSize()) {
+			ssize_t pos = pend - &m_data[0];
+			if(pos > m_data.size() - chunkSize()) {
 				m_end = pos;
 				m_endOfWritten = 0;
 			}
