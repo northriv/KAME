@@ -343,7 +343,7 @@ XPulser::XPulser(const char *name, bool runtime,
 
 void
 XPulser::showForms() {
-	//! impliment form->show() here
+	// impliment form->show() here
     m_form->show();
     m_form->raise();
 }
@@ -528,7 +528,7 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     tr[ *this].m_aswSetup = reader.pop<double>();
     tr[ *this].m_aswHold = reader.pop<double>();
     try {
-        //! ver 2 records
+        // ver 2 records
     	tr[ *this].m_difFreq = reader.pop<double>();
     	tr[ *this].m_combPW = reader.pop<double>();
     	tr[ *this].m_combPT = reader.pop<double>();
@@ -536,7 +536,7 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     	tr[ *this].m_combNum = reader.pop<uint16_t>();
     	tr[ *this].m_rtMode = reader.pop<int16_t>();
     	tr[ *this].m_numPhaseCycle = reader.pop<uint16_t>();
-        //! ver 3 records
+        // ver 3 records
     	tr[ *this].m_invertPhase = reader.pop<uint16_t>();
     }
     catch (XRecordError &) {
@@ -593,7 +593,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	return;
 	}
 */    
-//! ver 1 records below
+// ver 1 records below
     writer->push((int16_t)shot[ *combMode()]);
     writer->push((int16_t)0); //reserve
     writer->push((double)rintTermMilliSec(shot[ *rtime()]));
@@ -605,7 +605,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
     writer->push((double)rintTermMilliSec(shot[ *combP1Alt()]));
     writer->push((double)asw_setup__);
     writer->push((double)asw_hold__);
-//! ver 2 records below
+// ver 2 records below
     writer->push((double)shot[ *difFreq()]);
     writer->push((double)shot[ *combPW()]);
     writer->push((double)rintTermMicroSec(shot[ *combPT()]));
@@ -619,7 +619,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_8) npat = 8;
 	if(shot[ *numPhaseCycle()].to_str() == NUM_PHASE_CYCLE_16) npat = 16;
 	writer->push((uint16_t)npat);
-//! ver 3 records below
+// ver 3 records below
     writer->push((uint16_t)shot[ *invertPhase()]);
 
 	finishWritingRaw(writer, time_awared, XTime::now());
@@ -1072,7 +1072,6 @@ void
 XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
-		fprintf(stderr, "A\n");
 		changeOutput(shot, shot[ *output()], blankpattern);
 	}
 	catch (XKameError &e) {
