@@ -107,7 +107,7 @@ private:
 	template <typename T>
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
-		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0;}
+		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
 		const T*curReadPos() const { return &m_data[m_curReadPos];}
 		ssize_t writtenSize() const {
 			ssize_t end_of_written = m_endOfWritten;
@@ -118,6 +118,7 @@ private:
 		}
 		void finReading(ssize_t size_read) {
 			ssize_t p = m_curReadPos + size_read;
+			ASSERT(p <= m_end);
 			if((m_endOfWritten < m_curReadPos) && (p == m_end)) p = 0;
 			m_curReadPos = p;
 		}
@@ -126,18 +127,20 @@ private:
 		}
 		T *curWritePos() {
 			ssize_t readpos = m_curReadPos;
-			if((readpos <= m_endOfWritten) || (readpos >= m_endOfWritten + chunkSize()))
-				return &m_data[m_endOfWritten];
-			return NULL;
-		}
-		void finWriting(T *pend) {
-			ssize_t pos = pend - &m_data[0];
-			if(pos > m_data.size() - chunkSize()) {
-				m_end = pos;
+			if(m_endOfWritten + chunkSize() > m_data.size()) {
+				if(readpos == 0)
+					return NULL;
+				m_end = m_endOfWritten;
 				m_endOfWritten = 0;
 			}
-			else
-				m_endOfWritten = pos;
+			if((readpos > m_endOfWritten) && (readpos <= m_endOfWritten + chunkSize()))
+				return NULL;
+			return &m_data[m_endOfWritten];
+		}
+		void finWriting(T *pend) {
+			ASSERT(pend - m_endOfWritten <= chunkSize());
+			ssize_t pos = pend - &m_data[0];
+			m_endOfWritten = pos;
 		}
 	private:
 		atomic<ssize_t> m_curReadPos, m_endOfWritten;
