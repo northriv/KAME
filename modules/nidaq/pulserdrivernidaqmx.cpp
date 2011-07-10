@@ -200,9 +200,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	fprintf(stderr, "DO Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
-	m_ringBufSizeDO = buf_size_hint;
-	fprintf(stderr, "DO Ring bufsize = %d\n", (int)m_ringBufSizeDO);
-	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 2, m_ringBufSizeDO / 32);
+	m_preFillSizeDO = bufsize / 2;
+	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 2, m_preFillSizeDO / 16);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
 	{
@@ -311,8 +310,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	fprintf(stderr, "AO Using bufsize = %d\n", (int)bufsize);
-	m_ringBufSizeAO = m_ringBufSizeDO * oversamp;
-	fprintf(stderr, "AO Ring bufsize = %d\n", (int)m_ringBufSizeAO);
+	m_preFillSizeAO = m_preFillSizeDO * oversamp;
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 2, m_transferSizeHintDO * oversamp);
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
@@ -443,10 +441,10 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		m_genLastPatIt = m_genPatternList->begin();
 		m_genRestSamps = m_genPatternList->front().tonext;
 		m_genTotalCount = m_genPatternList->front().tonext;
-		m_patBufDO.reserve(m_ringBufSizeDO);
+		m_patBufDO.reserve(m_preFillSizeDO);
 		if(m_taskAO != TASK_UNDEF) {
 			m_genAOIndex = 0;
-			m_patBufAO.reserve(m_ringBufSizeAO);
+			m_patBufAO.reserve(m_preFillSizeAO);
 		}
 
 		const unsigned int cnt_prezeros = 1000;
@@ -485,11 +483,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 
-		{
-			char ch[256];
-			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
-			CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
-		}
 	}
 
 	//Starting threads that writing buffers concurrently.
@@ -499,6 +492,8 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	m_threadWriter->resume();
 	//Wating for buffer filling.
 	while( !m_isThreadWriterReady) {
+		if(m_threadWriter->isTerminated())
+			return;
 		usleep(1000);
 	}
 
@@ -510,6 +505,11 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
+	{
+		char ch[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
+		CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
+	}
 	//	fprintf(stderr, "Prefilling done.\n");
 	//Slaves must start before the master.
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskDO));
@@ -621,7 +621,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			pAO = m_patBufAO.curReadPos();
 			samps_ao = m_patBufAO.writtenSize();
 		}
-		if((samps_do < m_transferSizeHintDO) && (samps_ao < m_transferSizeHintAO)) {
+		if( !samps_do && !samps_ao) {
 			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period,
 				1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
 			continue;
@@ -629,16 +629,16 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 		try {
 			ssize_t written;
 			if(samps_ao > samps_do) {
-				written = writeToDAQmxAO(pAO, m_transferSizeHintAO);
+				written = writeToDAQmxAO(pAO, std::min(samps_ao, (ssize_t)m_transferSizeHintAO));
 				if(written) m_patBufAO.finReading(written);
 				written_total_ao += written;
 			}
 			else {
-				written = writeToDAQmxDO(pDO, m_transferSizeHintDO);
+				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
 				if(written) m_patBufDO.finReading(written);
 				written_total_do += written;
 			}
-			if((written_total_do > m_ringBufSizeDO) && ( !pAO || (written_total_ao > m_ringBufSizeDO)))
+			if((written_total_do > m_preFillSizeDO) && ( !pAO || (written_total_ao > m_preFillSizeAO)))
 				m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
 		}
 		catch (XInterface::XInterfaceError &e) {

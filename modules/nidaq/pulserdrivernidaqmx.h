@@ -91,8 +91,8 @@ private:
 	XString m_pausingCh;
 	XString m_pausingSrcTerm;
 	XString m_pausingGateTerm;
-	unsigned int m_ringBufSizeDO;
-	unsigned int m_ringBufSizeAO;
+	unsigned int m_preFillSizeDO;
+	unsigned int m_preFillSizeAO;
 	unsigned int m_transferSizeHintDO;
 	unsigned int m_transferSizeHintAO;
 	uint64_t m_genTotalCount;
