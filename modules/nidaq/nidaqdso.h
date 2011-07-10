@@ -84,10 +84,13 @@ private:
 		std::vector<int32_t> record;
 		atomic<int> locked;
 		bool tryLock() {
-			return locked.compareAndSet(false, true);
+			bool ret = locked.compareAndSet(false, true);
+			readBarrier();
+			return ret;
 		}
 		void unlock() {
 			ASSERT(locked);
+			writeBarrier();
 			locked = false;
 		}
 	};

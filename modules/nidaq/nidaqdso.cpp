@@ -723,7 +723,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 			if(m_dsoRawRecordBanks[bank].tryLock())
 				break;
 		}
-		writeBarrier();
 		ASSERT((bank >= 0) && (bank < 2));
 		DSORawRecord &new_rec(m_dsoRawRecordBanks[bank]);
 		unsigned int accumcnt = old_rec.accumCount;
@@ -780,9 +779,8 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 		new_rec.accumCount = accumcnt;
 		// substitute the record with the working set.
 		m_dsoRawRecordBankLatest = bank;
-		writeBarrier();
 		new_rec.unlock();
-		if(!sseq) {
+		if( !sseq) {
 			m_record_av.push_back(m_recordBuf);
 		}
 		if(sseq && (accumcnt >= av))  {
