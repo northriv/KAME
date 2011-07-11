@@ -38,7 +38,7 @@ protected:
 	virtual void close() throw (XInterface::XInterfaceError &);
 	
     double resolutionQAM() const {return m_resolutionAO;}
-	//! \return Existense of AO ports.
+	//! \return Existence of AO ports.
     virtual bool haveQAMPorts() const = 0;
 
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
@@ -83,17 +83,17 @@ private:
 	GenPatternIterator m_genLastPatIt;
 	uint64_t m_genRestSamps;
 	enum { NUM_AO_CH = 2};
-	unsigned int m_genAOIndex;
+	unsigned int m_genAOIndex; //!< Preserved index for \a m_genPulseWaveAO[], \sa fillBuffer().
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
-	unsigned int m_pausingBit;
+	unsigned int m_pausingBit; //!< Pausing bit triggers counter that stops DO/AO for a certain period.
 	unsigned int m_aswBit;
 	unsigned int m_pausingCount;
 	XString m_pausingCh;
 	XString m_pausingSrcTerm;
 	XString m_pausingGateTerm;
-	unsigned int m_preFillSizeDO;
+	unsigned int m_preFillSizeDO; //!< Determines stating condition,\sa m_isThreadWriterReady.
 	unsigned int m_preFillSizeAO;
-	unsigned int m_transferSizeHintDO;
+	unsigned int m_transferSizeHintDO; //!< Max size of data transfer to DAQmx lib.
 	unsigned int m_transferSizeHintAO;
 	uint64_t m_genTotalCount;
 	bool m_running;
@@ -103,7 +103,7 @@ protected:
 		m_taskDOCtr, m_taskGateCtr;
 private:
 	enum {PORTSEL_PAUSING = 16};
-
+	//! Ring buffer storing AO/DO patterns being transfered to DAQmx lib.
 	template <typename T>
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
@@ -116,12 +116,14 @@ private:
 			}
 			return m_end - m_curReadPos;
 		}
+		//! Tags as read.
 		void finReading(ssize_t size_read) {
 			ssize_t p = m_curReadPos + size_read;
 			ASSERT(p <= m_end);
 			if((m_endOfWritten < m_curReadPos) && (p == m_end)) p = 0;
 			m_curReadPos = p;
 		}
+		//! Size of a writing space beginning with \a curWritePos().
 		ssize_t chunkSize() {
 			return m_data.size() / CHUNK_DIVISOR;
 		}
@@ -137,6 +139,7 @@ private:
 				return NULL;
 			return &m_data[m_endOfWritten];
 		}
+		//! Tags as written.
 		void finWriting(T *pend) {
 			ASSERT(pend - m_endOfWritten <= chunkSize());
 			ssize_t pos = pend - &m_data[0];
@@ -160,10 +163,11 @@ private:
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
+	//! Converts voltage to an internal value for DAC and compensates it.
 	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
 
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriter;
-	bool m_isThreadWriterReady;
+	bool m_isThreadWriterReady; //!< indicates DAQmx lib. has been (partially) filled with generated patterns.
 	//! \return Succeeded or not.
 	template <bool UseAO>
 	inline bool fillBuffer();

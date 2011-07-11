@@ -36,7 +36,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 ;
 	virtual ~XPulser() {}
-	//! show all forms belonging to driver
+	//! shows all forms belonging to driver
 	virtual void showForms();
 
 	//! driver specific part below
