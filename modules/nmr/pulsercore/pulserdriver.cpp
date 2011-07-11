@@ -827,7 +827,7 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 				patterns.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
 				if(g2_each__ || (k == comb_num__ - 1))
 					patterns.insert(tpat(cpos, 0, g2mask));
-				if( ! qsw_pi_only__) {
+				if( !qsw_pi_only__) {
 					patterns.insert(tpat(cpos + qsw_delay__, ~(uint32_t)0 , qswmask));
 					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
 					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
@@ -961,7 +961,7 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 			patterns.insert(tpat(pos + pw1__/2, 0, pulse1mask));
 			patterns.insert(tpat(pos + pw1__/2, qpsk[p1[j]], qpskmask));
 			patterns.insert(tpat(pos + pw1__/2, 0, g2mask));
-			if( ! qsw_pi_only__) {
+			if( !qsw_pi_only__) {
 				patterns.insert(tpat(pos + pw1__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
 				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
 				patterns.insert(tpat(pos + pw1__/2 + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
@@ -1059,12 +1059,21 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 	double dx = dma_ao_period / pw;
 	double dp = 2*M_PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);
-	for(int i = 0; i < (int)to_center*2; i++) {
-		double i1 = i - (int)to_center + 0.5 - delay1;
-		double i2 = i - (int)to_center + 0.5 - delay2;
+	const int FAC_ANTIALIAS = 3;
+	p.resize(to_center * 2);
+	std::fill(p.begin(), p.end(), 0.0);
+	std::vector<std::complex<double> > wave((p.size() + 2) * FAC_ANTIALIAS, 0.0);
+	for(int i = 0; i < (int)wave.size(); ++i) {
+		double i1 = i - (int)wave.size() / 2 - delay1;
+		double i2 = i - (int)wave.size() / 2 - delay2;
 		double x = z * func(i1 * dx) * cos(i1 * dp + M_PI/4 + phase);
 		double y = z * func(i2 * dx) * sin(i2 * dp + M_PI/4 + phase);
-		p.push_back(std::complex<double>(x, y));
+		wave[i] = std::complex<double>(x, y);
+	}
+	//Moving average for antialiasing.
+	for(int i = 0; i < (int)wave.size(); ++i) {
+		int j = lrint((i - (int)wave.size() / 2) / FAC_ANTIALIAS) + p.size() / 2;
+		p[j] += wave[i] / FAC_ANTIALIAS;
 	}
 }
 

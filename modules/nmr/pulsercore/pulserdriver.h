@@ -295,15 +295,15 @@ private:
     
 	void onPulseChanged(const Snapshot &shot, XValueNodeBase *node);
 
-	//! create RelPatList
+	//! creates \a RelPatList
 	void rawToRelPat(Transaction &tr) throw (XRecordError&);
 
-	//! prepare waveforms for QAM.
+	//! prepares waveforms for QAM.
 	void makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 					  double pw, unsigned int to_center,
 					  tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
   
-	//! truncate time by resolution().
+	//! truncates time by resolution().
 	inline double rintTermMilliSec(double msec) const;
 	inline double rintTermMicroSec(double usec) const;
 	inline uint64_t ceilSampsMicroSec(double us) const;
