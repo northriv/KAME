@@ -3,7 +3,7 @@
 #Use pirut or sudo yum -y install to get the following packages:
 gsl-devel, fftw-devel, atlas-sse2-devel, libgfortran,
  ruby,ruby-devel, kdelibs-devel, kernel-devel,
- libtool-ltdl-devel, libart_lgpl, ftgl-devel and so on.
+ libtool-ltdl-devel, ftgl-devel and so on.
 rpmdevtools
 (ccache)
 (redhat-rpm-config) #for debuginfo.
