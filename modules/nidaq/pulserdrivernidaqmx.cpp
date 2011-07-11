@@ -69,7 +69,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser() {
 
 void
 XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
@@ -82,7 +82,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) 
 
 void
 XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
 		throw XInterface::XInterfaceError(i18n("HW-timed transfer needed."), __FILE__, __LINE__);
@@ -110,7 +110,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
 
 void
 XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	try {
 		stopPulseGen();
@@ -396,16 +396,16 @@ fastFill(T* p, T x, unsigned int cnt) {
 
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &) {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
 		stopPulseGen();
 
-		unsigned int pausingbitnext = selectedPorts(shot, PORTSEL_PAUSING);
+		unsigned int pausingbit = selectedPorts(shot, PORTSEL_PAUSING);
 		m_aswBit = selectedPorts(shot, PORTSEL_ASW);
 
 		if((m_taskDO == TASK_UNDEF) ||
-		   (m_pausingBit != pausingbitnext)) {
-			m_pausingBit = pausingbitnext;
+		   (m_pausingBit != pausingbit)) {
+			m_pausingBit = pausingbit;
 			clearTasks();
 			if(haveQAMPorts())
 				setupTasksAODO();
@@ -437,7 +437,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
 		}
 
-		//prepares patterns.
+		//prepares ring buffers for pattern generation.
 		m_genLastPatIt = m_genPatternList->begin();
 		m_genRestSamps = m_genPatternList->front().tonext;
 		m_genTotalCount = m_genPatternList->front().tonext;
@@ -454,7 +454,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 
 		//prefilling of the buffers.
 		if(m_taskAO != TASK_UNDEF) {
-			//writes preceding zeros.
+			//Pads preceding zeros.
 			const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
@@ -469,7 +469,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 		}
-		//writes preceding zeros.
+		//Pads preceding zeros.
 		std::vector<tRawDO> zeros(cnt_prezeros, 0);
 
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
@@ -490,12 +490,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 													  &XNIDAQmxPulser::executeWriter));
 	m_isThreadWriterReady = false;
 	m_threadWriter->resume();
-	//Wating for buffer filling.
-	while( !m_isThreadWriterReady) {
-		if(m_threadWriter->isTerminated())
-			return;
-		usleep(1000);
-	}
 
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
 	if(m_taskDOCtr != TASK_UNDEF)
@@ -505,7 +499,14 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
+	//Wating for buffer filling.
+	while( !m_isThreadWriterReady) {
+		if(m_threadWriter->isTerminated())
+			return;
+		usleep(1000);
+	}
 	{
+		//Recovers from open state.
 		char ch[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 		CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, ch, false));
@@ -524,7 +525,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 }
 void
 XNIDAQmxPulser::stopPulseGen() {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	//Stops threads.
 	if(m_threadWriter) {
@@ -536,19 +537,16 @@ XNIDAQmxPulser::stopPulseGen() {
 }
 void
 XNIDAQmxPulser::abortPulseGen() {
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
-
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-
 		m_softwareTrigger->stop();
-
 		if(m_running) {
 			{
 				char ch[256];
 				CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
 				uInt32 num_lines;
 				CHECK_DAQMX_RET(DAQmxGetDONumLines(m_taskDO, ch, &num_lines));
-				//Sets open-state except for the pausing bit.
+				//Sets outputs to open state except for the pausing bit.
 				XString chtri;
 				for(unsigned int i = 0; i < num_lines; i++) {
 					if(m_pausingBit &&
@@ -560,7 +558,6 @@ XNIDAQmxPulser::abortPulseGen() {
 				}
 				CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
 			}
-			fprintf(stderr, "a\n");
 			if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 			if(m_taskDOCtr != TASK_UNDEF)
@@ -570,7 +567,6 @@ XNIDAQmxPulser::abortPulseGen() {
 				CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone (m_taskGateCtr, 0.1));
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 			}
-			fprintf(stderr, "b\n");
 			if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			if(m_taskDOCtr != TASK_UNDEF)
@@ -645,7 +641,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			e.print(getLabel());
 
 			m_threadWriter->terminate();
-			XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+			XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 			if(m_running) {
 				try {
 					abortPulseGen();
@@ -765,8 +761,6 @@ XNIDAQmxPulser::fillBuffer() {
 				   (m_genPulseWaveAO[pnum]->size() < gen_cnt * oversamp_ao + aoidx))
 					throw XInterface::XInterfaceError(i18n("Invalid pulse patterns."), __FILE__, __LINE__);
 				tRawAOSet *pGenAO = &m_genPulseWaveAO[pnum]->at(aoidx);
-	/*			for(unsigned int cnt = 0; cnt < gen_cnt; cnt++)
-	 *pAO++ = *pGenAO++;*/
 				memcpy(pAO, pGenAO, gen_cnt * oversamp_ao * sizeof(tRawAOSet));
 				pAO += gen_cnt * oversamp_ao;
 				aoidx += gen_cnt * oversamp_ao;
@@ -835,7 +829,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 		const double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
 
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
-			//arrange range info.
+			//arranges range info.
 			double x = 1.0;
 			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 				m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
@@ -866,7 +860,7 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
-	XScopedLock<XRecursiveMutex> tlock(m_totalLock);
+	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	if(output) {
 		if( !m_genPatternListNext || m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);

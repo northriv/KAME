@@ -1062,18 +1062,18 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 	const int FAC_ANTIALIAS = 3;
 	p.resize(to_center * 2);
 	std::fill(p.begin(), p.end(), 0.0);
-	std::vector<std::complex<double> > wave((p.size() + 2) * FAC_ANTIALIAS, 0.0);
+	std::vector<std::complex<double> > wave(p.size() * FAC_ANTIALIAS, 0.0);
 	for(int i = 0; i < (int)wave.size(); ++i) {
 		double i1 = i - (int)wave.size() / 2 - delay1;
 		double i2 = i - (int)wave.size() / 2 - delay2;
 		double x = z * func(i1 * dx) * cos(i1 * dp + M_PI/4 + phase);
 		double y = z * func(i2 * dx) * sin(i2 * dp + M_PI/4 + phase);
-		wave[i] = std::complex<double>(x, y);
+		wave[i] = std::complex<double>(x, y) / (double)FAC_ANTIALIAS;
 	}
 	//Moving average for antialiasing.
 	for(int i = 0; i < (int)wave.size(); ++i) {
-		int j = lrint((i - (int)wave.size() / 2) / FAC_ANTIALIAS) + p.size() / 2;
-		p[j] += wave[i] / FAC_ANTIALIAS;
+		int j = i / FAC_ANTIALIAS;
+		p[j] += wave[i];
 	}
 }
 

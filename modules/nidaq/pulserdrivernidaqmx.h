@@ -174,7 +174,7 @@ private:
 	void *executeFillBuffer(const atomic<bool> &);
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
-	XRecursiveMutex m_totalLock;
+	XRecursiveMutex m_stateLock;
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/
