@@ -45,7 +45,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
 	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
 	m_form->m_btnClear->setIcon(
-    	KIconLoader::global()->loadIcon("editdelete",
+    	KIconLoader::global()->loadIcon("edit-clear",
 		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     
 	connect(pulse());

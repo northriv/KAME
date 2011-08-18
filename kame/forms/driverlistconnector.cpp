@@ -35,9 +35,9 @@ XDriverListConnector::XDriverListConnector
 	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))   {
 
     KIconLoader *loader = KIconLoader::global();
-	item->m_btnNew->setIcon( loader->loadIcon("filenew",
+	item->m_btnNew->setIcon( loader->loadIcon("document-new",
 					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	item->m_btnDelete->setIcon( loader->loadIcon("fileclose",
+	item->m_btnDelete->setIcon( loader->loadIcon("document-close",
 					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     
 	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),

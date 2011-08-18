@@ -13,6 +13,12 @@
 ***************************************************************************/
 #include "pulserdrivernidaqmx.h"
 
+//! \warning Current version of DAQmx (8.0.2) software for Linux may lack thread-safety in many-core systems.
+//! When an app attempts concurrent data writing to two devices,
+//! the driver sometimes causes freezing, ends with error, or leaves a syslog message,
+//! "BUG: sleeping function called from invalid context at mm/slub.c:..."
+//! Perhaps a global lock on DAQmx functions is necessary....
+
 #define PAUSING_BLANK_BEFORE 1u
 #define PAUSING_BLANK_AFTER 1u
 

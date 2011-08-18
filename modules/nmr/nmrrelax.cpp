@@ -109,10 +109,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	}
 
 	m_form->m_btnClear->setIcon(
-    	KIconLoader::global()->loadIcon("editdelete",
+    	KIconLoader::global()->loadIcon("edit-clear",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
     m_form->m_btnResetFit->setIcon(
-    	KIconLoader::global()->loadIcon("reload",
+    	KIconLoader::global()->loadIcon("edit-redo",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 
     m_form->setWindowTitle(i18n("NMR Relax. Meas. - ") + getLabel() );

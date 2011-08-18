@@ -94,7 +94,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
 
 	m_form->m_btnForceTrigger->setIcon(
-		KIconLoader::global()->loadIcon("apply",
+		KIconLoader::global()->loadIcon("quickopen",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 	m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);

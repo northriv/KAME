@@ -4,6 +4,10 @@
 - pulsedrivernidaqmx: ring buffer and integrated AO/DO buffering.
 
 * Thu Jul 7 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.1.15-1)
+- Fixed icon references.
+
+* Thu Jul 7 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.12-1)
 - pulsedrivernidaqmx: refined pulse generation.
 

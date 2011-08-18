@@ -208,10 +208,10 @@ void
 XWaveNGraph::onIconChanged(const Snapshot &shot, bool v) {
 	KIconLoader *loader = KIconLoader::global();
 	if( !v)
-		m_btnDump->setIcon(loader->loadIcon("filesave", KIconLoader::Toolbar,
+		m_btnDump->setIcon(loader->loadIcon("document-save", KIconLoader::Toolbar,
 			KIconLoader::SizeSmall, true));
 	else
-		m_btnDump->setIcon(loader->loadIcon("redo", KIconLoader::Toolbar,
+		m_btnDump->setIcon(loader->loadIcon("edit-redo", KIconLoader::Toolbar,
 			KIconLoader::SizeSmall, true));
 }
 void

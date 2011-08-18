@@ -62,7 +62,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
 		m_solver(create<SpectrumSolverWrapper>("SpectrumSolverWrapper", true, m_solverList, m_windowFunc, m_windowWidth)),
 		m_solverPNR(create<SpectrumSolverWrapper>("PNRSpectrumSolverWrapper", true, m_pnrSolverList, shared_ptr<XComboNode>(), shared_ptr<XDoubleNode>(), true)) {
-	m_form->m_btnAvgClear->setIcon(KIconLoader::global()->loadIcon("editdelete", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
+	m_form->m_btnAvgClear->setIcon(KIconLoader::global()->loadIcon("edit-clear", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
 	m_form->m_btnSpectrum->setIcon(KIconLoader::global()->loadIcon("graph", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
 	
 	connect(dso());

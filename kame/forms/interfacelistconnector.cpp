@@ -60,12 +60,12 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
 		if(it->interface->control().get() == node) {
 		    KIconLoader *loader = KIconLoader::global();
 			if(shot[ *it->interface->control()]) {
-				it->btn->setIcon( loader->loadIcon("stop",
+				it->btn->setIcon( loader->loadIcon("process-stop",
 					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 				it->btn->setText(i18n("&STOP"));
 			}
 			else {
-				it->btn->setIcon( loader->loadIcon("run",
+				it->btn->setIcon( loader->loadIcon("system-run",
 					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 				it->btn->setText(i18n("&RUN"));
 			}

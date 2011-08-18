@@ -34,9 +34,9 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
     m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete)) {
     KIconLoader *loader = KIconLoader::global();
-	btnnew->setIcon( loader->loadIcon("filenew",
+	btnnew->setIcon( loader->loadIcon("window-new",
 																				KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
-	btndelete->setIcon( loader->loadIcon("fileclose",
+	btndelete->setIcon( loader->loadIcon("window-close",
 																				   KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) ); 
                
 	connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),

@@ -105,11 +105,11 @@ FrmKameMain::FrmKameMain()
     addDockableWindow(m_pMdiLeft, m_pFrmGraphList, false);
 
     m_pFrmCalTable = new FrmCalTable(this);
-    m_pFrmCalTable->setWindowIcon(loader->loadIcon("contents", KIconLoader::Toolbar, 0, false));
+    m_pFrmCalTable->setWindowIcon(loader->loadIcon("formula", KIconLoader::Toolbar, 0, false));
     addDockableWindow(m_pMdiLeft, m_pFrmCalTable, false);
 
     m_pFrmNodeBrowser = new FrmNodeBrowser(this);
-    m_pFrmNodeBrowser->setWindowIcon(loader->loadIcon("find", KIconLoader::Toolbar, 0, false ) );
+    m_pFrmNodeBrowser->setWindowIcon(loader->loadIcon("edit-find", KIconLoader::Toolbar, 0, false ) );
     addDockableWindow(m_pMdiLeft, m_pFrmNodeBrowser, false);
 
     m_pMdiLeft->activatePreviousSubWindow();
@@ -205,30 +205,30 @@ FrmKameMain::createActions() {
     // actions
     m_pFileOpenAction = new QAction( this );
 //     fileOpenAction->setIcon( QIconSet( *IconKame48x48 ) );
-    m_pFileOpenAction->setIcon( loader->loadIcon("fileopen",
+    m_pFileOpenAction->setIcon( loader->loadIcon("project-open",
 																  KIconLoader::Toolbar, 0, false ) );
     m_pFileSaveAction = new QAction( this );
     m_pFileSaveAction->setEnabled( TRUE );
-    m_pFileSaveAction->setIcon( loader->loadIcon("filesave",
+    m_pFileSaveAction->setIcon( loader->loadIcon("document-save",
 																  KIconLoader::Toolbar, 0, false ) );
     m_pFileCloseAction = new QAction( this );
     m_pFileCloseAction->setEnabled( TRUE );
 //     fileCloseAction->setIcon( QIconSet( *IconClose48x48 ) );
-    m_pFileCloseAction->setIcon( loader->loadIcon("fileclose",
+    m_pFileCloseAction->setIcon( loader->loadIcon("project-development-close-all",
 																   KIconLoader::Toolbar, 0, false ) );
     m_pFileExitAction = new QAction( this );
 //     fileExitAction->setIcon( QIconSet( *IconStop48x48 ) );
-    m_pFileExitAction->setIcon( loader->loadIcon("exit",
+    m_pFileExitAction->setIcon( loader->loadIcon("application-exit",
 																  KIconLoader::Toolbar, 0, false ) );
     m_pHelpContentsAction = new QAction( this );
     m_pHelpIndexAction = new QAction( this, "helpIndexAction" );
     m_pHelpAboutAction = new QAction( this, "helpAboutAction" );
-    m_pHelpAboutAction->setIcon( loader->loadIcon("info",
+    m_pHelpAboutAction->setIcon( loader->loadIcon("help-about",
 																   KIconLoader::Toolbar, 0, false ) );
     m_pFileLogAction = new QAction( this );
     m_pFileLogAction->setCheckable( true );
     m_pFileLogAction->setChecked( g_bLogDbgPrint );
-    m_pFileLogAction->setIcon( loader->loadIcon("toggle_log",
+    m_pFileLogAction->setIcon( loader->loadIcon("help-feedback",
 																 KIconLoader::Toolbar, 0, false ) );
 //    m_pMesRunAction = new QAction( this, "mesRunAction" );
 //    m_pMesRunAction->setEnabled( TRUE );
@@ -241,11 +241,11 @@ FrmKameMain::createActions() {
     m_pScriptRunAction->setIcon( QIcon( *g_pIconScript) );
     m_pScriptLineShellAction = new QAction( this );
     m_pScriptLineShellAction->setEnabled( TRUE );
-    m_pScriptLineShellAction->setIcon( loader->loadIcon("openterm",
+    m_pScriptLineShellAction->setIcon( loader->loadIcon("window-new",
 		   KIconLoader::Toolbar, 0, false ) );
     m_pScriptDotSaveAction = new QAction( this );
     m_pScriptDotSaveAction->setEnabled( TRUE );
-    m_pScriptDotSaveAction->setIcon( loader->loadIcon("filesave",
+    m_pScriptDotSaveAction->setIcon( loader->loadIcon("document-save",
 																	   KIconLoader::Toolbar, 0, false ) );
 
     m_pFileOpenAction->setText( i18n( "&Open..." ) );

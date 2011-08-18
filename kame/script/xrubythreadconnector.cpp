@@ -44,9 +44,9 @@ XRubyThreadConnector::XRubyThreadConnector(
 		rbthread->lineinput(), form->m_edLineinput)) {
 
     KIconLoader *loader = KIconLoader::global();
-	form->m_pbtnResume->setIcon(loader->loadIcon("exec",
+	form->m_pbtnResume->setIcon(loader->loadIcon("system-reboot",
 		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->m_pbtnKill->setIcon(loader->loadIcon("stop",
+	form->m_pbtnKill->setIcon(loader->loadIcon("process-stop",
 		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
             
     m_pForm->m_ptxtDefout->setMaxLogLines(10000);

@@ -42,31 +42,31 @@ void makeIcons(KIconLoader *loader)
 	if(g_pIconKame48x48->isNull() ) g_pIconKame48x48 = g_pIconKame24x24;
 
 	g_pIconInfo = new QPixmap(
-		loader->loadIcon("messagebox_info", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("dialog-infomation", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconWarn = new QPixmap(
-		loader->loadIcon("messagebox_warning", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("dialog-warning", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconError = new QPixmap(
-		loader->loadIcon("messagebox_critical", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("dialog-error", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconStop = new QPixmap(
-		loader->loadIcon("stop", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("process-stop", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconClose = new QPixmap(
-		loader->loadIcon("fileclose", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("document-close", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconDriver = new QPixmap(
-		loader->loadIcon("exec", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("system-run", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconInterface = new QPixmap(
-		loader->loadIcon("mouse", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("computer", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconReader = new QPixmap(
-		loader->loadIcon("player_play", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("multimedia-player", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconScalar = new QPixmap(
-		loader->loadIcon("math_abs", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+		loader->loadIcon("server-database", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
 	
 	g_pIconGraph = new QPixmap(
 		loader->loadIcon("graph", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
