@@ -64,7 +64,7 @@ inline void atomicWrite64(const T &x, T *target) {
 template <typename T>
 inline void atomicRead64(T *x, const T &target) {
 	static_assert(__alignof__(T) >= 8, "");
-	static_assert(sizeof(T) == 8);
+	static_assert(sizeof(T) == 8, "");
 	asm (
 		" movq %0, %%xmm0;"
 		" movq %%xmm0, %1;"
