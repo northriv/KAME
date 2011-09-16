@@ -170,16 +170,23 @@ add_definitions (-DQT3_SUPPORT -DQT3_SUPPORT_WARNINGS)
 #The stuff done in these files will have to be converted manually to cmake.
 
 set_property(GLOBAL PROPERTY ENABLE_EXPORTS TRUE)
-if(APPLE)
-  set (CMAKE_CXX_FLAGS "-std=c++0x -stdlib=libc++ -Wall -fexceptions")
-  set(CMAKE_MODULE_LINKER_FLAGS "-std=c++0x  -Wl,-undefined,dynamic_lookup" ) 
-  set(CMAKE_EXE_LINKER_FLAGS "-std=c++0x -Wl,-all_load -Wl,-dynamic")
-  set(CMAKE_SHARED_LINKER_FLAGS "-std=c++0x -Wl,-undefined,dynamic_lookup" ) 
-else(1)
+if(CMAKE_COMPILER_IS_GNUCXX)
   set (CMAKE_CXX_FLAGS "-std=c++0x -Wall -fexceptions")
-  set(CMAKE_MODULE_LINKER_FLAGS "-std=c++0x --module --shared")
-  set(CMAKE_SHARED_LINKER_FLAGS "-std=c++0x -shared")
-  set(CMAKE_EXE_LINKER_FLAGS "-std=c++0x -dlpreopen self -export-dynamic")
+else(1)
+#assuming clang++
+  set (CMAKE_CXX_FLAGS "-std=c++0x -stdlib=libc++ -Wall -fexceptions")
+endif(CMAKE_COMPILER_IS_GNUCXX)
+
+if(APPLE)
+#Apple's ld
+  set(CMAKE_MODULE_LINKER_FLAGS "-std=c++0x  -Wl,-undefined,dynamic_lookup" ) 
+  set(CMAKE_SHARED_LINKER_FLAGS "-std=c++0x -Wl,-undefined,dynamic_lookup" ) 
+  set(CMAKE_EXE_LINKER_FLAGS "-std=c++0x -Wl,-all_load -Wl,-dynamic")
+else(1)
+#GNU libtool
+  set(CMAKE_MODULE_LINKER_FLAGS "--module --shared")
+  set(CMAKE_SHARED_LINKER_FLAGS "-shared")
+  set(CMAKE_EXE_LINKER_FLAGS "-dlpreopen self -export-dynamic")
   set(CMAKE_CXX_LINK_EXECUTABLE "libtool --mode=link --tag=CXX ${CMAKE_CXX_LINK_EXECUTABLE}")
   set(CMAKE_CXX_CREATE_SHARED_MODULE "libtool --mode=link --tag=CXX ${CMAKE_CXX_CREATE_SHARED_MODULE}")
 endif(APPLE)
