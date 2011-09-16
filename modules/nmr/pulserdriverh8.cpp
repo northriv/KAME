@@ -67,7 +67,7 @@ XH8Pulser::createNativePatterns(Transaction &tr) {
 }
 int
 XH8Pulser::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
-	C_ASSERT(sizeof(long long) == 8);
+	static_assert(sizeof(long long) == 8, "");
 
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
 

@@ -113,7 +113,7 @@ XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
 }
 void
 XGraphListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
+	for(auto it = m_cons.begin(); it != m_cons.end();) {
 		if(it->node == e.released) {
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->widget) m_pItem->removeRow(i);

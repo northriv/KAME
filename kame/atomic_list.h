@@ -48,7 +48,7 @@ public:
 
 	void push_back(const T &x) {
 		for(;;) {
-			typename atomic_list::writer tr(*this);
+			auto tr(*this);
 			tr->push_back(x);
 			if(tr.commit())
 				break;

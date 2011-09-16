@@ -48,7 +48,7 @@ struct ListenerWeak_ : public XListenerImpl__<Event<XN, tArg, tArgRef> > {
 		 XListener::FLAGS flags) :
 		 XListenerImpl__<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-		if(shared_ptr<tClass> p = m_obj.lock() )
+		if(auto p = m_obj.lock() )
 			(p.get()->*m_func)(x.shot, x.arg);
 	}
 private:
@@ -130,9 +130,9 @@ private:
 					skip = ((long)this->listener->delay_ms() > elapsed_ms);
 				}
 				if( !skip) {
-					atomic_scoped_ptr<Event__> e;
+					atomic_unique_ptr<Event__> e;
 					e.swap(this->listener->arg);
-					ASSERT(e.get());
+					assert(e.get());
 					( *this->listener)( *e);
 				}
 				return skip;
@@ -149,8 +149,8 @@ protected:
 			if( !listeners)
 				return 0;
 			int canceled = 0;
-			for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
-				if(shared_ptr<Listener__> listener = it->lock()) {
+			for(auto it = listeners->begin(); it != listeners->end(); it++) {
+				if(auto listener = it->lock()) {
 					if(listener == x) {
 						if( !listeners_unmarked)
 							listeners_unmarked.reset(new UnmarkedListenerList);
@@ -169,7 +169,7 @@ class TalkerSingleton : public Talker<XN, tArg, tArgRef> {
 public:
 	TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(0) {}
 	TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(0) {}
-	virtual Message__<XN>* createMessage(tArgRef arg) {
+	virtual Message__<XN>* createMessage(tArgRef arg) const {
 		if(m_marked) {
 			static_cast<typename Talker<XN, tArg, tArgRef>::Message *>(m_marked)->arg = arg;
 			return 0;
@@ -178,7 +178,7 @@ public:
 		return m_marked;
 	}
 private:
-	Message__<XN> *m_marked;
+	mutable Message__<XN> *m_marked;
 };
 
 template <class XN, typename tArg, typename tArgRef>
@@ -215,7 +215,7 @@ Talker<XN, tArg, tArgRef>::connectWeakly(const shared_ptr<tObj> &obj,
 template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::connect(const shared_ptr<XListener> &lx) {
-	shared_ptr<Listener__> listener = dynamic_pointer_cast<Listener__>(lx);
+	auto listener = dynamic_pointer_cast<Listener__>(lx);
 	connect(listener);
 }
 template <class XN, typename tArg, typename tArgRef>
@@ -224,7 +224,7 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener__> &lx) {
 	shared_ptr<ListenerList> new_list(
 		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
 	// clean-up dead listeners.
-	for(typename ListenerList::iterator it = new_list->begin(); it != new_list->end();) {
+	for(auto it = new_list->begin(); it != new_list->end();) {
 		if( !it->lock())
 			it = new_list->erase(it);
 		else
@@ -238,8 +238,8 @@ void
 Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 	shared_ptr<ListenerList> new_list(
 		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
-	for(typename ListenerList::iterator it = new_list->begin(); it != new_list->end();) {
-		if(shared_ptr<XListener> listener = it->lock()) {
+	for(auto it = new_list->begin(); it != new_list->end();) {
+		if(auto listener = it->lock()) {
 			// clean dead listeners and matching one.
 			if( !listener || (lx == listener)) {
 				it = new_list->erase(it);
@@ -257,14 +257,14 @@ void
 Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
 	if( !listeners) return;
 	//Writing deferred events to event pool.
-	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
-		if(shared_ptr<Listener__> listener = it->lock()) {
+	for(auto it = listeners->begin(); it != listeners->end(); it++) {
+		if(auto listener = it->lock()) {
 			if(listeners_unmarked &&
 				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
 				continue;
-			if(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL) {
-				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-					atomic_scoped_ptr<Event__> newevent(new Event__(shot, arg) );
+			if(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL) {
+				if(listener->flags() & XListener::FLAG_AVOID_DUP) {
+					atomic_unique_ptr<Event__> newevent(new Event__(shot, arg) );
 					newevent.swap(listener->arg);
 					if( !newevent.get())
 						registerTransactionList(new EventWrapperAvoidDup(listener));
@@ -286,12 +286,12 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
 		}
 	}
 	//Immediate events.
-	for(typename ListenerList::const_iterator it = listeners->begin(); it != listeners->end(); it++) {
-		if(shared_ptr<Listener__> listener = it->lock()) {
+	for(auto it = listeners->begin(); it != listeners->end(); it++) {
+		if(auto listener = it->lock()) {
 			if(listeners_unmarked &&
 				(std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
 				continue;
-			if( !(listener->m_flags & XListener::FLAG_MAIN_THREAD_CALL)) {
+			if( !(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL)) {
 				try {
 					( *listener)(Event__(shot, arg));
 				}

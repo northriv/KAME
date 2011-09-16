@@ -57,13 +57,13 @@ private:
 template <typename T>
 XThreadLocal<T>::XThreadLocal() {
     int ret = pthread_key_create( &m_key, &XThreadLocal<T>::delete_tls);
-    ASSERT( !ret);
+    assert( !ret);
 }
 template <typename T>
 XThreadLocal<T>::~XThreadLocal() {
 	delete static_cast<T *>(pthread_getspecific(m_key));
     int ret = pthread_key_delete(m_key);
-    ASSERT( !ret);
+    assert( !ret);
 }
 template <typename T>
 void
@@ -80,7 +80,7 @@ inline T &XThreadLocal<T>::operator*() const {
 #else
 									new T);
 #endif
-		ASSERT( !ret);
+		assert( !ret);
 	}
     return *static_cast<T*>(p);
 }

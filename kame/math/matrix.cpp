@@ -52,7 +52,7 @@ void cmat2lpk(const ublas::matrix<T> &a, ublas::vector<LPKT>& lpk) {
 }
 template <typename T, typename LPKT>
 void lpk2cmat(const ublas::vector<LPKT>& lpk, ublas::matrix<T> &a) {
-	ASSERT(a.size1() * a.size2() == lpk.size());
+	assert(a.size1() * a.size2() == lpk.size());
 	const LPKT *plpk = &lpk[0];
 	for(int i = 0; i < a.size2(); i++) {
 		ublas::matrix_column<ublas::matrix<std::complex<double> > > acol(a, i);
@@ -74,7 +74,7 @@ void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_org,
 	double tol) {
 	LPKint n = a_org.size2();
 	LPKint lda = a_org.size1();
-	ASSERT(lda >= n);
+	assert(lda >= n);
 	LPKint ldz = n;
 	ublas::vector<LPKdoublecomplex> a(n*lda), z(n*ldz);
 	ublas::vector<LPKdoublereal> w(n);
@@ -94,7 +94,7 @@ void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_org,
 	int ret = zheevr_(&cv, &ca, &cu, &n, &a[0], &lda,
 		 &vl, &vu, &il, &iu, &tol, &numret, &w[0], &z[0], &ldz, 
 		 &isuppz[0], &work[0], &lwork, &rwork[0], &lrwork, &iwork[0], &liwork, &info);
-	ASSERT(info == 0);
+	assert(info == 0);
 	lwork = lrint(work[0].r);
 	work.resize(lwork);
 	lrwork = lrint(rwork[0]);
@@ -104,7 +104,7 @@ void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_org,
 	ret = zheevr_(&cv, &ca, &cu, &n, &a[0], &lda,
 		&vl, &vu, &il, &iu, &tol, &numret, &w[0], &z[0], &ldz, 
 		 &isuppz[0], &work[0], &lwork, &rwork[0], &lrwork, &iwork[0], &liwork, &info);
-	ASSERT(info == 0);
+	assert(info == 0);
 	
 	lpk2cvec(w, lambda);
 	v.resize(n, ldz);

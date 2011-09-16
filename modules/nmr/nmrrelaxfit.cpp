@@ -287,8 +287,7 @@ XRelaxFunc::relax_f (const gsl_vector * x, void *params,
 		a = data->fixed_minfty - c;
 
 	int i = 0;
-	for(std::deque<XNMRT1::Payload::Pt>::iterator it = data->pts->begin();
-		it != data->pts->end(); it++) {
+	for(auto it = data->pts->begin(); it != data->pts->end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = it->p1;
 		double yi = 0, dydt = 0;

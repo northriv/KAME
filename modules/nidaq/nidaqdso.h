@@ -63,7 +63,7 @@ protected:
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
 private:
 	typedef int16 tRawAI;
-	scoped_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
+	unique_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	shared_ptr<XListener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
 	void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
@@ -89,7 +89,7 @@ private:
 			return ret;
 		}
 		void unlock() {
-			ASSERT(locked);
+			assert(locked);
 			writeBarrier();
 			locked = false;
 		}

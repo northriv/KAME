@@ -19,7 +19,7 @@
 XRubyWriter::XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
 	: m_root(root), m_ofs(ofs)
 {
-    ASSERT(ofs.good());
+    assert(ofs.good());
     ofs << "# KAME2 measurement configuration file" << std::endl
         << "# Automatically created. KAME version. " VERSION << std::endl
         << "# date: " << XTime::now().getTimeStr() << std::endl;
@@ -47,7 +47,7 @@ XRubyWriter::write(
 {
 	int size = shot.size(node);
     ghost = ghost || shot[ *node].isRuntime();
-    shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+    auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
     if(vnode) {
         if(size) {
             for(int j = 0; j < level; j++) m_ofs << "\t";
@@ -72,7 +72,7 @@ XRubyWriter::write(
     else
         if( ! size) {m_ofs << std::endl;}
         
-    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
+    auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
     bool write_typename = false;
     if(lnode) {
         // XListNode doesn't want typename
@@ -83,7 +83,7 @@ XRubyWriter::write(
     unsigned idx = 0;
     if(size) {
     	const XNode::NodeList &list( *shot.list(node));
-        for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
+        for(auto it = list.begin(); it != list.end(); it++) {
             shared_ptr<XNode> child = *it;
             for(int j = 0; j < level; j++) m_ofs << "\t";
             if(ghost)

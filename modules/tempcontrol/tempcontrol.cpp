@@ -492,7 +492,7 @@ void XTempControl::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 void XTempControl::onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
-		shared_ptr<XChannel> ch( **currentChannel());
+		shared_ptr<XChannel> ch(shot[ *currentChannel()]);
 		if( !ch)
 			return;
 		onCurrentChannelChanged(ch);

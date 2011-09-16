@@ -101,7 +101,7 @@ XNIGPIBPort::gpibStatus(const XString &msg) {
 	}
 	return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
 		.arg(msg)
-		.arg((int) **m_pInterface->address())
+		.arg((int) ***m_pInterface->address())
 		.arg(sta)
 		.arg(err)
 		.arg(cntl);
@@ -167,16 +167,16 @@ XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
 
 void
 XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
   
 	XString buf(str);
 	buf += m_pInterface->eos();
-	ASSERT(buf.length() == strlen(str) + m_pInterface->eos().length());
+	assert(buf.length() == strlen(str) + m_pInterface->eos().length());
 	this->write(buf.c_str(), buf.length());
 }
 void
 XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
   
 	gpib_spoll_before_write();
   
@@ -232,7 +232,7 @@ XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 unsigned int
 XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 	throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
 
 	gpib_spoll_before_read();
 	int len = 0;

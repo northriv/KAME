@@ -25,7 +25,7 @@ XOxfordInterface::send(const XString &str) throw (XCommError &) {
 }
 void
 XOxfordInterface::send(const char *str) throw (XInterface::XCommError &) {
-	ASSERT(strlen(str));
+	assert(strlen(str));
 	if(str[0] == '$') {
 		XCharInterface::send(str);
 	}

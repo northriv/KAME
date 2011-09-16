@@ -23,7 +23,7 @@ public:
 	virtual ~XListenerImpl__() {}
 	virtual void operator() (const Arg &) const = 0;
 	//! is used when m_bAvoidDup is on.
-	atomic_scoped_ptr<Arg> arg;
+	atomic_unique_ptr<Arg> arg;
 };
 template <class Arg>
 class XListenerStatic__ : public XListenerImpl__<Arg> {
@@ -63,7 +63,7 @@ protected:
 	XListenerShared__(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
 					 XListener::FLAGS flags) :
 		XListenerImpl__<Arg>(flags), m_obj(obj), m_func(func)   {
-        ASSERT(obj);
+        assert(obj);
 	}
 public:
 	virtual void operator() (const Arg &x) const {((m_obj.get())->*m_func)(x);}

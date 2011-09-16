@@ -16,7 +16,7 @@
 
 #include "support.h"
 #include "xtime.h"
-#include "thread.h"
+#include "xthread.h"
 #include "atomic_smart_ptr.h"
 #include <deque>
 
@@ -41,10 +41,12 @@ public:
 		FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02,
 		FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
 	};
+
+	FLAGS flags() const {return m_flags;}
 protected:
 	template <class tArg>
 	friend class XTalker;
-	template <class XN, typename tArg>
+	template <class XN, typename tArg, typename tArgRef>
 	friend class Transactional::Talker;
 	XListener(FLAGS flags);
 	atomic<FLAGS> m_flags;
@@ -158,9 +160,9 @@ private:
 					skip = ((long)XTalker<tArg>::Transaction::listener->delay_ms() > elapsed_ms);
 				}
 				if(!skip) {
-					atomic_scoped_ptr<tArg> arg;
+					atomic_unique_ptr<tArg> arg;
 					arg.swap(XTalker<tArg>::Transaction::listener->arg);
-					ASSERT(arg.get());
+					assert(arg.get());
 					( *XTalker<tArg>::Transaction::listener)( *arg);
 				}
 				return skip;
@@ -268,7 +270,7 @@ XTalker<tArg>::talk(const tArg &arg) {
 			}
 			else {
 				if(listener->m_flags & XListener::FLAG_AVOID_DUP) {
-					atomic_scoped_ptr<tArg> newarg(new tArg(arg) );
+					atomic_unique_ptr<tArg> newarg(new tArg(arg) );
 					newarg.swap(listener->arg);
 					if( !newarg.get()) {
 						registerTransactionList(new TransactionAvoidDup(listener));

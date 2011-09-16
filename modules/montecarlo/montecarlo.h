@@ -14,7 +14,7 @@
 #ifndef MONTECARLO_H_
 #define MONTECARLO_H_
 
-#include "thread.h"
+#include "xthread.h"
 
 #include "support.h"
 #include "atomic.h"

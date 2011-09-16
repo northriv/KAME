@@ -64,7 +64,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	context = m_contexts[cidx];
 	m_contexts.clear();
 	for(unsigned int p = cidx * taps_div; p < taps; p++) {
-		ASSERT(context->p == p);
+		assert(context->p == p);
 		step(context);
 		context->p++;		
 	}

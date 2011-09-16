@@ -85,9 +85,8 @@ XWaveNGraph::Payload::clearPoints() {
 }
 void
 XWaveNGraph::Payload::clearPlots() {
-	const shared_ptr<XGraph> &graph(static_cast<XWaveNGraph &>(node()).m_graph);
-	for(std::deque<Payload::Plot>::iterator it = m_plots.begin(); it
-		!= m_plots.end(); it++) {
+	const auto &graph(static_cast<XWaveNGraph &>(node()).m_graph);
+	for(auto it = m_plots.begin(); it != m_plots.end(); it++) {
 		graph->plots()->release(tr(), it->xyplot);
 	}
 	if(m_axisw)
@@ -110,8 +109,8 @@ XWaveNGraph::Payload::clearPlots() {
 void
 XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	int weight, int z) {
-	const shared_ptr<XGraph> &graph(static_cast<XWaveNGraph &>(node()).m_graph);
-	ASSERT( (y1 < 0) || (y2 < 0) );
+	const auto &graph(static_cast<XWaveNGraph &>(node()).m_graph);
+	assert( (y1 < 0) || (y2 < 0) );
 	Plot plot;
 	plot.colx = x;
 	plot.coly1 = y1;

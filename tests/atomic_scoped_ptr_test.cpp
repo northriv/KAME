@@ -15,8 +15,8 @@
 //inline bool atomicCompareAndSet2(
 //    uint32_t oldv0, uint32_t oldv1,
 //    uint32_t newv0, uint32_t newv1, uint32_t *target ) {
-//        ASSERT(oldv0 == target[0]);
-//        ASSERT(oldv1 == target[1]);
+//        assert(oldv0 == target[0]);
+//        assert(oldv1 == target[1]);
 //        if(rand() > RAND_MAX/2) {
 //            target[0] = newv0;
 //            target[1] = newv1;
@@ -27,7 +27,7 @@
 //#endif
 
 #include "atomic_smart_ptr.h"
-#include "thread.cpp"
+#include "xthread.cpp"
 
 int objcnt = 0;
 
@@ -58,14 +58,14 @@ public:
 };
 
 
-atomic_scoped_ptr<A> gp1, gp2, gp3;
+atomic_unique_ptr<A> gp1, gp2, gp3;
 
 void *
 start_routine(void *) {
 	for(int i = 0; i < 1000000; i++) {
-    	atomic_scoped_ptr<A> p1(new A(1));
-    	atomic_scoped_ptr<A> p2(new B(2));
-    	atomic_scoped_ptr<A> p3;
+    	atomic_unique_ptr<A> p1(new A(1));
+    	atomic_unique_ptr<A> p2(new B(2));
+    	atomic_unique_ptr<A> p3;
 
 
     	p2.swap(gp1);

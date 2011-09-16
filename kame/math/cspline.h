@@ -21,8 +21,7 @@
 #include <gsl/gsl_spline.h>
 
 //! Wrapper class for cubic (natural) spline approximation.
-class CSplineApprox
-{
+class CSplineApprox {
 public:
     CSplineApprox(const std::map<double, double> &pts);
     ~CSplineApprox();

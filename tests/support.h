@@ -23,33 +23,23 @@
 
 #include <pthread.h>
 
+#include <cassert>
 #ifdef NDEBUG
-#define ASSERT(expr)
-#define C_ASSERT(expr)
 #define DEBUG_XTHREAD 0
 #else
-#define ASSERT(expr) {if( !(expr)) my_assert( __FILE__, __LINE__);}
-#define C_ASSERT(expr) my_cassert(sizeof(char [ ( expr ) ? 0 : -1 ]))
-inline void my_cassert(size_t ) {}
-int my_assert(char const*s, int d);
 #define DEBUG_XTHREAD 1
 #endif
 
-//boost
-#include <boost/scoped_ptr.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/weak_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-using boost::scoped_ptr;
-using boost::shared_ptr;
-using boost::weak_ptr;
-using boost::enable_shared_from_this;
-using boost::static_pointer_cast;
-using boost::dynamic_pointer_cast;
-#include <boost/ref.hpp>
-using boost::ref;
-using boost::reference_wrapper;
-
+#include <memory>
+using std::unique_ptr;
+using std::shared_ptr;
+using std::weak_ptr;
+using std::enable_shared_from_this;
+using std::static_pointer_cast;
+using std::dynamic_pointer_cast;
+using std::ref;
+using std::reference_wrapper;
+#include <algorithm>
 #include <math.h>
 #include <stdio.h>
 

@@ -49,9 +49,9 @@ public:
 			virtual const T &solver() const {return *m_solver; }
 		private:
 			Wrapper();
-			scoped_ptr<T> m_solver;
+			unique_ptr<T> m_solver;
 		};
-		scoped_ptr<WrapperBase> m_wrapper;
+		unique_ptr<WrapperBase> m_wrapper;
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];

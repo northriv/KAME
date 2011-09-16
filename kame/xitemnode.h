@@ -63,7 +63,7 @@ public:
 		Payload() : XItemNodeBase::Payload() {}
 		operator shared_ptr<XNode>() const { return m_var.lock();}
 		virtual XString to_str() const {
-			shared_ptr<XNode> node(*this);
+			shared_ptr<XNode> node( *this);
 			if(node)
 				return node->getName();
 			else
@@ -71,7 +71,7 @@ public:
 		}
 		Payload &operator=(const shared_ptr<XNode> &t) {
 			m_var = t;
-		    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
+		    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 		    return *this;
 		}
 	protected:
@@ -80,10 +80,10 @@ public:
 				*this = shared_ptr<XNode>();
 				return;
 			}
-			if(shared_ptr<TL> list = static_cast<const XPointerItemNode&>(node()).m_list.lock()) {
+			if(auto list = static_cast<const XPointerItemNode&>(node()).m_list.lock()) {
 				Snapshot shot( *list);
 				if(shot.size()) {
-					for(NodeList::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
+					for(auto it = shot.list()->begin(); it != shot.list()->end(); ++it) {
 						if(( *it)->getName() == var) {
 							*this = *it;
 							return;
@@ -106,8 +106,8 @@ private:
 		}
 	}
 	void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
-		if(shared_ptr<TL> list = m_list.lock()) {
-			ASSERT(node == list.get());
+		if(auto list = m_list.lock()) {
+			assert(node == list.get());
 			typename Payload::ListChangeEvent e(shot, this);
 			Snapshot( *this).talk(( **this)->onListChanged(), e);
 		}
@@ -157,9 +157,9 @@ public:
 	};
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
 		shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-		if(shared_ptr<TL> list = this->m_list.lock()) {
+		if(auto list = this->m_list.lock()) {
 			if(shot.size(list)) {
-				for(typename XNode::const_iterator it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
+				for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
 					if(dynamic_pointer_cast<T1>( *it) || dynamic_pointer_cast<T2>( *it)) {
 						XItemNodeBase::Item item;
 						item.name = ( *it)->getName();

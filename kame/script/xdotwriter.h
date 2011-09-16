@@ -16,8 +16,7 @@
 
 #include "xnode.h"
 
-class XDotWriter 
-{
+class XDotWriter {
 public:
     XDotWriter(const shared_ptr<XNode> &root, std::ofstream &ofs);
     ~XDotWriter();

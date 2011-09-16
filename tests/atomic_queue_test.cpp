@@ -15,8 +15,8 @@
 //inline bool atomicCompareAndSet2(
 //    uint32_t oldv0, uint32_t oldv1,
 //    uint32_t newv0, uint32_t newv1, uint32_t *target ) {
-//        ASSERT(oldv0 == target[0]);
-//        ASSERT(oldv1 == target[1]);
+//        assert(oldv0 == target[0]);
+//        assert(oldv1 == target[1]);
 //        if(rand() > RAND_MAX/2) {
 //            target[0] = newv0;
 //            target[1] = newv1;
@@ -27,7 +27,7 @@
 
 #include "atomic_smart_ptr.h"
 #include "atomic_queue.h"
-#include "thread.cpp"
+#include "xthread.cpp"
 
 
 #define SIZE 100000
@@ -77,7 +77,7 @@ start_routine(void *) {
 	        if(t) {
 		        int x = *t;
 		        if(queue2.atomicPop(t)) {
-			        ASSERT(x >= 0);
+			        assert(x >= 0);
 		        	*t = -100;
 		        	g_queue2_total -= x;
 //		        	break;

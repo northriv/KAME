@@ -129,7 +129,7 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 
 void
 SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
-	scoped_ptr<Payload::WrapperBase> wrapper;
+	unique_ptr<Payload::WrapperBase> wrapper;
 	bool has_window = true;
 	bool has_length = true;
 	if(m_selector) {

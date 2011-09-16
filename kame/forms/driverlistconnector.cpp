@@ -101,12 +101,12 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
 			break;
 	}
 
-	ASSERT(m_pItem->numRows() == (int)m_cons.size());
+	assert(m_pItem->numRows() == (int)m_cons.size());
 }
 void
 XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
-		ASSERT(m_pItem->numRows() == (int)m_cons.size());
+	for(auto it = m_cons.begin(); it != m_cons.end();) {
+		assert(m_pItem->numRows() == (int)m_cons.size());
 		if(( *it)->driver == e.released) {
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 2) == ( *it)->label)
@@ -120,7 +120,7 @@ XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Paylo
 }
 void
 XDriverListConnector::clicked ( int row, int col, int , const QPoint& ) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(m_pItem->cellWidget(row, 2) == ( *it)->label) {
 			if(col < 3) ( *it)->driver->showForms();
 		}

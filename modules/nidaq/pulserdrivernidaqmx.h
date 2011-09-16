@@ -76,8 +76,8 @@ private:
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
-	scoped_ptr<std::vector<GenPattern> > m_genPatternList;
-	scoped_ptr<std::vector<GenPattern> > m_genPatternListNext;
+	unique_ptr<std::vector<GenPattern> > m_genPatternList;
+	unique_ptr<std::vector<GenPattern> > m_genPatternListNext;
 	typedef std::vector<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatIt;
@@ -119,7 +119,7 @@ private:
 		//! Tags as read.
 		void finReading(ssize_t size_read) {
 			ssize_t p = m_curReadPos + size_read;
-			ASSERT(p <= m_end);
+			assert(p <= m_end);
 			if((m_endOfWritten < m_curReadPos) && (p == m_end)) p = 0;
 			m_curReadPos = p;
 		}
@@ -141,7 +141,7 @@ private:
 		}
 		//! Tags as written.
 		void finWriting(T *pend) {
-			ASSERT(pend - m_endOfWritten <= chunkSize());
+			assert(pend - &m_data[m_endOfWritten] <= chunkSize());
 			ssize_t pos = pend - &m_data[0];
 			m_endOfWritten = pos;
 		}
@@ -156,8 +156,8 @@ private:
 
 	tRawAOSet m_genAOZeroLevel;
 
-	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
-	scoped_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+	unique_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+	unique_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	enum { CAL_POLY_ORDER = 4};
 	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];

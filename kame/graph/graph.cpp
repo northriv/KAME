@@ -84,10 +84,10 @@ XGraph::XGraph(const char *name, bool runtime) :
 
 		tr[ *label()] = name;
 
-	    shared_ptr<XAxis> xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::DirAxisX
+	    auto xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::DirAxisX
 							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *xaxis->label()] = i18n("X Axis");
-	    shared_ptr<XAxis> yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::DirAxisY
+	    auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::DirAxisY
 							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *yaxis->label()] = i18n("Y Axis");
 
@@ -107,15 +107,15 @@ XGraph::setupRedraw(Transaction &tr, float resolution) {
 	const Snapshot &shot(tr);
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
-			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
+			auto axis = static_pointer_cast<XAxis>( *it);
 			axis->startAutoscale(shot, resolution, shot[ *axis->autoScale()]);
 		}
 	}
 	if(shot.size(plots())) {
 		const XNode::NodeList &plots_list( *shot.list(plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); ++it) {
-			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+		for(auto it = plots_list.begin(); it != plots_list.end(); ++it) {
+			auto plot = static_pointer_cast<XPlot>( *it);
 			if(plot->fixScales(tr)) {
 				plot->snapshot(shot);
 				plot->validateAutoScale(shot);
@@ -124,8 +124,8 @@ XGraph::setupRedraw(Transaction &tr, float resolution) {
 	}
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
-			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
+			auto axis = static_pointer_cast<XAxis>( *it);
 			if(shot[ *axis->autoScale()])
 				axis->zoom(true, true, UNZOOM_ABIT);
 			axis->fixScale(tr, resolution, true);
@@ -139,16 +139,16 @@ XGraph::zoomAxes(Transaction &tr, float resolution,
 	const Snapshot &shot(tr);
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
-			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
+			auto axis = static_pointer_cast<XAxis>( *it);
 			axis->startAutoscale(shot, resolution);
 		}
 	}
 //   validateAutoScale();
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
-			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
+			auto axis = static_pointer_cast<XAxis>( *it);
 			axis->zoom(true, true, scale, axis->screenToAxis(shot, center));
 			axis->fixScale(tr, resolution);
 		}

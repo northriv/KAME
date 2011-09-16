@@ -90,8 +90,8 @@ XQGraphPainter::findAxis(const Snapshot &shot, const XGraph::ScrPoint &s1) {
     double zmin = 0.1;
 	if(shot.size(m_graph->axes())) {
 		const XNode::NodeList &axes_list( *shot.list(m_graph->axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = dynamic_pointer_cast<XAxis>(*it);
+		for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
+			auto axis = dynamic_pointer_cast<XAxis>(*it);
 			XGraph::SFloat z1;
 			XGraph::ScrPoint s2;
 			axis->axisToScreen(shot, axis->screenToAxis(shot, s1), &s2);
@@ -110,8 +110,8 @@ XQGraphPainter::findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,
 	double zmin = 0.1;
 	shared_ptr<XPlot> plot_found;
 	if(shot.size(m_graph->plots())) {
-		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+		const auto &plots_list( *shot.list(m_graph->plots()));
+		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
 			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
 			XGraph::GPoint g1;
 			shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
@@ -251,8 +251,8 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 					if( !m_foundAxis) {
 						//Autoscales all axes
 						if(tr.size(m_graph->axes())) {
-							const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
-							for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
+							const auto &axes_list( *tr.list(m_graph->axes()));
+							for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
 								shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
 								if(tr[ *axis->autoScale()].isUIEnabled())
 									tr[ *axis->autoScale()] = true;
@@ -349,8 +349,8 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
   
 	for(Transaction tr( *m_graph);; ++tr) {
 		if(tr.size(m_graph->axes())) {
-			const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
-			for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); ++it) {
+			const auto &axes_list( *tr.list(m_graph->axes()));
+			for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
 				shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
 				if(tr[ *axis->autoScale()].isUIEnabled())
 					tr[ *axis->autoScale()] = false;
@@ -530,8 +530,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			defaultFont();
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y2 = y1;
-			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-				shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+			for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
+				auto plot = static_pointer_cast<XPlot>( *it);
 				selectFont(shot[ *plot->label()], XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 				y2 -= dy;
 			}
@@ -551,9 +551,9 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			endQuad();
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y = y1;
-			for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
+			for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
 				setColor(shot[ *m_graph->titleColor()], 1.0);
-				shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+				auto plot = static_pointer_cast<XPlot>( *it);
 				drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
 				plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
@@ -625,9 +625,9 @@ void
 XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 	setColor((QRgb)shot[ *m_graph->backGround()], 0.3);
 	if(shot.size(m_graph->plots())) {
-		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+		const auto &plots_list( *shot.list(m_graph->plots()));
+		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
+			auto plot = static_pointer_cast<XPlot>( *it);
 			XGraph::GPoint g1(0.0, 0.0, 0.0),
 				g2(1.0, 0.0, 0.0),
 				g3(0.0, 1.0, 0.0),
@@ -669,9 +669,9 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 void
 XQGraphPainter::drawOffScreenGrids(const Snapshot &shot) {
 	if(shot.size(m_graph->plots())) {
-		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = dynamic_pointer_cast<XPlot>( *it);
+		const auto &plots_list( *shot.list(m_graph->plots()));
+		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
+			auto plot = dynamic_pointer_cast<XPlot>( *it);
 			plot->drawGrid(shot, this, m_bTilted);
 		}
 	}
@@ -679,9 +679,9 @@ XQGraphPainter::drawOffScreenGrids(const Snapshot &shot) {
 void
 XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
 	if(shot.size(m_graph->plots())) {
-		const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
-		for(XNode::const_iterator it = plots_list.begin(); it != plots_list.end(); it++) {
-			shared_ptr<XPlot> plot = static_pointer_cast<XPlot>( *it);
+		const auto &plots_list( *shot.list(m_graph->plots()));
+		for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
+			auto plot = static_pointer_cast<XPlot>( *it);
 			plot->drawPlot(shot, this);
 		}
 	}
@@ -689,9 +689,9 @@ XQGraphPainter::drawOffScreenPoints(const Snapshot &shot) {
 void
 XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 	if(shot.size(m_graph->axes())) {
-		const XNode::NodeList &axes_list( *shot.list(m_graph->axes()));
-		for(XNode::const_iterator it = axes_list.begin(); it != axes_list.end(); it++) {
-			shared_ptr<XAxis> axis = static_pointer_cast<XAxis>( *it);
+		const auto &axes_list( *shot.list(m_graph->axes()));
+		for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
+			auto axis = static_pointer_cast<XAxis>( *it);
 			if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
 				axis->drawAxis(shot, this);
 		}

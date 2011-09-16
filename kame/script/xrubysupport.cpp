@@ -55,12 +55,12 @@ XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby) {
 	st->ptr = node;
 	st->xruby = xruby;
 	VALUE rnew;
-	shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+	auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 	if(vnode) {
 		rnew = Data_Wrap_Struct(xruby->rbClassValueNode, 0, rnode_free, st);
 	}
 	else {
-		shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
+		auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
 		if(lnode) {
 			rnew = Data_Wrap_Struct(xruby->rbClassListNode, 0, rnode_free, st);
 		}
@@ -98,7 +98,7 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 			{
 				const char *name = RSTRING(var)->ptr;
 				child = node->getChild(name);
-				if(! child ) {
+				if( !child ) {
 					throw formatString("No such node name:%s on %s\n",
 						name, node->getName().c_str());
 				}
@@ -138,8 +138,7 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 			if( shot[ *node].isRuntime() ) {
 				throw formatString("Node %s is run-time node!\n", node->getName().c_str());
 			}     
-			shared_ptr<XListNodeBase> lnode =
-				dynamic_pointer_cast<XListNodeBase>(node);
+			auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
 			if( !lnode) {
 				throw formatString("Error on %s : Not ListNode. Could not make child"
 					" name = %s, type = %s\n", node->getName().c_str(), name, type);
@@ -202,8 +201,7 @@ XRuby::rlistnode_release_child(VALUE self, VALUE rbchild) {
 			if( !shot[ *node].isUIEnabled()) {
 				throw formatString("Node %s is read-only!\n", node->getName().c_str());
 			}     
-			shared_ptr<XListNodeBase> lnode =
-				dynamic_pointer_cast<XListNodeBase>(node);
+			auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
 			if( !lnode) {
 				throw formatString("Error on %s : Not ListNode. Could not release child\n"
 					, node->getName().c_str());
@@ -277,7 +275,7 @@ XRuby::rnode_touch(VALUE self) {
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			shared_ptr<XTouchableNode> tnode = dynamic_pointer_cast<XTouchableNode>(node);
+			auto tnode = dynamic_pointer_cast<XTouchableNode>(node);
 			if( !node)
 				throw formatString("Type mismatch on node %s\n", node->getName().c_str());
 			dbgPrint(QString("Ruby, Node %1, touching."));
@@ -309,8 +307,8 @@ XRuby::rvaluenode_set(VALUE self, VALUE var) {
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
 			Snapshot shot( *node);
-			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
-			ASSERT(vnode);
+			auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+			assert(vnode);
 			dbgPrint(QString("Ruby, Node %1, setting new value.").arg(node->getName()) );
 			if( !shot[ *node].isUIEnabled()) {
 				throw formatString("Node %s is read-only!\n", node->getName().c_str());
@@ -341,8 +339,8 @@ XRuby::rvaluenode_load(VALUE self, VALUE var) {
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
 			Snapshot shot( *node);
-			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
-			ASSERT(vnode);
+			auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+			assert(vnode);
 			dbgPrint(QString("Ruby, Node %1, loading new value.").arg(node->getName()) );
 			if( shot[ *node].isRuntime()) {
 				throw formatString("Node %s is run-time node!\n", node->getName().c_str());
@@ -373,8 +371,8 @@ XRuby::rvaluenode_get(VALUE self) {
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
-			ASSERT(vnode);
+			auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+			assert(vnode);
 			return XRuby::getValueOfNode(vnode);
 		}
 		else {
@@ -394,8 +392,8 @@ XRuby::rvaluenode_to_str(VALUE self) {
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			shared_ptr<XValueNodeBase> vnode = dynamic_pointer_cast<XValueNodeBase>(node);
-			ASSERT(vnode);
+			auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
+			assert(vnode);
 			return string2RSTRING(( **vnode)->to_str());
 		}
 		else {
@@ -414,12 +412,12 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 	double dbl = 0;
 	long integer = 0;
 
-	shared_ptr<XDoubleNode> dnode = dynamic_pointer_cast<XDoubleNode>(node);
-	shared_ptr<XIntNode> inode = dynamic_pointer_cast<XIntNode>(node);
-	shared_ptr<XUIntNode> uinode = dynamic_pointer_cast<XUIntNode>(node);
-	shared_ptr<XLongNode> lnode = dynamic_pointer_cast<XLongNode>(node);
-	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
-	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
+	auto dnode = dynamic_pointer_cast<XDoubleNode>(node);
+	auto inode = dynamic_pointer_cast<XIntNode>(node);
+	auto uinode = dynamic_pointer_cast<XUIntNode>(node);
+	auto lnode = dynamic_pointer_cast<XLongNode>(node);
+	auto ulnode = dynamic_pointer_cast<XULongNode>(node);
+	auto bnode = dynamic_pointer_cast<XBoolNode>(node);
 
 	switch (TYPE(value)) {
 	case T_FIXNUM:
@@ -468,13 +466,13 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 }
 VALUE
 XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
-	shared_ptr<XDoubleNode> dnode = dynamic_pointer_cast<XDoubleNode>(node);
-	shared_ptr<XIntNode> inode = dynamic_pointer_cast<XIntNode>(node);
-	shared_ptr<XUIntNode> uinode = dynamic_pointer_cast<XUIntNode>(node);
-	shared_ptr<XLongNode> lnode = dynamic_pointer_cast<XLongNode>(node);
-	shared_ptr<XULongNode> ulnode = dynamic_pointer_cast<XULongNode>(node);
-	shared_ptr<XBoolNode> bnode = dynamic_pointer_cast<XBoolNode>(node);
-	shared_ptr<XStringNode> snode = dynamic_pointer_cast<XStringNode>(node);
+	auto dnode = dynamic_pointer_cast<XDoubleNode>(node);
+	auto inode = dynamic_pointer_cast<XIntNode>(node);
+	auto uinode = dynamic_pointer_cast<XUIntNode>(node);
+	auto lnode = dynamic_pointer_cast<XLongNode>(node);
+	auto ulnode = dynamic_pointer_cast<XULongNode>(node);
+	auto bnode = dynamic_pointer_cast<XBoolNode>(node);
+	auto snode = dynamic_pointer_cast<XStringNode>(node);
 	Snapshot shot( *node);
 	if(dnode) {return rb_float_new((double)shot[ *dnode]);}
 	if(inode) {return INT2NUM(shot[ *inode]);}
@@ -496,8 +494,8 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 	Snapshot shot(*st->xruby);
 	if(shot.size()) {
 		for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
-			shared_ptr<XRubyThread> th = dynamic_pointer_cast<XRubyThread>( *it);
-			ASSERT(th);
+			auto th = dynamic_pointer_cast<XRubyThread>( *it);
+			assert(th);
 			if(id == shot[ *th->threadID()])
 				rubythread = th;
 		}
@@ -575,7 +573,7 @@ XRuby::execute(const atomic<bool> &terminated) {
 
 		{
 			shared_ptr<XMeasure> measure = m_measure.lock();
-			ASSERT(measure);
+			assert(measure);
 			XString name = measure->getName();
 			name[0] = toupper(name[0]);
 			VALUE rbRootNode = rnode_create(measure, this);

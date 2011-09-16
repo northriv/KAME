@@ -205,7 +205,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 		double dt = fabs(newtime - lasttime);
 		lasttime = newtime;
 		havg = (havg - magnet_field) * exp(-dt / 3.0) + magnet_field;
-		trans( *stabilized()) = fabs(havg - (double)**targetField()); //stderr
+		trans( *stabilized()) = fabs(havg - (double)***targetField()); //stderr
       
 		double dhdt = (magnet_field - lasth) / dt;
 		lasth = magnet_field;

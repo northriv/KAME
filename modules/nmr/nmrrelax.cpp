@@ -339,7 +339,7 @@ XNMRT1::checkDependency(const Snapshot &shot_this,
     if( !pulser__ || !pulse1__) return false;
     if(emitter == this) return true;
     if(emitter == pulser__.get()) return false;
-	ASSERT((emitter == pulse1__.get()) || (emitter == pulse2__.get()));
+	assert((emitter == pulse1__.get()) || (emitter == pulse2__.get()));
 
     const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
     const Snapshot &shot_pulse2((emitter == pulse2__.get()) ? shot_emitter : shot_others);
@@ -391,7 +391,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
 	const Snapshot &shot_pulser(shot_others);
-	ASSERT( pulser__ );
+	assert( pulser__ );
 	if(shot_pulser[ *pulser__].time()) {
 		//Check consitency.
 		switch (mode__) {
@@ -412,10 +412,10 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	// read spectra from NMRPulseAnalyzers
 	if( emitter != this) {
-		ASSERT( pulse1__ );
-		ASSERT( shot_pulse1[ *pulse1__].time() );
-		ASSERT( shot_pulser[ *pulser__].time() );
-		ASSERT( emitter != pulser__.get() );
+		assert( pulse1__ );
+		assert( shot_pulse1[ *pulse1__].time() );
+		assert( shot_pulser[ *pulser__].time() );
+		assert( emitter != pulser__.get() );
 
 		if(shot_pulse1[ *pulse1__->exAvgIncr()]) {
 			m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
@@ -438,7 +438,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
         case XPulser::N_COMB_MODE_COMB_ALT:
 			if(mode__ != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
-			ASSERT(pulse2__);
+			assert(pulse2__);
             pt1.p1 = shot_pulser[ *pulser__].combP1();
             for(int i = 0; i < cmp1.size(); i++)
             	pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
@@ -447,7 +447,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         case XPulser::N_COMB_MODE_P1_ALT:
 			if(mode__ == MEAS_T2)
                 throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
-			ASSERT(pulse2__);
+			assert(pulse2__);
             pt1.p1 = shot_pulser[ *pulser__].combP1();
             std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
             tr[ *this].m_pts.push_back(pt1);

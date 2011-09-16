@@ -31,7 +31,7 @@ set(kame_SRCS
     xnodeconnector.cpp
     xsignal.cpp
     xscheduler.cpp
-    thread.cpp
+    xthread.cpp
     threadlocal.cpp
     support.cpp
     xtime.cpp

@@ -317,7 +317,7 @@ XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) 
 	XScopedLock<XInterface> lock( *interface());
 //	interface()->send("TRIG_MODE STOP");
 	try {
-		writer->push<unsigned int32_t>(channels.size());
+		writer->push<uint32_t>(channels.size());
 		for(unsigned int i = 0; i < std::min((unsigned int)channels.size(), 4u); i++) {
 			XString ch = channels[i];
 			if(shot[ *average()] > 1) {
@@ -375,7 +375,7 @@ XLecroyDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordErr
 #define WAVEDESC_WAVE_ARRAY_COUNT 116
 #define DATA_BLOCK 346
 	
-	unsigned int ch_cnt = reader.pop<unsigned int32_t>();
+	unsigned int ch_cnt = reader.pop<uint32_t>();
 	for(unsigned int ch = 0; ch < ch_cnt; ch++) {
 		std::vector<char>::const_iterator dit = reader.popIterator();
 		unsigned int n;

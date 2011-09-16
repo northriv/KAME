@@ -139,8 +139,8 @@ XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::R
 		shared_ptr<XValChart> valchart;
 		if(tr.size()) {
 			const XNode::NodeList &list( *tr.list());
-			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XValChart> chart = dynamic_pointer_cast<XValChart>( *it);
+			for(auto it = list.begin(); it != list.end(); it++) {
+				auto chart = dynamic_pointer_cast<XValChart>( *it);
 				if(chart->entry() == entry) valchart = chart;
 			}
 		}
@@ -198,8 +198,8 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *shot_this[ *this].m_storePlot->label()] = graph->getLabel() + " Stored";
 
 		const XNode::NodeList &axes_list( *tr.list(graph->axes()));
-		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
-		shared_ptr<XAxis> axisy = static_pointer_cast<XAxis>(axes_list.at(1));
+		auto axisx = static_pointer_cast<XAxis>(axes_list.at(0));
+		auto axisy = static_pointer_cast<XAxis>(axes_list.at(1));
 
 		tr[ *axisx->ticLabelFormat()] = entryx->value()->format();
 		tr[ *axisy->ticLabelFormat()] = entryy1->value()->format();

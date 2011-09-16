@@ -16,11 +16,15 @@
 
 #include "support.h"
 #include <math.h>
+#include <chrono>
+//#include <thread>
+using namespace std::chrono;
+//using namespace std::this_thread;
 
-//! sleep in ms
-void msecsleep(unsigned int ms);
+//! Sleeps in ms
+void msecsleep(unsigned int ms); //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 
-//! fetch CPU counter.
+//! Fetches CPU counter.
 unsigned int timeStamp();
 
 class XTime {
@@ -50,7 +54,7 @@ public:
         long usec = (lrint(1e6 * (tv_sec - sec + sec_d) + tv_usec));
         tv_sec = sec;
         tv_usec = usec;
-        ASSERT((tv_usec >= 0) && (tv_usec < 1000000));
+        assert((tv_usec >= 0) && (tv_usec < 1000000));
         return *this;
     }
     XTime &operator-=(double sec) {

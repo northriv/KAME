@@ -17,21 +17,18 @@
 #include "xlistnode.h"
 
 XDotWriter::XDotWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
-	: m_root(root), m_ofs(ofs), m_unnamedcnt(0)
-{
-    ASSERT(ofs.good());
+	: m_root(root), m_ofs(ofs), m_unnamedcnt(0) {
+    assert(ofs.good());
     ofs << "/* KAME2 measurement configuration file" << std::endl
         << "* Automatically created. KAME version. " VERSION << std::endl
         << "* date: " << XTime::now().getTimeStr() << std::endl
         << "*/" << std::endl;
 }
-XDotWriter::~XDotWriter()
-{
+XDotWriter::~XDotWriter() {
     m_ofs.flush();
 }
 void 
-XDotWriter::write()
-{
+XDotWriter::write() {
     m_ofs << "digraph "
           << "G" //(const char *)m_root->getName().c_str()
           << " {"
@@ -44,8 +41,7 @@ XDotWriter::write()
           << std::endl;
 }
 void 
-XDotWriter::write(const shared_ptr<XNode> &node, const Snapshot &shot)
-{
+XDotWriter::write(const shared_ptr<XNode> &node, const Snapshot &shot) {
     if(std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end()) {
         m_ofs << "obj_" << (uintptr_t)node.get()
               << " [label=\"" << node->getName()
@@ -57,7 +53,7 @@ XDotWriter::write(const shared_ptr<XNode> &node, const Snapshot &shot)
 //    shared_ptr<XListNodeBase> lnode = dynamic_pointer_cast<XListNodeBase>(node);
     int unnamed = 0;
     if(shot.size(node)) {
-		for(XNode::const_iterator it = shot.list(node)->begin(); it != shot.list(node)->end(); it++) {
+		for(auto it = shot.list(node)->begin(); it != shot.list(node)->end(); it++) {
 			shared_ptr<XNode> child = *it;
            
 			if(child->getName().empty()) {

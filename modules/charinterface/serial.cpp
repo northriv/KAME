@@ -87,7 +87,7 @@ XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
 }
 void
 XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
       
 	for (;;) {
 		int ret = tcflush(m_scifd, TCIFLUSH);
@@ -121,7 +121,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
 }
 void
 XPosixSerialPort::receive() throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
     
 //   for(;;) {
 //        if(tcdrain(m_scifd) < 0) {
@@ -167,7 +167,7 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &) {
 }
 void
 XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
-	ASSERT(m_pInterface->isOpened());
+	assert(m_pInterface->isOpened());
    
 //   for(;;) {
 //        if(tcdrain(m_scifd) < 0) {

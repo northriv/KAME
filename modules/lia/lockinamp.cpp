@@ -166,7 +166,7 @@ XLIA::execute(const atomic<bool> &terminated) {
 	}
 
 	while( !terminated) {
-		double fetch_freq = **fetchFreq();
+		double fetch_freq = ***fetchFreq();
 		double wait = 0;
 		if(fetch_freq > 0) {
 			sscanf(( **timeConst())->to_str().c_str(), "%lf", &wait);

@@ -179,7 +179,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	const Snapshot &shot_this(tr);
 
 	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
-	ASSERT( pulse__ );
+	assert( pulse__ );
 	const Snapshot &shot_pulse((emitter == pulse__.get()) ? shot_emitter : shot_others);
  
 	if(shot_pulse[ *pulse__->exAvgIncr()]) {
@@ -298,7 +298,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 	int length = shot[ *this].wave().size();
 	std::vector<double> values;
 	getValues(shot, values);
-	ASSERT(values.size() == length);
+	assert(values.size() == length);
 	for(Transaction tr( *m_spectrum);; ++tr) {
 		double th = FFT::windowFuncHamming(0.1);
 		const std::complex<double> *wave( &shot[ *this].wave()[0]);
@@ -476,7 +476,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	}
 	for(int i = 0; i < (int)solverin.size(); i++) {
 		int k = (-iftorigin + i + iftlen) % iftlen;
-		ASSERT(k >= 0);
+		assert(k >= 0);
 		solverin[i] = iftwave[k];
 	}
 	try {

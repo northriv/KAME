@@ -24,10 +24,10 @@ bool isMainThread() {
 XListener::XListener(FLAGS flags) :
 	m_flags(flags) {
     if(flags & FLAG_AVOID_DUP) {
-        ASSERT(flags & FLAG_MAIN_THREAD_CALL);
+        assert(flags & FLAG_MAIN_THREAD_CALL);
     }
     if((flags & FLAG_DELAY_SHORT) || (flags & FLAG_DELAY_ADAPTIVE)) {
-        ASSERT(flags & FLAG_AVOID_DUP);
+        assert(flags & FLAG_AVOID_DUP);
     }
 }
 XListener::~XListener() {}

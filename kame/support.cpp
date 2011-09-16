@@ -23,7 +23,7 @@ bool g_bUseMLock;
 #include <iostream>
 #include <fstream>
 
-#include "thread.h"
+#include "xthread.h"
 #define KAME_LOG_FILENAME "/tmp/kame.log"
 
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
@@ -47,29 +47,6 @@ static void __attribute__ ((constructor)) trapfpe (void)
 #endif
 #endif // __linux__
 
-#ifndef NDEBUG
-#ifdef __linux__
-#include <execinfo.h>
-#endif
-int my_assert(const char *file, int line) {
-	XScopedLock<XMutex> lock(g_debug_mutex);
-	XString msg = formatString("assertion failed %s:%d\n",file,line);
-	g_debugofs << msg;
-	fprintf(stderr, "%s",msg.c_str());
-	g_debugofs.flush();
-	g_debugofs.close();
-#ifdef __linux__
-	void *trace[128];
-	int n = backtrace(trace, sizeof(trace) / sizeof(trace[0]));
-	backtrace_symbols_fd(trace, n, 1);
-	int fd = open(KAME_LOG_FILENAME, O_RDWR | O_APPEND);
-	backtrace_symbols_fd(trace, n, fd);
-	close(fd);
-#endif
-	abort();
-	return -1;
-}
-#endif // NDEBUG
 
 
 XKameError::XKameError(const XString &s, const char *file, int line)
@@ -136,7 +113,7 @@ double setprec(double val, double prec) {
 
 void
 dbgPrint_redirected(const XString &str, const char *file, int line) {
-	if(!g_bLogDbgPrint) return;
+	if( !g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
 		<< (QString("0x%1:%2:%3:%4 %5")
@@ -248,7 +225,7 @@ void formatDoubleValidator(XString &fmt) {
 
 	XString buf(fmt);
 
-	if(!strncmp(buf.c_str(), "TIME:", 5)) return;
+	if( !strncmp(buf.c_str(), "TIME:", 5)) return;
 
 	int arg_cnt = 0;
 	for(int pos = 0;;) {

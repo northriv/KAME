@@ -729,7 +729,7 @@ XNIDAQmxPulser::fillBuffer() {
 		//Case for no QAM nor ASW.
 		if(pausingbit && (pidx == 0) && !(pat & aswbit)) {
 			//generates a pausing trigger.
-			ASSERT(tonext > 0);
+			assert(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
 				(uint64_t)(samps_rest / pausing_cost), (tonext - 1) / pausing_period);
 			patDO &= ~pausingbit;
@@ -762,7 +762,7 @@ XNIDAQmxPulser::fillBuffer() {
 			}
 			else {
 				unsigned int pnum = (pat & PAT_QAM_MASK) / PAT_QAM_PHASE - (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE);
-				ASSERT(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
+				assert(pnum < PAT_QAM_PULSE_IDX_MASK / PAT_QAM_PULSE_IDX);
 				if( !m_genPulseWaveAO[pnum].get() ||
 				   (m_genPulseWaveAO[pnum]->size() < gen_cnt * oversamp_ao + aoidx))
 					throw XInterface::XInterfaceError(i18n("Invalid pulse patterns."), __FILE__, __LINE__);
@@ -774,7 +774,6 @@ XNIDAQmxPulser::fillBuffer() {
 		}
 		tonext -= gen_cnt;
 		samps_rest -= gen_cnt;
-		ASSERT(samps_rest < size);
 		if(tonext == 0) {
 			it++;
 			if(it == m_genPatternList->end()) {
@@ -787,7 +786,6 @@ XNIDAQmxPulser::fillBuffer() {
 			total += tonext;
 		}
 	}
-	ASSERT(m_genBufAO.size() % oversamp_ao == 0);
 	m_genRestSamps = tonext;
 	m_genLastPatIt = it;
 	m_genAOIndex = aoidx;

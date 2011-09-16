@@ -30,11 +30,11 @@
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
 #if defined __LP64__ || defined __LLP64__
-	#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+	#define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
 	#define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
 #else
-	#define GROW_CHUNK_SIZE(x) ((ssize_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+	#define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
 	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
 	#define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
 #endif
@@ -44,7 +44,7 @@
 
 class PoolAllocatorBase {
 public:
-	template <int CCNT, ssize_t CHUNK_SIZE>
+	template <int CCNT, size_t CHUNK_SIZE>
 	static inline bool deallocate_(void *p);
 	static inline bool deallocate(void *p);
 	static void release_chunks();
@@ -55,7 +55,7 @@ protected:
 
 	template <class ALLOC>
 	static ALLOC *allocate_chunk();
-	static void deallocate_chunk(int cidx, ssize_t chunk_size);
+	static void deallocate_chunk(int cidx, size_t chunk_size);
 
 	//! A chunk, memory block.
 	char * const m_mempool;
@@ -112,7 +112,7 @@ protected:
 private:
 	friend class PoolAllocatorBase;
 
-	static PoolAllocator *create(ssize_t size, char *ppool);
+	static PoolAllocator *create(size_t size, char *ppool);
 };
 
 //! Partially specialized class for variable-size allocators.
@@ -132,7 +132,7 @@ private:
 	friend class PoolAllocatorBase;
 	template <unsigned int, bool, bool> friend class PoolAllocator;
 
-	static PoolAllocator *create(ssize_t size, char *ppool);
+	static PoolAllocator *create(size_t size, char *ppool);
 
 	//! Cleared bit at the MSB indicates the end of the allocated area. \sa m_flags.
 	FUINT * const m_sizes;

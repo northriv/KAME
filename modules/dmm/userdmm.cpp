@@ -103,7 +103,7 @@ XHP3478A::XHP3478A(const char *name, bool runtime,
 }
 void
 XHP3478A::changeFunction() {
-    int func = **function();
+    int func = ***function();
     if(func < 0)
 		return;
 //    		throw XInterface::XInterfaceError(i18n("Select function!"), __FILE__, __LINE__);

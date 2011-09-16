@@ -109,12 +109,10 @@ int main(int argc, char *argv[])
 			FrmKameMain *form;
 			form = new FrmKameMain();
             
-			if (args->count())
-			{
+			if (args->count()) {
 				form->openMes( args->arg(0) );
 			}
-			else
-			{
+			else {
 			}
 			args->clear();
 		}
@@ -139,7 +137,7 @@ int main(int argc, char *argv[])
 	if(module_dir.isEmpty())
 		module_dir = KGlobal::dirs()->resourceDirs("lib");
 	std::deque<XString> modules_core, modules;
-	for(QStringList::iterator it = module_dir.begin(); it != module_dir.end(); it++) {
+	for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
 		QString path;
 		path = *it + "kame/core_modules";
 		lt_dladdsearchdir(path.toLocal8Bit().data());
@@ -152,7 +150,7 @@ int main(int argc, char *argv[])
 	}
 
 	modules_core.insert(modules_core.end(), modules.begin(), modules.end());
-	for(std::deque<XString>::iterator it = modules_core.begin(); it != modules_core.end(); it++) {
+	for(auto it = modules_core.begin(); it != modules_core.end(); it++) {
 		lt_dlhandle handle = lt_dlopenext(it->c_str());
 		if(handle) {
 			fprintf(stderr, "Module %s loaded\n", it->c_str());

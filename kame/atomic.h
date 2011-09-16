@@ -15,9 +15,6 @@
 #define ATOMIC_H_
 
 #include <stdint.h>
-#include <boost/utility/enable_if.hpp>
-#include <boost/type_traits/is_pod.hpp>
-#include <boost/type_traits/is_integral.hpp>
 
 #include "atomic_smart_ptr.h"
 
@@ -105,8 +102,8 @@ protected:
 
 //! atomic access to POD type capable of CAS2.
 template <typename T>
-class atomic<T, typename boost::enable_if_c<
-(sizeof(int_cas2) * 2 == sizeof(T)) && boost::is_pod<T>::value>::type>
+class atomic<T, typename std::enable_if<
+(sizeof(int_cas2) * 2 == sizeof(T)) && std::is_pod<T>::value>::type>
 : public atomic_pod_cas2<T> {
 public:
 	atomic() {}
@@ -116,9 +113,9 @@ public:
 
 //! atomic access to POD type capable of CAS.
 template <typename T>
-class atomic<T, typename boost::enable_if_c<
-(sizeof(int_cas_max) >= sizeof(T)) && boost::is_pod<T>::value &&
-!boost::is_integral<T>::value>::type>
+class atomic<T, typename std::enable_if<
+(sizeof(int_cas_max) >= sizeof(T)) && std::is_pod<T>::value &&
+!std::is_integral<T>::value>::type>
 : public atomic_pod_cas<T> {
 public:
 	atomic() {}
@@ -128,8 +125,8 @@ public:
 
 //! atomic access to integer-POD-type capable of CAS.
 template <typename T>
-class atomic<T, typename boost::enable_if_c<
-(sizeof(int_cas_max) >= sizeof(T)) && boost::is_integral<T>::value>::type >
+class atomic<T, typename std::enable_if<
+(sizeof(int_cas_max) >= sizeof(T)) && std::is_integral<T>::value>::type >
 : public atomic_pod_cas<T> {
 public:
 	atomic() : atomic_pod_cas<T>((T)0) {}

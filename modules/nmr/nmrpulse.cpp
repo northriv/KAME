@@ -367,10 +367,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
 	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
-	ASSERT(dso__);
+	assert(dso__);
 
 	const Snapshot &shot_dso((emitter == dso__.get()) ? shot_emitter : shot_others);
-	ASSERT(shot_dso[ *dso__].time() );
+	assert(shot_dso[ *dso__].time() );
 
 	if(shot_dso[ *dso__].numChannels() < 1) {
 		throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
@@ -522,7 +522,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> *dsowave( &tr[ *this].m_dsoWave[0]);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
-		ASSERT(shot_dso[ *dso__].numChannels() );
+		assert(shot_dso[ *dso__].numChannels() );
 		rawwavecos = shot_dso[ *dso__].wave(0);
 		rawwavesin = shot_dso[ *dso__].wave(1);
 		for(unsigned int i = 0; i < dso_len; i++) {
@@ -539,7 +539,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		for(int j = 0;
 		j < (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
 			int k = rpos + j;
-			ASSERT(k < dso_len);
+			assert(k < dso_len);
 			if(i == 1)
 				dsowave[pos + j] /= (double)numechoes;
 			dsowave[pos + j] += dsowave[k] / (double)numechoes;

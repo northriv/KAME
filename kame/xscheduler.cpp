@@ -65,7 +65,7 @@ XSignalBuffer::popOldest() {
 			m_oldest_timestamp = m_skippedQueue.front().second;
 	}
 	if(item) {
-		ASSERT( !skipped_item);
+		assert( !skipped_item);
 		return item;
 	}
 	return skipped_item;

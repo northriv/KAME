@@ -113,8 +113,8 @@ XNMRFSpectrum::getFreqResHint(const Snapshot &shot_this) const {
 double
 XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
-	ASSERT( sg1__ );
-	ASSERT(shot_others[ *sg1__].time() );
+	assert( sg1__ );
+	assert(shot_others[ *sg1__].time() );
     double freq = shot_others[ *sg1__].freq() - shot_this[ *sg1FreqOffset()]; //MHz
 	return freq * 1e6;
 }

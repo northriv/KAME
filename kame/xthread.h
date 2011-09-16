@@ -152,7 +152,7 @@ template <class X>
 XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
 	: m_startarg(new targ) {
 	m_startarg->obj = dynamic_pointer_cast<T>(t);
-	ASSERT(m_startarg->obj);
+	assert(m_startarg->obj);
 	m_startarg->func = func;
 	m_startarg->is_terminated = false;
 }
@@ -164,7 +164,7 @@ XThread<T>::resume() {
 	int ret =
 		pthread_create((pthread_t*)&m_threadid, NULL,
 					   &XThread<T>::xthread_start_routine , m_startarg.get());
-	ASSERT( !ret);
+	assert( !ret);
 }
 template <class T>
 void *
@@ -191,7 +191,7 @@ template <class T>
 void 
 XThread<T>::waitFor(void **retval) {
 	pthread_join(m_threadid, retval);
-//  ASSERT(!ret);
+//  assert(!ret);
 }
 template <class T>
 void 

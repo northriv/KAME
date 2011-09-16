@@ -178,7 +178,7 @@ public:
     const shared_ptr<XBoolNode> &invertPhase() const {return m_invertPhase;}
     const shared_ptr<XBoolNode> &conserveStEPhase() const {return m_conserveStEPhase;}
     const shared_ptr<XComboNode> &portSel(unsigned int port) const {
-    	ASSERT(port < NUM_DO_PORTS);
+    	assert(port < NUM_DO_PORTS);
     	return m_portSel[port];
     }
     

@@ -71,8 +71,8 @@ XNodeBrowser::process() {
 		node = m_lastPointed;
 	if((node != m_lastPointed) && node) {
 		Snapshot shot( *node);
-		shared_ptr<XValueNodeBase> valuenode(dynamic_pointer_cast<XValueNodeBase>(node));
-		shared_ptr<XListNodeBase> listnode(dynamic_pointer_cast<XListNodeBase>(node));
+		auto valuenode(dynamic_pointer_cast<XValueNodeBase>(node));
+		auto listnode(dynamic_pointer_cast<XListNodeBase>(node));
 
 		m_conValue.reset();
 		if(valuenode)
@@ -119,7 +119,7 @@ XNodeBrowser::process() {
 		}
 		if(shot.size()) {
 			str += formatString("<font color=#005500>%u Child(ren):</font> <br>", (unsigned int)shot.list()->size()).c_str();
-			for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
+			for(auto it = shot.list()->begin(); it != shot.list()->end(); ++it) {
 				str += " ";
 				str += ( *it)->getName().c_str();
 			}

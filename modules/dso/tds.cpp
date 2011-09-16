@@ -104,7 +104,7 @@ XTDS::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
     if(shot[ *trigPos()] >= 0)
 		interface()->sendf("HOR:DELAY:STATE OFF;TIME %.2g", (double)shot[ *trigPos()]);
     else
-		interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(shot[ *trigPos()] - 50.0) / 100.0 * (double) **timeWidth());
+		interface()->sendf("HOR:DELAY:STATE ON;TIME %.2g", -(shot[ *trigPos()] - 50.0) / 100.0 * (double) ***timeWidth());
 }
 void
 XTDS::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {

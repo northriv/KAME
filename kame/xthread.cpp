@@ -13,7 +13,7 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 
-#include "thread.h"
+#include "xthread.h"
 #include <assert.h>
 #include <errno.h>
 #include <algorithm>
@@ -25,43 +25,43 @@ XPthreadMutex::XPthreadMutex() {
 	pthread_mutexattr_t attr;
 	int ret;
 	ret = pthread_mutexattr_init( &attr);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 
 	ret = pthread_mutex_init( &m_mutex, &attr);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 
 	ret = pthread_mutexattr_destroy( &attr);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 
 XPthreadMutex::~XPthreadMutex() {
 	int ret = pthread_mutex_destroy( &m_mutex);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 void
 XPthreadMutex::lock() {
 	int ret = pthread_mutex_lock( &m_mutex);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 bool
 XPthreadMutex::trylock() {
 	int ret = pthread_mutex_trylock(&m_mutex);
-	if(DEBUG_XTHREAD) ASSERT(ret != EINVAL);
+	if(DEBUG_XTHREAD) assert(ret != EINVAL);
 	return (ret == 0);
 }
 void
 XPthreadMutex::unlock() {
 	int ret = pthread_mutex_unlock( &m_mutex);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 
 XPthreadCondition::XPthreadCondition() : XPthreadMutex() {
 	int ret = pthread_cond_init( &m_cond, NULL);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 XPthreadCondition::~XPthreadCondition() {
 	int ret = pthread_cond_destroy( &m_cond);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 int
 XPthreadCondition::wait(int usec) {
@@ -87,10 +87,10 @@ XPthreadCondition::wait(int usec) {
 void 
 XPthreadCondition::signal() {
 	int ret = pthread_cond_signal( &m_cond);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }
 void 
 XPthreadCondition::broadcast() {
 	int ret = pthread_cond_broadcast( &m_cond);
-	if(DEBUG_XTHREAD) ASSERT( !ret);
+	if(DEBUG_XTHREAD) assert( !ret);
 }

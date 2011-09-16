@@ -56,7 +56,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 
 void
 XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(it->interface->control().get() == node) {
 		    KIconLoader *loader = KIconLoader::global();
 			if(shot[ *it->interface->control()]) {
@@ -74,7 +74,7 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
 }
 void
 XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
-	shared_ptr<XInterface> interface = static_pointer_cast<XInterface>(e.caught);
+	auto interface = static_pointer_cast<XInterface>(e.caught);
 	int i = m_pItem->numRows();
 	m_pItem->insertRows(i);
 	m_pItem->setText(i, 0, interface->getLabel().c_str());
@@ -110,7 +110,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 }
 void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
+	for(auto it = m_cons.begin(); it != m_cons.end();) {
 		if(it->interface == e.released) {
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->btn) m_pItem->removeRow(i);
@@ -124,7 +124,7 @@ XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Pa
 }
 void
 XInterfaceListConnector::clicked ( int row, int , int , const QPoint& ) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++)
+	for(auto it = m_cons.begin(); it != m_cons.end(); it++)
 	{
 		if(m_pItem->cellWidget(row, 1) == it->btn)
 			it->interface->driver()->showForms();

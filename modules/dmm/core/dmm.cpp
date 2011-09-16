@@ -103,7 +103,7 @@ XDMM::execute(const atomic<bool> &terminated) {
 			break;
 	}
 	while( !terminated) {
-		msecsleep( **waitInms());
+		msecsleep( ***waitInms());
 		if(( **function())->to_str().empty()) continue;
       
 		shared_ptr<RawData> writer(new RawData);

@@ -40,8 +40,7 @@ XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *dri
 		if(driver != this) {
 		//checking if emitter has already connected unless self-emitted.
 			bool found = false;
-			for(Payload::ConnectionList::const_iterator it = shot_this[ *this].m_connections.begin();
-				it != shot_this[ *this].m_connections.end(); ++it) {
+			for(auto it = shot_this[ *this].m_connections.begin(); it != shot_this[ *this].m_connections.end(); ++it) {
 				if((shared_ptr<XNode>(shot_this[ *it->m_selecter]).get() == driver) &&
 					(shot_emitter[ *driver].time())) {
 					found = true;
@@ -52,7 +51,7 @@ XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *dri
 				return;
 		}
 		//checking if the selecters point to existing drivers.
-		for(Payload::ConnectionList::const_iterator it = shot_this[ *this].m_connections.begin();
+		for(auto it = shot_this[ *this].m_connections.begin();
 			it != shot_this[ *this].m_connections.end(); ++it) {
 			shared_ptr<XNode> node = shot_this[ *it->m_selecter];
 			if(node) {
@@ -113,10 +112,9 @@ XSecondaryDriver::connect(const shared_ptr<XPointerItemNode<XDriverList> > &sele
 }
 void
 XSecondaryDriver::onItemChanged(const Snapshot &shot, XValueNodeBase *node) {
-    XPointerItemNode<XDriverList> *item =
-        static_cast<XPointerItemNode<XDriverList>*>(node);
+    auto *item = static_cast<XPointerItemNode<XDriverList>*>(node);
     shared_ptr<XNode> nd = shot[ *item];
-    shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(nd);
+    auto driver = static_pointer_cast<XDriver>(nd);
 
     shared_ptr<XListener> lsnonrecord;
 	if(driver) {
@@ -128,8 +126,7 @@ XSecondaryDriver::onItemChanged(const Snapshot &shot, XValueNodeBase *node) {
 		}
 	}
     for(Transaction tr( *this);; ++tr) {
-		Payload::ConnectionList::iterator it
-			= std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);
+		auto it = std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);
 		it->m_lsnOnRecord = lsnonrecord;
 		if(tr.commit())
 			break;

@@ -38,7 +38,7 @@ struct SingleTransaction : public Transactional::SingleTransaction<XNode, T> {
 	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
-typename boost::enable_if<boost::is_base_of<XNode, T>,
+typename std::enable_if<std::is_base_of<XNode, T>::value,
 	const SingleSnapshot<T> >::type
  operator*(T &node) {
 	return SingleSnapshot<T>(node);
@@ -49,6 +49,7 @@ class Talker : public Transactional::Talker<XNode, tArg, tArgRef> {};
 template <typename tArg, typename tArgRef = const tArg &>
 class TalkerSingleton : public virtual Transactional::TalkerSingleton<XNode, tArg, tArgRef>, public virtual Talker<tArg, tArgRef>  {};
 
+extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
 //! in addition to the features of Transactional::Node.
 //! \sa Transactional::Node, create(), createOrphan().
@@ -58,37 +59,19 @@ public:
 	virtual ~XNode();  
 
 	template <class T>
-	shared_ptr<T> create(const char *name, bool runtime = false);
-	template <class T, typename X>
-	shared_ptr<T> create(const char *name, bool runtime, X x);
-	template <class T, typename X, typename Y>
-	shared_ptr<T> create(const char *name, bool runtime, X x, Y y);
-	template <class T, typename X, typename Y, typename Z>
-	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z);
-	template <class T, typename X, typename Y, typename Z, typename ZZ>
-	shared_ptr<T> create(const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
+	shared_ptr<T> create(const char *name) {return create<T>(name, false);}
+	template <class T, typename... Args>
+	shared_ptr<T> create(const char *name, bool runtime, Args... args);
 
 	template <class T>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime = false);
-	template <class T, typename X>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, X x);
-	template <class T, typename X, typename Y>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, X x, Y y);
-	template <class T, typename X, typename Y, typename Z>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, X x, Y y, Z z);
-	template <class T, typename X, typename Y, typename Z, typename ZZ>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, X x, Y y, Z z, ZZ zz);
+	shared_ptr<T> create(Transaction &tr, const char *name) {return create<T>(tr, name, false);}
+	template <class T, typename... Args>
+	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, Args... args);
 
 	template <class T__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime = false);
-	template <class T__, typename X__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x);
-	template <class T__, typename X__, typename Y__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y);
-	template <class T__, typename X__, typename Y__, typename Z__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y, Z__ z);
-	template <class T__, typename X__, typename Y__, typename Z__, typename ZZ__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, X__ x, Y__ y, Z__ z, ZZ__ zz);
+	static shared_ptr<T__> createOrphan(const char *name) {return createOrphan<T__>(name, false);}
+	template <class T__, typename... Args__>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args__... args);
 
 	//! \return internal/scripting name. Use latin1 chars.
 	XString getName() const;
@@ -254,115 +237,27 @@ typedef XIntNodeBase<unsigned long> XULongNode;
 typedef XIntNodeBase<bool> XBoolNode;
 typedef XIntNodeBase<unsigned long, 16> XHexNode;
 
-template <class T>
+template <class T, typename... Args>
 shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime) {
-	Transactional::Node<XNode>::create<T>(name, runtime);
-	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
-	XNode::stl_thisCreating->pop_back();
-	return ptr;
-}
-template <class T, typename X>
-shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime, X x) {
-	Transactional::Node<XNode>::create<T>(name, runtime, x);
-	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
-	XNode::stl_thisCreating->pop_back();
-	return ptr;
-}
-template <class T, typename X, typename Y>
-shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime, X x, Y y) {
-	Transactional::Node<XNode>::create<T>(name, runtime, x, y);
-	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
-	XNode::stl_thisCreating->pop_back();
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z>
-shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime, X x, Y y, Z z) {
-	Transactional::Node<XNode>::create<T>(name, runtime, x, y, z);
-	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
-	XNode::stl_thisCreating->pop_back();
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
-	Transactional::Node<XNode>::create<T>(name, runtime, x, y, z, zz);
+XNode::createOrphan(const char *name, bool runtime, Args... args) {
+	Transactional::Node<XNode>::create<T>(name, runtime, args...);
 	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
 	XNode::stl_thisCreating->pop_back();
 	return ptr;
 }
 
-template <class T>
+template <class T, typename... Args>
 shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime));
-	if(ptr) insert(tr, ptr, true);
-	return ptr;
-}
-template <class T, typename X>
-shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime, X x) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x));
-	if(ptr) insert(tr, ptr, true);
-	return ptr;
-}
-template <class T, typename X, typename Y>
-shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime, X x, Y y) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y));
-	if(ptr) insert(tr, ptr, true);
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z>
-shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime, X x, Y y, Z z) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y, z));
-	if(ptr) insert(tr, ptr, true);
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y, z, zz));
+XNode::create(Transaction &tr, const char *name, bool runtime, Args... args) {
+	shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
 	if(ptr) insert(tr, ptr, true);
 	return ptr;
 }
 
-template <class T>
+template <class T, typename... Args>
 shared_ptr<T>
-XNode::create(const char *name, bool runtime) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime));
-	if(ptr) insert(ptr);
-	return ptr;
-}
-template <class T, typename X>
-shared_ptr<T>
-XNode::create(const char *name, bool runtime, X x) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x));
-	if(ptr) insert(ptr);
-	return ptr;
-}
-template <class T, typename X, typename Y>
-shared_ptr<T>
-XNode::create(const char *name, bool runtime, X x, Y y) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y));
-	if(ptr) insert(ptr);
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z>
-shared_ptr<T>
-XNode::create(const char *name, bool runtime, X x, Y y, Z z) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y, z));
-	if(ptr) insert(ptr);
-	return ptr;
-}
-template <class T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<T>
-XNode::create(const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, x, y, z, zz));
+XNode::create(const char *name, bool runtime, Args... args) {
+	shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
 	if(ptr) insert(ptr);
 	return ptr;
 }

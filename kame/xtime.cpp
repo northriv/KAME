@@ -71,9 +71,9 @@ XTime::now() {
 
 XString
 XTime::getTimeStr(bool subsecond) const {
-    if(*this) {
+    if( *this) {
 		char str[100];
-		ctime_r(&tv_sec, str);
+		ctime_r( &tv_sec, str);
 		str[strlen(str) - 1] = '\0';
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
@@ -85,10 +85,10 @@ XTime::getTimeStr(bool subsecond) const {
 }
 XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
-    if(*this) {
+    if( *this) {
 		char str[100];
 		struct tm time;
-		localtime_r(&tv_sec, &time);
+		localtime_r( &tv_sec, &time);
 		strftime(str, 100, fmt, &time);
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);

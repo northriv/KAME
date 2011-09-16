@@ -16,13 +16,13 @@
 
 #include "transaction.h"
 
-#include "thread.cpp"
+#include "xthread.cpp"
 
 atomic<int> slow_threads = 0;
 atomic<int> objcnt = 0; //# of objects.
 atomic<long> total = 0; //The sum of payloads.
 
-#define TRANSACTIONAL_STRICT_ASSERT
+#define TRANSACTIONAL_STRICT_assert
 
 class LongNode : public Transactional::Node<LongNode> {
 public:
@@ -64,7 +64,7 @@ typedef Transactional::Transaction<LongNode> Transaction;
 	implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
-typename boost::enable_if<boost::is_base_of<LongNode, T>,
+typename std::enable_if<std::is_base_of<LongNode, T>::value,
 	const typename Transactional::SingleSnapshot<LongNode, T> >::type
  operator*(T &node) {
 	return Transactional::SingleSnapshot<LongNode, T>(node);
@@ -142,7 +142,7 @@ start_routine(void *arg) {
 			gn1->release(p1);
 		}
 	}
-	long y = **p2;
+	long y = ***p2;
 	if(y != 0) {
 		printf("Error! P2=%ld\n", y);
 		abort();
@@ -178,7 +178,7 @@ main(int argc, char **argv)
 			printf("Gn3:%ld\n", x);
 		}
 		trans(*gn3) = 3;
-		long x = **gn3;
+		long x = ***gn3;
 		printf("Gn3:%ld\n", x);
 		trans(*gn3) = 0;
 
@@ -208,7 +208,7 @@ main(int argc, char **argv)
 				shot1[ *p22];
 				shot1[ *p211];
 			}
-			long x = **p2;
+			long x = ***p2;
 			trans(*p22) = 1;
 			trans(*p22) = 0;
 			trans(*p21) = 1;
@@ -246,12 +246,12 @@ main(int argc, char **argv)
 		}
 		printf("join\n");
 
-		if(**gn1 || **gn2 || **gn3 || **gn4) {
+		if(***gn1 || ***gn2 || ***gn3 || ***gn4) {
 			printf("failed1\n");
-			printf("Gn1:%ld\n", (long)**gn1);
-			printf("Gn2:%ld\n", (long)**gn2);
-			printf("Gn3:%ld\n", (long)**gn3);
-			printf("Gn4:%ld\n", (long)**gn4);
+			printf("Gn1:%ld\n", (long)***gn1);
+			printf("Gn2:%ld\n", (long)***gn2);
+			printf("Gn3:%ld\n", (long)***gn3);
+			printf("Gn4:%ld\n", (long)***gn4);
 			return -1;
 		}
 

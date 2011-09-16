@@ -198,7 +198,7 @@ XCharInterface::receive() throw (XCommError &) {
 	try {
 		dbgPrint(driver()->getLabel() + " Receiving...");
 		m_xport->receive();
-		ASSERT(buffer().size());
+		assert(buffer().size());
 		dbgPrint(driver()->getLabel() + " Received;\"" + 
 				 dumpCString((const char*)&buffer()[0]) + "\"");
 	}
@@ -265,7 +265,7 @@ XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XPort> port = m_xport;    
     if(!port)
 		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
-    XScopedLock<XCharInterface> lock(*this);
+    XScopedLock<XCharInterface> lock( *this);
     port->send(shot[ *m_script_query].to_str().c_str());
     port->receive();
 	for(Transaction tr( *this);; ++tr) {

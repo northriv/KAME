@@ -356,7 +356,7 @@ XNIDAQmxDSO::setupTiming() {
 	for(unsigned int i = 0; i < 2; i++) {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
 		rec.record.resize(len * num_ch);
-		ASSERT(rec.numCh == num_ch);
+		assert(rec.numCh == num_ch);
 		if(g_bUseMLock) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
@@ -418,7 +418,7 @@ XNIDAQmxDSO::createChannels() {
 	clearAcquision();
 
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
-	ASSERT(m_task != TASK_UNDEF);
+	assert(m_task != TASK_UNDEF);
 
 	if(shot[ *trace1()] >= 0) {
 		CHECK_DAQMX_RET(
@@ -723,7 +723,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 			if(m_dsoRawRecordBanks[bank].tryLock())
 				break;
 		}
-		ASSERT((bank >= 0) && (bank < 2));
+		assert((bank >= 0) && (bank < 2));
 		DSORawRecord &new_rec(m_dsoRawRecordBanks[bank]);
 		unsigned int accumcnt = old_rec.accumCount;
 
@@ -881,7 +881,7 @@ XNIDAQmxDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 			break;
 	}
 	readBarrier();
-	ASSERT((bank >= 0) && (bank < 2));
+	assert((bank >= 0) && (bank < 2));
 	DSORawRecord &rec(m_dsoRawRecordBanks[bank]);
 
 	if(rec.accumCount == 0) {

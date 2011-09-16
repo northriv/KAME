@@ -75,7 +75,7 @@ MonteCarlo::MonteCarlo(int num_threads)
 		pthread_t tid;
 		int ret =
 			pthread_create(&tid, NULL, xthread_start_routine, this);
-		ASSERT(!ret);
+		assert(!ret);
 		m_threads.push_back(tid);
     }
 }
@@ -90,7 +90,7 @@ MonteCarlo::~MonteCarlo()
 	{
 		void *retv;
 		int ret = pthread_join(*it, &retv);
-		ASSERT(!ret);
+		assert(!ret);
 	}
 }
 void
@@ -379,8 +379,8 @@ MonteCarlo::accelFlipping()
         }
         if(pit >= p) break;
     }
-    ASSERT(pit < sum_p * 1.00001);
-    ASSERT(site1 != 16);
+    assert(pit < sum_p * 1.00001);
+    assert(site1 != 16);
     double du = 0.0;
     flippingProbability(site1, lidx, hinteraction(site1, lidx), &du);
     flipSpin(site1, lidx, du, cnt_d);
@@ -408,10 +408,10 @@ MonteCarlo::accelFlipping()
             VectorInt v = distance(site1, m_last_flipped_site,
 								   (i1 - i2 + size) % size, (j1 - j2 + size) % size, (k1 - k2 + size) % size); 
             int d = v.x*v.x + v.y*v.y + v.z*v.z;
-            ASSERT(d > 0);
+            assert(d > 0);
             for(int i = 0; i < 10; i++) {
                 if(i == 9) {
-                    ASSERT(d >= s_4r2_neighbor[i]);
+                    assert(d >= s_4r2_neighbor[i]);
                     fprintf(stderr, ".");
                     break;
                 }
@@ -619,7 +619,7 @@ MonteCarlo::modifyReciprocalImage(Spin diff, int site1, int i, int j, int k)
         }
         exp_ikrz *= exp_i_rz;
     }
-    ASSERT(pspin == &*m_spins_rec[site1].end());
+    assert(pspin == &*m_spins_rec[site1].end());
 }
 void
 MonteCarlo::makeReciprocalImage()
@@ -656,7 +656,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
     modifyReciprocalImage(-2*oldv, site1, i, j, k);
     // flip spin. keep repeated image.
     writeSpin(-oldv, site1, sidx);
-    ASSERT(spins_real_index(i,j,k) == sidx);
+    assert(spins_real_index(i,j,k) == sidx);
     
     FlipHistory hist;
     hist.lidx = lidx;

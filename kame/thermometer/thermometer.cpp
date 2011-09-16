@@ -88,10 +88,10 @@ double XLakeShore::getTemp(double res) const {
 	unsigned int n;
 	if( !shot.size(zu()))
 		return 0;
-	const XNode::NodeList &zu_list( *shot.list(zu()));
+	const auto &zu_list( *shot.list(zu()));
 	if( !shot.size(zl()))
 		return 0;
-	const XNode::NodeList &zl_list( *shot.list(zl()));
+	const auto &zl_list( *shot.list(zl()));
 	for(n = 0; n < zu_list.size(); n++) {
 		double zu = shot[ *static_pointer_cast<XDoubleNode> (zu_list.at(n))];
 		double zl = shot[ *static_pointer_cast<XDoubleNode> (zl_list.at(n))];
@@ -103,10 +103,10 @@ double XLakeShore::getTemp(double res) const {
 		return 0;
 	if( !shot.size(ai()))
 		return 0;
-	const XNode::NodeList &ai_list( *shot.list(ai()));
+	const auto &ai_list( *shot.list(ai()));
 	if( !shot.size(ai_list[n]))
 		return 0;
-	const XNode::NodeList &ai_n_list( *shot.list(ai_list[n]));
+	const auto &ai_n_list( *shot.list(ai_list[n]));
 	for (unsigned int i = 0; i < ai_n_list.size(); i++) {
 		double ai_n_i = shot[ *static_pointer_cast<XDoubleNode> (ai_n_list.at(i))];
 		temp += ai_n_i * cos(i * acos(u));
@@ -166,7 +166,7 @@ double XScientificInstruments::getTemp(double res) const {
 	double lx = log(res);
 	if(res > shot[ *rCrossover()]) {
 		if( !shot.size(abcde())) return 0;
-		const XNode::NodeList &abcde_list( *shot.list(abcde()));
+		const auto &abcde_list( *shot.list(abcde()));
 		if(abcde_list.size() >= 5) {
 			double a = shot[ *static_pointer_cast<XDoubleNode> (abcde_list.at(0))];
 			double b = shot[ *static_pointer_cast<XDoubleNode> (abcde_list.at(1))];
@@ -178,7 +178,7 @@ double XScientificInstruments::getTemp(double res) const {
 		return y;
 	} else {
 		if( !shot.size(abc())) return 0;
-		const XNode::NodeList &abc_list( *shot.list(abc()));
+		const auto &abc_list( *shot.list(abc()));
 		if(abc_list.size() >= 3) {
 			double a = shot[ *static_pointer_cast<XDoubleNode> (abc_list.at(0))];
 			double b = shot[ *static_pointer_cast<XDoubleNode> (abc_list.at(1))];
@@ -204,7 +204,7 @@ double XApproxThermometer::getTemp(double res) const {
 		const XNode::NodeList &res_list( *shot.list(m_resList));
 		if( !shot.size(m_tempList))
 			return 0;
-		const XNode::NodeList &temp_list( *shot.list(m_tempList));
+		const auto &temp_list( *shot.list(m_tempList));
 		for(unsigned int i = 0; i < std::min(res_list.size(), temp_list.size()); i++) {
 			double res = shot[ *static_pointer_cast<XDoubleNode> (res_list.at(i))];
 			double temp = shot[ *static_pointer_cast<XDoubleNode> (temp_list.at(i))];
@@ -225,10 +225,10 @@ double XApproxThermometer::getRawValue(double temp) const {
 		std::map<double, double> pts;
 		if( !shot.size(m_resList))
 			return 0;
-		const XNode::NodeList &res_list( *shot.list(m_resList));
+		const auto &res_list( *shot.list(m_resList));
 		if( !shot.size(m_tempList))
 			return 0;
-		const XNode::NodeList &temp_list( *shot.list(m_tempList));
+		const auto &temp_list( *shot.list(m_tempList));
 		for(unsigned int i = 0; i < std::min(res_list.size(), temp_list.size()); i++) {
 			double res = shot[ *static_pointer_cast<XDoubleNode> (res_list.at(i))];
 			double temp = shot[ *static_pointer_cast<XDoubleNode> (temp_list.at(i))];

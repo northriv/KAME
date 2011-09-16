@@ -72,7 +72,7 @@ XQGraphPainter::openFont() {
 			gErrPrint(i18n("No Fontfile!!"));
 		}
 		s_pFont = new FTGLPixmapFont(filename.toLocal8Bit().data() );
-		ASSERT(s_pFont->Error() == 0);
+		assert(s_pFont->Error() == 0);
 		s_pFont->CharMap(ft_encoding_unicode);
 	}
 

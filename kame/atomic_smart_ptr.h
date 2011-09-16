@@ -24,24 +24,24 @@
 #endif // __ppc__
 #endif // __i386__
 
-#include <boost/utility/enable_if.hpp>
-#include <boost/type_traits.hpp>
+#include <type_traits>
+#include <unistd.h>
 
-//! \brief This is an atomic variant of \a boost::scoped_ptr.
-//! An instance of atomic_scoped_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
+//! \brief This is an atomic variant of \a std::unique_ptr.
+//! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
 //! Namely, it is destructive reading.
 //! Use atomic_shared_ptr when the pointer is required to be shared among scopes and threads.\n
 //! This implementation relies on an atomic-swap machine code, e.g. lock xchg.
-//! \sa atomic_shared_ptr, atomic_scoped_ptr_test.cpp
+//! \sa atomic_shared_ptr, atomic_unique_ptr_test.cpp
 template <typename T>
-class atomic_scoped_ptr {
+class atomic_unique_ptr {
 	typedef T* t_ptr;
 public:
-	atomic_scoped_ptr() : m_ptr(0) {}
+	atomic_unique_ptr() : m_ptr(0) {}
 
-	explicit atomic_scoped_ptr(t_ptr t) : m_ptr(t) {}
+	explicit atomic_unique_ptr(t_ptr t) : m_ptr(t) {}
 
-	~atomic_scoped_ptr() { delete m_ptr;}
+	~atomic_unique_ptr() { delete m_ptr;}
 
 	void reset(t_ptr t = 0) {
 		if(t) writeBarrier(); //for *t.
@@ -52,7 +52,7 @@ public:
 	//! \param[in,out] x \p x is atomically swapped.
 	//! Nevertheless, this object is not atomically replaced.
 	//! That is, the object pointed by "this" must not be shared among threads.
-	void swap(atomic_scoped_ptr &x) {
+	void swap(atomic_unique_ptr &x) {
 		if(m_ptr) writeBarrier(); //for the contents of this.
 		m_ptr = atomicSwap(m_ptr, &x.m_ptr);
 		if(m_ptr) readBarrier(); //for the contents.
@@ -62,16 +62,16 @@ public:
 	operator bool() const {readBarrier(); return m_ptr;}
 
 	//! This function lacks thread-safety.
-	T &operator*() const { ASSERT(m_ptr); return (T &) *m_ptr;}
+	T &operator*() const { assert(m_ptr); return (T &) *m_ptr;}
 
 	//! This function lacks thread-safety.
-	t_ptr operator->() const { ASSERT(m_ptr); return (t_ptr)m_ptr;}
+	t_ptr operator->() const { assert(m_ptr); return (t_ptr)m_ptr;}
 
 	//! This function lacks thread-safety.
 	t_ptr get() const { return (t_ptr )m_ptr;}
 private:
-	atomic_scoped_ptr(const atomic_scoped_ptr &);
-	atomic_scoped_ptr& operator=(const atomic_scoped_ptr &);
+	atomic_unique_ptr(const atomic_unique_ptr &) = delete;
+	atomic_unique_ptr& operator=(const atomic_unique_ptr &) = delete;
 
 	t_ptr m_ptr;
 };
@@ -81,17 +81,17 @@ private:
 template <typename T>
 struct atomic_shared_ptr_gref_ {
 	atomic_shared_ptr_gref_(T *p) : ptr(p), refcnt(1) {}
-	~atomic_shared_ptr_gref_() { ASSERT(refcnt == 0); delete ptr; }
+	~atomic_shared_ptr_gref_() { assert(refcnt == 0); delete ptr; }
 	//! The pointer to the object.
 	T *ptr;
 	typedef uintptr_t Refcnt;
 	//! The global reference counter.
 	Refcnt refcnt;
 private:
-	atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &);
+	atomic_shared_ptr_gref_(const atomic_shared_ptr_gref_ &) = delete;
 };
 
-template <typename T, typename E> class atomic_shared_ptr_base;
+template <typename T, typename E> struct atomic_shared_ptr_base;
 template <typename T> class atomic_shared_ptr;
 template <typename T> class local_shared_ptr;
 
@@ -100,9 +100,9 @@ template <typename T> class local_shared_ptr;
 struct atomic_countable {
 	atomic_countable() : refcnt(1) {}
 	atomic_countable(const atomic_countable &x) : refcnt(1) {}
-	~atomic_countable() { ASSERT(refcnt == 0); }
+	~atomic_countable() { assert(refcnt == 0); }
 private:
-	template <typename X, typename E> friend class atomic_shared_ptr_base;
+	template <typename X, typename E> friend struct atomic_shared_ptr_base;
 	template <typename X> friend class atomic_shared_ptr;
 	template <typename X> friend class local_shared_ptr;
 	atomic_countable& operator=(const atomic_countable &); //inhibited.
@@ -140,7 +140,7 @@ protected:
 };
 //! \brief Base class for atomic_shared_ptr with intrusive counting.
 template <typename T>
-struct atomic_shared_ptr_base<T, typename boost::enable_if<boost::is_base_of<atomic_countable, T> >::type > {
+struct atomic_shared_ptr_base<T, typename std::enable_if<std::is_base_of<atomic_countable, T>::value>::type > {
 protected:
 	typedef T Ref;
 	typedef typename atomic_countable::Refcnt Refcnt;
@@ -163,17 +163,17 @@ protected:
 
 //! \brief This class provides non-reentrant interfaces for atomic_shared_ptr: operator->(), operator*() and so on.\n
 //! Use this class in non-reentrant scopes instead of costly atomic_shared_ptr.
-//! \sa atomic_shared_ptr, atomic_scoped_ptr, atomic_shared_ptr_test.cpp.
+//! \sa atomic_shared_ptr, atomic_unique_ptr, atomic_shared_ptr_test.cpp.
 template <typename T>
 class local_shared_ptr : protected atomic_shared_ptr_base<T> {
 public:
 	local_shared_ptr() { this->m_ref = 0; }
 
-	template<typename Y> explicit local_shared_ptr(Y *y) { reset_unsafe(y); }
+	template<typename Y> explicit local_shared_ptr(Y *y) { this->reset_unsafe(y); }
 
 	local_shared_ptr(const atomic_shared_ptr<T> &t) { this->m_ref = reinterpret_cast<RefLocal_>(t.scan_()); }
 	template<typename Y> local_shared_ptr(const atomic_shared_ptr<Y> &y) {
-		C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+		static_assert(sizeof(static_cast<const T*>(y.get())), "");
 		this->m_ref = reinterpret_cast<RefLocal_>(y.scan_());
 	}
 	inline local_shared_ptr(const local_shared_ptr<T> &t);
@@ -196,7 +196,7 @@ public:
 	}
 	//! \param[in] y The pointer holded by this instance is replaced with that of \a y.
 	template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) {
-		C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+		static_assert(sizeof(static_cast<const T*>(y.get())), "");
 		this->reset();
 		this->m_ref = reinterpret_cast<RefLocal_>(y.scan_());
 		return *this;
@@ -210,31 +210,31 @@ public:
 	//! The pointer holded by this instance is reset to null pointer.
 	inline void reset();
 	//! The pointer holded by this instance is reset with a pointer \a y.
-	template<typename Y> void reset(Y *y) { reset(); reset_unsafe(y); }
+	template<typename Y> void reset(Y *y) { reset(); this->reset_unsafe(y); }
 
 	T *get() { return atomic_shared_ptr_base<T>::get(); }
 	const T *get() const { return atomic_shared_ptr_base<T>::get(); }
 
-	T &operator*() { ASSERT( *this); return *get();}
-	const T &operator*() const { ASSERT( *this); return *get();}
+	T &operator*() { assert( *this); return *get();}
+	const T &operator*() const { assert( *this); return *get();}
 
-	T *operator->() { ASSERT( *this); return get();}
-	const T *operator->() const { ASSERT( *this); return get();}
+	T *operator->() { assert( *this); return get();}
+	const T *operator->() const { assert( *this); return get();}
 
 	bool operator!() const {return !this->m_ref;}
 	operator bool() const {return this->m_ref;}
 
 	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		return (this->pref_() == (const Ref *)x.pref_());}
 	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (this->pref_() == (const Ref *)x.pref_());}
 	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		return (this->pref_() != (const Ref *)x.pref_());}
 	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (this->pref_() != (const Ref *)x.pref_());}
 
 	int use_count() const { return this->use_count__();}
@@ -250,7 +250,7 @@ protected:
 	Ref* pref_() const {return (Ref *)(this->m_ref);}
 };
 
-/*! \brief This is an atomic variant of \a boost::shared_ptr, and can be shared by atomic and lock-free means.\n
+/*! \brief This is an atomic variant of \a std::shared_ptr, and can be shared by atomic and lock-free means.\n
  *
 * \a atomic_shared_ptr can be shared among threads by the use of \a operator=(_target_), \a swap(_target_).
 * An instance of \a atomic_shared_ptr<T> holds:\n
@@ -261,7 +261,7 @@ protected:
 * This process is implemented in \a reserve_scan_().\n
 * A function \a leave_scan_() tries to decrease the local counter first. When it fails, the global counter is decreased.\n
 * To swap the pointer and local reference counter (which will be reset to zero), the setter must adds the local counting to the global counter before swapping.
-* \sa atomic_scoped_ptr, local_shared_ptr, atomic_shared_ptr_test.cpp.
+* \sa atomic_unique_ptr, local_shared_ptr, atomic_shared_ptr_test.cpp.
  */
 template <typename T>
 class atomic_shared_ptr : protected local_shared_ptr<T> {
@@ -311,16 +311,16 @@ public:
 	operator bool() const {readBarrier(); return this->m_ref;}
 
 	template<typename Y> bool operator==(const local_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (pref_() == (const Ref*)x.pref_());}
 	template<typename Y> bool operator==(const atomic_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (pref_() == (const Ref*)x.pref_());}
 	template<typename Y> bool operator!=(const local_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (pref_() != (const Ref*)x.pref_());}
 	template<typename Y> bool operator!=(const atomic_shared_ptr<Y> &x) const {
-		C_ASSERT(sizeof(static_cast<const T*>(x.get())));
+		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (pref_() != (const Ref*)x.pref_());}
 protected:
 	template <typename Y> friend class local_shared_ptr;
@@ -352,7 +352,7 @@ private:
 
 template <typename T>
 inline local_shared_ptr<T>::local_shared_ptr(const local_shared_ptr &y) {
-	C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+	static_assert(sizeof(static_cast<const T*>(y.get())), "");
 	this->m_ref = y.m_ref;
 	if(pref_())
 		atomicInc( &pref_()->refcnt);
@@ -361,7 +361,7 @@ inline local_shared_ptr<T>::local_shared_ptr(const local_shared_ptr &y) {
 template <typename T>
 template<typename Y>
 inline local_shared_ptr<T>::local_shared_ptr(const local_shared_ptr<Y> &y) {
-	C_ASSERT(sizeof(static_cast<const T*>(y.get())));
+	static_assert(sizeof(static_cast<const T*>(y.get())), "");
 	this->m_ref = y.m_ref;
 	if(pref_())
 		atomicInc( &pref_()->refcnt);
@@ -380,10 +380,10 @@ local_shared_ptr<T>::reset() {
 	// decreasing global reference counter.
 	if(unique()) {
 		pref->refcnt = 0;
-		deleter(pref);
+		this->deleter(pref);
 	}
 	else if(atomicDecAndTest( &pref->refcnt)) {
-		deleter(pref);
+		this->deleter(pref);
 	}
 	this->m_ref = 0;
 }
@@ -421,7 +421,7 @@ atomic_shared_ptr<T>::reserve_scan_(Refcnt *rcnt) const {
 			&const_cast<atomic_shared_ptr<T> *>(this)->m_ref))
 			break;
 	}
-	ASSERT(rcnt_new);
+	assert(rcnt_new);
 	*rcnt = rcnt_new;
 	return pref;
 }
@@ -451,13 +451,13 @@ atomic_shared_ptr<T>::leave_scan_(Ref *pref) const {
 				RefLocal_((uintptr_t)pref + rcnt_new),
 				&const_cast<atomic_shared_ptr<T> *>(this)->m_ref))
 				break;
-			if((pref == pref_()))
+			if(pref == pref_())
 				continue; // try again.
 		}
 		// local reference has released by other processes.
 		if(atomicDecAndTest( &pref->refcnt)) {
 			readBarrier(); //for *pref.
-			deleter(pref);
+			this->deleter(pref);
 		}
 		break;
 	}
@@ -489,7 +489,7 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
 				if(oldr.pref_()) {
 					// decreasing global reference counter.
 					if(atomicDecAndTest(&oldr.pref_()->refcnt)) {
-						deleter(oldr.pref_());
+						this->deleter(oldr.pref_());
 					}
 				}
 				oldr.m_ref = (RefLocal_)pref;
@@ -506,7 +506,7 @@ atomic_shared_ptr<T>::compareAndSwap_(local_shared_ptr<T> &oldr, const local_sha
 			&this->m_ref))
 			break;
 		if(pref) {
-			ASSERT(rcnt_old);
+			assert(rcnt_old);
 			if(rcnt_old != 1u)
 				atomicAdd( &pref->refcnt, (Refcnt)( -(int)(rcnt_old - 1u)));
 			leave_scan_(pref);
@@ -553,7 +553,7 @@ local_shared_ptr<T>::swap(atomic_shared_ptr<T> &r) {
 			&r.m_ref))
 			break;
 		if(pref) {
-			ASSERT(rcnt_old);
+			assert(rcnt_old);
 			if(rcnt_old != 1u)
 				atomicAdd( &pref->refcnt, (Refcnt)( -(int)(rcnt_old - 1u)));
 			r.leave_scan_(pref);

@@ -185,7 +185,7 @@ void XAVS47IB::open() throw (XInterface::XInterfaceError &) {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
 	trans( *currentChannel()).str(formatString("%d", (int) lrint(read("MUX"))));
-	onCurrentChannelChanged( **currentChannel());
+	onCurrentChannelChanged( ***currentChannel());
 
 	start();
 
@@ -211,7 +211,7 @@ void XAVS47IB::afterStop() {
 }
 
 int XAVS47IB::setRange(unsigned int range) {
-	int rangebuf = (int) **powerRange();
+	int rangebuf = ***powerRange();
 	interface()->send("POW 0");
 	if(range > 7)
 		range = 7;
@@ -318,7 +318,7 @@ void XCryocon::open() throw (XInterface::XInterfaceError &) {
 	interface()->query("HEATER:RANGE?");
 	trans( *powerRange()).str(QString( &interface()->buffer()[0]).simplified());
 
-	if( !shared_ptr<XDCSource>( **extDCSource())) {
+	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		getChannel();
 		interface()->query("HEATER:PMAN?");
 		trans( *manualPower()).str(XString( &interface()->buffer()[0]));
@@ -413,8 +413,8 @@ void XCryocon::setTemp(double temp) {
 	else
 		stopControl();
 
-	shared_ptr<XThermometer> thermo = **(shared_ptr<XChannel> (
-		**currentChannel()))->thermometer();
+	Snapshot shot( *this);
+	shared_ptr<XThermometer> thermo = shot[ *(shared_ptr<XChannel>(shot[ *currentChannel()])->thermometer())];
 	if(thermo)
 		setHeaterSetPoint(thermo->getRawValue(temp));
 	else
@@ -562,7 +562,7 @@ void XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XNeoceraLTC21::open() throw (XInterface::XInterfaceError &) {
-	if( !shared_ptr<XDCSource>( **extDCSource())) {
+	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		interface()->query("QOUT?1;");
 		int sens, cmode, range;
 		if(interface()->scanf("%1d;%1d;%1d;", &sens, &cmode, &range) != 3)
@@ -640,8 +640,7 @@ void XLakeShore340::onDChanged(double d) {
 }
 void XLakeShore340::onTargetTempChanged(double temp) {
 	Snapshot shot( *this);
-	shared_ptr<XThermometer> thermo = **(shared_ptr<XChannel> (
-		shot[ *currentChannel()]))->thermometer();
+	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel()])->thermometer()];
 	if(thermo) {
 		interface()->sendf("CSET 1,%s,3,1",
 			(const char*)shot[ *currentChannel()].to_str().c_str());
@@ -697,7 +696,7 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 		if(tr.commit())
 			break;
 	}
-	if( !shared_ptr<XDCSource>( **extDCSource())) {
+	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		interface()->query("CSET? 1");
 		for(Transaction tr( *this);; ++tr) {
 			char ch[2];

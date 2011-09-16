@@ -60,7 +60,7 @@ XQConnectorHolder__::XQConnectorHolder__(XQConnector *con) :
     m_connector = s_conCreating.back();
     s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
-    ASSERT(con->shared_from_this());
+    assert(con->shared_from_this());
 }
 XQConnectorHolder__::~XQConnectorHolder__() {
     if(m_connector)
@@ -75,7 +75,7 @@ void
 XQConnectorHolder__::destroyed () {
 	disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
 	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_connector->m_pWidget);
-	ASSERT(it != s_widgetMap.end());
+	assert(it != s_widgetMap.end());
 	s_widgetMap.erase(it);
 	m_connector->m_pWidget = 0L;
 	m_connector.reset();
@@ -85,8 +85,8 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 	: QObject(),
 	  m_pWidget(item)  {
 
-    ASSERT(node);
-    ASSERT(item);
+    assert(node);
+    assert(item);
     s_conCreating.push_back(shared_ptr<XQConnector>(this));
 
     for(Transaction tr( *node);; ++tr) {
@@ -101,8 +101,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 			 .arg((uintptr_t)this, 0, 16)
 			 .arg((uintptr_t)sizeof(XQConnector), 0, 16));
     
-    std::pair<std::map<const QWidget*, weak_ptr<XNode> >::iterator, bool> ret = 
-    	s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
+    auto ret = s_widgetMap.insert(std::pair<const QWidget*, weak_ptr<XNode> >(item, node));
     if( !ret.second)
     	gErrPrint("Connection to Widget Duplicated!");
 #ifdef HAVE_LIBGCCPP
@@ -113,8 +112,8 @@ XQConnector::~XQConnector() {
     if(isItemAlive()) {
         m_pWidget->setEnabled(false);
         dbgPrint(QString("connector %1 released., addr=0x%2").arg(objectName()).arg((uintptr_t)this, 0, 16));
-    	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_pWidget);
-    	ASSERT(it != s_widgetMap.end());
+    	auto it = s_widgetMap.find(m_pWidget);
+    	assert(it != s_widgetMap.end());
     	s_widgetMap.erase(it);
     }
     else {
@@ -127,7 +126,7 @@ XQConnector::~XQConnector() {
 }
 shared_ptr<XNode>
 XQConnector::connectedNode(const QWidget *item) {
-	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(item);
+	auto it = s_widgetMap.find(item);
 	if(it == s_widgetMap.end())
 		return shared_ptr<XNode>();
 	return it->second.lock();
@@ -574,8 +573,7 @@ XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 	QString str = shot[ *node].to_str();
 	int idx = -1;
 	int i = 0;
-	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin();
-		it != m_itemStrings->end(); it++) {
+	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
         if(QString(it->name) == str) {
             idx = i;
         }
@@ -598,7 +596,7 @@ XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 			}
 		}
 		int idx = findItem(i18n("(UNSEL)"));
-		ASSERT(idx >= 0);
+		assert(idx >= 0);
 		m_pItem->setCurrentIndex(idx);
 	}
 	m_pItem->blockSignals(false);
@@ -608,8 +606,7 @@ XQComboBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Pa
 	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
 	bool exist = false;
-	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
-		it != m_itemStrings->end(); it++) {
+	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
         if(it->label.empty()) {
             m_pItem->addItem(i18n("(NO NAME)"));
         }
@@ -655,8 +652,7 @@ XQListBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
     QString str = shot[ *node].to_str();
 	m_pItem->blockSignals(true);
 	unsigned int i = 0;
-	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
-		it != m_itemStrings->end(); it++) {
+	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
         if(str == QString(it->name))
             m_pItem->setCurrentItem(i);
         i++;
@@ -667,8 +663,7 @@ void
 XQListBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
 	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
-	for(std::deque<XItemNodeBase::Item>::const_iterator it = m_itemStrings->begin(); 
-		it != m_itemStrings->end(); it++) {
+	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
 		m_pItem->insertItem(it->label);
 	}
     onValueChanged(shot, e.emitter);

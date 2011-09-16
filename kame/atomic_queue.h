@@ -36,7 +36,7 @@ public:
 
     //! This is not reentrant.
     void pop() {
-        ASSERT(*m_pFirst);
+        assert(*m_pFirst);
         *m_pFirst = 0;
         atomicDec(&m_count);
         writeBarrier();
@@ -71,7 +71,7 @@ public:
 	//! \param item to be added.
 	//! \return true if succeeded.
     bool atomicPush(T t) {
-        ASSERT(t);
+        assert(t);
         writeBarrier();
         for(;;) {
         	if(m_count == SIZE) {
@@ -105,7 +105,7 @@ public:
 	//! \param item to be released.
 	//! \return true if succeeded.
     bool atomicPop(const_ref item) {
-    	ASSERT(item);
+    	assert(item);
         if(atomicCompareAndSet((T)item, (T)0, m_pFirst)) {
 			atomicDec(&m_count);
 			writeBarrier();
@@ -215,14 +215,14 @@ public:
     typedef uint_cas_max key;
 
     atomic_queue_reserved() {
-    	C_ASSERT(SIZE < (1uLL << (sizeof(key) * 8 - 8)));
+    	static_assert(SIZE < (1uLL << (sizeof(key) * 8 - 8)), "Size mismatch.");
     	for(unsigned int i = 0; i < SIZE; i++) {
 			m_reservoir.push(key_index_serial(i, 0));
     	}
     }
     ~atomic_queue_reserved() {
         while(!empty()) pop();
-        ASSERT(m_reservoir.size() == SIZE);
+        assert(m_reservoir.size() == SIZE);
     }
 
     void push(const T&t) {

@@ -86,7 +86,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     }
     
     m_threads.resize(RECORD_READER_NUM_THREADS);
-    for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
+    for(auto it = m_threads.begin(); it != m_threads.end(); it++) {
         it->reset(new XThread<XRawStreamRecordReader>(shared_from_this(),
 													  &XRawStreamRecordReader::execute));
         ( *it)->resume();
@@ -126,7 +126,7 @@ XRawStreamRecordReader::parseOne(void *fd, XMutex &mutex)
 		throw XBrokenRecordError(__FILE__, __LINE__);
 	}
 	shared_ptr<XNode> driver_precast = m_drivers->getChild(name);
-	shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<XPrimaryDriver>(driver_precast);
+	auto driver = dynamic_pointer_cast<XPrimaryDriver>(driver_precast);
 	uint32_t size = 
 		m_allsize - (
 			sizeof(uint32_t) //allsize
@@ -219,7 +219,7 @@ XRawStreamRecordReader::goToHeader(void *fd)
 void
 XRawStreamRecordReader::terminate() {
     m_periodicTerm = 0;
-    for(tThreadIt it = m_threads.begin(); it != m_threads.end(); it++) {
+    for(auto it = m_threads.begin(); it != m_threads.end(); it++) {
         ( *it)->terminate();
     }
     XScopedLock<XCondition> lock(m_condition);

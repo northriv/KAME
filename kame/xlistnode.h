@@ -15,8 +15,7 @@
 #define XLISTNODE_H_
 
 #include "xnode.h"
-#include <boost/function.hpp>
-using boost::function;
+#include <functional>
 
 class XListNodeBase : public XNode {
 public:
@@ -103,42 +102,15 @@ public:
 };  
 
 shared_ptr<XNode> empty_creator_(const char *, bool = false);
-template <typename X>
-shared_ptr<XNode> empty_creator_(const char *, bool, X) {
+template <typename... Args>
+shared_ptr<XNode> empty_creator_(const char *, bool, Args...) {
     return shared_ptr<XNode>();
 }
-template <typename X, typename Y>
-shared_ptr<XNode> empty_creator_(const char *, bool, X, Y) {
-    return shared_ptr<XNode>();
+template <class T, typename... Args>
+shared_ptr<XNode> creator_(const char *name, bool runtime, Args... args) {
+    return XNode::createOrphan<T>(name, runtime, args...);
 }
-template <typename X, typename Y, typename Z>
-shared_ptr<XNode> empty_creator_(const char *, bool, X, Y, Z) {
-    return shared_ptr<XNode>();
-}
-template <typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<XNode> empty_creator_(const char *, bool, X, Y, Z, ZZ) {
-    return shared_ptr<XNode>();
-}
-template <typename T>
-shared_ptr<XNode> creator_(const char *name, bool runtime) {
-    return XNode::createOrphan<T>(name, runtime);
-}
-template <typename T, typename X>
-shared_ptr<XNode> creator_(const char *name, bool runtime, X x) {
-    return XNode::createOrphan<T>(name, runtime, x);
-}
-template <typename T, typename X, typename Y>
-shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y) {
-    return XNode::createOrphan<T>(name, runtime, x, y);
-}
-template <typename T, typename X, typename Y, typename Z>
-shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y, Z z) {
-    return XNode::createOrphan<T>(name, runtime, x, y, z);
-}
-template <typename T, typename X, typename Y, typename Z, typename ZZ>
-shared_ptr<XNode> creator_(const char *name, bool runtime, X x, Y y, Z z, ZZ zz) {
-    return XNode::createOrphan<T>(name, runtime, x, y, z, zz);
-}
+
 
 //! Register typename and constructor.
 //! make static member of TypeHolder<> in your class

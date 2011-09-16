@@ -29,7 +29,7 @@ public:
 	virtual void send(const char *str) throw (XCommError &);
 	//! don't use me
 	virtual void write(const char *, int) throw (XCommError &) {
-		ASSERT(false);
+		assert(false);
 	}
 	virtual void receive() throw (XCommError &);
 	virtual void receive(unsigned int length) throw (XCommError &);

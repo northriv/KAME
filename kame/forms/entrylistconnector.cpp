@@ -81,7 +81,7 @@ XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
 void
 XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
-		ASSERT(m_pItem->numRows() == (int)m_cons.size());
+		assert(m_pItem->numRows() == (int)m_cons.size());
 		if(( *it)->entry == e.released) {
 			for(int i = 0; i < m_pItem->numRows(); i++) {
 				if(m_pItem->cellWidget(i, 1) == ( *it)->label) m_pItem->removeRow(i);
@@ -125,6 +125,6 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 			break;
 	}
 
-	ASSERT(m_pItem->numRows() == (int)m_cons.size());
+	assert(m_pItem->numRows() == (int)m_cons.size());
 }
 

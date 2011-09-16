@@ -14,13 +14,15 @@
 #ifndef MATRIX_H_
 #define MATRIX_H_
 //---------------------------------------------------------------------------
-#include "support.h"
 
 #include <vector>
 #include <complex>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include <boost/numeric/ublas/symmetric.hpp>
+
+#include "support.h"
+
 using namespace boost::numeric;
 
 //! RRR (Relative Robast Representation) eigenvalue driver for Hermite matrix.

@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#include "thread.cpp"
+#include "xthread.cpp"
 #include <deque>
 
 atomic<int> objcnt = 0;
@@ -30,7 +30,7 @@ public:
 //		fprintf(stdout, "d", m_x);
 		--objcnt;
        total -= m_x;
-       ASSERT(objcnt >= 0);
+       assert(objcnt >= 0);
        if(total < 0)
        		fprintf(stderr, " ?%d,%d", (int)m_x, (int)total);
 	}

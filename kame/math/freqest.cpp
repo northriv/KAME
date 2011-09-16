@@ -11,8 +11,8 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "freqest.h"
 #include "matrix.h"
+#include "freqest.h"
 #include <numeric>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
@@ -82,7 +82,7 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 	std::vector<std::complex<double> > fftin(t, 0.0), fftout(t), acsum(t, 0.0);
 	for(int i = 0; i < p - numsig; i++) {
 		ublas::matrix_column<ublas::matrix<std::complex<double> > > eigvcol(eigv, i);
-		ASSERT(fabs(norm_2(eigvcol) - 1.0) < 0.1);
+		assert(fabs(norm_2(eigvcol) - 1.0) < 0.1);
 		for(int j = 0; j < p; j++) {
 			fftin[j] = eigvcol(j);
 		}

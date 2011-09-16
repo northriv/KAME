@@ -316,8 +316,8 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
     Snapshot shot( *m_measure->interfaces());
     if(shot.size()) {
     	const XNode::NodeList &list(*shot.list());
-		for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-			shared_ptr<XInterface> intf = dynamic_pointer_cast<XInterface>(*it);
+		for(auto it = list.begin(); it != list.end(); it++) {
+			auto intf = dynamic_pointer_cast<XInterface>( *it);
 			if(intf->isOpened()) opened = true;
 		}
 	}
@@ -432,8 +432,7 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
 	addDockableWindow(m_pMdiCentral, form, true);
 
 	// erase unused xqcon_ptr
-	for(std::deque<xqcon_ptr>::iterator it = m_conRubyThreadList.begin();
-		it != m_conRubyThreadList.end(); ) {
+	for(auto it = m_conRubyThreadList.begin(); it != m_conRubyThreadList.end(); ) {
 		if((*it)->isAlive()) {
 			it++;
 		}

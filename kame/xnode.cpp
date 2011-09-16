@@ -13,7 +13,6 @@
 ***************************************************************************/
 
 #include "transaction_impl.h"
-template class Transactional::Node<class XNode>;
 
 #include "xnode.h"
 #include <typeinfo>
@@ -36,9 +35,9 @@ XNode::XNode(const char *name, bool runtime)
 	: Transactional::Node<XNode>(), m_name(name ? name : "") {
 	// temporaly shared_ptr to be able to use shared_from_this() in constructors
 	XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
-	ASSERT(shared_from_this());
+	assert(shared_from_this());
 
-	trans(*this).setRuntime(runtime);
+	trans( *this).setRuntime(runtime);
 
 	dbgPrint(QString("xnode %1 is created., addr=0x%2, size=0x%3")
 			 .arg(getName())
@@ -54,10 +53,10 @@ XNode::getName() const {
 }
 XString
 XNode::getTypename() const {
-    XString name = typeid(*this).name();
+    XString name = typeid( *this).name();
     int i = name.find('X');
-    ASSERT(i != std::string::npos);
-    ASSERT(i + 1 < name.length());
+    assert(i != std::string::npos);
+    assert(i + 1 < name.length());
     return name.substr(i + 1);
 }
 
@@ -67,18 +66,18 @@ XNode::disable() {
 }
 void
 XNode::setUIEnabled(bool v) {
-	trans(*this).setUIEnabled(v);
+	trans( *this).setUIEnabled(v);
 }
 
 shared_ptr<XNode>
 XNode::getChild(const XString &var) const {
-	Snapshot shot(*this);
+	Snapshot shot( *this);
 	shared_ptr<XNode> node;
 	shared_ptr<const NodeList> list(shot.list());
 	if(list) {
-		for(NodeList::const_iterator it = list->begin(); it != list->end(); it++) {
-			if(dynamic_pointer_cast<XNode>(*it)->getName() == var) {
-                node = dynamic_pointer_cast<XNode>(*it);
+		for(auto it = list->begin(); it != list->end(); it++) {
+			if(dynamic_pointer_cast<XNode>( *it)->getName() == var) {
+                node = dynamic_pointer_cast<XNode>( *it);
                 break;
 			}
 		}
@@ -100,7 +99,7 @@ void
 XIntNodeBase<int, 10>::Payload::str_(const XString &str) {
     bool ok;
     int var = QString(str).toInt(&ok, 10);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
     *this = var;
 }
@@ -109,7 +108,7 @@ void
 XIntNodeBase<unsigned int, 10>::Payload::str_(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toUInt(&ok);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
     *this = var;
 }
@@ -118,7 +117,7 @@ void
 XIntNodeBase<long, 10>::Payload::str_(const XString &str) {
     bool ok;
     long var = QString(str).toLong(&ok, 10);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to integer."), __FILE__, __LINE__);
     *this = var;
 }
@@ -127,7 +126,7 @@ void
 XIntNodeBase<unsigned long, 10>::Payload::str_(const XString &str) {
     bool ok;
     unsigned long var = QString(str).toULong(&ok);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to unsigned integer."), __FILE__, __LINE__);
     *this = var;
 }
@@ -136,7 +135,7 @@ void
 XIntNodeBase<unsigned long, 16>::Payload::str_(const XString &str) {
     bool ok;
     unsigned int var = QString(str).toULong(&ok, 16);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to hex."), __FILE__, __LINE__);
     *this = var;
 }
@@ -193,7 +192,7 @@ void
 XDoubleNode::Payload::str_(const XString &str) {
 	bool ok;
     double var = QString(str).toDouble(&ok);
-    if(!ok)
+    if( !ok)
 		throw XKameError(i18n("Ill string conversion to double float."), __FILE__, __LINE__);
     *this = var;
 }
@@ -211,3 +210,5 @@ XDoubleNode::setFormat(const char* format) {
         e.print();
     }
 }
+
+template class Transactional::Node<class XNode>;

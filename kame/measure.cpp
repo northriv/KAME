@@ -108,18 +108,16 @@ void XMeasure::stop() {
 	Snapshot shot( *drivers());
 	if(shot.size()) {
 		const XNode::NodeList &list( *shot.list());
-		for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-			shared_ptr<XPrimaryDriver> driver = dynamic_pointer_cast<
-				XPrimaryDriver> ( *it);
+		for(auto it = list.begin(); it != list.end(); it++) {
+			auto driver = dynamic_pointer_cast<XPrimaryDriver> ( *it);
 			if(driver)
 				driver->stop();
 		}
 	}
 }
 void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-	shared_ptr<XDriver> driver = static_pointer_cast<XDriver>(e.released);
-	shared_ptr<XPrimaryDriver> pridriver =
-		dynamic_pointer_cast<XPrimaryDriver>(driver);
+	auto driver = static_pointer_cast<XDriver>(e.released);
+	auto pridriver = dynamic_pointer_cast<XPrimaryDriver>(driver);
 	if(pridriver)
 		pridriver->stop();
 	for(;;) {
@@ -127,9 +125,8 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		Snapshot shot( *scalarEntries());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
-			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XScalarEntry> entr = dynamic_pointer_cast<
-					XScalarEntry> ( *it);
+			for(auto it = list.begin(); it != list.end(); it++) {
+				auto entr = dynamic_pointer_cast<XScalarEntry> ( *it);
 				if(entr->driver() == driver) {
 					entry = entr;
 				}
@@ -144,9 +141,8 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		Snapshot shot( *interfaces());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
-			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XInterface> intf = dynamic_pointer_cast<
-					XInterface> ( *it);
+			for(auto it = list.begin(); it != list.end(); it++) {
+				auto intf = dynamic_pointer_cast<XInterface> ( *it);
 				if(intf->driver() == driver) {
 					interface = intf;
 				}

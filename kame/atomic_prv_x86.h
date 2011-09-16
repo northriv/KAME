@@ -14,9 +14,7 @@
 #ifndef ATOMIC_PRV_X86_H_
 #define ATOMIC_PRV_X86_H_
 
-#include <boost/utility/enable_if.hpp>
-#include <boost/type_traits/is_pod.hpp>
-#include <boost/type_traits/is_integral.hpp>
+#include <type_traits>
 #include <inttypes.h>
 
 //! memory barriers.
@@ -53,7 +51,7 @@ typedef uint_cas2 uint_cas_max;
 //! \param x must be aligned to 8bytes.
 template <typename T>
 inline void atomicWrite64(const T &x, T *target) {
-	C_ASSERT(sizeof(T) == 8);
+	static_assert(sizeof(T) == 8);
 	asm (
 		" movq %0, %%xmm0;"
 		" movq %%xmm0, %1;"
@@ -65,8 +63,8 @@ inline void atomicWrite64(const T &x, T *target) {
 //! \param x must be aligned to 8bytes.
 template <typename T>
 inline void atomicRead64(T *x, const T &target) {
-	C_ASSERT(__alignof__(T) >= 8);
-	C_ASSERT(sizeof(T) == 8);
+	static_assert(__alignof__(T) >= 8);
+	static_assert(sizeof(T) == 8);
 	asm (
 		" movq %0, %%xmm0;"
 		" movq %%xmm0, %1;"
@@ -112,8 +110,8 @@ inline bool atomicCompareAndSet2(
 	return ret;
 }
 template <typename T, typename X>
-inline typename boost::enable_if_c<
-boost::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) == sizeof(int_cas2) * 2), bool>::type
+inline typename std::enable_if<
+std::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) == sizeof(int_cas2) * 2), bool>::type
 atomicCompareAndSet(
 	T oldv,
 	T newv, X *target ) {
@@ -129,8 +127,8 @@ atomicCompareAndSet(
 
 //! \return true if old == *target and new value is assigned
 template <typename T>
-inline typename boost::enable_if_c<
-boost::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
+inline typename std::enable_if<
+std::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
 atomicCompareAndSet(T oldv, T newv, T *target ) {
 	unsigned char ret;
 	asm volatile (
@@ -172,7 +170,7 @@ inline bool atomicAddAndTest(T *target, T x ) {
 }
 template <typename T>
 inline
-typename boost::enable_if_c<(8 > sizeof(T)), void>::type
+typename std::enable_if<(4 > sizeof(T)), void>::type
 atomicInc(T *target ) {
 	asm (
 		"lock; inc%z0 %0"
@@ -182,7 +180,17 @@ atomicInc(T *target ) {
 }
 template <typename T>
 inline
-typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
+typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
+atomicInc(T *target ) {
+	asm (
+		"lock; incw %0"
+		:
+		: "m" ( *target)
+		: "memory" );
+}
+template <typename T>
+inline
+typename std::enable_if<(8 == sizeof(T)), void>::type //hack for buggy %z.
 atomicInc(T *target ) {
 	asm (
 		"lock; incq %0"
@@ -190,9 +198,10 @@ atomicInc(T *target ) {
 		: "m" ( *target)
 		: "memory" );
 }
+
 template <typename T>
 inline
-typename boost::enable_if_c<(8 > sizeof(T)), void>::type
+typename std::enable_if<(4 > sizeof(T)), void>::type
 atomicDec(T *target ) {
 	asm (
 		"lock; dec%z0 %0"
@@ -202,7 +211,17 @@ atomicDec(T *target ) {
 }
 template <typename T>
 inline
-typename boost::enable_if_c<(8 == sizeof(T)), void>::type //hack for buggy %z.
+typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
+atomicDec(T *target ) {
+	asm (
+		"lock; decw %0"
+		:
+		: "m" ( *target)
+		: "memory" );
+}
+template <typename T>
+inline
+typename std::enable_if<(8 == sizeof(T)), void>::type //hack for buggy %z.
 atomicDec(T *target ) {
 	asm (
 		"lock; decq %0"
@@ -213,27 +232,40 @@ atomicDec(T *target ) {
 //! \return zero flag.
 template <typename T>
 inline
-typename boost::enable_if_c<(8 > sizeof(T)), bool>::type
+typename std::enable_if<(4 > sizeof(T)), bool>::type
 atomicDecAndTest(T *target ) {
 	register unsigned char ret;
 	asm volatile (
 		"lock; dec%z1 %1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 	return ret;
 }
 template <typename T>
 inline
-typename boost::enable_if_c<(8 == sizeof(T)), bool>::type //hack for buggy %z.
+typename std::enable_if<(4 == sizeof(T)), bool>::type //hack for buggy %z.
+atomicDecAndTest(T *target ) {
+	register unsigned char ret;
+	asm volatile (
+		"lock; decw %1;"
+		" sete %0" // ret = zflag ? 1 : 0
+		: "=q" (ret)
+		: "m" ( *target)
+		: "memory" );
+	return ret;
+}
+template <typename T>
+inline
+typename std::enable_if<(8 == sizeof(T)), bool>::type //hack for buggy %z.
 atomicDecAndTest(T *target ) {
 	register unsigned char ret;
 	asm volatile (
 		"lock; decq %1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
-		: "m" (*target)
+		: "m" ( *target)
 		: "memory" );
 	return ret;
 }

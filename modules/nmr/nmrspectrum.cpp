@@ -108,7 +108,7 @@ XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &sh
     shared_ptr<XDMM> dmm__ = shot_this[ *magnet()];
 	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
 
-	ASSERT( magnet__ || dmm__ );
+	assert( magnet__ || dmm__ );
 	double field;
 	if(magnet__) {
 		field = shot_others[ *magnet__].magnetField();

@@ -192,7 +192,7 @@ MonteCarlo::setupField(int size, double dfactor,
 						if(!dipoleFieldReal(v, site2, &hdip))
 							continue;
 						double hdip_d1 = d1.innerProduct(hdip);
-						ASSERT(fabs(hdip_d1) < 1.0);
+						assert(fabs(hdip_d1) < 1.0);
 						//            fprintf(stderr, "%g\n",h);
 
 						//counts for real-space.
@@ -202,7 +202,7 @@ MonteCarlo::setupField(int size, double dfactor,
 						cnt_n++;
 						// Nearest neighbor.
 						if(r2int <= 2*1*1) {
-							ASSERT(r2int == 2);
+							assert(r2int == 2);
 							Vector3<double> d2(s_ASiteIsingVector[site2]);
     
 							d_nn += hdip_d1 / (K_B / (A_MOMENT * MU_B)) * 3.0 * (d1.innerProduct(d2));
@@ -301,20 +301,20 @@ MonteCarlo::setupField(int size, double dfactor,
 //        fprintf(stderr, "neighbor r = %f, cnt = %f\n", sqrt((double)i)/4.0, cnt_n_r2[i]/16.0);
         s_4r2_neighbor.push_back(i);
     }
-    ASSERT(cnt_n % 16 == 0);
+    assert(cnt_n % 16 == 0);
     cnt_n /= 16;
     fprintf(stderr, "# of neighbors = %d\n", cnt_n);
-    ASSERT(cnt_nn % 16 == 0);
+    assert(cnt_nn % 16 == 0);
     cnt_nn /= 16;
-    ASSERT(cnt_nn % 6 == 0);
+    assert(cnt_nn % 6 == 0);
     fprintf(stderr, "# of nearest neighbors = %d\n", cnt_nn);
-    ASSERT(cnt_nnn % 16 == 0);
+    assert(cnt_nnn % 16 == 0);
     cnt_nnn /= 16;
-    ASSERT(cnt_nnn % 6 == 0);
+    assert(cnt_nnn % 6 == 0);
     fprintf(stderr, "# of next nearest neighbors = %d\n", cnt_nnn);
-    ASSERT(cnt_3nn % 16 == 0);
+    assert(cnt_3nn % 16 == 0);
     cnt_3nn /= 16;
-    ASSERT(cnt_3nn % 6 == 0);
+    assert(cnt_3nn % 6 == 0);
     fprintf(stderr, "# of 3rd nearest neighbors = %d\n", cnt_3nn);
     d_nn /= 16;
     d_nn /= cnt_nn;
@@ -395,7 +395,7 @@ MonteCarlo::setupField(int size, double dfactor,
 							}
 							exp_ikrz *= exp_i_rz;
 						}
-						ASSERT(abs(complex<double>(s_exp_ph[site1][(lidx+1) * rec_size-1])
+						assert(abs(complex<double>(s_exp_ph[site1][(lidx+1) * rec_size-1])
 								   /exp(complex<double>(0.0, (cutoff_rec) * (phx + phy + phz)))
 								   - complex<double>(1.0,0)) < 1e-6);
 					}
@@ -411,7 +411,7 @@ inline double
 MonteCarlo::iterate_real_redirected(int cnt, const FieldRealArray &array, int i, int j, int k, int site2)
 {
     int cutoff = s_cutoff_real;
-    ASSERT(cnt == cutoff*2 + 1);
+    assert(cnt == cutoff*2 + 1);
 #ifdef PACK_4FLOAT
     int l = (s_L - 1) / 4 + 1;
     int al = spins_real_index(i - cutoff,0,0) % 4;
@@ -426,7 +426,7 @@ MonteCarlo::iterate_real_redirected(int cnt, const FieldRealArray &array, int i,
         PackedSpin *pspin_k = pspin_i + spins_real_index(-s_L, 0, (k+s_L+dk) % s_L) / 4;
         for(int dj = -cutoff; dj <= cutoff; dj++) {
             PackedSpin *pspin = pspin_k + spins_real_index(-s_L, (j+s_L+dj) % s_L, 0) / 4;
-//            ASSERT(pspin == &m_spins_real[site2][spins_real_index(i - cutoff,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
+//            assert(pspin == &m_spins_real[site2][spins_real_index(i - cutoff,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
             for(int n = 0; n < (cnt + 2) / 4 + 1; n++) {
                 asm ("movaps %0, %%xmm1;"
 					 "movaps %1, %%xmm2;"
@@ -440,14 +440,14 @@ MonteCarlo::iterate_real_redirected(int cnt, const FieldRealArray &array, int i,
 //                h += x;
             }
             pfield+=(cnt + 2) / 4 + 1;
-//            ASSERT(pspin == &m_spins_real[site2][spins_real_index(i + cutoff + 1,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
+//            assert(pspin == &m_spins_real[site2][spins_real_index(i + cutoff + 1,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
         }
     }
     asm ("movaps %%xmm3, %0"
          : "=m" (h)
          :
          : "%xmm3");
-    ASSERT(pfield == &*array.align[al].end());
+    assert(pfield == &*array.align[al].end());
     return h.sum();
 #else
     Spin h = 0.0;
@@ -458,15 +458,15 @@ MonteCarlo::iterate_real_redirected(int cnt, const FieldRealArray &array, int i,
         Spin *pspin_k = pspin_i + spins_real_index(-s_L, 0, (k+s_L+dk) % s_L);
         for(int dj = -cutoff; dj <= cutoff; dj++) {
             Spin *pspin = pspin_k + spins_real_index(-s_L, (j+s_L+dj) % s_L, 0);
-//            ASSERT(pspin == &m_spins_real[site2][spins_real_index(i - cutoff,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
+//            assert(pspin == &m_spins_real[site2][spins_real_index(i - cutoff,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
             for(int n = 0; n < cnt; n++) {
                 h += pfield[n] * pspin[n];
             }
             pfield+=cnt;
-//            ASSERT(pspin == &m_spins_real[site2][spins_real_index(i + cutoff + 1,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
+//            assert(pspin == &m_spins_real[site2][spins_real_index(i + cutoff + 1,(j+s_L+dj) % s_L,(k+s_L+dk) % s_L)]);
         }
     }
-    ASSERT(pfield == &*array.end());
+    assert(pfield == &*array.end());
     return h;
 #endif
 }
@@ -563,7 +563,7 @@ MonteCarlo::iterate_rec_redirected(int cutoff, int site1, int i, int j, int k, i
         for(int m = 0; m < (cutoff+1)*(2*cutoff+1); m++) {
             for(int n = 0; n < cnt; n++) {
                 h += pfield[n] * real(pspin[n] * pexp_ph[n]);
-//                ASSERT(pfield == &s_fields_rec[site1][site2][reciprocal_index(kx,ky,kz)]);
+//                assert(pfield == &s_fields_rec[site1][site2][reciprocal_index(kx,ky,kz)]);
             }
             pspin+=cnt;
             pfield+=cnt;
@@ -581,8 +581,8 @@ MonteCarlo::iterate_rec_redirected(int cutoff, int site1, int i, int j, int k, i
         Spin spin_self = readSpin(site1, spins_real_index(i,j,k));
         h -=  s_fields_rec_sum * spin_self;
     }
-//    ASSERT(pspin == &*m_spins_rec[site2].end());
-//    ASSERT(pfield == &*s_fields_rec[site1][site2].end());
+//    assert(pspin == &*m_spins_rec[site2].end());
+//    assert(pfield == &*s_fields_rec[site1][site2].end());
     return h;
 }
 double
@@ -626,7 +626,7 @@ MonteCarlo::execute()
 			continue;
     
 		int site2 = m_hint_sec_cache_miss[left - 1];
-		ASSERT(site2 < 16);
+		assert(site2 < 16);
 
 		readBarrier();
 		m_hint_fields[site2] = iterate_interactions(
@@ -670,7 +670,7 @@ MonteCarlo::hinteraction_miscache(int sec_cache_miss_cnt, int site1, int lidx)
 			continue;
         
 		int site2 = m_hint_sec_cache_miss[left - 1];
-		ASSERT(site2 < 16);
+		assert(site2 < 16);
         
 		m_hint_fields[site2] = iterate_interactions(site1, lidx, site2);
 		if(m_hint_site2_not_done.decAndTest()) {            

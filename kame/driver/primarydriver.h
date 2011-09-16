@@ -134,7 +134,7 @@ XPrimaryDriver::RawData::push_int32_t(int32_t x) {
 }
 inline void
 XPrimaryDriver::RawData::push_double(double x) {
-	C_ASSERT(sizeof(double) == 8); // for compatibility.
+	static_assert(sizeof(double) == 8, "Not 8-byte sized double"); // for compatibility.
 	double y = x;
 	char *p = reinterpret_cast<char *>( &y);
 #ifdef __BIG_ENDIAN__
@@ -233,14 +233,14 @@ inline float XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordE
 		int32_t x;
 		float y;
 	} uni;
-	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+	static_assert(sizeof(uni.x) == sizeof(uni.y), "Size mismatch");
 	uni.x = pop_int32_t();
 	return uni.y;
 }
 template <>
 inline double XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
 	if(it + sizeof(double) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	C_ASSERT(sizeof(double) == 8);
+	static_assert(sizeof(double) == 8, "Not 8-byte sized double");
 	return pop_double();
 }
 
@@ -274,7 +274,7 @@ inline void XPrimaryDriver::RawData::push(float f) {
 		int32_t x;
 		float y;
 	} uni;
-	C_ASSERT(sizeof(uni.x) == sizeof(uni.y));
+	static_assert(sizeof(uni.x) == sizeof(uni.y), "Size mismatch");
 	uni.y = f;
 	push_int32_t(uni.x);
 }

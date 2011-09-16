@@ -23,7 +23,7 @@ FFTBase::fitLength(int length0) {
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 5.0) / log(2.0))))) * 5);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 7.0) / log(2.0))))) * 7);		
 	length = std::min(length, (int)lrint(pow(2.0, (ceil(log(length0 / 9.0) / log(2.0))))) * 9);		
-	ASSERT(length0 <= length);
+	assert(length0 <= length);
 //	dbgPrint(formatString("FFT using L=%d\n", length));
 	return length;
 }
@@ -109,7 +109,7 @@ void
 FFT::exec(const std::vector<std::complex<double> >& wavein,
 		std::vector<std::complex<double> >& waveout) {
 	int size = wavein.size();
-	ASSERT(size == length());
+	assert(size == length());
 	waveout.resize(size);
 	const std::complex<double> *pin = &wavein[0];
 	fftw_complex *pout = m_pBufin;
@@ -142,7 +142,7 @@ void
 RFFT::exec(const std::vector<double>& wavein,
 		std::vector<std::complex<double> >& waveout) {
 	int size = wavein.size();
-	ASSERT(size == length());
+	assert(size == length());
 	waveout.resize(size / 2 + 1);
 	const double *pin = &wavein[0];
 	double *pout = m_pBufin;
@@ -172,7 +172,7 @@ void
 RIFFT::exec(const std::vector<std::complex<double> >& wavein,
 		std::vector<double>& waveout) {
 	int size = length();
-	ASSERT((int)wavein.size() == length() / 2 + 1);
+	assert((int)wavein.size() == length() / 2 + 1);
 	waveout.resize(size);
 	const std::complex<double> *pin = &wavein[0];
 	fftw_complex *pout = m_pBufin;

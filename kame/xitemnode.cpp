@@ -103,13 +103,13 @@ XComboNode::Payload::clear() {
 shared_ptr<const std::deque<XItemNodeBase::Item> >
 XComboNode::Payload::itemStrings() const {
     shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
-	for(std::deque<XString>::const_iterator it = m_strings->begin(); it != m_strings->end(); it++) {
+	for(auto it = m_strings->begin(); it != m_strings->end(); it++) {
 		XItemNodeBase::Item item;
 		item.name = *it;
 		item.label = *it;
 		items->push_back(item);
 	}
-	ASSERT(m_strings->size() || (m_var.second < 0));
+	assert(m_strings->size() || (m_var.second < 0));
     if(m_var.second < 0) {
 	    XItemNodeBase::Item item;
         item.name = m_var.first;

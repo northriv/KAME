@@ -10,8 +10,8 @@
 
 #include <stdint.h>
 
-#include <thread.h>
-#include "thread.cpp"
+#include "xthread.h"
+#include "xthread.cpp"
 
 atomic<int> objcnt = 0;
 atomic<int> total = 0;

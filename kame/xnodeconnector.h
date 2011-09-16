@@ -35,7 +35,7 @@ public:
     template <class Y>
     explicit qshared_ptr(Y * p)
         : shared_ptr<T>(p, sharedPtrQDeleter_) {
-		ASSERT(isMainThread());
+		assert(isMainThread());
 	}
     template <class Y>
     qshared_ptr<T> &operator=(const qshared_ptr<Y> &p) {

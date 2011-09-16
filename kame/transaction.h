@@ -85,22 +85,8 @@ class Transaction;
 template <class XN>
 class Node {
 public:
-	template <class T>
-	static T *create();
-	template <class T, typename A1>
-	static T *create(A1 a1);
-	template <class T, typename A1, typename A2>
-	static T *create(A1 a1, A2 a2);
-	template <class T, typename A1, typename A2, typename A3>
-	static T *create(A1 a1, A2 a2, A3 a3);
-	template <class T, typename A1, typename A2, typename A3, typename A4>
-	static T *create(A1 a1, A2 a2, A3 a3, A4 a4);
-	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5>
-	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5);
-	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6);
-	template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-	static T *create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7);
+	template <class T, typename... Args>
+	static T *create(Args... args);
 
 	virtual ~Node();
 
@@ -175,8 +161,10 @@ public:
 	typedef typename NodeList::iterator iterator;
 	typedef typename NodeList::const_iterator const_iterator;
 
+	Node(const Node &) = delete; //non-copyable.
+	Node &operator=(const Node &) = delete; //non-copyable.
 private:
-	class Packet;
+	struct Packet;
 
 	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
@@ -204,7 +192,7 @@ private:
 		PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
 		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
 	};
-	class PacketWrapper;
+	struct PacketWrapper;
 	struct Linkage;
 	//! A package containing \a Payload, sub-Packets, and a list of subnodes.\n
 	//! Not-"missing" packet is always up-to-date and can be a snapshot of the subtree,
@@ -373,59 +361,15 @@ protected:
 	//! Use \a create().
 	Node();
 private:
-	Node(const Node &); //non-copyable.
-	Node &operator=(const Node &); //non-copyable.
 	typedef Payload *(*FuncPayloadCreator)(XN &);
 	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
 };
 
 template <class XN>
-template <class T>
-T *Node<XN>::create() {
+template <class T, typename... Args>
+T *Node<XN>::create(Args... args) {
 	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T();
-}
-template <class XN>
-template <class T, typename A1>
-T *Node<XN>::create(A1 a1) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1);
-}
-template <class XN>
-template <class T, typename A1, typename A2>
-T *Node<XN>::create(A1 a1, A2 a2) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2);
-}
-template <class XN>
-template <class T, typename A1, typename A2, typename A3>
-T *Node<XN>::create(A1 a1, A2 a2, A3 a3) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2, a3);
-}
-template <class XN>
-template <class T, typename A1, typename A2, typename A3, typename A4>
-T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2, a3, a4);
-}
-template <class XN>
-template <class T, typename A1, typename A2, typename A3, typename A4, typename A5>
-T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2, a3, a4, a5);
-}
-template <class XN>
-template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2, a3, a4, a5, a6);
-}
-template <class XN>
-template <class T, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-T *Node<XN>::create(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
-	return new T(a1, a2, a3, a4, a5, a6, a7);
+	return new T(args...);
 }
 
 //! \brief This class takes a snapshot for a subtree.\n
@@ -472,7 +416,7 @@ public:
 	}
 	//! The list of child nodes owned by \a node.
 	shared_ptr<const typename Node<XN>::NodeList> list(const shared_ptr<Node<XN> > &node) const {
-		local_shared_ptr<typename Node<XN>::Packet> const &packet(node->reverseLookup(m_packet));
+		auto const &packet(node->reverseLookup(m_packet));
 		if( !packet->size() )
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return packet->subnodes();
@@ -482,7 +426,7 @@ public:
 		const shared_ptr<const typename Node<XN>::NodeList> lx(list());
 		if( !lx)
 			return false;
-		for(typename Node<XN>::NodeList::const_iterator it = lx->begin(); it != lx->end(); ++it) {
+		for(auto it = lx->begin(); it != lx->end(); ++it) {
 			if(it->get() == &lower)
 				return true;
 		}
@@ -512,14 +456,13 @@ public:
 	explicit SingleSnapshot(const T &node) : Snapshot<XN>(node, false) {}
 	virtual ~SingleSnapshot() {}
 
-	//! \return Payload instance for \a node.
+	//! \return a pointer to Payload for \a node.
 	const typename T::Payload *operator->() const {
 		return static_cast<const typename T::Payload *>(this->m_packet->payload().get());
 	}
-	//! \return Cast operator redirected to Payload.
-	template <class X>
-	operator X() const {
-		return (X)( *operator->());
+	//! \return reference to Payload for \a node.
+	const typename T::Payload &operator*() const {
+		return *operator->();
 	}
 protected:
 };
@@ -548,8 +491,8 @@ public:
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot( *this, multi_nodal);
-		ASSERT( &this->m_packet->node() == &node);
-		ASSERT( &this->m_oldpacket->node() == &node);
+		assert( &this->m_packet->node() == &node);
+		assert( &this->m_oldpacket->node() == &node);
 	}
 	//! \param[in] x The snapshot containing the old value of \a node.
 	//! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
@@ -622,15 +565,15 @@ public:
 	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	template <class T>
 	typename T::Payload &operator[](T &node) {
-		ASSERT(isMultiNodal() || ( &node == &this->m_packet->node()));
-		local_shared_ptr<typename Node<XN>::Payload> &payload(
+		assert(isMultiNodal() || ( &node == &this->m_packet->node()));
+		auto &payload(
 			node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
 		if(payload->m_serial != this->m_serial) {
 			payload.reset(payload->clone( *this, this->m_serial));
-			typename T::Payload &p( *static_cast<typename T::Payload *>(payload.get()));
+			auto &p( *static_cast<typename T::Payload *>(payload.get()));
 			return p;
 		}
-		typename T::Payload &p( *static_cast<typename T::Payload *>(payload.get()));
+		auto &p( *static_cast<typename T::Payload *>(payload.get()));
 		return p;
 	}
 	bool isMultiNodal() const {return m_multi_nodal;}
@@ -650,7 +593,7 @@ public:
 	int unmark(const shared_ptr<XListener> &x) {
 		int canceled = 0;
 		if(m_messages)
-			for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it)
+			for(auto it = m_messages->begin(); it != m_messages->end(); ++it)
 				canceled += ( *it)->unmark(x);
 		return canceled;
 	}
@@ -664,7 +607,7 @@ private:
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
 	typedef std::deque<shared_ptr<Message__<XN> > > MessageList;
-	scoped_ptr<MessageList> m_messages;
+	unique_ptr<MessageList> m_messages;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -684,11 +627,6 @@ public:
 	typename T::Payload *operator->() {
 		return &( **this);
 	}
-	//! \return Cast operator redirected to Payload.
-	template <class X>
-	operator X() const {
-		return (X)( *static_cast<const typename T::Payload *>(this->m_packet->payload().get()));
-	}
 protected:
 };
 
@@ -707,7 +645,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 	m_oldpacket.reset();
 	//Messaging.
 	if(m_messages) {
-		for(typename MessageList::iterator it = m_messages->begin(); it != m_messages->end(); ++it) {
+		for(auto it = m_messages->begin(); it != m_messages->end(); ++it) {
 			( *it)->talk( *this);
 		}
 	}

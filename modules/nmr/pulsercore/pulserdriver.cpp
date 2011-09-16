@@ -626,7 +626,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 }
 double
 XPulser::Payload::periodicTerm() const {
-    ASSERT( !m_relPatList.empty());
+    assert( !m_relPatList.empty());
     return m_relPatList.back().time;
 }
 

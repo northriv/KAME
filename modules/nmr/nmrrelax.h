@@ -61,6 +61,7 @@ public:
 	struct Payload : public XSecondaryDriver::Payload {
 	private:
 	friend class XNMRT1;
+	friend class XRelaxFunc;
 	friend class XRelaxFuncPlot;
 		//! For fitting and display
 		struct Pt {
