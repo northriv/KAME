@@ -13,7 +13,7 @@ set(dso_SRCS
 
 add_library(dso MODULE ${dso_SRCS})
 add_dependencies(dso kame)
-target_link_libraries(dso dsocore charinterface ${MODULE_LINKER_FLAGS})
+#target_link_libraries(dso dsocore charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
 install(TARGETS dso LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
 

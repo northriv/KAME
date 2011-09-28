@@ -10,7 +10,7 @@ set(charinterface_SRCS
 	oxforddriver.cpp 
  )
 
-add_library(charinterface SHARED ${charinterface_SRCS})
+add_library(charinterface MODULE ${charinterface_SRCS})
 target_link_libraries(charinterface ${GPIB_LIBRARY})
 add_dependencies(charinterface kame)
 ########### install files ###############
