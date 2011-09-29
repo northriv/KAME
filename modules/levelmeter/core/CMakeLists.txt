@@ -2,6 +2,6 @@
 set(levelmetercore_SRCS
     levelmeter.cpp 
  )
-add_library(levelmetercore MODULE ${levelmetercore_SRCS})
+add_library(kame_levelmetercore SHARED ${levelmetercore_SRCS})
 ########### install files ###############
-install(TARGETS levelmetercore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
+install(TARGETS kame_levelmetercore LIBRARY  DESTINATION ${KAME_LIB_INSTALL_DIR})

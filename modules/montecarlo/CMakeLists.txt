@@ -16,7 +16,7 @@ kde4_add_ui_files(montecarlo_SRCS
 kde4_add_library(montecarlo MODULE ${montecarlo_SRCS})
 add_dependencies(montecarlo kame)
 ########### install files ###############
-install(TARGETS montecarlo LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
+install(TARGETS montecarlo LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
 #AM_CXXFLAGS = $(CXXFLAGS) \
 #	-O6  \
 #	-funroll-loops -fomit-frame-pointer -funswitch-loops -finline-functions -fgcse-after-reload \

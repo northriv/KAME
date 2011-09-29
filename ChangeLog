@@ -1,3 +1,9 @@
+* Thu Sep 29 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.1.96-1)
+- Partially uses c++0x.
+- Support for clang++.
+- Shared libraries are now moved to the system default location (works fine with MacPorts).
+
 * Mon Jul 11 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.14-1)
 - pulsedriver: anti-alias for AO.

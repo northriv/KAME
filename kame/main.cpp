@@ -136,27 +136,22 @@ int main(int argc, char *argv[])
 #endif
 	if(module_dir.isEmpty())
 		module_dir = KGlobal::dirs()->resourceDirs("lib");
-	std::deque<XString> modules_core, modules;
+	std::deque<XString> modules;
 	for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
 		QString path;
-		path = *it + "kame/core_modules";
+		path = *it + KAME_MODULE_DIR_SURFIX;
 		lt_dladdsearchdir(path.toLocal8Bit().data());
-		fprintf(stderr, "searching for core libraries in %s\n", (const char*)path.toLocal8Bit().data());
-		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules_core);
-		path = *it + "kame/modules";
-		lt_dladdsearchdir(path.toLocal8Bit().data());
-		fprintf(stderr, "searching for libraries in %s\n", (const char*)path.toLocal8Bit().data());
+		fprintf(stderr, "Searching for modules in %s\n", (const char*)path.toLocal8Bit().data());
 		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules);
 	}
 
-	modules_core.insert(modules_core.end(), modules.begin(), modules.end());
-	for(auto it = modules_core.begin(); it != modules_core.end(); it++) {
+	for(auto it = modules.begin(); it != modules.end(); it++) {
 		lt_dlhandle handle = lt_dlopenext(it->c_str());
 		if(handle) {
 			fprintf(stderr, "Module %s loaded\n", it->c_str());
 		}
 		else {
-			fprintf(stderr, "loading module %s failed %s.\n", it->c_str(), lt_dlerror());
+			fprintf(stderr, "Failed during loading module %s.\n", it->c_str());
 		}
 	}
 

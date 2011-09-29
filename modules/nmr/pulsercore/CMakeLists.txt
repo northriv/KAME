@@ -12,6 +12,7 @@ kde4_add_ui_files(nmrpulsercore_SRCS
   pulserdriverform.ui
   pulserdrivermoreform.ui  )
 
-kde4_add_library(nmrpulsercore MODULE ${nmrpulsercore_SRCS})
+kde4_add_library(kame_nmrpulsercore SHARED ${nmrpulsercore_SRCS})
+add_dependencies(kame_nmrpulsercore kame)
 ########### install files ###############
-install(TARGETS nmrpulsercore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
+install(TARGETS kame_nmrpulsercore LIBRARY  DESTINATION ${KAME_LIB_INSTALL_DIR})

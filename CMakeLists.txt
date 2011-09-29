@@ -3,7 +3,7 @@ project( kame )
 
 find_package(KDE4 REQUIRED)
 
-add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"3.1\\"")
+add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"3.2\\"")
 
 include(KDE4Defaults)
 
@@ -177,19 +177,24 @@ else(1)
   set (CMAKE_CXX_FLAGS "-std=c++0x -stdlib=libc++ -Wall -fexceptions")
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
+set(KAME_LIB_INSTALL_DIR "${LIB_INSTALL_DIR}")
+set(KAME_MODULE_DIR_SURFIX "/kame/modules")
+add_definitions(-DKAME_MODULE_DIR_SURFIX="\\"${KAME_MODULE_DIR_SURFIX}\\"")
+set(KAME_MODULE_INSTALL_DIR "${LIB_INSTALL_DIR}/${KAME_MODULE_DIR_SURFIX}")
+
 if(APPLE)
 #Apple's ld
- # set(CMAKE_MODULE_LINKER_FLAGS "-std=c++0x  -Wl,-undefined,dynamic_lookup" ) 
- # set(CMAKE_SHARED_LINKER_FLAGS "-std=c++0x -Wl,-undefined,dynamic_lookup" ) 
- # set(CMAKE_EXE_LINKER_FLAGS "-std=c++0x -Wl,-all_load -Wl,-dynamic")
-  set(CMAKE_MODULE_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load  -undefined suppress" ) 
-  set(CMAKE_SHARED_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load  -undefined suppress" ) 
-  set(CMAKE_EXE_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load -dynamic")
+  set(CMAKE_MODULE_LINKER_FLAGS "-std=c++0x -all_load  -undefined dynamic_lookup" ) 
+  set(CMAKE_SHARED_LINKER_FLAGS "-std=c++0x -all_load  -undefined dynamic_lookup" ) 
+  set(CMAKE_EXE_LINKER_FLAGS "-std=c++0x -all_load -dynamic")
+#  set(CMAKE_MODULE_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load  -undefined dynamic_lookup" ) 
+#  set(CMAKE_SHARED_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load  -undefined suppress" ) 
+#  set(CMAKE_EXE_LINKER_FLAGS "-flat_namespace -std=c++0x -all_load -dynamic")
 else(1)
 #GNU libtool
   set(CMAKE_MODULE_LINKER_FLAGS "--module --shared")
-  set(CMAKE_SHARED_LINKER_FLAGS "-shared")
-  set(CMAKE_EXE_LINKER_FLAGS "-dlpreopen self -export-dynamic")
+  set(CMAKE_SHARED_LINKER_FLAGS "--shared")
+  set(CMAKE_EXE_LINKER_FLAGS "-dlopen self -export-dynamic")
   set(CMAKE_CXX_LINK_EXECUTABLE "libtool --mode=link --tag=CXX ${CMAKE_CXX_LINK_EXECUTABLE}")
   set(CMAKE_CXX_CREATE_SHARED_MODULE "libtool --mode=link --tag=CXX ${CMAKE_CXX_CREATE_SHARED_MODULE}")
 endif(APPLE)

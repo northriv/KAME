@@ -34,9 +34,9 @@ kde4_add_ui_files(nmr_SRCS
  
 kde4_add_library(nmr MODULE ${nmr_SRCS} ${nmrpulser_SRCS})
 add_dependencies(nmr kame)
-#target_link_libraries(nmr nmrpulsercore magnetpscore sgcore dmmcore dsocore charinterface ${MODULE_LINKER_FLAGS})
+target_link_libraries(nmr kame_nmrpulsercore kame_magnetpscore kame_sgcore kame_dmmcore kame_dsocore kame_charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
-install(TARGETS nmr LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
+install(TARGETS nmr LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
 
 ##AM_CXXFLAGS = $(CXXFLAGS) \
 ##	-O6  \

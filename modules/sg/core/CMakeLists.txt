@@ -6,6 +6,6 @@ set(sgcore_SRCS
 kde4_add_ui_files(sgcore_SRCS
   signalgeneratorform.ui)
   
-kde4_add_library(sgcore MODULE ${sgcore_SRCS})
+kde4_add_library(kame_sgcore SHARED ${sgcore_SRCS})
 ########### install files ###############
-install(TARGETS sgcore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
+install(TARGETS kame_sgcore LIBRARY  DESTINATION ${KAME_LIB_INSTALL_DIR})

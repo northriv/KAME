@@ -13,8 +13,7 @@ kde4_add_ui_files(tempcontrol_SRCS
   tempcontrolform.ui)
   
 kde4_add_library(tempcontrol MODULE ${tempcontrol_SRCS})
-add_dependencies(tempcontrol kame)
-#target_link_libraries(tempcontrol dcsourcecore charinterface ${MODULE_LINKER_FLAGS})
+target_link_libraries(tempcontrol kame_dcsourcecore kame_charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
-install(TARGETS tempcontrol LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
+install(TARGETS tempcontrol LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
 

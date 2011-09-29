@@ -6,6 +6,6 @@ set(dmmcore_SRCS
 kde4_add_ui_files(dmmcore_SRCS
   dmmform.ui  )
 
-kde4_add_library(dmmcore MODULE ${dmmcore_SRCS})
+kde4_add_library(kame_dmmcore SHARED ${dmmcore_SRCS})
 ########### install files ###############
-install(TARGETS dmmcore LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/core_modules)
+install(TARGETS kame_dmmcore LIBRARY  DESTINATION ${KAME_LIB_INSTALL_DIR})

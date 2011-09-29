@@ -13,8 +13,6 @@ set(nidaq_SRCS
  )
 
 add_library(nidaq MODULE ${nidaq_SRCS})
-#target_link_libraries(nidaq dsocore nmrpulsercore ${NIDAQMX_LIBRARY} ${MODULE_LINKER_FLAGS})
-target_link_libraries(nidaq ${NIDAQMX_LIBRARY} ${MODULE_LINKER_FLAGS})
-add_dependencies(nidaq kame)
+target_link_libraries(nidaq kame_dsocore kame_nmrpulsercore ${NIDAQMX_LIBRARY} ${MODULE_LINKER_FLAGS})
 ########### install files ###############
-install(TARGETS nidaq LIBRARY  DESTINATION ${LIB_INSTALL_DIR}/kame/modules)
+install(TARGETS nidaq LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
