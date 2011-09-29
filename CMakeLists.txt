@@ -194,7 +194,7 @@ else(1)
 #GNU libtool
   set(CMAKE_MODULE_LINKER_FLAGS "--module --shared")
   set(CMAKE_SHARED_LINKER_FLAGS "--shared")
-  set(CMAKE_EXE_LINKER_FLAGS "-dlopen self -export-dynamic")
+  set(CMAKE_EXE_LINKER_FLAGS "-dlpreopen self -export-dynamic")
   set(CMAKE_CXX_LINK_EXECUTABLE "libtool --mode=link --tag=CXX ${CMAKE_CXX_LINK_EXECUTABLE}")
   set(CMAKE_CXX_CREATE_SHARED_MODULE "libtool --mode=link --tag=CXX ${CMAKE_CXX_CREATE_SHARED_MODULE}")
 endif(APPLE)
