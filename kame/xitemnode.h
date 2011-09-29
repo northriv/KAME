@@ -26,7 +26,7 @@ public:
 	struct Item { XString name, label; };
 	virtual shared_ptr<const std::deque<Item> > itemStrings(const Snapshot &shot_of_list) const = 0;
 
-	bool autoSetAny() const {return m_lsnTryAutoSet;}
+	bool autoSetAny() const {return !!m_lsnTryAutoSet;}
 
 	struct Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}

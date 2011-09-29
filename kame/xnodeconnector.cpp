@@ -68,7 +68,7 @@ XQConnectorHolder__::~XQConnectorHolder__() {
 }
 bool
 XQConnectorHolder__::isAlive() const {
-    return m_connector;
+    return !!m_connector;
 }
 
 void

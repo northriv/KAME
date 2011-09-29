@@ -74,7 +74,7 @@ public:
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
 
-	virtual bool isOpened() const {return m_xport;}
+	virtual bool isOpened() const {return !!m_xport;}
 protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.

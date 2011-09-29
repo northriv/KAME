@@ -403,7 +403,7 @@ int
 XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy) {
     if(fixScales(shot)) {
 		bool colorplot = shot[ *colorPlot()];
-		bool hasweight = m_curAxisW;
+		bool hasweight = !!m_curAxisW;
 		unsigned int colorhigh = shot[ *colorPlotColorHigh()];
 		unsigned int colorlow = shot[ *colorPlotColorLow()];
 		float alpha1 = hasweight ? 0.2 : 1.0;
@@ -462,7 +462,7 @@ int
 XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
     if(fixScales(shot)) {
 		bool colorplot = shot[ *colorPlot()];
-		bool hasweight = m_curAxisW;
+		bool hasweight = !!m_curAxisW;
 		int cnt = m_ptsSnapped.size();
 		m_canvasPtsSnapped.resize(cnt);
 		tCanvasPoint *cpt;

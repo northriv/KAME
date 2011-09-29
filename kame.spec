@@ -21,8 +21,8 @@ BuildRequires: gcc-gfortran, atlas-sse2-devel
 BuildRequires: libidn-devel, ftgl-devel >= %{ftglver}
 BuildRequires: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
 BuildRequires: zlib-devel, libpng-devel, libjpeg-devel
-#BuildRequires: gcc-c++ >= 4.0
-BuildRequires: clang >= 2.8
+BuildRequires: gcc-c++ >= 4.0
+#BuildRequires: clang >= 2.9
 
 Source0: %{name}-%{version}.tar.bz2
 
@@ -64,8 +64,8 @@ NMR drivers.
 %prep
 
 %setup -q
-#export CXX="g++ -g3 -O2 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__"
-export CXX="clang++ -g -O4 -march=pentium4 -D__sse2__"
+export CXX="g++ -g3 -O2 -mfpmath=sse -msse -msse2 -mmmx -march=pentium4 -D__sse2__"
+#export CXX="clang++ -g -O4 -march=pentium4 -D__sse2__"
 %cmake #-DCMAKE_BUILD_TYPE=Debug
 
 
