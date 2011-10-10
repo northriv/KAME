@@ -534,78 +534,77 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		sum_t += t;
 		n++;
 	}
-	if(n == 0)
-		throw XSkippedRecordError(__FILE__, __LINE__);
+	if(n) {
+		for(unsigned int i = 0; i < corr.size(); i++) {
+			corr[i] -= sum_c[i]*sum_t/(double)n;
+			corr[i] *= ((mode__ == MEAS_T1) ? 1 : -1);
+		}
 
-	for(unsigned int i = 0; i < corr.size(); i++) {
-		corr[i] -= sum_c[i]*sum_t/(double)n;
-		corr[i] *= ((mode__ == MEAS_T1) ? 1 : -1);
-	}
+		bool absfit__ = shot_this[ *absFit()];
 
-	bool absfit__ = shot_this[ *absFit()];
-
-	std::deque<double> phase_by_cond(corr.size(), shot_this[ *phase()] / 180.0 * M_PI);
-	int cond = -1;
-	double maxsn2 = 0.0;
-	for(unsigned int i = 0; i < corr.size(); i++) {
+		std::deque<double> phase_by_cond(corr.size(), shot_this[ *phase()] / 180.0 * M_PI);
+		int cond = -1;
+		double maxsn2 = 0.0;
+		for(unsigned int i = 0; i < corr.size(); i++) {
+			if(shot_this[ *autoPhase()]) {
+				phase_by_cond[i] = std::arg(corr[i]);
+			}
+			if(shot_this[ *autoWindow()]) {
+				double sn2 = absfit__ ? std::abs(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
+				sn2 = sn2 * sn2 / shot_this[ *this].m_convolutionCache[i]->power;
+				if(maxsn2 < sn2) {
+					maxsn2 = sn2;
+					cond = i;
+				}
+			}
+		}
+		if(cond < 0) {
+			cond = 0;
+			for(std::deque<shared_ptr<Payload::ConvolutionCache> >::const_iterator it
+				= shot_this[ *this].m_convolutionCache.begin();
+				it != shot_this[ *this].m_convolutionCache.end(); ++it) {
+				if((m_windowWidthList[std::max(0, (int)shot_this[ *windowWidth()])] == ( *it)->windowwidth) &&
+					(m_solver->windowFunc(shot_this) == ( *it)->windowfunc)) {
+					break;
+				}
+				cond++;
+			}
+		}
+		if(cond >= (shot_this[ *this].m_convolutionCache.size())) {
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+		double ph = phase_by_cond[cond];
 		if(shot_this[ *autoPhase()]) {
-			phase_by_cond[i] = std::arg(corr[i]);
+			tr[ *phase()] = ph / M_PI * 180;
+			tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
 		}
 		if(shot_this[ *autoWindow()]) {
-			double sn2 = absfit__ ? std::abs(corr[i]) : std::real(corr[i] * std::polar(1.0, -phase_by_cond[i]));
-			sn2 = sn2 * sn2 / shot_this[ *this].m_convolutionCache[i]->power;
-			if(maxsn2 < sn2) {
-				maxsn2 = sn2;
-				cond = i;
+			for(unsigned int i = 0; i < m_windowWidthList.size(); i++) {
+				if(m_windowWidthList[i] == shot_this[ *this].m_convolutionCache[cond]->windowwidth)
+					tr[ *windowWidth()] = i;
 			}
-		}
-	}
-	if(cond < 0) {
-		cond = 0;
-		for(std::deque<shared_ptr<Payload::ConvolutionCache> >::const_iterator it
-			= shot_this[ *this].m_convolutionCache.begin();
-			it != shot_this[ *this].m_convolutionCache.end(); ++it) {
-			if((m_windowWidthList[std::max(0, (int)shot_this[ *windowWidth()])] == ( *it)->windowwidth) &&
-				(m_solver->windowFunc(shot_this) == ( *it)->windowfunc)) {
-				break;
+			std::deque<FFT::twindowfunc> funcs;
+			m_solver->windowFuncs(funcs);
+			for(unsigned int i = 0; i < funcs.size(); i++) {
+				if(funcs[i] == shot_this[ *this].m_convolutionCache[cond]->windowfunc)
+					tr[ *windowFunc()] = i;
 			}
-			cond++;
+			tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
 		}
-	}
-	if(cond >= (shot_this[ *this].m_convolutionCache.size())) {
-		throw XSkippedRecordError(__FILE__, __LINE__);
-	}
-	double ph = phase_by_cond[cond];
-	if(shot_this[ *autoPhase()]) {
-		tr[ *phase()] = ph / M_PI * 180;
-		tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
-    }
-	if(shot_this[ *autoWindow()]) {
-		for(unsigned int i = 0; i < m_windowWidthList.size(); i++) {
-			if(m_windowWidthList[i] == shot_this[ *this].m_convolutionCache[cond]->windowwidth)
-				tr[ *windowWidth()] = i;
+		std::complex<double> cph(std::polar(1.0, -phase_by_cond[cond]));
+		for(std::deque<Payload::Pt>::iterator it = sumpts.begin(); it != sumpts.end(); it++) {
+			if(it->isigma == 0) continue;
+			it->p1 = it->p1 / it->isigma;
+			it->c =  it->value_by_cond[cond] * cph / it->isigma;
+			it->var = (absfit__) ? std::abs(it->c) : std::real(it->c);
+			it->isigma = sqrt(it->isigma);
 		}
-		std::deque<FFT::twindowfunc> funcs;
-		m_solver->windowFuncs(funcs);
-		for(unsigned int i = 0; i < funcs.size(); i++) {
-			if(funcs[i] == shot_this[ *this].m_convolutionCache[cond]->windowfunc)
-				tr[ *windowFunc()] = i;
-		}
-		tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
-	}
-	std::complex<double> cph(std::polar(1.0, -phase_by_cond[cond]));
-	for(std::deque<Payload::Pt>::iterator it = sumpts.begin(); it != sumpts.end(); it++) {
-		if(it->isigma == 0) continue;
-		it->p1 = it->p1 / it->isigma;
-		it->c =  it->value_by_cond[cond] * cph / it->isigma;
-		it->var = (absfit__) ? std::abs(it->c) : std::real(it->c);
-		it->isigma = sqrt(it->isigma);
-    }
 
-	tr[ *m_fitStatus] = iterate(tr, func, 4);
+		tr[ *m_fitStatus] = iterate(tr, func, 4);
 
-	t1inv()->value(tr, 1000.0 * shot_this[ *this].m_params[0]);
-	t1invErr()->value(tr, 1000.0 * shot_this[ *this].m_errors[0]);
+		t1inv()->value(tr, 1000.0 * shot_this[ *this].m_params[0]);
+		t1invErr()->value(tr, 1000.0 * shot_this[ *this].m_errors[0]);
+	}
 
 	m_isPulserControlRequested = (emitter != this);
 }
