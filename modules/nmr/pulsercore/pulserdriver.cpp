@@ -788,7 +788,7 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 		former_of_alt = !former_of_alt;
 		bool comb_off_res = ((comb_mode__ != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             
-		uint64_t p1__ = 0;
+		uint64_t p1__ = 0; //0: Comb pulse is OFF.
 		if((comb_mode__ != N_COMB_MODE_OFF) &&
 		   !((comb_mode__ == N_COMB_MODE_COMB_ALT) && former_of_alt && !(comb_rot_num != 0))) {
 			p1__ = ((former_of_alt || (comb_mode__ != N_COMB_MODE_P1_ALT)) ? comb_p1__ : comb_p1_alt__);
@@ -799,10 +799,12 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
 			rest = rtime__;
 		else
 			rest = rtime__ - p1__;
+		if(rest <= 0)
+			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
     
 		if(saturation_wo_comb && (p1__ > 0)) rest = 0;
       
-		if(rest > 0) pos += rest;
+		pos += rest;
       
 		//comb pulses
 		if((p1__ > 0) && !saturation_wo_comb) {
