@@ -633,7 +633,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	tr[ *this].m_dFreq = 1.0 / fftlen / interval;
 	tr[ *this].m_ftWave.resize(fftlen);
 
-	rotNFFT(tr, ftpos, ph, tr[ *this].m_wave, tr[ *this].m_ftWave);
+	rotNFFT(tr, ftpos, ph, tr[ *this].m_wave, tr[ *this].m_ftWave); //Generates a new SpectrumSolver.
 	const SpectrumSolver &solver(shot_this[ *m_solver].solver());
 	if(solver.peaks().size()) {
 		entryPeakAbs()->value(tr,

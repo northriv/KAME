@@ -410,7 +410,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		}
 	}
 
-	// read spectra from NMRPulseAnalyzers
+	//Reads spectra from NMRPulseAnalyzers
 	if( emitter != this) {
 		assert( pulse1__ );
 		assert( shot_pulse1[ *pulse1__].time() );
