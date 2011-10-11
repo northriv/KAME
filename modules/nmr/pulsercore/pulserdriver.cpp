@@ -1063,7 +1063,7 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 	double z = pow(10.0, dB/20.0);
 	const int FAC_ANTIALIAS = 3;
 	p.resize(to_center * 2);
-	std::fill(p.begin(), p.end(), 0.0);
+	std::fill(p.begin(), p.end(), std::complex<double>(0.0));
 	std::vector<std::complex<double> > wave(p.size() * FAC_ANTIALIAS, 0.0);
 	for(int i = 0; i < (int)wave.size(); ++i) {
 		double i1 = (double)(i - (int)wave.size() / 2 - FAC_ANTIALIAS / 2) / FAC_ANTIALIAS - delay1;

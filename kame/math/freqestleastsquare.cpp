@@ -44,7 +44,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 	sigma2 /= wsum;
 	
 	// Peak search by ZF-FFT;
-	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+	std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 	std::vector<std::complex<double> > convwnd(m_ifft);
 	for(int i = 0; i < t; i++) {
 		m_ifft[(t0a + i) % n] = memin[i] * weight[i];
@@ -193,7 +193,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		}
 		
 		// Recalculate ZF-FFT.
-		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+		std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 		for(int i = 0; i < t; i++) {
 			m_ifft[(t0a + i) % n] = wave[i] * weight[i];
 		}
@@ -202,7 +202,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			memout[i] /= wsum;
 		}
 	}
-	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+	std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 	for(int i = 0; i < m_peaks.size(); i++) {
 		double freq = m_peaks[i].second;
 		std::complex<double> z(zlist[i]);

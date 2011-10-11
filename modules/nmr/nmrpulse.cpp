@@ -487,7 +487,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	tr[ *this].m_darkPSD.resize(fftlen);
 	tr[ *this].m_darkPSDSum.resize(fftlen);
-	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), 0.0);
+	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), std::complex<double>(0.0));
 
 	// Phase Inversion Cycling
 	bool picenabled = shot_this[ *m_picEnabled];
@@ -506,7 +506,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		avgclear = true;
 	}
 	if(avgclear) {
-		std::fill(tr[ *this].m_waveSum.begin(), tr[ *this].m_waveSum.end(), 0.0);
+		std::fill(tr[ *this].m_waveSum.begin(), tr[ *this].m_waveSum.end(), std::complex<double>(0.0));
 		std::fill(tr[ *this].m_darkPSDSum.begin(), tr[ *this].m_darkPSDSum.end(), 0.0);
 		tr[ *this].m_avcount = 0;
 		if(shot_this[ *exAvgIncr()]) {
@@ -531,7 +531,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	tr[ *this].m_dsoWaveStartPos = pos;
 
-	//background subtraction or dynamic noise reduction
+	//Background subtraction or dynamic noise reduction
 	if(bg_after_last_echo)
 		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
 	for(int i = 1; i < numechoes; i++) {
@@ -545,7 +545,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			dsowave[pos + j] += dsowave[k] / (double)numechoes;
 		}
 	}
-	//background subtraction or dynamic noise reduction
+	//Background subtraction or dynamic noise reduction
 	if( !bg_after_last_echo)
 		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
 
@@ -557,7 +557,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			wavesum[i] += dsowave[pos + i];
 		}
 		{
-			//Estimate power spectral density of dark side.
+			//Estimates power spectral density of dark side.
 			if( !shot_this[ *this].m_ftDark ||
 				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
 				tr[ *this].m_ftDark.reset(new FFT(-1, shot_this[ *fftLen()]));
@@ -565,7 +565,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			std::vector<std::complex<double> > darkin(fftlen, 0.0), darkout(fftlen);
 			int bginplen = std::min(bglength, fftlen);
 			double normalize = 0.0;
-			//Twist background not to be affected by the dc subtraction.
+			//Twists background not to be affected by the dc subtraction.
 			for(int i = 0; i < bginplen; i++) {
 				double tw = sin(2.0*M_PI*i/(double)bginplen);
 				darkin[i] = dsowave[pos + i + bgpos] * tw;
@@ -579,7 +579,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			tr[ *this].m_ftDark->exec(darkin, darkout); //FT of PSD.
 			std::vector<std::complex<double> > sigma2(darkout);
-			std::fill(darkin.begin(), darkin.end(), 0.0);
+			std::fill(darkin.begin(), darkin.end(), std::complex<double>(0.0));
 			double x = sqrt(1.0 / length / fftlen);
 			for(int i = 0; i < length; i++) {
 				darkin[i] = x;
@@ -634,7 +634,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	tr[ *this].m_ftWave.resize(fftlen);
 
 	rotNFFT(tr, ftpos, ph, tr[ *this].m_wave, tr[ *this].m_ftWave); //Generates a new SpectrumSolver.
-	const SpectrumSolver &solver(tr[ *m_solver].solver());
+	const SpectrumSolver &solver(shot_this[ *m_solver].solver());
 	if(solver.peaks().size()) {
 		entryPeakAbs()->value(tr,
 			solver.peaks()[0].first / (double)shot_this[ *this].m_wave.size());

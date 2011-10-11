@@ -205,7 +205,7 @@ SpectrumSolver::numberOfNoises(const std::vector<std::complex<double> >& memin) 
 	int n = fftlen();
 	
 	std::vector<std::complex<double> > zfin(n), zfft(n);
-	std::fill(zfin.begin(), zfin.end(), 0.0);
+	std::fill(zfin.begin(), zfin.end(), std::complex<double>(0.0));
 	for(int i = 0; i < t; i++) {
 		zfin[i % n] = memin[i];
 	}
@@ -233,7 +233,7 @@ FFTSolver::genSpectrum(const std::vector<std::complex<double> >& fftin, std::vec
 
 	std::vector<double> weight;
 	window(t, t0, windowfunc, windowlength, weight);
-	std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+	std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 	std::vector<std::complex<double> > zffftin(n, 0.0), fftout2(n);
 	for(int i = 0; i < t; i++) {
 		int j = (t0a + i) % n;
@@ -326,11 +326,11 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vec
 	double alpha = 0.3;
 	for(double sigma = sqrtpow / 4.0; sigma < sqrtpow; sigma *= 1.2) {
 		//	fprintf(stderr, "MEM: Using T=%u,N=%u,sigma=%g\n", t,n,sigma);
-		std::fill(m_accumDYFT.begin(), m_accumDYFT.end(), 0.0);
-		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
-		std::fill(m_lambda.begin(), m_lambda.end(), 0.0);
-		std::fill(m_accumDY.begin(), m_accumDY.end(), 0.0);
-		std::fill(m_accumG2.begin(), m_accumG2.end(), 0.0);
+		std::fill(m_accumDYFT.begin(), m_accumDYFT.end(), std::complex<double>(0.0));
+		std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
+		std::fill(m_lambda.begin(), m_lambda.end(), std::complex<double>(0.0));
+		std::fill(m_accumDY.begin(), m_accumDY.end(), std::complex<double>(0.0));
+		std::fill(m_accumG2.begin(), m_accumG2.end(), std::complex<double>(0.0));
 		m_accumZ = t;
 		double oerr = sqrtpow;
 		unsigned int it;
@@ -362,7 +362,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vec
 	}
 	if(err >= tol * sqrtpow) {
 		dbgPrint(formatString("MEM: Use ZF-FFT instead.\n"));
-		std::fill(m_ifft.begin(), m_ifft.end(), 0.0);
+		std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 		for(unsigned int i = 0; i < t; i++) {
 			m_ifft[(t0 + i) % n] = memin[i];
 		}
@@ -398,7 +398,7 @@ MEMStrict::stepMEM(const std::vector<std::complex<double> >& memin, std::vector<
 	unsigned int t = memin.size();
 	double isigma = 1.0 / sigma;
 	std::vector<std::complex<double> > &lambdaZF(m_ifft);
-	std::fill(lambdaZF.begin(), lambdaZF.end(), 0.0);
+	std::fill(lambdaZF.begin(), lambdaZF.end(), std::complex<double>(0.0));
 	std::complex<double> *plambda = &m_lambda[0];
 	for(unsigned int i = 0; i < t; i++) {
 		lambdaZF[(t0 + i) % n] = *plambda * isigma;

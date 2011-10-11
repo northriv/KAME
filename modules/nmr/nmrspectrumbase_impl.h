@@ -241,7 +241,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		tr[ *this].m_accum_dark[bank].resize(length, 0.0);
 	}
 	tr[ *this].m_wave.resize(length);
-	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), 0.0);
+	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), std::complex<double>(0.0));
 	tr[ *this].m_weights.resize(length);
 	std::fill(tr[ *this].m_weights.begin(), tr[ *this].m_weights.end(), 0.0);
 	tr[ *this].m_darkPSD.resize(length);
@@ -444,7 +444,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	}
 	
 	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
-	std::fill(fftwave.begin(), fftwave.end(), 0.0);
+	std::fill(fftwave.begin(), fftwave.end(), std::complex<double>(0.0));
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
 		if(accum_weights[i] > th)

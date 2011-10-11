@@ -32,7 +32,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	taps_div = std::max(taps_div / 10, 1);
 	shared_ptr<Context> context(new Context);
 	context->a.resize(t);
-	std::fill(context->a.begin(), context->a.end(), 0.0);
+	std::fill(context->a.begin(), context->a.end(), std::complex<double>(0.0));
 	context->a[0] = 1.0;
 	context->t = t;
 	context->sigma2 = 0.0;
@@ -71,7 +71,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	dbgPrint(formatString("MEM/AR: t=%d, taps=%d, IC_min=%g, IC=%g\n", t, taps, ic, m_funcARIC(context->sigma2, context->p, t)));
 
 	std::vector<std::complex<double> > zfbuf(n), fftbuf(n);
-	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
+	std::fill(zfbuf.begin(), zfbuf.end(), std::complex<double>(0.0));
 	for(int i = 0; i < taps + 1; i++) {
 		zfbuf[i] = context->a[i];
 	}
@@ -87,7 +87,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	double coeff = lspe(memin, t0, psd, memout, tol, true, windowfunc);
 
 	// Derivative of denominator.
-	std::fill(zfbuf.begin(), zfbuf.end(), 0.0);
+	std::fill(zfbuf.begin(), zfbuf.end(), std::complex<double>(0.0));
 	for(int i = 0; i < taps + 1; i++) {
 		zfbuf[i] = context->a[i] * (double)((i >= n/2) ? (i - n) : i) * std::complex<double>(0, -1);
 	}
