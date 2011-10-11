@@ -1,3 +1,9 @@
+* Wed Oct 12 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.2.0-1)
+- nmrpulser: Checks sanity of P1.
+- nmrrelax: Does not skip when previous P1 is out of range.
+- nmrpulse: Fix for the issue that scalar entries were based on previous dataset.  
+
 * Thu Sep 29 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.1.96-1)
 - Partially uses c++0x.
