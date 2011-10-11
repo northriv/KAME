@@ -29,12 +29,12 @@ XSecondaryDriver::requestAnalysis() {
 void
 XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *driver) {
 	for(;;) {
-		Snapshot shot_others( *m_drivers.lock());
-		if( !shot_others.isUpperOf( *this))
+		Snapshot shot_all_drivers( *m_drivers.lock());
+		if( !shot_all_drivers.isUpperOf( *this))
 			return;
-		if( !shot_others.isUpperOf( *driver))
+		if( !shot_all_drivers.isUpperOf( *driver))
 			return;
-		Transaction tr( *this, shot_others);
+		Transaction tr( *this, shot_all_drivers); //Transaction should be made for all the drivers at the same time.
 		const Snapshot &shot_this(tr);
 
 		if(driver != this) {
@@ -55,22 +55,22 @@ XSecondaryDriver::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *dri
 			it != shot_this[ *this].m_connections.end(); ++it) {
 			shared_ptr<XNode> node = shot_this[ *it->m_selecter];
 			if(node) {
-				if( !shot_others.isUpperOf( *node))
+				if( !shot_all_drivers.isUpperOf( *node))
 					return;
 				if((node.get() != driver) &&
-					!shot_others[ *static_pointer_cast<XDriver>(node)].time())
+					!shot_all_drivers[ *static_pointer_cast<XDriver>(node)].time())
 					return; //Record is invalid.
 			}
 		}
 
 		//driver-side dependency check
-		if( !checkDependency(tr, shot_emitter, shot_others, driver))
+		if( !checkDependency(tr, shot_emitter, shot_all_drivers, driver))
 			return;
 
 		bool skipped = false;
 		XTime time_recorded = shot_emitter[ *driver].time();
 		try {
-			analyze(tr, shot_emitter, shot_others, driver);
+			analyze(tr, shot_emitter, shot_all_drivers, driver);
 		}
 		catch (XSkippedRecordError& e) {
 			skipped = true;
