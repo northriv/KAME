@@ -330,7 +330,7 @@ MEMStrict::genSpectrum(const std::vector<std::complex<double> >& memin, std::vec
 		std::fill(m_ifft.begin(), m_ifft.end(), std::complex<double>(0.0));
 		std::fill(m_lambda.begin(), m_lambda.end(), std::complex<double>(0.0));
 		std::fill(m_accumDY.begin(), m_accumDY.end(), std::complex<double>(0.0));
-		std::fill(m_accumG2.begin(), m_accumG2.end(), std::complex<double>(0.0));
+		std::fill(m_accumG2.begin(), m_accumG2.end(), 0.0);
 		m_accumZ = t;
 		double oerr = sqrtpow;
 		unsigned int it;
