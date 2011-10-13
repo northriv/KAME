@@ -1,4 +1,4 @@
-#HOW-TO build KAME in Fedora 14.
+#HOW-TO build KAME rpm package in Fedora 14.
 
 #Use pirut or sudo yum -y install to get the following packages:
 gsl-devel, fftw-devel, atlas-sse2-devel, libgfortran,
@@ -21,9 +21,12 @@ alias gpib0 tnt4882
 install tnt4882 PATH=/sbin:/usr/sbin:/usr/local/sbin:$PATH;modprobe --ignore-install tnt4882;sleep 3;gpib_config --minor 0
 
 #see INSTALL.nidaqmx.fedora14 if you need National Instruments DAQmx support.
-
-#w/o DAQmx, use option --define="build_nidaqmx 0"
+#Or w/o DAQmx, use option --define="build_nidaqmx 0"
 rpmbuild -ba kame-*.spec or rpmbuild --rebuild kame-*.src.rpm
 #install the rpm
 
-#if you don't like rpm, see INSTALL.
+#If you prefer tarball build,
+cd workingdir
+cmake ../sourcedir
+make
+make install DESTDIR="installdir"
