@@ -193,12 +193,12 @@ XRawStreamRecordReader::gzgetline(void* fd__, unsigned char*buf, unsigned int le
 void
 XRawStreamRecordReader::first_(void *fd)
 	throw (XRawStreamRecordReader::XIOError &) {
-	gzrewind(fd);
+	gzrewind(static_cast<gzFile>(fd));
 }
 void
 XRawStreamRecordReader::previous_(void *fd)
 	throw (XRawStreamRecordReader::XRecordError &) {
-	if(gzseek(fd, -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
+	if(gzseek(static_cast<gzFile>(fd), -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 	goToHeader(fd);
 }
 void
@@ -208,11 +208,13 @@ XRawStreamRecordReader::next_(void *fd)
 	uint32_t headersize = sizeof(uint32_t) //allsize
 		+ sizeof(int32_t) //time().sec()
 		+ sizeof(int32_t); //time().usec()
-	if(gzseek(fd, m_allsize - headersize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
+	if(gzseek(static_cast<gzFile>(fd), m_allsize - headersize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::goToHeader(void *fd)
+XRawStreamRecordReader::goToHeader(void *fd__)
 	throw (XRawStreamRecordReader::XRecordError &) {
+	gzFile fd = static_cast<gzFile>(fd__);
+
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
 	std::vector<char> buf(sizeof(uint32_t));
 	XPrimaryDriver::RawDataReader reader(buf);
