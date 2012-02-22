@@ -31,7 +31,7 @@ XRawStream::XRawStream(const char *name, bool runtime, const shared_ptr<XDriverL
 	  m_filename(create<XStringNode>("Filename", true)) {
 }
 XRawStream::~XRawStream() {
-    if(m_pGFD) gzclose(m_pGFD);
+    if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 }    
 
 XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist)
@@ -78,7 +78,7 @@ XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload
 }
 void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
-	if(m_pGFD) gzclose(m_pGFD);
+	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
 	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "wb");
 }
 void
@@ -86,7 +86,7 @@ XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
 	if( !***recording())
 		if(m_pGFD) {
 			m_filemutex.lock();    
-			gzflush(m_pGFD, Z_FULL_FLUSH);
+			gzflush(static_cast<gzFile>(m_pGFD), Z_FULL_FLUSH);
 			m_filemutex.unlock();    
 		}
 }
@@ -116,14 +116,14 @@ XRawStreamRecorder::onRecord(const Snapshot &shot, XDriver *d) {
                 assert(header.size() == headersize);
     
                 m_filemutex.lock();
-                gzwrite(m_pGFD, &header[0], header.size());
-                gzprintf(m_pGFD, "%s", (const char*)driver->getName().c_str());
-                gzputc(m_pGFD, '\0');
-                gzputc(m_pGFD, '\0'); //Reserved
-                gzwrite(m_pGFD, &rawdata[0], size);
+                gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
+                gzprintf(static_cast<gzFile>(m_pGFD), "%s", (const char*)driver->getName().c_str());
+                gzputc(static_cast<gzFile>(m_pGFD), '\0');
+                gzputc(static_cast<gzFile>(m_pGFD), '\0'); //Reserved
+                gzwrite(static_cast<gzFile>(m_pGFD), &rawdata[0], size);
                 header.clear(); //using as a footer.
                 header.push((uint32_t)allsize);
-                gzwrite(m_pGFD, &header[0], header.size());
+                gzwrite(static_cast<gzFile>(m_pGFD), &header[0], header.size());
                 m_filemutex.unlock();
             }
         }
