@@ -18,8 +18,8 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_status(create<XStringNode>("Status", true)),
 	  m_action(create<XStringNode>("Action", true)),
-	  m_threadID(create<XLongNode>("ThreadID", true)),
-	  m_lineinput(create<XStringNode>("LineInput", true)) {
+	  m_lineinput(create<XStringNode>("LineInput", true)),
+	  m_threadID(create<XLongNode>("ThreadID", true)) {
 
 	for(Transaction tr( *this);; ++tr) {
 	    tr[ *m_threadID] = -1;

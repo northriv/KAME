@@ -29,8 +29,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
-	  m_burstCount(create<XUIntNode>("BurstCount", false)),
-	  m_active(create<XBoolNode>("Active", true)) {
+	  m_active(create<XBoolNode>("Active", true)),
+	  m_burstCount(create<XUIntNode>("BurstCount", false)) {
 	connect(sg1());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );

@@ -41,6 +41,7 @@ public:
 	virtual void receive() throw (XInterface::XCommError &);
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
 private:
+	void flush();
 	int m_scifd;
 };
 

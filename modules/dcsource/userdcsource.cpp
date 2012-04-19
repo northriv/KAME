@@ -97,12 +97,12 @@ XYK7651::changeRange(int /*ch*/, int ran) {
 		XScopedLock<XInterface> lock( *interface());
 		if( !interface()->isOpened()) return;
 		if(shot[ *function()] == 0) {
-			if((ran == -1))
+			if(ran == -1)
 				ran = 4;
 			ran += 2;
 		}
 		else {
-			if((ran == -1))
+			if(ran == -1)
 				ran = 2;
 			ran += 4;
 		}

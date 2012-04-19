@@ -220,8 +220,6 @@ XTDS::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) {
 }
 void
 XTDS::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
-	Snapshot &shot(tr);
-
 	double xin = 0;
 	double yin[256], yoff[256];
 	int width = 0;

@@ -80,5 +80,41 @@ protected:
 	virtual void setRate(double hpm);
 };
 
+//Cryogenic Superconducting Magnet Power Supply SMS10/30/120C
+class XCryogenicSMS : public XMagetPS {
+public:
+	XCryogenicSMS(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+		XMagentPS(name, runtime, ref(tr_meas), meas) {}
+	virtual ~XCryogenicSMS() {}
+protected:
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XInterface::XInterfaceError &);
+
+	virtual void toNonPersistent();
+	virtual void toPersistent();
+	virtual void toZero();
+	virtual void toSetPoint();
+	virtual double getTargetField();
+	virtual double getSweepRate();
+	virtual double getOutputField();
+	virtual double getMagnetField();
+	virtual double getPersistentField();
+	virtual double getOutputVolt();
+	virtual double getOutputCurrent();
+
+	//! Persistent Current Switch Heater
+	//! please return *TRUE* if no PCS fitted
+	virtual bool isPCSHeaterOn();
+	//! please return false if no PCS fitted
+	virtual bool isPCSFitted();
+
+	virtual double fieldResolution() {return 0.0001;}
+
+	virtual void setPoint(double field);
+	virtual void setRate(double hpm);
+private:
+	void changePauseState(bool pause);
+};
 #endif
 

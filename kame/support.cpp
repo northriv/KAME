@@ -192,8 +192,7 @@ formatString_tr(const char *fmt, ...) {
 }
 
 XString
-formatString(const char *fmt, ...)
-{
+formatString(const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
 	XString str = v_formatString(fmt, ap);
@@ -201,8 +200,7 @@ formatString(const char *fmt, ...)
 	return str;
 }
 
-XString formatDouble(const char *fmt, double var)
-{
+XString formatDouble(const char *fmt, double var) {
 	char cbuf[SNPRINT_BUF_SIZE];
 	if(strlen(fmt) == 0) {
 		snprintf(cbuf, sizeof(cbuf), "%.12g", var);

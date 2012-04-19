@@ -39,11 +39,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	m_solverList(create<XComboNode>("SpectrumSolver", false, true)),
 	m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
 	m_windowWidth(create<XDoubleNode>("WindowWidth", false)),
+	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
 	m_form(new FRM(g_pFrmMain)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())),
-	m_spectrum(create<XWaveNGraph>("Spectrum", true,
-		m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
-	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)) {
+	m_spectrum(create<XWaveNGraph>("Spectrum", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)) {
 	m_form->m_btnClear->setIcon(
     	KIconLoader::global()->loadIcon("edit-clear",
 		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
@@ -189,7 +188,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 
 	bool clear = (shot_this[ *this].m_timeClearRequested > shot_pulse[ *pulse__].timeAwared());
   
-	double interval = shot_pulse[ *pulse__].interval();
+//	double interval = shot_pulse[ *pulse__].interval();
 	double df = shot_pulse[ *pulse__].dFreq();
 	
 	double res = getFreqResHint(shot_this);

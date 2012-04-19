@@ -437,7 +437,7 @@ public:
 		m_packet->print_();
 	}
 
-	//! Sends an event from \a talker with \a arg.
+	//! Stores an event immediately from \a talker with \a arg.
 	template <typename T, typename tArgRef>
 	void talk(T &talker, tArgRef arg) const { talker.talk( *this, arg); }
 protected:

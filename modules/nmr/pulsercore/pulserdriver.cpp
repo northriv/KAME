@@ -716,7 +716,7 @@ XPulser::rawToRelPat(Transaction &tr) throw (XRecordError&) {
   
 	bool induce_emission__ = shot[ *induceEmission()];
 	uint64_t induce_emission___pw = comb_pw__;
-	if((comb_mode__ == N_COMB_MODE_OFF))
+	if(comb_mode__ == N_COMB_MODE_OFF)
 		num_phase_cycle__ = std::min(num_phase_cycle__, 4);
   
 	bool invert_phase__ = shot[ *this].invertPhase();
