@@ -29,13 +29,19 @@
 
 #include <ltdl.h>
 
+#include <gsl/gsl_errno.h>
+
+void
+my_gsl_err_handler (const char *reason, const char *file, int line, int gsl_errno) {
+	gErrPrint_redirected(formatString("GSL emitted an error for a reason:%s; %s", reason, gsl_strerror(gsl_errno)), file, line);
+}
+
 int load_module(const char *filename, lt_ptr data) {
 	static_cast<std::deque<std::string> *>(data)->push_back(filename);
 	return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 #ifdef HAVE_LIBGCCPP
 	//initialize GC
 	GC_INIT();
@@ -117,6 +123,10 @@ int main(int argc, char *argv[])
 			args->clear();
 		}
 	}
+
+	//Overrides GSL's error handler.
+	gsl_set_error_handler(&my_gsl_err_handler);
+
 	/*
 	  while(!app->closingDown()) {
 	  bool idle = g_signalBuffer->synchronize();  
