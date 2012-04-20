@@ -486,8 +486,8 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     case N_MODE_PULSE_ANALYZER:
         tr[ *this].m_rtime = 1;
         tr[ *this].m_tau = 0;
-        tr[ *this].m_pw1 = 0;
-        tr[ *this].m_pw2 = 10;
+        tr[ *this].m_pw1 = 10;
+        tr[ *this].m_pw2 = 0;
         tr[ *this].m_combP1 = 0;
         tr[ *this].m_altSep = 0;
         tr[ *this].m_combP1Alt = 0;
@@ -535,6 +535,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	    writer->push((int16_t)N_MODE_PULSE_ANALYZER);
 
 		finishWritingRaw(writer, time_awared, XTime::now());
+		return;
 	}
   
 	const double tau__ = rintTermMicroSec(shot[ *tau()]);
@@ -1012,6 +1013,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 				 shot[ *this].combLevel(), shot[ *this].combOffRes() + dif_freq__ *1000.0, induce_emission___phase);
 		}
     }
+    fprintf(stderr, "c2\n");
+
 }
 
 unsigned int
@@ -1074,7 +1077,7 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 	uint64_t pw1__ = hasQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].pw1()/2)*2 : rintSampsMicroSec(shot[ *this].pw1()/2)*2;
 
-	if((rtime__ <= pw1__) || (rtime__ == 0))
+	if((rtime__ <= pw1__) || (rtime__ <= pw1__) || (rtime__ == 0))
 		throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
 	tr[ *this].m_relPatList.clear();
@@ -1100,6 +1103,7 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 			pw1__/2, pulseFunc(shot[ *this].p1Func()),
 			shot[ *this].p1Level(), 0, 0);
     }
+    fprintf(stderr, "c1\n");
 }
 
 void
