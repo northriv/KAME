@@ -41,6 +41,8 @@ public:
 
 	//! driver specific part below
 
+	//! \sa pulseAnalyzerMode()
+	enum {N_MODE_NMR_PULSER = 0, N_MODE_PULSE_ANALYZER = 1};
     //! \sa combMode(), Payload::combMode().
 	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3};
     //! \sa rtMode(), Payload::rtMode().
@@ -82,8 +84,18 @@ public:
 	    uint16_t combNum() const {return m_combNum;}
 	    int16_t rtMode() const {return m_rtMode;}
 	    uint16_t numPhaseCycle() const {return m_numPhaseCycle;}
-	    //! ver 3 records [experimental].
+	    //! ver 3 records.
 	    bool invertPhase() const {return m_invertPhase;}
+	    //! ver 4 records.
+	    int16_t p1Func() const {return m_p1Func;}
+	    int16_t p2Func() const {return m_p2Func;}
+	    int16_t combFunc() const {return m_combFunc;}
+	    double p1Level() const {return m_p1Level;}
+	    double p2Level() const {return m_p2Level;}
+	    double combLevel() const {return m_combLevel;}
+	    double masterLevel() const {return m_masterLevel;}
+	    double combOffRes() const {return m_combOffRes;}
+	    bool conserveStEPhase() const {return m_conserveStEPhase;}
 
 	    //! periodic term of one cycle [ms].
 	    double periodicTerm() const;
@@ -92,7 +104,7 @@ public:
 			RelPat(uint32_t pat, uint64_t t, uint64_t toapp) :
 				pattern(pat), time(t), toappear(toapp) {}
 			uint32_t pattern;
-			uint64_t time; //!< unit of resolution().
+			uint64_t time; //!< using unit of resolution().
 			uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
 		};
 
@@ -108,6 +120,7 @@ public:
 
 	    //! ver 1 records
 	    int16_t m_combMode;
+	    int16_t m_pulserMode;
 	    double m_rtime;
 	    double m_tau;
 	    double m_pw1;
@@ -127,6 +140,11 @@ public:
 	    uint16_t m_numPhaseCycle;
 	    //! ver 3 records
 	    bool m_invertPhase;
+	    //! ver 4 records
+	    int16_t m_p1Func, m_p2Func, m_combFunc;
+	    double m_p1Level, m_p2Level, m_combLevel, m_masterLevel;
+	    double m_combOffRes;
+	    bool m_conserveStEPhase;
 
 	    RelPatList m_relPatList;
 		std::vector<std::complex<double> >
@@ -181,6 +199,7 @@ public:
     	assert(port < NUM_DO_PORTS);
     	return m_portSel[port];
     }
+    const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
     
     //! time resolution [ms]
     virtual double resolution() const = 0;
@@ -194,7 +213,8 @@ protected:
 		  PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
 		  PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
 		  PORTSEL_QPSK_OLD_PSGATE = 15,
-		  /*PORTSEL_PAUSING = 16*/};
+		  PORTSEL_PULSE_ANALYZER_GATE = 16,
+		  /*PORTSEL_PAUSING = 17*/};
 	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
 	unsigned int selectedPorts(const Snapshot &shot, int func) const;
@@ -214,7 +234,8 @@ protected:
 	virtual void visualize(const Snapshot &shot);
   
 	typedef FFT::twindowfunc tpulsefunc;
-	tpulsefunc pulseFunc(const XString &str) const;
+	tpulsefunc pulseFunc(int func_no) const;
+	int pulseFuncNo(const XString &str) const;
 
     //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) = 0;
@@ -223,8 +244,8 @@ protected:
     virtual double resolutionQAM() const = 0;
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const = 0;
-    //! existense of AO ports.
-    virtual bool haveQAMPorts() const = 0;
+    //! existence of AO ports.
+    virtual bool hasQAMPorts() const = 0;
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -264,6 +285,7 @@ private:
     const shared_ptr<XBoolNode> m_conserveStEPhase; 
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
+    const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
     
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
 	xqcon_ptr m_conOutput;
@@ -282,7 +304,8 @@ private:
 		m_conMoreConfigShow,
 		m_conDIFFreq,
 		m_conInduceEmission, m_conInduceEmissionPhase,
-		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly;
+		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly,
+		m_conPulseAnalyzerMode;
 	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;
@@ -296,7 +319,10 @@ private:
 	void onPulseChanged(const Snapshot &shot, XValueNodeBase *node);
 
 	//! creates \a RelPatList
-	void rawToRelPat(Transaction &tr) throw (XRecordError&);
+	void createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&);
+	void createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&);
+	//! \return maskbits for QPSK ports.
+	unsigned int bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned int qpskinv[4], bool invert);
 
 	//! prepares waveforms for QAM.
 	void makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
@@ -309,6 +335,8 @@ private:
 	inline uint64_t ceilSampsMicroSec(double us) const;
 	inline uint64_t rintSampsMicroSec(double us) const;
 	inline uint64_t rintSampsMilliSec(double ms) const;
+
+	void changeUIStatusOfNMRPulserMode(bool);
 };
 
 inline double

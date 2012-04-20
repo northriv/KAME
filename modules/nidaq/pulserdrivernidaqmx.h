@@ -39,7 +39,7 @@ protected:
 	
     double resolutionQAM() const {return m_resolutionAO;}
 	//! \return Existence of AO ports.
-    virtual bool haveQAMPorts() const = 0;
+    virtual bool hasQAMPorts() const = 0;
 
  	virtual const shared_ptr<XNIDAQmxInterface> &intfDO() const {return interface();}
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return interface();} 
@@ -102,7 +102,7 @@ protected:
 	TaskHandle m_taskAO, m_taskDO,
 		m_taskDOCtr, m_taskGateCtr;
 private:
-	enum {PORTSEL_PAUSING = 16};
+	enum {PORTSEL_PAUSING = 17};
 	//! Ring buffer storing AO/DO patterns being transfered to DAQmx lib.
 	template <typename T>
 	struct RingBuffer {

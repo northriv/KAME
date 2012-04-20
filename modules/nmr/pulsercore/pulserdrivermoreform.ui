@@ -6,16 +6,16 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>489</width>
-    <height>548</height>
+    <width>632</width>
+    <height>512</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Pulser Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0" rowspan="2">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
        <layout class="QHBoxLayout">
@@ -593,7 +593,7 @@
       </item>
      </layout>
     </item>
-    <item row="0" column="1" rowspan="2">
+    <item>
      <widget class="QGroupBox" name="groupBox3_2_4_2">
       <property name="title">
        <string>Port Selector</string>
@@ -976,7 +976,7 @@
       </layout>
      </widget>
     </item>
-    <item row="0" column="2">
+    <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
        <widget class="QGroupBox" name="groupBox3_2">
@@ -1366,31 +1366,44 @@
          </widget>
         </item>
         <item>
-         <widget class="KDoubleNumInput" name="m_numInduceEmissionPhase">
-          <property name="label">
+         <widget class="KDoubleNumInput" name="m_numInduceEmissionPhase" native="true">
+          <property name="label" stdset="0">
            <string/>
           </property>
-          <property name="suffix">
+          <property name="suffix" stdset="0">
            <string> deg.</string>
           </property>
          </widget>
         </item>
        </layout>
       </item>
+      <item>
+       <widget class="QCheckBox" name="m_ckbPulseAnalyzerMode">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Pulse Analyzer Mode</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>127</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
      </layout>
-    </item>
-    <item row="1" column="2">
-     <spacer name="verticalSpacer">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>127</height>
-       </size>
-      </property>
-     </spacer>
     </item>
    </layout>
   </widget>

@@ -169,7 +169,7 @@ XSHPulser::setAUX2DA(Transaction &tr, double volt, int addr) {
 int
 XSHPulser::insertPreamble(Transaction &tr, uint16_t startpattern) {
 	const Snapshot &shot(tr);
-	const double masterlevel = pow(10.0, shot[ *masterLevel()] / 20.0);
+	const double masterlevel = pow(10.0, shot[ *this].masterLevel() / 20.0);
 	const double qamlevel1 = shot[ *qamLevel1()];
 	const double qamlevel2 = shot[ *qamLevel2()];
 	tr[ *this].m_zippedPatterns.clear();

@@ -41,8 +41,8 @@ protected:
     virtual double resolutionQAM() const {return resolution();}
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
-    //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return true;}
+    //! existence of AO ports.
+    virtual bool hasQAMPorts() const {return true;}
 
 private:
 	int setAUX2DA(Transaction &tr, double volt, int addr);

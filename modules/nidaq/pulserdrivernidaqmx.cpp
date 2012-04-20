@@ -413,7 +413,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		   (m_pausingBit != pausingbit)) {
 			m_pausingBit = pausingbit;
 			clearTasks();
-			if(haveQAMPorts())
+			if(hasQAMPorts())
 				setupTasksAODO();
 			else
 				setupTasksDO(false);
@@ -828,7 +828,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 		pat = it->pattern;
 	}
 
-	if(haveQAMPorts()) {
+	if(hasQAMPorts()) {
 		const double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
 		const double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
 
@@ -842,7 +842,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 			}
 		}
 	    m_genAOZeroLevel = aoVoltToRaw(std::complex<double>(0.0));
-		std::complex<double> c(pow(10.0, shot[ *masterLevel()] / 20.0), 0);
+		std::complex<double> c(pow(10.0, shot[ *this].masterLevel() / 20.0), 0);
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;

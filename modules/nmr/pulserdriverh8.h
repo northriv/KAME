@@ -42,7 +42,7 @@ protected:
     //! minimum period of pulses [ms]
     virtual double minPulseWidth() const;
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return false;}
+    virtual bool hasQAMPorts() const {return false;}
 private:
 	//! Add 1 pulse pattern
 	//! \param term a period to next pattern

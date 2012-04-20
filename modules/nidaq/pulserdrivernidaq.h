@@ -27,7 +27,7 @@ public:
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return true;}
+    virtual bool hasQAMPorts() const {return true;}
 };
 
 class XNIDAQDOPulser : public XNIDAQmxPulser {
@@ -41,7 +41,7 @@ public:
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return false;}
+    virtual bool hasQAMPorts() const {return false;}
 };
 
 class XNIDAQMSeriesWithSSeriesPulser : public XNIDAQmxPulser {
@@ -53,7 +53,7 @@ public:
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
     //! existense of AO ports.
-    virtual bool haveQAMPorts() const {return true;}
+    virtual bool hasQAMPorts() const {return true;}
     
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;} 
 	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();} 
