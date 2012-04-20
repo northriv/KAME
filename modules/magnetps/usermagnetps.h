@@ -1,6 +1,6 @@
 /***************************************************************************
-		Copyright (C) 2002-2011 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2012 Kentaro Kitagawa
+		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
@@ -81,16 +81,12 @@ protected:
 };
 
 //Cryogenic Superconducting Magnet Power Supply SMS10/30/120C
-class XCryogenicSMS : public XMagetPS {
+class XCryogenicSMS : public XCharDeviceDriver<XMagnetPS> {
 public:
 	XCryogenicSMS(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		XMagentPS(name, runtime, ref(tr_meas), meas) {}
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XCryogenicSMS() {}
 protected:
-	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
-
 	virtual void toNonPersistent();
 	virtual void toPersistent();
 	virtual void toZero();

@@ -1,6 +1,6 @@
 /***************************************************************************
-		Copyright (C) 2002-2011 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2012 Kentaro Kitagawa
+		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
@@ -248,7 +248,7 @@ XIPS120::open() throw (XInterface::XInterfaceError &) {
 
 XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XMagnetPS(name, runtime, ref(tr_meas), meas) {
+	XCharDeviceDriver<XMagnetPS>(name, runtime, ref(tr_meas), meas) {
 /*
  * Notes not mentioned in the manufacturer's manual.
  * GET PER command does not return a value or delimiter when it is not in persistent mode or at zero field.
@@ -266,6 +266,7 @@ XCryogenicSMS::changePauseState(bool pause) {
 // Lock before calling me.
 //	XScopedLock<XInterface> lock( *interface());
 	interface()->query("PAUSE");
+	char buf[10];
 	if(interface()->scanf("%*s PAUSE STATUS: %4s", &buf) != 1)
 	if( !strncmp("ON", buf, 2)) {
 		if(pause)
@@ -284,7 +285,6 @@ XCryogenicSMS::changePauseState(bool pause) {
 		if( !pause)
 			return;
 		interface()->query("PAUSE ON");
-		char buf[10];
 		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", &buf) != 1)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
 		interface()->receive();
@@ -299,6 +299,7 @@ XCryogenicSMS::toPersistent() {
 	XScopedLock<XInterface> lock( *interface());
 	changePauseState(true);
 	interface()->query("HEATER OFF");
+	char buf[12];
 	if(interface()->scanf("%*s HEATER STATUS: %10s", &buf) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
@@ -307,6 +308,7 @@ XCryogenicSMS::toNonPersistent() {
 	XScopedLock<XInterface> lock( *interface());
 	changePauseState(true);
 	interface()->query("HEATER ON");
+	char buf[12];
 	if(interface()->scanf("%*s HEATER STATUS: %10s", &buf) != 1)
         throw XInterface::XInterfaceError(
 			i18n("Cannot activate heater."), __FILE__, __LINE__);
@@ -370,6 +372,7 @@ XCryogenicSMS::setRate(double hpm) {
 
 	double amp_per_sec = hpm / 60.0 / tesla_per_amp;
 	interface()->queryf("SET RAMP %.5g", amp_per_sec);
+	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d RAMP RATE: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 }
@@ -435,7 +438,7 @@ XCryogenicSMS::getPersistentField() {
 	interface()->query("GET PER");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d PER: %lf", &x) != 1)
-		return getOutputFIeld(); //it does not return value if PER hasn't been recorded.
+		return getOutputField(); //it does not return value if PER hasn't been recorded.
 	return x;
 }
 double

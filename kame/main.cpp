@@ -1,6 +1,6 @@
 /***************************************************************************
-		Copyright (C) 2002-2011 Kentaro Kitagawa
-		                   kitag@issp.u-tokyo.ac.jp
+		Copyright (C) 2002-2012 Kentaro Kitagawa
+		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
 		modify it under the terms of the GNU Library General Public
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
    
 	KAboutData aboutData( "kame", "", ki18n("KAME"),
 						  VERSION, ki18n(description), KAboutData::License_GPL,
-						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@issp.u-tokyo.ac.jp");
+						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@kochi-u.ac.jp");
 	KCmdLineArgs::init( argc, argv, &aboutData );
 
 	KCmdLineOptions options;

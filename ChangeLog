@@ -1,3 +1,12 @@
+* Fri Apr 20 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.2-1)
+- usermagnetps: Cryogenic SMS.
+- pulsercore: Pulse Analyzer mode.
+
+* Sat Feb 25 2012 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (3.2.1-1)
+- main.cpp: Adds error handler for GSL.
+
 * Wed Oct 12 2011 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (3.2.0-1)
 - nmrpulser: Checks sanity of P1.
