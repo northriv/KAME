@@ -740,8 +740,6 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 	tpatset patterns;  // patterns
 	tpatset patterns_cheap; //Low priority patterns
 	typedef std::multiset<tpat, std::less<tpat> >::iterator tpatset_it;
-
-	tr[ *this].m_relPatList.clear();
   
 	uint64_t pos = 0;
             
@@ -962,6 +960,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		pat &= ~it->mask;
 		pat |= (it->pat & it->mask);
 	}
+
+	tr[ *this].m_relPatList.clear();
 	uint64_t patpos = patterns.begin()->pos;
 	for(tpatset_it it = patterns.begin(); it != patterns.end();) {
 		pat &= ~it->mask;
@@ -1068,7 +1068,7 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 	unsigned int qpsk[4];
 	unsigned int qpskinv[4];
 	unsigned int qpskmask;
-	qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, invert_phase__);
+	qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, false);
 
 	uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
 	uint64_t pw1__ = hasQAMPorts() ?
@@ -1077,6 +1077,7 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 	if((rtime__ <= pw1__) || (rtime__ == 0))
 		throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
+	tr[ *this].m_relPatList.clear();
 	uint32_t pat = basebits | qpsk[0] | trigbits | onbits;
 	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 0, rtime__ - pw1__));
 	pat &= ~onmask;
