@@ -276,6 +276,6 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 }
 void
 XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
-//	XNetworkAnalyzer::visualize(shot);
+	XNetworkAnalyzer::visualize(shot);
 }
 
