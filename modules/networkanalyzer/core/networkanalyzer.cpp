@@ -201,6 +201,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			oneSweep();
 		}
 		catch (XDriver::XSkippedRecordError&) {
+			msecsleep(100);
 			continue;
 		}
 		catch (XKameError &e) {
@@ -218,6 +219,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			}
 		}
 		catch (XDriver::XSkippedRecordError&) {
+			msecsleep(10);
 		}
 		catch (XKameError &e) {
 			e.print(getLabel());
@@ -232,6 +234,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			acquireTrace(writer, 0);
 		}
 		catch (XDriver::XSkippedRecordError&) {
+			msecsleep(10);
 			continue;
 		}
 		catch (XKameError &e) {

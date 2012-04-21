@@ -27,7 +27,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 	connect(m_pulser);
 	connect(m_sg);
 
-	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
+	const char *cand[] = {"OFF", "3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
 	for(Transaction tr( *this);; ++tr) {
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
@@ -35,6 +35,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		if(tr.commit())
 			break;
 	}
+	XNetworkAnalyzer::start();
 }
 void
 XNMRBuiltInNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -49,7 +50,6 @@ XNMRBuiltInNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBas
 }
 void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
-
 }
 void
 XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
@@ -59,7 +59,24 @@ void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
 	Snapshot shot_this( *this);
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
-	if( !pulse) return;
+	if( !pulse)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+    shared_ptr<XSG> sg = shot_this[ *m_sg];
+	if( !sg)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	shared_ptr<XDSO> dso = shot_this[ *m_dso];
+	if( !dso)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
+	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
+	double fmax = shot_this[ *stopFreq()];
+	double fmin = shot_this[ *startFreq()];
+	if((fmax <= fmin) || (fmin <= 0.1))
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
 	for(Transaction tr( *pulse);; ++tr) {
 		tr[ *pulse->pulseAnalyzerMode()] = true;
 		tr[ *pulse->output()] = true;
@@ -67,15 +84,9 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 			break;
 		}
 	}
-	double fmin = shot_this[ *startFreq()];
-
-    shared_ptr<XSG> sg = shot_this[ *m_sg];
-	if( !sg) return;
 	trans( *sg->freq()) = fmin;
 
-	shared_ptr<XDSO> dso = shot_this[ *m_dso];
-	if( !dso) return;
-		trans( *dso->restart()).touch(); //Restart averaging in DSO.
+	trans( *dso->restart()).touch(); //Restart averaging in DSO.
 
 	m_ftsum.clear();
 	m_ftsum_weight.clear();
@@ -113,6 +124,8 @@ XNMRBuiltInNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) t
 	double fmin = shot_this[ *startFreq()];
 	double fmax = shot_this[ *stopFreq()];
 	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	tr[ *this].m_startFreq = fmin;
 	tr[ *this].m_freqInterval = (fmax - fmin) / (pts - 1);
@@ -130,6 +143,8 @@ bool
 XNMRBuiltInNetworkAnalyzer::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
+	if( !m_sweeping)
+		return false;
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
 	if( !pulse) return false;
 	shared_ptr<XDSO> dso = shot_this[ *m_dso];
@@ -145,6 +160,10 @@ void
 XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
+	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
 	const Snapshot &shot_dso(shot_emitter);
 	const Snapshot &shot_sg(shot_others);
 	const Snapshot &shot_pulse(shot_others);
@@ -188,8 +207,9 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	double fmin = shot_this[ *startFreq()];
 	double fmax = shot_this[ *stopFreq()];
 	double fstep = plsbw *0.7;
-	int pts = atoi(shot_this[ *points()].to_str().c_str());
 	fstep = std::min(fstep, (fmax - fmin) / (pts - 1));
+	if((fmax <= fmin) || (fmin <= 0.1) || (fstep < 0.001))
+		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 
 	unsigned int fftlen = (unsigned int)floor(std::max(plsorg / interval * 2, 1e-6 / ((fmax - fmin) / (pts - 1)) / interval * 2));
 	fftlen = FFT::fitLength(std::min(fftlen, (unsigned int)floor(rept / interval)));
