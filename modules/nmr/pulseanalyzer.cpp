@@ -68,7 +68,6 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 		}
 	}
 	double fmin = shot_this[ *startFreq()];
-	double fmax = shot_this[ *stopFreq()];
 
     shared_ptr<XSG> sg = shot_this[ *m_sg];
 	if( !sg) return;
@@ -245,15 +244,15 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 
 	if(freq < fmin - plsbw/2) {
 		trans( *sg->freq()) = fmin;
-		throw XSkippedRecordError;
+		throw XDriver::XSkippedRecordError;
 	}
 	if(freq + fstep / 2 > fmax) {
 		m_sweeping = false;
-		throw XSkippedRecordError;
+		throw XDriver::XSkippedRecordError;
 	}
 	freq += fstep;
 	trans( *sg->freq()) = freq;
-	throw XSkippedRecordError;
+	throw XDriver::XSkippedRecordError;
 }
 void
 XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
