@@ -167,9 +167,9 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	const Snapshot &shot_dso(shot_emitter);
 	const Snapshot &shot_sg(shot_others);
 	const Snapshot &shot_pulse(shot_others);
-	shared_ptr<XPulser> pulse = shot_pulse[ *m_pulser];
-	shared_ptr<XDSO> dso = shot_dso[ *m_dso];
-    shared_ptr<XSG> sg = shot_sg[ *m_sg];
+	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
+	shared_ptr<XDSO> dso = shot_this[ *m_dso];
+    shared_ptr<XSG> sg = shot_this[ *m_sg];
 
 	assert(shot_dso[ *dso].time() );
 
