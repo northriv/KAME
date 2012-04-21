@@ -244,15 +244,15 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 
 	if(freq < fmin - plsbw/2) {
 		trans( *sg->freq()) = fmin;
-		throw XDriver::XSkippedRecordError;
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	}
 	if(freq + fstep / 2 > fmax) {
 		m_sweeping = false;
-		throw XDriver::XSkippedRecordError;
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	}
 	freq += fstep;
 	trans( *sg->freq()) = freq;
-	throw XDriver::XSkippedRecordError;
+	throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 }
 void
 XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
