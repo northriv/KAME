@@ -454,6 +454,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 		}
 	}
+	if(pulse__) {
+		if(shot_others[ *pulse__].isPulseAnalyzerMode())
+			throw XSkippedRecordError(i18n("Built-In Network Analyzer Mode."), __FILE__, __LINE__);
+	}
 
 	if((shot_this[ *this].m_startTime != starttime) || (length != shot_this[ *this].m_waveWidth)) {
 		double t = length * interval * 1e3;
@@ -537,7 +541,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	for(int i = 1; i < numechoes; i++) {
 		int rpos = pos + i * echoperiod;
 		for(int j = 0;
-		j < (!bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
+		j < ( !bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
 			int k = rpos + j;
 			assert(k < dso_len);
 			if(i == 1)

@@ -13,7 +13,6 @@
 ***************************************************************************/
 #include "usernetworkanalyzer.h"
 #include "charinterface.h"
-#include "xwavengraph.h"
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
@@ -24,7 +23,7 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
 	for(Transaction tr( *this);; ++tr) {
 		for(const char **it = cand; strlen( *it); it++) {
-			tr[ *points()].add(*it);
+			tr[ *points()].add( *it);
 		}
 		if(tr.commit())
 			break;

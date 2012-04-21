@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "networkanalyzer.h"
 #include "ui_networkanalyzerform.h"
+#include "xwavengraph.h"
 #include "graph.h"
 #include "graphwidget.h"
 

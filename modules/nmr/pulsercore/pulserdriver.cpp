@@ -124,6 +124,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_conserveStEPhase(create<XBoolNode>("ConserveStEPhase", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_pulseAnalyzerMode(create<XBoolNode>("PulseAnalyzerMode", true)),
+    m_paPulseBW(create<XDoubleNode>("PAPulseBW", false)),
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
     m_formMore(new FrmPulserMore(g_pFrmMain)) {
@@ -209,6 +210,8 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *p2Func()] = PULSE_NO_HAMMING; //Hamming
 	    tr[ *combFunc()] = PULSE_NO_HAMMING; //Hamming
 
+	    tr[ *paPulseBW()] = 500.0; //kHz
+
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
@@ -273,8 +276,9 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conQSWSoftSWOff = xqcon_create<XQLineEditConnector>(m_qswSoftSWOff, m_formMore->m_edQSWSoftSWOff);  
 	m_conQSWPiPulseOnly = xqcon_create<XQToggleButtonConnector>(m_qswPiPulseOnly, m_formMore->m_ckbQSWPiPulseOnly);  
 	m_conPulseAnalyzerMode = xqcon_create<XQToggleButtonConnector>(m_pulseAnalyzerMode, m_formMore->m_ckbPulseAnalyzerMode);
+	m_conPAPulseBW = xqcon_create<XQLineEditConnector>(m_paPulseBW, m_formMore->m_edPAPulseBW);
  
-	changeUIStatusOfNMRPulserMode(false);
+	changeUIStatus(true, false);
 
 	m_conPulserDriver = xqcon_create<XQPulserDriverConnector>(
 		dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph);
@@ -294,7 +298,8 @@ XPulser::onMoreConfigShow(const Snapshot &shot, XTouchableNode *)  {
 
 void
 XPulser::start() {
-	changeUIStatusOfNMRPulserMode(true);
+	changeUIStatus( !***pulseAnalyzerMode(), true);
+	pulseAnalyzerMode()->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnPulseChanged = tr[ *combMode()].onValueChanged().connectWeakly(
@@ -347,6 +352,7 @@ XPulser::start() {
 		}
 
 		tr[ *pulseAnalyzerMode()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *paPulseBW()].onValueChanged().connect(m_lsnOnPulseChanged);
 		if(tr.commit())
 			break;
 	}
@@ -355,7 +361,7 @@ void
 XPulser::stop() {
 	m_lsnOnPulseChanged.reset();
   
-	changeUIStatusOfNMRPulserMode(false);
+	changeUIStatus(true, false);
 	pulseAnalyzerMode()->setUIEnabled(false);
 
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
@@ -368,25 +374,31 @@ XPulser::stop() {
 }
 
 void
-XPulser::changeUIStatusOfNMRPulserMode(bool uienable) {
-	if( !uienable || hasQAMPorts()) {
-		//Features with QAM.
-		p1Func()->setUIEnabled(uienable);
-		p2Func()->setUIEnabled(uienable);
-		combFunc()->setUIEnabled(uienable);
-		p1Level()->setUIEnabled(uienable);
-		p2Level()->setUIEnabled(uienable);
-		combLevel()->setUIEnabled(uienable);
-		masterLevel()->setUIEnabled(uienable);
-		qamOffset1()->setUIEnabled(uienable);
-		qamOffset2()->setUIEnabled(uienable);
-		qamLevel1()->setUIEnabled(uienable);
-		qamLevel2()->setUIEnabled(uienable);
-		qamDelay1()->setUIEnabled(uienable);
-		qamDelay2()->setUIEnabled(uienable);
-		difFreq()->setUIEnabled(uienable);
-	}
-	output()->setUIEnabled(uienable);
+XPulser::changeUIStatus(bool nmrmode, bool state) {
+	bool uienable = state && hasQAMPorts() && nmrmode;
+	//Features with QAM in NMR.
+	p1Func()->setUIEnabled(uienable);
+	p2Func()->setUIEnabled(uienable);
+	combFunc()->setUIEnabled(uienable);
+	p1Level()->setUIEnabled(uienable);
+	p2Level()->setUIEnabled(uienable);
+	combLevel()->setUIEnabled(uienable);
+	masterLevel()->setUIEnabled(uienable);
+	difFreq()->setUIEnabled(uienable);
+
+	//Features with QAM.
+	uienable = state && hasQAMPorts();
+	qamOffset1()->setUIEnabled(uienable);
+	qamOffset2()->setUIEnabled(uienable);
+	qamLevel1()->setUIEnabled(uienable);
+	qamLevel2()->setUIEnabled(uienable);
+	qamDelay1()->setUIEnabled(uienable);
+	qamDelay2()->setUIEnabled(uienable);
+
+	output()->setUIEnabled(state);
+	paPulseBW()->setUIEnabled(state);
+	//Features in NMR.
+	uienable = state && nmrmode;
 	combMode()->setUIEnabled(uienable);
 	rtMode()->setUIEnabled(uienable);
 	rtime()->setUIEnabled(uienable);
@@ -480,13 +492,15 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
         	tr[ *this].m_combOffRes= 0;
         	tr[ *this].m_conserveStEPhase = 0;
         }
+        tr[ *this].m_paPulseBW = -1;
+        tr[ *this].m_paPulseOrigin = 0;
 
         createRelPatListNMRPulser(tr);
     	break;
     case N_MODE_PULSE_ANALYZER:
         tr[ *this].m_rtime = 1;
         tr[ *this].m_tau = 0;
-        tr[ *this].m_pw1 = 10;
+        tr[ *this].m_pw1 = 6800.0 / tr[ *paPulseBW()]; //flattop_longlong
         tr[ *this].m_pw2 = 0;
         tr[ *this].m_combP1 = 0;
         tr[ *this].m_altSep = 0;
@@ -511,6 +525,8 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     	tr[ *this].m_combOffRes= 0;
     	tr[ *this].m_conserveStEPhase = 0;
 
+        tr[ *this].m_paPulseBW = tr[ *paPulseBW()];
+        tr[ *this].m_paPulseOrigin = tr[ *this].m_pw1 / 2;
         createRelPatListPulseAnalyzer(tr);
     	break;
     default:
@@ -525,7 +541,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	Snapshot shot( *this);
 
 	if(node == pulseAnalyzerMode().get()) {
-		changeUIStatusOfNMRPulserMode( !shot[ *pulseAnalyzerMode()]);
+		changeUIStatus( !shot[ *pulseAnalyzerMode()], true);
 	}
 	if(shot[ *pulseAnalyzerMode()]) {
 		shared_ptr<RawData> writer(new RawData);
@@ -1013,8 +1029,6 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 				 shot[ *this].combLevel(), shot[ *this].combOffRes() + dif_freq__ *1000.0, induce_emission___phase);
 		}
     }
-    fprintf(stderr, "c2\n");
-
 }
 
 unsigned int
@@ -1082,17 +1096,17 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 
 	tr[ *this].m_relPatList.clear();
 	uint32_t pat = basebits | qpsk[0] | trigbits | onbits;
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 0, rtime__ - pw1__));
+	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__ - pw1__, rtime__ - pw1__));
 	pat &= ~onmask;
 	pat &= ~trigbits;
 	pat = (pat & ~qpskmask) | qpsk[2];
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, pw1__, pw1__));
+	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__, pw1__));
 	pat |= onbits;
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__, rtime__ - pw1__));
+	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 2 * rtime__ - pw1__, rtime__ - pw1__));
 	pat &= ~onmask;
 	pat &= ~trigbits;
 	pat = (pat & ~qpskmask) | qpsk[0];
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__ + pw1__, pw1__));
+	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 2 * rtime__, pw1__));
 
     if(hasQAMPorts()) {
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
@@ -1103,7 +1117,6 @@ XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
 			pw1__/2, pulseFunc(shot[ *this].p1Func()),
 			shot[ *this].p1Level(), 0, 0);
     }
-    fprintf(stderr, "c1\n");
 }
 
 void

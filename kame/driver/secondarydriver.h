@@ -24,8 +24,8 @@ public:
 	XSecondaryDriverInterface(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XSecondaryDriverInterface();
 
-//	 Shows all forms belonging to driver
-//	virtual void showForms() = 0;
+//!	 Shows all forms belonging to driver
+	virtual void showForms() = 0;
 
 	struct Payload : public T::Payload {
 	private:
@@ -50,9 +50,9 @@ protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
 		XDriver *emitter) throw (typename T::XRecordError&) = 0;
-//	//! This function is called inside analyze() or analyzeRaw()
-//	//! this must be reentrant unlike analyze()
-//	virtual void visualize(const Snapshot &shot) = 0;
+	//! This function is called inside analyze() or analyzeRaw()
+	//! this must be reentrant unlike analyze()
+	virtual void visualize(const Snapshot &shot) = 0;
 	//! Checks if the connected drivers have valid time stamps.
 	//! \return true if dependency is resolved.
 	//! This function must be reentrant unlike analyze().

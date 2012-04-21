@@ -97,6 +97,10 @@ public:
 	    double combOffRes() const {return m_combOffRes;}
 	    bool conserveStEPhase() const {return m_conserveStEPhase;}
 
+	    bool isPulseAnalyzerMode() const {return  m_paPulseBW > 0;}
+	    double paPulseBW() const {return m_paPulseBW;}
+	    double paPulseOrigin() const {return m_paPulseOrigin;}
+
 	    //! periodic term of one cycle [ms].
 	    double periodicTerm() const;
 
@@ -146,6 +150,11 @@ public:
 	    double m_combOffRes;
 	    bool m_conserveStEPhase;
 
+	    //! PA mode
+	    double m_paPulseBW;
+	    double m_paPulseOrigin; //!< [us]
+
+	    //! Patterns.
 	    RelPatList m_relPatList;
 		std::vector<std::complex<double> >
 			m_qamWaveForm[XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX];
@@ -200,6 +209,7 @@ public:
     	return m_portSel[port];
     }
     const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
+    const shared_ptr<XDoubleNode> &paPulseBW() const {return m_paPulseBW;}
     
     //! time resolution [ms]
     virtual double resolution() const = 0;
@@ -286,6 +296,7 @@ private:
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
+    const shared_ptr<XDoubleNode> m_paPulseBW; //!< [kHz]
     
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
 	xqcon_ptr m_conOutput;
@@ -305,7 +316,7 @@ private:
 		m_conDIFFreq,
 		m_conInduceEmission, m_conInduceEmissionPhase,
 		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly,
-		m_conPulseAnalyzerMode;
+		m_conPulseAnalyzerMode, m_conPAPulseBW;
 	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;
@@ -336,7 +347,7 @@ private:
 	inline uint64_t rintSampsMicroSec(double us) const;
 	inline uint64_t rintSampsMilliSec(double ms) const;
 
-	void changeUIStatusOfNMRPulserMode(bool);
+	void changeUIStatus(bool nmrmode, bool state);
 };
 
 inline double

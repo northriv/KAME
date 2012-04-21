@@ -18,12 +18,15 @@
 //---------------------------------------------------------------------------
 #include "primarydriver.h"
 #include "xnodeconnector.h"
-#include "xwavengraph.h"
 
 class XScalarEntry;
 class QMainWindow;
 class Ui_FrmNetworkAnalyzer;
 typedef QForm<QMainWindow, Ui_FrmNetworkAnalyzer> FrmNetworkAnalyzer;
+
+class XGraph;
+class XWaveNGraph;
+class XXYPlot;
 
 //! Base class for digital storage oscilloscope.
 class XNetworkAnalyzer : public XPrimaryDriver {

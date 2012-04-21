@@ -5,6 +5,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/modules/dmm/core
      ${CMAKE_SOURCE_DIR}/modules/dso/core 
      ${CMAKE_SOURCE_DIR}/modules/magnetps/core
+     ${CMAKE_SOURCE_DIR}/modules/networkanalyzer/core
      ${CMAKE_SOURCE_DIR}/modules/charinterface
      ${CMAKE_SOURCE_DIR}/kame/math
      ${CMAKE_SOURCE_DIR}/kame/graph
@@ -23,6 +24,7 @@ set(nmr_SRCS
 set(nmrpulser_SRCS
 	pulserdriversh.cpp 
 	pulserdriverh8.cpp 
+    pulseanalyzer.cpp
  )
 
 kde4_add_ui_files(nmr_SRCS
@@ -34,7 +36,8 @@ kde4_add_ui_files(nmr_SRCS
  
 kde4_add_library(nmr MODULE ${nmr_SRCS} ${nmrpulser_SRCS})
 add_dependencies(nmr kame)
-target_link_libraries(nmr kame_nmrpulsercore kame_magnetpscore kame_sgcore kame_dmmcore kame_dsocore kame_charinterface ${MODULE_LINKER_FLAGS})
+target_link_libraries(nmr kame_nmrpulsercore kame_magnetpscore kame_sgcore kame_dmmcore kame_dsocore 
+	kame_networkanalyzercore kame_charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
 install(TARGETS nmr LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
 
