@@ -17,18 +17,19 @@
 #include "driver.h"
 #include "xitemnode.h"
 
-//! Base class for all instrument drivers
-class XSecondaryDriver : public XDriver {
+//!
+template <class T>
+class XSecondaryDriverInterface : public T {
 public:
-	XSecondaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XSecondaryDriver();
+	XSecondaryDriverInterface(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XSecondaryDriverInterface();
 
-	//! Shows all forms belonging to driver
-	virtual void showForms() = 0;
+//	 Shows all forms belonging to driver
+//	virtual void showForms() = 0;
 
-	struct Payload : public XDriver::Payload {
+	struct Payload : public T::Payload {
 	private:
-		friend class XSecondaryDriver;
+		friend class XSecondaryDriverInterface<T>;
 		struct Connection {
 			shared_ptr<XListener> m_lsnOnRecord;
 			shared_ptr<XPointerItemNode<XDriverList> > m_selecter;
@@ -48,10 +49,10 @@ protected:
 
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) throw (XRecordError&) = 0;
-	//! This function is called inside analyze() or analyzeRaw()
-	//! this must be reentrant unlike analyze()
-	virtual void visualize(const Snapshot &shot) = 0;
+		XDriver *emitter) throw (typename T::XRecordError&) = 0;
+//	//! This function is called inside analyze() or analyzeRaw()
+//	//! this must be reentrant unlike analyze()
+//	virtual void visualize(const Snapshot &shot) = 0;
 	//! Checks if the connected drivers have valid time stamps.
 	//! \return true if dependency is resolved.
 	//! This function must be reentrant unlike analyze().
@@ -74,5 +75,13 @@ private:
 
 	weak_ptr<XDriverList> m_drivers;
 };
+
+typedef XSecondaryDriverInterface<XDriver> XSecondaryDriver;
+
+//class XSecondaryDriver : public XSecondaryDriverInterface<XDriver> {
+//public:
+//	XSecondaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+//		XSecondaryDriverInterface<XDriver>(name, runtime, ref(tr_meas), meas) {}
+//};
 
 #endif /*SECONDARYDRIVER_H_*/
