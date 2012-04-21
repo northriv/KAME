@@ -124,6 +124,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_conserveStEPhase(create<XBoolNode>("ConserveStEPhase", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_pulseAnalyzerMode(create<XBoolNode>("PulseAnalyzerMode", true)),
+    m_paPulseRept(create<XDoubleNode>("PAPulseRept", false)),
     m_paPulseBW(create<XDoubleNode>("PAPulseBW", false)),
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
     m_form(new FrmPulser(g_pFrmMain)),
@@ -210,6 +211,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *p2Func()] = PULSE_NO_HAMMING; //Hamming
 	    tr[ *combFunc()] = PULSE_NO_HAMMING; //Hamming
 
+	    tr[ *paPulseRept()] = 1; //ms
 	    tr[ *paPulseBW()] = 500.0; //kHz
 
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
@@ -276,6 +278,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conQSWSoftSWOff = xqcon_create<XQLineEditConnector>(m_qswSoftSWOff, m_formMore->m_edQSWSoftSWOff);  
 	m_conQSWPiPulseOnly = xqcon_create<XQToggleButtonConnector>(m_qswPiPulseOnly, m_formMore->m_ckbQSWPiPulseOnly);  
 	m_conPulseAnalyzerMode = xqcon_create<XQToggleButtonConnector>(m_pulseAnalyzerMode, m_formMore->m_ckbPulseAnalyzerMode);
+	m_conPAPulseRept = xqcon_create<XQLineEditConnector>(m_paPulseRept, m_formMore->m_edPAPulseRept);
 	m_conPAPulseBW = xqcon_create<XQLineEditConnector>(m_paPulseBW, m_formMore->m_edPAPulseBW);
  
 	changeUIStatus(true, false);
@@ -352,6 +355,7 @@ XPulser::start() {
 		}
 
 		tr[ *pulseAnalyzerMode()].onValueChanged().connect(m_lsnOnPulseChanged);
+		tr[ *paPulseRept()].onValueChanged().connect(m_lsnOnPulseChanged);
 		tr[ *paPulseBW()].onValueChanged().connect(m_lsnOnPulseChanged);
 		if(tr.commit())
 			break;
@@ -396,6 +400,7 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
 	qamDelay2()->setUIEnabled(uienable);
 
 	output()->setUIEnabled(state);
+	paPulseRept()->setUIEnabled(state);
 	paPulseBW()->setUIEnabled(state);
 	//Features in NMR.
 	uienable = state && nmrmode;
@@ -498,7 +503,7 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
         createRelPatListNMRPulser(tr);
     	break;
     case N_MODE_PULSE_ANALYZER:
-        tr[ *this].m_rtime = 1;
+        tr[ *this].m_rtime = tr[ *paPulseRept()];;
         tr[ *this].m_tau = 0;
         tr[ *this].m_pw1 = 6800.0 / tr[ *paPulseBW()]; //flattop_longlong
         tr[ *this].m_pw2 = 0;

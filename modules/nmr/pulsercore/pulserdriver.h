@@ -98,6 +98,7 @@ public:
 	    bool conserveStEPhase() const {return m_conserveStEPhase;}
 
 	    bool isPulseAnalyzerMode() const {return  m_paPulseBW > 0;}
+	    double paPulseRept() const {return m_rtime;}
 	    double paPulseBW() const {return m_paPulseBW;}
 	    double paPulseOrigin() const {return m_paPulseOrigin;}
 
@@ -209,6 +210,7 @@ public:
     	return m_portSel[port];
     }
     const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
+    const shared_ptr<XDoubleNode> &paPulseRept() const {return m_paPulseRept;}
     const shared_ptr<XDoubleNode> &paPulseBW() const {return m_paPulseBW;}
     
     //! time resolution [ms]
@@ -296,6 +298,7 @@ private:
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
+    const shared_ptr<XDoubleNode> m_paPulseRept; //!< [ms]
     const shared_ptr<XDoubleNode> m_paPulseBW; //!< [kHz]
     
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
@@ -316,7 +319,7 @@ private:
 		m_conDIFFreq,
 		m_conInduceEmission, m_conInduceEmissionPhase,
 		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly,
-		m_conPulseAnalyzerMode, m_conPAPulseBW;
+		m_conPulseAnalyzerMode, m_conPAPulseBW, m_conPAPulseRept;
 	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;
