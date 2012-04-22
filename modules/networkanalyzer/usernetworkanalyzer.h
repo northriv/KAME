@@ -29,6 +29,12 @@ public:
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
+
+	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+
 	virtual void getMarkerPos(unsigned int num, double &x, double &y);
 	virtual void oneSweep();
 	virtual void startContSweep();

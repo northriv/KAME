@@ -27,7 +27,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 	connect(m_pulser);
 	connect(m_sg);
 
-	const char *cand[] = {"OFF", "3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
+	const char *cand[] = {"OFF", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
 	for(Transaction tr( *this);; ++tr) {
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
@@ -35,33 +35,90 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		if(tr.commit())
 			break;
 	}
+
+	clear();
 	XNetworkAnalyzer::start();
 }
 void
+XNMRBuiltInNetworkAnalyzer::clear() {
+	restart(CAL_NONE, true);
+}
+void
+XNMRBuiltInNetworkAnalyzer::onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {
+	restart(CAL_OPEN);
+}
+void
+XNMRBuiltInNetworkAnalyzer::onCalShortTouched(const Snapshot &shot, XTouchableNode *) {
+	restart(CAL_SHORT);
+}
+void
+XNMRBuiltInNetworkAnalyzer::onCalTermTouched(const Snapshot &shot, XTouchableNode *) {
+	restart(CAL_TERM);
+}
+void
+XNMRBuiltInNetworkAnalyzer::onCalThruTouched(const Snapshot &shot, XTouchableNode *) {
+	restart(CAL_THRU);
+}
+void
 XNMRBuiltInNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-
+	clear();
 }
 void
 XNMRBuiltInNetworkAnalyzer::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+	clear();
 }
 void
 XNMRBuiltInNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-
+	clear();
 }
 void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
+	clear();
+//	int pts = atoi(shot_this[ *points()].to_str().c_str());
+//	if( !pts)
+//		stop();
 }
 void
 XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
-
+	Snapshot shot( *this);
+	switch(num) {
+	case 0:
+		x = shot[ *this].m_marker_min.first;
+		y = shot[ *this].m_marker_min.second;
+		break;
+	case 1:
+		x = shot[ *this].m_marker_max.first;
+		y = shot[ *this].m_marker_max.second;
+		break;
+	default:
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	}
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	Snapshot shot_this( *this);
+	restart(CAL_NONE);
+
+	m_sweeping = true;
+	while(m_sweeping) {
+		msecsleep(10);
+	}
+}
+void
+XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
+	for(Transaction tr( *this);; ++tr) {
+		restart(tr, calmode, clear);
+		if(tr.commit()) {
+			break;
+		}
+	}
+}
+void
+XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
+	Snapshot &shot_this(tr);
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
 	if( !pulse)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-    shared_ptr<XSG> sg = shot_this[ *m_sg];
+	shared_ptr<XSG> sg = shot_this[ *m_sg];
 	if( !sg)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XDSO> dso = shot_this[ *m_dso];
@@ -71,29 +128,44 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 	int pts = atoi(shot_this[ *points()].to_str().c_str());
 	if( !pts)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	tr[ *this].m_sweepPoints = pts;
 
 	double fmax = shot_this[ *stopFreq()];
+	tr[ *this].m_sweepStop = fmax;
 	double fmin = shot_this[ *startFreq()];
+	tr[ *this].m_sweepStart = fmin;
 	if((fmax <= fmin) || (fmin <= 0.1))
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	for(Transaction tr( *pulse);; ++tr) {
+		double plsbw = tr[ *pulse].paPulseBW() * 1e-3; //[MHz]
+		double fstep = plsbw *1.0;
+		fstep = std::max(fstep, (fmax - fmin) / (pts - 1));
+		tr[ *this].m_sweepStep = fstep;
 		tr[ *pulse->pulseAnalyzerMode()] = true;
+		tr[ *pulse->paPulseRept()] = std::max(1.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.5);
 		tr[ *pulse->output()] = true;
 		if(tr.commit()) {
 			break;
 		}
 	}
+
 	trans( *sg->freq()) = fmin;
 
 	trans( *dso->restart()).touch(); //Restart averaging in DSO.
 
-	m_ftsum.clear();
-	m_ftsum_weight.clear();
-
-	m_sweeping = true;
-	while(m_sweeping) {
-		msecsleep(10);
+	tr[ *this].m_ftsum.clear();
+	tr[ *this].m_ftsum_weight.clear();
+	tr[ *this].m_calMode = calmode;
+	if(clear) {
+		tr[ *this].m_raw_open.clear();
+		tr[ *this].m_raw_short.clear();
+		tr[ *this].m_raw_term.clear();
+		tr[ *this].m_raw_thru.clear();
+		tr[ *this].m_raw_open.resize(pts, 1.0);
+		tr[ *this].m_raw_short.resize(pts, -1.0);
+		tr[ *this].m_raw_term.resize(pts, 0.0);
+		tr[ *this].m_raw_thru.resize(pts, 1.0);
 	}
 }
 void
@@ -120,19 +192,60 @@ XNMRBuiltInNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &, unsigned int ch)
 }
 void
 XNMRBuiltInNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
-	Snapshot shot_this( *this);
-	double fmin = shot_this[ *startFreq()];
-	double fmax = shot_this[ *stopFreq()];
-	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	Snapshot &shot_this(tr);
+	double fmin = shot_this[ *this].m_sweepStart;
+	double fmax = shot_this[ *this].m_sweepStop;
+	int pts = shot_this[ *this].m_sweepPoints;
 	if( !pts)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	tr[ *this].m_startFreq = fmin;
-	tr[ *this].m_freqInterval = (fmax - fmin) / (pts - 1);
+	double df = (fmax - fmin) / (pts - 1);
+	tr[ *this].m_freqInterval = df;
 	tr[ *this].trace_().resize(pts);
 
+	auto ftsum = &tr[ *this].m_ftsum[0];
+	auto ftsum_weight = &tr[ *this].m_ftsum_weight[0];
+	auto rawopen = &tr[ *this].m_raw_open[0];
+	auto rawterm = &tr[ *this].m_raw_term[0];
+	auto trace = &tr[ *this].trace_()[0];
 	for(unsigned int i = 0; i < pts; i++) {
-		tr[ *this].trace_()[i] = 20.0 * log10(std::abs(m_ftsum[i] / (double)m_ftsum_weight[i]));
+		ftsum[i] /= ftsum_weight[i];
+		trace[i] = 20.0 * log10(std::abs((ftsum[i] - rawterm[i])/ (rawopen[i] -  rawterm[i])));
+	}
+
+	//Tracking markers.
+	auto &mkmin = tr[ *this].m_marker_min;
+	mkmin.second = 1000;
+	auto &mkmax = tr[ *this].m_marker_min;
+	mkmax.second = -1000;
+	for(unsigned int i = 0; i < pts; i++) {
+		if(trace[i] < mkmin.second)
+			mkmin = std::pair<double, double>(i * df + fmin, trace[i]);
+		if(trace[i] > mkmax.second)
+			mkmax = std::pair<double, double>(i * df + fmin, trace[i]);
+	}
+
+	//Preserves calibration curves.
+	switch(tr[ *this].m_calMode) {
+	case CAL_NONE:
+		break;
+	case CAL_OPEN:
+		tr[ *this].m_raw_open.resize(pts);
+		std::copy(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), tr[ *this].m_raw_open.begin());
+		break;
+	case CAL_SHORT:
+		tr[ *this].m_raw_short.resize(pts);
+		std::copy(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), tr[ *this].m_raw_short.begin());
+		break;
+	case CAL_TERM:
+		tr[ *this].m_raw_term.resize(pts);
+		std::copy(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), tr[ *this].m_raw_term.begin());
+		break;
+	case CAL_THRU:
+		tr[ *this].m_raw_thru.resize(pts);
+		std::copy(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), tr[ *this].m_raw_thru.begin());
+		break;
 	}
 }
 void
@@ -160,9 +273,6 @@ void
 XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
-	int pts = atoi(shot_this[ *points()].to_str().c_str());
-	if( !pts)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	const Snapshot &shot_dso(shot_emitter);
 	const Snapshot &shot_sg(shot_others);
@@ -202,14 +312,15 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	}
 	double rept = shot_pulse[ *pulse].rtime() * 1e-3; //[s]
 	double plsorg = shot_pulse[ *pulse].paPulseOrigin() * 1e-6; //[s]
-	double plsbw = shot_pulse[ *pulse].paPulseBW() * 1e-3; //[MHz]
 
-	double fmin = shot_this[ *startFreq()];
-	double fmax = shot_this[ *stopFreq()];
-	double fstep = plsbw *0.7;
-	fstep = std::min(fstep, (fmax - fmin) / (pts - 1));
+	double fmin = shot_this[ *this].m_sweepStart;
+	double fmax = shot_this[ *this].m_sweepStop;
+	double fstep = shot_this[ *this].m_sweepStep;
 	if((fmax <= fmin) || (fmin <= 0.1) || (fstep < 0.001))
 		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
+	int pts = shot_this[ *this].m_sweepPoints;
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	unsigned int fftlen = (unsigned int)floor(std::max(plsorg / interval * 2, 1e-6 / ((fmax - fmin) / (pts - 1)) / interval * 2));
 	fftlen = FFT::fitLength(std::min(fftlen, (unsigned int)floor(rept / interval)));
@@ -240,14 +351,18 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	double fft_df = 1.0 / (interval * fftlen) * 1e-6; //[MHz]
 	m_fft->exec(m_fftin, m_fftout);
 
-	if(m_ftsum.size() != pts) {
-		m_ftsum.resize(pts);
-		m_ftsum_weight.resize(pts);
-		std::fill(m_ftsum.begin(), m_ftsum.end(), 0.0);
-		std::fill(m_ftsum_weight.begin(), m_ftsum_weight.end(), 0);
+	double plsbw = shot_pulse[ *pulse].paPulseBW() * 1e-3; //[MHz]
+
+	if(tr[ *this].m_ftsum.size() != pts) {
+		tr[ *this].m_ftsum.resize(pts);
+		tr[ *this].m_ftsum_weight.resize(pts);
+		std::fill(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), 0.0);
+		std::fill(tr[ *this].m_ftsum_weight.begin(), tr[ *this].m_ftsum_weight.end(), 0);
 	}
 	double freq = shot_sg[ *sg].freq();
 	double normalize = 1.0 / avg_in_wave / fftlen;
+	auto ftsum = &tr[ *this].m_ftsum[0];
+	auto ftsum_weight = &tr[ *this].m_ftsum_weight[0];
 	for(int i = 0; i < fftlen; ++i) {
 		double f = fft_df * ((i >= fftlen / 2) ? i - (int)fftlen : i);
 		if(abs(f) > plsbw / 2)
@@ -256,14 +371,14 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 		int j = lrint((f - fmin) / (fmax - fmin) * (pts - 1));
 		if((j < 0) || (j >= pts))
 			continue;
-		m_ftsum[j] += m_fftout[i] * normalize;
-		++m_ftsum_weight[j];
+		ftsum[j] += m_fftout[i] * normalize;
+		++ftsum_weight[j];
 	}
 
-	unsigned int avg = shot_this[ *average()];
+//	unsigned int avg = shot_this[ *average()];
 
 	if(freq < fmin - plsbw/2) {
-		trans( *sg->freq()) = fmin;
+		restart(tr, shot_this[ *this].m_calMode);
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	}
 	if(freq + fstep / 2 > fmax) {
@@ -272,6 +387,8 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	}
 	freq += fstep;
 	trans( *sg->freq()) = freq;
+	if( !shot_this[ *this].m_ftsum.size())
+		restart(tr, shot_this[ *this].m_calMode);
 	throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 }
 void

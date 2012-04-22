@@ -60,7 +60,7 @@ XHP8643::XHP8643(const char *name, bool runtime,
 void
 XHP8643::changeFreq(double mhz) {
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
-	msecsleep(50); //wait stabilization of PLL
+	msecsleep(75); //wait stabilization of PLL < 1GHz
 }
 void
 XHP8643::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {

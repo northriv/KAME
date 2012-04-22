@@ -1467,7 +1467,7 @@
         <item>
          <layout class="QHBoxLayout" name="_5">
           <item>
-           <widget class="QLineEdit" name="m_edPARept">
+           <widget class="QLineEdit" name="m_edPAPulseRept">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>

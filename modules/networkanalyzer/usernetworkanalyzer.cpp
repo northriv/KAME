@@ -53,6 +53,11 @@ XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("ABOR;INIT:CONT OFF");
 	
 	start();
+
+	m_calOpen->setUIEnabled(false);
+	m_calShort->setUIEnabled(false);
+	m_calTerm->setUIEnabled(false);
+	m_calThru->setUIEnabled(false);
 }
 void 
 XAgilentNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {

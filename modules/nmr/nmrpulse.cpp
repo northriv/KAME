@@ -455,8 +455,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 	}
 	if(pulse__) {
-		if(shot_others[ *pulse__].isPulseAnalyzerMode())
-			throw XSkippedRecordError(i18n("Built-In Network Analyzer Mode."), __FILE__, __LINE__);
+		if(shot_others[ *pulse__].isPulseAnalyzerMode()) {
+			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), true);
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
 	}
 
 	if((shot_this[ *this].m_startTime != starttime) || (length != shot_this[ *this].m_waveWidth)) {

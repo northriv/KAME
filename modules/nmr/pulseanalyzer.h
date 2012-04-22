@@ -27,15 +27,28 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNMRBuiltInNetworkAnalyzer() {}
 
-//	struct Payload : public XSecondaryDriverInterface<XNetworkAnalyzer> {
-//
-//	};
+	struct Payload : public XSecondaryDriverInterface<XNetworkAnalyzer>::Payload {
+	private:
+		friend class XNMRBuiltInNetworkAnalyzer;
+		std::vector<std::complex<double> > m_ftsum, m_raw_open, m_raw_short, m_raw_term, m_raw_thru;
+		std::vector<int> m_ftsum_weight;
+		int m_calMode;
+		std::pair<double, double> m_marker_min, m_marker_max;
+		double m_sweepStep;
+		double m_sweepStart;
+		double m_sweepStop;
+		int m_sweepPoints;
+	};
 	virtual void showForms() {XNetworkAnalyzer::showForms();}
 
 	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *);
+	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *);
+	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *);
+	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *);
 	virtual void getMarkerPos(unsigned int num, double &x, double &y);
 	virtual void oneSweep();
 	virtual void startContSweep();
@@ -71,8 +84,11 @@ private:
 	//for FFT.
 	shared_ptr<FFT> m_fft;
 	std::vector<std::complex<double> > m_fftin, m_fftout;
-	std::vector<std::complex<double> > m_ftsum;
-	std::vector<int> m_ftsum_weight;
+
+	void clear();
+	void restart(Transaction &tr, int calmode, bool clear = false);
+	void restart(int calmode, bool clear = false);
+	enum {CAL_NONE = 0, CAL_OPEN = 1, CAL_SHORT = 2, CAL_TERM = 3, CAL_THRU = 4};
 
 	atomic<bool> m_sweeping;
 };

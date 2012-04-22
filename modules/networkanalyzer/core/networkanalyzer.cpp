@@ -36,6 +36,10 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_stopFreq(create<XDoubleNode>("StopFreq", false)),
 	m_points(create<XComboNode>("Points", false, true)),
 	m_average(create<XUIntNode>("Average", false)),
+	m_calOpen(create<XTouchableNode>("CalOpen", true)),
+	m_calShort(create<XTouchableNode>("CalShort", true)),
+	m_calTerm(create<XTouchableNode>("CalTerm", true)),
+	m_calThru(create<XTouchableNode>("CalThru", true)),
 	m_form(new FrmNetworkAnalyzer(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
 								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)) {
@@ -49,11 +53,29 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
+	m_calOpen->setUIEnabled(false);
+	m_calShort->setUIEnabled(false);
+	m_calTerm->setUIEnabled(false);
+	m_calThru->setUIEnabled(false);
+
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
 	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints, Snapshot( *points()));
 	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
-	
+
+	m_conCalOpen = xqcon_create<XQButtonConnector>(m_calOpen, m_form->m_btnCalOpen);
+	m_conCalShort = xqcon_create<XQButtonConnector>(m_calShort, m_form->m_btnCalShort);
+	m_conCalTerm = xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm);
+	m_conCalThru = xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru);
+
+	for(Transaction tr( *this);; ++tr) {
+		m_lsnCalOpen = tr[ *m_calOpen].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalOpen);
+		m_lsnCalShort = tr[ *m_calShort].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalShort);
+		m_lsnCalTerm = tr[ *m_calTerm].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalTerm);
+		m_lsnCalThru = tr[ *m_calThru].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalThru);
+		if(tr.commit())
+			break;
+	}
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		const char *labels[] = {"Freq [MHz]", "Level [dB]"};
 		tr[ *m_waveForm].setColCount(2, labels);
@@ -110,6 +132,10 @@ XNetworkAnalyzer::start() {
 	stopFreq()->setUIEnabled(true);
 	points()->setUIEnabled(true);
 	average()->setUIEnabled(true);
+	m_calOpen->setUIEnabled(true);
+	m_calShort->setUIEnabled(true);
+	m_calTerm->setUIEnabled(true);
+	m_calThru->setUIEnabled(true);
 }
 void
 XNetworkAnalyzer::stop() {
@@ -117,6 +143,10 @@ XNetworkAnalyzer::stop() {
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
+	m_calOpen->setUIEnabled(false);
+	m_calShort->setUIEnabled(false);
+	m_calTerm->setUIEnabled(false);
+	m_calThru->setUIEnabled(false);
   	
 	if(m_thread) m_thread->terminate();
 }

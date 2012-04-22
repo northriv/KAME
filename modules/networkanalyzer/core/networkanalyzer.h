@@ -81,6 +81,10 @@ protected:
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) = 0;
+	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) = 0;
+	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) = 0;
+	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void getMarkerPos(unsigned int num, double &x, double &y) = 0;
 	virtual void oneSweep() = 0;
 	virtual void startContSweep() = 0;
@@ -97,6 +101,7 @@ private:
 	const shared_ptr<XDoubleNode> m_stopFreq;
 	const shared_ptr<XComboNode> m_points;
 	const shared_ptr<XUIntNode> m_average;
+	const shared_ptr<XTouchableNode> m_calOpen, m_calShort, m_calTerm, m_calThru;
 
 	const qshared_ptr<FrmNetworkAnalyzer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
@@ -105,6 +110,7 @@ private:
 	shared_ptr<XListener> m_lsnOnStopFreqChanged;
 	shared_ptr<XListener> m_lsnOnPointsChanged;
 	shared_ptr<XListener> m_lsnOnAverageChanged;
+	shared_ptr<XListener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
   
 	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage;
  
