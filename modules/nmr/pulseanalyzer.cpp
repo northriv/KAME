@@ -74,8 +74,9 @@ XNMRBuiltInNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBas
 void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
-//	int pts = atoi(shot_this[ *points()].to_str().c_str());
-//	if( !pts)
+	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	if( !pts)
+		startContSweep();
 //		stop();
 }
 void

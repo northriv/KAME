@@ -112,7 +112,8 @@ private:
 	shared_ptr<XListener> m_lsnOnAverageChanged;
 	shared_ptr<XListener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
   
-	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage;
+	xqcon_ptr m_conStartFreq, m_conStopFreq, m_conPoints, m_conAverage,
+		m_conCalOpen, m_conCalShort, m_conCalTerm, m_conCalThru;
  
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;
