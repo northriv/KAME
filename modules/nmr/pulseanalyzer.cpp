@@ -230,7 +230,7 @@ XNMRBuiltInNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) t
 	//Tracking markers.
 	auto &mkmin = tr[ *this].m_marker_min;
 	mkmin.second = 1000;
-	auto &mkmax = tr[ *this].m_marker_min;
+	auto &mkmax = tr[ *this].m_marker_max;
 	mkmax.second = -1000;
 	for(unsigned int i = 0; i < pts; i++) {
 		if(trace[i] < mkmin.second)

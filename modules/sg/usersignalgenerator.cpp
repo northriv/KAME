@@ -23,18 +23,17 @@ REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
 
 XSG7200::XSG7200(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
-{
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
 }
 XSG7130::XSG7130(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XSG7200(name, runtime, ref(tr_meas), meas)
-{
+    : XSG7200(name, runtime, ref(tr_meas), meas) {
 }
 void
 XSG7200::changeFreq(double mhz) {
+	XScopedLock<XInterface> lock( *interface());
 	interface()->sendf("FR%fMHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
@@ -53,12 +52,12 @@ XSG7200::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 
 XHP8643::XHP8643(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas)
-{
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XHP8643::changeFreq(double mhz) {
+	XScopedLock<XInterface> lock( *interface());
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(75); //wait stabilization of PLL < 1GHz
 }
@@ -77,8 +76,7 @@ XHP8643::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 
 XHP8648::XHP8648(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XHP8643(name, runtime, ref(tr_meas), meas)
-{
+    : XHP8643(name, runtime, ref(tr_meas), meas) {
 }
 void
 XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -91,6 +89,7 @@ XHP8664::XHP8664(const char *name, bool runtime,
 }
 void
 XHP8664::changeFreq(double mhz) {
+	XScopedLock<XInterface> lock( *interface());
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }

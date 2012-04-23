@@ -456,7 +456,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	if(pulse__) {
 		if(shot_others[ *pulse__].isPulseAnalyzerMode()) {
-			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), true);
+			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), false);
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
 	}
