@@ -73,7 +73,7 @@ XNMRBuiltInNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBas
 void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
-	int pts = atoi(shot[ *points()].to_str().c_str());
+	int pts = atoi(Snapshot( *this)[ *points()].to_str().c_str());
 	if( !pts) {
 		try {
 			startContSweep();
@@ -150,15 +150,15 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	if((fmax <= fmin) || (fmin <= 0.1))
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
-	for(Transaction tr( *pulse);; ++tr) {
-		double plsbw = tr[ *pulse].paPulseBW() * 1e-3; //[MHz]
+	for(Transaction trp( *pulse);; ++trp) {
+		double plsbw = trp[ *pulse].paPulseBW() * 1e-3; //[MHz]
 		double fstep = plsbw *1.0;
 		fstep = std::max(fstep, (fmax - fmin) / (pts - 1));
 		tr[ *this].m_sweepStep = fstep;
-		tr[ *pulse->pulseAnalyzerMode()] = true;
-		tr[ *pulse->paPulseRept()] = std::max(1.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.5);
-		tr[ *pulse->output()] = true;
-		if(tr.commit()) {
+		trp[ *pulse->pulseAnalyzerMode()] = true;
+		trp[ *pulse->paPulseRept()] = std::max(1.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.5);
+		trp[ *pulse->output()] = true;
+		if(trp.commit()) {
 			break;
 		}
 	}

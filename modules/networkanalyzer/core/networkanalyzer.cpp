@@ -68,14 +68,6 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_conCalTerm = xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm);
 	m_conCalThru = xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru);
 
-	for(Transaction tr( *this);; ++tr) {
-		m_lsnCalOpen = tr[ *m_calOpen].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalOpenTouched);
-		m_lsnCalShort = tr[ *m_calShort].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalShortTouched);
-		m_lsnCalTerm = tr[ *m_calTerm].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalTermTouched);
-		m_lsnCalThru = tr[ *m_calThru].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalThruTouched);
-		if(tr.commit())
-			break;
-	}
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		const char *labels[] = {"Freq [MHz]", "Level [dB]"};
 		tr[ *m_waveForm].setColCount(2, labels);
@@ -220,6 +212,10 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XNetworkAnalyzer::onPointsChanged);
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
+		m_lsnCalOpen = tr[ *m_calOpen].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalOpenTouched);
+		m_lsnCalShort = tr[ *m_calShort].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalShortTouched);
+		m_lsnCalTerm = tr[ *m_calTerm].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalTermTouched);
+		m_lsnCalThru = tr[ *m_calThru].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalThruTouched);
 		if(tr.commit())
 			break;
 	}
@@ -284,7 +280,10 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	m_lsnOnStopFreqChanged.reset();
 	m_lsnOnPointsChanged.reset();
 	m_lsnOnAverageChanged.reset();
-	
+	m_lsnCalOpen.reset();
+	m_lsnCalShort.reset();
+	m_lsnCalTerm.reset();
+	m_lsnCalThru.reset();
 	afterStop();
 	return NULL;
 }
