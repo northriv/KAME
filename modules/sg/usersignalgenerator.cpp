@@ -77,6 +77,7 @@ XHP8643::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 XHP8648::XHP8648(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XHP8643(name, runtime, ref(tr_meas), meas) {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -86,6 +87,7 @@ XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 XHP8664::XHP8664(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
+	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
 XHP8664::changeFreq(double mhz) {
