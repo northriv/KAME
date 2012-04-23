@@ -74,9 +74,15 @@ void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
 	int pts = atoi(shot[ *points()].to_str().c_str());
-	if( !pts)
-		startContSweep();
+	if( !pts) {
+		try {
+			startContSweep();
+		}
+		catch (XInterface::XInterfaceError &e) {
+			gErrPrint(e.msg());
+		}
 //		stop();
+	}
 }
 void
 XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
@@ -106,7 +112,14 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 void
 XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 	for(Transaction tr( *this);; ++tr) {
-		restart(tr, calmode, clear);
+		try {
+			restart(tr, calmode, clear);
+		}
+		catch (XDriver::XSkippedRecordError &) {
+		}
+		catch (XInterface::XInterfaceError &e) {
+			gErrPrint(e.msg());
+		}
 		if(tr.commit()) {
 			break;
 		}
