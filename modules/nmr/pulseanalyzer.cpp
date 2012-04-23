@@ -96,8 +96,7 @@ XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y)
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	bool firsttime = m_raw_open.empty();
-	restart(CAL_NONE, firsttime);
+	restart(CAL_NONE);
 
 	m_sweeping = true;
 	while(m_sweeping) {
@@ -158,7 +157,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	tr[ *this].m_ftsum.clear();
 	tr[ *this].m_ftsum_weight.clear();
 	tr[ *this].m_calMode = calmode;
-	if(clear) {
+	if(clear || tr[ *this].m_raw_open.empty()) {
 		tr[ *this].m_raw_open.clear();
 		tr[ *this].m_raw_short.clear();
 		tr[ *this].m_raw_term.clear();
