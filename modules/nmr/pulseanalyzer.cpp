@@ -139,9 +139,9 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	tr[ *this].m_sweepPoints = pts;
 	if( !pts)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	tr[ *this].m_sweepPoints = pts;
 
 	double fmax = shot_this[ *stopFreq()];
 	tr[ *this].m_sweepStop = fmax;
@@ -286,6 +286,9 @@ void
 XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
+	int pts = shot_this[ *this].m_sweepPoints;
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	const Snapshot &shot_dso(shot_emitter);
 	const Snapshot &shot_sg(shot_others);
@@ -331,9 +334,6 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	double fstep = shot_this[ *this].m_sweepStep;
 	if((fmax <= fmin) || (fmin <= 0.1) || (fstep < 0.001))
 		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
-	int pts = shot_this[ *this].m_sweepPoints;
-	if( !pts)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	unsigned int fftlen = (unsigned int)floor(std::max(plsorg / interval * 2, 1e-6 / ((fmax - fmin) / (pts - 1)) / interval * 2));
 	fftlen = FFT::fitLength(std::min(fftlen, (unsigned int)floor(rept / interval)));
