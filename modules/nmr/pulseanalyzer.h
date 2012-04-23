@@ -38,6 +38,8 @@ public:
 		double m_sweepStart;
 		double m_sweepStop;
 		int m_sweepPoints;
+		bool m_sweeping;
+		double m_lastCenterFreq;
 	};
 	virtual void showForms() {XNetworkAnalyzer::showForms();}
 
@@ -90,7 +92,7 @@ private:
 	void restart(int calmode, bool clear = false);
 	enum {CAL_NONE = 0, CAL_OPEN = 1, CAL_SHORT = 2, CAL_TERM = 3, CAL_THRU = 4};
 
-	atomic<bool> m_sweeping;
+	void writeTraceAndMarkers(Transaction &tr);
 };
 
 #endif /* PULSEANALYZER_H_ */

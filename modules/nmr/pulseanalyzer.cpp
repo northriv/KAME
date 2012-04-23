@@ -104,9 +104,8 @@ void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
 	restart(CAL_NONE);
 
-	m_sweeping = true;
-	while(m_sweeping) {
-		msecsleep(10);
+	while(Snapshot( *this)[ *this].m_sweeping) {
+		msecsleep(30);
 	}
 }
 void
@@ -148,15 +147,17 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	double fmin = shot_this[ *startFreq()];
 	tr[ *this].m_sweepStart = fmin;
 	if((fmax <= fmin) || (fmin <= 0.1))
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 
 	for(Transaction trp( *pulse);; ++trp) {
 		double plsbw = trp[ *pulse].paPulseBW() * 1e-3; //[MHz]
 		double fstep = plsbw *1.0;
 		fstep = std::max(fstep, (fmax - fmin) / (pts - 1));
+		if(fstep < 0.001)
+			throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 		tr[ *this].m_sweepStep = fstep;
 		trp[ *pulse->pulseAnalyzerMode()] = true;
-		trp[ *pulse->paPulseRept()] = std::max(1.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.5);
+		trp[ *pulse->paPulseRept()] = std::max(2.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.2);
 		trp[ *pulse->output()] = true;
 		if(trp.commit()) {
 			break;
@@ -165,7 +166,13 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 
 	trans( *sg->freq()) = fmin;
 
-	trans( *dso->restart()).touch(); //Restart averaging in DSO.
+	for(Transaction trd( *dso);; ++trd) {
+		trd[ *dso->firEnabled()] = false;
+		trd[ *dso->restart()].touch(); //Restart averaging in DSO.
+		if(trd.commit()) {
+			break;
+		}
+	}
 
 	tr[ *this].m_ftsum.clear();
 	tr[ *this].m_ftsum_weight.clear();
@@ -180,6 +187,8 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		tr[ *this].m_raw_term.resize(pts, 0.0);
 		tr[ *this].m_raw_thru.resize(pts, 1.0);
 	}
+
+	tr[ *this].m_sweeping = true;
 }
 void
 XNMRBuiltInNetworkAnalyzer::startContSweep() {
@@ -196,7 +205,7 @@ XNMRBuiltInNetworkAnalyzer::startContSweep() {
 	}
     shared_ptr<XSG> sg = shot_this[ *m_sg];
     if(sg) {
-    	trans( *sg->freq()) = (double)shot_this[ *marker1X()->value()];
+    	trans( *sg->freq()) = (double)shot_this[ *this].m_marker_min.first;
     }
 }
 void
@@ -205,12 +214,15 @@ XNMRBuiltInNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &, unsigned int ch)
 }
 void
 XNMRBuiltInNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+}
+void
+XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	Snapshot &shot_this(tr);
 	double fmin = shot_this[ *this].m_sweepStart;
 	double fmax = shot_this[ *this].m_sweepStop;
 	int pts = shot_this[ *this].m_sweepPoints;
-	if( !pts)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+//	if( !pts)
+//		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	tr[ *this].m_startFreq = fmin;
 	double df = (fmax - fmin) / (pts - 1);
@@ -269,7 +281,7 @@ bool
 XNMRBuiltInNetworkAnalyzer::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
-	if( !m_sweeping)
+	if( !shot_this[ *this].m_sweeping)
 		return false;
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
 	if( !pulse) return false;
@@ -331,11 +343,8 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 
 	double fmin = shot_this[ *this].m_sweepStart;
 	double fmax = shot_this[ *this].m_sweepStop;
-	double fstep = shot_this[ *this].m_sweepStep;
-	if((fmax <= fmin) || (fmin <= 0.1) || (fstep < 0.001))
-		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 
-	unsigned int fftlen = (unsigned int)floor(std::max(plsorg / interval * 2, 1e-6 / ((fmax - fmin) / (pts - 1)) / interval * 2));
+	unsigned int fftlen = (unsigned int)floor(std::max(plsorg / interval, 1e-6 / ((fmax - fmin) / (pts - 1)) / interval * 2));
 	fftlen = FFT::fitLength(std::min(fftlen, (unsigned int)floor(rept / interval)));
 	if( !m_fft || m_fft->length() != fftlen) {
 		m_fft.reset(new FFT(-1, fftlen));
@@ -373,6 +382,11 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 		std::fill(tr[ *this].m_ftsum_weight.begin(), tr[ *this].m_ftsum_weight.end(), 0);
 	}
 	double freq = shot_sg[ *sg].freq();
+	tr[ *this].m_lastCenterFreq = freq;
+	if(freq < fmin - plsbw/2) {
+		restart(tr, shot_this[ *this].m_calMode);
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	}
 	double normalize = 1.0 / avg_in_wave / fftlen;
 	auto ftsum = &tr[ *this].m_ftsum[0];
 	auto ftsum_weight = &tr[ *this].m_ftsum_weight[0];
@@ -387,25 +401,26 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 		ftsum[j] += m_fftout[i] * normalize;
 		++ftsum_weight[j];
 	}
-
-//	unsigned int avg = shot_this[ *average()];
-
-	if(freq < fmin - plsbw/2) {
-		restart(tr, shot_this[ *this].m_calMode);
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	}
-	if(freq + fstep / 2 > fmax) {
-		m_sweeping = false;
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	}
-	freq += fstep;
-	trans( *sg->freq()) = freq;
 	if( !shot_this[ *this].m_ftsum.size())
-		restart(tr, shot_this[ *this].m_calMode);
+		restart(tr, shot_ths[ *this].m_calMode);
+
+	double fstep = shot_this[ *this].m_sweepStep;
+	if(freq + fstep / 2 > fmax) {
+		writeTraceAndMakers(tr);
+		tr[ *this].m_sweeping = false;
+	}
 	throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 }
 void
 XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
-	XNetworkAnalyzer::visualize(shot);
+	if(shot[ *this].m_sweeping) {
+		double freq = shot[ *this].m_lastCenerFreq;
+		double fstep = shot_this[ *this].m_sweepStep;
+
+		freq += fstep;
+		trans( *sg->freq()) = freq; //setting new freq.
+	}
+	else
+		XNetworkAnalyzer::visualize(shot);
 }
 
