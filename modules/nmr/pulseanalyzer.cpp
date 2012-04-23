@@ -36,7 +36,6 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 			break;
 	}
 
-	clear();
 	XNetworkAnalyzer::start();
 }
 void
@@ -97,7 +96,8 @@ XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y)
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	restart(CAL_NONE);
+	bool firsttime = m_raw_open.empty();
+	restart(CAL_NONE, firsttime);
 
 	m_sweeping = true;
 	while(m_sweeping) {
