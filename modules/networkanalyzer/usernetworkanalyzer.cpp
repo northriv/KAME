@@ -54,10 +54,10 @@ XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
 	
 	start();
 
-	m_calOpen->setUIEnabled(false);
-	m_calShort->setUIEnabled(false);
-	m_calTerm->setUIEnabled(false);
-	m_calThru->setUIEnabled(false);
+	calOpen()->setUIEnabled(false);
+	calShort()->setUIEnabled(false);
+	calTerm()->setUIEnabled(false);
+	calThru()->setUIEnabled(false);
 }
 void 
 XAgilentNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {

@@ -53,10 +53,10 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
-	m_calOpen->setUIEnabled(false);
-	m_calShort->setUIEnabled(false);
-	m_calTerm->setUIEnabled(false);
-	m_calThru->setUIEnabled(false);
+	calOpen()->setUIEnabled(false);
+	calShort()->setUIEnabled(false);
+	calTerm()->setUIEnabled(false);
+	calThru()->setUIEnabled(false);
 
 	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
 	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
@@ -132,10 +132,11 @@ XNetworkAnalyzer::start() {
 	stopFreq()->setUIEnabled(true);
 	points()->setUIEnabled(true);
 	average()->setUIEnabled(true);
-	m_calOpen->setUIEnabled(true);
-	m_calShort->setUIEnabled(true);
-	m_calTerm->setUIEnabled(true);
-	m_calThru->setUIEnabled(true);
+	calOpen()->setUIEnabled(true);
+	calShort()->setUIEnabled(true);
+	calTerm()->setUIEnabled(true);
+	calThru()->setUIEnabled(true);
+
 }
 void
 XNetworkAnalyzer::stop() {
@@ -143,10 +144,10 @@ XNetworkAnalyzer::stop() {
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
-	m_calOpen->setUIEnabled(false);
-	m_calShort->setUIEnabled(false);
-	m_calTerm->setUIEnabled(false);
-	m_calThru->setUIEnabled(false);
+	calOpen()->setUIEnabled(false);
+	calShort()->setUIEnabled(false);
+	calTerm()->setUIEnabled(false);
+	calThru()->setUIEnabled(false);
   	
 	if(m_thread) m_thread->terminate();
 }

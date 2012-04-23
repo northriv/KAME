@@ -76,6 +76,10 @@ protected:
 	const shared_ptr<XDoubleNode> &stopFreq() const {return m_stopFreq;}
 	const shared_ptr<XComboNode> &points() const {return m_points;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
+	const shared_ptr<XTouchableNode> &calOpen() const {return m_calOpen;}
+	const shared_ptr<XTouchableNode> &calShort() const {return m_calShort;}
+	const shared_ptr<XTouchableNode> &calTerm() const {return m_calTerm;}
+	const shared_ptr<XTouchableNode> &calThru() const {return m_calThru;}
 protected:
 	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
