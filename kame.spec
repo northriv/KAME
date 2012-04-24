@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 3.2.3
+Version: 3.2.4
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -112,6 +112,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/libkame_magnetpscore*
 %{_libdir}/libkame_levelmetercore*
 %{_libdir}/libkame_networkanalyzercore*
+%{_libdir}/kame/modules/libcounter*
 %{_libdir}/kame/modules/libdcsource*
 %{_libdir}/kame/modules/libdmm*
 %{_libdir}/kame/modules/libdso*

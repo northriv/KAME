@@ -4,6 +4,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/kame/driver)
 
 add_subdirectory(charinterface)
+add_subdirectory(counter)
 add_subdirectory(dmm)
 add_subdirectory(dcsource)
 add_subdirectory(tempcontrol)

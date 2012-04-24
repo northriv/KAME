@@ -24,7 +24,7 @@ class XCharInterface : public XInterface {
 public:
 	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XCharInterface() {}
-   
+
 	//! Buffer is Thread-Local-Strage.
 	//! Therefore, be careful when you access multi-interfaces in one thread.
 	//! \sa XThreadLocal
