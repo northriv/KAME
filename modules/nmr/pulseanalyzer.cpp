@@ -37,6 +37,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		if(tr.commit())
 			break;
 	}
+	XNetworkAnalyzer::start();
 }
 void
 XNMRBuiltInNetworkAnalyzer::clear() {
@@ -74,18 +75,14 @@ void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
 	int pts = atoi(Snapshot( *this)[ *points()].to_str().c_str());
-	if(pts) {
-		XNetworkAnalyzer::start();
-	}
-	else {
+	if(!pts){
 		try {
 			startContSweep();
 		}
 		catch (XInterface::XInterfaceError &e) {
 			gErrPrint(e.msg());
 		}
-		stop();
-		trans( *points()).setUIEnabled(true);
+//		stop();
 	}
 }
 void
@@ -131,6 +128,8 @@ XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	Snapshot &shot_this(tr);
+
+	tr[ *this].m_sweeping = false;
 
 	int pts = atoi(shot_this[ *points()].to_str().c_str());
 	tr[ *this].m_sweepPoints = pts;
