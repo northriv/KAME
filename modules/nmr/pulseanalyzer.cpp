@@ -232,11 +232,14 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	auto ftsum = &tr[ *this].m_ftsum[0];
 	auto ftsum_weight = &tr[ *this].m_ftsum_weight[0];
 	auto rawopen = &tr[ *this].m_raw_open[0];
+	auto rawshort = &tr[ *this].m_raw_short[0];
 	auto rawterm = &tr[ *this].m_raw_term[0];
 	auto trace = &tr[ *this].trace_()[0];
 	for(unsigned int i = 0; i < pts; i++) {
 		ftsum[i] /= ftsum_weight[i];
-		trace[i] = 20.0 * log10(std::abs((ftsum[i] - rawterm[i])/ (rawopen[i] -  rawterm[i])));
+		auto z1 = - rawopen[i] / rawshort[i];
+		auto s11 = 1.0 - 2.0 / ((1.0 + z1) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - z1);
+		trace[i] = 20.0 * log10(std::abs(s11));
 	}
 
 	//Tracking markers.
