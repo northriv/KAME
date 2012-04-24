@@ -405,11 +405,11 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 		++ftsum_weight[j];
 	}
 	if( !shot_this[ *this].m_ftsum.size())
-		restart(tr, shot_ths[ *this].m_calMode);
+		restart(tr, shot_this[ *this].m_calMode);
 
 	double fstep = shot_this[ *this].m_sweepStep;
 	if(freq + fstep / 2 > fmax) {
-		writeTraceAndMakers(tr);
+		writeTraceAndMarkers(tr);
 		tr[ *this].m_sweeping = false;
 	}
 	throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
@@ -417,10 +417,11 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 void
 XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
 	if(shot[ *this].m_sweeping) {
-		double freq = shot[ *this].m_lastCenerFreq;
-		double fstep = shot_this[ *this].m_sweepStep;
+		double freq = shot[ *this].m_lastCenterFreq;
+		double fstep = shot[ *this].m_sweepStep;
 
 		freq += fstep;
+	    shared_ptr<XSG> sg = shot[ *m_sg];
 		trans( *sg->freq()) = freq; //setting new freq.
 	}
 	else
