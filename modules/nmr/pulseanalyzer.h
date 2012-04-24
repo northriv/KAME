@@ -89,7 +89,7 @@ private:
 
 	void clear();
 	void restart(Transaction &tr, int calmode, bool clear = false);
-	void restart(int calmode, bool clear = false);
+	bool restart(int calmode, bool clear = false);
 	enum {CAL_NONE = 0, CAL_OPEN = 1, CAL_SHORT = 2, CAL_TERM = 3, CAL_THRU = 4};
 
 	void writeTraceAndMarkers(Transaction &tr);

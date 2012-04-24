@@ -32,7 +32,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
-		tr[ *this].m_sweeping = true;
+		tr[ *this].m_sweeping = false;
 		if(tr.commit())
 			break;
 	}
@@ -74,7 +74,7 @@ void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
 	int pts = atoi(Snapshot( *this)[ *points()].to_str().c_str());
-	if(!pts){
+	if( !pts){
 		try {
 			startContSweep();
 		}
@@ -102,27 +102,30 @@ XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y)
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	restart(CAL_NONE);
-
+	bool ret = restart(CAL_NONE);
+	if( !ret)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	while(Snapshot( *this)[ *this].m_sweeping) {
 		msecsleep(30);
 	}
 }
-void
+bool
 XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
-	for(Transaction tr( *this);; ++tr) {
-		try {
+	try {
+		for(Transaction tr( *this);; ++tr) {
 			restart(tr, calmode, clear);
+			if(tr.commit()) {
+				break;
+			}
 		}
-		catch (XDriver::XSkippedRecordError &) {
-		}
-		catch (XInterface::XInterfaceError &e) {
-			gErrPrint(e.msg());
-		}
-		if(tr.commit()) {
-			break;
-		}
+		return true;
 	}
+	catch (XDriver::XSkippedRecordError &) {
+	}
+	catch (XInterface::XInterfaceError &e) {
+		gErrPrint(e.msg());
+	}
+	return false;
 }
 void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
@@ -159,6 +162,8 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	if( !dso)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
+	double interval = shot_dso[ *dso].timeInterval();
+
 	double fmax = shot_this[ *stopFreq()];
 	tr[ *this].m_sweepStop = fmax;
 	double fmin = shot_this[ *startFreq()];
@@ -174,12 +179,16 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 			throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 		tr[ *this].m_sweepStep = fstep;
 		trp[ *pulse->pulseAnalyzerMode()] = true;
-		trp[ *pulse->paPulseRept()] = std::max(2.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.2);
+		double rept_ms = std::max(2.0 / ((fmax - fmin) / (pts - 1)) * 1e-3 * 2, 0.2);
+		rept_ms = interval * 1e3 * lrint(rept_ms / (interval * 1e3)); //round to DSO interval.
+		trp[ *pulse->paPulseRept()] = rept_ms;
 		trp[ *pulse->output()] = true;
 		if(trp.commit()) {
 			break;
 		}
 	}
+
+	trans( *dso->average()) = lrint(0.04 / (interval * dso->length()));
 
 	trans( *sg->freq()) = fmin;
 
@@ -238,9 +247,9 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	auto trace = &tr[ *this].trace_()[0];
 	for(unsigned int i = 0; i < pts; i++) {
 		ftsum[i] /= ftsum_weight[i];
-		auto z1 = - rawopen[i] / rawshort[i];
-		auto s11 = 1.0 - 2.0 / ((1.0 + z1) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - z1);
-		trace[i] = 20.0 * log10(std::abs(s11));
+		auto zport_in = - rawopen[i] / rawshort[i]; //Impedance of the port connected to LNA.
+		auto s11_dut = 1.0 - 2.0 / ((1.0 + zport_in) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - zport_in);
+		trace[i] = 20.0 * log10(std::abs(s11_dut));
 	}
 
 	//Tracking markers.
@@ -424,6 +433,7 @@ XNMRBuiltInNetworkAnalyzer::visualize(const Snapshot &shot) {
 
 		freq += fstep;
 	    shared_ptr<XSG> sg = shot[ *m_sg];
+	    assert(sg);
 		trans( *sg->freq()) = freq; //setting new freq.
 	}
 	else
