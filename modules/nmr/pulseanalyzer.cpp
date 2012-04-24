@@ -32,12 +32,11 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
+		tr[ *points()].setUIEnabled(true);
 		tr[ *this].m_sweeping = false;
 		if(tr.commit())
 			break;
 	}
-
-	XNetworkAnalyzer::start();
 }
 void
 XNMRBuiltInNetworkAnalyzer::clear() {
@@ -75,14 +74,18 @@ void
 XNMRBuiltInNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
 	clear();
 	int pts = atoi(Snapshot( *this)[ *points()].to_str().c_str());
-	if( !pts) {
+	if(pts) {
+		XNetworkAnalyzer::start();
+	}
+	else {
 		try {
 			startContSweep();
 		}
 		catch (XInterface::XInterfaceError &e) {
 			gErrPrint(e.msg());
 		}
-//		stop();
+		stop();
+		trans( *points()).setUIEnabled(true);
 	}
 }
 void
@@ -128,6 +131,12 @@ XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	Snapshot &shot_this(tr);
+
+	int pts = atoi(shot_this[ *points()].to_str().c_str());
+	tr[ *this].m_sweepPoints = pts;
+	if( !pts)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
 	tr[ *this].m_ftsum.clear();
 	tr[ *this].m_ftsum_weight.clear();
 	tr[ *this].m_calMode = calmode;
@@ -150,11 +159,6 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	shared_ptr<XDSO> dso = shot_this[ *m_dso];
 	if( !dso)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-
-	int pts = atoi(shot_this[ *points()].to_str().c_str());
-	tr[ *this].m_sweepPoints = pts;
-	if( !pts)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	double fmax = shot_this[ *stopFreq()];
