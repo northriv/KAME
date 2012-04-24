@@ -32,8 +32,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
-		tr[ *points()].setUIEnabled(true);
-		tr[ *this].m_sweeping = false;
+		tr[ *this].m_sweeping = true;
 		if(tr.commit())
 			break;
 	}
@@ -129,7 +128,7 @@ void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	Snapshot &shot_this(tr);
 
-	tr[ *this].m_sweeping = false;
+	tr[ *this].m_sweeping = true;
 
 	int pts = atoi(shot_this[ *points()].to_str().c_str());
 	tr[ *this].m_sweepPoints = pts;
@@ -191,8 +190,6 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 			break;
 		}
 	}
-
-	tr[ *this].m_sweeping = true;
 }
 void
 XNMRBuiltInNetworkAnalyzer::startContSweep() {
