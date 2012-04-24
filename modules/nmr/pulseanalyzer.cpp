@@ -32,6 +32,7 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 		for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
+		tr[ *this].m_sweeping = false;
 		if(tr.commit())
 			break;
 	}
@@ -127,6 +128,20 @@ XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	Snapshot &shot_this(tr);
+	tr[ *this].m_ftsum.clear();
+	tr[ *this].m_ftsum_weight.clear();
+	tr[ *this].m_calMode = calmode;
+	if(clear || tr[ *this].m_raw_open.empty()) {
+		tr[ *this].m_raw_open.clear();
+		tr[ *this].m_raw_short.clear();
+		tr[ *this].m_raw_term.clear();
+		tr[ *this].m_raw_thru.clear();
+		tr[ *this].m_raw_open.resize(pts, 1.0);
+		tr[ *this].m_raw_short.resize(pts, -1.0);
+		tr[ *this].m_raw_term.resize(pts, 0.0);
+		tr[ *this].m_raw_thru.resize(pts, 1.0);
+	}
+
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
 	if( !pulse)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
@@ -172,20 +187,6 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		if(trd.commit()) {
 			break;
 		}
-	}
-
-	tr[ *this].m_ftsum.clear();
-	tr[ *this].m_ftsum_weight.clear();
-	tr[ *this].m_calMode = calmode;
-	if(clear || tr[ *this].m_raw_open.empty()) {
-		tr[ *this].m_raw_open.clear();
-		tr[ *this].m_raw_short.clear();
-		tr[ *this].m_raw_term.clear();
-		tr[ *this].m_raw_thru.clear();
-		tr[ *this].m_raw_open.resize(pts, 1.0);
-		tr[ *this].m_raw_short.resize(pts, -1.0);
-		tr[ *this].m_raw_term.resize(pts, 0.0);
-		tr[ *this].m_raw_thru.resize(pts, 1.0);
 	}
 
 	tr[ *this].m_sweeping = true;
@@ -404,9 +405,10 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 		ftsum[j] += m_fftout[i] * normalize;
 		++ftsum_weight[j];
 	}
-	if( !shot_this[ *this].m_ftsum.size())
+	if( !shot_this[ *this].m_ftsum.size()) {
 		restart(tr, shot_this[ *this].m_calMode);
-
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	}
 	double fstep = shot_this[ *this].m_sweepStep;
 	if(freq + fstep / 2 > fmax) {
 		writeTraceAndMarkers(tr);
