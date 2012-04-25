@@ -162,6 +162,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	if( !dso)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
+	Snapshot shot_dso( *dso);
 	double interval = shot_dso[ *dso].timeInterval();
 
 	double fmax = shot_this[ *stopFreq()];
@@ -188,7 +189,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	trans( *dso->average()) = lrint(0.04 / (interval * dso->length()));
+	trans( *dso->average()) = lrint(0.04 / (interval * shot_dso[ *dso].length()));
 
 	trans( *sg->freq()) = fmin;
 
