@@ -70,9 +70,14 @@ public:
 	
 	void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
 	void setSerialStopBits(unsigned int bits) {m_serialStopBits = bits;}
+	enum {PARITY_NONE = 0, PARITY_ODD = 1, PARITY_EVEN = 2};
+	void setSerialParity(unsigned int parity) {m_serialParity = parity;}
+	void setSerial7Bits(bool enable) {m_serial7bits = enable;}
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
+	unsigned int serialParity() const {return m_serialParity;}
+	bool serial7Bits() const {return m_serial7Bits;}
 
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
@@ -90,6 +95,8 @@ private:
   
 	unsigned int m_serialBaudRate;
 	unsigned int m_serialStopBits;
+	unsigned int m_serialParity;
+	bool m_serial7Bits;
 	
 	shared_ptr<XPort> m_xport;
 

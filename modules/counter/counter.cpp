@@ -19,7 +19,6 @@
 XCounter::XCounter(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriver(name, runtime, ref(tr_meas), meas) {
-
 }
 
 void
@@ -91,6 +90,9 @@ XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
     XCharDeviceDriver<XCounter>(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = {"Ch0", 0L};
 	createChannels(ref(tr_meas), meas, channels_create);
+
+	interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+	interface()->setSerial7Bits(true);
 	interface()->setEOS('\x03'); //ETX
 }
 

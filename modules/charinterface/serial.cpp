@@ -65,11 +65,21 @@ XPosixSerialPort::open() throw (XInterface::XCommError &) {
 	cfsetospeed( &ttyios, baudrate);
 	cfmakeraw( &ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
-	ttyios.c_cflag |= HUPCL | CLOCAL | CS8 | CREAD;
+	if(m_pInterface->serialParity() == XCharInterface::PARITY_EVEN)
+		ttyios.c_cflag |= PARENB;
+	if(m_pInterface->serialParity() == XCharInterface::PARITY_ODD)
+		ttyios.c_cflag |= PARENB | PARODD;
+	if(m_pInterface->serial7Bits())
+		ttyios.c_cflag |= CS7;
+	else
+		ttyios.c_cflag |= CS8;
+	ttyios.c_cflag |= HUPCL | CLOCAL | CREAD;
 	if(m_pInterface->serialStopBits() == 2)
 		ttyios.c_cflag |= CSTOPB;
 	ttyios.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); //non-canonical mode
-	ttyios.c_iflag |= IGNBRK | IGNPAR;
+	ttyios.c_iflag |= IGNBRK;
+	if(m_pInterface->serialParity() == XCharInterface::PARITY_NONE)
+		ttyios.c_iflag |= IGNPAR;
 	ttyios.c_cc[VMIN] = 0; //no min. size
 	ttyios.c_cc[VTIME] = 30; //3sec time-out
 	if(tcsetattr(m_scifd, TCSAFLUSH, &ttyios ) < 0)
