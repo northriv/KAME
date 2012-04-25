@@ -436,11 +436,9 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		}
 
 		//swaps generated pattern lists to new ones.
-		m_genPatternList.reset();
-		m_genPatternListNext.swap(m_genPatternList);
+		m_genPatternList = shot[ *this].m_genPatternListNext;
 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
-			m_genPulseWaveAO[j].reset();
-			m_genPulseWaveNextAO[j].swap(m_genPulseWaveAO[j]);
+			m_genPulseWaveAO[j] = shot[ *this].m_genPulseWaveNextAO[j];
 		}
 
 		//prepares ring buffers for pattern generation.
@@ -465,7 +463,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-			std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+			std::vector<tRawAOSet> zeros(cnt_prezeros, shot[ *this].m_genAOZeroLevel);
 			int32 samps;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
 												false, 0.5,
@@ -817,14 +815,14 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 void
 XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
-	m_genPatternListNext.reset(new std::vector<GenPattern>);
+	tr[ *this].m_genPatternListNext.reset(new std::vector<GenPattern>);
 	uint32_t pat = shot[ *this].relPatList().back().pattern;
 	for(Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {
 		uint64_t tonext = it->toappear;
 
 		GenPattern genpat(pat, tonext);
-		m_genPatternListNext->push_back(genpat);
+		tr[ *this].m_genPatternListNext->push_back(genpat);
 		pat = it->pattern;
 	}
 
@@ -836,21 +834,21 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 			//arranges range info.
 			double x = 1.0;
 			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-				m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
+				tr[ *this].m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
 					+ ((i == 0) ? offset[ch] : 0);
 				x *= level[ch];
 			}
 		}
-	    m_genAOZeroLevel = aoVoltToRaw(std::complex<double>(0.0));
+		tr[ *this].m_genAOZeroLevel = aoVoltToRaw(std::complex<double>(0.0));
 		std::complex<double> c(pow(10.0, shot[ *this].masterLevel() / 20.0), 0);
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
 				const unsigned int pnum = i * (PAT_QAM_PULSE_IDX/PAT_QAM_PHASE) + qpsk;
-				m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
+				tr[ *this].m_genPulseWaveNextAO[pnum].reset(new std::vector<tRawAOSet>);
 				for(std::vector<std::complex<double> >::const_iterator it =
 						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 					std::complex<double> z( *it * c);
-					m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
+					tr[ *this].m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
 				}
 				c *= std::complex<double>(0,1);
 			}
@@ -866,7 +864,7 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*b
 		return;
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	if(output) {
-		if( !m_genPatternListNext || m_genPatternListNext->empty() )
+		if( !shot[ *this].m_genPatternListNext || shot[ *this].m_genPatternListNext->empty() )
 			throw XInterface::XInterfaceError(i18n("Pulser Invalid pattern"), __FILE__, __LINE__);
 		startPulseGen(shot);
 	}

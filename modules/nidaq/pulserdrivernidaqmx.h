@@ -29,8 +29,17 @@ public:
     //! time resolution [ms]
     virtual double resolution() const {return m_resolutionDO;}
 
-    struct Payload : public XNIDAQmxDriver<XPulser>::Payload {
+private:
+	enum { CAL_POLY_ORDER = 4};
+public:
+	struct Payload : public XNIDAQmxDriver<XPulser>::Payload {
     private:
+    	//! The pattern passed from \a XPulser to be output.
+		//! \sa createNativePatterns()
+    	shared_ptr<std::vector<GenPattern> > m_genPatternListNext;
+    	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+    	tRawAOSet m_genAOZeroLevel;
+    	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
     	friend class XNIDAQmxPulser;
     };
 protected:
@@ -76,8 +85,8 @@ private:
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
-	unique_ptr<std::vector<GenPattern> > m_genPatternList;
-	unique_ptr<std::vector<GenPattern> > m_genPatternListNext;
+	shared_ptr<std::vector<GenPattern> > m_genPatternList;
+
 	typedef std::vector<GenPattern>::iterator GenPatternIterator;
 
 	GenPatternIterator m_genLastPatIt;
@@ -154,12 +163,7 @@ private:
 	RingBuffer<tRawDO> m_patBufDO; //!< Buffer containing generated patterns for DO.
 	RingBuffer<tRawAOSet>  m_patBufAO; //!< Buffer containing generated patterns for AO.
 
-	tRawAOSet m_genAOZeroLevel;
-
-	unique_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
-	unique_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
-	enum { CAL_POLY_ORDER = 4};
-	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
+	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
