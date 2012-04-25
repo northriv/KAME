@@ -260,6 +260,7 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
  * (i) TPA (tesla per ampere) has been set properly.
  * (ii) PCSH is fitted.
  */
+    interface()->setEOS("\r\n");
 }
 void
 XCryogenicSMS::changePauseState(bool pause) {
@@ -435,11 +436,20 @@ XCryogenicSMS::getPersistentField() {
 	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("GET PER");
+	interface()->send(
+		"GET PER\r\n" //"GET PER" does not return value+delimiter if PER hasn't been recorded.
+		"GET OUTPUT"); //Dummy, workaround against the damn firmware.
 	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d PER: %lf", &x) != 1)
-		return getOutputField(); //it does not return value if PER hasn't been recorded.
-	return x;
+	if(interface()->scanf("%*2d:%*2d:%*2d PER: %lf", &x) != 1) {
+		return 0.0;
+	}
+	else {
+		interface()->receive(); //For output.
+		double y;
+		if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &y) != 1)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		return x;
+	}
 }
 double
 XCryogenicSMS::getOutputVolt() {

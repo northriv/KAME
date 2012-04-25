@@ -68,6 +68,7 @@ public:
 	int gpibWaitBeforeSPoll() const {return m_gpibWaitBeforeSPoll;}
 	unsigned char gpibMAVbit() const {return m_gpibMAVbit;}
 	
+	//! These properties should be set before open().
 	void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
 	void setSerialStopBits(unsigned int bits) {m_serialStopBits = bits;}
 	enum {PARITY_NONE = 0, PARITY_ODD = 1, PARITY_EVEN = 2};
