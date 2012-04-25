@@ -440,6 +440,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
 			m_genPulseWaveAO[j] = shot[ *this].m_genPulseWaveNextAO[j];
 		}
+		m_genAOZeroLevel = shot[ *this].m_genAOZeroLevelNext;
 
 		//prepares ring buffers for pattern generation.
 		m_genLastPatIt = m_genPatternList->begin();
@@ -463,7 +464,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 			CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 			const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-			std::vector<tRawAOSet> zeros(cnt_prezeros, shot[ *this].m_genAOZeroLevel);
+			std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
 			int32 samps;
 			CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
 												false, 0.5,
@@ -585,13 +586,13 @@ XNIDAQmxPulser::abortPulseGen() {
 }
 
 inline XNIDAQmxPulser::tRawAOSet
-XNIDAQmxPulser::aoVoltToRaw(const std::complex<double> &volt) {
+XNIDAQmxPulser::aoVoltToRaw(double poly_coeff[NUM_AO_CH][], const std::complex<double> &volt) {
 	const double volts[] = {volt.real(), volt.imag()};
 	tRawAOSet z;
-	for(unsigned int ch = 0; ch < 2; ch++) {
+	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		double x = 1.0;
 		double y = 0.0;
-		double *pco = m_coeffAO[ch];
+		double *pco = poly_coeff[ch];
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			y += ( *pco++) * x;
 			x *= volts[ch];
@@ -827,19 +828,20 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 	}
 
 	if(hasQAMPorts()) {
-		const double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
-		const double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
+		double offset[] = { shot[ *qamOffset1()], shot[ *qamOffset2()]};
+		double level[] = { shot[ *qamLevel1()], shot[ *qamLevel2()]};
+    	double coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
 
 		for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 			//arranges range info.
 			double x = 1.0;
 			for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-				tr[ *this].m_coeffAO[ch][i] = m_coeffAODev[ch][i] * x
+				coeffAO[ch][i] = m_coeffAODev[ch][i] * x
 					+ ((i == 0) ? offset[ch] : 0);
 				x *= level[ch];
 			}
 		}
-		tr[ *this].m_genAOZeroLevel = aoVoltToRaw(std::complex<double>(0.0));
+		tr[ *this].m_genAOZeroLevelNext = aoVoltToRaw(coeffAO, std::complex<double>(0.0));
 		std::complex<double> c(pow(10.0, shot[ *this].masterLevel() / 20.0), 0);
 		for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++) {
 			for(unsigned int qpsk = 0; qpsk < 4; qpsk++) {
@@ -848,7 +850,7 @@ XNIDAQmxPulser::createNativePatterns(Transaction &tr) {
 				for(std::vector<std::complex<double> >::const_iterator it =
 						shot[ *this].qamWaveForm(i).begin(); it != shot[ *this].qamWaveForm(i).end(); it++) {
 					std::complex<double> z( *it * c);
-					tr[ *this].m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(z));
+					tr[ *this].m_genPulseWaveNextAO[pnum]->push_back(aoVoltToRaw(coeffAO, z));
 				}
 				c *= std::complex<double>(0,1);
 			}

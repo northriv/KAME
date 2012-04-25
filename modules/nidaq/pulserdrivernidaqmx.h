@@ -38,8 +38,7 @@ public:
 		//! \sa createNativePatterns()
     	shared_ptr<std::vector<GenPattern> > m_genPatternListNext;
     	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
-    	tRawAOSet m_genAOZeroLevel;
-    	double m_coeffAO[NUM_AO_CH][CAL_POLY_ORDER];
+    	tRawAOSet m_genAOZeroLevelNext;
     	friend class XNIDAQmxPulser;
     };
 protected:
@@ -164,11 +163,13 @@ private:
 	RingBuffer<tRawAOSet>  m_patBufAO; //!< Buffer containing generated patterns for AO.
 
 	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveAO[PAT_QAM_MASK / PAT_QAM_PHASE];
+	tRawAOSet m_genAOZeroLevel;
+
 	double m_coeffAODev[NUM_AO_CH][CAL_POLY_ORDER];
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
 	//! Converts voltage to an internal value for DAC and compensates it.
-	inline tRawAOSet aoVoltToRaw(const std::complex<double> &volt);
+	inline tRawAOSet aoVoltToRaw(double poly_coeff[NUM_AO_CH][], const std::complex<double> &volt);
 
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriter;
 	bool m_isThreadWriterReady; //!< indicates DAQmx lib. has been (partially) filled with generated patterns.
