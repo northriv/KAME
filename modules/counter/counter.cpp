@@ -95,20 +95,17 @@ XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 double
 XMutohCounterNPS::getLevel(unsigned int ch) {
 	XScopedLock<XInterface> lock( *interface());
-	char req[] = "\x02 00F102"; //1st char is STX
-	interface()->send(req);
+	interface()->send("\x02 00F102");
 	int fun2;
 	if(interface()->scanf("00F202%d", &fun2) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	char req[] = "\x02 00F105"; //1st char is STX
-	interface()->send(req);
+	interface()->send("\x02 00F105");
 	int fun5;
 	if(interface()->scanf("00F205%d", &fun5) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	char req[] = "\x02 00P1"; //1st char is STX
-	interface()->send(req);
+	interface()->send("\x02 00P1");
 	int x;
 	if(interface()->scanf("00P2%d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
