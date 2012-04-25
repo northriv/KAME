@@ -163,7 +163,16 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 
 	Snapshot shot_dso( *dso);
-	double interval = shot_dso[ *dso].timeInterval();
+	double interval;
+	int dso_len;
+	if( !shot_dos[ *dso].time() || !shot_dos[ *dso].numChannels()) {
+		interval = 1e-6; //temporary
+		dso_len = 10000; //temporary
+	}
+	else {
+		interval = shot_dso[ *dso].timeInterval();
+		dso_len = shot_dso[ *dso].length();
+	}
 
 	double fmax = shot_this[ *stopFreq()];
 	tr[ *this].m_sweepStop = fmax;
@@ -189,7 +198,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	trans( *dso->average()) = lrint(0.04 / (interval * shot_dso[ *dso].length()));
+	trans( *dso->average()) = std::max(1L, lrint(0.04 / (interval * dso_len)));
 
 	trans( *sg->freq()) = fmin;
 
