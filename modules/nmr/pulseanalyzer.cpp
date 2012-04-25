@@ -198,7 +198,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	trans( *dso->average()) = std::max(1L, lrint(0.04 / (interval * dso_len)));
+	trans( *dso->average()) = std::max(1L, lrint(0.04 / (interval * dso_len))) * shot_this[ *average()];
 
 	trans( *sg->freq()) = fmin;
 
