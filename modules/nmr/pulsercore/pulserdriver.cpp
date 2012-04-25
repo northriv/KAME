@@ -212,7 +212,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *combFunc()] = PULSE_NO_HAMMING; //Hamming
 
 	    tr[ *paPulseRept()] = 1; //ms
-	    tr[ *paPulseBW()] = 500.0; //kHz
+	    tr[ *paPulseBW()] = 1000.0; //kHz
 
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
