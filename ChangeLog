@@ -1,4 +1,8 @@
-* Thu Apr 25 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+* Thu Apr 26 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.5-1)
+- pulserdrivernidaqmx: Fix for non-thread-safe startup.
+
+* Wed Apr 25 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.4-1)
 - counter: Mutoh Digital Counter NPS, for encoders.
 
