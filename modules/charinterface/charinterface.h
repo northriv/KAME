@@ -72,7 +72,7 @@ public:
 	void setSerialStopBits(unsigned int bits) {m_serialStopBits = bits;}
 	enum {PARITY_NONE = 0, PARITY_ODD = 1, PARITY_EVEN = 2};
 	void setSerialParity(unsigned int parity) {m_serialParity = parity;}
-	void setSerial7Bits(bool enable) {m_serial7bits = enable;}
+	void setSerial7Bits(bool enable) {m_serial7Bits = enable;}
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
