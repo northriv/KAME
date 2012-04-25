@@ -165,7 +165,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	Snapshot shot_dso( *dso);
 	double interval;
 	int dso_len;
-	if( !shot_dos[ *dso].time() || !shot_dos[ *dso].numChannels()) {
+	if( !shot_dso[ *dso].time() || !shot_dso[ *dso].numChannels()) {
 		interval = 1e-6; //temporary
 		dso_len = 10000; //temporary
 	}
