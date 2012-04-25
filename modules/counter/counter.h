@@ -17,6 +17,8 @@
 #include "primarydriver.h"
 #include "xnodeconnector.h"
 
+class XScalarEntry;
+
 class XCounter : public XPrimaryDriver {
 public:
 	XCounter(const char *name, bool runtime,
@@ -50,19 +52,21 @@ protected:
 	virtual double getLevel(unsigned int ch) = 0;
 private:
 
-	shared_ptr<XThread<XLevelMeter> > m_thread;
+	shared_ptr<XThread<XCounter> > m_thread;
 
 	std::deque<shared_ptr<XScalarEntry> > m_entries;
 
 	void *execute(const atomic<bool> &);
 };
 
+#include "chardevicedriver.h"
+
 //! Mutoh Digital Counter NPS
 class XMutohCounterNPS : public XCharDeviceDriver<XCounter> {
 public:
 	XMutohCounterNPS(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XMutohCounteNPSr() {}
+	virtual ~XMutohCounterNPS() {}
 protected:
 	virtual double getLevel(unsigned int ch);
 };

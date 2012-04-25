@@ -23,7 +23,7 @@ XCounter::XCounter(const char *name, bool runtime,
 
 void
 XCounter::start() {
-	m_thread.reset(new XThread<XLevelMeter>(shared_from_this(), &XLevelMeter::execute));
+	m_thread.reset(new XThread<XCounter>(shared_from_this(), &XCounter::execute));
 	m_thread->resume();
 }
 void
@@ -33,9 +33,8 @@ XCounter::stop() {
 
 void
 XCounter::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
-	for(unsigned int ch = 0; ch < tr[ *this].m_levels.size(); ch++) {
-		tr[ *this].m_levels[ch] = reader.pop<double>();
-		m_entries[ch]->value(tr, tr[ *this].m_levels[ch]);
+	for(unsigned int ch = 0; ch < m_entries.size(); ch++) {
+		m_entries[ch]->value(tr, reader.pop<double>());
 	}
 }
 void
@@ -53,12 +52,6 @@ XCounter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
 	     m_entries.push_back(entry);
 	     entries->insert(tr_meas, entry);
     }
-  for(Transaction tr( *this);; ++tr) {
-	tr[ *this].m_levels.resize(m_entries.size());
-  	if(tr.commit()) {
-  		break;
-  	}
-  }
 }
 void *
 XCounter::execute(const atomic<bool> &terminated) {
@@ -83,7 +76,10 @@ XCounter::execute(const atomic<bool> &terminated) {
 	return NULL;
 }
 
-REGISTER_TYPE(XDriverList, MutohCounter, "Mutoh Digital Counter NPS");
+#include "charinterface.h"
+#include "analyzer.h"
+
+REGISTER_TYPE(XDriverList, MutohCounterNPS, "Mutoh Digital Counter NPS");
 
 XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -93,29 +89,29 @@ XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 
 	interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 	interface()->setSerial7Bits(true);
-	interface()->setEOS('\x03'); //ETX
+	interface()->setEOS("\x03"); //ETX
 }
 
 double
 XMutohCounterNPS::getLevel(unsigned int ch) {
 	XScopedLock<XInterface> lock( *interface());
-	char req[] = "\x0200F102"; //1st char is STX
+	char req[] = "\x02 00F102"; //1st char is STX
 	interface()->send(req);
 	int fun2;
 	if(interface()->scanf("00F202%d", &fun2) != 1)
-		throw XInterface::XInterfaceError(__FILE__, __LINE__);
+		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	char req[] = "\x0200F105"; //1st char is STX
+	char req[] = "\x02 00F105"; //1st char is STX
 	interface()->send(req);
 	int fun5;
 	if(interface()->scanf("00F205%d", &fun5) != 1)
-		throw XInterface::XInterfaceError(__FILE__, __LINE__);
+		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	char req[] = "\x0200P1"; //1st char is STX
+	char req[] = "\x02 00P1"; //1st char is STX
 	interface()->send(req);
 	int x;
 	if(interface()->scanf("00P2%d", &x) != 1)
-		throw XInterface::XInterfaceError(__FILE__, __LINE__);
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	double z;
 	switch(fun5) {
 	case 00:
@@ -140,7 +136,7 @@ XMutohCounterNPS::getLevel(unsigned int ch) {
 		z = x / 10;
 		break;
 	default:
-		throw XInterface::XInterfaceError(__FILE__, __LINE__);
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	}
 	return z;
 }
