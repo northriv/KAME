@@ -205,6 +205,7 @@ XWaveNGraph::Payload::setRowCount(unsigned int n) {
 
 void
 XWaveNGraph::onIconChanged(const Snapshot &shot, bool v) {
+	if( !m_conDump->isAlive()) return;
 	KIconLoader *loader = KIconLoader::global();
 	if( !v)
 		m_btnDump->setIcon(loader->loadIcon("document-save", KIconLoader::Toolbar,
