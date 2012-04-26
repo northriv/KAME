@@ -268,13 +268,14 @@ XCryogenicSMS::changePauseState(bool pause) {
 //	XScopedLock<XInterface> lock( *interface());
 	interface()->query("PAUSE");
 	char buf[10];
-	if(interface()->scanf("%*s PAUSE STATUS: %4s", &buf) != 1)
+	if(interface()->scanf("%*s PAUSE STATUS: %4s", buf) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
 	if( !strncmp("ON", buf, 2)) {
 		if(pause)
 			return;
 		interface()->query("PAUSE OFF");
 		char buf[10];
-		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", &buf) != 1)
+		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", buf) != 1)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
 		interface()->receive();
 		double x;
@@ -286,7 +287,7 @@ XCryogenicSMS::changePauseState(bool pause) {
 		if( !pause)
 			return;
 		interface()->query("PAUSE ON");
-		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", &buf) != 1)
+		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", buf) != 1)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
 		interface()->receive();
 		double x;
@@ -301,7 +302,7 @@ XCryogenicSMS::toPersistent() {
 	changePauseState(true);
 	interface()->query("HEATER OFF");
 	char buf[12];
-	if(interface()->scanf("%*s HEATER STATUS: %10s", &buf) != 1)
+	if(interface()->scanf("%*s HEATER STATUS: %10s", buf) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
@@ -310,25 +311,27 @@ XCryogenicSMS::toNonPersistent() {
 	changePauseState(true);
 	interface()->query("HEATER ON");
 	char buf[12];
-	if(interface()->scanf("%*s HEATER STATUS: %10s", &buf) != 1)
+	if(interface()->scanf("%*s HEATER STATUS: %10s", buf) != 1)
         throw XInterface::XInterfaceError(
 			i18n("Cannot activate heater."), __FILE__, __LINE__);
 }
 void
 XCryogenicSMS::toZero() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("RAMP ZERO");
+	interface()->send("RAMP ZERO");
+//	interface()->query("RAMP ZERO");
 //	char buf[4];
-//	if(interface()->scanf("%*2d:%*2d:%*2d RAMP TARGET: %4s", &buf) != 1)
+//	if(interface()->scanf("%*2d:%*2d:%*2d RAMP TARGET: %4s", buf) != 1)
 //		throw XInterface::XConvError(__FILE__, __LINE__);
 	changePauseState(false);
 }
 void
 XCryogenicSMS::toSetPoint() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("RAMP MID");
+	interface()->send("RAMP MID");
+//	interface()->query("RAMP MID");
 //	char buf[4];
-//	if(interface()->scanf("%*2d:%*2d:%*2d RAMP TARGET: %4s", &buf) != 1)
+//	if(interface()->scanf("%*2d:%*2d:%*2d RAMP TARGET: %4s", buf) != 1)
 //		throw XInterface::XConvError(__FILE__, __LINE__);
 	changePauseState(false);
 }
@@ -338,27 +341,25 @@ XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("GET OUTPUT");
-	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	if(fabs(x) > fieldResolution()) {
-        throw XInterface::XInterfaceError(
-			i18n("First you should set to zero."), __FILE__, __LINE__);
-	}
-	if((x > 0) && (field < 0.0)) {
-		interface()->queryf("SET DIRECTION -");
-		if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", &buf) != 1)
+	if(x * field < 0.0) {
+		interface()->query("GET OUTPUT");
+		double x;
+		if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-	}
-	if((x < 0) && (field > 0.0)) {
-		interface()->queryf("SET DIRECTION +");
-		if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", &buf) != 1)
-			throw XInterface::XConvError(__FILE__, __LINE__);
+		if(fabs(x) > fieldResolution()) {
+			throw XInterface::XInterfaceError(
+				i18n("First you should set to zero."), __FILE__, __LINE__);
+		}
+		if(field < 0.0)
+			interface()->queryf("SET DIRECTION -");
+		else
+			interface()->queryf("SET DIRECTION +");
 
+		if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
+			throw XInterface::XConvError(__FILE__, __LINE__);
 	}
 	interface()->queryf("SET MID %.5f", fabs(field));
 	if(interface()->scanf("%*2d:%*2d:%*2d MID SETTING: %lf", &x) != 1)
@@ -382,7 +383,7 @@ XCryogenicSMS::getTargetField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET MID");
@@ -396,7 +397,7 @@ XCryogenicSMS::getSweepRate() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET TPA");
@@ -415,7 +416,7 @@ XCryogenicSMS::getOutputField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET OUTPUT");
@@ -433,7 +434,7 @@ XCryogenicSMS::getPersistentField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query(
@@ -455,7 +456,7 @@ double
 XCryogenicSMS::getOutputVolt() {
 	interface()->query("GET OUTPUT");
 	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %*lf %*s AT %lf", &x) != 1)
+	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %*s %*s AT %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	return x;
 }
@@ -464,7 +465,7 @@ XCryogenicSMS::getOutputCurrent() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA OFF");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET OUTPUT");
@@ -480,7 +481,7 @@ bool
 XCryogenicSMS::isPCSHeaterOn() {
 	interface()->query("HEATER");
 	char buf[10];
-	if(interface()->scanf("%*s HEATER STATUS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s HEATER STATUS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	if( !strncmp("ON", buf, 2))
 		return true;
