@@ -226,7 +226,7 @@ XLI5640::changeOutput(double x) {
 		range = 1;
 	if(x < 0.05)
 		range = 0;
-	interface()->sendf("AMPL %f %d", x, range);
+	interface()->sendf("AMPL %f,%d", x, range);
 }
 void
 XLI5640::changeSensitivity(int x) {
