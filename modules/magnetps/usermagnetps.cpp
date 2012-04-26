@@ -338,7 +338,7 @@ XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET OUTPUT");
@@ -366,9 +366,9 @@ XCryogenicSMS::setPoint(double field) {
 }
 void
 XCryogenicSMS::setRate(double hpm) {
-	interface()->query("SET TPA");
+	interface()->query("GET TPA");
 	double tesla_per_amp;
-	if(interface()->scanf("%*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
+	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	double amp_per_sec = hpm / 60.0 / tesla_per_amp;
@@ -382,7 +382,7 @@ XCryogenicSMS::getTargetField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET MID");
@@ -396,7 +396,7 @@ XCryogenicSMS::getSweepRate() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("SET TPA");
@@ -415,7 +415,7 @@ XCryogenicSMS::getOutputField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET OUTPUT");
@@ -433,7 +433,7 @@ XCryogenicSMS::getPersistentField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", &buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->send(

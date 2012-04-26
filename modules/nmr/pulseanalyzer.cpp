@@ -111,21 +111,23 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 }
 bool
 XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
-	try {
-		for(Transaction tr( *this);; ++tr) {
+	bool ret = false;
+	for(Transaction tr( *this);; ++tr) {
+		try {
+			ret = false;
 			restart(tr, calmode, clear);
-			if(tr.commit()) {
-				break;
-			}
+			ret = true;
 		}
-		return true;
+		catch (XDriver::XSkippedRecordError &) {
+		}
+		catch (XInterface::XInterfaceError &e) {
+			gErrPrint(e.msg());
+		}
+		if(tr.commit()) {
+			break;
+		}
 	}
-	catch (XDriver::XSkippedRecordError &) {
-	}
-	catch (XInterface::XInterfaceError &e) {
-		gErrPrint(e.msg());
-	}
-	return false;
+	return ret;
 }
 void
 XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
@@ -198,7 +200,8 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	trans( *dso->average()) = std::max(1L, lrint(0.03 / (interval * dso_len))) * std::min(1, shot_this[ *average()]);
+	int avg = std::max(1L, lrint(0.03 / (interval * dso_len))) * std::min(1, shot_this[ *average()]);
+	trans( *dso->average()) = (avg + 3) / 4 * 4; //round to phase cycling for NMR.
 
 	trans( *sg->freq()) = fmin;
 
