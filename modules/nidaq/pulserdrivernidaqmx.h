@@ -30,16 +30,26 @@ public:
     virtual double resolution() const {return m_resolutionDO;}
 
 private:
+	enum { NUM_AO_CH = 2};
 	enum { CAL_POLY_ORDER = 4};
+ 	typedef int16 tRawAO;
+	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
+	typedef uInt16 tRawDO;
+	struct GenPattern {
+		GenPattern(uint32_t pat, uint64_t next) :
+	        pattern(pat), tonext(next) {}
+		uint32_t pattern;
+		uint64_t tonext; //!< in samps for buffer.
+	};
 public:
 	struct Payload : public XNIDAQmxDriver<XPulser>::Payload {
     private:
+    	friend class XNIDAQmxPulser;
     	//! The pattern passed from \a XPulser to be output.
 		//! \sa createNativePatterns()
     	shared_ptr<std::vector<GenPattern> > m_genPatternListNext;
     	shared_ptr<std::vector<tRawAOSet> > m_genPulseWaveNextAO[PAT_QAM_MASK / PAT_QAM_PHASE];
     	tRawAOSet m_genAOZeroLevelNext;
-    	friend class XNIDAQmxPulser;
     };
 protected:
 	virtual void open() throw (XInterface::XInterfaceError &) = 0;
@@ -72,15 +82,6 @@ private:
 	void setupTasksDO(bool use_ao_clock);
 	void setupTasksAODO();
 
- 	typedef int16 tRawAO;
-	typedef uInt16 tRawDO;
-	struct GenPattern {
-		GenPattern(uint32_t pat, uint64_t next) :
-	        pattern(pat), tonext(next) {}
-		uint32_t pattern;
-		uint64_t tonext; //!< in samps for buffer.
-	};
-
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
@@ -90,7 +91,7 @@ private:
 
 	GenPatternIterator m_genLastPatIt;
 	uint64_t m_genRestSamps;
-	enum { NUM_AO_CH = 2};
+
 	unsigned int m_genAOIndex; //!< Preserved index for \a m_genPulseWaveAO[], \sa fillBuffer().
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit; //!< Pausing bit triggers counter that stops DO/AO for a certain period.
@@ -158,7 +159,7 @@ private:
 		atomic<ssize_t> m_end;
 		std::vector<T> m_data;
 	};
-	typedef struct {tRawAO ch[NUM_AO_CH];} tRawAOSet;
+
 	RingBuffer<tRawDO> m_patBufDO; //!< Buffer containing generated patterns for DO.
 	RingBuffer<tRawAOSet>  m_patBufAO; //!< Buffer containing generated patterns for AO.
 
@@ -169,7 +170,7 @@ private:
 	double m_upperLimAO[NUM_AO_CH];
 	double m_lowerLimAO[NUM_AO_CH];
 	//! Converts voltage to an internal value for DAC and compensates it.
-	inline tRawAOSet aoVoltToRaw(double poly_coeff[NUM_AO_CH][], const std::complex<double> &volt);
+	inline tRawAOSet aoVoltToRaw(const double poly_coeff[NUM_AO_CH][CAL_POLY_ORDER], const std::complex<double> &volt);
 
 	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriter;
 	bool m_isThreadWriterReady; //!< indicates DAQmx lib. has been (partially) filled with generated patterns.

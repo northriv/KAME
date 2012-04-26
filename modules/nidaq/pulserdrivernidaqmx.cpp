@@ -435,7 +435,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfac
 							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 		}
 
-		//swaps generated pattern lists to new ones.
+		//Copies generated pattern from Payload.
 		m_genPatternList = shot[ *this].m_genPatternListNext;
 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
 			m_genPulseWaveAO[j] = shot[ *this].m_genPulseWaveNextAO[j];
@@ -586,13 +586,13 @@ XNIDAQmxPulser::abortPulseGen() {
 }
 
 inline XNIDAQmxPulser::tRawAOSet
-XNIDAQmxPulser::aoVoltToRaw(double poly_coeff[NUM_AO_CH][], const std::complex<double> &volt) {
+XNIDAQmxPulser::aoVoltToRaw(const double poly_coeff[NUM_AO_CH][CAL_POLY_ORDER], const std::complex<double> &volt) {
 	const double volts[] = {volt.real(), volt.imag()};
 	tRawAOSet z;
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		double x = 1.0;
 		double y = 0.0;
-		double *pco = poly_coeff[ch];
+		const double *pco = poly_coeff[ch];
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			y += ( *pco++) * x;
 			x *= volts[ch];
