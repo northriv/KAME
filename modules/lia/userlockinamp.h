@@ -17,7 +17,7 @@
 #include "lockinamp.h"
 #include "chardevicedriver.h"
 //---------------------------------------------------------------------------
-//Stanford Research SR830 Lock-in Amplifier
+//! Stanford Research SR830 Lock-in Amplifier
 class XSR830 : public XCharDeviceDriver<XLIA> {
 public:
 	XSR830(const char *name, bool runtime,
@@ -37,7 +37,28 @@ protected:
 	int m_cCount;
 };
 
-//ANDEEN HAGERLING 2500A 1kHz Ultra-Precision Capcitance Bridge
+//! NF LI 5640 Lock-in Amplifier
+class XLI5640 : public XCharDeviceDriver<XLIA> {
+public:
+	XLI5640(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+protected:
+	virtual void get(double *cos, double *sin);
+	virtual void changeOutput(double volt);
+	virtual void changeFreq(double freq);
+	virtual void changeSensitivity(int);
+	virtual void changeTimeConst(int);
+
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XInterface::XInterfaceError &);
+	//! Be called for closing interfaces.
+	virtual void afterStop();
+
+	int m_cCount;
+	bool m_currMode;
+};
+
+//! ANDEEN HAGERLING 2500A 1kHz Ultra-Precision Capcitance Bridge
 class XAH2500A : public XCharDeviceDriver<XLIA> {
 public:
 	XAH2500A(const char *name, bool runtime,

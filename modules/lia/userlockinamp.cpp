@@ -158,7 +158,7 @@ XLI5640::get(double *cos, double *sin) {
 	bool autoscale_x = shot[ *autoScaleX()];
 	bool autoscale_y = shot[ *autoScaleY()];
 	interface()->query("DOUT?");
-	if(interface()->scanf("%lf,%lf,%d", cos, sin,sidx) != 3)
+	if(interface()->scanf("%lf,%lf,%d", cos, sin, &sidx) != 3)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	if(autoscale_x || autoscale_y) {
@@ -171,7 +171,7 @@ XLI5640::get(double *cos, double *sin) {
 	}
 	if((autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
 	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)))
-		trans( *sensitivity()) = idx + 1;
+		trans( *sensitivity()) = sidx + 1;
 	if((autoscale_x && (sqrt( *cos * *cos) < sens * 0.2)) ||
 	   (autoscale_y && (sqrt( *sin * *sin) < sens * 0.2))) {
 		m_cCount--;
