@@ -1,4 +1,8 @@
 * Thu Apr 26 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.6-1)
+- userlockinamp: NF LI5640
+
+* Thu Apr 26 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.5-1)
 - pulserdrivernidaqmx: Fix for non-thread-safe startup.
 
