@@ -198,7 +198,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	trans( *dso->average()) = std::max(1L, lrint(0.06 / (interval * dso_len))) * shot_this[ *average()];
+	trans( *dso->average()) = std::max(1L, lrint(0.03 / (interval * dso_len))) * std::min(1, shot_this[ *average()]);
 
 	trans( *sg->freq()) = fmin;
 
@@ -251,30 +251,11 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 
 	auto ftsum = &tr[ *this].m_ftsum[0];
 	auto ftsum_weight = &tr[ *this].m_ftsum_weight[0];
-	auto rawopen = &tr[ *this].m_raw_open[0];
-	auto rawshort = &tr[ *this].m_raw_short[0];
-	auto rawterm = &tr[ *this].m_raw_term[0];
-	auto trace = &tr[ *this].trace_()[0];
 	for(unsigned int i = 0; i < pts; i++) {
 		ftsum[i] /= ftsum_weight[i];
-		auto zport_in = - rawopen[i] / rawshort[i]; //Impedance of the port connected to LNA.
-		auto s11_dut = 1.0 - 2.0 / ((1.0 + zport_in) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - zport_in);
-		trace[i] = 20.0 * log10(std::abs(s11_dut));
 	}
 
-	//Tracking markers.
-	auto &mkmin = tr[ *this].m_marker_min;
-	mkmin.second = 1000;
-	auto &mkmax = tr[ *this].m_marker_max;
-	mkmax.second = -1000;
-	for(unsigned int i = 0; i < pts; i++) {
-		if(trace[i] < mkmin.second)
-			mkmin = std::pair<double, double>(i * df + fmin, trace[i]);
-		if(trace[i] > mkmax.second)
-			mkmax = std::pair<double, double>(i * df + fmin, trace[i]);
-	}
-
-	//Preserves calibration curves.
+	//Stores calibration curves.
 	switch(tr[ *this].m_calMode) {
 	case CAL_NONE:
 		break;
@@ -294,6 +275,28 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 		tr[ *this].m_raw_thru.resize(pts);
 		std::copy(tr[ *this].m_ftsum.begin(), tr[ *this].m_ftsum.end(), tr[ *this].m_raw_thru.begin());
 		break;
+	}
+
+	auto rawopen = &tr[ *this].m_raw_open[0];
+	auto rawshort = &tr[ *this].m_raw_short[0];
+	auto rawterm = &tr[ *this].m_raw_term[0];
+	auto trace = &tr[ *this].trace_()[0];
+	for(unsigned int i = 0; i < pts; i++) {
+		auto zport_in = - rawopen[i] / rawshort[i]; //Impedance of the port connected to LNA.
+		auto s11_dut = 1.0 - 2.0 / ((1.0 + zport_in) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - zport_in);
+		trace[i] = 20.0 * log10(std::abs(s11_dut));
+	}
+
+	//Tracking markers.
+	auto &mkmin = tr[ *this].m_marker_min;
+	mkmin.second = 1000;
+	auto &mkmax = tr[ *this].m_marker_max;
+	mkmax.second = -1000;
+	for(unsigned int i = 0; i < pts; i++) {
+		if(trace[i] < mkmin.second)
+			mkmin = std::pair<double, double>(i * df + fmin, trace[i]);
+		if(trace[i] > mkmax.second)
+			mkmax = std::pair<double, double>(i * df + fmin, trace[i]);
 	}
 }
 void
