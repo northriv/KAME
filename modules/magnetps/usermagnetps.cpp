@@ -344,11 +344,12 @@ XCryogenicSMS::setPoint(double field) {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
+	interface()->query("GET OUTPUT");
+	double x;
+	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+
 	if(x * field < 0.0) {
-		interface()->query("GET OUTPUT");
-		double x;
-		if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
-			throw XInterface::XConvError(__FILE__, __LINE__);
 		if(fabs(x) > fieldResolution()) {
 			throw XInterface::XInterfaceError(
 				i18n("First you should set to zero."), __FILE__, __LINE__);

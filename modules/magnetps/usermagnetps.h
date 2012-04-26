@@ -105,7 +105,7 @@ protected:
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted();
 
-	virtual double fieldResolution() {return 0.0001;}
+	virtual double fieldResolution() {return 0.001;}
 
 	virtual void setPoint(double field);
 	virtual void setRate(double hpm);
