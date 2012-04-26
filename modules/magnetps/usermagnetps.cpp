@@ -446,16 +446,19 @@ XCryogenicSMS::getPersistentField() {
 		"GET PER\r\n" //"GET PER" does not return value+delimiter if PER hasn't been recorded.
 		"GET OUTPUT"); //Dummy, workaround against the damn firmware.
 	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d PER: %lf", &x) != 1) {
+	if(interface()->scanf("%*2d:%*2d:%*2d %lf %s", &x, buf) != 2) {
 		return 0.0;
 	}
 	else {
-		interface()->receive(); //For output.
-		double y;
-		if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &y) != 1)
-			throw XInterface::XConvError(__FILE__, __LINE__);
-		return x;
+		if( !strncmp(buf, "TESLA", 5)) {
+			interface()->receive(); //For output.
+			double y;
+			if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &y) != 1)
+				throw XInterface::XConvError(__FILE__, __LINE__);
+			return x;
+		}
 	}
+	return 0.0;
 }
 double
 XCryogenicSMS::getOutputVolt() {
