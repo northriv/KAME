@@ -399,9 +399,9 @@ XCryogenicSMS::getSweepRate() {
 	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("SET TPA");
+	interface()->query("GET TPA");
 	double tesla_per_amp;
-	if(interface()->scanf("%*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
+	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET RATE");
@@ -436,7 +436,7 @@ XCryogenicSMS::getPersistentField() {
 	if(interface()->scanf("%*s UNITS: %5s", &buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->send(
+	interface()->query(
 		"GET PER\r\n" //"GET PER" does not return value+delimiter if PER hasn't been recorded.
 		"GET OUTPUT"); //Dummy, workaround against the damn firmware.
 	double x;
