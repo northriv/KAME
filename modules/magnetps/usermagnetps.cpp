@@ -253,6 +253,7 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
  * Notes not mentioned in the manufacturer's manual.
  * GET PER command does not return a value or delimiter when it is not in persistent mode or at zero field.
  * RAMP ... command does not reply.
+ * PAUSE ... command does not reply the second line.
  * Some commands respond with a form of HH:MM:SS ....... (command).
  * Local button operations will emit status lines.
  *
@@ -277,11 +278,11 @@ XCryogenicSMS::changePauseState(bool pause) {
 		char buf[10];
 		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", buf) != 1)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
-		interface()->receive();
-		double x;
-		if(interface()->scanf("%*2d:%*2d:%*2d RAMP STATUS: RAMPING FROM %lf", &x) != 1)
-	        throw XInterface::XInterfaceError(
-				i18n("Cannot start ramping."), __FILE__, __LINE__);
+//		interface()->receive();
+//		double x;
+//		if(interface()->scanf("%*2d:%*2d:%*2d RAMP STATUS: RAMPING FROM %lf", &x) != 1)
+//	        throw XInterface::XInterfaceError(
+//				i18n("Cannot start ramping."), __FILE__, __LINE__);
 	}
 	else {
 		if( !pause)
@@ -289,11 +290,11 @@ XCryogenicSMS::changePauseState(bool pause) {
 		interface()->query("PAUSE ON");
 		if(interface()->scanf("%*2d:%*2d:%*2d PAUSE STATUS: %4s", buf) != 1)
 	        throw XInterface::XConvError(__FILE__, __LINE__);
-		interface()->receive();
-		double x;
-		if(interface()->scanf("%*2d:%*2d:%*2d RAMP STATUS: HOLDING ON PAUSE AT %lf", &x) != 1)
-	        throw XInterface::XInterfaceError(
-				i18n("Cannot pause."), __FILE__, __LINE__);
+//		interface()->receive();
+//		double x;
+//		if(interface()->scanf("%*2d:%*2d:%*2d RAMP STATUS: HOLDING ON PAUSE AT %lf", &x) != 1)
+//	        throw XInterface::XInterfaceError(
+//				i18n("Cannot pause."), __FILE__, __LINE__);
 	}
 }
 void
@@ -428,7 +429,10 @@ XCryogenicSMS::getOutputField() {
 }
 double
 XCryogenicSMS::getMagnetField() {
-	return getPersistentField();
+	if(isPCSHeaterOn())
+		return getOutputField();
+	else
+		return getPersistentField();
 }
 double
 XCryogenicSMS::getPersistentField() {
