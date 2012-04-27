@@ -211,11 +211,7 @@ XLI5640::open() throw (XInterface::XInterfaceError &) {
 }
 void
 XLI5640::afterStop() {
-//	try {
-//	}
-//	catch (XInterface::XInterfaceError &e) {
-//		e.print(getLabel());
-//	}
+
     close();
 }
 void
