@@ -212,7 +212,6 @@ XLI5640::open() throw (XInterface::XInterfaceError &) {
 void
 XLI5640::afterStop() {
 //	try {
-//		interface()->send("LOCL 0");
 //	}
 //	catch (XInterface::XInterfaceError &e) {
 //		e.print(getLabel());
