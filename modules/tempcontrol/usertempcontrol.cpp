@@ -609,7 +609,7 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	const char *excitations_create[] = { 0L };
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create);
-	interface()->setEOS("");
+	interface()->setEOS("\r\n");
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
 	interface()->setGPIBWaitBeforeWrite(40);

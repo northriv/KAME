@@ -145,7 +145,7 @@ XLI5640::XLI5640(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-	//    UseSerialPollOnWrite = false;
+//	interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(20);
 //	interface()->setGPIBWaitBeforeRead(20);
 	interface()->setGPIBWaitBeforeSPoll(5);
