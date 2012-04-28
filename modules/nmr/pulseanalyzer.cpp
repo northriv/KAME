@@ -199,7 +199,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	}
 
 	int avg = std::max(1L, lrint(0.03 / (interval * dso_len)));
-	avg *= std::min(1u, (unsigned int)shot_this[ *average()]);
+	avg *= std::max(1u, (unsigned int)shot_this[ *average()]);
 	trans( *dso->average()) = (avg + 3) / 4 * 4; //round to phase cycling for NMR.
 
 	trans( *sg->freq()) = fmin;
@@ -321,7 +321,7 @@ XNMRBuiltInNetworkAnalyzer::checkDependency(const Snapshot &shot_this,
     if( !sg) return false;
 	if (emitter != dso.get())
 		return false;
-//    if(shot_emitter[ *pulse].timeAwared() < shot_others[ *sg].time()) return false;
+   if(shot_emitter[ *dso].timeAwared() < shot_others[ *sg].time()) return false;
 	return true;
 }
 void
