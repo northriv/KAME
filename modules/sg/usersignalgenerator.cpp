@@ -54,8 +54,8 @@ XHP8643::XHP8643(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
-	interface()->setGPIBWaitBeforeWrite(10);
-	interface()->setGPIBWaitBeforeRead(10);
+//	interface()->setGPIBWaitBeforeWrite(10);
+//	interface()->setGPIBWaitBeforeRead(10);
 }
 void
 XHP8643::changeFreq(double mhz) {
@@ -79,9 +79,9 @@ XHP8643::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 XHP8648::XHP8648(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XHP8643(name, runtime, ref(tr_meas), meas) {
-	interface()->setGPIBUseSerialPollOnWrite(false);
-	interface()->setGPIBWaitBeforeWrite(10);
-	interface()->setGPIBWaitBeforeRead(10);
+//	interface()->setGPIBUseSerialPollOnWrite(false);
+//	interface()->setGPIBWaitBeforeWrite(10);
+//	interface()->setGPIBWaitBeforeRead(10);
 }
 void
 XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -92,8 +92,8 @@ XHP8664::XHP8664(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
-	interface()->setGPIBWaitBeforeWrite(10);
-	interface()->setGPIBWaitBeforeRead(10);
+//	interface()->setGPIBWaitBeforeWrite(10);
+//	interface()->setGPIBWaitBeforeRead(10);
 }
 void
 XHP8664::changeFreq(double mhz) {
