@@ -153,18 +153,16 @@ XLI5640::XLI5640(const char *name, bool runtime,
 void
 XLI5640::get(double *cos, double *sin) {
 	double sens = 0;
+	int overlevel;
 	int sidx;
 	Snapshot shot( *this);
 	bool autoscale_x = shot[ *autoScaleX()];
 	bool autoscale_y = shot[ *autoScaleY()];
 	interface()->query("DOUT?");
-	if(interface()->scanf("%lf,%lf,%d", cos, sin, &sidx) != 3)
+	if(interface()->scanf("%lf,%lf,%d, %d", cos, sin, &sidx, &overlevel) != 4)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	bool overlevel = false;
 	if(autoscale_x || autoscale_y) {
-		interface()->query("OVER?");
-		overlevel = (interface()->toInt() > 0);
 		sens =  1e-9 * pow(10.0, rint(sidx / 3));
 		switch(sidx % 3) {
 		case 0: sens *= 2; break;
@@ -209,7 +207,7 @@ XLI5640::open() throw (XInterface::XInterfaceError &) {
 
 	interface()->send("DDEF 1,0"); //DATA1=x
 	interface()->send("DDEF 2,0"); //DATA2=y
-	interface()->send("OTYP 1,2,4"); //DATA1,DATA2,SENSITIVITY
+	interface()->send("OTYP 1,2,4,5"); //DATA1,DATA2,SENSITIVITY,OVERLEVEL
 
 	start();
 }
