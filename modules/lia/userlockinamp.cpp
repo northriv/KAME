@@ -161,7 +161,10 @@ XLI5640::get(double *cos, double *sin) {
 	if(interface()->scanf("%lf,%lf,%d", cos, sin, &sidx) != 3)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
+	bool overlevel = false;
 	if(autoscale_x || autoscale_y) {
+		interface()->query("OVER?");
+		overlevel = (interface()->toInt() > 0);
 		sens =  1e-9 * pow(10.0, rint(sidx / 3));
 		switch(sidx % 3) {
 		case 0: sens *= 2; break;
@@ -170,7 +173,8 @@ XLI5640::get(double *cos, double *sin) {
 		}
 	}
 	if((autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
-	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)))
+	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)) ||
+	   overlevel)
 		trans( *sensitivity()) = sidx + 1;
 	if((autoscale_x && (sqrt( *cos * *cos) < sens * 0.2)) ||
 	   (autoscale_y && (sqrt( *sin * *sin) < sens * 0.2))) {
