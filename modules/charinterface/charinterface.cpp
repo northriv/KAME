@@ -257,21 +257,19 @@ XCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &) {
 }
 void
 XCharInterface::onSendRequested(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XPort> port = m_xport;
-    if(!port)
+    XScopedLock<XCharInterface> lock( *this);
+	if(!isOpened())
 		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
-    port->send(shot[ *m_script_send].to_str().c_str());
+    this->send(shot[ *m_script_send].to_str());
 }
 void
 XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
-	shared_ptr<XPort> port = m_xport;    
-    if(!port)
-		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     XScopedLock<XCharInterface> lock( *this);
-    port->send(shot[ *m_script_query].to_str().c_str());
-    port->receive();
+    if(!isOpened())
+		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
+    this->query(shot[ *m_script_query].to_str());
 	for(Transaction tr( *this);; ++tr) {
-		tr[ *m_script_query] = XString(&port->buffer()[0]);
+		tr[ *m_script_query] = XString(&buffer()[0]);
 		tr.unmark(m_lsnOnQueryRequested);
 		if(tr.commit())
 			break;

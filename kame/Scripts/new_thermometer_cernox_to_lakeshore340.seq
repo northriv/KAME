@@ -44,9 +44,10 @@ lastt = 0
 
 crvno = 23
 print "Writing Curve Entry #{crvno}\n"
-tempctl = measurement["Drivers"]["TempControl"]
-tempctl["Send"].value = "CRVHDR #{crvno}, CX-1010-SD, X63706, 4, 308, 1"
+tempctl = Measurement["Drivers"]["TempControl"]
+tempctl["Interface"]["Send"].value = "CRVHDR #{crvno}, CX-1010-SD, X63706, 4, 308, 1"
 
+idx = 1
 x = Array.new
 x << Measurement
 x << x.last["Thermometers"]
@@ -66,10 +67,12 @@ x << x.last["Thermometers"]
 			 print " #{temp} #{res}\n"
 			 reslist.create("","").load(res)
 			 templist.create("","").load(temp)
+			 
+			tempctl["Interface"]["Send"].value = "CRVPT #{crvno}, #{idx}, #{sprintf("%.6g", log(res))}, #{sprintf("%.6g", temp)}"
+			idx+=1
 		}
-	tempctl["Send"].value = "CRVPT #{crvno}, #{idx}, #{sprintf("%.6g", log(res))}, #{sprintf("%.6g", temp)}"
 	x.pop
 x.pop
 print "Update the entry by local operation.\n"
-#tempctl["Send"].value = "CRVSAV"
+#tempctl["Interface"]["Send"].value = "CRVSAV"
 
