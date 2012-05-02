@@ -691,7 +691,7 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *powerRange()].clear();
 		for(int i = 1; i < 6; i++) {
-			tr[ *powerRange()].add(formatString("%.1f W", (double) pow(10.0, i - 5.0)
+			tr[ *powerRange()].add(formatString("%.2g W", (double) pow(10.0, i - 5.0)
 				* pow(maxcurr, 2.0) * res));
 		}
 		if(tr.commit())
