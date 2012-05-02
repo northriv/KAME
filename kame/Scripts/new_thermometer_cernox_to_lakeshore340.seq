@@ -1,0 +1,75 @@
+data = <<EOS      # here document
+308.471 31.8748
+300.000 32.3450
+280.007 33.5736
+259.906 34.9716
+240.020 36.5672
+219.953 38.4108
+200.390 40.5145
+170.201 44.3805
+147.412 48.0295
+135.113 50.3286
+114.701 54.7978
+100.329 58.6533
+77.2605 66.5952
+64.0858 72.7218
+54.7511 78.2232
+46.9047 83.9455
+40.2682 89.9480
+31.6213 100.108
+25.2402 110.105
+20.2365 120.620
+13.8777 140.038
+10.1768 158.404
+6.5398 192.238
+6.0208 199.724
+5.5311 207.553
+4.2429 236.524
+3.3950 266.226
+3.2412 273.100
+3.0599 281.378
+2.3763 326.378
+2.2476 336.871
+1.9940 362.603
+1.8595 379.314
+1.7610 393.386
+1.6739 407.534
+1.5449 432.743
+1.435 459.415
+1.355 483.823
+1.244 530.092
+EOS
+
+lastt = 0
+
+crvno = 23
+print "Writing Curve Entry #{crvno}\n"
+tempctl = measurement["Drivers"]["TempControl"]
+tempctl["Send"].value = "CRVHDR #{crvno}, CX-1010-SD, X63706, 4, 308, 1"
+
+x = Array.new
+x << Measurement
+x << x.last["Thermometers"]
+	x << x.last.create("ApproxThermometer","CX-1010-SD X63706")
+		x.last["TMin"].value = "1.25"
+		x.last["TMax"].value = "308"
+		reslist = x.last["ResList"]
+		templist = x.last["TempList"]
+		data.each_line { |line|
+			 arg=line.split
+			 begin
+			  temp=Float(arg[0])
+			  res=Float(arg[1])
+			 rescue # => ArgumentError
+			  next
+			 end
+			 print " #{temp} #{res}\n"
+			 reslist.create("","").load(res)
+			 templist.create("","").load(temp)
+		}
+	tempctl["Send"].value = "CRVPT #{crvno}, #{idx}, #{sprintf("%.6g", log(res))}, #{sprintf("%.6g", temp)}"
+	x.pop
+x.pop
+print "Update the entry by local operation.\n"
+#tempctl["Send"].value = "CRVSAV"
+

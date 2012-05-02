@@ -680,13 +680,14 @@ void XLakeShore340::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 }
 void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 	interface()->query("CDISP? 1");
-	int res, maxcurr;
+	int res, maxcurr_idx;
 	if(interface()->scanf("%*d,%d", &res) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	interface()->query("CLIMIT? 1");
-	if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr) != 1)
+	if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr_idx) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
+	double maxcurr = pow(2.0, maxcurr_idx) * 0.125;
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *powerRange()].clear();
 		for(int i = 1; i < 6; i++) {
