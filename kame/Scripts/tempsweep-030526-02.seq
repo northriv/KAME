@@ -13,9 +13,9 @@ def wait_within(node, val, min_wait, timeout, incr = 1)
  false
 end
 
-ps = measurement["Drivers"]["PS120"]
-tempctl = measurement["Drivers"]["AVS"]
-field = measurement["Analizers"]["PS"]["Field"]["Value"]
+ps = Measurement["Drivers"]["PS120"]
+tempctl = Measurement["Drivers"]["AVS"]
+field = Measurement["Analizers"]["PS"]["Field"]["Value"]
 
 def ps.hsweep(target, rate)
   self["SweepRate"].set(rate)

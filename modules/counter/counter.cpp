@@ -48,7 +48,7 @@ XCounter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
   for(int i = 0; channel_names[i]; i++) {
 	    shared_ptr<XScalarEntry> entry(create<XScalarEntry>(
 	    	channel_names[i], false,
-	       dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g"));
+	       dynamic_pointer_cast<XDriver>(shared_from_this()), "%.8g"));
 	     m_entries.push_back(entry);
 	     entries->insert(tr_meas, entry);
     }
@@ -81,6 +81,8 @@ XCounter::execute(const atomic<bool> &terminated) {
 
 REGISTER_TYPE(XDriverList, MutohCounterNPS, "Mutoh Digital Counter NPS");
 
+#define STX "\x02"
+
 XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XCounter>(name, runtime, ref(tr_meas), meas) {
@@ -88,6 +90,7 @@ XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, channels_create);
 
 	interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+	interface()->setSerialBaudRate(19200);
 	interface()->setSerial7Bits(true);
 	interface()->setEOS("\x03"); //ETX
 }
@@ -95,19 +98,19 @@ XMutohCounterNPS::XMutohCounterNPS(const char *name, bool runtime,
 double
 XMutohCounterNPS::getLevel(unsigned int ch) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->send("\x02 00F102");
+	interface()->query(STX "00F102");
 	int fun2;
-	if(interface()->scanf("00F202%d", &fun2) != 1)
+	if(interface()->scanf(STX "00F202%d", &fun2) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->send("\x02 00F105");
+	interface()->query(STX "00F105");
 	int fun5;
-	if(interface()->scanf("00F205%d", &fun5) != 1)
+	if(interface()->scanf(STX "00F205%d", &fun5) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->send("\x02 00P1");
+	interface()->query(STX "00P1");
 	int x;
-	if(interface()->scanf("00P2%d", &x) != 1)
+	if(interface()->scanf(STX "00P2%d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	double z;
 	switch(fun5) {
@@ -118,11 +121,13 @@ XMutohCounterNPS::getLevel(unsigned int ch) {
 	case 10:
 	case 11:
 	case 12:
+		z = (x / 100) + ((x > 0) ? 1 : -1) * (abs(x) % 100) / 60.0;
+		break;
 	case 16:
 	case 17:
 	case 18:
 	case 19:
-		z = (x / 10000) + ((x % 10000) / 100 + (x % 100) / 60.0) / 60.0;
+		z = (x / 10000) + ((x > 0) ? 1 : -1) * ((abs(x) % 10000) / 100 + (abs(x) % 100) / 60.0) / 60.0;
 		break;
 	case 13:
 	case 14:
