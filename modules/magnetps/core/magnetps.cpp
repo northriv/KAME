@@ -378,9 +378,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			tr[ *outputVolt()] = output_volt;
 			tr[ *pcsHeater()] = pcs_heater && is_pcs_fitted;
 
-			bool persist =  !pcs_heater && is_pcs_fitted;
-			persist = persist && isPersistentStabilized(shot, shot_entries, pcsh_time);
-			tr[ *persistent()] =  persist;
+			tr[ *persistent()] = !pcs_heater && is_pcs_fitted && isPersistentStabilized(shot, shot_entries, pcsh_time);
 
 			if(shot[ *m_aborting]) {
 				tr[ *targetField()] = 0;
