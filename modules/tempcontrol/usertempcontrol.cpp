@@ -21,6 +21,7 @@ REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
 REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
+REGISTER_TYPE(XDriverList, KE2700w7700, "Keithley 2700&7700 as temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -747,3 +748,51 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 
+XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XOxfordDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
+	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", 0L };
+	const char *excitations_create[] = { 0L };
+	createChannels(ref(tr_meas), meas, true, channels_create,
+		excitations_create);
+}
+void XKE2700w7700::open() throw (XInterface::XInterfaceError &) {
+	start();
+	interface()->send("TRAC:CLE"); //Clears buffer.
+	interface()->send("INIT:CONT OFF");
+	interface()->send("TRIG:SOUR IMM"); //Immediate trigger.
+	interface()->send("TRIG:COUN 1"); //1 scan.
+}
+double XKE2700w7700::getRaw(shared_ptr<XChannel> &channel) {
+	int ch = atoi(channel->getName().c_str());
+	interface()->sendf("ROUT:CLOS (@1%1d%1d)", ch / 10, ch % 10);
+	interface()->query("READ?");
+	double x;
+	if(interface()->scanf("%lf", x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+	return x;
+}
+double XKE2700w7700::getTemp(shared_ptr<XChannel> &channel) {
+	return getRaw(channel);
+}
+double XKE2700w7700::getHeater() {
+	return 0.0;
+}
+void XKE2700w7700::onPChanged(double p) {
+}
+void XKE2700w7700::onIChanged(double i) {
+}
+void XKE2700w7700::onDChanged(double d) {
+}
+void XKE2700w7700::onTargetTempChanged(double temp) {
+}
+void XKE2700w7700::onManualPowerChanged(double pow) {
+}
+void XKE2700w7700::onHeaterModeChanged(int) {
+}
+void XKE2700w7700::onPowerRangeChanged(int) {
+}
+void XKE2700w7700::onCurrentChannelChanged(const shared_ptr<XChannel> &ch) {
+}
+void XKE2700w7700::onExcitationChanged(const shared_ptr<XChannel> &, int) {
+}

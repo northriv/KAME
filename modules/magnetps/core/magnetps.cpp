@@ -22,9 +22,9 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_field(create<XScalarEntry>("Field", false,
-								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
+								 dynamic_pointer_cast<XDriver>(shared_from_this())), "%.8g"),
     m_current(create<XScalarEntry>("Current", false, 
-								   dynamic_pointer_cast<XDriver>(shared_from_this()))),
+								   dynamic_pointer_cast<XDriver>(shared_from_this())), "%.8g"),
     m_targetField(create<XDoubleNode>("TargetField", true)),
     m_sweepRate(create<XDoubleNode>("SweepRate", true)),
     m_allowPersistent(create<XBoolNode>("AllowPersistent", true)),
@@ -70,12 +70,9 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-	//    Field->Value.Precision = 0.001;
-	//    Current->Value.Precision = 0.0001;
 }
 void
 XMagnetPS::showForms() {
-//! impliment form->show() here
     m_form->show();
     m_form->raise();
 }
