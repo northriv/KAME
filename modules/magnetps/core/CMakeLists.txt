@@ -3,7 +3,7 @@ set(magnetpscore_SRCS
  )
 
 kde4_add_ui_files(magnetpscore_SRCS
-  magnetpsform.ui  )
+  magnetpsform.ui magnetpsconfigform.ui )
 
 kde4_add_library(kame_magnetpscore SHARED ${magnetpscore_SRCS})
 ########### install files ###############

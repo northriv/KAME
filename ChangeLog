@@ -1,3 +1,7 @@
+* Sun May 13 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.8-1)
+- magnetps: Limit rates, Secondary PS, safe conditions.
+
 * Sat May 12 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.7-1)
 - counter: Mutoh counter.

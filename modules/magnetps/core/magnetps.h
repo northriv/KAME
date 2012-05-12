@@ -21,6 +21,8 @@ class XScalarEntry;
 class QMainWindow;
 class Ui_FrmMagnetPS;
 typedef QForm<QMainWindow, Ui_FrmMagnetPS> FrmMagnetPS;
+class Ui_FrmMagnetPSConfig;
+typedef QForm<QMainWindow, Ui_FrmMagnetPSConfig> FrmMagnetPSConfig;
 
 class XMagnetPS : public XPrimaryDriver {
 public:
@@ -92,8 +94,10 @@ protected:
 	virtual bool isPCSFitted() = 0;
 private:
 	virtual void onRateChanged(const Snapshot &shot, XValueNodeBase *);
-  
+	virtual void onConfigShow(const Snapshot &shot, XTouchableNode *);
+
 	const shared_ptr<XScalarEntry> m_field, m_current;
+	const shared_ptr<XScalarEntryList> m_entries;
 
 	const shared_ptr<XDoubleNode> m_targetField;
 	const shared_ptr<XDoubleNode> m_sweepRate;
@@ -101,21 +105,65 @@ private:
 	//! averaged err between magnet field and target one
 	const shared_ptr<XDoubleNode> m_stabilized;
 	const shared_ptr<XDoubleNode> m_magnetField, m_outputField, m_outputCurrent, m_outputVolt;
-	const shared_ptr<XBoolNode> m_pcsHeater, m_persistent;
+	const shared_ptr<XBoolNode> m_pcsHeater, m_persistent, m_aborting;
 
-	shared_ptr<XListener> m_lsnRate;
+	const shared_ptr<XTouchableNode> m_configShow;
+	 //! Rate limiting. [T/min] and [T].
+	const shared_ptr<XDoubleNode> m_rateLimit1, m_rateLimit1UBound;
+	const shared_ptr<XDoubleNode> m_rateLimit2, m_rateLimit2UBound;
+	const shared_ptr<XDoubleNode> m_rateLimit3, m_rateLimit3UBound;
+	const shared_ptr<XDoubleNode> m_rateLimit4, m_rateLimit4UBound;
+	const shared_ptr<XDoubleNode> m_rateLimit5, m_rateLimit5UBound;
+
+	const shared_ptr<XDoubleNode> m_secondaryPSMultiplier; //!< For Shim coil. [T/T]
+	const shared_ptr<XItemNode<XDriverList, XMagnetPS> > m_secondaryPS; //!< For Shim coil
+
+	//! Configuration for safe conditions.
+	const shared_ptr<XItemNode<XScalarEntryList, XScalarEntry> > m_safeCond1Entry;
+	const shared_ptr<XDoubleNode> m_safeCond1Min, m_safeCond1Max;
+	const shared_ptr<XItemNode<XScalarEntryList, XScalarEntry> > m_safeCond2Entry;
+	const shared_ptr<XDoubleNode> m_safeCond2Min, m_safeCond2Max;
+	const shared_ptr<XItemNode<XScalarEntryList, XScalarEntry> > m_safeCond3Entry;
+	const shared_ptr<XDoubleNode> m_safeCond3Min, m_safeCond3Max;
+
+	const shared_ptr<XItemNode<XScalarEntryList, XScalarEntry> > m_persistentCondEntry;
+	const shared_ptr<XDoubleNode> m_persistentCondMax;
+	const shared_ptr<XItemNode<XScalarEntryList, XScalarEntry> > m_nonPersistentCondEntry;
+	const shared_ptr<XDoubleNode> m_nonPersistentCondMin;
+
+	const shared_ptr<XDoubleNode> m_pcshWait; //!< [sec]
+
+	shared_ptr<XListener> m_lsnRate, m_lsnConfigShow;
   
 	xqcon_ptr m_conAllowPersistent;
 	xqcon_ptr m_conTargetField, m_conSweepRate;
 	xqcon_ptr m_conMagnetField, m_conOutputField, m_conOutputCurrent, m_conOutputVolt;
-	xqcon_ptr m_conPCSH, m_conPersist;
+	xqcon_ptr m_conPCSH, m_conPersist, m_conAborting;
+	xqcon_ptr m_conConfigShow;
+	xqcon_ptr m_conRateLimit1, m_conRateLimit1UBound;
+	xqcon_ptr m_conRateLimit2, m_conRateLimit2UBound;
+	xqcon_ptr m_conRateLimit3, m_conRateLimit3UBound;
+	xqcon_ptr m_conRateLimit4, m_conRateLimit4UBound;
+	xqcon_ptr m_conRateLimit5, m_conRateLimit5UBound;
+	xqcon_ptr m_conSecondaryPS, m_conSecondaryPSMultiplier;
+	xqcon_ptr m_conSafeCond1Entry, m_conSafeCond1Min, m_conSafeCond1Max;
+	xqcon_ptr m_conSafeCond2Entry, m_conSafeCond2Min, m_conSafeCond2Max;
+	xqcon_ptr m_conSafeCond3Entry, m_conSafeCond3Min, m_conSafeCond3Max;
+	xqcon_ptr m_conPersistentCondEntry, m_conPersistentCondMax;
+	xqcon_ptr m_conNonPersistentCondEntry, m_conNonPersistentCondMin;
+	xqcon_ptr m_conPCSHWait;
  
 	shared_ptr<XThread<XMagnetPS> > m_thread;
 	const qshared_ptr<FrmMagnetPS> m_form;
+	const qshared_ptr<FrmMagnetPSConfig> m_formConfig;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
   
 	void *execute(const atomic<bool> &);
   
+	bool isSafeConditionSatisfied(const Snapshot &shot, const Snapshot &shot_entries);
+	bool isPersistentStabilized(const Snapshot &shot, const Snapshot &shot_entries, const XTime &pcsh_off_time);
+	bool isNonPersistentStabilized(const Snapshot &shot, const Snapshot &shot_entries, const XTime &pcsh_on_time);
+	double limitSweepRate(double field, double rate, const Snapshot &shot);
 };
 
 #endif
