@@ -212,9 +212,11 @@ void
 XMagnetPS::onRateChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setRate(shot[ *sweepRate()]);
-        if(shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS]) {
+        shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
+		if(secondaryps.get() == this)
+			secondaryps.reset();
+		if(secondaryps)
             secondaryps->setRate(shot[ *sweepRate()] * shot[ *m_secondaryPSMultiplier]);
-        }
     }
     catch (XKameError &e) {
 		e.print(getLabel() + "; ");
@@ -415,6 +417,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
       
 		try {
 			shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
+			if(secondaryps.get() == this)
+				secondaryps.reset();
 
 			if(is_pcs_fitted) {
 				if(pcs_heater) {
