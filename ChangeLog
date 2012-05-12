@@ -2,6 +2,7 @@
 - (3.2.7-1)
 - counter: Mutoh counter.
 - tempcontrol: Keithley 2700/7700.
+- recoder.cpp: Fix bug that previous values are written to last line.
 
 * Thu Apr 26 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.6-1)

@@ -241,7 +241,7 @@ private:
 };
 
 //! Keithley Integra 2700 w/ 7700 switching module.
-class XKE2700w7700 : public XTempControl {
+class XKE2700w7700 : public XCharDeviceDriver<XTempControl> {
 public:
 	XKE2700w7700(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

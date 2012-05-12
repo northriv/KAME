@@ -750,7 +750,7 @@ void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
 
 XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XOxfordDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
+	XCharDeviceDriver<XTempControl>(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", 0L };
 	const char *excitations_create[] = { 0L };
 	createChannels(ref(tr_meas), meas, true, channels_create,
@@ -768,7 +768,7 @@ double XKE2700w7700::getRaw(shared_ptr<XChannel> &channel) {
 	interface()->sendf("ROUT:CLOS (@1%1d%1d)", ch / 10, ch % 10);
 	interface()->query("READ?");
 	double x;
-	if(interface()->scanf("%lf", x) != 1)
+	if(interface()->scanf("%lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	return x;
 }

@@ -213,7 +213,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 					auto entry = static_pointer_cast<XScalarEntry>( *it);
 					if( !shot_entries[ *entry->store()]) continue;
 					entry->storeValue(tr_entries);
-					buf.append(shot_entries[ *entry->storedValue()].to_str() + " ");
+					buf.append(shot_entries[ *entry->value()].to_str() + " ");
 				}
 				buf.append(shot[ *driver].time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 				if(tr_entries.commit()) {

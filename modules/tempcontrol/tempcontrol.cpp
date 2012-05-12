@@ -208,7 +208,7 @@ void XTempControl::createChannels(
 	for(Transaction tr( *this);; ++tr) {
 		for(int i = 0; channel_names[i]; i++) {
 			shared_ptr<XChannel> channel = m_channels->create<XChannel> (
-				tr, channel_names[i], true, ref(tr_meas), meas->thermometers());
+				tr, channel_names[i], false, ref(tr_meas), meas->thermometers());
 			for(int j = 0; excitations[j]; j++) {
 				tr[ *channel->excitation()].add(excitations[j]);
 			}
