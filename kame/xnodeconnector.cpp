@@ -497,7 +497,7 @@ void
 XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
 	if(toIndex > fromIndex)
 		toIndex--;
-	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
+//	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
