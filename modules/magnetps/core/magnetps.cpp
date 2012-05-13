@@ -219,8 +219,10 @@ XMagnetPS::onRateChanged(const Snapshot &, XValueNodeBase *) {
         shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
 		if(secondaryps.get() == this)
 			secondaryps.reset();
-		if(secondaryps)
-            secondaryps->setRate(shot[ *sweepRate()] * shot[ *m_secondaryPSMultiplier]);
+		if(secondaryps) {
+			double sweep_rate = getSweepRate();
+            trans( *secondaryps->sweepRate()) = sweep_rate * shot[ *m_secondaryPSMultiplier];
+		}
     }
     catch (XKameError &e) {
 		e.print(getLabel() + "; ");
@@ -458,7 +460,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 																	  i18n("Multiplier too large."));
 									}
 									else {
-										trans( *secondaryps->sweepRate()) = shot[ *sweepRate()] * mul;
+										double sweep_rate = getSweepRate();
+										trans( *secondaryps->sweepRate()) = sweep_rate * mul;
 										trans( *secondaryps->targetField()) = shot[ *targetField()] * mul;
 									}
 								}
