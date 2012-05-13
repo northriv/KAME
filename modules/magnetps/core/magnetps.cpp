@@ -289,19 +289,19 @@ XMagnetPS::isNonPersistentStabilized(const Snapshot &shot, const Snapshot &shot_
 double
 XMagnetPS::limitSweepRate(double field, double rate, const Snapshot &shot) {
 	if((shot[ *m_rateLimit1UBound] > 0.0) && (fabs(field) < shot[ *m_rateLimit1UBound])) {
-		return std::min( rate, shot[ *m_rateLimit1]);
+		return std::min( rate, (double)shot[ *m_rateLimit1]);
 	}
 	if((shot[ *m_rateLimit2UBound] > 0.0) && (fabs(field) < shot[ *m_rateLimit2UBound])) {
-		return std::min( rate, shot[ *m_rateLimit2]);
+		return std::min( rate, (double)shot[ *m_rateLimit2]);
 	}
 	if((shot[ *m_rateLimit3UBound] > 0.0) && (fabs(field) < shot[ *m_rateLimit3UBound])) {
-		return std::min( rate, shot[ *m_rateLimit3]);
+		return std::min( rate, (double)shot[ *m_rateLimit3]);
 	}
 	if((shot[ *m_rateLimit4UBound] > 0.0) && (fabs(field) < shot[ *m_rateLimit4UBound])) {
-		return std::min( rate, shot[ *m_rateLimit4]);
+		return std::min( rate, (double)shot[ *m_rateLimit4]);
 	}
 	if((shot[ *m_rateLimit5UBound] > 0.0) && (fabs(field) < shot[ *m_rateLimit5UBound])) {
-		return std::min( rate, shot[ *m_rateLimit5]);
+		return std::min( rate, (double)shot[ *m_rateLimit5]);
 	}
 	return rate;
 }

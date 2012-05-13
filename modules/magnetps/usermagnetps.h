@@ -94,13 +94,11 @@ protected:
 	virtual double getTargetField();
 	virtual double getSweepRate();
 	virtual double getOutputField();
-	virtual double getMagnetField();
 	virtual double getPersistentField();
 	virtual double getOutputVolt();
 	virtual double getOutputCurrent();
 
 	//! Persistent Current Switch Heater
-	//! please return *TRUE* if no PCS fitted
 	virtual bool isPCSHeaterOn();
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted();

@@ -82,13 +82,11 @@ protected:
 	virtual void setRate(double hpm) = 0;
 	virtual double getPersistentField() = 0;
 	virtual double getOutputField() = 0;
-	virtual double getMagnetField() = 0;
 	virtual double getTargetField() = 0;
 	virtual double getSweepRate() = 0;
 	virtual double getOutputVolt() = 0;
 	virtual double getOutputCurrent() = 0;
 	//! Persistent Current Switch Heater
-	//! please return *TRUE* if no PCS fitted
 	virtual bool isPCSHeaterOn() = 0;
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted() = 0;

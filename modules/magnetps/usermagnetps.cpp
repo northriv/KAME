@@ -125,15 +125,6 @@ XIPS120::setPoint(double field) {
 }
 
 double
-XPS120::getMagnetField() {
-	if(isPCSHeaterOn()) {
-		return getOutputField();
-	}
-	else {
-		return getPersistentField();
-	}
-}
-double
 XIPS120::getSweepRate() {
 	return read(9);
 }
@@ -428,13 +419,6 @@ XCryogenicSMS::getOutputField() {
 	return x;
 }
 double
-XCryogenicSMS::getMagnetField() {
-	if(isPCSHeaterOn())
-		return getOutputField();
-	else
-		return getPersistentField();
-}
-double
 XCryogenicSMS::getPersistentField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
@@ -484,7 +468,6 @@ XCryogenicSMS::getOutputCurrent() {
 }
 
 //! Persistent Current Switch Heater
-//! please return *TRUE* if no PCS fitted
 bool
 XCryogenicSMS::isPCSHeaterOn() {
 	interface()->query("HEATER");
