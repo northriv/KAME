@@ -498,5 +498,9 @@ XCryogenicSMS::isPCSHeaterOn() {
 //! please return false if no PCS fitted
 bool
 XCryogenicSMS::isPCSFitted() {
-	return true;
+	interface()->query("SET HEATER"); //queries heater power setting by Volts.
+	double x;
+	if(interface()->scanf("%*s HEATER OUTPUT: %lf", &x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+	return (x > 0.01);
 }
