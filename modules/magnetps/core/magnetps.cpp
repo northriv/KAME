@@ -212,17 +212,9 @@ XMagnetPS::visualize(const Snapshot &shot) {
 }
 
 void
-XMagnetPS::onRateChanged(const Snapshot &, XValueNodeBase *) {
-	Snapshot shot( *this);
+XMagnetPS::onRateChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setRate(shot[ *sweepRate()]);
-        shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
-		if(secondaryps.get() == this)
-			secondaryps.reset();
-		if(secondaryps) {
-			double sweep_rate = getSweepRate();
-            trans( *secondaryps->sweepRate()) = sweep_rate * shot[ *m_secondaryPSMultiplier];
-		}
     }
     catch (XKameError &e) {
 		e.print(getLabel() + "; ");
