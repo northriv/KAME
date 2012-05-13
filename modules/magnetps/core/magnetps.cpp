@@ -321,7 +321,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	double field_resolution;
 	bool is_pcs_fitted;
 	bool last_pcsh;
-  
+	trans( *m_aborting) = false;
 	try {
 		field_resolution = fieldResolution();
 		is_pcs_fitted = isPCSFitted();
