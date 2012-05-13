@@ -164,6 +164,7 @@ private:
 	bool isPersistentStabilized(const Snapshot &shot, const Snapshot &shot_entries, const XTime &pcsh_off_time);
 	bool isNonPersistentStabilized(const Snapshot &shot, const Snapshot &shot_entries, const XTime &pcsh_on_time);
 	double limitSweepRate(double field, double rate, const Snapshot &shot);
+	double limitTargetField(double field, const Snapshot &shot);
 };
 
 #endif
