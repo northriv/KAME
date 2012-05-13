@@ -396,7 +396,6 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			if(shot[ *m_aborting]) {
 				//Aborting.
 				tr[ *targetField()].setUIEnabled(false);
-				tr[ *sweepRate()].setUIEnabled(false);
 				tr[ *targetField()] = 0;
 				tr[ *sweepRate()] = limitSweepRate(magnet_field, 1.0, shot) / 2.0; //-0.5T/min.
 			}
@@ -430,6 +429,13 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 					m_statusPrinter->printMessage(getLabel() + " " +
 												  i18n("Aborting."));
 					trans( *m_aborting) = true;
+					break;
+				}
+				if( shot[ *m_aborting] && isSafeConditionSatisfied(shot, shot_entries)) {
+					m_statusPrinter->printMessage(getLabel() + " " +
+												  i18n("Safe conditions are satisfied."));
+					trans( *m_aborting) = false;
+					trans( *targetField()).setUIEnabled(true);
 					break;
 				}
 
