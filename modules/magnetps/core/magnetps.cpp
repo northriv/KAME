@@ -158,6 +158,9 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *allowPersistent()] = false;
 		tr[ *m_pcshWait] = 40.0; //sec
+		tr[ *m_safeCond1Max] = 100.0;
+		tr[ *m_safeCond2Max] = 100.0;
+		tr[ *m_safeCond3Max] = 100.0;
 		tr[ *targetField()].setUIEnabled(false);
 		tr[ *sweepRate()].setUIEnabled(false);
 		tr[ *targetField()].setUIEnabled(false);
