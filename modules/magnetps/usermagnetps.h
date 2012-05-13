@@ -33,7 +33,6 @@ protected:
 	virtual double getTargetField();
 	virtual double getSweepRate();
 	virtual double getOutputField();
-	virtual double getMagnetField();
 	virtual double getPersistentField();
 	virtual double getOutputVolt();
 	virtual double getOutputCurrent();

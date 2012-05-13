@@ -212,7 +212,8 @@ XMagnetPS::visualize(const Snapshot &shot) {
 }
 
 void
-XMagnetPS::onRateChanged(const Snapshot &shot, XValueNodeBase *) {
+XMagnetPS::onRateChanged(const Snapshot &, XValueNodeBase *) {
+	Snapshot shot( *this);
     try {
         setRate(shot[ *sweepRate()]);
         shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
