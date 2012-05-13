@@ -483,7 +483,6 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table 
     m_pItem->setRowMovingEnabled(true);
     Q3Header *header = m_pItem->verticalHeader();
     header->setResizeEnabled(false);
-    header->setMovingEnabled(true);
     connect(header, SIGNAL( indexChange(int, int, int)),
 			this, SLOT( indexChange(int, int, int)));    
     header->setToolTip(i18n("Use drag-n-drop with ctrl pressed to reorder."));
@@ -496,7 +495,8 @@ XListQConnector::~XListQConnector() {
 }
 void
 XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
-	//!\todo bug of QT?
+	if(toIndex > fromIndex)
+		toIndex--;
 	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
