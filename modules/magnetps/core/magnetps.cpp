@@ -395,8 +395,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 
 			if(shot[ *m_aborting]) {
 				//Aborting.
-				targetField()->setUIEnabled(false);
-				sweepRate()->setUIEnabled(false);
+				tr[ *targetField()].setUIEnabled(false);
+				tr[ *sweepRate()].setUIEnabled(false);
 				tr[ *targetField()] = 0;
 				tr[ *sweepRate()] = limitSweepRate(magnet_field, 1.0, shot) / 2.0; //-0.5T/min.
 			}

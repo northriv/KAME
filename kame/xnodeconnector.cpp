@@ -496,6 +496,8 @@ XListQConnector::~XListQConnector() {
 }
 void
 XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
+	//!\todo bug of QT?
+	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
@@ -511,7 +513,7 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
 }
 void
 XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
-    int dir = (e.src_idx - e.dst_idx) ? 1 : -1;
+    int dir = (e.src_idx - e.dst_idx > 0) ? 1 : -1;
     for(unsigned int idx = e.dst_idx; idx != e.src_idx; idx += dir) {
         m_pItem->swapRows(idx, idx + dir);
     }
