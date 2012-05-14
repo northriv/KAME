@@ -102,6 +102,8 @@ protected:
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted();
 
+	virtual bool canChangePolarityDuringSweep() {return false;}
+
 	virtual double fieldResolution() {return 0.001;}
 
 	virtual void setPoint(double field);

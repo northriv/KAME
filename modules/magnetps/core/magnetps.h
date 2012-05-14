@@ -63,6 +63,8 @@ protected:
 	const shared_ptr<XDoubleNode> &targetField() const {return m_targetField;}
 	const shared_ptr<XDoubleNode> &sweepRate() const {return m_sweepRate;}
 	const shared_ptr<XBoolNode> &allowPersistent() const {return m_allowPersistent;}
+	const shared_ptr<XComboNode> &approach() const {return m_approach;}
+
 	//! averaged err between magnet field and target one
 	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
 protected:
@@ -90,6 +92,7 @@ protected:
 	virtual bool isPCSHeaterOn() = 0;
 	//! please return false if no PCS fitted
 	virtual bool isPCSFitted() = 0;
+	virtual bool canChangePolarityDuringSweep() {return true;}
 private:
 	virtual void onRateChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onConfigShow(const Snapshot &shot, XTouchableNode *);
@@ -100,6 +103,8 @@ private:
 	const shared_ptr<XDoubleNode> m_targetField;
 	const shared_ptr<XDoubleNode> m_sweepRate;
 	const shared_ptr<XBoolNode> m_allowPersistent;
+	enum {APPROACH_LINEAR = 0, APPROACH_OSC = 1};
+	const shared_ptr<XComboNode> m_approach;
 	//! averaged err between magnet field and target one
 	const shared_ptr<XDoubleNode> m_stabilized;
 	const shared_ptr<XDoubleNode> m_magnetField, m_outputField, m_outputCurrent, m_outputVolt;
@@ -136,7 +141,7 @@ private:
 	xqcon_ptr m_conAllowPersistent;
 	xqcon_ptr m_conTargetField, m_conSweepRate;
 	xqcon_ptr m_conMagnetField, m_conOutputField, m_conOutputCurrent, m_conOutputVolt;
-	xqcon_ptr m_conPCSH, m_conPersist, m_conAborting;
+	xqcon_ptr m_conPCSH, m_conPersist, m_conAborting, m_conApproach;
 	xqcon_ptr m_conConfigShow;
 	xqcon_ptr m_conRateLimit1, m_conRateLimit1UBound;
 	xqcon_ptr m_conRateLimit2, m_conRateLimit2UBound;

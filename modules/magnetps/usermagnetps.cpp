@@ -296,10 +296,13 @@ XCryogenicSMS::toPersistent() {
 	char buf[12];
 	if(interface()->scanf("%*s HEATER STATUS: %10s", buf) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
+
+	setRate(10.0);
 }
 void
 XCryogenicSMS::toNonPersistent() {
 	XScopedLock<XInterface> lock( *interface());
+	setRate(Snapshot( *this)[ *sweepRate()]);
 	changePauseState(true);
 	interface()->query("HEATER ON");
 	char buf[12];
@@ -336,24 +339,26 @@ XCryogenicSMS::setPoint(double field) {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("GET OUTPUT");
-	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
+	interface()->queryf("DIRECTION");
+	if(interface()->scanf("%*s CURRENT DIRECTION: %s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	if(x * field < 0.0) {
-		if(fabs(x) > fieldResolution()) {
-			throw XInterface::XInterfaceError(
-				i18n("First you should set to zero."), __FILE__, __LINE__);
+	if( !strcmp(buf, "POSITIVE")) {
+		if(field < 0.0) {
+			interface()->queryf("DIRECTION -");
+			if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
+				throw XInterface::XConvError(__FILE__, __LINE__);
 		}
-		if(field < 0.0)
-			interface()->queryf("SET DIRECTION -");
-		else
-			interface()->queryf("SET DIRECTION +");
-
-		if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
-			throw XInterface::XConvError(__FILE__, __LINE__);
 	}
+	if( !strcmp(buf, "NEGATIVE")) {
+		if(field > 0.0) {
+			interface()->queryf("DIRECTION +");
+			if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
+				throw XInterface::XConvError(__FILE__, __LINE__);
+		}
+	}
+
+	double x;
 	interface()->queryf("SET MID %.5f", fabs(field));
 	if(interface()->scanf("%*2d:%*2d:%*2d MID SETTING: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
@@ -455,16 +460,21 @@ XCryogenicSMS::getOutputVolt() {
 double
 XCryogenicSMS::getOutputCurrent() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("TESLA OFF");
+	interface()->query("TESLA ON");
 	char buf[10];
 	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", buf) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+
+	interface()->query("GET TPA");
+	double tesla_per_amp;
+	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET OUTPUT");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x;
+	return x / tesla_per_amp;
 }
 
 //! Persistent Current Switch Heater
