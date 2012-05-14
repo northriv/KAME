@@ -66,7 +66,7 @@ XValChart::XValChart(const char *name, bool runtime,
 	m_graphForm->m_graphwidget->setGraph(m_graph);
     
 	for(Transaction tr( *m_graph);; ++tr) {
-		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getName().c_str(), true, ref(tr), m_graph);
+		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, ref(tr), m_graph);
 		tr[ *m_graph->persistence()] = 0.0;
 		tr[ *m_chart->label()] = entry->getLabel();
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
@@ -130,7 +130,7 @@ XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarE
 void
 XChartList::onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
     shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>(e.caught);
-    create<XValChart>(entry->getName().c_str(), true, entry);
+    create<XValChart>(entry->getLabel().c_str(), true, entry);
 }
 void
 XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {

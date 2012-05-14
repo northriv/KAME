@@ -40,12 +40,12 @@ XNode::XNode(const char *name, bool runtime)
 	trans( *this).setRuntime(runtime);
 
 	dbgPrint(QString("xnode %1 is created., addr=0x%2, size=0x%3")
-			 .arg(getName())
+			 .arg(getLabel())
 			 .arg((uintptr_t)this, 0, 16)
 			 .arg((uintptr_t)sizeof(XNode), 0, 16));
 }
 XNode::~XNode() {
-	dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getName()).arg((uintptr_t)this, 0, 16));
+	dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getLabel()).arg((uintptr_t)this, 0, 16));
 }
 XString
 XNode::getName() const {

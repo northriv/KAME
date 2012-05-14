@@ -31,7 +31,7 @@ XItemNodeBase::onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent
 	if(var.length()) return;
 	shared_ptr<const std::deque<Item> > items = itemStrings(e.shot_of_list);
 	if(items->size()) {
-		trans( *this).str(items->front().name);
+		trans( *this).str(items->front().label);
 	}
 }
 

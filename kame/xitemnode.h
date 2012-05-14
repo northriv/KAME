@@ -65,7 +65,7 @@ public:
 		virtual XString to_str() const {
 			shared_ptr<XNode> node( *this);
 			if(node)
-				return node->getName();
+				return node->getLabel();
 			else
 				return XString();
 		}
@@ -84,7 +84,7 @@ public:
 				Snapshot shot( *list);
 				if(shot.size()) {
 					for(auto it = shot.list()->begin(); it != shot.list()->end(); ++it) {
-						if(( *it)->getName() == var) {
+						if(( *it)->getLabel() == var) {
 							*this = *it;
 							return;
 						}

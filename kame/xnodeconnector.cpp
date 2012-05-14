@@ -97,7 +97,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     }
     onUIFlagsChanged(Snapshot(*node), node.get());
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
-			 .arg(node->getName())
+			 .arg(node->getLabel())
 			 .arg((uintptr_t)this, 0, 16)
 			 .arg((uintptr_t)sizeof(XQConnector), 0, 16));
     
@@ -548,7 +548,7 @@ XQComboBoxConnector::onSelect(int idx) {
 	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
-	            tr[ *m_node].str(m_itemStrings->at(idx).name);
+	            tr[ *m_node].str(m_itemStrings->at(idx).label);
 			tr.unmark(m_lsnValueChanged);
 			if(tr.commit())
 				break;
@@ -576,7 +576,7 @@ XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 	int idx = -1;
 	int i = 0;
 	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
-        if(QString(it->name) == str) {
+        if(QString(it->label) == str) {
             idx = i;
         }
         i++;
@@ -639,7 +639,7 @@ XQListBoxConnector::onSelect(int idx) {
 	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
-	            tr[ *m_node].str(m_itemStrings->at(idx).name);
+	            tr[ *m_node].str(m_itemStrings->at(idx).label);
 			tr.unmark(m_lsnValueChanged);
 			if(tr.commit())
 				break;
@@ -655,7 +655,7 @@ XQListBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->blockSignals(true);
 	unsigned int i = 0;
 	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
-        if(str == QString(it->name))
+        if(str == QString(it->label))
             m_pItem->setCurrentItem(i);
         i++;
 	}
