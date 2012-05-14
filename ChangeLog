@@ -1,3 +1,7 @@
+* Tue May 15 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.9-1)
+- magnetps: Oscillating approach.
+
 * Sun May 13 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.8-1)
 - magnetps: Limit rates, Secondary PS, safe conditions.
