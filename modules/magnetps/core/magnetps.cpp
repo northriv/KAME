@@ -455,7 +455,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 								if(shot[ *approach()] == APPROACH_OSC) {
 									next_target_ps += 0.1 * (next_target_ps - magnet_field);
 								}
-								if((next_target_ps * magnet_field < 0) && (fabs(magnet_field > field_resolution)) &&
+								if((next_target_ps * magnet_field < 0) && (fabs(magnet_field) > field_resolution) &&
 									!canChangePolarityDuringSweep())
 									next_target_ps = 0.0; //First go to zero before setting target with different polarity.
 								//Limits target.
