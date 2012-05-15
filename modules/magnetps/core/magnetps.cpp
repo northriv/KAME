@@ -339,6 +339,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 		return NULL;
 	}
 	double target_field_old = Snapshot( *this)[ *targetField()];
+	double target_corr = 0.0;
 
 	if(is_pcs_fitted) allowPersistent()->setUIEnabled(true);
 	for(Transaction tr( *this);; ++tr) {
@@ -451,13 +452,18 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 							if( !is_pcs_fitted || isNonPersistentStabilized(shot, shot_entries, pcsh_time)) {
 								//Sweeping starts.
 								double next_target_ps = shot[ *targetField()];
+								if(target_field_old != shot[ *targetField()])
+									target_corr = 0.0;
 								target_field_old = shot[ *targetField()];
 								if(shot[ *approach()] == APPROACH_OSC) {
-									next_target_ps += 0.1 * (next_target_ps - magnet_field);
+									next_target_ps += 0.1 * (next_target_ps - magnet_field) + target_corr;
+									target_corr = 0.0;
 								}
 								if((next_target_ps * magnet_field < 0) && (fabs(magnet_field) > field_resolution) &&
-									!canChangePolarityDuringSweep())
+									!canChangePolarityDuringSweep()) {
+									target_corr = next_target_ps - shot[ *targetField()];
 									next_target_ps = 0.0; //First go to zero before setting target with different polarity.
+								}
 								//Limits target.
 								double x =  limitTargetField(next_target_ps, shot);
 								if(x != next_target_ps) {
