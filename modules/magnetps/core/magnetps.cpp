@@ -104,7 +104,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	m_conAborting = xqcon_create<XKLedConnector>(
 		m_aborting, m_form->m_ledAborting);
 	m_conApproach = xqcon_create<XQComboBoxConnector>(
-		m_approach, m_form->m_cmbApproach, ref(tr_meas));
+		m_approach, m_form->m_cmbApproach, Snapshot( *this));
 	m_conRateLimit1 = xqcon_create<XQLineEditConnector>(
 		m_rateLimit1, m_formConfig->m_edRateLimit1);
 	m_conRateLimit2 = xqcon_create<XQLineEditConnector>(
