@@ -454,7 +454,7 @@ XCryogenicSMS::getOutputCurrent() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("TESLA ON");
 	char buf[10];
-	if(interface()->scanf("%*2d:%*2d:%*2d UNITS: %5s", buf) != 1)
+	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET TPA");
