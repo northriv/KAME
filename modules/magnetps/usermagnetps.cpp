@@ -342,20 +342,12 @@ XCryogenicSMS::toSetPoint() {
 void
 XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("TESLA ON");
-	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
+	double x = getOutputField();
 
-	interface()->query("GET OUTPUT");
-	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-
-	if((x >= 0) && (field < 0.0)) {
+	if((x > -1e-10) && (field < 0.0)) {
 		interface()->send("DIRECTION -");
 	}
-	if((x <= 0) && (field > 0.0)) {
+	if((x < 1e-10) && (field > 0.0)) {
 		interface()->send("DIRECTION +");
 	}
 
@@ -374,16 +366,16 @@ XCryogenicSMS::setRate(double hpm) {
 double
 XCryogenicSMS::getTargetField() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("TESLA ON");
-	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
+	interface()->query("GET OUTPUT");
+	char c;
+	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %c", &c) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	interface()->query("GET MID");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d %*s MID SETTING: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x;
+	return x * ((c == '-') ? -1 : 1);
 }
 double
 XCryogenicSMS::getSweepRate() {
@@ -450,15 +442,8 @@ XCryogenicSMS::getOutputVolt() {
 double
 XCryogenicSMS::getOutputCurrent() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->query("TESLA ON");
-	char buf[10];
-	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
+	double x = getOutputField();
 
-	interface()->query("GET OUTPUT");
-	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
 	return x / teslaPerAmp();
 }
 double
