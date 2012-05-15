@@ -243,7 +243,7 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
 /*
  * Notes not mentioned in the manufacturer's manual.
  * GET PER command does not return a value or delimiter when it is not in persistent mode or at zero field.
- * RAMP ... command does not reply.
+ * RAMP/DIRECTION ... command does not reply.
  * PAUSE ... command does not reply the second line.
  * Some commands respond with a form of HH:MM:SS ....... (command).
  * Local button operations will emit status lines.
@@ -339,26 +339,18 @@ XCryogenicSMS::setPoint(double field) {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->queryf("DIRECTION");
-	if(interface()->scanf("%*s CURRENT DIRECTION: %s", buf) != 1)
+	interface()->query("GET OUTPUT");
+	double x;
+	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	if( !strcmp(buf, "POSITIVE")) {
-		if(field < 0.0) {
-			interface()->queryf("DIRECTION -");
-			if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
-				throw XInterface::XConvError(__FILE__, __LINE__);
-		}
+	if((x > 0) && (field < 0.0)) {
+		interface()->queryf("DIRECTION -");
 	}
-	if( !strcmp(buf, "NEGATIVE")) {
-		if(field > 0.0) {
-			interface()->queryf("DIRECTION +");
-			if(interface()->scanf("%*2d:%*2d:%*2d CURRENT DIRECTION: %10s", buf) != 1)
-				throw XInterface::XConvError(__FILE__, __LINE__);
-		}
+	if((x < 0) && (field > 0.0)) {
+		interface()->queryf("DIRECTION +");
 	}
 
-	double x;
 	interface()->queryf("SET MID %.5f", fabs(field));
 	if(interface()->scanf("%*2d:%*2d:%*2d MID SETTING: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
