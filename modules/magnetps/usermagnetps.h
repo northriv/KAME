@@ -86,6 +86,9 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XCryogenicSMS() {}
 protected:
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XInterface::XInterfaceError &);
+
 	virtual void toNonPersistent();
 	virtual void toPersistent();
 	virtual void toZero();
@@ -104,12 +107,15 @@ protected:
 
 	virtual bool canChangePolarityDuringSweep() {return false;}
 
-	virtual double fieldResolution() {return 0.001;}
+	virtual double fieldResolution();
 
 	virtual void setPoint(double field);
 	virtual void setRate(double hpm);
 private:
 	void changePauseState(bool pause);
+	double teslaPerAmp() const {return m_tpa;}
+
+	double m_tpa;
 };
 #endif
 

@@ -255,6 +255,14 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
     interface()->setEOS("\r\n");
 }
 void
+XCryogenicSMS::open() throw (XInterface::XInterfaceError &) {
+	interface()->query("GET TPA");
+	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &m_tpa) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+
+	start();
+}
+void
 XCryogenicSMS::changePauseState(bool pause) {
 // Lock before calling me.
 //	XScopedLock<XInterface> lock( *interface());
@@ -345,10 +353,10 @@ XCryogenicSMS::setPoint(double field) {
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	if((x > 0) && (field < 0.0)) {
-		interface()->queryf("DIRECTION -");
+		interface()->send("DIRECTION -");
 	}
 	if((x < 0) && (field > 0.0)) {
-		interface()->queryf("DIRECTION +");
+		interface()->send("DIRECTION +");
 	}
 
 	interface()->queryf("SET MID %.5f", fabs(field));
@@ -357,12 +365,7 @@ XCryogenicSMS::setPoint(double field) {
 }
 void
 XCryogenicSMS::setRate(double hpm) {
-	interface()->query("GET TPA");
-	double tesla_per_amp;
-	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-
-	double amp_per_sec = hpm / 60.0 / tesla_per_amp;
+	double amp_per_sec = hpm / 60.0 / teslaPerAmp();
 	interface()->queryf("SET RAMP %.5g", amp_per_sec);
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d RAMP RATE: %lf", &x) != 1)
@@ -390,16 +393,11 @@ XCryogenicSMS::getSweepRate() {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("GET TPA");
-	double tesla_per_amp;
-	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-
 	interface()->query("GET RATE");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d %*s RAMP RATE: %lf", &x) != 1)  //[A/s]
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x * tesla_per_amp * 60.0;
+	return x * teslaPerAmp() * 60.0;
 }
 double
 XCryogenicSMS::getOutputField() {
@@ -457,18 +455,16 @@ XCryogenicSMS::getOutputCurrent() {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query("GET TPA");
-	double tesla_per_amp;
-	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &tesla_per_amp) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-
 	interface()->query("GET OUTPUT");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x / tesla_per_amp;
+	return x / teslaPerAmp();
 }
-
+double
+XCryogenicSMS::fieldResolution() {
+	return 0.02 * teslaPerAmp();
+}
 //! Persistent Current Switch Heater
 bool
 XCryogenicSMS::isPCSHeaterOn() {
