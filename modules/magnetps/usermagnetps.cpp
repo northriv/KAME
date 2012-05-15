@@ -352,10 +352,10 @@ XCryogenicSMS::setPoint(double field) {
 	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	if((x > 0) && (field < 0.0)) {
+	if((x >= 0) && (field < 0.0)) {
 		interface()->send("DIRECTION -");
 	}
-	if((x < 0) && (field > 0.0)) {
+	if((x <= 0) && (field > 0.0)) {
 		interface()->send("DIRECTION +");
 	}
 
