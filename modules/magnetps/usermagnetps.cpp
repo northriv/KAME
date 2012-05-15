@@ -344,11 +344,13 @@ XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
 	double x = getOutputField();
 
-	if((x > -1e-10) && (field < 0.0)) {
-		interface()->send("DIRECTION -");
-	}
-	if((x < 1e-10) && (field > 0.0)) {
-		interface()->send("DIRECTION +");
+	if(fabs(x) < fieldResolution()) {
+		if(field < 0.0) {
+			interface()->send("DIRECTION -");
+		}
+		if(field > 0.0) {
+			interface()->send("DIRECTION +");
+		}
 	}
 
 	interface()->queryf("SET MID %.5f", fabs(field));
@@ -363,19 +365,22 @@ XCryogenicSMS::setRate(double hpm) {
 	if(interface()->scanf("%*2d:%*2d:%*2d RAMP RATE: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 }
-double
-XCryogenicSMS::getTargetField() {
-	XScopedLock<XInterface> lock( *interface());
+bool
+XCryogenicSMS::isOutputPositive() {
 	interface()->query("GET OUTPUT");
 	char c;
 	if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %c", &c) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-
+	return (c != '-');
+}
+double
+XCryogenicSMS::getTargetField() {
+	XScopedLock<XInterface> lock( *interface());
 	interface()->query("GET MID");
 	double x;
 	if(interface()->scanf("%*2d:%*2d:%*2d %*s MID SETTING: %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x * ((c == '-') ? -1 : 1);
+	return x * (isOutputPositive() ? 1 : -1);
 }
 double
 XCryogenicSMS::getSweepRate() {

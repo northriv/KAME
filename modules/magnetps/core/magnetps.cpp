@@ -446,7 +446,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 					if(pcs_heater || !is_pcs_fitted) {
 						//pcs heater is on or not fitted.
 						if((target_field_old != shot[ *targetField()]) ||
-							((fabs(target_field_ps - target_field_old) > field_resolution) &&
+							((fabs(target_field_ps - target_field_old - target_corr) > field_resolution) &&
 								(fabs(target_field_ps - magnet_field) < field_resolution))) {
 							//Target has changed, or field has reached the temporary target.
 							if( !is_pcs_fitted || isNonPersistentStabilized(shot, shot_entries, pcsh_time)) {
@@ -456,9 +456,9 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 									target_corr = 0.0;
 								target_field_old = shot[ *targetField()];
 								if(shot[ *approach()] == APPROACH_OSC) {
-									next_target_ps += 0.1 * (next_target_ps - magnet_field) + target_corr;
-									target_corr = 0.0;
+									next_target_ps += 0.2 * (next_target_ps - magnet_field) + target_corr;
 								}
+								target_corr = 0.0;
 								if((next_target_ps * magnet_field < 0) && (fabs(magnet_field) > field_resolution) &&
 									!canChangePolarityDuringSweep()) {
 									target_corr = next_target_ps - shot[ *targetField()];

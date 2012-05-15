@@ -114,7 +114,7 @@ protected:
 private:
 	void changePauseState(bool pause);
 	double teslaPerAmp() const {return m_tpa;}
-
+	bool isOutputPositive();
 	double m_tpa;
 };
 #endif
