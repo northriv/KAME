@@ -344,7 +344,7 @@ XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
 	double x = getOutputField();
 
-	if(fabs(x) < fieldResolution()) {
+	if(fabs(x) < fieldResolution() * 10) {
 		if(field < 0.0) {
 			interface()->send("DIRECTION -");
 		}

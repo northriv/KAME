@@ -508,8 +508,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 					else {
 						//pcs heater is off
 						if(fabs(magnet_field - shot[ *targetField()]) >= field_resolution) {
-							if(fabs(target_field_ps  - magnet_field) < field_resolution) {
-								if(fabs(magnet_field - output_field) < field_resolution) {
+							if(fabs(magnet_field - output_field) < field_resolution) {
+								if(fabs(target_field_ps  - magnet_field) < field_resolution) {
 									//ready to go non-persistent.
 									m_statusPrinter->printMessage(getLabel() + " " +
 																  i18n("Non-Perisistent mode."));
@@ -531,7 +531,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 							}
 						}
 						else {
-							if(shot[ *m_persistent]) {
+							if(shot[ *m_persistent] && (fabs(output_field) > field_resolution)) {
 								toZero();
 							}
 						}
