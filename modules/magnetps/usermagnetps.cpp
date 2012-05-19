@@ -352,6 +352,9 @@ XCryogenicSMS::setPoint(double field) {
 			interface()->send("DIRECTION +");
 		}
 	}
+	else if(x * field < 0) {
+		throw XInterface::XInterfaceError(i18n("Failed to reverse current direction."), __FILE__, __LINE__);
+	}
 
 	interface()->queryf("SET MID %.5f", fabs(field));
 	if(interface()->scanf("%*2d:%*2d:%*2d MID SETTING: %lf", &x) != 1)

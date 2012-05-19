@@ -75,7 +75,7 @@ XValChart::XValChart(const char *name, bool runtime,
 
 		tr[ *m_chart->axisX()] = axisx;
 		tr[ *m_chart->axisY()] = axisy;
-		tr[ *m_chart->maxCount()] = 300;
+		tr[ *m_chart->maxCount()] = 600;
 		tr[ *axisx->length()] = 0.95 - tr[ *axisx->x()];
 		tr[ *axisy->length()] = 0.90 - tr[ *axisy->y()];
 		tr[ *axisx->label()] = "Time";
@@ -224,8 +224,8 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *shot_this[ *this].m_storePlot->lineColor()] = clGreen;
 		tr[ *shot_this[ *this].m_storePlot->barColor()] = clGreen;
 		tr[ *shot_this[ *this].m_storePlot->displayMajorGrid()] = false;
-		tr[ *shot_this[ *this].m_livePlot->maxCount()] = 4000;
-		tr[ *shot_this[ *this].m_storePlot->maxCount()] = 4000;
+		tr[ *shot_this[ *this].m_livePlot->maxCount()] = 10000;
+		tr[ *shot_this[ *this].m_storePlot->maxCount()] = 10000;
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
 		tr[ *graph->label()] = getLabel();

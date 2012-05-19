@@ -1,3 +1,7 @@
+* Sat May 19 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.10-1)
+- graph, chart: Incresing maxcount, and do not clear after changing it.
+
 * Tue May 15 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.9-1)
 - magnetps: Oscillating approach.
