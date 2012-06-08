@@ -329,8 +329,10 @@ XNMRBuiltInNetworkAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitte
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
 	int pts = shot_this[ *this].m_sweepPoints;
-	if( !pts)
+	if( !pts) {
+		tr[ *this].m_sweeping = false;
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	}
 
 	const Snapshot &shot_dso(shot_emitter);
 	const Snapshot &shot_sg(shot_others);
