@@ -241,7 +241,7 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XMagnetPS>(name, runtime, ref(tr_meas), meas) {
 /*
- * Notes not mentioned in the manufacturer's manual.
+ * Notes not mentioned in the manufacturer's manual for ver 6.
  * GET PER command does not return a value or delimiter when it is not in persistent mode or at zero field.
  * RAMP/DIRECTION ... command does not reply.
  * PAUSE ... command does not reply the second line.
@@ -256,8 +256,13 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
 }
 void
 XCryogenicSMS::open() throw (XInterface::XInterfaceError &) {
-	interface()->query("GET TPA");
-	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &m_tpa) != 1)
+// For firmware ver >6.
+//	interface()->query("GET TPA");
+//	if(interface()->scanf("%*2d:%*2d:%*2d %*s FIELD CONSTANT: %lf", &m_tpa) != 1)
+//		throw XInterface::XConvError(__FILE__, __LINE__);
+
+	interface()->query("SET TPA");
+	if(interface()->scanf("%*s FIELD CONSTANT: %lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	start();
@@ -421,23 +426,37 @@ XCryogenicSMS::getPersistentField() {
 	if(interface()->scanf("%*s UNITS: %5s", buf) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	interface()->query(
-		"GET PER\r\n" //"GET PER" does not return value+delimiter if PER hasn't been recorded.
-		"GET OUTPUT"); //Dummy, workaround against the damn firmware.
-	double x;
-	if(interface()->scanf("%*2d:%*2d:%*2d %lf %s", &x, buf) != 2) {
+//	Ver 6 commands.
+//	interface()->query(
+//		"GET PER\r\n" //"GET PER" does not return value+delimiter if PER hasn't been recorded.
+//		"GET OUTPUT"); //Dummy, workaround against the damn firmware.
+//	double x;
+//	if(interface()->scanf("%*2d:%*2d:%*2d %lf %s", &x, buf) != 2) {
+//		return 0.0;
+//	}
+//	else {
+//		if( !strncmp(buf, "TESLA", 5)) {
+//			interface()->receive(); //For output.
+//			double y;
+//			if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &y) != 1)
+//				throw XInterface::XConvError(__FILE__, __LINE__);
+//			return x;
+//		}
+//	}
+//	return 0.0;
+
+	interface()->query("HEATER");
+	char buf[44];
+	if(interface()->scanf("%*s HEATER STATUS: %40s", buf) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+	if( !strncmp("ON", buf, 2))
+		throw XInterface::XInterfaceError(i18n("Trying to read persistent current while PCSH is on."), __FILE__, __LINE__);
+	if( !strncmp("OFF", buf, 3))
 		return 0.0;
-	}
-	else {
-		if( !strncmp(buf, "TESLA", 5)) {
-			interface()->receive(); //For output.
-			double y;
-			if(interface()->scanf("%*2d:%*2d:%*2d OUTPUT: %lf", &y) != 1)
-				throw XInterface::XConvError(__FILE__, __LINE__);
-			return x;
-		}
-	}
-	return 0.0;
+	double x;
+	if(sscanf(buf, "SWITCHED OFF AT %lf", &x) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+	return x;
 }
 double
 XCryogenicSMS::getOutputVolt() {

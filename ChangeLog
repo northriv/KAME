@@ -1,3 +1,7 @@
+* Tue Jun 12 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.11-1)
+- usermagnetps.cpp: For Cryogenic SMS ver 4.
+
 * Fri Jun 8 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.10-1)
 - pulseanalyzer: Fix bug. during off state.
