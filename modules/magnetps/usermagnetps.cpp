@@ -262,8 +262,10 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 		bool has_stamp = false;
 		if(strncmp( &interface()->buffer()[0], "........", 8)) {
 			if( !strncmp( &interface()->buffer()[0], "------->", 8)) {
+				//Error message is passed.
 		        throw XInterface::XInterfaceError( &interface()->buffer()[8], __FILE__, __LINE__);
 			}
+			//Message w/ time stamp.
 			int ss;
 			if(sscanf( &interface()->buffer()[0], "%*2d:%*2d:%2d", &ss) != 1)
 				throw XInterface::XConvError(__FILE__, __LINE__);
@@ -294,7 +296,8 @@ XCryogenicSMS::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("SET TPA");
 	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	interface()->send("SET TPA"); //again to flush buffer.
+	//Reads again to flush buffer.
+	interface()->send("SET TPA");
 	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
@@ -328,7 +331,7 @@ XCryogenicSMS::toPersistent() {
 	interface()->send("HEATER OFF");
 	receiveMessage("HEATER STATUS");
 
-	setRate(10.0);
+	setRate(10.0); //Setting very high rate.
 }
 void
 XCryogenicSMS::toNonPersistent() {
