@@ -250,7 +250,7 @@ XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
  *
  * This driver assumes...
  * (i) TPA (tesla per ampere) has been set properly.
- * (ii) PCSH is fitted.
+ * (ii) PCSH is fitted, or "HEATER OUTPUT" is set to zero.
  */
     interface()->setEOS("\r\n");
 }
@@ -336,10 +336,7 @@ XCryogenicSMS::toNonPersistent() {
 	setRate(Snapshot( *this)[ *sweepRate()]);
 	changePauseState(true);
 	interface()->send("HEATER ON");
-	char buf[12];
-	if(sscanf(receiveMessage("HEATER STATUS").c_str(), "%10s", buf) != 1)
-        throw XInterface::XInterfaceError(
-			i18n("Cannot activate heater."), __FILE__, __LINE__);
+	receiveMessage("HEATER STATUS");
 }
 void
 XCryogenicSMS::ramp(const char *str) {
