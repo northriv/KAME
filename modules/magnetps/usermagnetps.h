@@ -113,6 +113,11 @@ protected:
 	virtual void setRate(double hpm);
 private:
 	void changePauseState(bool pause);
+	void changePolarity(int p);
+	void ramp(const char *str);
+
+	std::string receiveMessage(const char *title, bool is_stamp_required = false);
+
 	double teslaPerAmp() const {return m_tpa;}
 	bool isOutputPositive();
 	double m_tpa;

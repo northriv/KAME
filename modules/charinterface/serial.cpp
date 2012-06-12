@@ -98,17 +98,19 @@ XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
 void
 XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
-      
-	for (;;) {
-		int ret = tcflush(m_scifd, TCIFLUSH);
-		if(ret < 0) {
-            if(errno == EINTR) {
-                dbgPrint("Serial, EINTR, try to continue.");
-                continue;
-            }
-			throw XInterface::XCommError(i18n("tciflush error."), __FILE__, __LINE__);
+
+	if(m_pInterface->serialFlushBeforeWrite()) {
+		for (;;) {
+			int ret = tcflush(m_scifd, TCIFLUSH);
+			if(ret < 0) {
+				if(errno == EINTR) {
+					dbgPrint("Serial, EINTR, try to continue.");
+					continue;
+				}
+				throw XInterface::XCommError(i18n("tciflush error."), __FILE__, __LINE__);
+			}
+			break;
 		}
-		break;
 	}
       
 	msecsleep(TTY_WAIT);

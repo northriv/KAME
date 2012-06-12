@@ -74,11 +74,13 @@ public:
 	enum {PARITY_NONE = 0, PARITY_ODD = 1, PARITY_EVEN = 2};
 	void setSerialParity(unsigned int parity) {m_serialParity = parity;}
 	void setSerial7Bits(bool enable) {m_serial7Bits = enable;}
+	void setSerialFlushBeforeWrite(bool x) {m_serialFlushBeforeWrite = x;}
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
 	unsigned int serialParity() const {return m_serialParity;}
 	bool serial7Bits() const {return m_serial7Bits;}
+	bool serialFlushBeforeWrite() const {return m_serialFlushBeforeWrite;}
 
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
@@ -98,6 +100,7 @@ private:
 	unsigned int m_serialStopBits;
 	unsigned int m_serialParity;
 	bool m_serial7Bits;
+	bool m_serialFlushBeforeWrite;
 	
 	shared_ptr<XPort> m_xport;
 

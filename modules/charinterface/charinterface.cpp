@@ -39,6 +39,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     m_serialStopBits(2),
     m_serialParity(PARITY_NONE),
     m_serial7Bits(false),
+    m_serialFlushBeforeWrite(true),
     m_script_send(create<XStringNode>("Send", true)),
     m_script_query(create<XStringNode>("Query", true)) {
 
