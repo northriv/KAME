@@ -240,6 +240,9 @@ XIPS120::open() throw (XInterface::XInterfaceError &) {
 XCryogenicSMS::XCryogenicSMS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XMagnetPS>(name, runtime, ref(tr_meas), meas) {
+
+	interface()->setSerialFlushBeforeWrite(false);
+
 /*
  * Notes not mentioned in the manufacturer's manual for ver 6.
  * GET PER command does not return a value or delimiter when it is not in persistent mode or at zero field.
@@ -296,10 +299,9 @@ XCryogenicSMS::open() throw (XInterface::XInterfaceError &) {
 	interface()->send("SET TPA");
 	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	//Reads again to flush buffer.
-	interface()->send("SET TPA");
-	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
+
+	interface()->send("TESLA ON");
+	receiveMessage("UNITS");
 
 	start();
 }
@@ -344,6 +346,7 @@ XCryogenicSMS::toNonPersistent() {
 void
 XCryogenicSMS::ramp(const char *str) {
 	interface()->sendf("RAMP %s", str); //"RAMP..." does not respond for firmware > 6.
+	msecsleep(100);
 }
 void
 XCryogenicSMS::toZero() {
@@ -360,10 +363,9 @@ XCryogenicSMS::toSetPoint() {
 void
 XCryogenicSMS::changePolarity(int p) {
 	for(int tcnt = 0; tcnt < 3; ++tcnt) {
-		interface()->sendf(
-			"DIRECTION %c\r\n" //"DIR..." does not respond for firmware > 6.
-			"GET OUTPUT" //Dummy, workaround against the damn firmware.
-			, (p > 0) ? '+' : '-');
+		interface()->sendf("DIRECTION %c", (p > 0) ? '+' : '-'); //"DIR..." does not respond for firmware > 6.
+		msecsleep(100);
+		interface()->sendf("GET OUTPUT");
 		char c;
 		if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%c", &c) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
@@ -376,6 +378,9 @@ XCryogenicSMS::changePolarity(int p) {
 void
 XCryogenicSMS::setPoint(double field) {
 	XScopedLock<XInterface> lock( *interface());
+	interface()->send("TESLA ON");
+	receiveMessage("UNITS");
+
 	double x = getOutputField();
 
 	if(fabs(x) < fieldResolution() * 10) {
@@ -417,17 +422,17 @@ double
 XCryogenicSMS::getTargetField() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->send("SET MID");
+	char unit[10];
 	double x;
-	if(sscanf(receiveMessage("MID SETTING").c_str(), "%lf", &x) != 1)
+	if(sscanf(receiveMessage("MID SETTING").c_str(), "%lf %9s", &x, unit) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
+	if(strncmp(unit, "TESLA", 5))
+		x *= teslaPerAmp();
 	return x * (isOutputPositive() ? 1 : -1);
 }
 double
 XCryogenicSMS::getSweepRate() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->send("TESLA ON");
-	receiveMessage("UNITS");
-
 	double x;
 	interface()->send("SET RATE");
 	if(sscanf(receiveMessage("RAMP RATE").c_str(), "%lf", &x) != 1)  //[A/s]
@@ -437,30 +442,30 @@ XCryogenicSMS::getSweepRate() {
 double
 XCryogenicSMS::getOutputField() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->send("TESLA ON");
-	receiveMessage("UNITS");
-
 	interface()->send("GET OUTPUT");
+	char unit[10];
 	double x;
-	if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%lf", &x) != 1)
+	if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%lf %9s", &x, unit) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
+	if(strncmp(unit, "TESLA", 5))
+		x *= teslaPerAmp();
 	return x;
 }
 double
 XCryogenicSMS::getPersistentField() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->send("TESLA ON");
-	receiveMessage("UNITS");
-
 	interface()->send("HEATER");
 	std::string buf = receiveMessage("HEATER STATUS");
 	if( !strncmp("ON", buf.c_str(), 2))
 		throw XInterface::XInterfaceError(i18n("Trying to read persistent current while PCSH is on."), __FILE__, __LINE__);
 	if( !strncmp("OFF", buf.c_str(), 3))
 		return 0.0;
+	char unit[10];
 	double x;
-	if(sscanf(buf.c_str(), "SWITCHED OFF AT %lf", &x) != 1)
+	if(sscanf(buf.c_str(), "SWITCHED OFF AT %lf %9s", &x, unit) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
+	if(strncmp(unit, "TESLA", 5))
+		x *= teslaPerAmp();
 	return x;
 }
 double
