@@ -413,12 +413,11 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 				tr[ *sweepRate()] =  sweep_rate;
 			}
 
-			//calicurate std. deviations in some periods
 			XTime newtime = XTime::now();
 			double dt = fabs(newtime - lasttime);
-			havg = (havg - magnet_field) * exp(-dt / 3.0) + magnet_field;
-			tr[ *stabilized()] = fabs(havg - shot[ *targetField()]); //stderr
-			if(tr[ *stabilized()] > field_resolution * 10)
+			havg = (havg - magnet_field) * exp( -10 * dt) + magnet_field; //LPF
+			tr[ *stabilized()] = std::max(magnet_field - shot[ *targetField()], fabs(havg - shot[ *targetField()]));
+			if(tr[ *stabilized()] > field_resolution * 5)
 				last_unstab_time = XTime::now();
 			if(tr.commit()) {
 				lasttime = newtime;
@@ -496,7 +495,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 							if(is_pcs_fitted &&
 							   (fabs(magnet_field - target_field_ps) < field_resolution) &&
 								   shot[ *allowPersistent()] &&
-								   (XTime::now() - last_unstab_time > std::max(10.0, (double)shot[ *m_pcshWait] / 2))) {
+								   (XTime::now() - last_unstab_time > std::max(10.0, (double)shot[ *m_pcshWait] / 4))) {
 								//field is not sweeping, and persistent mode is allowed
 								m_statusPrinter->printMessage(getLabel() + " " +
 															  i18n("Turning on Perisistent mode."));

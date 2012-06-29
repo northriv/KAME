@@ -102,11 +102,13 @@ XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y)
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	bool ret = restart(CAL_NONE);
-	if( !ret)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	while(Snapshot( *this)[ *this].m_sweeping) {
-		msecsleep(30);
+	if( !Snapshot( *this)[ *this].m_sweeping) {
+		bool ret = restart(CAL_NONE);
+		if( !ret)
+			throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+		while(Snapshot( *this)[ *this].m_sweeping) {
+			msecsleep(30);
+		}
 	}
 }
 bool
@@ -198,13 +200,12 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		}
 	}
 
-	int avg = std::max(1L, lrint(0.03 / (interval * dso_len)));
-	avg *= std::max(1u, (unsigned int)shot_this[ *average()]);
-	trans( *dso->average()) = (avg + 3) / 4 * 4; //round to phase cycling for NMR.
-
 	trans( *sg->freq()) = fmin;
 
 	for(Transaction trd( *dso);; ++trd) {
+		int avg = std::max(1L, lrint(0.03 / (interval * dso_len)));
+		avg *= std::max(1u, (unsigned int)shot_this[ *average()]);
+		trd[ *dso->average()] = (avg + 3) / 4 * 4; //round to phase cycling for NMR.
 		trd[ *dso->firEnabled()] = false;
 		trd[ *dso->restart()].touch(); //Restart averaging in DSO.
 		if(trd.commit()) {
@@ -319,7 +320,7 @@ XNMRBuiltInNetworkAnalyzer::checkDependency(const Snapshot &shot_this,
 	if( !dso) return false;
     shared_ptr<XSG> sg = shot_this[ *m_sg];
     if( !sg) return false;
-	if (emitter != dso.get())
+	if(emitter != dso.get())
 		return false;
    if(shot_emitter[ *dso].timeAwared() < shot_others[ *sg].time()) return false;
 	return true;

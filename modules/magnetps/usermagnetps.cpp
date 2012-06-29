@@ -481,7 +481,7 @@ XCryogenicSMS::getOutputCurrent() {
 }
 double
 XCryogenicSMS::fieldResolution() {
-	return 0.02 * teslaPerAmp();
+	return std::min(0.05, 0.04 * teslaPerAmp());
 }
 //! Persistent Current Switch Heater
 bool

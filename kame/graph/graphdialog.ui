@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>274</width>
-    <height>425</height>
+    <width>280</width>
+    <height>466</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -327,6 +327,9 @@
              <property name="text">
               <string>Clear Points</string>
              </property>
+             <property name="autoDefault">
+              <bool>false</bool>
+             </property>
             </widget>
            </item>
           </layout>
@@ -346,7 +349,7 @@
           </widget>
          </item>
          <item>
-          <widget class="KDoubleNumInput" name="dblIntensity">
+          <widget class="KDoubleNumInput" name="dblIntensity" native="true">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -634,17 +637,17 @@
           </widget>
          </item>
          <item>
-          <widget class="KDoubleNumInput" name="m_dblPersistence">
+          <widget class="KDoubleNumInput" name="m_dblPersistence" native="true">
            <property name="enabled">
             <bool>false</bool>
            </property>
-           <property name="label">
+           <property name="label" stdset="0">
             <string/>
            </property>
-           <property name="value">
+           <property name="value" stdset="0">
             <double>0.000000000000000</double>
            </property>
-           <property name="suffix">
+           <property name="suffix" stdset="0">
             <string> sec</string>
            </property>
            <property name="maxValue" stdset="0">
