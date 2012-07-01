@@ -491,6 +491,9 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if(fftlen != shot_this[ *this].m_darkPSD.size()) {
 		avgclear = true;		
 	}
+	if(length > fftlen) {
+		throw XSkippedRecordError(i18n("FFT length is too short."), __FILE__, __LINE__);
+	}
 	tr[ *this].m_darkPSD.resize(fftlen);
 	tr[ *this].m_darkPSDSum.resize(fftlen);
 	std::fill(tr[ *this].m_wave.begin(), tr[ *this].m_wave.end(), std::complex<double>(0.0));
@@ -562,8 +565,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		for(int i = 0; i < length; i++) {
 			wavesum[i] += dsowave[pos + i];
 		}
-		{
-			//Estimates power spectral density of dark side.
+		if(bglength) {
+			//Estimates power spectral density in the background.
 			if( !shot_this[ *this].m_ftDark ||
 				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
 				tr[ *this].m_ftDark.reset(new FFT(-1, shot_this[ *fftLen()]));
