@@ -91,6 +91,8 @@ private:
 	virtual void onRangeChanged(const Snapshot &shot, XValueNodeBase *);
 
 	const qshared_ptr<FrmDCSource> m_form;
+
+	void finish();
 };
 
 #endif

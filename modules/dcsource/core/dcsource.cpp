@@ -97,6 +97,14 @@ void
 XDCSource::visualize(const Snapshot &shot) {
 }
 
+void
+XDCSource::finish() {
+	shared_ptr<RawData> writer(new RawData);
+	if( !Snapshot( *this)[ *output()])
+		finishWritingRaw(writer, XTime(), XTime());
+	else
+		finishWritingRaw(writer, XTime::now(), XTime::now());
+}
 void 
 XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
 	int ch = ***channel();
@@ -107,6 +115,7 @@ XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing output, "));
         return;
     }
+    finish();
 }
 void 
 XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -118,6 +127,7 @@ XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing function, "));
         return;
     }
+    finish();
 }
 void 
 XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -129,6 +139,7 @@ XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
+    finish();
 }
 void 
 XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -140,6 +151,7 @@ XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
+    finish();
 }
 void 
 XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {

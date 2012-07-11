@@ -115,8 +115,8 @@ XADVR6142::XADVR6142(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
 	for(Transaction tr( *this);; ++tr) {
-		tr[ *function()].add("V");
-		tr[ *function()].add("I");
+		tr[ *function()].add("V [V]");
+		tr[ *function()].add("I [A]");
 		if(tr.commit())
 			break;
 	}
@@ -167,10 +167,12 @@ XADVR6142::changeValue(int /*ch*/, double x, bool autorange) {
 	if( !interface()->isOpened()) return;
 	if(autorange) {
 		if(shot[ *function()] == 0) {
-			interface()->sendf("D%.7fV", x);
+			interface()->sendf("D%.8fV", x);
 		}
-		else
-			interface()->sendf("D%.7fA", x);
+		else {
+			x *= 1e3;
+			interface()->sendf("D%.8fMA", x);
+		}
 	}
 	else {
 		if(shot[ *function()] == 0) {
@@ -180,7 +182,7 @@ XADVR6142::changeValue(int /*ch*/, double x, bool autorange) {
 		else {
 			x *= 1e3;
 		}
-		interface()->sendf("D%.6f", x);
+		interface()->sendf("D%.8f", x);
 	}
 }
 double
