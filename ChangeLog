@@ -1,3 +1,7 @@
+* Wed Jul 11 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.12-1)
+- fourres: Resistance mesasurement with switching polarity method.
+
 * Tue Jun 12 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.11-1)
 - usermagnetps.cpp: For Cryogenic SMS ver 4.

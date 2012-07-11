@@ -7,7 +7,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 3.2.11
+Version: 3.2.12
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -122,6 +122,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libtempcontrol*
 %{_libdir}/kame/modules/liblevelmeter*
 %{_libdir}/kame/modules/libnetworkanalyzer*
+%{_libdir}/kame/modules/libfourres*
 
 %files modules-nmr
 %{_libdir}/libkame_nmrpulsercore*
