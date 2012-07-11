@@ -67,9 +67,6 @@ private:
 	const shared_ptr<XBoolNode> m_control;
 
 	xqcon_ptr m_conDMM, m_conDCSource, m_conControl, m_conRes;
-	
-	shared_ptr<XListener> m_lsnOnControlChanged;
-	void onControlChanged (const Snapshot &shot, XValueNodeBase *);
 
 	const qshared_ptr<FrmFourRes> m_form;
 };

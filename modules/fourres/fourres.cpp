@@ -38,9 +38,6 @@ XFourRes::XFourRes(const char *name, bool runtime,
 		tr[ *control()] = false;
 		tr[ *this].value_inverted = 0.0;
 
-		m_lsnOnControlChanged = tr[ *control()].onValueChanged().connectWeakly(
-			shared_from_this(), &XFourRes::onControlChanged);
-
 		if(tr.commit())
 			break;
 	}
@@ -55,9 +52,6 @@ void
 XFourRes::showForms() {
 	m_form->show();
 	m_form->raise();
-}
-void
-XFourRes::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 bool
 XFourRes::checkDependency(const Snapshot &shot_this,
@@ -89,7 +83,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 			resistance()->value(tr, (shot_this[ *this].value_inverted + var) / 2);
 	}
 
-	trans[ *dcsource__->output()] = -curr; //Invert polarity.
+	trans( *dcsource__->output()) = -curr; //Invert polarity.
 }
 
 void
