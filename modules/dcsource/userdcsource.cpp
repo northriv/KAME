@@ -121,7 +121,7 @@ XADVR6142::XADVR6142(const char *name, bool runtime,
 			break;
 	}
 	channel()->disable();
-	interface()->setEOF("\r\n");
+	interface()->setEOS("\r\n");
 }
 void
 XADVR6142::open() throw (XInterface::XInterfaceError &) {
