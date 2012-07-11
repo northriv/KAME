@@ -166,10 +166,11 @@ XADVR6142::changeValue(int /*ch*/, double x, bool autorange) {
 	Snapshot shot( *this);
 	if( !interface()->isOpened()) return;
 	if(autorange) {
-		if(shot[ *function()] == 0)
-			interface()->sendf("D%.10fV", x);
+		if(shot[ *function()] == 0) {
+			interface()->sendf("D%.7fV", x);
+		}
 		else
-			interface()->sendf("D%.10fA", x);
+			interface()->sendf("D%.7fA", x);
 	}
 	else {
 		if(shot[ *function()] == 0) {
@@ -179,7 +180,7 @@ XADVR6142::changeValue(int /*ch*/, double x, bool autorange) {
 		else {
 			x *= 1e3;
 		}
-		interface()->sendf("D%.10f", x);
+		interface()->sendf("D%.6f", x);
 	}
 }
 double

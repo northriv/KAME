@@ -85,7 +85,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 			resistance()->value(tr, (shot_this[ *this].value_inverted + var) / 2);
 	}
 
-	trans( *dcsource__->output()) = -curr; //Invert polarity.
+	trans( *dcsource__->value()) = -curr; //Invert polarity.
 }
 
 void
