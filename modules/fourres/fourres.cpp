@@ -16,6 +16,8 @@
 #include "interface.h"
 #include "analyzer.h"
 
+REGISTER_TYPE(XDriverList, FourRes, "Resistance Measurement with Polarity Switching");
+
 XFourRes::XFourRes(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
 	: XSecondaryDriver(name, runtime, ref(tr_meas), meas),

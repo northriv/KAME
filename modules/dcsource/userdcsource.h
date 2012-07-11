@@ -33,6 +33,21 @@ protected:
 	virtual void open() throw (XInterface::XInterfaceError &);
 };
 
+//!ADVANTEST TR6142/R6142/R6144 DC V/DC A source
+class XADVR6142:public XCharDeviceDriver<XDCSource> {
+public:
+	XADVR6142(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual void changeFunction(int ch, int x);
+	virtual void changeOutput(int ch, bool x);
+	virtual void changeValue(int ch, double x, bool autorange);
+	virtual void changeRange(int, int);
+	virtual double max(int ch, bool autorange) const;
+	virtual void queryStatus(Transaction &, int) {}
+protected:
+	virtual void open() throw (XInterface::XInterfaceError &);
+};
+
 //!MicroTask/Leiden Triple Current Source.
 class XMicroTaskTCS:public XCharDeviceDriver<XDCSource> {
 public:

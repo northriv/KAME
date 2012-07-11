@@ -15,6 +15,7 @@
 #include "userdcsource.h"
 
 REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
+REGISTER_TYPE(XDriverList, ADVR6142, "ADVANTEST TR6142/R6142/R6144 DC V/DC A source");
 REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source");
 
 XYK7651::XYK7651(const char *name, bool runtime, 
@@ -107,6 +108,115 @@ XYK7651::changeRange(int /*ch*/, int ran) {
 			ran += 4;
 		}
 		interface()->sendf("R%dE", ran);
+	}
+}
+
+XADVR6142::XADVR6142(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+   : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *function()].add("V");
+		tr[ *function()].add("I");
+		if(tr.commit())
+			break;
+	}
+	channel()->disable();
+	interface()->setEOF("\r\n");
+}
+void
+XADVR6142::open() throw (XInterface::XInterfaceError &) {
+	this->start();
+}
+void
+XADVR6142::changeFunction(int /*ch*/, int ) {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened()) return;
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if(shot[ *function()] == 0) {
+			tr[ *range()].clear();
+			tr[ *range()].add("10mV");
+			tr[ *range()].add("100mV");
+			tr[ *range()].add("1V");
+			tr[ *range()].add("10V");
+			tr[ *range()].add("30V");
+		}
+		else {
+			tr[ *range()].clear();
+			tr[ *range()].add("1mA");
+			tr[ *range()].add("10mA");
+			tr[ *range()].add("100mA");
+		}
+		if(tr.commit())
+			break;
+	}
+}
+void
+XADVR6142::changeOutput(int /*ch*/, bool x) {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened()) return;
+	if(x)
+		interface()->send("E");
+	else
+		interface()->send("H");
+}
+void
+XADVR6142::changeValue(int /*ch*/, double x, bool autorange) {
+	XScopedLock<XInterface> lock( *interface());
+	Snapshot shot( *this);
+	if( !interface()->isOpened()) return;
+	if(autorange) {
+		if(shot[ *function()] == 0)
+			interface()->sendf("D%.10fV", x);
+		else
+			interface()->sendf("D%.10fA", x);
+	}
+	else {
+		if(shot[ *function()] == 0) {
+			if(shot[ *range()] <= 1)
+				x *= 1e3;
+		}
+		else {
+			x *= 1e3;
+		}
+		interface()->sendf("D%.10f", x);
+	}
+}
+double
+XADVR6142::max(int /*ch*/, bool autorange) const {
+	Snapshot shot( *this);
+	int ran = shot[ *range()];
+	if(shot[ *function()] == 0) {
+		if(autorange || (ran == -1))
+			ran = 4;
+		if(ran == 4)
+			return 30;
+		return 10e-3 * pow(10.0, (double)ran);
+	}
+	else {
+		if(autorange || (ran == -1))
+			ran = 2;
+		return 1e-3 * pow(10.0, (double)ran);
+	}
+}
+void
+XADVR6142::changeRange(int /*ch*/, int ran) {
+	Snapshot shot( *this);
+	{
+		XScopedLock<XInterface> lock( *interface());
+		if( !interface()->isOpened()) return;
+		if(shot[ *function()] == 0) {
+			if(ran == -1)
+				ran = 2;
+			ran += 2;
+			interface()->sendf("V%d", ran);
+		}
+		else {
+			if(ran == -1)
+				ran = 2;
+			ran += 1;
+			interface()->sendf("I%d", ran);
+		}
 	}
 }
 
