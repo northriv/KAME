@@ -27,7 +27,7 @@ XFourRes::XFourRes(const char *name, bool runtime,
 		  "DMM", false, ref(tr_meas), meas->drivers(), true)),
 	  m_dcsource(create<XItemNode < XDriverList, XDCSource> >(
 		  "DCSource", false, ref(tr_meas), meas->drivers(), true)),
-	  m_control(create<XBoolNode>("Control", false)),
+	  m_control(create<XBoolNode>("Control", true)),
 	  m_form(new FrmFourRes(g_pFrmMain)) {
 
     m_form->setWindowTitle(i18n("Resistance Measurement with Switching Polarity - ") + getLabel() );
@@ -81,7 +81,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 	}
 	else {
 		if(shot_this[ *this].value_inverted != 0.0)
-			resistance()->value(tr, (var - shot_this[ *this].value_inverted) / 2);
+			resistance()->value(tr, (var - shot_this[ *this].value_inverted) / 2 / curr);
 	}
 }
 
