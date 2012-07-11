@@ -63,7 +63,6 @@ XFourRes::checkDependency(const Snapshot &shot_this,
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
     if( !dmm__ || !dcsource__) return false;
     if(emitter != dmm__.get()) return false;
-    if( !shot_this[ *control()]) return false;
 	return true;
 }
 
@@ -82,19 +81,21 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 	}
 	else {
 		if(shot_this[ *this].value_inverted != 0.0)
-			resistance()->value(tr, (shot_this[ *this].value_inverted + var) / 2);
+			resistance()->value(tr, (var - shot_this[ *this].value_inverted) / 2);
 	}
 }
 
 void
 XFourRes::visualize(const Snapshot &shot) {
 	if(shot[ *this].time()) {
-	    shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
-		for(Transaction tr( *dcsource__);; ++tr) {
-			double curr = tr[ *dcsource__->value()];
-			tr[ *dcsource__->value()] = -curr; //Invert polarity.
-			if(tr.commit())
-				break;
-		}
+	    if(shot[ *control()]) {
+			shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
+			for(Transaction tr( *dcsource__);; ++tr) {
+				double curr = tr[ *dcsource__->value()];
+				tr[ *dcsource__->value()] = -curr; //Invert polarity.
+				if(tr.commit())
+					break;
+			}
+	    }
 	}
 }
