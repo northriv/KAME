@@ -47,6 +47,7 @@ protected:
 public:
 	struct Payload : public XSecondaryDriver::Payload {
 	private:
+			friend class XFourRes;
 			double value_inverted;
 	};
 

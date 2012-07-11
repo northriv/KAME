@@ -36,6 +36,7 @@ XFourRes::XFourRes(const char *name, bool runtime,
     connect(dcsource());
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *control()] = false;
+		tr[ *this].value_inverted = 0.0;
 
 		m_lsnOnControlChanged = tr[ *control()].onValueChanged().connectWeakly(
 			shared_from_this(), &XFourRes::onControlChanged);
@@ -65,7 +66,8 @@ XFourRes::checkDependency(const Snapshot &shot_this,
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
     if( !dmm__ || !dcsource__) return false;
-    if(emitter == dmm__) return true;
+    if(emitter != dmm__.get()) return false;
+    if( !shot_this[ *control()]) return false;
 	return true;
 }
 
@@ -83,7 +85,8 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 		tr[ *this].value_inverted = var;
 	}
 	else {
-		resistance()->value(tr, (shot_this[ *this].value_inverted + var) / 2);
+		if(shot_this[ *this].value_inverted != 0.0)
+			resistance()->value(tr, (shot_this[ *this].value_inverted + var) / 2);
 	}
 
 	trans[ *dcsource__->output()] = -curr; //Invert polarity.
