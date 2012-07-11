@@ -36,7 +36,6 @@ XFourRes::XFourRes(const char *name, bool runtime,
     connect(dcsource());
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *control()] = false;
-		tr[ *wait()] = 2.0;
 
 		m_lsnOnControlChanged = tr[ *control()].onValueChanged().connectWeakly(
 			shared_from_this(), &XFourRes::onControlChanged);
@@ -64,7 +63,7 @@ XFourRes::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
 	XDriver *emitter) const {
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
-    shared_ptr<XDCSource> dmm__ = shot_this[ *dcsource()];
+    shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
     if( !dmm__ || !dcsource__) return false;
     if(emitter == dmm__) return true;
 	return true;
@@ -75,7 +74,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 	XDriver *emitter) throw (XRecordError&) {
 	Snapshot &shot_this(tr);
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
-    shared_ptr<XDCSource> dmm__ = shot_this[ *dcsource()];
+    shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
 	double curr = shot_others[ *dcsource__->value()];
 	double var = shot_emitter[ *dmm__].value();

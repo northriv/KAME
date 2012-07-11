@@ -69,6 +69,8 @@ private:
 	
 	shared_ptr<XListener> m_lsnOnControlChanged;
 	void onControlChanged (const Snapshot &shot, XValueNodeBase *);
+
+	const qshared_ptr<FrmFourRes> m_form;
 };
   
 #endif
