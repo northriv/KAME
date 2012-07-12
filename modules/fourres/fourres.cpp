@@ -63,7 +63,7 @@ XFourRes::checkDependency(const Snapshot &shot_this,
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
     if( !dmm__ || !dcsource__) return false;
     if(emitter != dmm__.get()) return false;
-    if(dmm__->timeAwared() > dcsource_->time()) return false;
+    if(shot_emitter[ *dmm__].timeAwared() > shot_others[ *dcsource_].time()) return false;
 	return true;
 }
 
