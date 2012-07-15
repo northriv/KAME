@@ -1,3 +1,8 @@
+* Sun Jul 15 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.13-1)
+- motor: ORIENTALMOTOR FLEX AR.
+- graphpaintergl: includes <GL/glu.h>
+
 * Wed Jul 11 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.12-1)
 - fourres: Resistance mesasurement with switching polarity method.

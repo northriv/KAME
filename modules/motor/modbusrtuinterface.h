@@ -15,6 +15,7 @@
 #define MODBUSRTUINTERFACE_H_
 
 #include "charinterface.h"
+#include "chardevicedriver.h"
 
 class XModbusRTUInterface : public XCharInterface {
 public:
@@ -23,7 +24,7 @@ public:
 
 	void readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data);
 	void presetSingeResistor(uint16_t res_addr, uint16_t data);
-	void presetMultipleResistors(const std::vector<uint16_t> &res_no, const std::vector<uint16_t> &data);
+	void presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data);
 	void diagnostics();
 
 	uint32_t readHoldingTwoResistors(uint16_t res_addr) {
@@ -35,15 +36,15 @@ public:
 		std::vector<uint16_t> data(2);
 		data[0] = dword / 0xffffu;
 		data[1] = dword % 0xffffu;
-		presetMultipleResistors(res_addr, data);
+		presetMultipleResistors(res_addr, 2, data);
 	}
 protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	static uint16_t crc16(const std::vector<char> &bytes);
 	void query(unsigned int func_code, const std::vector<char> &bytes, std::vector<char> &buf);
+private:
 	static void set_word(char *ptr, uint16_t word) {
 		ptr[0] = static_cast<unsigned char>(word / 0xffu);
 		ptr[1] = static_cast<unsigned char>(word % 0xffu);
@@ -58,14 +59,15 @@ protected:
 	static uint32_t get_dword(char *ptr) {
 		return get_word(ptr + 2) + get_word(ptr) * 0xffffuL;
 	}
-private:
+	uint16_t crc16(const char *bytes, ssize_t count);
 };
 
 template <class T>
 class XModbusRTUDriver : public XCharDeviceDriver<T, XModbusRTUInterface> {
 public:
 	XModbusRTUDriver(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver(name, runtime, ref(tr_meas), meas) {}
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+		XCharDeviceDriver<T, XModbusRTUInterface>(name, runtime, ref(tr_meas), meas) {}
 	virtual ~XModbusRTUDriver() {};
 };
 

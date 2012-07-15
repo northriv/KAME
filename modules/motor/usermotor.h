@@ -29,7 +29,7 @@ protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
 	virtual void changeConditions(const Snapshot &shot);
 	virtual void getConditions(Transaction &tr);
-	virtual void setTarget(double target);
+	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 
 private:
