@@ -15,6 +15,7 @@
 #include "FTGL/FTGLPixmapFont.h"
 #include "graphwidget.h"
 #include <QTimer>
+#include <GL/glu.h>
 
 using std::min;
 using std::max;

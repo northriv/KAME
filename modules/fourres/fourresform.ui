@@ -48,7 +48,7 @@
          <enum>QFrame::Raised</enum>
         </property>
         <property name="smallDecimalPoint">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="numDigits">
          <number>8</number>
