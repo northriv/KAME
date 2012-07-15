@@ -39,10 +39,6 @@ public:
 		presetMultipleResistors(res_addr, 2, data);
 	}
 protected:
-	virtual void open() throw (XInterfaceError &);
-	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
-
 	void query(unsigned int func_code, const std::vector<char> &bytes, std::vector<char> &buf);
 private:
 	static void set_word(char *ptr, uint16_t word) {
