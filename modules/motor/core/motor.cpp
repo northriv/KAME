@@ -73,6 +73,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
 	m_conMicroStep = xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping);
 	m_conSlipping = xqcon_create<XKLedConnector>(m_slipping, m_form->m_ledSlipping);
+	m_conReady = xqcon_create<XKLedConnector>(m_ready, m_form->m_ledReady);
 }
 
 void
@@ -99,7 +100,17 @@ XMotorDriver::start() {
 	m_ready->setUIEnabled(true);
 	m_slipping->setUIEnabled(true);
 	m_microStep->setUIEnabled(true);
-
+    try {
+    	for(Transaction tr( *this);; ++tr) {
+    		getConditions(tr);
+    		if(tr.commit())
+    			break;
+    	}
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error: "));
+        return;
+    }
 }
 void
 
@@ -177,11 +188,6 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 			break;
 	}
 
-	for(Transaction tr( *this);; ++tr) {
-		getConditions(tr);
-		if(tr.commit())
-			break;
-	}
 	while( !terminated) {
 		msecsleep(100);
 		XTime time_awared = XTime::now();

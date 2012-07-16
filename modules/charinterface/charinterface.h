@@ -122,8 +122,7 @@ public:
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &) = 0;
 	virtual void receive() throw (XInterface::XCommError &) = 0;
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &) = 0;
-	//! Buffer is Thread-Local-Strage.
-	//! Therefore, be careful when you access multi-interfaces in one thread.
+	//! Thread-Local-Storage Buffer.
 	//! \sa XThreadLocal
 	std::vector<char>& buffer() {return *s_tlBuffer;}
 protected:

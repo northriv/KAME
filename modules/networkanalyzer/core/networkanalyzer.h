@@ -18,6 +18,7 @@
 //---------------------------------------------------------------------------
 #include "primarydriver.h"
 #include "xnodeconnector.h"
+#include <complex>
 
 class XScalarEntry;
 class QMainWindow;
@@ -42,14 +43,14 @@ public:
 		double startFreq() const {return m_startFreq;} //! [MHz]
 		double freqInterval() const {return m_freqInterval;} //! [MHz]
 		unsigned int length() const {return m_trace.size();}
-		const double *trace() const {return &m_trace[0];}
+		const std::complex<double> *trace() const {return &m_trace.at(0);}
 
-		std::vector<double> &trace_() {return m_trace;}
+		std::vector<std::complex<double> > &trace_() {return m_trace;}
 		double m_startFreq;
 		double m_freqInterval;
 	private:
 		friend class XNetworkAnalyzer;
-		std::vector<double> m_trace;
+		std::vector<std::complex<double> > m_trace;
 		std::deque<std::pair<double, double> > m_markers;
 	};
 protected:

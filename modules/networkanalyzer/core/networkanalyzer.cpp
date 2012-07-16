@@ -69,15 +69,17 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_conCalThru = xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru);
 
 	for(Transaction tr( *m_waveForm);; ++tr) {
-		const char *labels[] = {"Freq [MHz]", "Level [dB]"};
-		tr[ *m_waveForm].setColCount(2, labels);
-		tr[ *m_waveForm].insertPlot("Trace1", 0, 1);
+		const char *labels[] = {"Freq [MHz]", "Level [dB]", "Phase [deg.]"};
+		tr[ *m_waveForm].setColCount(3, labels);
+		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
+		tr[ *m_waveForm].insertPlot(labels[2], 0, -1, 2);
 
 		m_graph = m_waveForm->graph();
-		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x45).rgb();
+		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x34).rgb();
 		tr[ *m_graph->titleColor()] = clWhite;
 		shared_ptr<XAxis> axisx = tr[ *m_waveForm].axisx();
 		shared_ptr<XAxis> axisy = tr[ *m_waveForm].axisy();
+		shared_ptr<XAxis> axisy2 = tr[ *m_waveForm].axisy2();
 		tr[ *axisx->ticColor()] = clWhite;
 		tr[ *axisx->labelColor()] = clWhite;
 		tr[ *axisx->ticLabelColor()] = clWhite;
@@ -87,9 +89,17 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 		tr[ *axisy->autoScale()] = false;
 		tr[ *axisy->maxValue()] = 13.0;
 		tr[ *axisy->minValue()] = -70.0;
+		tr[ *axisy2->ticColor()] = clWhite;
+		tr[ *axisy2->labelColor()] = clWhite;
+		tr[ *axisy2->ticLabelColor()] = clWhite;
 		tr[ *tr[ *m_waveForm].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_waveForm].plot(0)->lineColor()] = clGreen;
 		tr[ *tr[ *m_waveForm].plot(0)->pointColor()] = clGreen;
+		tr[ *tr[ *m_waveForm].plot(0)->intensity()] = 2.0;
+		tr[ *tr[ *m_waveForm].plot(1)->drawPoints()] = false;
+		tr[ *tr[ *m_waveForm].plot(1)->lineColor()] = clBlue;
+		tr[ *tr[ *m_waveForm].plot(1)->pointColor()] = clBlue;
+		tr[ *tr[ *m_waveForm].plot(1)->intensity()] = 0.5;
 		shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 			tr, "Markers", true, ref(tr), m_graph);
 		m_markerPlot = plot;
@@ -185,14 +195,18 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 		tr[ *m_waveForm].setRowCount(length);
 
 		double *freqs = tr[ *m_waveForm].cols(0);
+		double *mag = tr[ *m_waveForm].cols(1);
+		double *ph = tr[ *m_waveForm].cols(2);
+		const std::complex<double> *z = shot[ *this].trace();
 		double fint = shot[ *this].freqInterval();
 		double f = shot[ *this].startFreq();
 		for(unsigned int i = 0; i < length; i++) {
 			*freqs++ = f;
+			*mag++ = 20.0 * log10(std::abs( *z));
+			*ph++ = std::arg( *z) * 180.0 /  M_PI;
+			z++;
 			f += fint;
 		}
-
-		memcpy(tr[ *m_waveForm].cols(1), shot[ *this].trace(), length * sizeof(double));
 
 		m_waveForm->drawGraph(tr);
 		if(tr.commit()) {

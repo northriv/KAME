@@ -149,6 +149,7 @@ XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->send("FORM:DATA REAL,32;BORD SWAP");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
 	interface()->receive(len * sizeof(float) + 12);
+	//! \todo complex data.
 }
 void
 XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
@@ -168,6 +169,7 @@ XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->send("FORM:DATA REAL32;BORD SWAP");
 	interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
 	interface()->receive(len * sizeof(float) * 2 + 12);
+	//! \todo complex data.
 }
 void
 XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,

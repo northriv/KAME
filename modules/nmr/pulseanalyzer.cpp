@@ -289,7 +289,7 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	for(unsigned int i = 0; i < pts; i++) {
 		auto zport_in = - rawopen[i] / rawshort[i]; //Impedance of the port connected to LNA.
 		auto s11_dut = 1.0 - 2.0 / ((1.0 + zport_in) / (1.0 - (ftsum[i] - rawterm[i]) / rawopen[i]) + 1.0 - zport_in);
-		trace[i] = 20.0 * log10(std::abs(s11_dut));
+		trace[i] = s11_dut;
 	}
 
 	//Tracking markers.
@@ -297,11 +297,13 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	mkmin.second = 1000;
 	auto &mkmax = tr[ *this].m_marker_max;
 	mkmax.second = -1000;
+	auto z = tr[ *this].trace();
 	for(unsigned int i = 0; i < pts; i++) {
-		if(trace[i] < mkmin.second)
-			mkmin = std::pair<double, double>(i * df + fmin, trace[i]);
-		if(trace[i] > mkmax.second)
-			mkmax = std::pair<double, double>(i * df + fmin, trace[i]);
+		double r = std::abs( *z++);
+		if(r < mkmin.second)
+			mkmin = std::pair<double, double>(i * df + fmin, r);
+		if(r > mkmax.second)
+			mkmax = std::pair<double, double>(i * df + fmin, r);
 	}
 }
 void
