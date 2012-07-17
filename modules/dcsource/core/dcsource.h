@@ -92,7 +92,7 @@ private:
 
 	const qshared_ptr<FrmDCSource> m_form;
 
-	void finish();
+	void finish(const XTime &time_awared);
 };
 
 #endif

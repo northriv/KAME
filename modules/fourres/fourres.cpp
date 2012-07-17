@@ -63,7 +63,6 @@ XFourRes::checkDependency(const Snapshot &shot_this,
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
     if( !dmm__ || !dcsource__) return false;
     if(emitter != dmm__.get()) return false;
-    if(shot_emitter[ *dmm__].timeAwared() > shot_others[ *dcsource__].time()) return false;
 	return true;
 }
 
@@ -73,6 +72,9 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 	Snapshot &shot_this(tr);
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
+
+    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time())
+		throw XSkippedRecordError(__FILE__, __LINE__);
 
 	double curr = shot_others[ *dcsource__->value()];
 	double var = shot_emitter[ *dmm__].value();

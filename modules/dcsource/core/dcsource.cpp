@@ -98,15 +98,16 @@ XDCSource::visualize(const Snapshot &shot) {
 }
 
 void
-XDCSource::finish() {
+XDCSource::finish(const XTime &time_awared) {
 	shared_ptr<RawData> writer(new RawData);
 	if( !Snapshot( *this)[ *output()])
 		finishWritingRaw(writer, XTime(), XTime());
 	else
-		finishWritingRaw(writer, XTime::now(), XTime::now());
+		finishWritingRaw(writer, time_awared, XTime::now());
 }
 void 
 XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
+	XTime time_awared(XTime::now());
 	int ch = ***channel();
     try {
         changeOutput(ch, shot[ *output()]);
@@ -115,10 +116,11 @@ XDCSource::onOutputChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing output, "));
         return;
     }
-    finish();
+    finish(time_awared);
 }
 void 
 XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
+	XTime time_awared(XTime::now());
 	int ch = ***channel();
     try {
         changeFunction(ch, shot[ *function()]);
@@ -127,10 +129,11 @@ XDCSource::onFunctionChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing function, "));
         return;
     }
-    finish();
+    finish(time_awared);
 }
 void 
 XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
+	XTime time_awared(XTime::now());
 	int ch = ***channel();
     try {
         changeValue(ch, shot[ *value()], true);
@@ -139,10 +142,11 @@ XDCSource::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
-    finish();
+    finish(time_awared);
 }
 void 
 XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
+	XTime time_awared(XTime::now());
 	int ch = ***channel();
     try {
         changeRange(ch, shot[ *range()]);
@@ -151,7 +155,7 @@ XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
         e.print(getLabel() + i18n(": Error while changing value, "));
         return;
     }
-    finish();
+    finish(time_awared);
 }
 void 
 XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {
