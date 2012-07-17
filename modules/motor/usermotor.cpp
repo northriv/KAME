@@ -26,6 +26,8 @@ XFlexAR::XFlexAR(const char *name, bool runtime,
 }
 void
 XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
+	interface()->diagnostics();
+
 	uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
 	if(alarm) {
 		throw XInterface::XInterfaceError(i18n("Alarm %1 has been emitted").arg((int)alarm), __FILE__, __LINE__);
