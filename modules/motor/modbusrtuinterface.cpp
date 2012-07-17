@@ -15,23 +15,25 @@ XModbusRTUInterface::~XModbusRTUInterface() {
 }
 void
 XModbusRTUInterface::open() throw (XInterfaceError &) {
-	XScopedLock<XModbusRTUInterface> lock( *this);
-	m_master = dynamic_pointer_cast<XModbusRTUInterface>(shared_from_this());
-	Snapshot shot( *this);
-	XScopedLock<XMutex> glock(s_lock);
-	for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
-		if(auto mint = it->lock()) {
-			if((XString)Snapshot( *mint)[ *mint->port()] == (XString)shot[ *port()]) {
-				m_master =mint;
-				if(m_master->m_openedCount) {
-					m_master->m_openedCount++;
-					return;
+	{
+		XScopedLock<XModbusRTUInterface> lock( *this);
+		m_master = dynamic_pointer_cast<XModbusRTUInterface>(shared_from_this());
+		Snapshot shot( *this);
+		XScopedLock<XMutex> glock(s_lock);
+		for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
+			if(auto mint = it->lock()) {
+				if((XString)Snapshot( *mint)[ *mint->port()] == (XString)shot[ *port()]) {
+					m_master =mint;
+					if(m_master->m_openedCount) {
+						m_master->m_openedCount++;
+						return;
+					}
 				}
 			}
 		}
+		s_masters.push_back(m_master);
+		m_master->m_openedCount = 1;
 	}
-	s_masters.push_back(m_master);
-	m_master->m_openedCount = 1;
 	XCharInterface::open();
 }
 void

@@ -84,19 +84,16 @@ XMotorDriver::showForms() {
 }
 
 void
-
 XMotorDriver::start() {
 	m_thread.reset(new XThread<XMotorDriver>(shared_from_this(), &XMotorDriver::execute));
     m_thread->resume();
 }
 void
-
 XMotorDriver::stop() {
     if(m_thread) m_thread->terminate();
 }
 
 void
-
 XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
     double pos;
     bool slip, isready;
@@ -108,7 +105,6 @@ XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordE
     tr[ *m_ready] = isready;
 }
 void
-
 XMotorDriver::visualize(const Snapshot &shot) {
 }
 
