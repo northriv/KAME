@@ -20,8 +20,9 @@ REGISTER_TYPE(XDriverList, FlexAR, "OrientalMotor FLEX AR motor controler");
 XFlexAR::XFlexAR(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XModbusRTUDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
-	interface()->setSerialBaudRate(9600);
+	interface()->setSerialBaudRate(115200);
 	interface()->setSerialStopBits(1);
+	interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 }
 void
 XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {

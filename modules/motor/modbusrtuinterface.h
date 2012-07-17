@@ -43,23 +43,23 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	void query(unsigned int func_code, const std::vector<char> &bytes, std::vector<char> &buf);
+	void query(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
-	static void set_word(char *ptr, uint16_t word) {
+	static void set_word(unsigned char *ptr, uint16_t word) {
 		ptr[0] = static_cast<unsigned char>(word / 0xffu);
 		ptr[1] = static_cast<unsigned char>(word % 0xffu);
 	}
-	static void set_dword(char *ptr, uint32_t dword) {
+	static void set_dword(unsigned char *ptr, uint32_t dword) {
 		set_word(ptr, static_cast<uint16_t>(dword / 0xffffu));
 		set_word(ptr + 2, static_cast<uint16_t>(dword % 0xffffu));
 	}
-	static uint16_t get_word(char *ptr) {
-		return static_cast<unsigned char>(ptr[1]) + static_cast<unsigned char>(ptr[0]) * 0xffu;
+	static uint16_t get_word(unsigned char *ptr) {
+		return ptr[1] +ptr[0] * 0xffu;
 	}
-	static uint32_t get_dword(char *ptr) {
+	static uint32_t get_dword(unsigned char *ptr) {
 		return get_word(ptr + 2) + get_word(ptr) * 0xffffuL;
 	}
-	uint16_t crc16(const char *bytes, ssize_t count);
+	uint16_t crc16(const unsigned char *bytes, ssize_t count);
 
 	shared_ptr<XModbusRTUInterface> m_master;
 	static XMutex s_lock;

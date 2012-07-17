@@ -17,7 +17,6 @@ void
 XModbusRTUInterface::open() throw (XInterfaceError &) {
 	XScopedLock<XModbusRTUInterface> lock( *this);
 	m_master = dynamic_pointer_cast<XModbusRTUInterface>(shared_from_this());
-	m_master->m_openedCount = 1;
 	Snapshot shot( *this);
 	XScopedLock<XMutex> glock(s_lock);
 	for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
@@ -32,6 +31,7 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
 		}
 	}
 	s_masters.push_back(m_master);
+	m_master->m_openedCount = 1;
 	XCharInterface::open();
 }
 void
@@ -46,7 +46,7 @@ XModbusRTUInterface::close() throw (XInterfaceError &) {
 }
 
 uint16_t
-XModbusRTUInterface::crc16(const char *bytes, ssize_t count) {
+XModbusRTUInterface::crc16(const unsigned char *bytes, ssize_t count) {
 	uint16_t z = 0xffffu;
 	for(ssize_t i = 0; i < count; ++i) {
 		uint16_t x = bytes[i];
@@ -62,11 +62,11 @@ XModbusRTUInterface::crc16(const char *bytes, ssize_t count) {
 }
 void
 XModbusRTUInterface::query(unsigned int func_code,
-		const std::vector<char> &bytes, std::vector<char> &ret_buf) {
+		const std::vector<unsigned char> &bytes, std::vector<unsigned char> &ret_buf) {
 	auto master = m_master;
 	XScopedLock<XModbusRTUInterface> lock( *master);
 	unsigned int slave_addr = ***address();
-	std::vector<char> buf(bytes.size() + 4);
+	std::vector<unsigned char> buf(bytes.size() + 4);
 	buf[0] = static_cast<unsigned char>(slave_addr);
 	buf[1] = static_cast<unsigned char>(func_code);
 	std::copy(bytes.begin(), bytes.end(), &buf[2]);
@@ -78,7 +78,7 @@ XModbusRTUInterface::query(unsigned int func_code,
 	master->receive(2); //addr + func_code.
 	std::copy(buffer().begin(), buffer().end(), buf.begin());
 
-	if((buf[0] != slave_addr) || ((static_cast<unsigned char>(buf[1]) & 0x7fu) != func_code))
+	if((buf[0] != slave_addr) || ((buf[1] & 0x7fu) != func_code))
 		throw XInterfaceError("Modbus Format Error.", __FILE__, __LINE__);
 	if(buf[1] != func_code) {
 		master->receive(3);
@@ -105,10 +105,10 @@ XModbusRTUInterface::query(unsigned int func_code,
 }
 void
 XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
-	std::vector<char> wrbuf(4);
+	std::vector<unsigned char> wrbuf(4);
 	set_word( &wrbuf[0], res_addr);
 	set_word( &wrbuf[2], count);
-	std::vector<char> rdbuf(2 * count + 1);
+	std::vector<unsigned char> rdbuf(2 * count + 1);
 	query(0x03, wrbuf, rdbuf);
 	data.resize(count);
 	if(rdbuf[0] != 2 * count)
@@ -119,17 +119,17 @@ XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vec
 }
 void
 XModbusRTUInterface::presetSingeResistor(uint16_t res_addr, uint16_t data) {
-	std::vector<char> wrbuf(4);
+	std::vector<unsigned char> wrbuf(4);
 	set_word( &wrbuf[0], res_addr);
 	set_word( &wrbuf[2], data);
-	std::vector<char> rdbuf(4);
+	std::vector<unsigned char> rdbuf(4);
 	query(0x06, wrbuf, rdbuf);
 	if(rdbuf.back() != wrbuf.back())
 		throw XInterfaceError("Modbus Format Error.", __FILE__, __LINE__);
 }
 void
 XModbusRTUInterface::presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data) {
-	std::vector<char> wrbuf(5 + 2 * count);
+	std::vector<unsigned char> wrbuf(5 + 2 * count);
 	set_word( &wrbuf[0], res_no);
 	set_word( &wrbuf[2], count);
 	wrbuf[4] = count * 2;
@@ -138,14 +138,14 @@ XModbusRTUInterface::presetMultipleResistors(uint16_t res_no, int count, const s
 		set_word( &wrbuf[idx], *it);
 		idx += 2;
 	}
-	std::vector<char> rdbuf(4 * count);
+	std::vector<unsigned char> rdbuf(4 * count);
 	query(0x10, wrbuf, rdbuf);
 }
 void
 XModbusRTUInterface::diagnostics() {
-	std::vector<char> wrbuf(4);
+	std::vector<unsigned char> wrbuf(4);
 	set_word( &wrbuf[0], 0);
 	set_word( &wrbuf[2], 0x1234);
-	std::vector<char> rdbuf(4);
+	std::vector<unsigned char> rdbuf(4);
 	query(0x08, wrbuf, rdbuf);
 }
