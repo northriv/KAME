@@ -72,7 +72,7 @@ XModbusRTUInterface::query(unsigned int func_code,
 	std::copy(bytes.begin(), bytes.end(), &buf[2]);
 	uint16_t crc = crc16( &buf[0], buf.size() - 2);
 	set_word( &buf[buf.size() - 2], crc);
-	master->write( &buf[0], buf.size());
+	master->write( reinterpret_cast<char*>(&buf[0]), buf.size());
 
 	buf.resize(ret_buf.size() + 4);
 	master->receive(2); //addr + func_code.
