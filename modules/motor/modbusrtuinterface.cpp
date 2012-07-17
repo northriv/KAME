@@ -58,7 +58,7 @@ XModbusRTUInterface::crc16(const unsigned char *bytes, ssize_t count) {
 				z ^= 0xa001u;
 		}
 	}
-	return z;
+	return (z % 0x100u) * 0x100u + z / 0x100u;
 }
 void
 XModbusRTUInterface::query(unsigned int func_code,
