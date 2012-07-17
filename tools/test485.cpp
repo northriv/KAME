@@ -21,6 +21,7 @@
 #include <strings.h>
 #include <iostream>
 #include <stdint.h>
+
 #define TIOCSRS485 0x542F
 
 uint16_t
@@ -44,11 +45,11 @@ int main(int argc, char **argv) {
 	speed_t baudrate;
 	int scifd;
 	if((scifd = open(argv[1],
-						 O_RDWR | O_NOCTTY | O_NONBLOCK)) == -1) {
+						 O_RDWR | O_NOCTTY)) == -1) {
 		abort();
 	}
     
-	tcsetpgrp(scifd, getpgrp());
+//	tcsetpgrp(scifd, getpgrp());
       
 	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
@@ -56,14 +57,15 @@ int main(int argc, char **argv) {
 	cfsetispeed( &ttyios, B115200);
 	cfsetospeed( &ttyios, B115200);
 	cfmakeraw( &ttyios);
-	ttyios.c_cflag &= ~(PARENB | CSIZE);
+//	ttyios.c_cflag &= ~(PARENB | CSIZE);
 		ttyios.c_cflag |= PARENB;
 //		ttyios.c_cflag |= PARENB | PARODD;
 //		ttyios.c_cflag |= CS7;
-		ttyios.c_cflag |= CS8;
+//		ttyios.c_cflag |= CS8;
 	ttyios.c_cflag |= HUPCL | CLOCAL | CREAD;
-//		ttyios.c_cflag |= CSTOPB;
+		ttyios.c_cflag |= CSTOPB;
 	ttyios.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); //non-canonical mode
+//		ttyios.c_iflag |= CRTSCTS | IXON;
 	ttyios.c_iflag |= IGNBRK;
 //		ttyios.c_iflag |= IGNPAR;
 	ttyios.c_cc[VMIN] = 0; //no min. size
@@ -71,9 +73,9 @@ int main(int argc, char **argv) {
 	if(tcsetattr(scifd, TCSAFLUSH, &ttyios ) < 0)
 		abort();
 	
-//    if(fcntl(scifd, F_SETFL, (~O_NONBLOCK) & fcntl(scifd, F_GETFL)) == - 1) {
-//		abort();
-//	}
+    if(fcntl(scifd, F_SETFL, (~O_NONBLOCK) & fcntl(scifd, F_GETFL)) == - 1) {
+		abort();
+	}
 
 //    struct serial_rs485 rs485conf;
 //	// Set RS485 mode:
@@ -84,8 +86,8 @@ int main(int argc, char **argv) {
 //	}
 
     unsigned char wbuf[] =
-    {0x03,0x03,0x03,0x80,0x00,0x02};
-//    {0x03,0x08,0x00,0x00,0x12,0x34};
+//    {0x03,0x03,0x03,0x80,0x00,0x02};
+    {0x03,0x08,0x00,0x00,0x12,0x34};
 //   {0x03,0x10,0x01,0x80,0x00,0x01,0x02,0x0,0x1};
 //   {0x03,0x06,0x01,0x80,0x0,0x1};
     uint16_t crc = crc16(wbuf, 6);
@@ -95,7 +97,9 @@ int main(int argc, char **argv) {
 	write(1, &crc, 2);
 	char rbuf[20];
 	bzero(rbuf, 20);
-	usleep(1000000);
-	read(scifd, rbuf, 8);
-	write(1, rbuf, 10);
+	usleep(10000);
+	while(read(scifd, rbuf, 1))
+		write(1, rbuf, 1);
+//	read(scifd, rbuf, 8);
+//	write(1, rbuf, 10);
 }
