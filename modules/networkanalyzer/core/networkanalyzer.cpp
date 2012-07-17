@@ -129,28 +129,9 @@ void
 XNetworkAnalyzer::start() {
 	m_thread.reset(new XThread<XNetworkAnalyzer>(shared_from_this(), &XNetworkAnalyzer::execute));
 	m_thread->resume();
-  
-	startFreq()->setUIEnabled(true);
-	stopFreq()->setUIEnabled(true);
-	points()->setUIEnabled(true);
-	average()->setUIEnabled(true);
-	calOpen()->setUIEnabled(true);
-	calShort()->setUIEnabled(true);
-	calTerm()->setUIEnabled(true);
-	calThru()->setUIEnabled(true);
-
 }
 void
 XNetworkAnalyzer::stop() {
-	startFreq()->setUIEnabled(false);
-	stopFreq()->setUIEnabled(false);
-	points()->setUIEnabled(false);
-	average()->setUIEnabled(false);
-	calOpen()->setUIEnabled(false);
-	calShort()->setUIEnabled(false);
-	calTerm()->setUIEnabled(false);
-	calThru()->setUIEnabled(false);
-  	
 	if(m_thread) m_thread->terminate();
 }
 
@@ -217,6 +198,16 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 
 void *
 XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
+
+	startFreq()->setUIEnabled(true);
+	stopFreq()->setUIEnabled(true);
+	points()->setUIEnabled(true);
+	average()->setUIEnabled(true);
+	calOpen()->setUIEnabled(true);
+	calShort()->setUIEnabled(true);
+	calTerm()->setUIEnabled(true);
+	calThru()->setUIEnabled(true);
+
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnStartFreqChanged = tr[ *startFreq()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
@@ -290,6 +281,15 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	catch (XKameError &e) {
 		e.print(getLabel());
 	}
+	startFreq()->setUIEnabled(false);
+	stopFreq()->setUIEnabled(false);
+	points()->setUIEnabled(false);
+	average()->setUIEnabled(false);
+	calOpen()->setUIEnabled(false);
+	calShort()->setUIEnabled(false);
+	calTerm()->setUIEnabled(false);
+	calThru()->setUIEnabled(false);
+
 	m_lsnOnStartFreqChanged.reset();
 	m_lsnOnStopFreqChanged.reset();
 	m_lsnOnPointsChanged.reset();

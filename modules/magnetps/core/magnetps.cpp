@@ -192,16 +192,9 @@ void
 XMagnetPS::start() {
 	m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
 	m_thread->resume();
-  
-	targetField()->setUIEnabled(true);
-	sweepRate()->setUIEnabled(true);
 }
 void
 XMagnetPS::stop() {
-	targetField()->setUIEnabled(false);
-	sweepRate()->setUIEnabled(false);
-	allowPersistent()->setUIEnabled(false);
-	
     if(m_thread) m_thread->terminate();
 }
 
@@ -338,6 +331,10 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 		afterStop();
 		return NULL;
 	}
+
+	targetField()->setUIEnabled(true);
+	sweepRate()->setUIEnabled(true);
+
 	double target_field_old = Snapshot( *this)[ *targetField()];
 	double target_corr = 0.0;
 
@@ -544,7 +541,11 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			}
 		}
 	}
- 
+
+	targetField()->setUIEnabled(false);
+	sweepRate()->setUIEnabled(false);
+	allowPersistent()->setUIEnabled(false);
+
 	m_lsnRate.reset();
       
 	afterStop();

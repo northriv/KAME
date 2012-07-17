@@ -109,48 +109,11 @@ void XTempControl::showForms() {
 }
 
 void XTempControl::start() {
-	for(Transaction tr( *this);; ++tr) {
-		const Snapshot &shot(tr);
-		if(shared_ptr<XDCSource>(shot[ *extDCSource()])) {
-			tr[ *heaterMode()].clear();
-			tr[ *heaterMode()].add("Off");
-			tr[ *heaterMode()].add("PID");
-			tr[ *heaterMode()].add("Man");
-		}
-		else
-			tr[ *m_powerRange].setUIEnabled(true);
-		if(tr.commit())
-			break;
-	}
-
 	m_thread.reset(new XThread<XTempControl> (shared_from_this(),
 		&XTempControl::execute));
 	m_thread->resume();
-
-	m_currentChannel->setUIEnabled(true);
-	m_heaterMode->setUIEnabled(true);
-	m_prop->setUIEnabled(true);
-	m_int->setUIEnabled(true);
-	m_deriv->setUIEnabled(true);
-	m_manualPower->setUIEnabled(true);
-	m_targetTemp->setUIEnabled(true);
-
-	m_extDCSource->setUIEnabled(false);
-	m_extDCSourceChannel->setUIEnabled(false);
 }
 void XTempControl::stop() {
-	m_currentChannel->setUIEnabled(false);
-	m_powerRange->setUIEnabled(false);
-	m_heaterMode->setUIEnabled(false);
-	m_prop->setUIEnabled(false);
-	m_int->setUIEnabled(false);
-	m_deriv->setUIEnabled(false);
-	m_manualPower->setUIEnabled(false);
-	m_targetTemp->setUIEnabled(false);
-
-	m_extDCSource->setUIEnabled(true);
-	m_extDCSourceChannel->setUIEnabled(true);
-
 	if(m_thread)
 		m_thread->terminate();
 	//    m_thread->waitFor();
@@ -279,6 +242,35 @@ double XTempControl::pid(XTime time, double temp) {
 }
 void *
 XTempControl::execute(const atomic<bool> &terminated) {
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		if(shared_ptr<XDCSource>(shot[ *extDCSource()])) {
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("Off");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("Man");
+		}
+		else
+			tr[ *m_powerRange].setUIEnabled(true);
+		if(tr.commit())
+			break;
+	}
+
+	m_thread.reset(new XThread<XTempControl> (shared_from_this(),
+		&XTempControl::execute));
+	m_thread->resume();
+
+	m_currentChannel->setUIEnabled(true);
+	m_heaterMode->setUIEnabled(true);
+	m_prop->setUIEnabled(true);
+	m_int->setUIEnabled(true);
+	m_deriv->setUIEnabled(true);
+	m_manualPower->setUIEnabled(true);
+	m_targetTemp->setUIEnabled(true);
+
+	m_extDCSource->setUIEnabled(false);
+	m_extDCSourceChannel->setUIEnabled(false);
+
 	double tempAvg = 0.0;
 	double tempErrAvg = 0.0;
 	XTime lasttime = XTime::now();
@@ -389,6 +381,18 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	}
 
 	trans( *m_setupChannel) = shared_ptr<XThermometer>();
+
+	m_currentChannel->setUIEnabled(false);
+	m_powerRange->setUIEnabled(false);
+	m_heaterMode->setUIEnabled(false);
+	m_prop->setUIEnabled(false);
+	m_int->setUIEnabled(false);
+	m_deriv->setUIEnabled(false);
+	m_manualPower->setUIEnabled(false);
+	m_targetTemp->setUIEnabled(false);
+
+	m_extDCSource->setUIEnabled(true);
+	m_extDCSourceChannel->setUIEnabled(true);
 
 	m_lsnOnPChanged.reset();
 	m_lsnOnIChanged.reset();

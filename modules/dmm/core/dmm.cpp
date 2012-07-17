@@ -52,15 +52,9 @@ void
 XDMM::start() {
     m_thread.reset(new XThread<XDMM>(shared_from_this(), &XDMM::execute));
     m_thread->resume();
-
-    m_function->setUIEnabled(true);
-    m_waitInms->setUIEnabled(true);
 }
 void
 XDMM::stop() {
-    m_function->setUIEnabled(false);
-    m_waitInms->setUIEnabled(false);
-
     if(m_thread) m_thread->terminate();
 }
 
@@ -94,6 +88,9 @@ XDMM::execute(const atomic<bool> &terminated) {
 		afterStop();
 		return NULL;
     }
+
+    m_function->setUIEnabled(true);
+    m_waitInms->setUIEnabled(true);
         
 	for(Transaction tr( *this);; ++tr) {
 	    m_lsnOnFunctionChanged =
@@ -121,6 +118,9 @@ XDMM::execute(const atomic<bool> &terminated) {
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
     
+    m_function->setUIEnabled(false);
+    m_waitInms->setUIEnabled(false);
+
     m_lsnOnFunctionChanged.reset();
         
     afterStop();

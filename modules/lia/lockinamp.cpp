@@ -74,25 +74,9 @@ void
 XLIA::start() {
     m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
     m_thread->resume();
-	m_output->setUIEnabled(true);
-	m_frequency->setUIEnabled(true);
-	m_sensitivity->setUIEnabled(true);
-	m_timeConst->setUIEnabled(true);
-	m_autoScaleX->setUIEnabled(true);
-	m_autoScaleY->setUIEnabled(true);
-	m_fetchFreq->setUIEnabled(true);
-        
 }
 void
 XLIA::stop() {
-	m_output->setUIEnabled(false);
-	m_frequency->setUIEnabled(false);
-	m_sensitivity->setUIEnabled(false);
-	m_timeConst->setUIEnabled(false);
-	m_autoScaleX->setUIEnabled(false);
-	m_autoScaleY->setUIEnabled(false);
-	m_fetchFreq->setUIEnabled(false);
-  	
     if(m_thread) m_thread->terminate();
 }
 
@@ -151,6 +135,13 @@ XLIA::onTimeConstChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void *
 XLIA::execute(const atomic<bool> &terminated) {
+	m_output->setUIEnabled(true);
+	m_frequency->setUIEnabled(true);
+	m_sensitivity->setUIEnabled(true);
+	m_timeConst->setUIEnabled(true);
+	m_autoScaleX->setUIEnabled(true);
+	m_autoScaleY->setUIEnabled(true);
+	m_fetchFreq->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
@@ -189,7 +180,14 @@ XLIA::execute(const atomic<bool> &terminated) {
 		writer->push(y);
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
-  
+	m_output->setUIEnabled(false);
+	m_frequency->setUIEnabled(false);
+	m_sensitivity->setUIEnabled(false);
+	m_timeConst->setUIEnabled(false);
+	m_autoScaleX->setUIEnabled(false);
+	m_autoScaleY->setUIEnabled(false);
+	m_fetchFreq->setUIEnabled(false);
+
 	m_lsnOutput.reset();
 	m_lsnFreq.reset();
 	m_lsnSens.reset();

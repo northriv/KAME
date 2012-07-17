@@ -64,7 +64,7 @@ void
 XModbusRTUInterface::query_unicast(unsigned int func_code,
 		const std::vector<unsigned char> &bytes, std::vector<unsigned char> &ret_buf) {
 	auto master = m_master;
-	double msec_per_char = 1e3 / ***baudrate() * 12;
+	double msec_per_char = 1e3 / serialBaudRate() * 12;
 	XScopedLock<XModbusRTUInterface> lock( *master);
 	unsigned int slave_addr = ***address();
 	std::vector<unsigned char> buf(bytes.size() + 4);
