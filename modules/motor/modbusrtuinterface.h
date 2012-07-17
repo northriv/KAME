@@ -35,12 +35,12 @@ public:
 	uint32_t readHoldingTwoResistors(uint16_t res_addr) {
 		std::vector<uint16_t> data(2);
 		readHoldingResistors(res_addr, 2, data);
-		return data[0] * 0xffffuL + data[1];
+		return data[0] * 0x10000uL + data[1];
 	}
 	void presetTwoResistors(uint16_t res_addr, uint32_t dword) {
 		std::vector<uint16_t> data(2);
-		data[0] = dword / 0xffffu;
-		data[1] = dword % 0xffffu;
+		data[0] = dword / 0x10000u;
+		data[1] = dword % 0x10000u;
 		presetMultipleResistors(res_addr, 2, data);
 	}
 protected:
@@ -51,18 +51,18 @@ protected:
 	void query(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
 	static void set_word(unsigned char *ptr, uint16_t word) {
-		ptr[0] = static_cast<unsigned char>(word / 0xffu);
-		ptr[1] = static_cast<unsigned char>(word % 0xffu);
+		ptr[0] = static_cast<unsigned char>(word / 0x100u);
+		ptr[1] = static_cast<unsigned char>(word % 0x100u);
 	}
 	static void set_dword(unsigned char *ptr, uint32_t dword) {
-		set_word(ptr, static_cast<uint16_t>(dword / 0xffffu));
-		set_word(ptr + 2, static_cast<uint16_t>(dword % 0xffffu));
+		set_word(ptr, static_cast<uint16_t>(dword / 0x10000u));
+		set_word(ptr + 2, static_cast<uint16_t>(dword % 0x10000u));
 	}
 	static uint16_t get_word(unsigned char *ptr) {
-		return ptr[1] +ptr[0] * 0xffu;
+		return ptr[1] +ptr[0] * 0x100u;
 	}
 	static uint32_t get_dword(unsigned char *ptr) {
-		return get_word(ptr + 2) + get_word(ptr) * 0xffffuL;
+		return get_word(ptr + 2) + get_word(ptr) * 0x10000uL;
 	}
 	uint16_t crc16(const unsigned char *bytes, ssize_t count);
 
