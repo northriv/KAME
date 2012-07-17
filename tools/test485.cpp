@@ -39,11 +39,11 @@ crc16(const unsigned char *bytes, ssize_t count) {
 	return z;
 }
 
-int main() {
+int main(int argc, char **argv) {
 	struct termios ttyios;
 	speed_t baudrate;
 	int scifd;
-	if((scifd = open("/dev/ttyUSB0",
+	if((scifd = open(argv[1],
 						 O_RDWR | O_NOCTTY | O_NONBLOCK)) == -1) {
 		abort();
 	}
@@ -53,8 +53,8 @@ int main() {
 	bzero( &ttyios, sizeof(ttyios));
 //      tcgetattr(m_scifd, &ttyios);
 
-	cfsetispeed( &ttyios, B9600);
-	cfsetospeed( &ttyios, B9600);
+	cfsetispeed( &ttyios, B115200);
+	cfsetospeed( &ttyios, B115200);
 	cfmakeraw( &ttyios);
 	ttyios.c_cflag &= ~(PARENB | CSIZE);
 		ttyios.c_cflag |= PARENB;
@@ -84,18 +84,18 @@ int main() {
 //	}
 
     unsigned char wbuf[] =
-//    {0x03,0x03,0x03,0x80,0x00,0x02};
-//    {0x03,0x08,0x00,0x00,0x34,0x56};
+    {0x03,0x03,0x03,0x80,0x00,0x02};
+//    {0x03,0x08,0x00,0x00,0x12,0x34};
 //   {0x03,0x10,0x01,0x80,0x00,0x01,0x02,0x0,0x1};
-    {0x03,0x06,0x01,0x80,0x0,0x1};
+//   {0x03,0x06,0x01,0x80,0x0,0x1};
     uint16_t crc = crc16(wbuf, 6);
 	write(scifd, wbuf, sizeof(wbuf));
 	write(scifd, &crc, 2);
 	write(1, wbuf, sizeof(wbuf));
 	write(1, &crc, 2);
-	char rbuf[10];
-	bzero(rbuf, 10);
-//	usleep(300000);
-	read(scifd, rbuf, 2);
+	char rbuf[20];
+	bzero(rbuf, 20);
+	usleep(1000000);
+	read(scifd, rbuf, 8);
 	write(1, rbuf, 10);
 }
