@@ -100,17 +100,11 @@ XMotorDriver::start() {
 	m_ready->setUIEnabled(true);
 	m_slipping->setUIEnabled(true);
 	m_microStep->setUIEnabled(true);
-    try {
-    	for(Transaction tr( *this);; ++tr) {
-    		getConditions(tr);
-    		if(tr.commit())
-    			break;
-    	}
-    }
-    catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error: "));
-        return;
-    }
+	for(Transaction tr( *this);; ++tr) {
+		getConditions(tr);
+		if(tr.commit())
+			break;
+	}
 }
 void
 
@@ -211,5 +205,6 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 
 	m_lsnTarget.reset();
 	m_lsnConditions.reset();
+	afterStop();
 	return NULL;
 }

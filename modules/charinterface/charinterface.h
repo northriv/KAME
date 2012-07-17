@@ -82,7 +82,7 @@ public:
 	bool serial7Bits() const {return m_serial7Bits;}
 	bool serialFlushBeforeWrite() const {return m_serialFlushBeforeWrite;}
 
-	virtual bool isOpened() const {return !!m_xport;}
+	virtual bool isOpened() const {return m_xport;}
 protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.

@@ -26,8 +26,6 @@ XFlexAR::XFlexAR(const char *name, bool runtime,
 }
 void
 XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
-	interface()->diagnostics();
-
 	uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
 	if(alarm) {
 		throw XInterface::XInterfaceError(i18n("Alarm %1 has been emitted").arg((int)alarm), __FILE__, __LINE__);
@@ -47,24 +45,25 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 }
 void
 XFlexAR::changeConditions(const Snapshot &shot) {
-	interface()->presetTwoResistors(0x380,  lrint(shot[ *step()]));
-	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 	interface()->presetTwoResistors(0x240,  lrint(shot[ *currentRunning()] * 10.0));
 	interface()->presetTwoResistors(0x242,  lrint(shot[ *currentStopping()] * 10.0));
 	interface()->presetTwoResistors(0x1028,  shot[ *microStep()] ? 1 : 0);
 	interface()->presetTwoResistors(0x28c, 0); //common setting for acc/dec.
 	interface()->presetTwoResistors(0x280,  lrint(shot[ *timeAcc()] * 1e3));
 	interface()->presetTwoResistors(0x282,  lrint(shot[ *timeDec()] * 1e3));
+	interface()->presetTwoResistors(0x380,  lrint(shot[ *step()]));
+	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 }
 void
 XFlexAR::getConditions(Transaction &tr) {
-	tr[ *step()] = interface()->readHoldingTwoResistors(0x380);
-	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
+	interface()->diagnostics();
 	tr[ *currentRunning()] = interface()->readHoldingTwoResistors(0x240) * 0.1;
 	tr[ *currentStopping()] = interface()->readHoldingTwoResistors(0x242) * 0.1;
 	tr[ *microStep()] = (interface()->readHoldingTwoResistors(0x1028) == 1);
 	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x280) * 1e-3;
 	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
+	tr[ *step()] = interface()->readHoldingTwoResistors(0x380);
+	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
 }
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {

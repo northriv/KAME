@@ -48,8 +48,11 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	void query(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
+	virtual bool isOpened() const {return m_master;}
+
+	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
+	//Modbus utilizes Big endian.
 	static void set_word(unsigned char *ptr, uint16_t word) {
 		ptr[0] = static_cast<unsigned char>(word / 0x100u);
 		ptr[1] = static_cast<unsigned char>(word % 0x100u);
