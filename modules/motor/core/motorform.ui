@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>392</width>
+    <width>403</width>
     <height>308</height>
    </rect>
   </property>
@@ -270,7 +270,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>s/kHz</string>
+           <string>ms/kHz</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -395,7 +395,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>s/kHz</string>
+           <string>ms/kHz</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>

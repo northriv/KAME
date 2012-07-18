@@ -16,7 +16,7 @@
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, FlexCRK, "OrientalMotor FLEX CRK motor controller");
-REGISTER_TYPE(XDriverList, FlexCRK, "OrientalMotor FLEX AR/DG2 motor controller");
+REGISTER_TYPE(XDriverList, FlexAR, "OrientalMotor FLEX AR/DG2 motor controller");
 
 XFlexCRK::XFlexCRK(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

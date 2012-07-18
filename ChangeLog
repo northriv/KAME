@@ -1,6 +1,6 @@
 * Sun Jul 15 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.13-1)
-- motor: ORIENTALMOTOR FLEX AR.
+- motor: ORIENTALMOTOR FLEX CRK/AR/DG2.
 - graphpaintergl: includes <GL/glu.h>
 
 * Wed Jul 11 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>

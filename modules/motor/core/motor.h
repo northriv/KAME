@@ -54,8 +54,8 @@ protected:
 	const shared_ptr<XDoubleNode> &currentStopping() const {return m_currentStopping;} //!< [%]
 	const shared_ptr<XDoubleNode> &currentRunning() const {return m_currentRunning;} //!< [%]
 	const shared_ptr<XDoubleNode> &speed() const {return m_speed;} //!< [Hz]
-	const shared_ptr<XDoubleNode> &timeAcc() const {return m_timeAcc;} //!< [s]
-	const shared_ptr<XDoubleNode> &timeDec() const {return m_timeDec;} //!< [s]
+	const shared_ptr<XDoubleNode> &timeAcc() const {return m_timeAcc;} //!< [ms/kHz]
+	const shared_ptr<XDoubleNode> &timeDec() const {return m_timeDec;} //!< [ms/kHz]
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
 	const shared_ptr<XBoolNode> &ready() const {return m_ready;}
 	const shared_ptr<XBoolNode> &slipping() const {return m_slipping;}
