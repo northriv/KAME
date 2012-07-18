@@ -181,16 +181,16 @@ void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->presetTwoResistors(0x400, lrint(target * shot[ *stepMotor()]));
-	interface()->presetTwoResistors(0x1e, 0x100u); //MS0
-	interface()->presetTwoResistors(0x1e, 0x0u); //C-ON, M1
+	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
+	interface()->presetTwoResistors(0x7c, 0x0u);
 }
 void
 XFlexAR::setActive(bool active) {
 	XScopedLock<XInterface> lock( *interface());
 	if(active) {
-		interface()->presetTwoResistors(0x1e, 0x0u);
+		interface()->presetTwoResistors(0x7c, 0x0u);
 	}
 	else {
-		interface()->presetTwoResistors(0x1e, 0x40u); //FREE
+		interface()->presetTwoResistors(0x7c, 0x40u); //FREE
 	}
 }
