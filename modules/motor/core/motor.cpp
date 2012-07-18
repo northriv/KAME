@@ -98,8 +98,8 @@ XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordE
     double pos;
     bool slip, isready;
     pos = reader.pop<double>();
-    slip = reader.pop<bool>();
-    isready = reader.pop<bool>();
+    slip = reader.pop<uint16_t>();
+    isready = reader.pop<uint16_t>();
     m_position->value(tr, pos);
     tr[ *m_slipping] = slip;
     tr[ *m_ready] = isready;
@@ -190,8 +190,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		}
 		shared_ptr<RawData> writer(new RawData);
 		writer->push(pos);
-		writer->push(slip);
-		writer->push(isready);
+		writer->push((uint16_t)slip);
+		writer->push((uint16_t)isready);
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
 

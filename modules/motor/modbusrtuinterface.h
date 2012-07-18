@@ -23,7 +23,7 @@ public:
 	virtual ~XModbusRTUInterface();
 
 	void readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data);
-	void presetSingeResistor(uint16_t res_addr, uint16_t data);
+	void presetSingleResistor(uint16_t res_addr, uint16_t data);
 	void presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data);
 	void diagnostics();
 
@@ -39,8 +39,8 @@ public:
 	}
 	void presetTwoResistors(uint16_t res_addr, uint32_t dword) {
 		std::vector<uint16_t> data(2);
-		data[0] = dword / 0x10000u;
-		data[1] = dword % 0x10000u;
+		data[0] = dword / 0x10000uL;
+		data[1] = dword % 0x10000uL;
 		presetMultipleResistors(res_addr, 2, data);
 	}
 protected:
@@ -48,7 +48,7 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	virtual bool isOpened() const {return m_master;}
+	virtual bool isOpened() const {return !!m_master;}
 
 	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:

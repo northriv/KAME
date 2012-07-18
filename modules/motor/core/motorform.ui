@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>392</width>
-    <height>252</height>
+    <height>262</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -161,7 +161,7 @@
          <double>0.000000000000000</double>
         </property>
         <property name="suffix" stdset="0">
-         <string> dB</string>
+         <string></string>
         </property>
         <property name="minValue" stdset="0">
          <number>0</number>
@@ -208,7 +208,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>deg.</string>
+           <string>1/rot</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -286,7 +286,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>sec.</string>
+           <string>s/kHz</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -325,7 +325,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>sec.</string>
+           <string>s/kHz</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -384,7 +384,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Current Stepping</string>
+           <string>Current Stopping</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>

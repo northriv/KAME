@@ -16,6 +16,7 @@
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, FlexAR, "OrientalMotor FLEX AR motor controler");
+REGISTER_TYPE(XDriverList, FlexCRK, "OrientalMotor FLEX CRK motor controler");
 
 XFlexAR::XFlexAR(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -74,3 +75,68 @@ XFlexAR::setActive(bool active) {
 	uint32_t input = interface()->readHoldingTwoResistors(0x7c);
 	interface()->presetTwoResistors(0x7c, (input & ~0x10u) + ( !active ? 0x10u : 0));
 }
+
+void
+XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
+	uint32_t output = interface()->readHoldingTwoResistors(0x20);
+	*ready = output & 0x2000;
+	*slipping = output & 0x200;
+	if(output & 0x80) {
+		uint32_t alarm = interface()->readHoldingTwoResistors(0x100);
+		gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
+		interface()->presetSingleResistor(0x40, 1);
+		interface()->presetSingleResistor(0x40, 0);
+	}
+	if(output & 0x40) {
+		uint32_t warn = interface()->readHoldingTwoResistors(0x10b);
+		gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
+	}
+//	uint32_t ierr = interface()->readHoldingTwoResistors(0x128);
+//	if(ierr) {
+//		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
+//	}
+	*position = interface()->readHoldingTwoResistors(0x118) / (double)shot[ *step()];
+}
+void
+XFlexCRK::changeConditions(const Snapshot &shot) {
+	interface()->presetSingleResistor(0x21e,  lrint(shot[ *currentRunning()]));
+	interface()->presetSingleResistor(0x21f,  lrint(shot[ *currentStopping()]));
+	interface()->presetSingleResistor(0x236, 0); //common setting for acc/dec.
+	interface()->presetTwoResistors(0x18,  lrint(shot[ *timeAcc()] * 1e3));
+	interface()->presetTwoResistors(0x16,  lrint(shot[ *timeDec()] * 1e3));
+	interface()->presetTwoResistors(0x312,  lrint(shot[ *step()]));
+	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
+}
+void
+XFlexCRK::getConditions(Transaction &tr) {
+	interface()->diagnostics();
+	tr[ *currentRunning()] = interface()->readHoldingSingleResistor(0x21e);
+	tr[ *currentStopping()] = interface()->readHoldingSingleResistor(0x21f);
+	tr[ *microStep()].setUIEnabled(false);
+	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x18) * 1e-3;
+	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x16) * 1e-3;
+	tr[ *step()] = interface()->readHoldingTwoResistors(0x312);
+	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
+	tr[ *target()] = interface()->readHoldingTwoResistors(0x402);
+	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
+	interface()->presetSingleResistor(0x200, 0); //START by RS485.
+	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
+	interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
+}
+void
+XFlexCRK::setTarget(const Snapshot &shot, double target) {
+	interface()->presetTwoResistors(0x402, lrint(target * shot[ *step()]));
+	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
+	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+}
+void
+XFlexCRK::setActive(bool active) {
+	if(active) {
+		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+	}
+	else {
+		interface()->presetSingleResistor(0x202, 3); //Inactive after stop.
+		interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M1
+	}
+}
+

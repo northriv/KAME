@@ -125,7 +125,7 @@ XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vec
 	}
 }
 void
-XModbusRTUInterface::presetSingeResistor(uint16_t res_addr, uint16_t data) {
+XModbusRTUInterface::presetSingleResistor(uint16_t res_addr, uint16_t data) {
 	std::vector<unsigned char> wrbuf(4);
 	set_word( &wrbuf[0], res_addr);
 	set_word( &wrbuf[2], data);
@@ -145,7 +145,7 @@ XModbusRTUInterface::presetMultipleResistors(uint16_t res_no, int count, const s
 		set_word( &wrbuf[idx], *it);
 		idx += 2;
 	}
-	std::vector<unsigned char> rdbuf(4 * count);
+	std::vector<unsigned char> rdbuf(4);
 	query_unicast(0x10, wrbuf, rdbuf);
 }
 void

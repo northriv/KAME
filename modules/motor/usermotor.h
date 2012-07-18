@@ -34,5 +34,21 @@ protected:
 
 private:
 };
+//ORIENTAL MOTOR FLEX CRK series.
+class XFlexCRK : public XFlexAR {
+public:
+	XFlexCRK(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XFlexAR(name, runtime, ref(tr_meas), meas) {}
+	virtual ~XFlexCRK() {}
+protected:
+protected:
+	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
+	virtual void changeConditions(const Snapshot &shot);
+	virtual void getConditions(Transaction &tr);
+	virtual void setTarget(const Snapshot &shot, double target);
+	virtual void setActive(bool active);
+
+private:
+};
 
 #endif /* USERMOTOR_H_ */
