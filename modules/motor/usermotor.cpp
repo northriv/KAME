@@ -122,6 +122,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
 	interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
+	interface()->presetSingleResistor(0x202, 3); //Inactive after stop.
 }
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
@@ -135,7 +136,6 @@ XFlexCRK::setActive(bool active) {
 		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
 	}
 	else {
-		interface()->presetSingleResistor(0x202, 3); //Inactive after stop.
 		interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M1
 	}
 }
