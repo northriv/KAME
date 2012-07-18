@@ -46,10 +46,11 @@ protected:
 	virtual void visualize(const Snapshot &shot);
 
 	//! driver specific part below
-	const shared_ptr<XScalarEntry> &position() const {return m_position;}
+	const shared_ptr<XScalarEntry> &position() const {return m_position;} //!< [deg.]
 
-	const shared_ptr<XDoubleNode> &target() const {return m_target;} //!< [step]
-	const shared_ptr<XUIntNode> &step() const {return m_step;} //!< [step]
+	const shared_ptr<XDoubleNode> &target() const {return m_target;} //!< [deg.]
+	const shared_ptr<XUIntNode> &stepMotor() const {return m_stepMotor;} //!< [steps per rot.]
+	const shared_ptr<XUIntNode> &stepEncoder() const {return m_stepEncoder;} //!< [steps per rot.]
 	const shared_ptr<XDoubleNode> &currentStopping() const {return m_currentStopping;} //!< [%]
 	const shared_ptr<XDoubleNode> &currentRunning() const {return m_currentRunning;} //!< [%]
 	const shared_ptr<XDoubleNode> &speed() const {return m_speed;} //!< [Hz]
@@ -59,18 +60,24 @@ protected:
 	const shared_ptr<XBoolNode> &ready() const {return m_ready;}
 	const shared_ptr<XBoolNode> &slipping() const {return m_slipping;}
 	const shared_ptr<XBoolNode> &microStep() const {return m_microStep;}
-
+	const shared_ptr<XBoolNode> &hasEncoder() const {return m_hasEncoder;}
+	const shared_ptr<XTouchableNode> &store() const {return m_store;}
+	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) = 0;
 	virtual void changeConditions(const Snapshot &shot) = 0;
 	virtual void getConditions(Transaction &tr) = 0;
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
 	virtual void setActive(bool active) = 0;
+	//! stores current settings to the NV memory of the instrument.
+	virtual void storeToROM() = 0;
+	virtual void clearPosition() = 0;
 private:
 	const shared_ptr<XScalarEntry> m_position;
 
 	const shared_ptr<XDoubleNode> m_target;
-	const shared_ptr<XUIntNode> m_step;
+	const shared_ptr<XUIntNode> m_stepMotor;
+	const shared_ptr<XUIntNode> m_stepEncoder;
 	const shared_ptr<XDoubleNode> m_currentStopping;
 	const shared_ptr<XDoubleNode> m_currentRunning;
 	const shared_ptr<XDoubleNode> m_speed;
@@ -80,17 +87,23 @@ private:
 	const shared_ptr<XBoolNode> m_ready;
 	const shared_ptr<XBoolNode> m_slipping;
 	const shared_ptr<XBoolNode> m_microStep;
+	const shared_ptr<XBoolNode> m_hasEncoder;
+	const shared_ptr<XTouchableNode> m_clear;
+	const shared_ptr<XTouchableNode> m_store;
 
-	shared_ptr<XListener> m_lsnTarget, m_lsnConditions;
-	xqcon_ptr m_conPosition, m_conTarget, m_conStep,
+	shared_ptr<XListener> m_lsnTarget, m_lsnConditions, m_lsnClear, m_lsnStore;
+	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
 		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,
-		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping, m_conMicroStep;
+		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
+		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore;
 
 	shared_ptr<XThread<XMotorDriver> > m_thread;
 	const qshared_ptr<FrmMotorDriver> m_form;
 
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onConditionsChanged(const Snapshot &shot, XValueNodeBase *);
+	void onClearTouched(const Snapshot &shot, XTouchableNode *);
+	void onStoreTouched(const Snapshot &shot, XTouchableNode *);
 
 	void *execute(const atomic<bool> &);
 

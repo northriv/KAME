@@ -25,7 +25,8 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_position(create<XScalarEntry>("Position", false,
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_target(create<XDoubleNode>("Target", true)),
-    m_step(create<XUIntNode>("Step", true)),
+    m_stepMotor(create<XUIntNode>("StepMotor", true)),
+    m_stepEncoder(create<XUIntNode>("StepEncoder", true)),
     m_currentStopping(create<XDoubleNode>("CurrentStopping", true)),
     m_currentRunning(create<XDoubleNode>("CurrentRunning", true)),
     m_speed(create<XDoubleNode>("Speed", true)),
@@ -35,6 +36,9 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_ready(create<XBoolNode>("Ready", true)),
     m_slipping(create<XBoolNode>("Slipping", true)),
     m_microStep(create<XBoolNode>("MicroStep", true)),
+    m_hasEncoder(create<XBoolNode>("HasEncoder", false)),
+    m_clear(create<XTouchableNode>("Clear", true)),
+    m_store(create<XTouchableNode>("Store", true)),
     m_form(new FrmMotorDriver(g_pFrmMain)) {
 
 	for(Transaction tr( *this);; ++tr) {
@@ -50,7 +54,8 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 
 	m_position->setUIEnabled(false);
 	m_target->setUIEnabled(false);
-	m_step->setUIEnabled(false);
+	m_stepMotor->setUIEnabled(false);
+	m_stepEncoder->setUIEnabled(false);
 	m_currentStopping->setUIEnabled(false);
 	m_currentRunning->setUIEnabled(false);
 	m_speed->setUIEnabled(false);
@@ -60,11 +65,15 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_ready->setUIEnabled(false);
 	m_slipping->setUIEnabled(false);
 	m_microStep->setUIEnabled(false);
+	m_clear->setUIEnabled(false);
+	m_store->setUIEnabled(false);
+//	m_hasEncoder->setUIEnabled(true);
 
 	m_conPosition = xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition);
 	m_conTarget = xqcon_create<XKDoubleNumInputConnector>(m_target, m_form->m_dblTarget);
 	m_form->m_dblTarget->setRange(-3600.0, 3600.0, 1.0, true);
-	m_conStep = xqcon_create<XQLineEditConnector>(m_step, m_form->m_edStep);
+	m_conStepMotor = xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor);
+	m_conStepEncoder = xqcon_create<XQLineEditConnector>(m_stepEncoder, m_form->m_edStepEncoder);
 	m_conCurrentStopping = xqcon_create<XQLineEditConnector>(m_currentStopping, m_form->m_edCurrStopping);
 	m_conCurrentRunning = xqcon_create<XQLineEditConnector>(m_currentRunning, m_form->m_edCurrRunning);
 	m_conSpeed = xqcon_create<XQLineEditConnector>(m_speed, m_form->m_edSpeed);
@@ -74,6 +83,9 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conMicroStep = xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping);
 	m_conSlipping = xqcon_create<XKLedConnector>(m_slipping, m_form->m_ledSlipping);
 	m_conReady = xqcon_create<XKLedConnector>(m_ready, m_form->m_ledReady);
+	m_conHasEncoder = xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder);
+	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
+	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
 }
 
 void
@@ -131,7 +143,34 @@ XMotorDriver::onConditionsChanged(const Snapshot &shot, XValueNodeBase *) {
         return;
     }
 }
-
+void
+XMotorDriver::onClearTouched(const Snapshot &shot, XTouchableNode *) {
+	Snapshot shot_this( *this);
+    try {
+        clearPosition();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error while clearing position, "));
+        return;
+    }
+    for(Transaction tr( *this);; ++tr) {
+    	tr[ *target()] = 0.0;
+    	tr.unmark(m_lsnTarget);
+    	if(tr.commit())
+    		break;
+    }
+}
+void
+XMotorDriver::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
+	Snapshot shot_this( *this);
+    try {
+        storeToROM();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error while storing to NV, "));
+        return;
+    }
+}
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
 	try {
@@ -149,7 +188,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 
 	m_position->setUIEnabled(true);
 	m_target->setUIEnabled(true);
-	m_step->setUIEnabled(true);
+	m_stepMotor->setUIEnabled(true);
+	m_stepEncoder->setUIEnabled(true);
 	m_currentStopping->setUIEnabled(true);
 	m_currentRunning->setUIEnabled(true);
 	m_speed->setUIEnabled(true);
@@ -159,10 +199,14 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_ready->setUIEnabled(true);
 	m_slipping->setUIEnabled(true);
 	m_microStep->setUIEnabled(true);
+	m_clear->setUIEnabled(true);
+	m_clear->setUIEnabled(true);
+//	m_hasEncoder->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnTarget = tr[ *target()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onTargetChanged);
-		m_lsnConditions = tr[ *step()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onConditionsChanged);
+		m_lsnConditions = tr[ *stepMotor()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onConditionsChanged);
+		tr[ *stepEncoder()].onValueChanged().connect(m_lsnConditions);
 		tr[ *currentStopping()].onValueChanged().connect(m_lsnConditions);
 		tr[ *currentRunning()].onValueChanged().connect(m_lsnConditions);
 		tr[ *speed()].onValueChanged().connect(m_lsnConditions);
@@ -170,6 +214,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		tr[ *timeDec()].onValueChanged().connect(m_lsnConditions);
 		tr[ *active()].onValueChanged().connect(m_lsnConditions);
 		tr[ *microStep()].onValueChanged().connect(m_lsnConditions);
+		m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
+		m_lsnStore = tr[ *store()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStoreTouched);
 		if(tr.commit())
 			break;
 	}
@@ -197,7 +243,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 
 	m_position->setUIEnabled(false);
 	m_target->setUIEnabled(false);
-	m_step->setUIEnabled(false);
+	m_stepMotor->setUIEnabled(false);
+	m_stepEncoder->setUIEnabled(false);
 	m_currentStopping->setUIEnabled(false);
 	m_currentRunning->setUIEnabled(false);
 	m_speed->setUIEnabled(false);
@@ -207,9 +254,14 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_ready->setUIEnabled(false);
 	m_slipping->setUIEnabled(false);
 	m_microStep->setUIEnabled(false);
+	m_clear->setUIEnabled(false);
+	m_clear->setUIEnabled(false);
+//	m_hasEncoder->setUIEnabled(true);
 
 	m_lsnTarget.reset();
 	m_lsnConditions.reset();
+	m_lsnClear.reset();
+	m_lsnStore.reset();
 
 	afterStop();
 	return NULL;

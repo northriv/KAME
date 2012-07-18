@@ -18,27 +18,11 @@
 #include "motor.h"
 #include "modbusrtuinterface.h"
 
-//ORIENTAL MOTOR FLEX AR series.
-class XFlexAR : public XModbusRTUDriver<XMotorDriver> {
-public:
-	XFlexAR(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XFlexAR() {}
-protected:
-protected:
-	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
-	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
-	virtual void setTarget(const Snapshot &shot, double target);
-	virtual void setActive(bool active);
-
-private:
-};
 //ORIENTAL MOTOR FLEX CRK series.
-class XFlexCRK : public XFlexAR {
+class XFlexCRK : public XModbusRTUDriver<XMotorDriver>  {
 public:
 	XFlexCRK(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XFlexAR(name, runtime, ref(tr_meas), meas) {}
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XFlexCRK() {}
 protected:
 protected:
@@ -47,7 +31,9 @@ protected:
 	virtual void getConditions(Transaction &tr);
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
-
+	//! stores current settings to the NV memory of the instrument.
+	virtual void storeToROM() = 0;
+	virtual void clearPosition() = 0;
 private:
 };
 
