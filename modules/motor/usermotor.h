@@ -32,8 +32,8 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	//! stores current settings to the NV memory of the instrument.
-	virtual void storeToROM() = 0;
-	virtual void clearPosition() = 0;
+	virtual void storeToROM();
+	virtual void clearPosition();
 private:
 };
 

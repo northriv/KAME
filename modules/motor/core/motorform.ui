@@ -200,7 +200,7 @@
          <double>0.000000000000000</double>
         </property>
         <property name="suffix" stdset="0">
-         <string/>
+         <string>deg.</string>
         </property>
         <property name="minValue" stdset="0">
          <number>0</number>
@@ -457,7 +457,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="m_btnSore">
+       <widget class="QPushButton" name="m_btnStore">
         <property name="text">
          <string>Store Setting to ROM</string>
         </property>
@@ -482,6 +482,20 @@
    <header>knuminput.h</header>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>m_ckbActive</tabstop>
+  <tabstop>m_edSpeed</tabstop>
+  <tabstop>m_edStepMotor</tabstop>
+  <tabstop>m_edStepEncoder</tabstop>
+  <tabstop>m_edTimeAcc</tabstop>
+  <tabstop>m_edTimeDec</tabstop>
+  <tabstop>m_edCurrRunning</tabstop>
+  <tabstop>m_edCurrStopping</tabstop>
+  <tabstop>m_ckbMicroStepping</tabstop>
+  <tabstop>m_ckbHasEncoder</tabstop>
+  <tabstop>m_btnClear</tabstop>
+  <tabstop>m_btnStore</tabstop>
+ </tabstops>
  <includes>
   <include location="local">kled.h</include>
  </includes>
