@@ -256,10 +256,6 @@ XTempControl::execute(const atomic<bool> &terminated) {
 			break;
 	}
 
-	m_thread.reset(new XThread<XTempControl> (shared_from_this(),
-		&XTempControl::execute));
-	m_thread->resume();
-
 	m_currentChannel->setUIEnabled(true);
 	m_heaterMode->setUIEnabled(true);
 	m_prop->setUIEnabled(true);
