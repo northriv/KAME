@@ -41,7 +41,6 @@ void
 XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
 	XScopedLock<XInterface> lock( *interface());
 	uint32_t output = interface()->readHoldingTwoResistors(0x20);
-	*ready = output & 0x2000;
 	*slipping = output & 0x200;
 	if(output & 0x80) {
 		uint32_t alarm = interface()->readHoldingTwoResistors(0x100);
@@ -57,6 +56,8 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 //	if(ierr) {
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
+	*ready = (output & 0x4c0 == 0); // !(MOVE || ARM || WNG)
+
 	if(shot[ *hasEncoder()])
 		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x11e))
 			* 360.0 / (double)shot[ *stepEncoder()];
