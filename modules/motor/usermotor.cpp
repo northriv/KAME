@@ -58,9 +58,11 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
 	if(shot[ *hasEncoder()])
-		*position = interface()->readHoldingTwoResistors(0x11e) * 360.0 / (double)shot[ *stepEncoder()];
+		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x11e))
+			* 360.0 / (double)shot[ *stepEncoder()];
 	else
-		*position = interface()->readHoldingTwoResistors(0x118) * 360.0 / (double)shot[ *stepMotor()] / (shot[ *microStep()] ? 10 : 1);
+		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x118))
+			* 360.0 / (double)shot[ *stepMotor()] / (shot[ *microStep()] ? 10 : 1);
 }
 void
 XFlexCRK::changeConditions(const Snapshot &shot) {
@@ -89,7 +91,8 @@ XFlexCRK::getConditions(Transaction &tr) {
 	tr[ *stepEncoder()] = interface()->readHoldingTwoResistors(0x312);
 	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x314) / (tr[ *microStep()] ? 10 : 1);
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
-	tr[ *target()] = interface()->readHoldingTwoResistors(0x402) * 360.0 / tr[ *stepMotor()] / (tr[ *microStep()] ? 10 : 1);
+	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402))
+			* 360.0 / tr[ *stepMotor()] / (tr[ *microStep()] ? 10 : 1);
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -144,9 +147,11 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 		gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
 	}
 	if(shot[ *hasEncoder()])
-		*position = interface()->readHoldingTwoResistors(0xcc) * 360.0 / (double)shot[ *stepEncoder()];
+		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0xcc))
+			* 360.0 / (double)shot[ *stepEncoder()];
 	else
-		*position = interface()->readHoldingTwoResistors(0xc6) * 360.0 / (double)shot[ *stepMotor()];
+		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0xc6))
+			* 360.0 / (double)shot[ *stepMotor()];
 }
 void
 XFlexAR::changeConditions(const Snapshot &shot) {
@@ -172,7 +177,8 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
 	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380);
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
-	tr[ *target()] = interface()->readHoldingTwoResistors(0x400) * 360.0 / tr[ *stepMotor()];
+	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400))
+			* 360.0 / tr[ *stepMotor()];
 	interface()->presetTwoResistors(0x200, 3); //Inactive after stop.
 	interface()->presetTwoResistors(0x500, 1); //Absolute.
 	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC

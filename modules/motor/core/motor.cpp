@@ -200,7 +200,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_slipping->setUIEnabled(true);
 	m_microStep->setUIEnabled(true);
 	m_clear->setUIEnabled(true);
-	m_clear->setUIEnabled(true);
+	m_store->setUIEnabled(true);
 //	m_hasEncoder->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
@@ -255,7 +255,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_slipping->setUIEnabled(false);
 	m_microStep->setUIEnabled(false);
 	m_clear->setUIEnabled(false);
-	m_clear->setUIEnabled(false);
+	m_store->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_lsnTarget.reset();
