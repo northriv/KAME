@@ -299,7 +299,7 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	mkmax.second = -1000;
 	auto z = tr[ *this].trace();
 	for(unsigned int i = 0; i < pts; i++) {
-		double r = std::abs( *z++);
+		double r = 20.0 * log10(std::abs( *z++));
 		if(r < mkmin.second)
 			mkmin = std::pair<double, double>(i * df + fmin, r);
 		if(r > mkmax.second)
