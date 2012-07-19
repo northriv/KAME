@@ -160,7 +160,7 @@ XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	if(len / sizeof(float) > samples)
 		throw XRecordError(i18n("Select scalar plot."), __FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this].trace_()[i] = reader.pop<float>();
+		tr[ *this].trace_()[i] = pow(10.0, reader.pop<float>() / 20.0);
 	}
 }
 
@@ -178,7 +178,7 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this].trace_()[i] = reader.pop<float>();
+		tr[ *this].trace_()[i] = pow(10.0, reader.pop<float>() / 20.0);
 		reader.pop<float>();
 	}
 }
