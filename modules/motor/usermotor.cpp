@@ -62,7 +62,7 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 			* 360.0 / (double)shot[ *stepEncoder()];
 	else
 		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x118))
-			* 360.0 / (double)shot[ *stepMotor()] / (shot[ *microStep()] ? 10 : 1);
+			* 360.0 / (double)shot[ *stepMotor()];
 }
 void
 XFlexCRK::changeConditions(const Snapshot &shot) {
@@ -70,12 +70,15 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	interface()->presetSingleResistor(0x21e,  lrint(shot[ *currentRunning()]));
 	interface()->presetSingleResistor(0x21f,  lrint(shot[ *currentStopping()]));
 	interface()->presetSingleResistor(0x236, 0); //common setting for acc/dec.
-	interface()->presetTwoResistors(0x18,  lrint(shot[ *timeAcc()] * 1e3));
-	interface()->presetTwoResistors(0x16,  lrint(shot[ *timeDec()] * 1e3));
+	interface()->presetTwoResistors(0x224,  lrint(shot[ *timeAcc()] * 1e3));
+	interface()->presetTwoResistors(0x226,  lrint(shot[ *timeDec()] * 1e3));
 	interface()->presetTwoResistors(0x312,  lrint(shot[ *stepEncoder()]));
-	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]) * (shot[ *microStep()] ? 10 : 1));
+	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]));
 	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
-	interface()->presetTwoResistors(0x311, shot[ *microStep()] ? 6 : 0); //division = 10.
+	if(interface()->readHoldingSingleResistor(0x311) != shot[ *microStep()]) {
+		gWarnPrint(i18n("Store settings to NV memory and restart, microstep div.=10."));
+		interface()->presetSingleResistor(0x311, shot[ *microStep()] ? 6 : 0); //division = 10.
+	}
 }
 void
 XFlexCRK::getConditions(Transaction &tr) {
@@ -84,15 +87,13 @@ XFlexCRK::getConditions(Transaction &tr) {
 	tr[ *currentRunning()] = interface()->readHoldingSingleResistor(0x21e);
 	tr[ *currentStopping()] = interface()->readHoldingSingleResistor(0x21f);
 	tr[ *microStep()] = (interface()->readHoldingSingleResistor(0x311) != 0);
-	if(tr[ *microStep()] )
-		interface()->presetTwoResistors(0x311, 6); //division = 10.
-	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x18) * 1e-3;
-	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x16) * 1e-3;
+	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x224) * 1e-3;
+	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x226) * 1e-3;
 	tr[ *stepEncoder()] = interface()->readHoldingTwoResistors(0x312);
-	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x314) / (tr[ *microStep()] ? 10 : 1);
+	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x314);
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
 	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402))
-			* 360.0 / tr[ *stepMotor()] / (tr[ *microStep()] ? 10 : 1);
+			* 360.0 / tr[ *stepMotor()];
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -103,7 +104,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()] * (shot[ *microStep()] ? 10 : 1)));
+	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()]));
 	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
 	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
 }
