@@ -89,7 +89,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	tr[ *stepEncoder()] = interface()->readHoldingTwoResistors(0x312);
 	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x314) / (tr[ *microStep()] ? 10 : 1);
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
-	tr[ *target()] = interface()->readHoldingTwoResistors(0x402) / (tr[ *microStep()] ? 10 : 1);
+	tr[ *target()] = interface()->readHoldingTwoResistors(0x402) * 360.0 / tr[ *stepMotor()] / (tr[ *microStep()] ? 10 : 1);
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -100,7 +100,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x402, lrint(target * shot[ *stepMotor()] * (shot[ *microStep()] ? 10 : 1)));
+	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()] * (shot[ *microStep()] ? 10 : 1)));
 	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
 	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
 }
@@ -172,7 +172,7 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
 	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380);
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
-	tr[ *target()] = interface()->readHoldingTwoResistors(0x400);
+	tr[ *target()] = interface()->readHoldingTwoResistors(0x400) * 360.0 / tr[ *stepMotor()];
 	interface()->presetTwoResistors(0x200, 3); //Inactive after stop.
 	interface()->presetTwoResistors(0x500, 1); //Absolute.
 	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
@@ -180,7 +180,7 @@ XFlexAR::getConditions(Transaction &tr) {
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x400, lrint(target * shot[ *stepMotor()]));
+	interface()->presetTwoResistors(0x400, lrint(target / 360.0  * shot[ *stepMotor()]));
 	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
 	interface()->presetTwoResistors(0x7c, 0x0u);
 }
