@@ -58,9 +58,9 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
 	if(shot[ *hasEncoder()])
-		*position = interface()->readHoldingTwoResistors(0x11e) / (double)shot[ *stepEncoder()];
+		*position = interface()->readHoldingTwoResistors(0x11e) * 360.0 / (double)shot[ *stepEncoder()];
 	else
-		*position = interface()->readHoldingTwoResistors(0x118) / (double)shot[ *stepMotor()] / (shot[ *microStep()] ? 10 : 1);
+		*position = interface()->readHoldingTwoResistors(0x118) * 360.0 / (double)shot[ *stepMotor()] / (shot[ *microStep()] ? 10 : 1);
 }
 void
 XFlexCRK::changeConditions(const Snapshot &shot) {
@@ -144,9 +144,9 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 		gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
 	}
 	if(shot[ *hasEncoder()])
-		*position = interface()->readHoldingTwoResistors(0xcc) / (double)shot[ *stepEncoder()];
+		*position = interface()->readHoldingTwoResistors(0xcc) * 360.0 / (double)shot[ *stepEncoder()];
 	else
-		*position = interface()->readHoldingTwoResistors(0xc6) / (double)shot[ *stepMotor()];
+		*position = interface()->readHoldingTwoResistors(0xc6) * 360.0 / (double)shot[ *stepMotor()];
 }
 void
 XFlexAR::changeConditions(const Snapshot &shot) {
