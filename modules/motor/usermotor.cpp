@@ -163,8 +163,13 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x28c, 0); //common setting for acc/dec.
 	interface()->presetTwoResistors(0x280,  lrint(shot[ *timeAcc()] * 1e3));
 	interface()->presetTwoResistors(0x282,  lrint(shot[ *timeDec()] * 1e3));
-	interface()->presetTwoResistors(0x380,  1000); //A
-	interface()->presetTwoResistors(0x382,  lrint(shot[ *stepMotor()])); //B, rot=1000B/A
+	int b = 1;
+	if(int x = shot[ *stepMotor()] % 1000)
+		b = 1000 / x;
+	b = std::min(b, 10);
+	int a = lrint(shot[ *stepMotor()]/1000.0*b);
+	interface()->presetTwoResistors(0x380,  a); //A
+	interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
 	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 	interface()->presetTwoResistors(0x1028, shot[ *microStep()] ? 1 : 0);
 }
@@ -177,7 +182,9 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *microStep()] = (interface()->readHoldingTwoResistors(0x1028) != 0);
 	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x280) * 1e-3;
 	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
-	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380);
+	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
+	tr[ *stepEncoder()] = tr[ *stepMotor()];
+	tr[ *hasEncoder()] = true;
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
 	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400))
 			* 360.0 / tr[ *stepMotor()];
