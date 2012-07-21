@@ -196,7 +196,8 @@ XFlexAR::getConditions(Transaction &tr) {
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x400, lrint(target / 360.0  * shot[ *stepMotor()]));
+	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
+	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
 	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
 	interface()->presetTwoResistors(0x7c, 0x0u);
 }
