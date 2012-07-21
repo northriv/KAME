@@ -57,7 +57,7 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
 	*ready = (output & 0x4c0 == 0); // !(MOVE || ARM || WNG)
-
+	fprintf(stderr, "0x20:%x\n", (unsigned int)output);
 	if(shot[ *hasEncoder()])
 		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x11e))
 			* 360.0 / (double)shot[ *stepEncoder()];

@@ -167,9 +167,9 @@ XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 void
 XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 	interface()->send("FORM:DATA REAL32;BORD SWAP");
+	interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u);
 	interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
 	interface()->receive(len * sizeof(float) * 2 + 12);
-	//! \todo complex data.
 }
 void
 XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
@@ -178,7 +178,7 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
-		tr[ *this].trace_()[i] = pow(10.0, reader.pop<float>() / 20.0);
-		reader.pop<float>();
+		tr[ *this].trace_()[i] = std::complex<double>(
+			reader.pop<float>(), reader.pop<float>());
 	}
 }
