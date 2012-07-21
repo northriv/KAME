@@ -170,6 +170,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	int a = lrint(shot[ *stepMotor()]/1000.0*b);
 	interface()->presetTwoResistors(0x380,  a); //A
 	interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
+	interface()->presetTwoResistors(0x1002, shot[ *stepEncoder()] / shot[ *stepMotor()]); //Multiplier is stored in MS2 No.
 	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 	interface()->presetTwoResistors(0x1028, shot[ *microStep()] ? 1 : 0);
 }
@@ -183,7 +184,7 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x280) * 1e-3;
 	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
 	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
-	tr[ *stepEncoder()] = tr[ *stepMotor()];
+	tr[ *stepEncoder()] = tr[ *stepMotor()] * interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
 	tr[ *hasEncoder()] = true;
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
 	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400))
