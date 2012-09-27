@@ -76,9 +76,10 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x312,  lrint(shot[ *stepEncoder()]));
 	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]));
 	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
-	if(interface()->readHoldingSingleResistor(0x311) != shot[ *microStep()]) {
+	int microstep = shot[ *microStep()] ? 6 : 0;
+	if(interface()->readHoldingSingleResistor(0x311) != microstep) {
 		gWarnPrint(i18n("Store settings to NV memory and restart, microstep div.=10."));
-		interface()->presetSingleResistor(0x311, shot[ *microStep()] ? 6 : 0); //division = 10.
+		interface()->presetSingleResistor(0x311, microstep); //division = 10.
 	}
 }
 void
