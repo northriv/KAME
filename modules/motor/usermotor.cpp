@@ -40,23 +40,23 @@ XFlexCRK::clearPosition() {
 void
 XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
 	XScopedLock<XInterface> lock( *interface());
-	uint32_t output = interface()->readHoldingTwoResistors(0x20);
-	*slipping = output & 0x200;
+	uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
+	*slipping = output & 0x4000000u;
 	if(output & 0x80) {
-		uint32_t alarm = interface()->readHoldingTwoResistors(0x100);
+		uint16_t alarm = interface()->readHoldingSingleResistor(0x100);
 		gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
 		interface()->presetSingleResistor(0x40, 1); //clears alarm.
 		interface()->presetSingleResistor(0x40, 0);
 	}
 	if(output & 0x40) {
-		uint32_t warn = interface()->readHoldingTwoResistors(0x10b);
+		uint16_t warn = interface()->readHoldingSingleResistor(0x10b);
 		gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
 	}
 //	uint32_t ierr = interface()->readHoldingTwoResistors(0x128);
 //	if(ierr) {
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
-	*ready = (output & 0x4c0 == 0); // !(MOVE || ARM || WNG)
+	*ready = (output & 0x20000000u);
 	fprintf(stderr, "0x20:%x\n", (unsigned int)output);
 	if(shot[ *hasEncoder()])
 		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x11e))
@@ -76,7 +76,7 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x312,  lrint(shot[ *stepEncoder()]));
 	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]));
 	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
-	int microstep = shot[ *microStep()] ? 6 : 0;
+	unsigned int microstep = shot[ *microStep()] ? 6 : 0;
 	if(interface()->readHoldingSingleResistor(0x311) != microstep) {
 		gWarnPrint(i18n("Store settings to NV memory and restart, microstep div.=10."));
 		interface()->presetSingleResistor(0x311, microstep); //division = 10.

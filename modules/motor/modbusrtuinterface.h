@@ -27,7 +27,7 @@ public:
 	void presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data);
 	void diagnostics();
 
-	uint32_t readHoldingSingleResistor(uint16_t res_addr) {
+	uint16_t readHoldingSingleResistor(uint16_t res_addr) {
 		std::vector<uint16_t> data(1);
 		readHoldingResistors(res_addr, 1, data);
 		return data[0];
