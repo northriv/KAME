@@ -24,10 +24,10 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
 			if(auto mint = it->lock()) {
 				if((XString)Snapshot( *mint)[ *mint->port()] == (XString)shot[ *port()]) {
 					m_master =mint;
-					if(m_master->m_openedCount) {
-						m_master->m_openedCount++;
-						return;
-					}
+					assert(m_master->m_openedCount);
+					//The port has been already opened by m_master.
+					m_master->m_openedCount++;
+					return;
 				}
 			}
 		}
@@ -42,6 +42,7 @@ XModbusRTUInterface::close() throw (XInterfaceError &) {
 	XScopedLock<XMutex> glock(s_lock);
 	m_master->m_openedCount--;
 	if( !m_master->m_openedCount) {
+		s_masters.erase(std::find(s_masters.begin(), s_masters.end(), m_master));
 		m_master->XCharInterface::close();
 	}
 	m_master.reset();

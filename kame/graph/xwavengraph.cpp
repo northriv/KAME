@@ -235,6 +235,7 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 			else {
 				m_lsnOnDumpTouched.reset();
 				tr[ *dump()].setUIEnabled(false);
+				gErrPrint(i18n("Failed to open file."));
 			}
 			tr.mark(tr[ *this].onIconChanged(), false);
 			if(tr.commit())

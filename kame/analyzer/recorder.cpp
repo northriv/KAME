@@ -262,6 +262,7 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 		m_lsnOnFlush.reset();
 		m_lsnOnLastLineChanged.reset();
 		lastLine()->setUIEnabled(false);
+		gErrPrint(i18n("Failed to open file."));
 	}
 }
 void
