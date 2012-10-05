@@ -104,7 +104,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x601, 1); //Absolute.
 }
 void
-XFlexCRK::stop() {
+XFlexCRK::stopMotor() {
 	for(int i = 0;; ++i) {
 		uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
 		bool isready = (output & 0x20000000u);
@@ -122,7 +122,7 @@ XFlexCRK::stop() {
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-
+	stopMotor();
 	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()]));
 	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
 	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
@@ -134,7 +134,7 @@ XFlexCRK::setActive(bool active) {
 		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
 	}
 	else {
-		stop();
+		stopMotor();
 		interface()->presetSingleResistor(0x1e, 0x0001u); //M1
 	}
 }

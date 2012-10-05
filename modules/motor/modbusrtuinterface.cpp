@@ -42,7 +42,12 @@ XModbusRTUInterface::close() throw (XInterfaceError &) {
 	XScopedLock<XMutex> glock(s_lock);
 	m_master->m_openedCount--;
 	if( !m_master->m_openedCount) {
-		s_masters.erase(std::find(s_masters.begin(), s_masters.end(), m_master));
+		for(auto it = s_masters.begin(); it != s_masters.end();) {
+			if(m_master == it->lock())
+				it = s_masters.erase(it);
+			else
+				++it;
+		}
 		m_master->XCharInterface::close();
 	}
 	m_master.reset();

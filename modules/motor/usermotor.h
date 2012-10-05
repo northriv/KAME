@@ -31,11 +31,11 @@ protected:
 	virtual void getConditions(Transaction &tr);
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
-	//! stores current settings to the NV memory of the instrument.
+	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
-	void stop(); //stops motor and waits for deceleration.
+	void stopMotor(); //stops motor and waits for deceleration.
 };
 
 //ORIENTAL MOTOR FLEX AR/DG2 series.
