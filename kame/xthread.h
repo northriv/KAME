@@ -182,7 +182,13 @@ XThread<T>::xthread_start_routine(void *x) {
 		mlock(&arg, 8192uL); //reserve stack.
 
 	arg->this_ptr.reset();
-	void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
+	void *p = NULL;
+	try {
+		p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
+	}
+	catch(XKameError &e) {
+		e.print("Unexpected Exception: ");
+	}
 	arg->obj.reset();
 
 	return p;

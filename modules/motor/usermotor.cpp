@@ -57,7 +57,7 @@ XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool
 //		gErrPrint(getLabel() + i18n(" Interface error %1 has been emitted").arg((int)ierr));
 //	}
 	*ready = (output & 0x20000000u);
-	fprintf(stderr, "0x20:%x\n", (unsigned int)output);
+//	fprintf(stderr, "0x20:%x\n", (unsigned int)output);
 	if(shot[ *hasEncoder()])
 		*position = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x11e))
 			* 360.0 / (double)shot[ *stepEncoder()];
@@ -100,12 +100,29 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
 	interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
-	interface()->presetSingleResistor(0x202, 3); //Inactive after stop.
+	interface()->presetSingleResistor(0x202, 1); //Dec. after STOP.
 	interface()->presetSingleResistor(0x601, 1); //Absolute.
+}
+void
+XFlexCRK::stop() {
+	for(int i = 0;; ++i) {
+		uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
+		bool isready = (output & 0x20000000u);
+		if(isready) break;
+		if(i ==0) {
+			interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M1
+			interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+		}
+		msecsleep(100);
+		if(i > 10) {
+			gErrPrint(getLabel() + i18n(", Motor is still running"));
+		}
+	}
 }
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
+
 	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()]));
 	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
 	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
@@ -117,7 +134,8 @@ XFlexCRK::setActive(bool active) {
 		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
 	}
 	else {
-		interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M1
+		stop();
+		interface()->presetSingleResistor(0x1e, 0x0001u); //M1
 	}
 }
 

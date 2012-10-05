@@ -35,6 +35,7 @@ protected:
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
+	void stop(); //stops motor and waits for deceleration.
 };
 
 //ORIENTAL MOTOR FLEX AR/DG2 series.
