@@ -62,7 +62,7 @@ public:
 	virtual void open() throw (XInterface::XInterfaceError &);
 	//! Be called for closing interfaces.
 	//! This function should not cause an exception.
-	virtual void afterStop() {}
+	virtual void closeInterface() {}
 
 protected:
 	//! This function is called when a connected driver emit a signal

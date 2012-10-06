@@ -271,7 +271,7 @@ XMonteCarloDriver::stop() {
     m_hdiry->setUIEnabled(true);
     m_hdirz->setUIEnabled(true);
     
-    afterStop();
+    closeInterface();
 }
 void
 XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {

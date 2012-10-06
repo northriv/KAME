@@ -75,7 +75,7 @@ XSG::stop() {
 	m_lsnFMON.reset();
 	m_lsnFreq.reset();
 
-	afterStop();
+	closeInterface();
 }
 
 void

@@ -119,7 +119,7 @@ XFuncSynth::stop() {
     m_phase->setUIEnabled(false);
     m_offset->setUIEnabled(false);
 
-	afterStop();
+	closeInterface();
 }
 
 void

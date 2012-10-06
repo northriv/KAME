@@ -21,7 +21,7 @@
 
 XMagnetPS::XMagnetPS(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_field(create<XScalarEntry>("Field", false,
 								 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.8g")),
     m_current(create<XScalarEntry>("Current", false, 
@@ -189,16 +189,6 @@ XMagnetPS::onConfigShow(const Snapshot &shot, XTouchableNode *) {
     m_formConfig->raise();
 }
 void
-XMagnetPS::start() {
-	m_thread.reset(new XThread<XMagnetPS>(shared_from_this(), &XMagnetPS::execute));
-	m_thread->resume();
-}
-void
-XMagnetPS::stop() {
-    if(m_thread) m_thread->terminate();
-}
-
-void
 XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	tr[ *this].m_magnetField = reader.pop<float>();
 	tr[ *this].m_outputCurrent = reader.pop<float>();
@@ -319,18 +309,12 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	bool is_pcs_fitted;
 	bool last_pcsh;
 	trans( *m_aborting) = false;
-	try {
-		field_resolution = fieldResolution();
-		is_pcs_fitted = isPCSFitted();
-		trans( *sweepRate()) = getSweepRate();
-		trans( *targetField()) = getTargetField();
-		last_pcsh = isPCSHeaterOn();
-	}
-	catch (XKameError&e) {
-		e.print(getLabel());
-		afterStop();
-		return NULL;
-	}
+
+	field_resolution = fieldResolution();
+	is_pcs_fitted = isPCSFitted();
+	trans( *sweepRate()) = getSweepRate();
+	trans( *targetField()) = getTargetField();
+	last_pcsh = isPCSHeaterOn();
 
 	targetField()->setUIEnabled(true);
 	sweepRate()->setUIEnabled(true);
@@ -547,7 +531,5 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	allowPersistent()->setUIEnabled(false);
 
 	m_lsnRate.reset();
-      
-	afterStop();
 	return NULL;
 }

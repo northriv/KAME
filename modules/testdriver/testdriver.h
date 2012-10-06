@@ -16,7 +16,7 @@
 #ifndef testdriverH
 #define testdriverH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "dummydriver.h"
 
 class XScalarEntry;
@@ -38,12 +38,6 @@ public:
 		double m_x,m_y;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -52,7 +46,6 @@ protected:
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
 private:
-	shared_ptr<XThread<XTestDriver> > m_thread;
 	const shared_ptr<XScalarEntry> m_entryX, m_entryY;
 	void *execute(const atomic<bool> &);
   

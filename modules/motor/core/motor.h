@@ -14,7 +14,7 @@
 #ifndef motorH
 #define motorH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
@@ -22,7 +22,7 @@ class QMainWindow;
 class Ui_FrmMotorDriver;
 typedef QForm<QMainWindow, Ui_FrmMotorDriver> FrmMotorDriver;
 
-class XMotorDriver : public XPrimaryDriver {
+class XMotorDriver : public XPrimaryDriverWithThread {
 public:
 	XMotorDriver(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -31,12 +31,6 @@ public:
 	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -97,7 +91,6 @@ private:
 		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
 		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore;
 
-	shared_ptr<XThread<XMotorDriver> > m_thread;
 	const qshared_ptr<FrmMotorDriver> m_form;
 
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);

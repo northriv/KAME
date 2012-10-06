@@ -75,7 +75,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
 	//! Be called for closing interfaces.
-	virtual void afterStop();
+	virtual void closeInterface();
   
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);

@@ -21,7 +21,7 @@
 
 XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_position(create<XScalarEntry>("Position", false,
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_target(create<XDoubleNode>("Target", true)),
@@ -96,16 +96,6 @@ XMotorDriver::showForms() {
 }
 
 void
-XMotorDriver::start() {
-	m_thread.reset(new XThread<XMotorDriver>(shared_from_this(), &XMotorDriver::execute));
-    m_thread->resume();
-}
-void
-XMotorDriver::stop() {
-    if(m_thread) m_thread->terminate();
-}
-
-void
 XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
     double pos;
     bool slip, isready;
@@ -173,17 +163,10 @@ XMotorDriver::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
 }
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
-	try {
-		for(Transaction tr( *this);; ++tr) {
-			getConditions(tr);
-			if(tr.commit())
-				break;
-		}
-	}
-	catch (XKameError &e) {
-		e.print(getLabel() + " " + i18n("Error, "));
-		afterStop();
-		return NULL;
+	for(Transaction tr( *this);; ++tr) {
+		getConditions(tr);
+		if(tr.commit())
+			break;
 	}
 
 	m_position->setUIEnabled(true);
@@ -262,7 +245,5 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_lsnConditions.reset();
 	m_lsnClear.reset();
 	m_lsnStore.reset();
-
-	afterStop();
 	return NULL;
 }

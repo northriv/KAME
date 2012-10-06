@@ -33,7 +33,8 @@ protected:
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
-	virtual void afterStop() {close();}
+	//! This function should be called before leaving a measurement thread to terminate the interface.
+	virtual void closeInterface() {close();}
 private:
 	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   
@@ -65,7 +66,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const Snapshot &shot, XInterface 
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + i18n(": Opening driver failed, because "));
-		close();
+		onClose(shot, NULL);
 	}
 }
 template<class tDriver, class tInterface>
@@ -76,6 +77,7 @@ XCharDeviceDriver<tDriver, tInterface>::onClose(const Snapshot &shot, XInterface
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
+		close();
 	}
 }
 #endif /*CHARDEVICEDRIVER_H_*/

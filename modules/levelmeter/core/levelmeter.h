@@ -14,7 +14,7 @@
 #ifndef levelmeterH
 #define levelmeterH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
@@ -36,12 +36,6 @@ public:
 		std::vector<double> m_levels;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -59,9 +53,6 @@ protected:
 
 	virtual double getLevel(unsigned int ch) = 0;
 private:
- 
-	shared_ptr<XThread<XLevelMeter> > m_thread;
-  
 	std::deque<shared_ptr<XScalarEntry> > m_entries;
     
 	void *execute(const atomic<bool> &);  

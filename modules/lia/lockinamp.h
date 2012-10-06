@@ -14,7 +14,7 @@
 #ifndef lockinampH
 #define lockinampH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
@@ -22,7 +22,7 @@ class QMainWindow;
 class Ui_FrmLIA;
 typedef QForm<QMainWindow, Ui_FrmLIA> FrmLIA;
 
-class XLIA : public XPrimaryDriver {
+class XLIA : public XPrimaryDriverWIthThread {
 public:
 	XLIA(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -31,12 +31,6 @@ public:
 	//! Shows all forms belonging to driver
 	virtual void showForms();
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -76,7 +70,6 @@ private:
 	xqcon_ptr m_conSens, m_conTimeConst, m_conOutput, m_conFreq;
 	xqcon_ptr m_conAutoScaleX, m_conAutoScaleY, m_conFetchFreq;
  
-	shared_ptr<XThread<XLIA> > m_thread;
 	const qshared_ptr<FrmLIA> m_form;
   
 	void onOutputChanged(const Snapshot &shot, XValueNodeBase *);

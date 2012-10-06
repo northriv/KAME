@@ -14,15 +14,15 @@
 #ifndef dmmH
 #define dmmH
 //---------------------------------------------------------------------------
-#include <primarydriver.h>
-#include <xnodeconnector.h>
+#include "primarydriverwiththread.h"
+#include "xnodeconnector.h"
 
 class XScalarEntry;
 class QMainWindow;
 class Ui_FrmDMM;
 typedef QForm<QMainWindow, Ui_FrmDMM> FrmDMM;
 
-class XDMM : public XPrimaryDriver {
+class XDMM : public XPrimaryDriverWithThread {
 public:
 	XDMM(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -39,12 +39,6 @@ public:
 		double m_var;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -61,9 +55,6 @@ protected:
 	virtual double oneShotRead() = 0; 
 	//! is called when m_function is changed
 	virtual void changeFunction() = 0;
-  
-	//! This should not cause an exception.
-	virtual void afterStop() = 0;
 private:
 	//! is called when m_function is changed
 	void onFunctionChanged(const Snapshot &shot, XValueNodeBase *node);
@@ -74,7 +65,6 @@ private:
 	shared_ptr<XListener> m_lsnOnFunctionChanged;
 	xqcon_ptr m_conFunction, m_conWaitInms;
  
-	shared_ptr<XThread<XDMM> > m_thread;
 	const qshared_ptr<FrmDMM> m_form;
   
 	void *execute(const atomic<bool> &);

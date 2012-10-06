@@ -200,7 +200,7 @@ void XAVS47IB::open() throw (XInterface::XInterfaceError &) {
 			break;
 	}
 }
-void XAVS47IB::afterStop() {
+void XAVS47IB::closeInterface() {
 	try {
 		interface()->send("REM 0"); //LOCAL
 	}

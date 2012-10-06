@@ -16,7 +16,7 @@
 #ifndef dsoH
 #define dsoH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
@@ -28,7 +28,7 @@ typedef QForm<QMainWindow, Ui_FrmDSO> FrmDSO;
 #include "xwavengraph.h"
 
 //! Base class for digital storage oscilloscope.
-class XDSO : public XPrimaryDriver {
+class XDSO : public XPrimaryDriverWithThread {
 public:
 	XDSO(const char *name, bool runtime,
 		 Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -37,12 +37,6 @@ public:
 	//! Shows all forms belonging to driver.
 	virtual void showForms();
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -230,7 +224,6 @@ private:
 		m_conForceTrigger, m_conRecordLength;
 	const xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
  
-	shared_ptr<XThread<XDSO> > m_thread;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 
 	void *execute(const atomic<bool> &);

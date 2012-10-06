@@ -14,7 +14,7 @@
 #ifndef magnetpsH
 #define magnetpsH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
@@ -24,7 +24,7 @@ typedef QForm<QMainWindow, Ui_FrmMagnetPS> FrmMagnetPS;
 class Ui_FrmMagnetPSConfig;
 typedef QForm<QMainWindow, Ui_FrmMagnetPSConfig> FrmMagnetPSConfig;
 
-class XMagnetPS : public XPrimaryDriver {
+class XMagnetPS : public XPrimaryDriverWithThread {
 public:
 	XMagnetPS(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -42,12 +42,6 @@ public:
 		double m_outputCurrent;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -156,7 +150,6 @@ private:
 	xqcon_ptr m_conNonPersistentCondEntry, m_conNonPersistentCondMin;
 	xqcon_ptr m_conPCSHWait;
  
-	shared_ptr<XThread<XMagnetPS> > m_thread;
 	const qshared_ptr<FrmMagnetPS> m_form;
 	const qshared_ptr<FrmMagnetPSConfig> m_formConfig;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;

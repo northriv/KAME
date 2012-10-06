@@ -28,7 +28,7 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 
 XTempControl::XTempControl(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
 	m_channels(create<XChannelList> ("Channels", false)),
 	m_targetTemp(create<XDoubleNode> ("TargetTemp", true, "%.5g")),
 	m_manualPower(create<XDoubleNode> ("ManualPower", true, "%.4g")),
@@ -106,18 +106,6 @@ void XTempControl::showForms() {
 	//! impliment form->show() here
 	m_form->show();
 	m_form->raise();
-}
-
-void XTempControl::start() {
-	m_thread.reset(new XThread<XTempControl> (shared_from_this(),
-		&XTempControl::execute));
-	m_thread->resume();
-}
-void XTempControl::stop() {
-	if(m_thread)
-		m_thread->terminate();
-	//    m_thread->waitFor();
-	//  thread must do interface()->close() at the end
 }
 
 void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
@@ -399,7 +387,6 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	m_lsnOnPowerRangeChanged.reset();
 	m_lsnOnCurrentChannelChanged.reset();
 
-	afterStop();
 	return NULL;
 }
 void XTempControl::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {

@@ -34,7 +34,7 @@ const unsigned int XDSO::s_trace_colors[] = {
     
 XDSO::XDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
 	m_average(create<XUIntNode>("Average", false)),
 	m_singleSequence(create<XBoolNode>("SingleSequence", false)),
 	m_trigSource(create<XComboNode>("TrigSource", false)),
@@ -160,15 +160,6 @@ XDSO::showForms() {
     m_form->raise();
 }
 
-void
-XDSO::start() {
-	m_thread.reset(new XThread<XDSO>(shared_from_this(), &XDSO::execute));
-	m_thread->resume();
-}
-void
-XDSO::stop() {
-	if(m_thread) m_thread->terminate();
-}
 unsigned int
 XDSO::Payload::length() const {
     return m_waves.size() / numChannels();
@@ -454,8 +445,6 @@ XDSO::execute(const atomic<bool> &terminated) {
 	m_lsnOnForceTriggerTouched.reset();
 	m_lsnOnRestartTouched.reset();
 	m_lsnOnRecordLengthChanged.reset();
-                            
-	afterStop();
 
 	return NULL;
 }

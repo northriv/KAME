@@ -55,6 +55,7 @@ protected:
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
+	void stopMotor(); //stops motor and waits for deceleration.
 };
 
 #endif /* USERMOTOR_H_ */

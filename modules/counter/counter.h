@@ -14,12 +14,12 @@
 #ifndef encoderH
 #define encoderH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
 
-class XCounter : public XPrimaryDriver {
+class XCounter : public XPrimaryDriverWithThread {
 public:
 	XCounter(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -28,12 +28,6 @@ public:
 	//! Shows all forms belonging to driver
 	virtual void showForms() {}
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -51,9 +45,6 @@ protected:
 
 	virtual double getLevel(unsigned int ch) = 0;
 private:
-
-	shared_ptr<XThread<XCounter> > m_thread;
-
 	std::deque<shared_ptr<XScalarEntry> > m_entries;
 
 	void *execute(const atomic<bool> &);

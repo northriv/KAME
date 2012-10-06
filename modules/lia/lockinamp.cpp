@@ -21,7 +21,7 @@
 
 XLIA::XLIA(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_valueX(create<XScalarEntry>("ValueX", false, 
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_valueY(create<XScalarEntry>("ValueY", false, 
@@ -68,16 +68,6 @@ XLIA::showForms() {
 //! impliment form->show() here
     m_form->show();
     m_form->raise();
-}
-
-void
-XLIA::start() {
-    m_thread.reset(new XThread<XLIA>(shared_from_this(), &XLIA::execute));
-    m_thread->resume();
-}
-void
-XLIA::stop() {
-    if(m_thread) m_thread->terminate();
 }
 
 void
@@ -192,7 +182,5 @@ XLIA::execute(const atomic<bool> &terminated) {
 	m_lsnFreq.reset();
 	m_lsnSens.reset();
 	m_lsnTimeConst.reset();
-
-	afterStop();
 	return NULL;
 }

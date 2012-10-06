@@ -16,14 +16,14 @@
 //---------------------------------------------------------------------------
 #include "thermometer.h"
 #include "dcsource.h"
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class XScalarEntry;
 class Ui_FrmTempControl;
 typedef QForm<QMainWindow, Ui_FrmTempControl> FrmTempControl;
 
-class XTempControl : public XPrimaryDriver {
+class XTempControl : public XPrimaryDriverWithThread {
 public:
 	XTempControl(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
@@ -63,12 +63,6 @@ public:
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -138,7 +132,6 @@ private:
 	std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
 	std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
  
-	shared_ptr<XThread<XTempControl> > m_thread;
 	const qshared_ptr<FrmTempControl> m_form;
 	bool m_multiread;
 

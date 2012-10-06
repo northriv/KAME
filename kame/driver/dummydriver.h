@@ -42,7 +42,7 @@ public:
 	XDummyDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDummyDriver() {}
 protected:
-	virtual void afterStop() {interface()->stop();}
+	virtual void closeInterface() {interface()->stop();}
 	const shared_ptr<XDummyInterface> &interface() const {return m_interface;}
 private:
 	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;

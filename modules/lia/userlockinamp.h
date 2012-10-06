@@ -32,7 +32,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
 	//! Be called for closing interfaces.
-	virtual void afterStop();
+	virtual void closeInterface();
 
 	int m_cCount;
 };
@@ -52,7 +52,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
 	//! Be called for closing interfaces.
-	virtual void afterStop();
+	virtual void closeInterface();
 
 	int m_cCount;
 	bool m_currMode;
@@ -72,7 +72,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XInterface::XInterfaceError &);
 	//! Be called for closing interfaces.
-	virtual void afterStop();
+	virtual void closeInterface();
 };
 
 #endif

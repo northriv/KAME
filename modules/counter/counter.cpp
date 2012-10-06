@@ -18,17 +18,7 @@
 
 XCounter::XCounter(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas) {
-}
-
-void
-XCounter::start() {
-	m_thread.reset(new XThread<XCounter>(shared_from_this(), &XCounter::execute));
-	m_thread->resume();
-}
-void
-XCounter::stop() {
-    if(m_thread) m_thread->terminate();
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas) {
 }
 
 void
@@ -72,7 +62,6 @@ XCounter::execute(const atomic<bool> &terminated) {
 
 		finishWritingRaw(writer, XTime::now(), XTime::now());
 	}
-	afterStop();
 	return NULL;
 }
 

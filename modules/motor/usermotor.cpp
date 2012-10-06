@@ -215,10 +215,27 @@ XFlexAR::getConditions(Transaction &tr) {
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
+	stopMotor();
 	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
 	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
 	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
 	interface()->presetTwoResistors(0x7c, 0x0u);
+}
+void
+XFlexAR::stopMotor() {
+	for(int i = 0;; ++i) {
+		uint32_t output = interface()->readHoldingTwoResistors(0x7e);
+		bool isready = output & 0x20;
+		if(isready) break;
+		if(i ==0) {
+			interface()->presetTwoResistors(0x7c, 0x20u); //STOP
+			interface()->presetTwoResistors(0x7c, 0x0u);
+		}
+		msecsleep(100);
+		if(i > 10) {
+			gErrPrint(getLabel() + i18n(", Motor is still running"));
+		}
+	}
 }
 void
 XFlexAR::setActive(bool active) {
@@ -227,6 +244,7 @@ XFlexAR::setActive(bool active) {
 		interface()->presetTwoResistors(0x7c, 0x0u);
 	}
 	else {
+		stopMotor();
 		interface()->presetTwoResistors(0x7c, 0x40u); //FREE
 	}
 }

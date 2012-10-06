@@ -196,7 +196,7 @@ protected:
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
-	virtual void afterStop();
+	virtual void closeInterface();
 private:
 	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
   
@@ -226,7 +226,7 @@ XNIDAQmxDriver<tDriver>::onOpen(const Snapshot &shot, XInterface *) {
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + i18n(": Opening driver failed, because "));
-		close();
+		onClose(shot, NULL);
 	}
 }
 template<class tDriver>
@@ -237,11 +237,12 @@ XNIDAQmxDriver<tDriver>::onClose(const Snapshot &shot, XInterface *) {
 	}
 	catch (XInterface::XInterfaceError& e) {
 		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
+		closeInterface();
 	}
 }
 template<class tDriver>
 void
-XNIDAQmxDriver<tDriver>::afterStop() {
+XNIDAQmxDriver<tDriver>::closeInterface() {
 	try {
 		this->close();
 	}

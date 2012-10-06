@@ -21,7 +21,7 @@
 
 XDMM::XDMM(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_entry(create<XScalarEntry>("Value", false, 
 								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_function(create<XComboNode>("Function", false)),
@@ -49,16 +49,6 @@ XDMM::showForms() {
 }
 
 void
-XDMM::start() {
-    m_thread.reset(new XThread<XDMM>(shared_from_this(), &XDMM::execute));
-    m_thread->resume();
-}
-void
-XDMM::stop() {
-    if(m_thread) m_thread->terminate();
-}
-
-void
 XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	double x = reader.pop<double>();
 	tr[ *this].write_(x);
@@ -80,14 +70,7 @@ XDMM::onFunctionChanged(const Snapshot &shot, XValueNodeBase *node) {
 
 void *
 XDMM::execute(const atomic<bool> &terminated) {
-    try {
-        changeFunction();
-    }
-    catch (XKameError &e) {
-		e.print(getLabel() + " " + i18n("DMM Error"));
-		afterStop();
-		return NULL;
-    }
+	changeFunction();
 
     m_function->setUIEnabled(true);
     m_waitInms->setUIEnabled(true);
@@ -122,8 +105,7 @@ XDMM::execute(const atomic<bool> &terminated) {
     m_waitInms->setUIEnabled(false);
 
     m_lsnOnFunctionChanged.reset();
-        
-    afterStop();
-	return NULL;
+
+    return NULL;
 }
 

@@ -87,7 +87,7 @@ XDCSource::stop() {
 	m_channel->setUIEnabled(false);
 	m_range->setUIEnabled(false);
 
-	afterStop();
+	closeInterface();
 }
 
 void

@@ -17,21 +17,11 @@
 
 XLevelMeter::XLevelMeter(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriver(name, runtime, ref(tr_meas), meas) {
+    XPrimaryDriverWIthThread(name, runtime, ref(tr_meas), meas) {
 }
 void
 XLevelMeter::showForms() {
 //! impliment form->show() here
-}
-
-void
-XLevelMeter::start() {
-	m_thread.reset(new XThread<XLevelMeter>(shared_from_this(), &XLevelMeter::execute));
-	m_thread->resume();
-}
-void
-XLevelMeter::stop() {
-    if(m_thread) m_thread->terminate();
 }
 
 void
@@ -84,6 +74,5 @@ XLevelMeter::execute(const atomic<bool> &terminated) {
  
 		finishWritingRaw(writer, XTime::now(), XTime::now());
 	}
-	afterStop();	
 	return NULL;
 }

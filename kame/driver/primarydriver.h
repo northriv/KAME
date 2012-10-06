@@ -39,7 +39,7 @@ protected:
 	virtual void start() = 0;
 	//! Be called for closing interfaces.
 	//! This function should not cause an exception.
-	virtual void afterStop() = 0;  
+	virtual void closeInterface() = 0;
 
 	//! These are FIFO.
 	struct RawData : public std::vector<char> {

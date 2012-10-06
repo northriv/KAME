@@ -23,7 +23,7 @@
 
 XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_marker1X(create<XScalarEntry>("Marker1X", false, 
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_marker1Y(create<XScalarEntry>("Marker1Y", false, 
@@ -123,16 +123,6 @@ XNetworkAnalyzer::showForms() {
 // impliment form->show() here
     m_form->show();
     m_form->raise();
-}
-
-void
-XNetworkAnalyzer::start() {
-	m_thread.reset(new XThread<XNetworkAnalyzer>(shared_from_this(), &XNetworkAnalyzer::execute));
-	m_thread->resume();
-}
-void
-XNetworkAnalyzer::stop() {
-	if(m_thread) m_thread->terminate();
 }
 
 void
@@ -298,6 +288,5 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	m_lsnCalShort.reset();
 	m_lsnCalTerm.reset();
 	m_lsnCalThru.reset();
-	afterStop();
 	return NULL;
 }

@@ -94,7 +94,7 @@ XSR830::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 void
-XSR830::afterStop() {
+XSR830::closeInterface() {
 	try {
 		interface()->send("LOCL 0");
 	}
@@ -212,7 +212,7 @@ XLI5640::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 void
-XLI5640::afterStop() {
+XLI5640::closeInterface() {
 
     close();
 }
@@ -291,7 +291,7 @@ XAH2500A::open() throw (XInterface::XInterfaceError &) {
 	start();
 }
 void
-XAH2500A::afterStop() {
+XAH2500A::closeInterface() {
 	try {
 		interface()->send("LOC");
 	}

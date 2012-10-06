@@ -16,7 +16,7 @@
 #ifndef networkanalyzerH
 #define networkanalyzerH
 //---------------------------------------------------------------------------
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 #include <complex>
 
@@ -30,7 +30,7 @@ class XWaveNGraph;
 class XXYPlot;
 
 //! Base class for digital storage oscilloscope.
-class XNetworkAnalyzer : public XPrimaryDriver {
+class XNetworkAnalyzer : public XPrimaryDriverWithThread {
 public:
 	XNetworkAnalyzer(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -54,12 +54,6 @@ public:
 		std::deque<std::pair<double, double> > m_markers;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -123,8 +117,6 @@ private:
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;
 	
-	shared_ptr<XThread<XNetworkAnalyzer> > m_thread;
-  
 	void *execute(const atomic<bool> &);
 };
 

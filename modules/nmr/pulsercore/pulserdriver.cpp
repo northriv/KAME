@@ -372,9 +372,7 @@ XPulser::stop() {
 		m_portSel[i]->setUIEnabled(true);
 	}
   
-	afterStop();
-//    m_thread->waitFor();
-//  thread must do interface()->close() at the end
+	closeInterface();
 }
 
 void

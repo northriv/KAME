@@ -22,7 +22,7 @@ REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");
 
 XTestDriver::XTestDriver(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XDummyDriver<XPrimaryDriver>(name, runtime, ref(tr_meas), meas),
+    XDummyDriver<XPrimaryDriverWIthThread>(name, runtime, ref(tr_meas), meas),
     m_entryX(create<XScalarEntry>("X", false, 
     	static_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
     m_entryY(create<XScalarEntry>("Y", false,
@@ -35,16 +35,6 @@ XTestDriver::XTestDriver(const char *name, bool runtime,
 void
 XTestDriver::showForms() {
 // impliment form->show() here
-}
-void
-XTestDriver::start() {
-    m_thread.reset(new XThread<XTestDriver>(shared_from_this(), &XTestDriver::execute));
-    m_thread->resume();
-}
-void
-XTestDriver::stop() {
-    if(m_thread) m_thread->terminate();
-//    m_thread->waitFor();
 }
 void
 XTestDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
@@ -70,7 +60,6 @@ XTestDriver::execute(const atomic<bool> &terminated) {
 		writer->push(y);
 		finishWritingRaw(writer, XTime::now(), XTime::now());
 	}
-	afterStop();
 	return NULL;
 }
 
