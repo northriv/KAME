@@ -21,7 +21,7 @@
 
 class XScalarEntry;
 
-class XTestDriver : public XDummyDriver<XPrimaryDriver> {
+class XTestDriver : public XDummyDriver<XPrimaryDriverWithThread> {
 public:
 	XTestDriver(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

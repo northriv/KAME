@@ -42,7 +42,7 @@ private:
 		try {
 			ret = execute(terminated);
 		}
-		catch(XInterfaceError &e) {
+		catch(XInterface::XInterfaceError &e) {
 			e.print(getLabel() + i18n(" Error: "));
 		}
 		closeInterface(); //closes interface if any.
@@ -50,14 +50,14 @@ private:
 	}
 };
 
-void
+inline void
 XPrimaryDriverWithThread::start() {
 	m_thread.reset(new XThread<XPrimaryDriverWithThread>(shared_from_this(),
 		&XPrimaryDriverWithThread::execute_internal));
 	m_thread->resume();
 }
 
-void
+inline void
 XPrimaryDriverWithThread::stop() {
 	if(m_thread)
 		m_thread->terminate();

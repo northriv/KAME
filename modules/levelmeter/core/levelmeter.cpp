@@ -17,7 +17,7 @@
 
 XLevelMeter::XLevelMeter(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriverWIthThread(name, runtime, ref(tr_meas), meas) {
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas) {
 }
 void
 XLevelMeter::showForms() {

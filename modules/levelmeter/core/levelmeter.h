@@ -19,7 +19,7 @@
 
 class XScalarEntry;
 
-class XLevelMeter : public XPrimaryDriver {
+class XLevelMeter : public XPrimaryDriverWithThread {
 public:
 	XLevelMeter(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

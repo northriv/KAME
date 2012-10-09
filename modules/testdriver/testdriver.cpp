@@ -22,7 +22,7 @@ REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");
 
 XTestDriver::XTestDriver(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XDummyDriver<XPrimaryDriverWIthThread>(name, runtime, ref(tr_meas), meas),
+    XDummyDriver<XPrimaryDriverWithThread>(name, runtime, ref(tr_meas), meas),
     m_entryX(create<XScalarEntry>("X", false, 
     	static_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
     m_entryY(create<XScalarEntry>("Y", false,

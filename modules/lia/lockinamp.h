@@ -22,7 +22,7 @@ class QMainWindow;
 class Ui_FrmLIA;
 typedef QForm<QMainWindow, Ui_FrmLIA> FrmLIA;
 
-class XLIA : public XPrimaryDriverWIthThread {
+class XLIA : public XPrimaryDriverWithThread {
 public:
 	XLIA(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
