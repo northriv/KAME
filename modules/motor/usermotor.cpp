@@ -41,7 +41,7 @@ void
 XFlexCRK::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
 	XScopedLock<XInterface> lock( *interface());
 	uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
-	*slipping = output & 0x4000000u;
+	*slipping = output & 0x2000000u;
 	if(output & 0x80) {
 		uint16_t alarm = interface()->readHoldingSingleResistor(0x100);
 		gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
