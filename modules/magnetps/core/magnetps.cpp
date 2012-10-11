@@ -396,9 +396,10 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 
 			XTime newtime = XTime::now();
 			double dt = fabs(newtime - lasttime);
-			havg = (havg - magnet_field) * exp( -10 * dt) + magnet_field; //LPF
-			tr[ *stabilized()] = std::max(magnet_field - shot[ *targetField()], fabs(havg - shot[ *targetField()]));
-			if(tr[ *stabilized()] > field_resolution * 5)
+			//Estimates field deviation.
+			havg = (havg - magnet_field) * exp( -0.1 * dt) + magnet_field; //LPF
+			tr[ *stabilized()] = std::max(fabs(magnet_field - shot[ *targetField()]), fabs(havg - shot[ *targetField()]));
+			if(tr[ *stabilized()] > field_resolution * 10)
 				last_unstab_time = XTime::now();
 			if(tr.commit()) {
 				lasttime = newtime;
