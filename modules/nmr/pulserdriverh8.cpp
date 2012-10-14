@@ -52,7 +52,7 @@ XH8Pulser::XH8Pulser(const char *name, bool runtime,
 	}
 }
 void
-XH8Pulser::open() throw (XInterface::XInterfaceError &) {
+XH8Pulser::open() throw (XKameError &) {
 	start();
 }
 

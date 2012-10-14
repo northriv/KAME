@@ -127,7 +127,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 	}
 }
 void
-XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &) {
+XNIDAQmxDSO::open() throw (XKameError &) {
 	XScopedLock<XInterface> lock( *interface());
 	m_running = false;
 	char buf[2048];
@@ -161,7 +161,7 @@ XNIDAQmxDSO::open() throw (XInterface::XInterfaceError &) {
 	createChannels();
 }
 void
-XNIDAQmxDSO::close() throw (XInterface::XInterfaceError &) {
+XNIDAQmxDSO::close() throw (XKameError &) {
 	XScopedLock<XInterface> lock( *interface());
 
 	m_lsnOnSoftTrigChanged.reset();

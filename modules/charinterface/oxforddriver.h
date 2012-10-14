@@ -43,12 +43,12 @@ public:
 	XOxfordDriver(const char *name, bool runtime, 
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
 		: XCharDeviceDriver<tDriver, XOxfordInterface>(name, runtime, ref(tr_meas), meas) {}
-	double read(int arg) throw (XInterface::XInterfaceError &);
+	double read(int arg);
 };
 
 template<class tDriver>
 double
-XOxfordDriver<tDriver>::read(int arg) throw (XInterface::XInterfaceError &) {
+XOxfordDriver<tDriver>::read(int arg) {
 	double x;
 	this->interface()->queryf("R%d", arg);
 	int ret = this->interface()->scanf("R%lf", &x);

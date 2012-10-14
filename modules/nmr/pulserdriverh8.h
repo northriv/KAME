@@ -33,7 +33,7 @@ public:
     virtual double resolution() const;
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
     //! Converts RelPatList to native patterns

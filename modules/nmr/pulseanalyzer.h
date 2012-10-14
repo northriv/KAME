@@ -59,7 +59,7 @@ public:
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called for closing interfaces.
 	//! This function should not cause an exception.
 	virtual void closeInterface() {}

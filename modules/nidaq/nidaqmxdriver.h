@@ -190,9 +190,9 @@ public:
 protected:
 	const shared_ptr<XNIDAQmxInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &) {this->start();}
+	virtual void open() throw (XKameError &) {this->start();}
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XInterface::XInterfaceError &) {interface()->stop();}
+	virtual void close() throw (XKameError &) {interface()->stop();}
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.

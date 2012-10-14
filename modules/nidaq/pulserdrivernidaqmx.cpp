@@ -74,7 +74,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser() {
 }
 
 void
-XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) {
+XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
@@ -87,7 +87,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XInterface::XInterfaceError &) 
 }
 
 void
-XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
+XNIDAQmxPulser::openAODO() throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
@@ -115,7 +115,7 @@ XNIDAQmxPulser::openAODO() throw (XInterface::XInterfaceError &) {
 }
 
 void
-XNIDAQmxPulser::close() throw (XInterface::XInterfaceError &) {
+XNIDAQmxPulser::close() throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	try {
@@ -401,7 +401,7 @@ fastFill(T* p, T x, unsigned int cnt) {
 }
 
 void
-XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &) {
+XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
 		stopPulseGen();

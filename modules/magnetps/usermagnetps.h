@@ -65,7 +65,7 @@ public:
 	virtual double fieldResolution() {return 0.0001;}
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 
 	virtual double currentResolution() {return 0.001;}
 	virtual double voltageResolution() {return 0.001;}
@@ -87,7 +87,7 @@ public:
 	virtual ~XCryogenicSMS() {}
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 
 	virtual void toNonPersistent();
 	virtual void toPersistent();

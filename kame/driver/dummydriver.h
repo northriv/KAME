@@ -73,7 +73,7 @@ XDummyDriver<tDriver>::onOpen(const Snapshot &shot, XInterface *) {
 	try {
 		this->start();
 	}
-	catch (XInterface::XInterfaceError& e) {
+	catch (XKameError& e) {
 		e.print(this->getLabel() + i18n(": Starting driver failed, because "));
 		interface()->stop();
 	}
@@ -84,7 +84,7 @@ XDummyDriver<tDriver>::onClose(const Snapshot &shot, XInterface *) {
 	try {
 		this->stop();
 	}
-	catch (XInterface::XInterfaceError& e) {
+	catch (XKameError& e) {
 		e.print(this->getLabel() + i18n(": Stopping driver failed, because "));
 	}
 }

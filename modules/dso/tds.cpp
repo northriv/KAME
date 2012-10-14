@@ -52,7 +52,7 @@ XTDS::XTDS(const char *name, bool runtime,
 }
 
 void
-XTDS::open() throw (XInterface::XInterfaceError &) {
+XTDS::open() throw (XKameError &) {
 	interface()->send("HEADER ON");
 	interface()->query("ACQ:STOPAFTER?");
 	char buf[10];

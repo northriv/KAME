@@ -31,7 +31,7 @@ XITC503::XITC503(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create);
 }
-void XITC503::open() throw (XInterface::XInterfaceError &) {
+void XITC503::open() throw (XKameError &) {
 	start();
 
 	for(Transaction tr( *this);; ++tr) {
@@ -182,7 +182,7 @@ double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 double XAVS47IB::getTemp(shared_ptr<XChannel> &) {
 	return getRes();
 }
-void XAVS47IB::open() throw (XInterface::XInterfaceError &) {
+void XAVS47IB::open() throw (XKameError &) {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
 	trans( *currentChannel()).str(formatString("%d", (int) lrint(read("MUX"))));
@@ -305,7 +305,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create);
 }
-void XCryocon::open() throw (XInterface::XInterfaceError &) {
+void XCryocon::open() throw (XKameError &) {
 	Snapshot shot( *channels());
 	const XNode::NodeList &list( *shot.list());
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
@@ -345,7 +345,7 @@ void XCryocon::open() throw (XInterface::XInterfaceError &) {
 
 	start();
 }
-void XCryoconM32::open() throw (XInterface::XInterfaceError &) {
+void XCryoconM32::open() throw (XKameError &) {
 	XCryocon::open();
 
 	for(Transaction tr( *this);; ++tr) {
@@ -356,7 +356,7 @@ void XCryoconM32::open() throw (XInterface::XInterfaceError &) {
 			break;
 	}
 }
-void XCryoconM62::open() throw (XInterface::XInterfaceError &) {
+void XCryoconM62::open() throw (XKameError &) {
 	XCryocon::open();
 
 	interface()->query("HEATER:LOAD?");
@@ -562,7 +562,7 @@ void XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	if( !interface()->isOpened())
 		return;
 }
-void XNeoceraLTC21::open() throw (XInterface::XInterfaceError &) {
+void XNeoceraLTC21::open() throw (XKameError &) {
 	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		interface()->query("QOUT?1;");
 		int sens, cmode, range;
@@ -679,7 +679,7 @@ void XLakeShore340::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	if( !interface()->isOpened())
 		return;
 }
-void XLakeShore340::open() throw (XInterface::XInterfaceError &) {
+void XLakeShore340::open() throw (XKameError &) {
 	interface()->query("CDISP? 1");
 	int res, maxcurr_idx;
 	if(interface()->scanf("%*d,%d", &res) != 1)
@@ -756,7 +756,7 @@ XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create);
 }
-void XKE2700w7700::open() throw (XInterface::XInterfaceError &) {
+void XKE2700w7700::open() throw (XKameError &) {
 	start();
 	interface()->send("TRAC:CLE"); //Clears buffer.
 	interface()->send("INIT:CONT OFF");

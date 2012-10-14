@@ -307,7 +307,7 @@ XNMRBuiltInNetworkAnalyzer::writeTraceAndMarkers(Transaction &tr) {
 	}
 }
 void
-XNMRBuiltInNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
+XNMRBuiltInNetworkAnalyzer::open() throw (XKameError &) {
 
 }
 bool

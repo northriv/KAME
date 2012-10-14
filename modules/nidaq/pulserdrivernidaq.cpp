@@ -28,19 +28,19 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
     m_ao_interface->control()->setUIEnabled(false);
 }
 void
-XNIDAQAODOPulser::open() throw (XInterface::XInterfaceError &) {
+XNIDAQAODOPulser::open() throw (XKameError &) {
  	openAODO();
 	this->start();	
 }
 void
-XNIDAQDOPulser::open() throw (XInterface::XInterfaceError &) {
+XNIDAQDOPulser::open() throw (XKameError &) {
 //	if(XString(interface()->productSeries()) != "M")
 //		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
  	openDO();
 	this->start();	
 }
 void
-XNIDAQMSeriesWithSSeriesPulser::open() throw (XInterface::XInterfaceError &) {
+XNIDAQMSeriesWithSSeriesPulser::open() throw (XKameError &) {
 	if(XString(interface()->productSeries()) != "M")
 		throw XInterface::XInterfaceError(i18n("Product-type mismatch."), __FILE__, __LINE__);
 

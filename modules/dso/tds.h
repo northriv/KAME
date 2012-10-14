@@ -50,7 +50,7 @@ protected:
 	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
   
 	virtual double getTimeInterval();
 	//! clear count or start sequence measurement

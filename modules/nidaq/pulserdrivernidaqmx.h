@@ -52,8 +52,8 @@ public:
     	tRawAOSet m_genAOZeroLevelNext;
     };
 protected:
-	virtual void open() throw (XInterface::XInterfaceError &) = 0;
-	virtual void close() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &) = 0;
+	virtual void close() throw (XKameError &);
 	
     double resolutionQAM() const {return m_resolutionAO;}
 	//! \return Existence of AO ports.
@@ -71,10 +71,10 @@ protected:
     //! \return Minimum period of pulses [ms]
     virtual double minPulseWidth() const {return resolution();}
     
-	void openDO(bool use_ao_clock = false) throw (XInterface::XInterfaceError &);
-	void openAODO() throw (XInterface::XInterfaceError &);
+	void openDO(bool use_ao_clock = false) throw (XKameError &);
+	void openAODO() throw (XKameError &);
 private:
-	void startPulseGen(const Snapshot &shot) throw (XInterface::XInterfaceError &);
+	void startPulseGen(const Snapshot &shot) throw (XKameError &);
 	void stopPulseGen();
 	void abortPulseGen();
 	

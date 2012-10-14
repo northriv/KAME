@@ -31,7 +31,7 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 }
 
 void
-XAgilentNetworkAnalyzer::open() throw (XInterface::XInterfaceError &) {
+XAgilentNetworkAnalyzer::open() throw (XKameError &) {
 	interface()->query("SENS:FREQ:START?");
 	trans( *startFreq()) = interface()->toDouble() / 1e6;
 	interface()->query("SENS:FREQ:STOP?");

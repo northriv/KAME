@@ -39,7 +39,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
   
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);
@@ -73,7 +73,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "W";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called for closing interfaces.
 	virtual void closeInterface();
   
@@ -122,7 +122,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
   
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);
@@ -153,7 +153,7 @@ public:
 
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 };
 
 //! Cryo-con Model 62 Cryogenic Inst.
@@ -165,7 +165,7 @@ public:
 
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 };
 
 //! Neocera LTC-21.
@@ -187,7 +187,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);
@@ -226,7 +226,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);
@@ -259,7 +259,7 @@ protected:
 	virtual const char *m_heaterPowerUnit() {return "%";}
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 
 	virtual void onPChanged(double p);
 	virtual void onIChanged(double i);

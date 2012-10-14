@@ -52,7 +52,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 }
 
 void
-XLecroyDSO::open() throw (XInterface::XInterfaceError &) {
+XLecroyDSO::open() throw (XKameError &) {
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.

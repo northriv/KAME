@@ -32,7 +32,7 @@ XYK7651::XYK7651(const char *name, bool runtime,
 	interface()->setGPIBUseSerialPollOnWrite(false);
 }
 void
-XYK7651::open() throw (XInterface::XInterfaceError &) {
+XYK7651::open() throw (XKameError &) {
 	this->start();
 	msecsleep(3000); // wait for instrumental reset.
 }
@@ -124,7 +124,7 @@ XADVR6142::XADVR6142(const char *name, bool runtime,
 	interface()->setEOS("\r\n");
 }
 void
-XADVR6142::open() throw (XInterface::XInterfaceError &) {
+XADVR6142::open() throw (XKameError &) {
 	this->start();
 }
 void
@@ -344,7 +344,7 @@ XMicroTaskTCS::max(int ch, bool autorange) const {
 	}
 ;}
 void
-XMicroTaskTCS::open() throw (XInterface::XInterfaceError &) {
+XMicroTaskTCS::open() throw (XKameError &) {
 	this->start();
 	interface()->query("ID?");
 	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);

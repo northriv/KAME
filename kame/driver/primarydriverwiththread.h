@@ -42,7 +42,7 @@ private:
 		try {
 			ret = execute(terminated);
 		}
-		catch(XInterface::XInterfaceError &e) {
+		catch(XKameError &e) {
 			e.print(getLabel() + i18n(" Error: "));
 		}
 		closeInterface(); //closes interface if any.
@@ -61,6 +61,8 @@ inline void
 XPrimaryDriverWithThread::stop() {
 	if(m_thread)
 		m_thread->terminate();
+	else
+		closeInterface();
 }
 
 #endif /*PRIMARYDRIVERWITHTHREAD_H_*/

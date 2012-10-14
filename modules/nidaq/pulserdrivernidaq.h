@@ -25,7 +25,7 @@ public:
 	virtual ~XNIDAQAODOPulser() {}
 
 protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     //! existense of AO ports.
     virtual bool hasQAMPorts() const {return true;}
 };
@@ -39,7 +39,7 @@ public:
 	virtual ~XNIDAQDOPulser() {}
 
 protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     //! existense of AO ports.
     virtual bool hasQAMPorts() const {return false;}
 };
@@ -51,7 +51,7 @@ public:
 	virtual ~XNIDAQMSeriesWithSSeriesPulser() {}
 
 protected:
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
     //! existense of AO ports.
     virtual bool hasQAMPorts() const {return true;}
     

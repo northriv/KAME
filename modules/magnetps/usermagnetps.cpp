@@ -232,7 +232,7 @@ XPS120::setRate(double hpm) {
 }
 
 void
-XIPS120::open() throw (XInterface::XInterfaceError &) {
+XIPS120::open() throw (XKameError &) {
 	interface()->send("$Q6");
 	start();
 }
@@ -295,7 +295,7 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 }
 
 void
-XCryogenicSMS::open() throw (XInterface::XInterfaceError &) {
+XCryogenicSMS::open() throw (XKameError &) {
 	interface()->send("SET TPA");
 	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);

@@ -30,7 +30,7 @@ protected:
 	virtual void changeTimeConst(int);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called for closing interfaces.
 	virtual void closeInterface();
 
@@ -50,7 +50,7 @@ protected:
 	virtual void changeTimeConst(int);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called for closing interfaces.
 	virtual void closeInterface();
 
@@ -70,7 +70,7 @@ protected:
 	virtual void changeSensitivity(int);
 	virtual void changeTimeConst(int);
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called for closing interfaces.
 	virtual void closeInterface();
 };

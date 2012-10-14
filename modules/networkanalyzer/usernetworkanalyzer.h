@@ -43,7 +43,7 @@ public:
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 
 	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,

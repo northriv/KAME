@@ -28,9 +28,9 @@ public:
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XInterface::XInterfaceError &);
+	virtual void open() throw (XKameError &);
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XInterface::XInterfaceError &);
+	virtual void close() throw (XKameError &);
 
 	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *);
 	virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *);
