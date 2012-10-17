@@ -40,17 +40,19 @@ void
 XModbusRTUInterface::close() throw (XInterfaceError &) {
 	XScopedLock<XModbusRTUInterface> lock( *this);
 	XScopedLock<XMutex> glock(s_lock);
-	m_master->m_openedCount--;
-	if( !m_master->m_openedCount) {
-		for(auto it = s_masters.begin(); it != s_masters.end();) {
-			if(m_master == it->lock())
-				it = s_masters.erase(it);
-			else
-				++it;
+	if(m_master) {
+		m_master->m_openedCount--;
+		if( !m_master->m_openedCount) {
+			for(auto it = s_masters.begin(); it != s_masters.end();) {
+				if(m_master == it->lock())
+					it = s_masters.erase(it);
+				else
+					++it;
+			}
+			m_master->XCharInterface::close();
 		}
-		m_master->XCharInterface::close();
+		m_master.reset();
 	}
-	m_master.reset();
 }
 
 uint16_t

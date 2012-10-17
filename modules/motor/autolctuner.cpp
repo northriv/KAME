@@ -35,8 +35,8 @@ void
 analyze() {
 	if( !shot_others[ *stm1__->ready()] ||  !shot_others[ *stm2__->ready()])
 		throw XSkippedRecordError(__FILE__, __LINE__);
-	bool stm1slip = shot_others[ *stm1__->slipping()];
-	bool stm2slip = shot_others[ *stm2__->slipping()];
+//	bool stm1slip = shot_others[ *stm1__->slipping()];
+//	bool stm2slip = shot_others[ *stm2__->slipping()];
 	double c1 = shot_others[ *stm1__->position()].value();
 	double c2 = shot_others[ *stm2__->position()].value();
 	double dc1 = shot_this[ *this].dC1;
