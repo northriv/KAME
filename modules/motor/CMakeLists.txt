@@ -12,7 +12,10 @@ set(motor_SRCS
     usermotor.cpp
     autolctuner.cpp
  )
-
+ 
+kde4_add_ui_files(motor_SRCS
+	autolctunerform.ui  )
+  
 add_library(motor MODULE ${motor_SRCS})
 target_link_libraries(motor kame_motorcore kame_networkanalyzercore kame_charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
