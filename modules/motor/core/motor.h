@@ -39,6 +39,7 @@ protected:
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
 
+public:
 	//! driver specific part below
 	const shared_ptr<XScalarEntry> &position() const {return m_position;} //!< [deg.]
 

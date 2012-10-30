@@ -12,8 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
+#include "analyzer.h"
 #include "autolctuner.h"
-#include "ui_autolctuner.h"
+#include "ui_autolctunerform.h"
 
 REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 
@@ -26,7 +27,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 		m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
 		m_target(create<XDoubleNode>("Target", false)),
 		m_abortTuning(create<XTouchableNode>("AbortTuning", false)),
-		m_form(new FrmNMRPulse(g_pFrmMain)) {
+		m_form(new FrmAutoLCTuner(g_pFrmMain)) {
 	connect(stm1());
 	connect(stm2());
 	connect(netana());
@@ -40,9 +41,9 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	m_conAbortTuning = xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning);
 
 	for(Transaction tr( *this);; ++tr) {
-		m_lsnOnTargetChanged = tr[ *m_target].onTouch().connectWeakly(
+		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onTargetChanged);
-		m_lsnOnAbortTouched = tr[ *m_target].onTouch().connectWeakly(
+		m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
 		if(tr.commit())
 			break;
@@ -81,11 +82,9 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 	const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-	if (emitter == pulse__.get())
-		return false;
 	if( !stm1__ || !stm2__ || !na__)
 		return false;
-	if (emitter != na__.get())
+	if(emitter != na__.get())
 		return false;
 
 	return true;
@@ -95,6 +94,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
+	const Snapshot &shot_na(shot_others);
+
 	if(shot_this[ *this].mode == Payload::TUNE_INACTIVE)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
@@ -108,23 +109,21 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].isSTMChanged = false;
 		throw XSkippedRecordError(__FILE__, __LINE__); //this data is not reliable.
 	}
-	bool stm1slip = shot_others[ *stm1__->slipping()];
-	bool stm2slip = shot_others[ *stm2__->slipping()];
-	double c1 = shot_others[ *stm1__->position()].value();
-	double c2 = shot_others[ *stm2__->position()].value();
+//	bool stm1slip = shot_others[ *stm1__->slipping()];
+//	bool stm2slip = shot_others[ *stm2__->slipping()];
+	double c1 = shot_others[ *stm1__->position()->value()];
+	double c2 = shot_others[ *stm2__->position()->value()];
 	tr[ *this].stm1 = c1;
 	tr[ *this].stm2 = c2;
-	double dc1 = shot_this[ *this].dC1;
-	double dc2 = shot_this[ *this].dC2;
 
-	const std::complex<double> *trace = shot_na[ *na].trace();
+	const std::complex<double> *trace = shot_na[ *na__].trace();
 	int trace_len = shot_na[ *na__].length();
 	double trace_dfreq = shot_na[ *na__].freqInterval();
 	double trace_start = shot_na[ *na__].startFreq();
 	std::complex<double> reffmin(1e10);
 	double f0 = shot_this[ *target()];
 	//searches for minimum in reflection.
-	double fmin;
+	double fmin = 0;
 	for(int i = 0; i < trace_len; ++i) {
 		if(std::abs(reffmin) > std::abs(trace[i])) {
 			reffmin = trace[i];
@@ -154,16 +153,16 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].fmin_first = fmin;
 		tr[ *this].ref_fmin_first = reffmin;
 		tr[ *this].ref_f0_first = reff0;
-		tr[ *this] = Payload::STAGE_DC1_FIRST;
+		tr[ *this].stage = Payload::STAGE_DC1_FIRST;
 		if(std::abs(reffmin) < TUNE_APPROACH_START) {
 			fprintf(stderr, "LCtuner: approach mode\n");
-			tr[ *this].mode = TUNE_APPRACHING;
-			tr[ *this].dC1 = TUNE_DROT_APPRACH * ((tr[ *this].dC1 > 0) ? 1.0 : -1.0);
-			tr[ *this].dC2 = TUNE_DROT_APPRACH * ((tr[ *this].dC2 > 0) ? 1.0 : -1.0);
+			tr[ *this].mode = Payload::TUNE_APPROACHING;
+			tr[ *this].dC1 =TUNE_DROT_APPROACH * ((tr[ *this].dC1 > 0) ? 1.0 : -1.0);
+			tr[ *this].dC2 = TUNE_DROT_APPROACH * ((tr[ *this].dC2 > 0) ? 1.0 : -1.0);
 		}
 		else {
 			fprintf(stderr, "LCtuner: minimizing mode\n");
-			tr[ *this].mode = TUNE_MINIMIZING;
+			tr[ *this].mode = Payload::TUNE_MINIMIZING;
 			tr[ *this].dC1 = TUNE_DROT_MINIMIZING * ((tr[ *this].dC1 > 0) ? 1.0 : -1.0);
 			tr[ *this].dC2 = TUNE_DROT_MINIMIZING * ((tr[ *this].dC2 > 0) ? 1.0 : -1.0);
 		}
@@ -172,12 +171,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__); //rotate C1
 		break;
 	case Payload::STAGE_DC1_FIRST:
+	{
 		fprintf(stderr, "LCtuner: +dC1, 1st\n");
 		//Ref( +dC1, 0)
 		tr[ *this].fmin_plus_dc1 = fmin;
 		tr[ *this].ref_fmin_plus_dc1 = reffmin;
 		tr[ *this].ref_f0_plus_dc1 = reff0;
-		tr[ *this] = Payload::STAGE_DC1_SECOND;
+		tr[ *this].stage = Payload::STAGE_DC1_SECOND;
 		tr[ *this].trace_prv.resize(trace_len);
 		auto *trace_prv = &tr[ *this].trace_prv[0];
 		for(int i = 0; i < trace_len; ++i) {
@@ -185,6 +185,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		throw XSkippedRecordError(__FILE__, __LINE__); //to next stage.
 		break;
+	}
 	case Payload::STAGE_DC1_SECOND:
 	{
 		fprintf(stderr, "LCtuner: +dC1, 2nd\n");
@@ -192,7 +193,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].fmin_plus_dc1 = (tr[ *this].fmin_plus_dc1 + fmin) / 2.0;
 		tr[ *this].ref_fmin_plus_dc1 = (tr[ *this].ref_fmin_plus_dc1 + reffmin) / 2.0;
 		tr[ *this].ref_f0_plus_dc1 = (tr[ *this].ref_f0_plus_dc1 + reff0) / 2.0;
-
 		//estimates errors.
 		double ref_sigma = 0.0;
 		for(int i = 0; i < trace_len; ++i) {
@@ -214,14 +214,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		double dfmin = fmin - shot_this[ *this].fmin_first;
 		tr[ *this].dfmin_dC1 = dfmin / shot_this[ *this].dC1;
-		std::comlex<double> dref = (shot_this[ *this].mode == TUNE_APPRACHING) ? (ref_f0 - shot_this[ *this].ref_f0_first) : (ref_fmin - shot_this[ *this].ref_fmin_first);
+		std::complex<double> dref = (shot_this[ *this].mode == Payload::TUNE_APPROACHING) ?
+				(reff0 - shot_this[ *this].ref_f0_first) : (reffmin - shot_this[ *this].ref_fmin_first);
 		tr[ *this].dref_dC1 = dref / shot_this[ *this].dC1;
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 			if(tr[ *this].dC1 < TUNE_DROT_ABORT) {
 				tr[ *this].stm1 += tr[ *this].dC1;
 				tr[ *this].dC1 *= 2.0; //increases rotation angle to measure derivative.
 				tr[ *this].isSTMChanged = true;
-				tr[ *this] = Payload::STAGE_DC1_FIRST; //rotate C1 more and try again.
+				tr[ *this].stage = Payload::STAGE_DC1_FIRST; //rotate C1 more and try again.
 				fprintf(stderr, "LCtuner: increasing dC1 to %f\n", (double)tr[ *this].dC1);
 				throw XSkippedRecordError(__FILE__, __LINE__);
 
@@ -229,7 +230,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			//C1 is useless, try C2.
 		}
 
-		tr[ *this] = Payload::STAGE_DC2; //to next stage.
+		tr[ *this].stage = Payload::STAGE_DC2; //to next stage.
 		throw XSkippedRecordError(__FILE__, __LINE__);
 		break;
 	}
@@ -243,7 +244,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double fmin_err = shot_this[ *this].fmin_err;
 	double dfmin = fmin - shot_this[ *this].fmin_plus_dc1;
 	tr[ *this].dfmin_dC2 = dfmin / shot_this[ *this].dC2;
-	std::comlex<double> dref = (shot_this[ *this].mode == TUNE_APPRACHING) ? (ref_f0 - shot_this[ *this].ref_f0_plus_dc1) : (ref_fmin - shot_this[ *this].ref_fmin_plus_dc1);
+	std::complex<double> dref = (shot_this[ *this].mode == Payload::TUNE_APPROACHING) ?
+			(reff0 - shot_this[ *this].ref_f0_plus_dc1) : (reffmin - shot_this[ *this].ref_fmin_plus_dc1);
 	tr[ *this].dref_dC2 = dref / shot_this[ *this].dC2;
 	if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 		if(tr[ *this].dC2 < TUNE_DROT_ABORT) {
@@ -258,37 +260,34 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			throw XRecordError(i18n("Aborting. the target is out of tune, or capasitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
 	}
 
-	tr[ *this] = Payload::STAGE_FIRST;
+	tr[ *this].stage = Payload::STAGE_FIRST;
 
-	double dc1 = shot_this[ *this].dC1;
-	double dc2 = shot_this[ *this].dC2;
-
-	std::complex<double> dref_dc1 = shot_this[ *this].dref_dC1;
-	std::complex<double> dref_dc2 = shot_this[ *this].dref_dC2;
-	double dfmin_dc1 = shot_this[ *this].dfmin_dC1;
-	double dfmin_dc2 = shot_this[ *this].dfmin_dC2;
+	std::complex<double> dref_dC1 = shot_this[ *this].dref_dC1;
+	std::complex<double> dref_dC2 = shot_this[ *this].dref_dC2;
+	double dfmin_dC1 = shot_this[ *this].dfmin_dC1;
+	double dfmin_dC2 = shot_this[ *this].dfmin_dC2;
 	double dc1_next = 0;
 	double dc2_next = 0;
 
-	if(shot_this[ *this].mode == TUNE_APPRACHING) {
+	if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
 	//Tunes fmin to f0, and/or ref_f0 to 0
 		if(tr[ *this].dC1 > TUNE_DROT_ABORT) {
-			dc2_next = -std::abs(ref_f0) / std::abs(dref_dc2);
+			dc2_next = -std::abs(reff0) / std::abs(dref_dC2);
 		}
 		else if(tr[ *this].dC2 > TUNE_DROT_ABORT) {
-			dc1_next = -std::abs(ref_f0) / std::abs(dref_dc1);
+			dc1_next = -std::abs(reff0) / std::abs(dref_dC1);
 		}
 		else {
 			double dc_err = 1e10;
 			//Solves by real(ref) and imag(ref).
 			determineNextC( dc1_next, dc2_next, dc_err,
-				std::real(ref), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				std::imag(ref), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
 				std::real(dref_dC1), std::real(dref_dC2),
 				std::imag(dref_dC1), std::imag(dref_dC2));
 			//Solves by real(ref) and fmin.
 			determineNextC( dc1_next, dc2_next, dc_err,
-				std::real(ref), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
 				fmin, fmin_err,
 				std::real(dref_dC1), std::real(dref_dC2),
 				dfmin_dC1, dfmin_dC2);
@@ -296,18 +295,18 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	else {
 	//Tunes ref_fmin to 0
-		if(std::abs(dref_dc1) > std::abs(dref_dc2)) {
-			dc1_next = -std::abs(ref_fmin) / std::abs(dref_dc1);
+		if(std::abs(dref_dC1) > std::abs(dref_dC2)) {
+			dc1_next = -std::abs(reffmin) / std::abs(dref_dC1);
 		}
 		else {
-			dc2_next = -std::abs(ref_fmin) / std::abs(dref_dc2);
+			dc2_next = -std::abs(reffmin) / std::abs(dref_dC2);
 		}
 	}
 	fprintf(stderr, "LCtuner: deltaC1=%f, deltaC2=%f\n", dc1_next, dc2_next);
 
 	//restricts them within the trust region.
 	double dc_max = sqrt(dc1_next * dc1_next + dc2_next * dc2_next);
-	double dc_trust = (mode == TUNE_MODE_APPROACHING) ? TUNE_TRUST_APPROACHING :TUNE_TRUST_MINIMIZING;
+	double dc_trust = (shot_this[ *this].mode == Payload::TUNE_APPROACHING) ? TUNE_TRUST_APPROACH :TUNE_TRUST_MINIMIZING;
 	if(dc_max > dc_trust) {
 		dc1_next *= dc_trust / dc_max;
 		dc2_next *= dc_trust / dc_max;
@@ -320,19 +319,21 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
-XAutoLCTuner::visualize() {
+XAutoLCTuner::visualize(const Snapshot &shot_this) {
+	const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+	const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	if( shot_this[ *this].isSTMChanged) {
-		for(Transaction tr( *stm1);; ++tr) {
-			if(tr[ *stm1->position()].value() == shot_this[ *this].stm1)
+		for(Transaction tr( *stm1__);; ++tr) {
+			if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
 				break;
-			tr[ *stm1].target() = shot_this[ *this].stm1;
+			tr[ *stm1__->target()] = shot_this[ *this].stm1;
 			if(tr.commit())
 				break;
 		}
-		for(Transaction tr( *stm2);; ++tr) {
-			if(tr[ *stm2->position()].value() == shot_this[ *this].stm2)
+		for(Transaction tr( *stm2__);; ++tr) {
+			if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
 				break;
-			tr[ *stm2].target() = shot_this[ *this].stm2;
+			tr[ *stm2__->target()] = shot_this[ *this].stm2;
 			if(tr.commit())
 				break;
 		}
