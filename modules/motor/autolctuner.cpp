@@ -23,7 +23,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XSecondaryDriver(name, runtime, ref(tr_meas), meas),
 		m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
-		m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), true)),
+		m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
 		m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
 		m_target(create<XDoubleNode>("Target", false)),
 		m_abortTuning(create<XTouchableNode>("AbortTuning", false)),
@@ -84,6 +84,8 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
 	if( !stm1__ || !stm2__ || !na__)
 		return false;
+	if(stm1__ == stm2__)
+		return false;
 	if(emitter != na__.get())
 		return false;
 
@@ -94,7 +96,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
 	XDriver *emitter) throw (XRecordError&) {
 	const Snapshot &shot_this(tr);
-	const Snapshot &shot_na(shot_others);
+	const Snapshot &shot_na(shot_emitter);
 
 	if(shot_this[ *this].mode == Payload::TUNE_INACTIVE)
 		throw XSkippedRecordError(__FILE__, __LINE__);
@@ -201,6 +203,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		ref_sigma = sqrt(ref_sigma / trace_len);
 		tr[ *this].ref_sigma = ref_sigma;
 		tr[ *this].trace_prv.clear();
+		if(std::abs(reff0) < ref_sigma * 2) {
+			tr[ *this].mode = Payload::TUNE_INACTIVE;
+			fprintf(stderr, "LCtuner: tuning done within errors.\n");
+			return;
+		}
+
 		double fmin_err = trace_dfreq;
 		for(int i = 0; i < trace_len; ++i) {
 			double flen_from_fmin = fabs(trace_start + i * trace_dfreq - fmin);
@@ -269,26 +277,31 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double dc1_next = 0;
 	double dc2_next = 0;
 
+	fprintf(stderr, "LCtuner: re dref_dC1=%.2g, re dref_dC2=%.2g, dfmin_dC1=%.2g, dfmin_dC2=%.2g\n",
+		std::real(dref_dC1), std::real(dref_dC2),
+		dfmin_dC1, dfmin_dC2);
 	if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
 	//Tunes fmin to f0, and/or ref_f0 to 0
 		if(tr[ *this].dC1 > TUNE_DROT_ABORT) {
-			dc2_next = -std::abs(reff0) / std::abs(dref_dC2);
+			dc2_next = -(fmin - f0) / dfmin_dC2;
+//			dc2_next = -std::real(reff0) / std::real(dref_dC2);
 		}
 		else if(tr[ *this].dC2 > TUNE_DROT_ABORT) {
-			dc1_next = -std::abs(reff0) / std::abs(dref_dC1);
+			dc1_next = -(fmin - f0) / dfmin_dC1;
+//			dc1_next = -std::real(reff0) / std::real(dref_dC1);
 		}
 		else {
 			double dc_err = 1e10;
 			//Solves by real(ref) and imag(ref).
-			determineNextC( dc1_next, dc2_next, dc_err,
-				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				std::real(dref_dC1), std::real(dref_dC2),
-				std::imag(dref_dC1), std::imag(dref_dC2));
+//			determineNextC( dc1_next, dc2_next, dc_err,
+//				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+//				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+//				std::real(dref_dC1), std::real(dref_dC2),
+//				std::imag(dref_dC1), std::imag(dref_dC2));
 			//Solves by real(ref) and fmin.
 			determineNextC( dc1_next, dc2_next, dc_err,
 				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				fmin, fmin_err,
+				fmin - f0, fmin_err,
 				std::real(dref_dC1), std::real(dref_dC2),
 				dfmin_dC1, dfmin_dC2);
 		}
@@ -296,10 +309,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	else {
 	//Tunes ref_fmin to 0
 		if(std::abs(dref_dC1) > std::abs(dref_dC2)) {
-			dc1_next = -std::abs(reffmin) / std::abs(dref_dC1);
+			dc1_next = -std::real(reffmin) / std::real(dref_dC1);
 		}
 		else {
-			dc2_next = -std::abs(reffmin) / std::abs(dref_dC2);
+			dc2_next = -std::real(reffmin) / std::real(dref_dC2);
 		}
 	}
 	fprintf(stderr, "LCtuner: deltaC1=%f, deltaC2=%f\n", dc1_next, dc2_next);
@@ -307,14 +320,16 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//restricts them within the trust region.
 	double dc_max = sqrt(dc1_next * dc1_next + dc2_next * dc2_next);
 	double dc_trust = (shot_this[ *this].mode == Payload::TUNE_APPROACHING) ? TUNE_TRUST_APPROACH :TUNE_TRUST_MINIMIZING;
+	dc_trust = std::max(dc_trust, std::abs(shot_this[ *this].dC1));
+	dc_trust = std::max(dc_trust, std::abs(shot_this[ *this].dC2));
 	if(dc_max > dc_trust) {
 		dc1_next *= dc_trust / dc_max;
 		dc2_next *= dc_trust / dc_max;
 		fprintf(stderr, "LCtuner: deltaC1=%f, deltaC2=%f\n", dc1_next, dc2_next);
 	}
 	tr[ *this].isSTMChanged = true;
-	tr[ *this].stm1 += dc1_next;
-	tr[ *this].stm2 += dc2_next;
+	tr[ *this].stm1 += dc1_next - shot_this[ *this].dC1 / 2.0;
+	tr[ *this].stm2 += dc2_next - shot_this[ *this].dC2 / 2.0;
 
 	throw XSkippedRecordError(__FILE__, __LINE__);
 }

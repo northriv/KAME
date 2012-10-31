@@ -102,13 +102,11 @@ XNMRBuiltInNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y)
 }
 void
 XNMRBuiltInNetworkAnalyzer::oneSweep() {
-	if( !Snapshot( *this)[ *this].m_sweeping) {
-		bool ret = restart(CAL_NONE);
-		if( !ret)
-			throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-		while(Snapshot( *this)[ *this].m_sweeping) {
-			msecsleep(30);
-		}
+	bool ret = restart(CAL_NONE);
+	if( !ret)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+	while(Snapshot( *this)[ *this].m_sweeping) {
+		msecsleep(30);
 	}
 }
 bool

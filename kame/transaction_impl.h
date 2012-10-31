@@ -564,8 +564,10 @@ local_shared_ptr<typename Node<XN>::Packet>&
 Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
 	bool copy_branch, int64_t tr_serial, bool set_missing) {
 	local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
-	if( !foundpacket)
+	if( !foundpacket) {
+		fprintf(stderr, "Node not found during a lookup.\n");
 		throw NodeNotFoundError("Lookup failure.");
+	}
 	return *foundpacket;
 }
 
@@ -574,8 +576,10 @@ const local_shared_ptr<typename Node<XN>::Packet> &
 Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
 	local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
 		const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
-	if( !foundpacket)
+	if( !foundpacket) {
+		fprintf(stderr, "Node not found during a lookup.\n");
 		throw NodeNotFoundError("Lookup failure.");
+	}
 	return *foundpacket;
 }
 
