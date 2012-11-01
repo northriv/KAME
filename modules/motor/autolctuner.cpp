@@ -248,6 +248,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		tr[ *this].fmin_err = fmin_err;
 		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
+		if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
+			tr[ *m_tuning] = false;
+			fprintf(stderr, "LCtuner: tuning done within errors.\n");
+			return;
+		}
 
 		double dfmin = shot_this[ *this].fmin_plus_dCa - shot_this[ *this].fmin_first;
 		tr[ *this].dfmin_dCa = dfmin / shot_this[ *this].dCa;
