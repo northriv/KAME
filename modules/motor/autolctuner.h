@@ -64,7 +64,7 @@ public:
 		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
 		STAGE stage;
 
-		std::complex<double> ref_f0_first, ref_f0_plus_dCa;
+		std::complex<double> ref_av_first, ref_av_plus_dCa;
 		std::complex<double> ref_fmin_first, ref_fmin_plus_dCa;
 		double fmin_first, fmin_plus_dCa;
 		double dCa, dCb;
@@ -108,7 +108,8 @@ private:
 		double x, double x_err,
 		double y, double y_err,
 		double dxdC1, double dxdC2,
-		double dydC1, double dydC2);
+		double dydC1, double dydC2,
+		const char *msg);
 };
 
 
