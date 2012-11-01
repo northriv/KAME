@@ -48,8 +48,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = false;
-		tr[ *m_useSTM1] = false;
-		tr[ *m_useSTM2] = false;
+		tr[ *m_useSTM1] = true;
+		tr[ *m_useSTM2] = true;
 		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onTargetChanged);
 		m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
