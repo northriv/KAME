@@ -307,6 +307,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	}
 	//Final stage.
+	tr[ *this].stage = Payload::STAGE_FIRST;
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
