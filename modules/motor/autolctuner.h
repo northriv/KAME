@@ -53,26 +53,29 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > &netana() const {return m_netana;}
 
 	/// Target frequency [MHz]
+	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
 	const shared_ptr<XDoubleNode> &target() const {return m_target;}
+	const shared_ptr<XBoolNode> &useSTM1() const {return m_useSTM1;}
+	const shared_ptr<XBoolNode> &useSTM2() const {return m_useSTM2;}
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
-		enum STAGE {STAGE_FIRST, STAGE_DC1_FIRST, STAGE_DC1_SECOND, STAGE_DC2};
+		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
 		STAGE stage;
 
-		std::complex<double> ref_f0_first, ref_f0_plus_dc1;
-		std::complex<double> ref_fmin_first, ref_fmin_plus_dc1;
-		double fmin_first, fmin_plus_dc1;
-		double dC1, dC2;
+		std::complex<double> ref_f0_first, ref_f0_plus_dCa;
+		std::complex<double> ref_fmin_first, ref_fmin_plus_dCa;
+		double fmin_first, fmin_plus_dCa;
+		double dCa, dCb;
 
-		std::complex<double> dref_dC1, dref_dC2;
-		double dfmin_dC1, dfmin_dC2;
+		std::complex<double> dref_dCa, dref_dCb;
+		double dfmin_dCa, dfmin_dCb;
 
 		std::vector<std::complex<double> > trace_prv;
 		double ref_sigma, fmin_err;
 		double stm1, stm2;
-		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_INACTIVE};
+		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING};
 		MODE mode;
 		bool isSTMChanged;
 	};
@@ -80,10 +83,13 @@ private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > m_netana;
 
+	const shared_ptr<XBoolNode> m_tuning;
 	const shared_ptr<XDoubleNode> m_target;
+	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
 
-	xqcon_ptr m_conTarget, m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning;
+	xqcon_ptr m_conTarget, m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning,
+		m_conTuning, m_conUseSTM1, m_conUseSTM2;
 
 	shared_ptr<XListener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
 
