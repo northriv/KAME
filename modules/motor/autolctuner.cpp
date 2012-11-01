@@ -346,6 +346,18 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				fmin - f0, fmin_err,
 				std::real(dref_dCa), std::real(dref_dCb),
 				dfmin_dCa, dfmin_dCb);
+			//Solves by imag(ref) and fmin.
+			determineNextC( dCa_next, dCb_next, dc_err,
+				std::imag(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				fmin - f0, fmin_err,
+				std::imag(dref_dCa), std::imag(dref_dCb),
+				dfmin_dCa, dfmin_dCb);
+			//Solves by norm(ref) and fmin.
+			determineNextC( dCa_next, dCb_next, dc_err,
+				std::norm(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				fmin - f0, fmin_err,
+				std::norm(dref_dCa), std::norm(dref_dCb),
+				dfmin_dCa, dfmin_dCb);
 		}
 	}
 	else {
