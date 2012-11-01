@@ -116,8 +116,22 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-	if( !shot_this[ *useSTM1()]) stm1__.reset();
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+	//remembers original position.
+	if(stm1__)
+		tr[ *this].stm1 = shot_others[ *stm1__->position()->value()];
+	if(stm2__)
+		tr[ *this].stm2 = shot_others[ *stm2__->position()->value()];
+
+	if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
+			( stm2__  && !shot_others[ *stm2__->ready()]))
+		throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
+	if( shot_this[ *this].isSTMChanged) {
+		tr[ *this].isSTMChanged = false;
+		throw XSkippedRecordError(__FILE__, __LINE__); //this data is not reliable. reload.
+	}
+
+	if( !shot_this[ *useSTM1()]) stm1__.reset();
 	if( !shot_this[ *useSTM2()]) stm2__.reset();
 	if( !stm1__ && !stm2__) {
 		tr[ *m_tuning] = false;
@@ -125,18 +139,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 
 	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-
-	if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
-			( stm2__  && !shot_others[ *stm2__->ready()]))
-		throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving.
-	if( shot_this[ *this].isSTMChanged) {
-		tr[ *this].isSTMChanged = false;
-		throw XSkippedRecordError(__FILE__, __LINE__); //this data is not reliable.
-	}
-	if(stm1__)
-		tr[ *this].stm1 = shot_others[ *stm1__->position()->value()];
-	if(stm2__)
-		tr[ *this].stm2 = shot_others[ *stm2__->position()->value()];
 
 	const std::complex<double> *trace = shot_na[ *na__].trace();
 	int trace_len = shot_na[ *na__].length();
@@ -219,6 +221,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_fmin_plus_dCa = (tr[ *this].ref_fmin_plus_dCa + reffmin) / 2.0;
 		tr[ *this].ref_f0_plus_dCa = (tr[ *this].ref_f0_plus_dCa + reff0) / 2.0;
 		//estimates errors.
+		if(shot_this[ *this].trace_prv.size() != trace_len) {
+			tr[ *m_tuning] = false;
+			throw XRecordError(i18n("Record is inconsistent."), __FILE__, __LINE__);
+		}
 		double ref_sigma = 0.0;
 		for(int i = 0; i < trace_len; ++i) {
 			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace_prv[i]);
@@ -260,7 +266,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				tr[ *this].stage = Payload::STAGE_DCA_FIRST; //rotate C1 more and try again.
 				fprintf(stderr, "LCtuner: increasing dCa to %f\n", (double)tr[ *this].dCa);
 				throw XSkippedRecordError(__FILE__, __LINE__);
-
 			}
 			if( !stm1__ || !stm2__) {
 				tr[ *m_tuning] = false;
