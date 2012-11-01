@@ -367,8 +367,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dCb_next *= dc_trust / dc_max;
 		fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 	}
-	dCa_next -= shot_this[ *this].dCa;
-	dCb_next -= shot_this[ *this].dCb;
+	dCa_next -= shot_this[ *this].dCa / 2;
+	dCb_next -= shot_this[ *this].dCb / 2;
 	//remembers last direction.
 	tr[ *this].dCa = dCa_next;
 	tr[ *this].dCb = dCb_next;
