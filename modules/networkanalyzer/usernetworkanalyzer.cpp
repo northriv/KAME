@@ -16,6 +16,7 @@
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
+REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzer, "DG8SAQ VNWA3E/Custom Network Analyzer");
 //---------------------------------------------------------------------------
 XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -115,7 +116,7 @@ XAgilentNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int 
 	double stop = interface()->toDouble() / 1e6;
 	writer->push(stop);
 	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
-	unsigned int len = interface()->toUInt();
+	uint32_t len = interface()->toUInt();
 	writer->push(len);
 	acquireTraceData(ch, len);
 	writer->insert(writer->end(),
@@ -125,7 +126,7 @@ void
 XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	double start = reader.pop<double>();
 	double stop = reader.pop<double>();
-	unsigned int samples = reader.pop<unsigned int>();
+	unsigned int samples = reader.pop<uint32_t>();
 	tr[ *this].m_startFreq = start;
 	char c = reader.pop<char>();
 	if (c != '#') throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -180,5 +181,86 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	for(unsigned int i = 0; i < samples; i++) {
 		tr[ *this].trace_()[i] = std::complex<double>(
 			reader.pop<float>(), reader.pop<float>());
+	}
+}
+
+XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
+}
+
+void
+XVNWA3ENetworkAnalyzer::open() throw (XKameError &) {
+	start();
+
+	average()->setUIEnabled(false);
+	startFreq()->setUIEnabled(false);
+	stopFreq()->setUIEnabled(false);
+	points()->setUIEnabled(false);
+
+	calOpen()->setUIEnabled(false);
+	calShort()->setUIEnabled(false);
+	calTerm()->setUIEnabled(false);
+	calThru()->setUIEnabled(false);
+}
+void
+XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
+	throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzer::oneSweep() {
+	interface()->query("NUMACQ?");
+	if(interface()->toInt() == 0)
+		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzer::startContSweep() {
+}
+void
+XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
+	XScopedLock<XInterface> lock( *interface());
+	interface()->send("DATA?");
+	int len = interface()->toInt();
+	interface()->receive(len);
+	writer->insert(writer->end(),
+					 interface()->buffer().begin(), interface()->buffer().end());
+}
+void
+XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	ssize_t hsize = reader.pop<uint32_t>();
+	int stype = reader.pop<int32_t>();
+	double start = reader.pop<double>();
+	double stop = reader.pop<double>();
+	int samples = reader.pop<int32_t>();
+	int rec = reader.pop<int32_t>();
+	double tm = reader.pop<double>();
+	double temp = reader.pop<double>();
+
+	tr[ *this].m_startFreq = start;
+	tr[ *this].m_freqInterval = (stop - start) / (samples - 1);
+	tr[ *this].trace_().resize(samples);
+
+	switch(stype) {
+	case 1: //Linear sweep.
+		break;
+	case 2:	//Log sweep.
+	case 3: //Listed sweep.
+	default:
+		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	}
+	switch(rec) {
+	case 1: //S21
+	case 2: //S11
+	case 3: //S12
+	case 4: //S22
+		points.resize(2 * Len * sizeof(double));
+		break;
+	case 5: //all
+	default:
+		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+	}
+
+	for(unsigned int i = 0; i < samples; i++) {
+		tr[ *this].trace_()[i] = std::complex<double>(reader.pop<double>(), reader.pop<double>());
 	}
 }

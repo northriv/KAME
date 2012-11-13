@@ -79,4 +79,36 @@ public:
 private:
 };
 
+//! DG8SAQ VNWA3E via a custom DLL.
+class XVNWA3ENetworkAnalyzer : public XCharDeviceDriver<XNetworkAnalyzer> {
+public:
+	XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XVNWA3ENetworkAnalyzer() {}
+
+	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
+	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
+	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
+	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) {}
+
+	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
+	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+
+	virtual void getMarkerPos(unsigned int num, double &x, double &y);
+	virtual void oneSweep();
+	virtual void startContSweep();
+	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
+	//! Converts raw to dispaly-able
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XKameError &);
+
+	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
+	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
+		unsigned int len) throw (XRecordError&) = 0;
+private:
+};
 #endif
