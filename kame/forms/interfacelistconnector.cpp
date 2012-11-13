@@ -28,11 +28,11 @@ XInterfaceListConnector::XInterfaceListConnector(
 	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
 			this, SLOT(clicked( int, int, int, const QPoint& )) );
 	item->setNumCols(5);
-	double def = 50;
+	double def = 45;
 	item->setColumnWidth(0, (int)(def * 1.5));
 	item->setColumnWidth(1, (int)(def * 1.2));
 	item->setColumnWidth(2, (int)(def * 2));
-	item->setColumnWidth(3, (int)(def * 1));
+	item->setColumnWidth(3, (int)(def * 2));
 	item->setColumnWidth(4, (int)(def * 1));
 	QStringList labels;
 	labels += i18n("Driver");

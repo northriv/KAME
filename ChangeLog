@@ -1,3 +1,8 @@
+* Wed Nov 14 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.17-1)
+- TCP/IP interface.
+- DG8SAQ VNWA3E/Custom Network Analyzer.
+
 * Tue Oct 30 2012 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.16-1)
 - AutoLCTuner.
