@@ -30,7 +30,6 @@ public:
 	void setPort(unsigned int port) {m_port = port;}
 private:
 	int m_socket;
-	int m_port;
 };
 
 typedef XPosixTCPPort XTCPPort;

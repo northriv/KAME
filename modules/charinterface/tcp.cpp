@@ -22,7 +22,7 @@
 #define MIN_BUFFER_SIZE 256
 
 XPosixTCPPort::XPosixTCPPort(XCharInterface *interface)
-	: XPort(interface), m_socket(-1), m_port(23) {
+	: XPort(interface), m_socket(-1) {
 
 }
 XPosixTCPPort::~XPosixTCPPort() {
@@ -34,10 +34,19 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 
 	struct sockaddr_in dstaddr;
 
+	std::string ipaddr = shot[ *m_pInterface->port()];
+	int colpos = ipaddr.find_first_of(':');
+	if(colpos == std::npos)
+		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
+	unsigned int port;
+	if(sscanf(ipaddr.substr(colpos + 1).c_str(), "%u", &port) != 1)
+		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
+	ipaddr = ipaddr.substr(0, colpos);
+
 	memset( &dstaddr, 0, sizeof(dstaddr));
-	dstaddr.sin_port = htons(m_port);
+	dstaddr.sin_port = htons(port);
 	dstaddr.sin_family = AF_INET;
-	dstaddr.sin_addr.s_addr = inet_addr(QString(shot[ *m_pInterface->port()].to_str()).toLocal8Bit().data());
+	dstaddr.sin_addr.s_addr = inet_addr(ipaddr);
 
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(m_socket < 0) {
