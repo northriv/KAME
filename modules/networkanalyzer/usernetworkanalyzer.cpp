@@ -29,6 +29,11 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
+
+	calOpen()->disable();
+	calShort()->disable();
+	calTerm()->disable();
+	calThru()->disable();
 }
 
 void
@@ -54,11 +59,6 @@ XAgilentNetworkAnalyzer::open() throw (XKameError &) {
 	interface()->send("ABOR;INIT:CONT OFF");
 	
 	start();
-
-	calOpen()->setUIEnabled(false);
-	calShort()->setUIEnabled(false);
-	calTerm()->setUIEnabled(false);
-	calThru()->setUIEnabled(false);
 }
 void 
 XAgilentNetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -188,21 +188,22 @@ XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\n");
+
+
+	average()->disable();
+	startFreq()->disable();
+	stopFreq()->disable();
+	points()->disable();
+
+	calOpen()->disable();
+	calShort()->disable();
+	calTerm()->disable();
+	calThru()->disable();
 }
 
 void
 XVNWA3ENetworkAnalyzer::open() throw (XKameError &) {
 	start();
-
-	average()->setUIEnabled(false);
-	startFreq()->setUIEnabled(false);
-	stopFreq()->setUIEnabled(false);
-	points()->setUIEnabled(false);
-
-	calOpen()->setUIEnabled(false);
-	calShort()->setUIEnabled(false);
-	calTerm()->setUIEnabled(false);
-	calThru()->setUIEnabled(false);
 }
 void
 XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
