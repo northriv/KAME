@@ -43,15 +43,23 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	ipaddr = ipaddr.substr(0, colpos);
 
-	memset( &dstaddr, 0, sizeof(dstaddr));
-	dstaddr.sin_port = htons(port);
-	dstaddr.sin_family = AF_INET;
-	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
-
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(m_socket < 0) {
 		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	}
+
+	struct timeval timeout;
+	timeout.tv_sec  = 3;
+	timeout.tv_usec = 0;
+	if(setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO,  (char*)&timeout, sizeof(timeout)) ||
+		setsockopt(m_socket, SOL_SOCKET, SO_SNDTIMEO,  (char*)&timeout, sizeof(timeout))){
+		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
+	}
+
+	memset( &dstaddr, 0, sizeof(dstaddr));
+	dstaddr.sin_port = htons(port);
+	dstaddr.sin_family = AF_INET;
+	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
 
 	if(connect(m_socket, (struct sockaddr *) &dstaddr, sizeof(dstaddr)) == -1) {
 		throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
