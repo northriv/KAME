@@ -20,6 +20,7 @@
 #include "driver.h"
 #include "gpib.h"
 #include "serial.h"
+#include "tcp.h"
 #include "dummyport.h"
 
 //---------------------------------------------------------------------------
@@ -48,6 +49,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 		tr[ *device()].add("GPIB");
 	#endif
 		tr[ *device()].add("SERIAL");
+		tr[ *device()].add("TCP/IP");
 		tr[ *device()].add("DUMMY");
   
 		m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
@@ -76,6 +78,9 @@ XCharInterface::open() throw (XInterfaceError &) {
 	#endif
 		if(shot[ *device()].to_str() == "SERIAL") {
 			port.reset(new XSerialPort(this));
+		}
+		if(shot[ *device()].to_str() == "TCP/IP") {
+			port.reset(new XTCPPort(this));
 		}
 		if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));

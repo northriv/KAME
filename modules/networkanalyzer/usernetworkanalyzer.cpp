@@ -253,7 +253,6 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 	case 2: //S11
 	case 3: //S12
 	case 4: //S22
-		points.resize(2 * Len * sizeof(double));
 		break;
 	case 5: //all
 	default:

@@ -7,6 +7,7 @@ set(charinterface_SRCS
 	dummyport.cpp 
 	gpib.cpp  
 	serial.cpp 
+	tcp.cpp
 	oxforddriver.cpp 
  )
 

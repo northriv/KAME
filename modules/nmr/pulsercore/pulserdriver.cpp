@@ -669,7 +669,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 
 	unsigned int g3mask = selectedPorts(shot, PORTSEL_GATE3);
 	unsigned int g2mask = selectedPorts(shot, PORTSEL_PREGATE);
-	unsigned int g1mask = (selectedPorts(shot, PORTSEL_GATE) | g3mask);
+	unsigned int pagmask = selectedPorts(shot, PORTSEL_PULSE_ANALYZER_GATE);
+	unsigned int g1mask = (selectedPorts(shot, PORTSEL_GATE) | g3mask | pagmask);
 	unsigned int trig1mask = selectedPorts(shot, PORTSEL_TRIG1);
 	unsigned int trig2mask = selectedPorts(shot, PORTSEL_TRIG2);
 	unsigned int aswmask = selectedPorts(shot, PORTSEL_ASW);

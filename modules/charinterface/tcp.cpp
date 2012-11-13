@@ -107,7 +107,7 @@ XPosixTCPPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 	unsigned int len = 0;
    
 	while(len < length) {
-		int rlen = ::read(m_scifd, &buffer().at(len), 1);
+		int rlen = ::read(m_socket, &buffer().at(len), 1);
 		if(rlen == 0)
 			throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
 		if(rlen < 0) {

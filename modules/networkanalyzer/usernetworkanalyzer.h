@@ -105,10 +105,5 @@ public:
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
-
-	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
-	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
-		unsigned int len) throw (XRecordError&) = 0;
-private:
 };
 #endif
