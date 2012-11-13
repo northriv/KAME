@@ -36,7 +36,7 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 
 	std::string ipaddr = shot[ *m_pInterface->port()];
 	int colpos = ipaddr.find_first_of(':');
-	if(colpos == std::npos)
+	if(colpos == std::string::npos)
 		throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
 	unsigned int port;
 	if(sscanf(ipaddr.substr(colpos + 1).c_str(), "%u", &port) != 1)
@@ -46,7 +46,7 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 	memset( &dstaddr, 0, sizeof(dstaddr));
 	dstaddr.sin_port = htons(port);
 	dstaddr.sin_family = AF_INET;
-	dstaddr.sin_addr.s_addr = inet_addr(ipaddr);
+	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
 
 	m_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(m_socket < 0) {

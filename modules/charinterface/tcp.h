@@ -26,8 +26,6 @@ public:
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
 	virtual void receive() throw (XInterface::XCommError &);
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
-
-	void setPort(unsigned int port) {m_port = port;}
 private:
 	int m_socket;
 };
