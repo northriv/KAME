@@ -187,6 +187,7 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
+	interface()->setEOS("\n");
 }
 
 void
@@ -209,7 +210,7 @@ XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 }
 void
 XVNWA3ENetworkAnalyzer::oneSweep() {
-	interface()->query("NUMACQ?");
+	interface()->query("ACQNUM?");
 	if(interface()->toInt() == 0)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 }

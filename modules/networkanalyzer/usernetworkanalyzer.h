@@ -24,7 +24,7 @@ public:
 	XAgilentNetworkAnalyzer(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XAgilentNetworkAnalyzer() {}
-
+protected:
 	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
@@ -85,7 +85,7 @@ public:
 	XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XVNWA3ENetworkAnalyzer() {}
-
+protected:
 	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
