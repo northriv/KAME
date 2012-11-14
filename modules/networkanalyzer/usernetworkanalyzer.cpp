@@ -236,11 +236,14 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 	int samples = reader.pop<int32_t>();
 	int rec = reader.pop<int32_t>();
 	double tm = reader.pop<double>();
-	double temp = reader.pop<double>();
+	double temp = reader.pop<double>(); //4*4+8*4 = 48bytes
 
-	tr[ *this].m_startFreq = start;
-	tr[ *this].m_freqInterval = (stop - start) / (samples - 1);
+	tr[ *this].m_startFreq = start * 1e-6;
+	tr[ *this].m_freqInterval = (stop - start) / (samples - 1) * 1e-6;
 	tr[ *this].trace_().resize(samples);
+
+	for(int cnt = 0; cnt < hsize - 48; ++cnt)
+		reader.pop<char>();
 
 	switch(stype) {
 	case 1: //Linear sweep.
@@ -248,7 +251,7 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 	case 2:	//Log sweep.
 	case 3: //Listed sweep.
 	default:
-		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+		throw XRecordError(i18n("Log/Listed sweep is not supported."), __FILE__, __LINE__);
 	}
 	switch(rec) {
 	case 1: //S21
@@ -258,7 +261,7 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 		break;
 	case 5: //all
 	default:
-		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+		throw XRecordError(i18n("Select one of record."), __FILE__, __LINE__);
 	}
 
 	for(unsigned int i = 0; i < samples; i++) {
