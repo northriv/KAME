@@ -149,8 +149,7 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
 }
 void
 XNetworkAnalyzer::visualize(const Snapshot &shot) {
-	  if( !time()) {
-		m_waveForm->clear();
+	  if( !shot[ *this].time()) {
 		return;
 	  }
 	const unsigned int length = shot[ *this].length();

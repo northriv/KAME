@@ -221,7 +221,7 @@ XVNWA3ENetworkAnalyzer::startContSweep() {
 void
 XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->send("DATA?");
+	interface()->query("DATA?");
 	int len = interface()->toInt();
 	interface()->receive(len);
 	writer->insert(writer->end(),
