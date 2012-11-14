@@ -149,10 +149,10 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
 }
 void
 XNetworkAnalyzer::visualize(const Snapshot &shot) {
-//  if(!time()) {
-//  	m_waveForm->clear();
-//  	return;
-//  }
+	  if( !time()) {
+		m_waveForm->clear();
+		return;
+	  }
 	const unsigned int length = shot[ *this].length();
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
