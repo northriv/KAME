@@ -211,7 +211,7 @@ XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	interface()->queryf("MARK%u?", num);
 	if(interface()->scanf("%lf %lf", &x, &y) != 1)
-		throw XDriver::XConvError(__FILE__, __LINE__);
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	x *= 1e-6;
 	y = log10(y) * 10.0;
 }
