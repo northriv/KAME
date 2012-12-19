@@ -167,6 +167,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		    assert(pulser__);
 			Snapshot shot_tuner( *autotuner);
 			if(fabs(shot_tuner[ *autotuner->target()] - newf) > shot_this[ *autoTuneStep()] / 2) {
+				//Tunes Capacitors.
 				trans( *pulser__->output()) = false; // Pulse off.
 				trans( *autotuner->target()) = newf + shot_this[ *autoTuneStep()] / 2;
 				trans( *pulser__->output()) = true; // Pulse on.

@@ -17,7 +17,7 @@
 #include <nmrspectrumbase.h>
 
 class XSG;
-class XNMRPulser;
+class XPulser;
 class XAutoLCTuner;
 class QMainWindow;
 class Ui_FrmNMRFSpectrum;
@@ -47,7 +47,7 @@ public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
 	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > &autoTuner() const {return m_autoTuner;}
-	const shared_ptr<XItemNode<XDriverList, XNMRPulser> > &pulser() const {return m_pulser;}
+	const shared_ptr<XItemNode<XDriverList, XPulser> > &pulser() const {return m_pulser;}
 	//! Offset for IF [MHz]
 	const shared_ptr<XDoubleNode> &sg1FreqOffset() const {return m_sg1FreqOffset;}
 	//! [MHz]
@@ -62,7 +62,7 @@ public:
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
 	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner;
-	const shared_ptr<XItemNode<XDriverList, XNMRPulser> > m_pulser;
+	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
 	const shared_ptr<XDoubleNode> m_sg1FreqOffset;
 
 	const shared_ptr<XDoubleNode> m_centerFreq;
