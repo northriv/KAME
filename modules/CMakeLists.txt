@@ -15,12 +15,12 @@ add_subdirectory(testdriver)
 add_subdirectory(dso)
 add_subdirectory(levelmeter)
 add_subdirectory(sg)
-add_subdirectory(motor)
 add_subdirectory(fourres)
 add_subdirectory(nmr)
 add_subdirectory(montecarlo)
 add_subdirectory(nidaq)
 add_subdirectory(networkanalyzer)
+add_subdirectory(motor)
 
 add_dependencies(testdriver kame)
 ########### install files ###############
