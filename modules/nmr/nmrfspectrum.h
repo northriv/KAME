@@ -61,7 +61,7 @@ public:
 	const shared_ptr<XDoubleNode> &autoTuneStep() const {return m_autoTuneStep;}
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
-	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autotuner;
+	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner;
 	const shared_ptr<XItemNode<XDriverList, XNMRPulser> > m_pulser;
 	const shared_ptr<XDoubleNode> m_sg1FreqOffset;
 
@@ -69,7 +69,7 @@ private:
 	const shared_ptr<XDoubleNode> m_freqSpan;
 	const shared_ptr<XDoubleNode> m_freqStep;
 	const shared_ptr<XBoolNode> m_active;
-	const shared_ptr<XDoubleNode> m_autuTuneStep;
+	const shared_ptr<XDoubleNode> m_autoTuneStep;
   
 	shared_ptr<XListener> m_lsnOnActiveChanged;
     

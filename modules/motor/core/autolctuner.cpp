@@ -65,6 +65,7 @@ void XAutoLCTuner::showForms() {
 	m_form->raise();
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
+	Snapshot shot_this( *this);
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	unsigned int tunebits = 0xffu;

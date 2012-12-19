@@ -19,7 +19,7 @@
 XSG::XSG(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XPrimaryDriver(name, runtime, ref(tr_meas), meas),
-	  m_fmON(create<XBoolNode>("RFON", true)),
+	  m_rfON(create<XBoolNode>("RFON", true)),
 	  m_freq(create<XDoubleNode>("Freq", true, "%.13g")),
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),

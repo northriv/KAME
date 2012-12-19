@@ -165,7 +165,7 @@ XMotorDriver::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
     }
 }
 void
-XMotorDriver::onAUXChanged(const Snapshot &shot, XTouchableNode *) {
+XMotorDriver::onAUXChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setAUXBits(shot[ *auxBits()]);
     }
