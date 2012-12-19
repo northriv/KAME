@@ -29,7 +29,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
 	  m_autoTuner(create<XItemNode<XDriverList, XAutoLCTuner> >(
 		  "AutoTuner", false, ref(tr_meas), meas->drivers(), false)),
-	  m_pulser(create<XItemNode<XDriverList, XNMRPulser> >(
+	  m_pulser(create<XItemNode<XDriverList, XPulser> >(
 		  "Pulser", false, ref(tr_meas), meas->drivers(), true)),
 	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
@@ -102,7 +102,7 @@ XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
     if(emitter != pulse__.get()) return false;
     if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *sg1__].time()) return false;
     shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
-    shared_ptr<XNMRPulser> pulser__ = shot_this[ *pulser()];
+    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
     if(autotuner) {
     	if( !pulser__) return false;
     	if(shot_others[ *autotuner->tuning()]) return false;
@@ -163,7 +163,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		
 	    shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
 		if(autotuner) {
-		    shared_ptr<XNMRPulser> pulser__ = shot_this[ *pulser()];
+		    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
 		    assert(pulser__);
 			Snapshot shot_tuner( *autotuner);
 			if(fabs(shot_tuner[ *autotuner->target()] - newf) > shot_this[ *autoTuneStep()] / 2) {
