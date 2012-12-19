@@ -17,6 +17,7 @@
 #include "signalgenerator.h"
 #include "nmrspectrumbase_impl.h"
 #include "autolctuner.h"
+#include "pulserdriver.h"
 
 REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measurement");
 
