@@ -17,6 +17,8 @@
 #include <nmrspectrumbase.h>
 
 class XSG;
+class XNMRPulser;
+class XAutoLCTuner;
 class QMainWindow;
 class Ui_FrmNMRFSpectrum;
 typedef QForm<QMainWindow, Ui_FrmNMRFSpectrum> FrmNMRFSpectrum;
@@ -44,7 +46,8 @@ protected:
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
- 
+	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > &autoTuner() const {return m_autoTuner;}
+	const shared_ptr<XItemNode<XDriverList, XNMRPulser> > &pulser() const {return m_pulser;}
 	//! Offset for IF [MHz]
 	const shared_ptr<XDoubleNode> &sg1FreqOffset() const {return m_sg1FreqOffset;}
 	//! [MHz]
@@ -54,30 +57,26 @@ public:
 	//! [kHz]
 	const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
-
-	//! Burst mode stuff.
-	//! Burst count.
-	const shared_ptr<XUIntNode> &burstCount() const {return m_burstCount;}
-	
+	//! [MHz]
+	const shared_ptr<XDoubleNode> &autoTuneStep() const {return m_autoTuneStep;}
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
+	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autotuner;
+	const shared_ptr<XItemNode<XDriverList, XNMRPulser> > m_pulser;
 	const shared_ptr<XDoubleNode> m_sg1FreqOffset;
 
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_freqSpan;
 	const shared_ptr<XDoubleNode> m_freqStep;
 	const shared_ptr<XBoolNode> m_active;
+	const shared_ptr<XDoubleNode> m_autuTuneStep;
   
-	const shared_ptr<XUIntNode> m_burstCount;
-	
-	unsigned int m_burstFreqCycleCount;
-	unsigned int m_burstPhaseCycleCount;
-
 	shared_ptr<XListener> m_lsnOnActiveChanged;
     
 	xqcon_ptr m_conCenterFreq,
 		m_conFreqSpan, m_conFreqStep;
-	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset, m_conBurstCount, m_conBurstFreqStep;
+	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset,
+		m_conAutoTuneStep, m_conAutoTuner, m_conPulser;
 
 	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
 };

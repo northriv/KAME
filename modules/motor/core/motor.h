@@ -58,12 +58,14 @@ public:
 	const shared_ptr<XBoolNode> &hasEncoder() const {return m_hasEncoder;}
 	const shared_ptr<XTouchableNode> &store() const {return m_store;}
 	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
+	const shared_ptr<XUIntNode> &auxBits() const {return m_auxBits;}
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) = 0;
 	virtual void changeConditions(const Snapshot &shot) = 0;
 	virtual void getConditions(Transaction &tr) = 0;
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
 	virtual void setActive(bool active) = 0;
+	virtual void setAUXBits(unsigned int bits) = 0;
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM() = 0;
 	virtual void clearPosition() = 0;
@@ -83,18 +85,21 @@ private:
 	const shared_ptr<XBoolNode> m_slipping;
 	const shared_ptr<XBoolNode> m_microStep;
 	const shared_ptr<XBoolNode> m_hasEncoder;
+	const shared_ptr<XUIntNode> m_auxBits;
 	const shared_ptr<XTouchableNode> m_clear;
 	const shared_ptr<XTouchableNode> m_store;
 
-	shared_ptr<XListener> m_lsnTarget, m_lsnConditions, m_lsnClear, m_lsnStore;
+	shared_ptr<XListener> m_lsnTarget, m_lsnConditions, m_lsnClear, m_lsnStore, m_lsnAUX;
 	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
 		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,
 		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
-		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore;
+		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore,
+		m_conAUXBits;
 
 	const qshared_ptr<FrmMotorDriver> m_form;
 
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
+	void onAUXChanged(const Snapshot &shot, XValueNodeBase *);
 	void onConditionsChanged(const Snapshot &shot, XValueNodeBase *);
 	void onClearTouched(const Snapshot &shot, XTouchableNode *);
 	void onStoreTouched(const Snapshot &shot, XTouchableNode *);

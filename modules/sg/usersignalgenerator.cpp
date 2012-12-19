@@ -20,6 +20,7 @@ REGISTER_TYPE(XDriverList, SG7200, "KENWOOD SG7200 signal generator");
 REGISTER_TYPE(XDriverList, HP8643, "HP/Agilent 8643/8644 signal generator");
 REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
 REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
+REGISTER_TYPE(XDriverList, DPL32XGF, "DSTech. DPL-3.2XGF signal generator");
 
 XSG7200::XSG7200(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -36,6 +37,9 @@ XSG7200::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->sendf("FR%fMHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
+}
+void
+XSG7200::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XSG7200::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -64,6 +68,10 @@ XHP8643::changeFreq(double mhz) {
 	msecsleep(75); //wait stabilization of PLL < 1GHz
 }
 void
+XHP8643::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("AMPL:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
 XHP8643::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AMPL:LEV %f DBM", (double)shot[ *oLevel()]);
 }
@@ -84,6 +92,10 @@ XHP8648::XHP8648(const char *name, bool runtime,
 //	interface()->setGPIBWaitBeforeRead(10);
 }
 void
+XHP8648::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("OUTP:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
 XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("POW:AMPL %f DBM", (double)shot[ *oLevel()]);
 }
@@ -102,6 +114,10 @@ XHP8664::changeFreq(double mhz) {
 	msecsleep(50); //wait stabilization of PLL
 }
 void
+XHP8664::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("AMPL:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
 XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
 }
@@ -112,4 +128,34 @@ XHP8664::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XHP8664::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
+}
+
+XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
+	interface()->setEOS("\r\n");
+	interface()->setSerialBaudRate(9600);
+	interface()->setSerialStopBits(1);
+	interface()->setSerialFlushBeforeWrite(true);
+
+}
+void
+XDPL32XGF::changeFreq(double mhz) {
+	XScopedLock<XInterface> lock( *interface());
+	interface()->queryf("F %fM", mhz);
+	msecsleep(50); //wait stabilization of PLL
+}
+void
+XDPL32XGF::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->queryf("%s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
+XDPL32XGF::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->queryf("A %.1f", (double)shot[ *oLevel()]);
+}
+void
+XDPL32XGF::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
+}
+void
+XDPL32XGF::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 }

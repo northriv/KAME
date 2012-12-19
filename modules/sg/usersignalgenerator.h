@@ -26,6 +26,7 @@ public:
 
 protected:
 	virtual void changeFreq(double mhz);
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
@@ -48,6 +49,7 @@ public:
 	virtual ~XHP8643() {}
 protected:
 	virtual void changeFreq(double mhz);
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
@@ -61,6 +63,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XHP8648() {}
 protected:
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
@@ -73,6 +76,22 @@ public:
 	virtual ~XHP8664() {}
 protected:
 	virtual void changeFreq(double mhz);
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+private:
+};
+
+//! DS Technology DPL-3.2XGF
+class XDPL32XGF : public XCharDeviceDriver<XSG> {
+public:
+	XDPL32XGF(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XDPL32XGF() {}
+protected:
+	virtual void changeFreq(double mhz);
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);

@@ -138,6 +138,14 @@ XFlexCRK::setActive(bool active) {
 		interface()->presetSingleResistor(0x1e, 0x0001u); //M1
 	}
 }
+void
+XFlexCRK::setAUXBits(unsigned int bits) {
+	interface()->presetSingleResistor(0x206, 11); //OUT1 to R-OUT1
+	interface()->presetSingleResistor(0x207, 12); //OUT2 to R-OUT2
+	interface()->presetSingleResistor(0x208, 15); //OUT3 to R-OUT3
+	interface()->presetSingleResistor(0x209, 16); //OUT4 to R-OUT4
+	interface()->presetSingleResistor(0x1f, bits & 0xfu);
+}
 
 void
 XFlexAR::storeToROM() {
@@ -247,4 +255,20 @@ XFlexAR::setActive(bool active) {
 		stopMotor();
 		interface()->presetTwoResistors(0x7c, 0x40u); //FREE
 	}
+}
+void
+XFlexAR::setAUXBits(unsigned int bits) {
+	interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
+	interface()->presetTwoResistors(0x1142, 33); //OUT1 to R1
+	interface()->presetTwoResistors(0x1144, 34); //OUT2 to R2
+	interface()->presetTwoResistors(0x1146, 35); //OUT3 to R3
+	interface()->presetTwoResistors(0x1148, 36); //OUT4 to R4
+	interface()->presetTwoResistors(0x114a, 37); //OUT5 to R5
+	interface()->presetTwoResistors(0x1160, 32); //NET-IN0 to R0
+	interface()->presetTwoResistors(0x1162, 33); //NET-IN1 to R1
+	interface()->presetTwoResistors(0x1164, 34); //NET-IN2 to R2
+	interface()->presetTwoResistors(0x1166, 35); //NET-IN3 to R3
+	interface()->presetTwoResistors(0x1168, 36); //NET-IN4 to R4
+	interface()->presetTwoResistors(0x116a, 37); //NET-IN5 to R5
+	interface()->presetSingleResistor(0x7d, bits & 0x3fu);
 }

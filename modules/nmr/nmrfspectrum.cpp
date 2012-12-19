@@ -25,13 +25,20 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	: XNMRSpectrumBase<FrmNMRFSpectrum>(name, runtime, ref(tr_meas), meas),
 	  m_sg1(create<XItemNode<XDriverList, XSG> >(
 		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
+	  m_autoTuner(create<XItemNode<XDriverList, XAutoLCTuner> >(
+		  "AutoTuner", false, ref(tr_meas), meas->drivers(), false)),
+	  m_pulser(create<XItemNode<XDriverList, XNMRPulser> >(
+		  "Pulser", false, ref(tr_meas), meas->drivers(), true)),
 	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_active(create<XBoolNode>("Active", true)),
-	  m_burstCount(create<XUIntNode>("BurstCount", false)) {
+	  m_autoTuneStep(create<XDoubleNode>("AutoTuneStep", false)) {
+
 	connect(sg1());
+	connect(autoTuner());
+	connect(pulser());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -52,9 +59,10 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
 	m_conFreqStep = xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep);
 	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas));
-	m_form->m_numBurstCount->setRange(0, 15);
-	m_conBurstCount = xqcon_create<XQSpinBoxConnector>(m_burstCount, m_form->m_numBurstCount);
+	m_conAutoTuner = xqcon_create<XQComboBoxConnector>(m_autoTuner, m_form->m_cmbAutoTuner, ref(tr_meas));
+	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
+	m_conAutoTuneStep = xqcon_create<XQLineEditConnector>(m_autoTuneStep, m_form->m_edAutoTuneStep);
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
@@ -71,8 +79,6 @@ void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-		m_burstFreqCycleCount = 0;
-		m_burstPhaseCycleCount = 0;
 		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
 		if(sg1__)
 			trans( *sg1__->freq()) =
@@ -90,8 +96,17 @@ XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
 	XDriver *emitter) const {
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
     if( !sg1__) return false;
-	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    if(emitter != pulse__.get()) return false;
     if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *sg1__].time()) return false;
+    shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
+    shared_ptr<XNMRPulser> pulser__ = shot_this[ *pulser()];
+    if(autotuner) {
+    	if( !pulser) return false;
+    	if(shot_others[ *autotuner->tuning]) return false;
+    	if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *autotuner].time()) return false;
+    	if(shot_emitter[ *pulser__].time() < shot_others[ *autotuner].time()) return false;
+    }
     return true;
 }
 double
@@ -141,22 +156,21 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
-		int burstcnt = shot_this[ *burstCount()];
 		double newf = freq; //MHz
-		m_burstFreqCycleCount++;
-		if(burstcnt) {
-			newf += freq_span / burstcnt;
-			if(m_burstFreqCycleCount >= burstcnt) {
-				m_burstFreqCycleCount = 0;
-				newf -= freq_span;
-				m_burstPhaseCycleCount++;
+		newf += freq_step;
+		
+	    shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
+		if(autotuner) {
+		    shared_ptr<XNMRPulser> pulser__ = shot_this[ *pulser()];
+		    assert(pulser__);
+			Snapshot shot_tuner( *autotuner);
+			if(fabs(shot_tuner[ *autotuner->target()] - newf) > shot_this[ *autoTuneStep()] / 2) {
+				trans( *pulser__->output()) = false;
+				trans( *autotuner->target()) = newf + shot_this[ *autoTuneStep()] / 2;
+				trans( *pulser__->output()) = true;
 			}
 		}
-		if( !burstcnt || (m_burstPhaseCycleCount >= 4)) {
-			m_burstPhaseCycleCount = 0;
-			newf += freq_step;
-		}
-		
+
 		if(sg1__)
 			trans( *sg1__->freq()) = newf + shot_this[ *sg1FreqOffset()];
 		if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)

@@ -31,6 +31,7 @@ protected:
 	virtual void getConditions(Transaction &tr);
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
+	virtual void setAUXBits(unsigned int bits);
 	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
 	virtual void clearPosition();
@@ -51,6 +52,7 @@ protected:
 	virtual void getConditions(Transaction &tr);
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
+	virtual void setAUXBits(unsigned int bits);
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM();
 	virtual void clearPosition();

@@ -65,6 +65,12 @@ void XAutoLCTuner::showForms() {
 	m_form->raise();
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
+	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+	unsigned int tunebits = 0xffu;
+	if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external relays.
+	if(stm2__) trans( *stm2__->auxBits()) = tunebits;
+
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
 		tr[ *this].stage = Payload::STAGE_FIRST;
@@ -437,24 +443,31 @@ void
 XAutoLCTuner::visualize(const Snapshot &shot_this) {
 	const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-	if(shot_this[ *tuning()] && shot_this[ *this].isSTMChanged) {
-		if(stm1__) {
-			for(Transaction tr( *stm1__);; ++tr) {
-				if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
-					break;
-				tr[ *stm1__->target()] = shot_this[ *this].stm1;
-				if(tr.commit())
-					break;
+	if(shot_this[ *tuning()]) {
+		if(shot_this[ *this].isSTMChanged) {
+			if(stm1__) {
+				for(Transaction tr( *stm1__);; ++tr) {
+					if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
+						break;
+					tr[ *stm1__->target()] = shot_this[ *this].stm1;
+					if(tr.commit())
+						break;
+				}
+			}
+			if(stm2__) {
+				for(Transaction tr( *stm2__);; ++tr) {
+					if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
+						break;
+					tr[ *stm2__->target()] = shot_this[ *this].stm2;
+					if(tr.commit())
+						break;
+				}
 			}
 		}
-		if(stm2__) {
-			for(Transaction tr( *stm2__);; ++tr) {
-				if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
-					break;
-				tr[ *stm2__->target()] = shot_this[ *this].stm2;
-				if(tr.commit())
-					break;
-			}
+		else {
+			unsigned int tunebits = 0;
+			if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external relays.
+			if(stm2__) trans( *stm2__->auxBits()) = tunebits;
 		}
 	}
 }

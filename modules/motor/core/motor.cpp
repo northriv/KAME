@@ -37,6 +37,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_slipping(create<XBoolNode>("Slipping", true)),
     m_microStep(create<XBoolNode>("MicroStep", true)),
     m_hasEncoder(create<XBoolNode>("HasEncoder", false)),
+    m_auxBits(create<XUIntNode>("AUXBits", false)),
     m_clear(create<XTouchableNode>("Clear", true)),
     m_store(create<XTouchableNode>("Store", true)),
     m_form(new FrmMotorDriver(g_pFrmMain)) {
@@ -65,6 +66,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_ready->setUIEnabled(false);
 	m_slipping->setUIEnabled(false);
 	m_microStep->setUIEnabled(false);
+	m_auxBits->setUIEnabled(false);
 	m_clear->setUIEnabled(false);
 	m_store->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
@@ -84,6 +86,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conSlipping = xqcon_create<XKLedConnector>(m_slipping, m_form->m_ledSlipping);
 	m_conReady = xqcon_create<XKLedConnector>(m_ready, m_form->m_ledReady);
 	m_conHasEncoder = xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder);
+	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
 	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
 }
@@ -161,6 +164,16 @@ XMotorDriver::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
         return;
     }
 }
+void
+XMotorDriver::onAUXChanged(const Snapshot &shot, XTouchableNode *) {
+    try {
+        setAUXBits(shot[ *auxBits()]);
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error, "));
+        return;
+    }
+}
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
 	for(Transaction tr( *this);; ++tr) {
@@ -184,6 +197,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_microStep->setUIEnabled(true);
 	m_clear->setUIEnabled(true);
 	m_store->setUIEnabled(true);
+	m_auxBits->setUIEnabled(true);
 //	m_hasEncoder->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
@@ -199,6 +213,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		tr[ *microStep()].onValueChanged().connect(m_lsnConditions);
 		m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
 		m_lsnStore = tr[ *store()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStoreTouched);
+		m_lsnAUX = tr[ *auxBits()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onAUXChanged);
 		if(tr.commit())
 			break;
 	}
@@ -239,11 +254,13 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_microStep->setUIEnabled(false);
 	m_clear->setUIEnabled(false);
 	m_store->setUIEnabled(false);
+	m_auxBits->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_lsnTarget.reset();
 	m_lsnConditions.reset();
 	m_lsnClear.reset();
 	m_lsnStore.reset();
+	m_lsnAUX.reset();
 	return NULL;
 }
