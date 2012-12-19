@@ -16,6 +16,7 @@
 #include "nmrfspectrum.h"
 #include "signalgenerator.h"
 #include "nmrspectrumbase_impl.h"
+#include "autolctuner.h"
 
 REGISTER_TYPE(XDriverList, NMRFSpectrum, "NMR frequency-swept spectrum measurement");
 
@@ -102,8 +103,8 @@ XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
     shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
     shared_ptr<XNMRPulser> pulser__ = shot_this[ *pulser()];
     if(autotuner) {
-    	if( !pulser) return false;
-    	if(shot_others[ *autotuner->tuning]) return false;
+    	if( !pulser__) return false;
+    	if(shot_others[ *autotuner->tuning()]) return false;
     	if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *autotuner].time()) return false;
     	if(shot_emitter[ *pulser__].time() < shot_others[ *autotuner].time()) return false;
     }
