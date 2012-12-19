@@ -12,6 +12,7 @@ kde4_add_ui_files(motorcore_SRCS
   autolctunerform.ui )
    
 kde4_add_library(kame_motorcore kame_networkanalyzercore SHARED ${motorcore_SRCS})
+add_dependencies(kame_motorcore kame kame_networkanalyzercore)
 ########### install files ###############
 install(TARGETS kame_motorcore LIBRARY  DESTINATION ${KAME_LIB_INSTALL_DIR})
 
