@@ -846,7 +846,7 @@ void XLakeShore370::open() throw (XKameError &) {
 	}
 	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		for(Transaction tr( *this);; ++tr) {
-			tr[ *currentChannel()].str(formatString("%d", ctrl_ch - 1));
+			tr[ *currentChannel()].str(formatString("%d", ctrl_ch));
 			tr[ *heaterMode()].clear();
 			tr[ *heaterMode()].add("Off");
 			tr[ *heaterMode()].add("PID");
