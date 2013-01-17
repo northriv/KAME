@@ -181,7 +181,7 @@ double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 	return getRes();
 }
 double XAVS47IB::getTemp(shared_ptr<XChannel> &) {
-	return getRes();Bridge
+	return getRes();
 }
 void XAVS47IB::open() throw (XKameError &) {
 	msecsleep(50);
@@ -846,7 +846,7 @@ void XLakeShore370::open() throw (XKameError &) {
 	}
 	if( !shared_ptr<XDCSource>( ***extDCSource())) {
 		for(Transaction tr( *this);; ++tr) {
-			tr[ *currentChannel()] = ctrl_ch - 1;
+			tr[ *currentChannel()].str(formatString("%d", ctrl_ch - 1));
 			tr[ *heaterMode()].clear();
 			tr[ *heaterMode()].add("Off");
 			tr[ *heaterMode()].add("PID");

@@ -210,9 +210,9 @@ private:
 //! Base class for LakeShore 340/370
 class XLakeShoreBridge : public XCharDeviceDriver<XTempControl> {
 public:
-	XLakeShore(const char *name, bool runtime,
+	XLakeShoreBridge(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XLakeShore() {}
+	virtual ~XLakeShoreBridge() {}
 };
 
 //! LakeShore 340
