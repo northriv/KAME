@@ -18,6 +18,7 @@
 REGISTER_TYPE(XDriverList, CryoconM32, "Cryocon M32 temp. controller");
 REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
+REGISTER_TYPE(XDriverList, LakeShore370, "LakeShore 370 temp. controller");
 REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
@@ -603,19 +604,25 @@ void XNeoceraLTC21::open() throw (XKameError &) {
 	start();
 }
 
-XLakeShore340::XLakeShore340(const char *name, bool runtime,
+
+XLakeShore::XLakeShore(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
-	const char *channels_create[] = { "A", "B", 0L };
-	const char *excitations_create[] = { 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create);
 	interface()->setEOS("\r\n");
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
 	interface()->setGPIBWaitBeforeWrite(40);
 	//    ExclusiveWaitAfterWrite = 10;
 	interface()->setGPIBWaitBeforeRead(40);
+}
+
+XLakeShore340::XLakeShore340(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XLakeShore (name, runtime, ref(tr_meas), meas) {
+	const char *channels_create[] = { "A", "B", 0L };
+	const char *excitations_create[] = { 0L };
+	createChannels(ref(tr_meas), meas, true, channels_create,
+		excitations_create);
 }
 
 double XLakeShore340::getRaw(shared_ptr<XChannel> &channel) {
@@ -747,6 +754,142 @@ void XLakeShore340::open() throw (XKameError &) {
 	}
 	start();
 }
+
+XLakeShore370::XLakeShore370(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	XLakeShore(name, runtime, ref(tr_meas), meas) {
+	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", 0L };
+	const char *excitations_create[] = { 0L };
+	createChannels(ref(tr_meas), meas, true, channels_create,
+		excitations_create);
+}
+
+double XLakeShore370::getRaw(shared_ptr<XChannel> &channel) {
+	interface()->query("RDGR? " + channel->getName());
+	return interface()->toDouble();
+}
+double XLakeShore370::getTemp(shared_ptr<XChannel> &channel) {
+	interface()->query("RDGK? " + channel->getName());
+	return interface()->toDouble();
+}
+double XLakeShore370::getHeater() {
+	interface()->query("HTR?");
+	return interface()->toDouble();
+}
+void XLakeShore370::onPChanged(double p) {
+	interface()->sendf("PID %f", p);
+}
+void XLakeShore370::onIChanged(double i) {
+	interface()->sendf("PID ,,%f", i);
+}
+void XLakeShore370::onDChanged(double d) {
+	interface()->sendf("PID ,,,%f", d);
+}
+void XLakeShore370::onTargetTempChanged(double temp) {
+	Snapshot shot( *this);
+	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel()])->thermometer()];
+	if(thermo) {
+		interface()->sendf("CSET %s,,2",
+			(const char*)shot[ *currentChannel()].to_str().c_str());
+		temp = thermo->getRawValue(temp);
+	}
+	else {
+		interface()->sendf("CSET %s,,1",
+			(const char*)shot[ *currentChannel()].to_str().c_str());
+	}
+	interface()->sendf("SETP %f", temp);
+}
+void XLakeShore370::onManualPowerChanged(double pow) {
+	interface()->sendf("MOUT 1,%f", pow);
+}
+void XLakeShore370::onHeaterModeChanged(int) {
+	Snapshot shot( *this);
+	if(shot[ *heaterMode()].to_str() == "Off") {
+		interface()->send("CMODE 4");
+	}
+	if(shot[ *heaterMode()].to_str() == "PID") {
+		interface()->send("CMODE 1");
+	}
+	if(shot[ *heaterMode()].to_str() == "Man") {
+		interface()->send("CMODE 3");
+	}
+}
+void XLakeShore370::onPowerRangeChanged(int ran) {
+	interface()->sendf("HTRRNG %d", ran + 1);
+}
+void XLakeShore370::onCurrentChannelChanged(const shared_ptr<XChannel> &ch) {
+	interface()->sendf("CSET %s", (const char *) ch->getName().c_str());
+}
+void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &, int) {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
+}
+void XLakeShore370::open() throw (XKameError &) {
+	interface()->query("CSET?");
+	int ctrl_ch, units, htr_limit;
+	double htr_res;
+	if(interface()->scanf("%d,%*d,%d,%*d,%*d,%d,%lf", &ctrl_ch, &units, &htr_limit, &htr_res) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *powerRange()].clear();
+		for(int i = 1; i < htr_limit; i++) {
+			double pwr = htr_res * (pow(10.0, i) * 1e-7);
+			if(pwr < 0.1)
+				tr[ *powerRange()].add(formatString("%.2g uW", pwr * 1e3));
+			else
+				tr[ *powerRange()].add(formatString("%.2g mW", pwr));
+		}
+		if(tr.commit())
+			break;
+	}
+	if( !shared_ptr<XDCSource>( ***extDCSource())) {
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *currentChannel()] = ctrl_ch - 1;
+			tr[ *heaterMode()].clear();
+			tr[ *heaterMode()].add("Off");
+			tr[ *heaterMode()].add("PID");
+			tr[ *heaterMode()].add("Man");
+			if(tr.commit())
+				break;
+		}
+
+		interface()->query("CMODE?");
+		switch(interface()->toInt()) {
+		case 1:
+			trans( *heaterMode()).str(XString("PID"));
+			break;
+		case 3:
+			trans( *heaterMode()).str(XString("Man"));
+			break;
+		default:
+			break;
+		}
+		interface()->query("HTRRNG?");
+		int range = interface()->toInt();
+		if(range == 0)
+			trans( *heaterMode()).str(XString("Off"));
+		else
+			trans( *powerRange()) = range - 1;
+
+		interface()->query("MOUT? 1");
+		trans( *manualPower()) = interface()->toDouble();
+		interface()->query("PID?");
+		double p, i, d;
+		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		for(Transaction tr( *this);; ++tr) {
+			tr[ *prop()] = p;
+			tr[ *interval()] = i;
+			tr[ *deriv()] = d;
+			if(tr.commit())
+				break;
+		}
+	}
+	start();
+}
+
 
 XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

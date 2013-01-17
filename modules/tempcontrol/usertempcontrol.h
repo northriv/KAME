@@ -25,7 +25,7 @@ class XITC503 : public XOxfordDriver<XTempControl> {
 public:
 	XITC503(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XITC503() {}
+	virtual ~XITC503() {}
 
 protected:
 	//! reads sensor value from the instrument
@@ -149,7 +149,7 @@ class XCryoconM32:public XCryocon {
 public:
 	XCryoconM32(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XCryoconM32() {}
+	virtual ~XCryoconM32() {}
 
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -161,7 +161,7 @@ class XCryoconM62 : public XCryocon {
 public:
 	XCryoconM62(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XCryoconM62() {}
+	virtual ~XCryoconM62() {}
 
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -173,7 +173,7 @@ class XNeoceraLTC21 : public XCharDeviceDriver<XTempControl> {
 public:
 	XNeoceraLTC21(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XNeoceraLTC21() {}
+	virtual ~XNeoceraLTC21() {}
 
 protected:
 	//! reads sensor value from the instrument
@@ -207,12 +207,20 @@ private:
 	void setHeater();
 };
 
+//! Base class for LakeShore 340/370
+class XLakeShore : public XCharDeviceDriver<XTempControl> {
+public:
+	XLakeShore(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XLakeShore() {}
+};
+
 //! LakeShore 340
-class XLakeShore340 : public XCharDeviceDriver<XTempControl> {
+class XLakeShore340 : public XLakeShore {
 public:
 	XLakeShore340(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XLakeShore340() {}
+	virtual ~XLakeShore340() {}
 
 protected:
 	//! reads sensor value from the instrument
@@ -239,13 +247,45 @@ protected:
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
+//! LakeShore 370
+class XLakeShore370 : public XLakeShore340 {
+public:
+	XLakeShore370(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XLakeShore370() {}
+
+protected:
+	//! reads sensor value from the instrument
+	virtual double getRaw(shared_ptr<XChannel> &channel);
+	//! reads a value in Kelvin from the instrument
+	virtual double getTemp(shared_ptr<XChannel> &channel);
+	//! obtains current heater power
+	//! \sa m_heaterPowerUnit()
+	virtual double getHeater();
+	//! ex. "W", "dB", or so
+	virtual const char *m_heaterPowerUnit() {return "%";}
+
+	//! Be called just after opening interface. Call start() inside this routine appropriately.
+	virtual void open() throw (XKameError &);
+
+	virtual void onPChanged(double p);
+	virtual void onIChanged(double i);
+	virtual void onDChanged(double d);
+	virtual void onTargetTempChanged(double temp);
+	virtual void onManualPowerChanged(double pow);
+	virtual void onHeaterModeChanged(int mode);
+	virtual void onPowerRangeChanged(int range);
+	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+private:
+};
 
 //! Keithley Integra 2700 w/ 7700 switching module.
 class XKE2700w7700 : public XCharDeviceDriver<XTempControl> {
 public:
 	XKE2700w7700(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	~XKE2700w7700() {}
+	virtual ~XKE2700w7700() {}
 
 protected:
 	//! reads sensor value from the instrument
