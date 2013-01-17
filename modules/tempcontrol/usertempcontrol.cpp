@@ -181,7 +181,7 @@ double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 	return getRes();
 }
 double XAVS47IB::getTemp(shared_ptr<XChannel> &) {
-	return getRes();
+	return getRes();Bridge
 }
 void XAVS47IB::open() throw (XKameError &) {
 	msecsleep(50);
@@ -605,7 +605,7 @@ void XNeoceraLTC21::open() throw (XKameError &) {
 }
 
 
-XLakeShore::XLakeShore(const char *name, bool runtime,
+XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\r\n");
@@ -618,7 +618,7 @@ XLakeShore::XLakeShore(const char *name, bool runtime,
 
 XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XLakeShore (name, runtime, ref(tr_meas), meas) {
+	XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "A", "B", 0L };
 	const char *excitations_create[] = { 0L };
 	createChannels(ref(tr_meas), meas, true, channels_create,
@@ -757,7 +757,7 @@ void XLakeShore340::open() throw (XKameError &) {
 
 XLakeShore370::XLakeShore370(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XLakeShore(name, runtime, ref(tr_meas), meas) {
+	XLakeShoreBridge(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", 0L };
 	const char *excitations_create[] = { 0L };
 	createChannels(ref(tr_meas), meas, true, channels_create,

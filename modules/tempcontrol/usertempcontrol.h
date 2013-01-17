@@ -208,7 +208,7 @@ private:
 };
 
 //! Base class for LakeShore 340/370
-class XLakeShore : public XCharDeviceDriver<XTempControl> {
+class XLakeShoreBridge : public XCharDeviceDriver<XTempControl> {
 public:
 	XLakeShore(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -216,12 +216,11 @@ public:
 };
 
 //! LakeShore 340
-class XLakeShore340 : public XLakeShore {
+class XLakeShore340 : public XLakeShoreBridge {
 public:
 	XLakeShore340(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XLakeShore340() {}
-
 protected:
 	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel);
@@ -248,7 +247,7 @@ protected:
 private:
 };
 //! LakeShore 370
-class XLakeShore370 : public XLakeShore340 {
+class XLakeShore370 : public XLakeShoreBridge {
 public:
 	XLakeShore370(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
