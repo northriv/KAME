@@ -800,7 +800,7 @@ void XLakeShore370::onTargetTempChanged(double temp) {
 	interface()->sendf("SETP %f", temp);
 }
 void XLakeShore370::onManualPowerChanged(double pow) {
-	interface()->sendf("MOUT 1,%f", pow);
+	interface()->sendf("MOUT %f", pow);
 }
 void XLakeShore370::onHeaterModeChanged(int) {
 	Snapshot shot( *this);
@@ -829,7 +829,7 @@ void XLakeShore370::open() throw (XKameError &) {
 	interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
 	double htr_res;
-	if(interface()->scanf("%d,%*d,%d,%*d,%*d,%d,%lf", &ctrl_ch, &units, &htr_limit, &htr_res) != 1)
+	if(interface()->scanf("%d,%*d,%d,%*d,%*d,%d,%lf", &ctrl_ch, &units, &htr_limit, &htr_res) != 4)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
 	for(Transaction tr( *this);; ++tr) {
@@ -873,7 +873,7 @@ void XLakeShore370::open() throw (XKameError &) {
 		else
 			trans( *powerRange()) = range - 1;
 
-		interface()->query("MOUT? 1");
+		interface()->query("MOUT?");
 		trans( *manualPower()) = interface()->toDouble();
 		interface()->query("PID?");
 		double p, i, d;
