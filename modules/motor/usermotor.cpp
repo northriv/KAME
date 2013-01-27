@@ -99,6 +99,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
+	interface()->presetSingleResistor(0x20c, 0); //HOME/FWD/RVS by RS485.
 	interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
 	interface()->presetSingleResistor(0x202, 1); //Dec. after STOP.
 	interface()->presetSingleResistor(0x601, 1); //Absolute.
@@ -110,8 +111,8 @@ XFlexCRK::stopMotor() {
 		bool isready = (output & 0x20000000u);
 		if(isready) break;
 		if(i ==0) {
-			interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M1
-			interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+			interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M0
+			interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
 		}
 		msecsleep(100);
 		if(i > 10) {
@@ -120,22 +121,34 @@ XFlexCRK::stopMotor() {
 	}
 }
 void
+XFlexCRK::forwardMotor() {
+	XScopedLock<XInterface> lock( *interface());
+	stopMotor();
+	interface()->presetSingleResistor(0x1e, 0x2201u); //C-ON, FWD, M0
+}
+void
+XFlexCRK::reverseMotor() {
+	XScopedLock<XInterface> lock( *interface());
+	stopMotor();
+	interface()->presetSingleResistor(0x1e, 0x2401u); //C-ON, RVS, M0
+}
+void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
 	stopMotor();
 	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()]));
-	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M1
-	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M0
+	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
 }
 void
 XFlexCRK::setActive(bool active) {
 	XScopedLock<XInterface> lock( *interface());
 	if(active) {
-		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M1
+		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
 	}
 	else {
 		stopMotor();
-		interface()->presetSingleResistor(0x1e, 0x0001u); //M1
+		interface()->presetSingleResistor(0x1e, 0x0001u); //M0
 	}
 }
 void
@@ -200,6 +213,10 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x1002, shot[ *stepEncoder()] / shot[ *stepMotor()]); //Multiplier is stored in MS2 No.
 	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 	interface()->presetTwoResistors(0x1028, shot[ *microStep()] ? 1 : 0);
+	interface()->presetTwoResistors(0x38e,  shot[ *round()] ? 1 : 0);
+	interface()->presetTwoResistors(0x390,  std::max(lrint(shot[ *roundBy()]), 1L));
+	interface()->presetTwoResistors(0x20a,  lrint(shot[ *roundBy()]) / 2); //AREA1+
+	interface()->presetTwoResistors(0x20c,  0); //AREA1-
 }
 void
 XFlexAR::getConditions(Transaction &tr) {
@@ -216,6 +233,8 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
 	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400))
 			* 360.0 / tr[ *stepMotor()];
+	tr[ *round()] = (interface()->readHoldingTwoResistors(0x38e) == 1);
+	tr[ *roundBy()] = interface()->readHoldingTwoResistors(0x390);
 	interface()->presetTwoResistors(0x200, 3); //Inactive after stop.
 	interface()->presetTwoResistors(0x500, 1); //Absolute.
 	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
@@ -246,6 +265,18 @@ XFlexAR::stopMotor() {
 	}
 }
 void
+XFlexAR::forwardMotor() {
+	XScopedLock<XInterface> lock( *interface());
+	stopMotor();
+	interface()->presetTwoResistors(0x7c, 0x4100u); //FWD || MS0
+}
+void
+XFlexAR::reverseMotor() {
+	XScopedLock<XInterface> lock( *interface());
+	stopMotor();
+	interface()->presetTwoResistors(0x7c, 0x8100u); //RVS || MS0
+}
+void
 XFlexAR::setActive(bool active) {
 	XScopedLock<XInterface> lock( *interface());
 	if(active) {
@@ -260,13 +291,13 @@ void
 XFlexAR::setAUXBits(unsigned int bits) {
 	interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
 	interface()->presetTwoResistors(0x1142, 33); //OUT1 to R1
-	interface()->presetTwoResistors(0x1144, 34); //OUT2 to R2
+//	interface()->presetTwoResistors(0x1144, 34); //OUT2 to R2
 	interface()->presetTwoResistors(0x1146, 35); //OUT3 to R3
 	interface()->presetTwoResistors(0x1148, 36); //OUT4 to R4
 	interface()->presetTwoResistors(0x114a, 37); //OUT5 to R5
 	interface()->presetTwoResistors(0x1160, 32); //NET-IN0 to R0
 	interface()->presetTwoResistors(0x1162, 33); //NET-IN1 to R1
-	interface()->presetTwoResistors(0x1164, 34); //NET-IN2 to R2
+//	interface()->presetTwoResistors(0x1164, 34); //NET-IN2 to R2
 	interface()->presetTwoResistors(0x1166, 35); //NET-IN3 to R3
 	interface()->presetTwoResistors(0x1168, 36); //NET-IN4 to R4
 	interface()->presetTwoResistors(0x116a, 37); //NET-IN5 to R5

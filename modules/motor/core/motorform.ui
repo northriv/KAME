@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>342</width>
-    <height>329</height>
+    <height>394</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -118,17 +118,41 @@
        </layout>
       </item>
       <item>
-       <widget class="QCheckBox" name="m_ckbActive">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Active</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="horizontalLayout_8">
+        <item>
+         <widget class="QCheckBox" name="m_ckbActive">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Active</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_7">
+          <item>
+           <widget class="QCheckBox" name="m_ckbRound">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Round</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="m_edRound"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -173,6 +197,49 @@
           </property>
           <property name="precision" stdset="0">
            <number>1</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <item>
+         <widget class="QPushButton" name="m_btnRVS">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>RVS</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="m_btnSTOP">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>STOP</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="m_btnFWD">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>FWD</string>
           </property>
          </widget>
         </item>
@@ -493,6 +560,12 @@
      </layout>
     </item>
    </layout>
+   <zorder>m_btnFWD</zorder>
+   <zorder>m_btnRVS</zorder>
+   <zorder>m_btnSTOP</zorder>
+   <zorder>m_edRound</zorder>
+   <zorder>m_ckbRound</zorder>
+   <zorder>m_btnRVS</zorder>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
@@ -511,7 +584,13 @@
  </customwidgets>
  <tabstops>
   <tabstop>m_ckbActive</tabstop>
+  <tabstop>m_ckbRound</tabstop>
+  <tabstop>m_edRound</tabstop>
+  <tabstop>m_btnRVS</tabstop>
+  <tabstop>m_btnSTOP</tabstop>
+  <tabstop>m_btnFWD</tabstop>
   <tabstop>m_edSpeed</tabstop>
+  <tabstop>m_edAUXBits</tabstop>
   <tabstop>m_edStepMotor</tabstop>
   <tabstop>m_edStepEncoder</tabstop>
   <tabstop>m_edTimeAcc</tabstop>

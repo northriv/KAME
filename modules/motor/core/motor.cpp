@@ -40,6 +40,11 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_auxBits(create<XUIntNode>("AUXBits", false)),
     m_clear(create<XTouchableNode>("Clear", true)),
     m_store(create<XTouchableNode>("Store", true)),
+    m_round(create<XBoolNode>("Round", true)),
+    m_roundBy(create<XUIntNode>("RoundBy", true)),
+    m_forwardMotor(create<XTouchableNode>("ForwardMotor", true)),
+    m_reverseMotor(create<XTouchableNode>("ReverseMotor", true)),
+    m_stopMotor(create<XTouchableNode>("StopMotor", true)),
     m_form(new FrmMotorDriver(g_pFrmMain)) {
 
 	for(Transaction tr( *this);; ++tr) {
@@ -69,6 +74,11 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_auxBits->setUIEnabled(false);
 	m_clear->setUIEnabled(false);
 	m_store->setUIEnabled(false);
+	m_round->setUIEnabled(false);
+	m_roundBy->setUIEnabled(false);
+	m_forwardMotor->setUIEnabled(false);
+	m_reverseMotor->setUIEnabled(false);
+	m_stopMotor->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_conPosition = xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition);
@@ -89,6 +99,11 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
 	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
+	m_conRound = xqcon_create<XQButtonConnector>(m_round, m_form->m_btnRound);
+	m_conRoundBy = xqcon_create<XQLineEditConnector>(m_roundBy, m_form->m_edRoundBy);
+	m_conForwardMotor = xqcon_create<XQButtonConnector>(m_forwardMotor, m_form->m_btnFWD);
+	m_conReverseMotor = xqcon_create<XQButtonConnector>(m_reverseMotor, m_form->m_btnRVS);
+	m_conStopMotor = xqcon_create<XQButtonConnector>(m_stopMotor, m_form->m_btnSTOP);
 }
 
 void
@@ -174,6 +189,39 @@ XMotorDriver::onAUXChanged(const Snapshot &shot, XValueNodeBase *) {
         return;
     }
 }
+void
+XMotorDriver::onForwardMotorTouched(const Snapshot &shot, XTouchableNode *) {
+	Snapshot shot_this( *this);
+    try {
+        forwardMotor();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error, "));
+        return;
+    }
+}
+void
+XMotorDriver::onReverseMotorTouched(const Snapshot &shot, XTouchableNode *) {
+	Snapshot shot_this( *this);
+    try {
+        reverseMotor();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error, "));
+        return;
+    }
+}
+void
+XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
+	Snapshot shot_this( *this);
+    try {
+        stopMotor();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error, "));
+        return;
+    }
+}
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
 	for(Transaction tr( *this);; ++tr) {
@@ -198,6 +246,11 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_clear->setUIEnabled(true);
 	m_store->setUIEnabled(true);
 	m_auxBits->setUIEnabled(true);
+	m_round->setUIEnabled(true);
+	m_roundBy->setUIEnabled(true);
+	m_forwardMotor->setUIEnabled(true);
+	m_reverseMotor->setUIEnabled(true);
+	m_stopMotor->setUIEnabled(true);
 //	m_hasEncoder->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
@@ -211,9 +264,14 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		tr[ *timeDec()].onValueChanged().connect(m_lsnConditions);
 		tr[ *active()].onValueChanged().connect(m_lsnConditions);
 		tr[ *microStep()].onValueChanged().connect(m_lsnConditions);
+		tr[ *round()].onValueChanged().connect(m_lsnConditions);
+		tr[ *roundBy()].onValueChanged().connect(m_lsnConditions);
 		m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
 		m_lsnStore = tr[ *store()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStoreTouched);
 		m_lsnAUX = tr[ *auxBits()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onAUXChanged);
+		m_lsnForwardMotor = tr[ *forwardMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onForwardMotorTouched);
+		m_lsnReverseMotor = tr[ *reverseMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onReverseMotorTouched);
+		m_lsnStopMotor = tr[ *stopMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStopMotorTouched);
 		if(tr.commit())
 			break;
 	}
@@ -255,6 +313,11 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_clear->setUIEnabled(false);
 	m_store->setUIEnabled(false);
 	m_auxBits->setUIEnabled(false);
+	m_round->setUIEnabled(false);
+	m_roundBy->setUIEnabled(false);
+	m_forwardMotor->setUIEnabled(false);
+	m_reverseMotor->setUIEnabled(false);
+	m_stopMotor->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_lsnTarget.reset();
@@ -262,5 +325,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_lsnClear.reset();
 	m_lsnStore.reset();
 	m_lsnAUX.reset();
+	m_lsnForwardMotor.reset();
+	m_lsnReverseMotor.reset();
+	m_lsnStopMotor.reset();
 	return NULL;
 }

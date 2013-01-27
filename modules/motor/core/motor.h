@@ -59,11 +59,19 @@ public:
 	const shared_ptr<XTouchableNode> &store() const {return m_store;}
 	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
 	const shared_ptr<XUIntNode> &auxBits() const {return m_auxBits;}
+	const shared_ptr<XBoolNode> &round() const {return m_round;}
+	const shared_ptr<XUIntNode> &roundBy() const {return m_roundBy;}
+	const shared_ptr<XTouchableNode> &forwardMotor() const {return m_forwardMotor;}
+	const shared_ptr<XTouchableNode> &reverseMotor() const {return m_reverseMotor;}
+	const shared_ptr<XTouchableNode> &stopMotor() const {return m_stopMotor;}
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) = 0;
 	virtual void changeConditions(const Snapshot &shot) = 0;
 	virtual void getConditions(Transaction &tr) = 0;
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
+	virtual void forwardMotor() = 0;
+	virtual void reverseMotor() = 0;
+	virtual void stopMotor() = 0;
 	virtual void setActive(bool active) = 0;
 	virtual void setAUXBits(unsigned int bits) = 0;
 	//! stores current settings to the NV memory of the instrument.
@@ -88,13 +96,21 @@ private:
 	const shared_ptr<XUIntNode> m_auxBits;
 	const shared_ptr<XTouchableNode> m_clear;
 	const shared_ptr<XTouchableNode> m_store;
+	const shared_ptr<XBoolNode> m_round;
+	const shared_ptr<XUIntNode> m_roundBy;
+	const shared_ptr<XTouchableNode> m_forwardMotor;
+	const shared_ptr<XTouchableNode>  m_reverseMotor;
+	const shared_ptr<XTouchableNode> m_stopMotor;
 
-	shared_ptr<XListener> m_lsnTarget, m_lsnConditions, m_lsnClear, m_lsnStore, m_lsnAUX;
+	shared_ptr<XListener> m_lsnTarget, m_lsnConditions,
+		m_lsnClear, m_lsnStore, m_lsnAUX,
+		m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor;
 	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
 		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,
 		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
 		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore,
-		m_conAUXBits;
+		m_conForwardMotor, m_conReverseMotor, m_conStopMotor,
+		m_conAUXBits, m_conRound, m_conRoundBy;
 
 	const qshared_ptr<FrmMotorDriver> m_form;
 
@@ -103,6 +119,9 @@ private:
 	void onConditionsChanged(const Snapshot &shot, XValueNodeBase *);
 	void onClearTouched(const Snapshot &shot, XTouchableNode *);
 	void onStoreTouched(const Snapshot &shot, XTouchableNode *);
+	void onForwardMotorTouched(const Snapshot &shot, XTouchableNode *);
+	void onReverseMotorTouched(const Snapshot &shot, XTouchableNode *);
+	void onStopMotorTouched(const Snapshot &shot, XTouchableNode *);
 
 	void *execute(const atomic<bool> &);
 

@@ -32,11 +32,13 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
+	virtual void forwardMotor(); //!< continuous rotation.
+	virtual void reverseMotor();//!< continuous rotation.
+	virtual void stopMotor(); //!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
-	void stopMotor(); //stops motor and waits for deceleration.
 };
 
 //ORIENTAL MOTOR FLEX AR/DG2 series.
@@ -53,11 +55,13 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
+	virtual void forwardMotor(); //!< continuous rotation.
+	virtual void reverseMotor();//!< continuous rotation.
+	virtual void stopMotor();//!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
-	void stopMotor(); //stops motor and waits for deceleration.
 };
 
 #endif /* USERMOTOR_H_ */
