@@ -107,7 +107,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x601, 1); //Absolute.
 }
 void
-XFlexCRK::stoMotorpMotor() {
+XFlexCRK::stopRotation() {
 	for(int i = 0;; ++i) {
 		uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
 		bool isready = (output & 0x20000000u);
