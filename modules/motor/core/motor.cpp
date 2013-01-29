@@ -215,7 +215,7 @@ void
 XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
     try {
-        stopMotor();
+        stopRotation();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));

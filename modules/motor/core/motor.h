@@ -71,7 +71,7 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
 	virtual void setForward() = 0;
 	virtual void setReverse() = 0;
-	virtual void stopMotor() = 0;
+	virtual void stopRotation() = 0;
 	virtual void setActive(bool active) = 0;
 	virtual void setAUXBits(unsigned int bits) = 0;
 	//! stores current settings to the NV memory of the instrument.

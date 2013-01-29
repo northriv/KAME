@@ -34,7 +34,7 @@ protected:
 	virtual void setAUXBits(unsigned int bits);
 	virtual void setForward(); //!< continuous rotation.
 	virtual void setReverse();//!< continuous rotation.
-	virtual void stopMotor(); //!< stops motor and waits for deceleration.
+	virtual void stopRotation(); //!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
 	virtual void clearPosition();
@@ -57,7 +57,7 @@ protected:
 	virtual void setAUXBits(unsigned int bits);
 	virtual void setForward(); //!< continuous rotation.
 	virtual void setReverse();//!< continuous rotation.
-	virtual void stopMotor();//!< stops motor and waits for deceleration.
+	virtual void stopRotation();//!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM();
 	virtual void clearPosition();
