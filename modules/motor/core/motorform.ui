@@ -148,7 +148,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="m_edRound"/>
+           <widget class="QLineEdit" name="m_edRoundBy"/>
           </item>
          </layout>
         </item>
@@ -560,12 +560,6 @@
      </layout>
     </item>
    </layout>
-   <zorder>m_btnFWD</zorder>
-   <zorder>m_btnRVS</zorder>
-   <zorder>m_btnSTOP</zorder>
-   <zorder>m_edRound</zorder>
-   <zorder>m_ckbRound</zorder>
-   <zorder>m_btnRVS</zorder>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
@@ -585,7 +579,7 @@
  <tabstops>
   <tabstop>m_ckbActive</tabstop>
   <tabstop>m_ckbRound</tabstop>
-  <tabstop>m_edRound</tabstop>
+  <tabstop>m_edRoundBy</tabstop>
   <tabstop>m_btnRVS</tabstop>
   <tabstop>m_btnSTOP</tabstop>
   <tabstop>m_btnFWD</tabstop>
