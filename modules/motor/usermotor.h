@@ -32,8 +32,8 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
-	virtual void forwardMotor(); //!< continuous rotation.
-	virtual void reverseMotor();//!< continuous rotation.
+	virtual void setForward(); //!< continuous rotation.
+	virtual void setReverse();//!< continuous rotation.
 	virtual void stopMotor(); //!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
@@ -55,8 +55,8 @@ protected:
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
-	virtual void forwardMotor(); //!< continuous rotation.
-	virtual void reverseMotor();//!< continuous rotation.
+	virtual void setForward(); //!< continuous rotation.
+	virtual void setReverse();//!< continuous rotation.
 	virtual void stopMotor();//!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrument.
 	virtual void storeToROM();

@@ -193,7 +193,7 @@ void
 XMotorDriver::onForwardMotorTouched(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
     try {
-        forwardMotor();
+        setForward();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));
@@ -204,7 +204,7 @@ void
 XMotorDriver::onReverseMotorTouched(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
     try {
-        reverseMotor();
+        setReverse();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));
@@ -268,10 +268,10 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		tr[ *roundBy()].onValueChanged().connect(m_lsnConditions);
 		m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
 		m_lsnStore = tr[ *store()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStoreTouched);
-		m_lsnAUX = tr[ *auxBits()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onAUXChanged);
 		m_lsnForwardMotor = tr[ *forwardMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onForwardMotorTouched);
 		m_lsnReverseMotor = tr[ *reverseMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onReverseMotorTouched);
 		m_lsnStopMotor = tr[ *stopMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStopMotorTouched);
+		m_lsnAUX = tr[ *auxBits()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onAUXChanged);
 		if(tr.commit())
 			break;
 	}

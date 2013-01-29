@@ -69,8 +69,8 @@ protected:
 	virtual void changeConditions(const Snapshot &shot) = 0;
 	virtual void getConditions(Transaction &tr) = 0;
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
-	virtual void forwardMotor() = 0;
-	virtual void reverseMotor() = 0;
+	virtual void setForward() = 0;
+	virtual void setReverse() = 0;
 	virtual void stopMotor() = 0;
 	virtual void setActive(bool active) = 0;
 	virtual void setAUXBits(unsigned int bits) = 0;
@@ -103,8 +103,7 @@ private:
 	const shared_ptr<XTouchableNode> m_stopMotor;
 
 	shared_ptr<XListener> m_lsnTarget, m_lsnConditions,
-		m_lsnClear, m_lsnStore, m_lsnAUX,
-		m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor;
+		m_lsnClear, m_lsnStore, m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor, m_lsnAUX;
 	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
 		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,
 		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
