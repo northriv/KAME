@@ -75,7 +75,7 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x226,  lrint(shot[ *timeDec()] * 1e3));
 	interface()->presetTwoResistors(0x312,  lrint(shot[ *stepEncoder()]));
 	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]));
-	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
+	interfaceMotor()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
 	unsigned int microstep = shot[ *microStep()] ? 6 : 0;
 	if(interface()->readHoldingSingleResistor(0x311) != microstep) {
 		gWarnPrint(i18n("Store settings to NV memory and restart, microstep div.=10."));
@@ -86,7 +86,7 @@ void
 XFlexCRK::getConditions(Transaction &tr) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->diagnostics();
-	tr[ *currentRunning()] = interface()->readHoldingSingleResistor(0x21e);
+	tr[ *currMotorentRunning()] = interface()->readHoldingSingleResistor(0x21e);
 	tr[ *currentStopping()] = interface()->readHoldingSingleResistor(0x21f);
 	tr[ *microStep()] = (interface()->readHoldingSingleResistor(0x311) != 0);
 	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x224) * 1e-3;
@@ -96,6 +96,8 @@ XFlexCRK::getConditions(Transaction &tr) {
 	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
 	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402))
 			* 360.0 / tr[ *stepMotor()];
+	tr[ *round()].setUIEabled(false);
+	tr[ *roundBy()].setUIEabled(false);
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -105,7 +107,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 	interface()->presetSingleResistor(0x601, 1); //Absolute.
 }
 void
-XFlexCRK::stopMotor() {
+XFlexCRK::stoMotorpMotor() {
 	for(int i = 0;; ++i) {
 		uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
 		bool isready = (output & 0x20000000u);
@@ -121,13 +123,13 @@ XFlexCRK::stopMotor() {
 	}
 }
 void
-XFlexCRK::forwardMotor() {
+XFlexCRK::setForward() {
 	XScopedLock<XInterface> lock( *interface());
 	stopMotor();
 	interface()->presetSingleResistor(0x1e, 0x2201u); //C-ON, FWD, M0
 }
 void
-XFlexCRK::reverseMotor() {
+XFlexCRK::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
 	stopMotor();
 	interface()->presetSingleResistor(0x1e, 0x2401u); //C-ON, RVS, M0
@@ -265,13 +267,13 @@ XFlexAR::stopMotor() {
 	}
 }
 void
-XFlexAR::forwardMotor() {
+XFlexAR::setForward() {
 	XScopedLock<XInterface> lock( *interface());
 	stopMotor();
 	interface()->presetTwoResistors(0x7c, 0x4100u); //FWD || MS0
 }
 void
-XFlexAR::reverseMotor() {
+XFlexAR::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
 	stopMotor();
 	interface()->presetTwoResistors(0x7c, 0x8100u); //RVS || MS0
