@@ -99,7 +99,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
 	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
-	m_conRound = xqcon_create<XQButtonConnector>(m_round, m_form->m_btnRound);
+	m_conRound = xqcon_create<XQToggleButtonConnector>(m_round, m_form->m_ckbRound);
 	m_conRoundBy = xqcon_create<XQLineEditConnector>(m_roundBy, m_form->m_edRoundBy);
 	m_conForwardMotor = xqcon_create<XQButtonConnector>(m_forwardMotor, m_form->m_btnFWD);
 	m_conReverseMotor = xqcon_create<XQButtonConnector>(m_reverseMotor, m_form->m_btnRVS);
