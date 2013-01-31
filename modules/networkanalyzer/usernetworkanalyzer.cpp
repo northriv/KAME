@@ -240,20 +240,24 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 	int rec = reader.pop<int32_t>();
 	double tm = reader.pop<double>();
 	double temp = reader.pop<double>(); //4*4+8*4 = 48bytes
+	for(int cnt = 0; cnt < hsize - 48; ++cnt)
+		reader.pop<char>(); //skips remaining header.
 
 	double df = (stop - start) / (samples - 1);
 	if((shot[ *startFreq()] > start) && (shot[ *startFreq()] < stop)) {
-		start = lrint((shot[ *startFreq()] - start) / df) * df + start;
+		int skips = lrint((shot[ *startFreq()] - start) / df);
+		start += skips * df;
+		for(int i = 0; i < skips; ++i) {
+			reader.pop<double>(); //skips leading complex data.
+			reader.pop<double>();
+		}
 	}
 	tr[ *this].m_startFreq = start;
 	tr[ *this].m_freqInterval = df;
 	if((shot[ *stopFreq()] < stop) && (shot[ *stopFreq()] > start)) {
-		samples = lrint((shot[ *stopFreq()]  - start) / df) + 1;
+		samples = lrint((shot[ *stopFreq()]  - start) / df) + 1; //reduces sample count.
 	}
 	tr[ *this].trace_().resize(samples);
-
-	for(int cnt = 0; cnt < hsize - 48; ++cnt)
-		reader.pop<char>();
 
 	switch(stype) {
 	case 1: //Linear sweep.
