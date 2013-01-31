@@ -68,10 +68,23 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	Snapshot shot_this( *this);
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-	unsigned int tunebits = 0xffu;
-	if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external RF relays.
-	if(stm2__) trans( *stm2__->auxBits()) = tunebits;
-
+	const unsigned int tunebits = 0xffu;
+	if(stm1__) {
+		for(Transaction tr( *stm1__);; ++tr) {
+			tr[ *stm1__->active()] = true; // Activate motor.
+			tr[ *stm1__->auxBits()] = tunebits; //For external RF relays.
+			if(tr.commit())
+				break;
+		}
+	}
+	if(stm2__) {
+		for(Transaction tr( *stm2__);; ++tr) {
+			tr[ *stm2__->active()] = true; // Activate motor.
+			tr[ *stm2__->auxBits()] = tunebits; //For external RF relays.
+			if(tr.commit())
+				break;
+		}
+	}
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
 		tr[ *this].stage = Payload::STAGE_FIRST;
@@ -81,7 +94,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
 	for(Transaction tr( *this);; ++tr) {
-		if(tr[ *m_tuning])
+		if( !tr[ *m_tuning])
 			break;
 		tr[ *m_tuning] = false;
 		tr[ *this].stage = Payload::STAGE_ABORTING;
@@ -483,9 +496,23 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 		}
 	}
 	else if((shot_this[ *this].stage == Payload::STAGE_SUCCESS) || (shot_this[ *this].stage == Payload::STAGE_ABORTING)){
-		unsigned int tunebits = 0;
-		if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external RF relays.
-		if(stm2__) trans( *stm2__->auxBits()) = tunebits;
+		const unsigned int tunebits = 0;
+		if(stm1__) {
+			for(Transaction tr( *stm1__);; ++tr) {
+				tr[ *stm1__->active()] = false; //Deactivate motor.
+				tr[ *stm1__->auxBits()] = tunebits; //For external RF relays.
+				if(tr.commit())
+					break;
+			}
+		}
+		if(stm2__) {
+			for(Transaction tr( *stm2__);; ++tr) {
+				tr[ *stm2__->active()] = false; //Deactivate motor.
+				tr[ *stm2__->auxBits()] = tunebits; //For external RF relays.
+				if(tr.commit())
+					break;
+			}
+		}
 	}
 }
 
