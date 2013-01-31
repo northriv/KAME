@@ -61,7 +61,7 @@ public:
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
-		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
+		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB, STAGE_ABORTING, STAGE_SUCCESS};
 		STAGE stage;
 
 		std::complex<double> ref_av_first, ref_av_plus_dCa;

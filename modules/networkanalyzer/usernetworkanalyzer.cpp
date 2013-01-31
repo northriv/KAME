@@ -189,10 +189,7 @@ XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\n");
 
-
 	average()->disable();
-	startFreq()->disable();
-	stopFreq()->disable();
 	points()->disable();
 
 	calOpen()->disable();
@@ -234,17 +231,25 @@ XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int c
 }
 void
 XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+	const Snapshot &shot(tr);
 	ssize_t hsize = reader.pop<uint32_t>();
 	int stype = reader.pop<int32_t>();
-	double start = reader.pop<double>();
-	double stop = reader.pop<double>();
+	double start = reader.pop<double>() * 1e-6; //[MHz]
+	double stop = reader.pop<double>() * 1e-6; //[MHz]
 	int samples = reader.pop<int32_t>();
 	int rec = reader.pop<int32_t>();
 	double tm = reader.pop<double>();
 	double temp = reader.pop<double>(); //4*4+8*4 = 48bytes
 
-	tr[ *this].m_startFreq = start * 1e-6;
-	tr[ *this].m_freqInterval = (stop - start) / (samples - 1) * 1e-6;
+	double df = (stop - start) / (samples - 1);
+	if((shot[ *startFreq()] > start) && (shot[ *startFreq()] < stop)) {
+		start = lrint((shot[ *startFreq()] - start) / df) * df + start;
+	}
+	tr[ *this].m_startFreq = start;
+	tr[ *this].m_freqInterval = df;
+	if((shot[ *stopFreq()] < stop) && (shot[ *stopFreq()] > start)) {
+		samples = lrint((shot[ *stopFreq()]  - start) / df) + 1;
+	}
 	tr[ *this].trace_().resize(samples);
 
 	for(int cnt = 0; cnt < hsize - 48; ++cnt)

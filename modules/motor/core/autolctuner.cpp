@@ -69,7 +69,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	unsigned int tunebits = 0xffu;
-	if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external relays.
+	if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external RF relays.
 	if(stm2__) trans( *stm2__->auxBits()) = tunebits;
 
 	for(Transaction tr( *this);; ++tr) {
@@ -121,8 +121,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_this(tr);
 	const Snapshot &shot_na(shot_emitter);
 
-	if( !shot_this[ *tuning()])
+	if( !shot_this[ *tuning()]) {
+		tr[ *this].stage = Payload::STAGE_FIRST;
 		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
 
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
@@ -143,6 +145,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if( !shot_this[ *useSTM1()]) stm1__.reset();
 	if( !shot_this[ *useSTM2()]) stm2__.reset();
 	if( !stm1__ && !stm2__) {
+		tr[ *this].stage = Payload::STAGE_ABORTING;
 		tr[ *m_tuning] = false;
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
@@ -176,6 +179,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, refav=%.2f, reff0=%.2f\n",
 			fmin, std::abs(reffmin), std::abs(refav), std::abs(reff0));
 	if(std::abs(reff0) < TUNE_APPROACH_GOAL) {
+		tr[ *this].stage = Payload::STAGE_SUCCESS;
 		tr[ *m_tuning] = false;
 		return;
 	}
@@ -235,6 +239,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		//estimates errors.
 		if(shot_this[ *this].trace_prv.size() != trace_len) {
 			tr[ *m_tuning] = false;
+			tr[ *this].stage = Payload::STAGE_ABORTING;
 			throw XRecordError(i18n("Record is inconsistent."), __FILE__, __LINE__);
 		}
 		double ref_sigma = 0.0;
@@ -247,6 +252,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].trace_prv.clear();
 		if(std::abs(reff0) < ref_sigma * 2) {
 			tr[ *m_tuning] = false;
+			tr[ *this].stage = Payload::STAGE_SUCCESS;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -263,6 +269,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
 		if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
 			tr[ *m_tuning] = false;
+			tr[ *this].stage = Payload::STAGE_SUCCESS;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -291,7 +298,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if( !stm1__ || !stm2__) {
 				tr[ *m_tuning] = false;
-				throw XRecordError(i18n("Aborting. the target is out of tune, or capasitors have sticked."), __FILE__, __LINE__); //C1/C2 is useless. Aborts.
+				tr[ *this].stage = Payload::STAGE_ABORTING;
+				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1/C2 is useless. Aborts.
 			}
 			//Ca is useless, try Cb.
 		}
@@ -325,7 +333,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if(tr[ *this].dCa > TUNE_DROT_ABORT)
 				tr[ *m_tuning] = false;
-				throw XRecordError(i18n("Aborting. the target is out of tune, or capasitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
+				tr[ *this].stage = Payload::STAGE_ABORTING;
+				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
 		}
 		break;
 	}
@@ -465,11 +474,11 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 				}
 			}
 		}
-		else {
-			unsigned int tunebits = 0;
-			if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external relays.
-			if(stm2__) trans( *stm2__->auxBits()) = tunebits;
-		}
+	}
+	else if(shot_this[ *this].stage == Payload::STAGE_SUCCESS){
+		unsigned int tunebits = 0;
+		if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external RF relays.
+		if(stm2__) trans( *stm2__->auxBits()) = tunebits;
 	}
 }
 
