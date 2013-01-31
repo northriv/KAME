@@ -80,7 +80,14 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	}
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
-	trans( *m_tuning) = false;
+	for(Transaction tr( *this);; ++tr) {
+		if(tr[ *m_tuning])
+			break;
+		tr[ *m_tuning] = false;
+		tr[ *this].stage = Payload::STAGE_ABORTING;
+		if(tr.commit())
+			break;
+	}
 }
 void
 XAutoLCTuner::determineNextC(double &deltaC1, double &deltaC2, double &err,
@@ -122,7 +129,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_na(shot_emitter);
 
 	if( !shot_this[ *tuning()]) {
-		tr[ *this].stage = Payload::STAGE_FIRST;
+		tr[ *this].stage = Payload::STAGE_FIRST; //resets flag not to switch relays again.
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
@@ -475,7 +482,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 			}
 		}
 	}
-	else if(shot_this[ *this].stage == Payload::STAGE_SUCCESS){
+	else if((shot_this[ *this].stage == Payload::STAGE_SUCCESS) || (shot_this[ *this].stage == Payload::STAGE_ABORTING)){
 		unsigned int tunebits = 0;
 		if(stm1__) trans( *stm1__->auxBits()) = tunebits; //For external RF relays.
 		if(stm2__) trans( *stm2__->auxBits()) = tunebits;
