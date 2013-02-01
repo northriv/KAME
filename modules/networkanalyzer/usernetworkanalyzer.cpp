@@ -203,6 +203,14 @@ XVNWA3ENetworkAnalyzer::open() throw (XKameError &) {
 	start();
 }
 void
+XVNWA3ENetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("FSTART %f", (double)shot[ *startFreq()] * 1e6);
+}
+void
+XVNWA3ENetworkAnalyzer::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("FSTOP %f", (double)shot[ *stopFreq()] * 1e6);
+}
+void
 XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 	if(num > 1)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
@@ -244,19 +252,8 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 		reader.pop<char>(); //skips remaining header.
 
 	double df = (stop - start) / (samples - 1);
-	if((shot[ *startFreq()] > start) && (shot[ *startFreq()] < stop)) {
-		int skips = lrint((shot[ *startFreq()] - start) / df);
-		start += skips * df;
-		for(int i = 0; i < skips; ++i) {
-			reader.pop<double>(); //skips leading complex data.
-			reader.pop<double>();
-		}
-	}
 	tr[ *this].m_startFreq = start;
 	tr[ *this].m_freqInterval = df;
-	if((shot[ *stopFreq()] < stop) && (shot[ *stopFreq()] > start)) {
-		samples = lrint((shot[ *stopFreq()]  - start) / df) + 1; //reduces sample count.
-	}
 	tr[ *this].trace_().resize(samples);
 
 	switch(stype) {

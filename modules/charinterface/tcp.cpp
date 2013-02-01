@@ -49,7 +49,7 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 	}
 
 	struct timeval timeout;
-	timeout.tv_sec  = 3;
+	timeout.tv_sec  = 5;
 	timeout.tv_usec = 0;
 	if(setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO,  (char*)&timeout, sizeof(timeout)) ||
 		setsockopt(m_socket, SOL_SOCKET, SO_SNDTIMEO,  (char*)&timeout, sizeof(timeout))){

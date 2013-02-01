@@ -86,8 +86,8 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XVNWA3ENetworkAnalyzer() {}
 protected:
-	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
+	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) {}
 
