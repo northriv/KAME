@@ -225,7 +225,7 @@ public:
 			return *this;
 		}
 	protected:
-		virtual void str_(const XString &str) {m_var = str;}
+		virtual void str_(const XString &str) { *this = str;}
 		XString m_var;
 	};
 };
