@@ -1,3 +1,7 @@
+* Sat Feb 2 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.20-1)
+- xnode.h: avoids double signals in str().
+
 * Thu Jan 17 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.19-1)
 - usertempcontrol: LakeShore 370.

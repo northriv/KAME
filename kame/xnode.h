@@ -150,12 +150,12 @@ public:
 		    if(static_cast<XValueNodeBase&>(node()).m_validator)
 		    	(*static_cast<XValueNodeBase&>(node()).m_validator)(sc);
 		    str_(sc);
-		    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>(&node()));
 		}
 		Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() {return m_tlkOnValueChanged;}
 		const Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() const {return m_tlkOnValueChanged;}
 	protected:
-		//! This may throw exception due to format issues.
+		//! \a str_() can throw exception due to format issues.
+		//! A marking to \a onValueChanged() is necessary.
 		virtual void str_(const XString &) = 0;
 		TalkerSingleton<XValueNodeBase*, XValueNodeBase*> m_tlkOnValueChanged;
 	};
