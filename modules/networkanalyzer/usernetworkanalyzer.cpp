@@ -215,14 +215,18 @@ XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 	if(num > 1)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	interface()->queryf("MARK%u?", num);
-	interface()->scanf("%lf %lf", &x, &y);
+	if(interface()->scanf("MARK %*u %lf %lf", &x, &y) != 2)
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	x *= 1e-6;
 	y = log10(y) * 10.0;
 }
 void
 XVNWA3ENetworkAnalyzer::oneSweep() {
+	unsigned int num;
 	interface()->query("ACQNUM?");
-	if(interface()->toInt() == 0)
+	if(interface()->scanf("ACQNUM %u", &num) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
+	if(num == 0)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 }
 void
@@ -231,8 +235,10 @@ XVNWA3ENetworkAnalyzer::startContSweep() {
 void
 XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
 	XScopedLock<XInterface> lock( *interface());
+	unsigned int len;
 	interface()->query("DATA?");
-	int len = interface()->toInt();
+	if(interface()->scanf("DATA %u", &len) != 1)
+		throw XInterface::XConvError(__FILE__, __LINE__);
 	interface()->receive(len);
 	writer->insert(writer->end(),
 					 interface()->buffer().begin(), interface()->buffer().end());
