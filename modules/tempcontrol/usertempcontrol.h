@@ -36,7 +36,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "%";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
@@ -73,7 +73,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "W";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "W";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
@@ -126,7 +126,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "%";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
@@ -197,7 +197,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "%";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
@@ -246,7 +246,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "%";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
@@ -281,7 +281,7 @@ protected:
 	//! \sa m_heaterPowerUnit()
 	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() {return "%";}
+	virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);

@@ -416,11 +416,13 @@ void XCryocon::onManualPowerChanged(unsigned int loop, double pow) {
 void XCryocon::onHeaterModeChanged(unsigned int loop, int) {
 	setHeaterMode(loop);
 }
-void XCryocon::onPowerRangeChanged(unsigned int /*loop*/, int) {
-	interface()->sendf("LOOP %u:RANGE %s", 1, ( **powerRange())->to_str().c_str());
+void XCryocon::onPowerRangeChanged(unsigned int loop, int) {
+	if(loop != 0)
+		return;
+	interface()->sendf("LOOP %u:RANGE %s", loop + 1, ( **powerRange(loop))->to_str().c_str());
 }
 void XCryocon::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
-	interface()->sendf("LOOP %u:SOURCE %s", loop + 1, ch->getName());
+	interface()->sendf("LOOP %u:SOURCE %s", loop + 1, ch->getName().c_str());
 }
 void XCryocon::onExcitationChanged(const shared_ptr<XChannel> &ch, int) {
 	XScopedLock<XInterface> lock( *interface());
