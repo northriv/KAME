@@ -104,7 +104,7 @@ protected:
 
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 private:
-	const shared_ptr<XChannelList> m_channels;
+	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
 	struct Loop {
 		Loop(XTempControl &, unsigned int idx, const char *surfix, bool runtime,

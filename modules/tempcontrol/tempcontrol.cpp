@@ -61,7 +61,7 @@ XTempControl::Loop::Loop(XTempControl &tempctrl,
 			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
 		m_extIsPositive(tempctrl.create<XBoolNode> (
 			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
-	for(Transaction tr( m_tempctrl);; ++tr) {
+	for(Transaction tr( tempctrl);; ++tr) {
 		m_currentChannel =
 			tempctrl.create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
 			tempctrl.m_channels);
@@ -118,7 +118,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	shared_ptr<XTempControl> tempctrl = m_tempctrl->shared_from_this();
+	shared_ptr<XTempControl> tempctrl = tempctrl.shared_from_this();
 	for(Transaction tr( m_tempctrl);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
@@ -184,13 +184,13 @@ XTempControl::Loop::update(double temp) {
 			if(shot[ *m_heaterMode].to_str() == "Man") {
 				power = shot[ *m_manualPower];
 			}
-			power = std::max(std::min(power, shot[ *m_powerMax]), shot[ *m_powerMin]);
+			power = std::max(std::min(power, (double)shot[ *m_powerMax]), (double)shot[ *m_powerMin]);
 			double limit = dcsrc->max(ch, false);
 			dcsrc->changeValue(ch, limit * sqrt(power) / 10.0, false);
 		}
 	}
 	else
-		power = getHeater(m_idx);
+		power = m_tempctrl.getHeater(m_idx);
 
 	for(Transaction tr(m_tempctrl);; ++tr) {
 		tr[ *m_sourceTemp] = temp;
@@ -227,7 +227,7 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 	return -(dt + acc + dxdt * d) * p;
 }
 void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-	for(Transaction tr( *m_tempctrl);; ++tr) {
+	for(Transaction tr( m_tempctrl);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
 		if(shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource]) {
@@ -244,7 +244,7 @@ void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBa
 }
 void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onPChanged(m_idx, shot[ *m_prop]);
 	}
@@ -254,7 +254,7 @@ void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::Loop::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onIChanged(m_idx, shot[ *m_int]);
 	}
@@ -264,7 +264,7 @@ void XTempControl::Loop::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::Loop::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onDChanged(m_idx, shot[ *m_deriv]);
 	}
@@ -274,7 +274,7 @@ void XTempControl::Loop::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void XTempControl::Loop::onTargetTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onTargetTempChanged(m_idx, shot[ *m_targetTemp]);
 	}
@@ -284,7 +284,7 @@ void XTempControl::Loop::onTargetTempChanged(const Snapshot &shot, XValueNodeBas
 }
 void XTempControl::Loop::onManualPowerChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onManualPowerChanged(m_idx, shot[ *m_manualPower]);
 	}
@@ -295,7 +295,7 @@ void XTempControl::Loop::onManualPowerChanged(const Snapshot &shot, XValueNodeBa
 void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_pidAccum = 0;
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onHeaterModeChanged(m_idx, shot[ *heaterMode()]);
 	}
@@ -305,7 +305,7 @@ void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBas
 }
 void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	try {
-		Snapshot shot( *m_tempctrl);
+		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			onPowerRangeChanged(m_idx, shot[ *powerRange()]);
 	}
