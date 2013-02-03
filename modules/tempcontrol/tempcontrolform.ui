@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>254</width>
-    <height>470</height>
+    <width>243</width>
+    <height>448</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -35,8 +35,14 @@
       <property name="layoutDirection">
        <enum>Qt::LeftToRight</enum>
       </property>
+      <property name="frameShape">
+       <enum>QFrame::NoFrame</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Plain</enum>
+      </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <property name="tabSpacing">
        <number>-1</number>
@@ -46,7 +52,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>231</width>
+         <width>220</width>
          <height>446</height>
         </rect>
        </property>
@@ -503,7 +509,7 @@
           <property name="sizeHint" stdset="0">
            <size>
             <width>20</width>
-            <height>39</height>
+            <height>16</height>
            </size>
           </property>
          </spacer>
@@ -955,7 +961,7 @@
           <property name="sizeHint" stdset="0">
            <size>
             <width>20</width>
-            <height>3</height>
+            <height>10</height>
            </size>
           </property>
          </spacer>
@@ -967,8 +973,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>222</width>
-         <height>347</height>
+         <width>235</width>
+         <height>364</height>
         </rect>
        </property>
        <attribute name="label">
@@ -1062,7 +1068,7 @@
           <property name="sizeHint" stdset="0">
            <size>
             <width>20</width>
-            <height>182</height>
+            <height>199</height>
            </size>
           </property>
          </spacer>
