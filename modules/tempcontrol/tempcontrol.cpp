@@ -118,7 +118,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	shared_ptr<XTempControl> tempctrl = tempctrl.shared_from_this();
+	auto tempctrl = tempctrl.shared_from_this();
 	for(Transaction tr( m_tempctrl);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
