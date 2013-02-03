@@ -110,9 +110,9 @@ private:
 		Loop(XTempControl &, unsigned int idx, const char *surfix, bool runtime,
 			Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 
-		const XTempControl &m_tempctrl;
+		XTempControl &m_tempctrl;
 		const unsigned int m_idx;
-		const shared_ptr<XItemNode<XChannelList, XChannel> >  m_currentChannel;
+		shared_ptr<XItemNode<XChannelList, XChannel> >  m_currentChannel;
 		const shared_ptr<XDoubleNode> m_targetTemp;
 		const shared_ptr<XDoubleNode> m_manualPower;
 		const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
