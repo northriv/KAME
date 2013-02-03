@@ -34,21 +34,24 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
   
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMaxChanged(unsigned int, double v) {}
+	virtual void onPowerMinChanged(unsigned int, double v) {}
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
@@ -68,7 +71,7 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "W";}
   
@@ -77,15 +80,19 @@ protected:
 	//! Be called for closing interfaces.
 	virtual void closeInterface();
   
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMaxChanged(unsigned int, double v) {}
+	virtual void onPowerMinChanged(unsigned int, double v) {}
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+
 private:
 	double read(const char *str);
 
@@ -117,31 +124,33 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
   
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMinChanged(unsigned int loop, double v) {}
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
-	void setTemp(double temp);
+	void setTemp(unsigned int loop, double temp);
 	//        void SetChannel(XChannel *channel);
-	void setHeaterMode();
-	void getChannel();
+	void setHeaterMode(unsigned int loop);
+	void getChannel(unsigned int loop);
 	int control();
 	int stopControl();
 	double getInput(shared_ptr<XChannel> &channel);
-	int setHeaterSetPoint(double value);
+	int setHeaterSetPoint(unsigned int loop, double value);
 };
 
 //! Cryo-con Model 32 Cryogenic Inst.
@@ -154,6 +163,8 @@ public:
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
+
+	virtual void onPowerMaxChanged(unsigned int loop, double v);
 };
 
 //! Cryo-con Model 62 Cryogenic Inst.
@@ -166,6 +177,8 @@ public:
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
+
+	virtual void onPowerMaxChanged(unsigned int loop, double v) {}
 };
 
 //! Neocera LTC-21.
@@ -182,21 +195,24 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
     
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMaxChanged(unsigned int loop, double v);
+	virtual void onPowerMinChanged(unsigned int loop, double v) {}
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 	//! set the system into the control mode.
@@ -204,7 +220,7 @@ private:
 	//! leave the control mode.
 	void monitor();
 	//! set PID, manual power.
-	void setHeater();
+	void setHeater(unsigned int loop);
 };
 
 //! Base class for LakeShore 340/370
@@ -228,21 +244,24 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
   
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
     
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMaxChanged(unsigned int loop, double v);
+	virtual void onPowerMinChanged(unsigned int loop, double v);
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
@@ -260,21 +279,24 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
 
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
+	virtual void onPChanged(unsigned int loop, double p);
+	virtual void onIChanged(unsigned int loop, double i);
+	virtual void onDChanged(unsigned int loop, double d);
+	virtual void onTargetTempChanged(unsigned int loop, double temp);
+	virtual void onManualPowerChanged(unsigned int loop, double pow);
+	virtual void onHeaterModeChanged(unsigned int loop, int mode);
+	virtual void onPowerRangeChanged(unsigned int loop, int range);
+	virtual void onPowerMaxChanged(unsigned int loop, double v);
+	virtual void onPowerMinChanged(unsigned int loop, double v);
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
 private:
 };
@@ -293,22 +315,25 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel);
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater();
+	virtual double getHeater(unsigned int loop);
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit() {return "%";}
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
 
-	virtual void onPChanged(double p);
-	virtual void onIChanged(double i);
-	virtual void onDChanged(double d);
-	virtual void onTargetTempChanged(double temp);
-	virtual void onManualPowerChanged(double pow);
-	virtual void onHeaterModeChanged(int mode);
-	virtual void onPowerRangeChanged(int range);
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch);
-	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+	virtual void onPChanged(unsigned int loop, double p) {}
+	virtual void onIChanged(unsigned int loop, double i) {}
+	virtual void onDChanged(unsigned int loop, double d) {}
+	virtual void onTargetTempChanged(unsigned int loop, double temp) {}
+	virtual void onManualPowerChanged(unsigned int loop, double pow) {}
+	virtual void onHeaterModeChanged(unsigned int loop, int mode) {}
+	virtual void onPowerRangeChanged(unsigned int loop, int range) {}
+	virtual void onPowerMaxChanged(unsigned int, double v) {}
+	virtual void onPowerMinChanged(unsigned int, double v) {}
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {}
+
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {}
 private:
 };
 #endif

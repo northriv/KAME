@@ -321,6 +321,30 @@ void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBas
 		e.print();
 	}
 }
+void XTempControl::Loop::onPowerMaxChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
+	try {
+		Snapshot shot( *tempctrl);
+		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMax]);
+	}
+	catch(XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
+void XTempControl::Loop::onPowerMinChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
+	try {
+		Snapshot shot( *tempctrl);
+		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMin]);
+	}
+	catch(XInterface::XInterfaceError& e) {
+		e.print();
+	}
+}
 void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 	auto tempctrl = m_tempctrl.lock();
 	if( !tempctrl) return;

@@ -48,6 +48,7 @@ public:
   
 	const shared_ptr<XChannelList> &channels() const {return m_channels;}
 	//! LOOPs
+	unsigned int numOfLoop() const {return m_loops.size();}
 	const shared_ptr<XItemNode<XChannelList, XChannel> > &currentChannel(unsigned int lp) const {return loop(lp)->m_currentChannel;}
 	const shared_ptr<XDoubleNode> &targetTemp(unsigned int lp) const {return loop(lp)->m_targetTemp;}
 	const shared_ptr<XDoubleNode> &manualPower(unsigned int lp) const {return loop(lp)->m_manualPower;}
@@ -100,6 +101,8 @@ protected:
 	virtual void onManualPowerChanged(unsigned int loop, double pow) = 0;
 	virtual void onHeaterModeChanged(unsigned int loop, int mode) = 0;
 	virtual void onPowerRangeChanged(unsigned int loop, int range) = 0;
+	virtual void onPowerMaxChanged(unsigned int loop, double v) = 0;
+	virtual void onPowerMinChanged(unsigned int loop, double v) = 0;
 	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) = 0;
 
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
