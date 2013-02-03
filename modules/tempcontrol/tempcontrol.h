@@ -47,21 +47,27 @@ public:
 	typedef  XAliasListNode<XChannel> XChannelList;
   
 	const shared_ptr<XChannelList> &channels() const {return m_channels;}
-	//! heater-control channel
-	const shared_ptr<XItemNode<XChannelList, XChannel> > &currentChannel() const {return m_currentChannel;}
-	const shared_ptr<XDoubleNode> &targetTemp() const {return m_targetTemp;}
-	const shared_ptr<XDoubleNode> &manualPower() const {return m_manualPower;}
-	const shared_ptr<XDoubleNode> &prop() const {return m_prop;}
-	const shared_ptr<XDoubleNode> &interval() const {return m_int;}
-	const shared_ptr<XDoubleNode> &deriv() const {return m_deriv;}
-	const shared_ptr<XComboNode> &heaterMode() const {return m_heaterMode;}
-	const shared_ptr<XComboNode> &powerRange() const {return m_powerRange;}
-	const shared_ptr<XDoubleNode> &heaterPower() const {return m_heaterPower;}
-	const shared_ptr<XDoubleNode> &sourceTemp() const {return m_sourceTemp;}
-	const shared_ptr<XItemNode<XDriverList, XDCSource> > &extDCSource() const {return m_extDCSource;}
-	const shared_ptr<XComboNode> &extDCSourceChannel() const {return m_extDCSourceChannel;}
+	//! LOOPs
+	virtual unsigned int numOfLoops() const = 0;
+	const shared_ptr<XItemNode<XChannelList, XChannel> > &currentChannel(unsigned int lp) const {return loop(lp)->m_currentChannel;}
+	const shared_ptr<XDoubleNode> &targetTemp(unsigned int lp) const {return loop(lp)->m_targetTemp;}
+	const shared_ptr<XDoubleNode> &manualPower(unsigned int lp) const {return loop(lp)->m_manualPower;}
+	const shared_ptr<XDoubleNode> &prop(unsigned int lp) const {return loop(lp)->m_prop;}
+	const shared_ptr<XDoubleNode> &interval(unsigned int lp) const {return loop(lp)->m_int;}
+	const shared_ptr<XDoubleNode> &deriv(unsigned int lp) const {return loop(lp)->m_deriv;}
+	const shared_ptr<XComboNode> &heaterMode(unsigned int lp) const {return loop(lp)->m_heaterMode;}
+	const shared_ptr<XComboNode> &powerRange(unsigned int lp) const {return loop(lp)->m_powerRange;}
+	const shared_ptr<XDoubleNode> &heaterPower(unsigned int lp) const {return loop(lp)->m_heaterPower;}
+	const shared_ptr<XDoubleNode> &sourceTemp(unsigned int lp) const {return loop(lp)->m_sourceTemp;}
+	const shared_ptr<XDoubleNode> &powerMax(unsigned int lp) const {return loop(lp)->m_powerMax;}
+	const shared_ptr<XDoubleNode> &powerMin(unsigned int lp) const {return loop(lp)->m_powerMin;}
 	//! holds an averaged error between target temp and actual one
-	const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
+	const shared_ptr<XDoubleNode> &stabilized(unsigned int lp) const {return loop(lp)->m_stabilized;}
+	//! PID control of an external device.
+	const shared_ptr<XItemNode<XDriverList, XDCSource> > &extDCSource(unsigned int lp) const {return loop(lp)->m_extDCSource;}
+	const shared_ptr<XComboNode> &extDCSourceChannel(unsigned int lp) const {return loop(lp)->m_extDCSourceChannel;}
+	const shared_ptr<XBoolNode> &extIsPositive(unsigned int lp) const {return loop(lp)->m_extIsPositive;}
+
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
@@ -83,49 +89,89 @@ protected:
 	virtual double getTemp(shared_ptr<XChannel> &channel) = 0;
 	//! obtains current heater power
 	//! \sa m_heaterPowerUnit()
-	virtual double getHeater() = 0;
+	virtual double getHeater(unsigned int loop) = 0;
 	//! ex. "W", "dB", or so
-	virtual const char *m_heaterPowerUnit() = 0;
+	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
   
-	virtual void onPChanged(double p) = 0;
-	virtual void onIChanged(double i) = 0;
-	virtual void onDChanged(double d) = 0;
-	virtual void onTargetTempChanged(double temp) = 0;
-	virtual void onManualPowerChanged(double pow) = 0;
-	virtual void onHeaterModeChanged(int mode) = 0;
-	virtual void onPowerRangeChanged(int range) = 0;
-	virtual void onCurrentChannelChanged(const shared_ptr<XChannel> &ch) = 0;
+	virtual void onPChanged(unsigned int loop, double p) = 0;
+	virtual void onIChanged(unsigned int loop, double i) = 0;
+	virtual void onDChanged(unsigned int loop, double d) = 0;
+	virtual void onTargetTempChanged(unsigned int loop, double temp) = 0;
+	virtual void onManualPowerChanged(unsigned int loop, double pow) = 0;
+	virtual void onHeaterModeChanged(unsigned int loop, int mode) = 0;
+	virtual void onPowerRangeChanged(unsigned int loop, int range) = 0;
+	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) = 0;
+
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 private:
-	void onPChanged(const Snapshot &shot, XValueNodeBase *);
-	void onIChanged(const Snapshot &shot, XValueNodeBase *);
-	void onDChanged(const Snapshot &shot, XValueNodeBase *);
-	void onTargetTempChanged(const Snapshot &shot, XValueNodeBase *);
-	void onManualPowerChanged(const Snapshot &shot, XValueNodeBase *);
-	void onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *);
-	void onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *);
-	void onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *);
-	void onExcitationChanged(const Snapshot &shot, XValueNodeBase *);
-	void onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *);
-
 	const shared_ptr<XChannelList> m_channels;
-	shared_ptr<XItemNode<XChannelList, XChannel> > m_currentChannel;
+	//! LOOPs
+	struct Loop {
+		Loop(XTempControl &, unsigned int idx, const char *surfix, bool runtime,
+			Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+
+		const XTempControl &m_tempctrl;
+		const unsigned int m_idx;
+		const shared_ptr<XItemNode<XChannelList, XChannel>  m_currentChannel;
+		const shared_ptr<XDoubleNode> m_targetTemp;
+		const shared_ptr<XDoubleNode> m_manualPower;
+		const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
+		const shared_ptr<XComboNode> m_heaterMode;
+		const shared_ptr<XComboNode> m_powerRange;
+		const shared_ptr<XDoubleNode> m_powerMax, m_powerMin;
+		const shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
+		//! holds an averaged error between target temp and actual one
+		const shared_ptr<XDoubleNode> m_stabilized;
+
+		const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
+		const shared_ptr<XComboNode> m_extDCSourceChannel;
+		const shared_ptr<XBoolNode> &m_extIsPositive;
+
+		void start();
+		void stop();
+		void update(double temp);
+		double pid(const Snapshot &shot, XTime time, double temp);
+
+		void onPChanged(const Snapshot &shot, XValueNodeBase *);
+		void onIChanged(const Snapshot &shot, XValueNodeBase *);
+		void onDChanged(const Snapshot &shot, XValueNodeBase *);
+		void onTargetTempChanged(const Snapshot &shot, XValueNodeBase *);
+		void onManualPowerChanged(const Snapshot &shot, XValueNodeBase *);
+		void onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *);
+		void onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *);
+		void onPowerMaxChanged(const Snapshot &shot, XValueNodeBase *);
+		void onPowerMinChanged(const Snapshot &shot, XValueNodeBase *);
+		void onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *);
+		void onExcitationChanged(const Snapshot &shot, XValueNodeBase *);
+		void onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *);
+
+		xqcon_ptr m_conCurrentChannel,
+			m_conHeaterMode, m_conPowerRange,
+			m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD,
+			m_conPowerMax, m_conPowerMin,
+			m_conHeater, m_conTemp,
+			m_conExtDCSource, m_conExtDCSourceChannel, m_conExtIsPositive;
+
+		shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
+			m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
+			m_lsnOnPowerMaxChanged, m_lsnOnPowerMinChanged,
+			m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
+			m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnExtDCSourceChanged;
+
+		double m_pidAccum;
+		double m_pidLastTemp;
+		XTime m_pidLastTime;
+
+		double m_tempAvg;
+		double m_tempErrAvg;
+		XTime m_lasttime;
+	};
+	std::deque<Loop> m_loops;
+	Loop *loop(unsigned int lp) {return m_loops[lp];}
+
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
-	const shared_ptr<XDoubleNode> m_targetTemp;
-	const shared_ptr<XDoubleNode> m_manualPower;
-	const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
-	const shared_ptr<XComboNode> m_heaterMode;
-	const shared_ptr<XComboNode> m_powerRange;
-	const shared_ptr<XDoubleNode> m_heaterPower, m_sourceTemp;
-	const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
-	const shared_ptr<XComboNode> m_extDCSourceChannel;
-	//! holds an averaged error between target temp and actual one
-	const shared_ptr<XDoubleNode> m_stabilized;
-  
-	shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
-		m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
-		m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
-		m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnExtDCSourceChanged;
+
+	shared_ptr<XListener> m_lsnOnSetupChannelChanged;
 
 	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
 
@@ -135,18 +181,8 @@ private:
 	const qshared_ptr<FrmTempControl> m_form;
 	bool m_multiread;
 
-	xqcon_ptr m_conCurrentChannel, m_conSetupChannel,
-		m_conHeaterMode, m_conPowerRange,
+	xqcon_ptr m_conSetupChannel,
 		m_conExcitation, m_conThermometer;
-	xqcon_ptr m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD;
-	xqcon_ptr m_conHeater;
-	xqcon_ptr m_conTemp;
-	xqcon_ptr m_conExtDCSource, m_conExtDCSourceChannel;
-	
-	double pid(XTime time, double temp);
-	double m_pidAccum;
-	double m_pidLastTemp;
-	XTime m_pidLastTime;
 	
 	void *execute(const atomic<bool> &);
   
