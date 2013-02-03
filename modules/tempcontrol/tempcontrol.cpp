@@ -501,8 +501,10 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
+		auto sp = dynamic_pointer_cast<XTempControl>(shared_from_this());
+		assert(sp);
 		m_loops.push_back(shared_ptr<Loop>(
-			new Loop(dynamic_pointer_cast<XTempControl>(shared_from_this()), lp,
+			new Loop(sp, lp,
 			(lp == 0) ? "" : formatString("%u", lp + 1).c_str(),
 			ref(tr_meas), meas)));
 	}
