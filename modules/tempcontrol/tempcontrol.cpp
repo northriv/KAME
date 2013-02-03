@@ -32,38 +32,38 @@ XTempControl::Loop::Loop(XTempControl &tempctrl,
 		m_tempctrl(tempctrl),
 		m_idx(idx),
 		m_targetTemp(tempctrl.create<XDoubleNode> (
-			formatString("TargetTemp%s", surfix), true, "%.5g")),
+			formatString("TargetTemp%s", surfix).c_str(), true, "%.5g")),
 		m_manualPower(tempctrl.create<XDoubleNode> (
-			formatString("ManualPower%s", surfix), true, "%.4g")),
+			formatString("ManualPower%s", surfix).c_str(), true, "%.4g")),
 		m_prop(tempctrl.create<XDoubleNode> (
-			formatString("P%s", surfix), false, "%.4g")),
+			formatString("P%s", surfix).c_str(), false, "%.4g")),
 		m_int(tempctrl.create<XDoubleNode> (
-			formatString("I%s", surfix), false, "%.4g")),
+			formatString("I%s", surfix).c_str(), false, "%.4g")),
 		m_deriv(tempctrl.create<XDoubleNode> (
-			formatString("D%s", surfix), false, "%.4g")),
+			formatString("D%s", surfix).c_str(), false, "%.4g")),
 		m_heaterMode(tempctrl.create<XComboNode> (
-			formatString("HeaterMode%s", surfix), false, true)),
+			formatString("HeaterMode%s", surfix).c_str(), false, true)),
 		m_powerRange(tempctrl.create<XComboNode> (
-			formatString("PowerRange%s", surfix), false, true)),
+			formatString("PowerRange%s", surfix).c_str(), false, true)),
 		m_powerMax(tempctrl.create<XDoubleNode> (
-			formatString("PowerMax%s", surfix), false, "%.4g")),
+			formatString("PowerMax%s", surfix).c_str(), false, "%.4g")),
 		m_powerMin(tempctrl.create<XDoubleNode> (
-			formatString("PowerMin%s", surfix), false, "%.4g")),
+			formatString("PowerMin%s", surfix).c_str(), false, "%.4g")),
 		m_heaterPower(tempctrl.create<XDoubleNode> (
-			formatString("HeaterPower%s", surfix), false, "%.4g")),
+			formatString("HeaterPower%s", surfix).c_str(), false, "%.4g")),
 		m_sourceTemp(tempctrl.create<XDoubleNode> (
-			formatString("SourceTemp%s", surfix), false, "%.5g")),
+			formatString("SourceTemp%s", surfix).c_str(), false, "%.5g")),
 		m_stabilized(tempctrl.create<XDoubleNode> (
-			formatString("Stabilized%s", surfix), true, "%g")),
+			formatString("Stabilized%s", surfix).c_str(), true, "%g")),
 		m_extDCSource(tempctrl.create<XItemNode<XDriverList, XDCSource> > (
-			formatString("ExtDCSource%s", surfix), false, ref(tr_meas), meas->drivers())),
+			formatString("ExtDCSource%s", surfix).c_str(), false, ref(tr_meas).c_str(), meas->drivers())),
 		m_extDCSourceChannel(tempctrl.create<XComboNode> (
-			formatString("ExtDCSourceChannel%s", surfix), false, true)),
+			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
 		m_extIsPositive(tempctrl.create<XBoolNode> (
-			formatString("ExtIsPositive%s", surfix), false)) {
+			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
 	for(Transaction tr( *m_tempctrl);; ++tr) {
 		m_currentChannel =
-			tempctrl.create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix), true, ref(tr),
+			tempctrl.create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
 			tempctrl.m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(

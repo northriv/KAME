@@ -112,7 +112,7 @@ private:
 
 		const XTempControl &m_tempctrl;
 		const unsigned int m_idx;
-		const shared_ptr<XItemNode<XChannelList, XChannel>  m_currentChannel;
+		const shared_ptr<XItemNode<XChannelList, XChannel> >  m_currentChannel;
 		const shared_ptr<XDoubleNode> m_targetTemp;
 		const shared_ptr<XDoubleNode> m_manualPower;
 		const shared_ptr<XDoubleNode> m_prop, m_int, m_deriv;
@@ -167,8 +167,8 @@ private:
 		XTime m_lasttime;
 	};
 	std::deque<Loop> m_loops;
-	Loop *loop(unsigned int lp) {return m_loops[lp];}
-	const Loop *loop(unsigned int lp) const {return m_loops[lp];}
+	Loop *loop(unsigned int lp) {return &m_loops[lp];}
+	const Loop *loop(unsigned int lp) const {return &m_loops[lp];}
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
