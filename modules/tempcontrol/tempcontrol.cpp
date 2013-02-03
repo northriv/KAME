@@ -524,7 +524,8 @@ void XTempControl::createChannels(
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
 	}
 	else {
-		m_form->m_toolBox->removeItem(1);
+//		m_form->m_toolBox->removeItem(1);
+		m_form->m_pageLoop2->hide();
 	}
 	if(num_of_loops) {
 		auto lp = loop(0);
@@ -555,7 +556,8 @@ void XTempControl::createChannels(
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
 	}
 	else {
-		m_form->m_toolBox->removeItem(0);
+//		m_form->m_toolBox->removeItem(0);
+		m_form->m_pageLoop1->hide();
 	}
 }
 
