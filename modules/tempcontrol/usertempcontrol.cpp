@@ -206,6 +206,9 @@ void XAVS47IB::open() throw (XKameError &) {
 	}
 }
 void XAVS47IB::closeInterface() {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
 	try {
 		interface()->send("REM 0"); //LOCAL
 	}

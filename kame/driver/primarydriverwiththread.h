@@ -62,7 +62,7 @@ XPrimaryDriverWithThread::stop() {
 	if(m_thread)
 		m_thread->terminate();
 	else
-		closeInterface();
+		closeInterface(); //closes interface if any.
 }
 
 #endif /*PRIMARYDRIVERWITHTHREAD_H_*/

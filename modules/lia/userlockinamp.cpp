@@ -95,6 +95,9 @@ XSR830::open() throw (XKameError &) {
 }
 void
 XSR830::closeInterface() {
+	XScopedLock<XInterface> lock( *interface());
+	if( !interface()->isOpened())
+		return;
 	try {
 		interface()->send("LOCL 0");
 	}
