@@ -17,6 +17,7 @@
 #include "analyzer.h"
 #include "xnodeconnector.h"
 #include <QStatusBar>
+#include <QToolBox>
 
 XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	Transaction &tr_list, const shared_ptr<XThermometerList> &list) :
@@ -476,9 +477,41 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
-		m_loops.push_back(new Loop(dynamic_pointer_cast<XTempControl>(shared_from_this()), lp,
-			(lp == 0) ? "" : formatString("%u", lp).c_str(),
-			ref(tr_meas), meas));
+		m_loops.push_back(shared_ptr<Loop>(
+			new Loop(dynamic_pointer_cast<XTempControl>(shared_from_this()), lp,
+			(lp == 0) ? "" : formatString("%u", lp + 1).c_str(),
+			ref(tr_meas), meas)));
+	}
+	if(num_of_loops > 1) {
+		auto lp = loop(1);
+		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
+		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+			m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange));
+		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+			m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode));
+		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2);
+		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2);
+		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2);
+		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
+			m_form->m_edManHeater2);
+		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
+			m_form->m_edPowerMax2);
+		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
+			m_form->m_edPowerMin2);
+		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
+			m_form->m_edTargetTemp2);
+		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
+			m_form->m_lcdHeater2);
+		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
+			m_form->m_lcdSourceTemp2);
+		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
+			m_form->m_cmbExtDCSrc2, ref(tr_meas));
+		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
+			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
+	}
+	else {
+		m_form->m_toolBox->removeItem(1);
 	}
 	if(num_of_loops) {
 		auto lp = loop(0);
@@ -508,33 +541,8 @@ void XTempControl::createChannels(
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
 	}
-	if(num_of_loops < 2) {
-		auto lp = loop(1);
-		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
-			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
-		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
-			m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange));
-		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
-			m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode));
-		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2);
-		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2);
-		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2);
-		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
-			m_form->m_edManHeater2);
-		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
-			m_form->m_edPowerMax2);
-		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
-			m_form->m_edPowerMin2);
-		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
-			m_form->m_edTargetTemp2);
-		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
-			m_form->m_lcdHeater2);
-		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
-			m_form->m_lcdSourceTemp2);
-		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
-			m_form->m_cmbExtDCSrc2, ref(tr_meas));
-		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
-			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
+	else {
+		m_form->m_toolBox->removeItem(0);
 	}
 }
 
