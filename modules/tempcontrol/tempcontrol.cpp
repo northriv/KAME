@@ -333,7 +333,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_form(new FrmTempControl(g_pFrmMain)) {
 
 	for(unsigned int lp = 0; lp < numOfLoops(); ++lp) {
-		m_loops.push_back(new Loop(*this, lp,
+		m_loops.push_back(new Loop( *this, lp,
 			(lp == 0) ? "" : formatString("%u", lp).c_str(),
 			ref(tr_meas), meas));
 	}
@@ -538,7 +538,8 @@ XTempControl::execute(const atomic<bool> &terminated) {
 					shared_ptr<XChannel> ch = static_pointer_cast<XChannel>( *it);
 					bool src_found = false;
 					for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
-						if(shot[ *lit->m_currentChannel] == ch)
+						shared_ptr<XChannel> curch = shot[ *lit->m_currentChannel];
+						if(curch == ch)
 							src_found = true;;
 					}
 					if(m_multiread || src_found) {
@@ -547,9 +548,9 @@ XTempControl::execute(const atomic<bool> &terminated) {
 						temp = ( !thermo) ? getTemp(ch) : thermo->getTemp(raw);
 
 						for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
-							if(shot[ *lit->m_currentChannel] == ch) {
+							shared_ptr<XChannel> curch = shot[ *lit->m_currentChannel];
+							if(curch == ch)
 								lit->update(temp);
-							}
 						}
 						writer->push((uint16_t) idx);
 						writer->push((uint16_t) 0); // reserve
