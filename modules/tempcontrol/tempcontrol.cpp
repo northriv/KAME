@@ -118,7 +118,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	auto tempctrl = tempctrl.shared_from_this();
+	auto tempctrl = m_tempctrl.shared_from_this();
 	for(Transaction tr( m_tempctrl);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
@@ -297,7 +297,7 @@ void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBas
 	try {
 		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onHeaterModeChanged(m_idx, shot[ *heaterMode()]);
+			m_tempctrl.onHeaterModeChanged(m_idx, shot[ *m_heaterMode]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -307,7 +307,7 @@ void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBas
 	try {
 		Snapshot shot( m_tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onPowerRangeChanged(m_idx, shot[ *powerRange()]);
+			m_tempctrl.onPowerRangeChanged(m_idx, shot[ *m_powerRange]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
@@ -332,9 +332,9 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_channels(create<XChannelList> ("Channels", false)),
 	m_form(new FrmTempControl(g_pFrmMain)) {
 
-	for(unsigned int lp = 0; lp < numLoops(); ++lp) {
+	for(unsigned int lp = 0; lp < numOfLoops(); ++lp) {
 		m_loops.push_back(new Loop(*this, lp,
-			(lp == 0) ? "" : formatString("%u", lp),
+			(lp == 0) ? "" : formatString("%u", lp).c_str(),
 			ref(tr_meas), meas));
 	}
 	for(Transaction tr( *this);; ++tr) {
@@ -346,8 +346,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
 	m_conSetupChannel = xqcon_create<XQComboBoxConnector> (m_setupChannel,
 		m_form->m_cmbSetupChannel, Snapshot( *m_channels));
-	if(numLoop()) {
-		Loop *lp = m_loop[0];
+	if(numOfLoops()) {
+		Loop *lp = loop(0);
 		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
 			m_form->m_cmbSourceChannel, Snapshot( *m_channels));
 		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
@@ -374,8 +374,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
 	}
-	if(numLoop() < 2) {
-		Loop *lp = m_loop[1];
+	if(numOfLoops() < 2) {
+		Loop *lp = loop(1);
 		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
 			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
 		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
@@ -519,7 +519,7 @@ void XTempControl::createChannels(
 void *
 XTempControl::execute(const atomic<bool> &terminated) {
 	for(auto it = m_loops.begin(); it != m_loops.end(); ++it) {
-		it->start(shared_from_this());
+		it->start();
 	}
 
 	while( !terminated) {
@@ -548,7 +548,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 
 						for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
 							if(shot[ *lit->m_currentChannel] == ch) {
-								lit->update( *this, temp);
+								lit->update(temp);
 							}
 						}
 						writer->push((uint16_t) idx);

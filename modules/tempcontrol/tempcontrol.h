@@ -101,8 +101,6 @@ protected:
 	virtual void onHeaterModeChanged(unsigned int loop, int mode) = 0;
 	virtual void onPowerRangeChanged(unsigned int loop, int range) = 0;
 	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) = 0;
-
-	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
@@ -156,7 +154,7 @@ private:
 			m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
 			m_lsnOnPowerMaxChanged, m_lsnOnPowerMinChanged,
 			m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
-			m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged, m_lsnOnExtDCSourceChanged;
+			m_lsnOnSetupChannelChanged, m_lsnOnExtDCSourceChanged;
 
 		double m_pidAccum;
 		double m_pidLastTemp;
@@ -172,9 +170,11 @@ private:
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
-	shared_ptr<XListener> m_lsnOnSetupChannelChanged;
+	shared_ptr<XListener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged;
 
 	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
+
+	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) = 0;
 
 	std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
 	std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
