@@ -47,7 +47,7 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		m_extDCSource(create<XItemNode<XDriverList, XDCSource> > ("ExtDCSource", false, ref(tr_meas), meas->drivers())),
 		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
 		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
-	for(Transaction tr( *tempctrl);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		m_currentChannel =
 			create<XItemNode<XChannelList, XChannel> >(tr, "CurrentChannel", true, ref(tr),
 			tempctrl->m_channels);
@@ -77,7 +77,7 @@ void
 XTempControl::Loop::start() {
 	auto tempctrl = m_tempctrl.lock();
 	if( !tempctrl) return;
-	for(Transaction tr( *tempctrl);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		if(shared_ptr<XDCSource>(shot[ m_extDCSource])) {
 			tr[ m_heaterMode].clear();
@@ -106,7 +106,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	for(Transaction tr( *tempctrl);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
 		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
@@ -181,7 +181,7 @@ XTempControl::Loop::update(double temp) {
 	else
 		power = tempctrl->getHeater(m_idx);
 
-	for(Transaction tr( *tempctrl);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_sourceTemp] = temp;
 		tr[ *m_stabilized] = sqrt(m_tempErrAvg); //stderr
 		tr[ *m_heaterPower] = power;
@@ -216,9 +216,7 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 	return -(dt + acc + dxdt * d) * p;
 }
 void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-	auto tempctrl = m_tempctrl.lock();
-	if( !tempctrl) return;
-	for(Transaction tr( *tempctrl);; ++tr) {
+	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
 		if(shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource]) {
@@ -237,7 +235,7 @@ void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	auto tempctrl = m_tempctrl.lock();
 	if( !tempctrl) return;
 	try {
-		Snapshot shot( *tempctrl);
+		Snapshot shot( *this);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
 			tempctrl->onPChanged(m_idx, shot[ *m_prop]);
 	}
