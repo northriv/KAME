@@ -939,6 +939,8 @@ void XLakeShore370::open() throw (XKameError &) {
 			tr[ *prop(0)] = p;
 			tr[ *interval(0)] = i;
 			tr[ *deriv(0)] = d;
+			tr[ *powerMax(0)].setUIEnabled(false);
+			tr[ *powerMin(0)].setUIEnabled(false);
 			if(tr.commit())
 				break;
 		}

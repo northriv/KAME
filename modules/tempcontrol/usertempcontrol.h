@@ -293,8 +293,8 @@ protected:
 	virtual void onManualPowerChanged(unsigned int loop, double pow);
 	virtual void onHeaterModeChanged(unsigned int loop, int mode);
 	virtual void onPowerRangeChanged(unsigned int loop, int range);
-	virtual void onPowerMaxChanged(unsigned int loop, double v);
-	virtual void onPowerMinChanged(unsigned int loop, double v);
+	virtual void onPowerMaxChanged(unsigned int loop, double v) {}
+	virtual void onPowerMinChanged(unsigned int loop, double v) {}
 	virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
 
 	virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
