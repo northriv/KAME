@@ -353,76 +353,14 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_channels(create<XChannelList> ("Channels", false)),
 	m_form(new FrmTempControl(g_pFrmMain)) {
 
-	for(unsigned int lp = 0; lp < numOfLoops(); ++lp) {
-		m_loops.push_back(new Loop(static_ptr_cast<XTempControl>(shared_from_this()), lp,
-			(lp == 0) ? "" : formatString("%u", lp).c_str(),
-			ref(tr_meas), meas));
-	}
 	for(Transaction tr( *this);; ++tr) {
 		m_setupChannel =
 			create<XItemNode<XChannelList, XChannel> >(tr, "SetupChannel", true, ref(tr), m_channels);
 		if(tr.commit())
 			break;
 	}
-
 	m_conSetupChannel = xqcon_create<XQComboBoxConnector> (m_setupChannel,
 		m_form->m_cmbSetupChannel, Snapshot( *m_channels));
-	if(numOfLoops()) {
-		Loop *lp = loop(0);
-		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
-			m_form->m_cmbSourceChannel, Snapshot( *m_channels));
-		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
-			m_form->m_cmbPowerRange, Snapshot( *lp->m_powerRange));
-		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
-			m_form->m_cmbHeaterMode, Snapshot( *lp->m_heaterMode));
-		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP);
-		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI);
-		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD);
-		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
-			m_form->m_edManHeater);
-		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
-			m_form->m_edPowerMax);
-		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
-			m_form->m_edPowerMin);
-		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
-			m_form->m_edTargetTemp);
-		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
-			m_form->m_lcdHeater);
-		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
-			m_form->m_lcdSourceTemp);
-		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
-			m_form->m_cmbExtDCSrc, ref(tr_meas));
-		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
-			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
-	}
-	if(numOfLoops() < 2) {
-		Loop *lp = loop(1);
-		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
-			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
-		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
-			m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange));
-		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
-			m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode));
-		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2);
-		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2);
-		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2);
-		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
-			m_form->m_edManHeater2);
-		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
-			m_form->m_edPowerMax2);
-		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
-			m_form->m_edPowerMin2);
-		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
-			m_form->m_edTargetTemp2);
-		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
-			m_form->m_lcdHeater2);
-		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
-			m_form->m_lcdSourceTemp2);
-		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
-			m_form->m_cmbExtDCSrc2, ref(tr_meas));
-		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
-			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
-	}
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
@@ -485,7 +423,8 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 
 void XTempControl::createChannels(
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
-	bool multiread, const char **channel_names, const char **excitations) {
+	bool multiread, const char **channel_names, const char **excitations,
+	unsigned int num_of_loops) {
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;
 
@@ -534,6 +473,68 @@ void XTempControl::createChannels(
 		m_entry_raws.push_back(entry_raw);
 		entries->insert(tr_meas, entry_temp);
 		entries->insert(tr_meas, entry_raw);
+	}
+	//creates loops.
+	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
+		m_loops.push_back(new Loop(dynamic_ptr_cast<XTempControl>(shared_from_this()), lp,
+			(lp == 0) ? "" : formatString("%u", lp).c_str(),
+			ref(tr_meas), meas));
+	}
+	if(num_of_loops) {
+		Loop *lp = loop(0);
+		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+			m_form->m_cmbSourceChannel, Snapshot( *m_channels));
+		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+			m_form->m_cmbPowerRange, Snapshot( *lp->m_powerRange));
+		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+			m_form->m_cmbHeaterMode, Snapshot( *lp->m_heaterMode));
+		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP);
+		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI);
+		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD);
+		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
+			m_form->m_edManHeater);
+		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
+			m_form->m_edPowerMax);
+		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
+			m_form->m_edPowerMin);
+		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
+			m_form->m_edTargetTemp);
+		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
+			m_form->m_lcdHeater);
+		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
+			m_form->m_lcdSourceTemp);
+		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
+			m_form->m_cmbExtDCSrc, ref(tr_meas));
+		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
+			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
+	}
+	if(num_of_loops < 2) {
+		Loop *lp = loop(1);
+		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
+		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+			m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange));
+		lp->m_conHeaterMode = xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+			m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode));
+		lp->m_conP = xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2);
+		lp->m_conI = xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2);
+		lp->m_conD = xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2);
+		lp->m_conManualPower = xqcon_create<XQLineEditConnector> (lp->m_manualPower,
+			m_form->m_edManHeater2);
+		lp->m_conPowerMax = xqcon_create<XQLineEditConnector> (lp->m_powerMax,
+			m_form->m_edPowerMax2);
+		lp->m_conPowerMin = xqcon_create<XQLineEditConnector> (lp->m_powerMin,
+			m_form->m_edPowerMin2);
+		lp->m_conTargetTemp = xqcon_create<XQLineEditConnector> (lp->m_targetTemp,
+			m_form->m_edTargetTemp2);
+		lp->m_conHeater = xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower,
+			m_form->m_lcdHeater2);
+		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
+			m_form->m_lcdSourceTemp2);
+		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
+			m_form->m_cmbExtDCSrc2, ref(tr_meas));
+		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
+			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
 	}
 }
 

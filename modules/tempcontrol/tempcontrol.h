@@ -48,7 +48,6 @@ public:
   
 	const shared_ptr<XChannelList> &channels() const {return m_channels;}
 	//! LOOPs
-	virtual unsigned int numOfLoops() const = 0;
 	const shared_ptr<XItemNode<XChannelList, XChannel> > &currentChannel(unsigned int lp) const {return loop(lp)->m_currentChannel;}
 	const shared_ptr<XDoubleNode> &targetTemp(unsigned int lp) const {return loop(lp)->m_targetTemp;}
 	const shared_ptr<XDoubleNode> &manualPower(unsigned int lp) const {return loop(lp)->m_manualPower;}
@@ -77,11 +76,12 @@ protected:
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
   
-	//! register channel names in your constructor
+	//! Prepares channel names in your constructor.
 	//! \param multiread if true, simultaneous reading of multi channels.
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
 	void createChannels(Transaction &tr, const shared_ptr<XMeasure> &meas,
-						bool multiread, const char **channel_names, const char **excitations);
+						bool multiread, const char **channel_names, const char **excitations,
+						unsigned int num_of_loops);
   
 	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel) = 0;
