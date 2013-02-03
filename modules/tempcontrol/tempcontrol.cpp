@@ -232,7 +232,7 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
 	auto tempctrl = m_tempctrl.lock();
 	if( !tempctrl) return;
-	for(Transaction tr( m_tempctrl);; ++tr) {
+	for(Transaction tr( *tempctrl);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
 		if(shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource]) {
@@ -248,83 +248,99 @@ void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBa
 	}
 }
 void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onPChanged(m_idx, shot[ *m_prop]);
+			tempctrl->onPChanged(m_idx, shot[ *m_prop]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onIChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onIChanged(m_idx, shot[ *m_int]);
+			tempctrl->onIChanged(m_idx, shot[ *m_int]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onDChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onDChanged(m_idx, shot[ *m_deriv]);
+			tempctrl->onDChanged(m_idx, shot[ *m_deriv]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onTargetTempChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onTargetTempChanged(m_idx, shot[ *m_targetTemp]);
+			tempctrl->onTargetTempChanged(m_idx, shot[ *m_targetTemp]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onManualPowerChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onManualPowerChanged(m_idx, shot[ *m_manualPower]);
+			tempctrl->onManualPowerChanged(m_idx, shot[ *m_manualPower]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	m_pidAccum = 0;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onHeaterModeChanged(m_idx, shot[ *m_heaterMode]);
+			tempctrl->onHeaterModeChanged(m_idx, shot[ *m_heaterMode]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	try {
-		Snapshot shot( m_tempctrl);
+		Snapshot shot( *tempctrl);
 		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
-			m_tempctrl.onPowerRangeChanged(m_idx, shot[ *m_powerRange]);
+			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerRange]);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();
 	}
 }
 void XTempControl::Loop::onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	m_pidAccum = 0;
 	try {
 		shared_ptr<XChannel> ch(shot[ *m_currentChannel]);
 		if( !ch)
 			return;
-		m_tempctrl.onCurrentChannelChanged(m_idx, ch);
+		tempctrl->onCurrentChannelChanged(m_idx, ch);
 	}
 	catch(XInterface::XInterfaceError& e) {
 		e.print();

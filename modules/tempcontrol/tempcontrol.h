@@ -106,7 +106,7 @@ protected:
 private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
-	struct Loop : public shared_from_this {
+	struct Loop : public enable_shared_from_this<Loop> {
 		Loop(shared_ptr<XTempControl>, unsigned int idx, const char *surfix,
 			Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 
