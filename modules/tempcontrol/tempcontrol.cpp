@@ -476,12 +476,12 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
-		m_loops.push_back(new Loop(dynamic_ptr_cast<XTempControl>(shared_from_this()), lp,
+		m_loops.push_back(new Loop(dynamic_pointer_cast<XTempControl>(shared_from_this()), lp,
 			(lp == 0) ? "" : formatString("%u", lp).c_str(),
 			ref(tr_meas), meas));
 	}
 	if(num_of_loops) {
-		Loop *lp = loop(0);
+		auto lp = loop(0);
 		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
 			m_form->m_cmbSourceChannel, Snapshot( *m_channels));
 		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
@@ -509,7 +509,7 @@ void XTempControl::createChannels(
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
 	}
 	if(num_of_loops < 2) {
-		Loop *lp = loop(1);
+		auto lp = loop(1);
 		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
 			m_form->m_cmbSourceChannel2, Snapshot( *m_channels));
 		lp->m_conPowerRange = xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
@@ -541,7 +541,7 @@ void XTempControl::createChannels(
 void *
 XTempControl::execute(const atomic<bool> &terminated) {
 	for(auto it = m_loops.begin(); it != m_loops.end(); ++it) {
-		it->start();
+		( *it)->start();
 	}
 
 	while( !terminated) {
@@ -549,7 +549,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 
 		shared_ptr<RawData> writer(new RawData);
 		Snapshot shot( *this);
-		double raw, src_raw = 0, src_temp = 0, temp;
+		double raw, temp;
 		XTime time_awared = XTime::now();
 		// try/catch exception of communication errors
 		try {
@@ -560,7 +560,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 					shared_ptr<XChannel> ch = static_pointer_cast<XChannel>( *it);
 					bool src_found = false;
 					for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
-						shared_ptr<XChannel> curch = shot[ *lit->m_currentChannel];
+						shared_ptr<XChannel> curch = shot[ ( *lit)->m_currentChannel];
 						if(curch == ch)
 							src_found = true;;
 					}
@@ -570,9 +570,9 @@ XTempControl::execute(const atomic<bool> &terminated) {
 						temp = ( !thermo) ? getTemp(ch) : thermo->getTemp(raw);
 
 						for(auto lit = m_loops.begin(); lit != m_loops.end(); ++lit) {
-							shared_ptr<XChannel> curch = shot[ *lit->m_currentChannel];
+							shared_ptr<XChannel> curch = shot[ ( *lit)->m_currentChannel];
 							if(curch == ch)
-								lit->update(temp);
+								( *lit)->update(temp);
 						}
 						writer->push((uint16_t) idx);
 						writer->push((uint16_t) 0); // reserve
@@ -594,7 +594,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	trans( *m_setupChannel) = shared_ptr<XThermometer>();
 
 	for(auto it = m_loops.begin(); it != m_loops.end(); ++it) {
-		it->stop();
+		( *it)->stop();
 	}
 
 	return NULL;
