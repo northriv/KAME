@@ -70,11 +70,11 @@ void XITC503::onDChanged(unsigned int /*loop*/, double d) {
 	interface()->sendf("D%f", d);
 }
 void XITC503::onTargetTempChanged(unsigned int /*loop*/, double temp) {
-	if(( **heaterMode())->to_str() == "PID")
+	if(( **heaterMode(0))->to_str() == "PID")
 		interface()->sendf("T%f", temp);
 }
 void XITC503::onManualPowerChanged(unsigned int /*loop*/, double pow) {
-	if(( **heaterMode())->to_str() == "Man")
+	if(( **heaterMode(0))->to_str() == "Man")
 		interface()->sendf("O%f", pow);
 }
 void XITC503::onHeaterModeChanged(unsigned int /*loop*/, int) {
@@ -189,7 +189,7 @@ void XAVS47IB::open() throw (XKameError &) {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
 	trans( *currentChannel(0)).str(formatString("%d", (int) lrint(read("MUX"))));
-	onCurrentChannelChanged( ***currentChannel());
+	onCurrentChannelChanged( ***currentChannel(0));
 
 	start();
 
@@ -258,13 +258,13 @@ int XAVS47IB::getRange() {
 }
 int XAVS47IB::setPoint() {
 	Snapshot shot( *this);
-	shared_ptr<XChannel> ch = shot[ *currentChannel()];
+	shared_ptr<XChannel> ch = shot[ *currentChannel(0)];
 	if( !ch)
 		return -1;
 	shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
 	if( !thermo)
 		return -1;
-	double res = thermo->getRawValue(shot[ *targetTemp()]);
+	double res = thermo->getRawValue(shot[ *targetTemp(0)]);
 	//the unit is 100uV
 	int val = lrint(10000.0 * res / pow(10.0, getRange() - 1));
 	val = std::min(val, 20000);
@@ -279,7 +279,7 @@ int XAVS47IB::setBias(unsigned int bias) {
 void XAVS47IB::setPowerRange(int range) {
 	interface()->sendf("POW %u", range);
 }
-double XAVS47IB::getHeater() {
+double XAVS47IB::getHeater(unsigned int /*loop*/) {
 	return read("HTP");
 }
 

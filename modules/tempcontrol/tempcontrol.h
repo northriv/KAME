@@ -48,7 +48,7 @@ public:
   
 	const shared_ptr<XChannelList> &channels() const {return m_channels;}
 	//! LOOPs
-	unsigned int numOfLoop() const {return m_loops.size();}
+	unsigned int numOfLoops() const {return m_loops.size();}
 	const shared_ptr<XItemNode<XChannelList, XChannel> > &currentChannel(unsigned int lp) const {return loop(lp)->m_currentChannel;}
 	const shared_ptr<XDoubleNode> &targetTemp(unsigned int lp) const {return loop(lp)->m_targetTemp;}
 	const shared_ptr<XDoubleNode> &manualPower(unsigned int lp) const {return loop(lp)->m_manualPower;}
