@@ -56,18 +56,18 @@ XTempControl::Loop::Loop(XTempControl &tempctrl,
 		m_stabilized(tempctrl.create<XDoubleNode> (
 			formatString("Stabilized%s", surfix).c_str(), true, "%g")),
 		m_extDCSource(tempctrl.create<XItemNode<XDriverList, XDCSource> > (
-			formatString("ExtDCSource%s", surfix).c_str(), false, ref(tr_meas).c_str(), meas->drivers())),
+			formatString("ExtDCSource%s", surfix).c_str(), false, ref(tr_meas), meas->drivers())),
 		m_extDCSourceChannel(tempctrl.create<XComboNode> (
 			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
 		m_extIsPositive(tempctrl.create<XBoolNode> (
 			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
-	for(Transaction tr( *m_tempctrl);; ++tr) {
+	for(Transaction tr( m_tempctrl);; ++tr) {
 		m_currentChannel =
 			tempctrl.create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
 			tempctrl.m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			shared_from_this(), &XTempControl::onExtDCSourceChanged);
+			tempctrl.shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
 		if(tr.commit())
 			break;
 	}
@@ -89,13 +89,13 @@ XTempControl::Loop::Loop(XTempControl &tempctrl,
 }
 void
 XTempControl::Loop::start() {
-	for(Transaction tr( *m_tempctrl);; ++tr) {
+	for(Transaction tr( m_tempctrl);; ++tr) {
 		const Snapshot &shot(tr);
-		if(shared_ptr<XDCSource>(shot[ *extDCSource()])) {
-			tr[ *heaterMode()].clear();
-			tr[ *heaterMode()].add("Off");
-			tr[ *heaterMode()].add("PID");
-			tr[ *heaterMode()].add("Man");
+		if(shared_ptr<XDCSource>(shot[ m_extDCSource])) {
+			tr[ m_heaterMode].clear();
+			tr[ m_heaterMode].add("Off");
+			tr[ m_heaterMode].add("PID");
+			tr[ m_heaterMode].add("Man");
 		}
 		else
 			tr[ *m_powerRange].setUIEnabled(true);
@@ -119,7 +119,7 @@ XTempControl::Loop::start() {
 	m_lasttime = XTime::now();
 
 	shared_ptr<XTempControl> tempctrl = m_tempctrl->shared_from_this();
-	for(Transaction tr( *m_tempctrl);; ++tr) {
+	for(Transaction tr( m_tempctrl);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
 		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onDChanged);
