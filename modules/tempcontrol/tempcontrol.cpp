@@ -27,49 +27,33 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	m_excitation(create<XComboNode> ("Excitation", false)),
 	m_thermometers(list) {}
 
-XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
-	unsigned int idx, const char *surfix,
+XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl>, unsigned int idx,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		enable_shared_from_this<Loop>(),
+		XNode(name, runtime),
 		m_tempctrl(tempctrl),
 		m_idx(idx),
-		m_targetTemp(tempctrl->create<XDoubleNode> (
-			formatString("TargetTemp%s", surfix).c_str(), true, "%.5g")),
-		m_manualPower(tempctrl->create<XDoubleNode> (
-			formatString("ManualPower%s", surfix).c_str(), true, "%.4g")),
-		m_prop(tempctrl->create<XDoubleNode> (
-			formatString("P%s", surfix).c_str(), false, "%.4g")),
-		m_int(tempctrl->create<XDoubleNode> (
-			formatString("I%s", surfix).c_str(), false, "%.4g")),
-		m_deriv(tempctrl->create<XDoubleNode> (
-			formatString("D%s", surfix).c_str(), false, "%.4g")),
-		m_heaterMode(tempctrl->create<XComboNode> (
-			formatString("HeaterMode%s", surfix).c_str(), false, true)),
-		m_powerRange(tempctrl->create<XComboNode> (
-			formatString("PowerRange%s", surfix).c_str(), false, true)),
-		m_powerMax(tempctrl->create<XDoubleNode> (
-			formatString("PowerMax%s", surfix).c_str(), false, "%.4g")),
-		m_powerMin(tempctrl->create<XDoubleNode> (
-			formatString("PowerMin%s", surfix).c_str(), false, "%.4g")),
-		m_heaterPower(tempctrl->create<XDoubleNode> (
-			formatString("HeaterPower%s", surfix).c_str(), false, "%.4g")),
-		m_sourceTemp(tempctrl->create<XDoubleNode> (
-			formatString("SourceTemp%s", surfix).c_str(), false, "%.5g")),
-		m_stabilized(tempctrl->create<XDoubleNode> (
-			formatString("Stabilized%s", surfix).c_str(), true, "%g")),
-		m_extDCSource(tempctrl->create<XItemNode<XDriverList, XDCSource> > (
-			formatString("ExtDCSource%s", surfix).c_str(), false, ref(tr_meas), meas->drivers())),
-		m_extDCSourceChannel(tempctrl->create<XComboNode> (
-			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
-		m_extIsPositive(tempctrl->create<XBoolNode> (
-			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
+		m_targetTemp(create<XDoubleNode> ("TargetTemp" , true, "%.5g")),
+		m_manualPower(create<XDoubleNode> ("ManualPower", true, "%.4g")),
+		m_prop(create<XDoubleNode> ("P", false, "%.4g")),
+		m_int(create<XDoubleNode> ("I", false, "%.4g")),
+		m_deriv(create<XDoubleNode> ("D", false, "%.4g")),
+		m_heaterMode(create<XComboNode> ("HeaterMode", false, true)),
+		m_powerRange(create<XComboNode> ("PowerRange", false, true)),
+		m_powerMax(create<XDoubleNode> ("PowerMax", false, "%.4g")),
+		m_powerMin(create<XDoubleNode> ("PowerMin", false, "%.4g")),
+		m_heaterPower(create<XDoubleNode> ("HeaterPower", false, "%.4g")),
+		m_sourceTemp(create<XDoubleNode> ("SourceTemp", false, "%.5g")),
+		m_stabilized(create<XDoubleNode> ("Stabilized", true, "%g")),
+		m_extDCSource(create<XItemNode<XDriverList, XDCSource> > ("ExtDCSource", false, ref(tr_meas), meas->drivers())),
+		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
+		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
 	for(Transaction tr( *tempctrl);; ++tr) {
 		m_currentChannel =
-			tempctrl->create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
+			create<XItemNode<XChannelList, XChannel> >(tr, "CurrentChannel", true, ref(tr),
 			tempctrl->m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			shared_from_this(), &Loop::onExtDCSourceChanged);
+			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
 		if(tr.commit())
 			break;
 	}
@@ -503,10 +487,10 @@ void XTempControl::createChannels(
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
 		auto sp = dynamic_pointer_cast<XTempControl>(shared_from_this());
-		m_loops.push_back(shared_ptr<Loop>(
-			new Loop(sp, lp,
-			(lp == 0) ? "" : formatString("%u", lp + 1).c_str(),
-			ref(tr_meas), meas)));
+		m_loops.push_back(create<Loop>(
+			formatString("Loop%u", lp + 1).c_str(),
+			sp, lp,
+			ref(tr_meas), meas));
 	}
 	if(num_of_loops > 1) {
 		auto lp = loop(1);
