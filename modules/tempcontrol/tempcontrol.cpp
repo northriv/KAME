@@ -26,48 +26,48 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	m_excitation(create<XComboNode> ("Excitation", false)),
 	m_thermometers(list) {}
 
-XTempControl::Loop::Loop(XTempControl &tempctrl,
-	unsigned int idx, const char *surfix, bool runtime,
+XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
+	unsigned int idx, const char *surfix,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		m_tempctrl(tempctrl),
 		m_idx(idx),
-		m_targetTemp(tempctrl.create<XDoubleNode> (
+		m_targetTemp(tempctrl->create<XDoubleNode> (
 			formatString("TargetTemp%s", surfix).c_str(), true, "%.5g")),
-		m_manualPower(tempctrl.create<XDoubleNode> (
+		m_manualPower(tempctrl->create<XDoubleNode> (
 			formatString("ManualPower%s", surfix).c_str(), true, "%.4g")),
-		m_prop(tempctrl.create<XDoubleNode> (
+		m_prop(tempctrl->create<XDoubleNode> (
 			formatString("P%s", surfix).c_str(), false, "%.4g")),
-		m_int(tempctrl.create<XDoubleNode> (
+		m_int(tempctrl->create<XDoubleNode> (
 			formatString("I%s", surfix).c_str(), false, "%.4g")),
-		m_deriv(tempctrl.create<XDoubleNode> (
+		m_deriv(tempctrl->create<XDoubleNode> (
 			formatString("D%s", surfix).c_str(), false, "%.4g")),
-		m_heaterMode(tempctrl.create<XComboNode> (
+		m_heaterMode(tempctrl->create<XComboNode> (
 			formatString("HeaterMode%s", surfix).c_str(), false, true)),
-		m_powerRange(tempctrl.create<XComboNode> (
+		m_powerRange(tempctrl->create<XComboNode> (
 			formatString("PowerRange%s", surfix).c_str(), false, true)),
-		m_powerMax(tempctrl.create<XDoubleNode> (
+		m_powerMax(tempctrl->create<XDoubleNode> (
 			formatString("PowerMax%s", surfix).c_str(), false, "%.4g")),
-		m_powerMin(tempctrl.create<XDoubleNode> (
+		m_powerMin(tempctrl->create<XDoubleNode> (
 			formatString("PowerMin%s", surfix).c_str(), false, "%.4g")),
-		m_heaterPower(tempctrl.create<XDoubleNode> (
+		m_heaterPower(tempctrl->create<XDoubleNode> (
 			formatString("HeaterPower%s", surfix).c_str(), false, "%.4g")),
-		m_sourceTemp(tempctrl.create<XDoubleNode> (
+		m_sourceTemp(tempctrl->create<XDoubleNode> (
 			formatString("SourceTemp%s", surfix).c_str(), false, "%.5g")),
-		m_stabilized(tempctrl.create<XDoubleNode> (
+		m_stabilized(tempctrl->create<XDoubleNode> (
 			formatString("Stabilized%s", surfix).c_str(), true, "%g")),
-		m_extDCSource(tempctrl.create<XItemNode<XDriverList, XDCSource> > (
+		m_extDCSource(tempctrl->create<XItemNode<XDriverList, XDCSource> > (
 			formatString("ExtDCSource%s", surfix).c_str(), false, ref(tr_meas), meas->drivers())),
-		m_extDCSourceChannel(tempctrl.create<XComboNode> (
+		m_extDCSourceChannel(tempctrl->create<XComboNode> (
 			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
-		m_extIsPositive(tempctrl.create<XBoolNode> (
+		m_extIsPositive(tempctrl->create<XBoolNode> (
 			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
 	for(Transaction tr( tempctrl);; ++tr) {
 		m_currentChannel =
-			tempctrl.create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
-			tempctrl.m_channels);
+			tempctrl->create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
+			tempctrl->m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			tempctrl.shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
+			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
 		if(tr.commit())
 			break;
 	}
@@ -118,17 +118,16 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	auto tempctrl = m_tempctrl.shared_from_this();
 	for(Transaction tr( m_tempctrl);; ++tr) {
-		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
-		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
-		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onDChanged);
-		m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onTargetTempChanged);
-		m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onManualPowerChanged);
-		m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onHeaterModeChanged);
-		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPowerRangeChanged);
+		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
+		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
+		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
+		m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onTargetTempChanged);
+		m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onManualPowerChanged);
+		m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onHeaterModeChanged);
+		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPowerRangeChanged);
 		m_lsnOnCurrentChannelChanged
-			= tr[ *m_currentChannel].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onCurrentChannelChanged);
+			= tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onCurrentChannelChanged);
 		if(tr.commit())
 			break;
 	}
@@ -190,9 +189,9 @@ XTempControl::Loop::update(double temp) {
 		}
 	}
 	else
-		power = m_tempctrl.getHeater(m_idx);
+		power = tempctrl->getHeater(m_idx);
 
-	for(Transaction tr(m_tempctrl);; ++tr) {
+	for(Transaction tr( *tempctrl);; ++tr) {
 		tr[ *m_sourceTemp] = temp;
 		tr[ *m_stabilized] = sqrt(m_tempErrAvg); //stderr
 		tr[ *m_heaterPower] = power;
@@ -227,6 +226,8 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 	return -(dt + acc + dxdt * d) * p;
 }
 void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
 	for(Transaction tr( m_tempctrl);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
@@ -333,7 +334,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_form(new FrmTempControl(g_pFrmMain)) {
 
 	for(unsigned int lp = 0; lp < numOfLoops(); ++lp) {
-		m_loops.push_back(new Loop( *this, lp,
+		m_loops.push_back(new Loop(static_ptr_cast<XTempControl>(shared_from_this()), lp,
 			(lp == 0) ? "" : formatString("%u", lp).c_str(),
 			ref(tr_meas), meas));
 	}
