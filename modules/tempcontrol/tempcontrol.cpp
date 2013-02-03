@@ -67,7 +67,7 @@ XTempControl::Loop::Loop(XTempControl &tempctrl,
 			tempctrl.m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
+			tempctrl.shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
 		if(tr.commit())
 			break;
 	}
@@ -118,16 +118,17 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
+	auto tempctrl = tempctrl.shared_from_this();
 	for(Transaction tr( m_tempctrl);; ++tr) {
-		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
-		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
-		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
-		m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onTargetTempChanged);
-		m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onManualPowerChanged);
-		m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onHeaterModeChanged);
-		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPowerRangeChanged);
+		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPChanged);
+		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onIChanged);
+		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onDChanged);
+		m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onTargetTempChanged);
+		m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onManualPowerChanged);
+		m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onHeaterModeChanged);
+		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onPowerRangeChanged);
 		m_lsnOnCurrentChannelChanged
-			= tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onCurrentChannelChanged);
+			= tr[ *m_currentChannel].onValueChanged().connectWeakly(tempctrl, &XTempControl::Loop::onCurrentChannelChanged);
 		if(tr.commit())
 			break;
 	}
