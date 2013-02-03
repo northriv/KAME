@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>243</width>
-    <height>448</height>
+    <width>228</width>
+    <height>445</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -42,18 +42,18 @@
        <enum>QFrame::Plain</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="tabSpacing">
-       <number>-1</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="m_pageLoop1">
        <property name="geometry">
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>220</width>
-         <height>446</height>
+         <width>205</width>
+         <height>451</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -517,6 +517,14 @@
        </layout>
       </widget>
       <widget class="QWidget" name="m_pageLoop2">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>220</width>
+         <height>451</height>
+        </rect>
+       </property>
        <attribute name="label">
         <string>Loop 2</string>
        </attribute>
@@ -973,8 +981,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>235</width>
-         <height>364</height>
+         <width>220</width>
+         <height>341</height>
         </rect>
        </property>
        <attribute name="label">
@@ -1088,6 +1096,30 @@
   <tabstop>m_edTargetTemp</tabstop>
   <tabstop>m_edManHeater</tabstop>
   <tabstop>m_cmbPowerRange</tabstop>
+  <tabstop>m_edPowerMax</tabstop>
+  <tabstop>m_edPowerMin</tabstop>
+  <tabstop>m_edP</tabstop>
+  <tabstop>m_edI</tabstop>
+  <tabstop>m_edD</tabstop>
+  <tabstop>m_cmbExtDCSrc</tabstop>
+  <tabstop>m_cmbExtDCSrcCh</tabstop>
+  <tabstop>m_ckbExtIsPositive</tabstop>
+  <tabstop>m_cmbHeaterMode2</tabstop>
+  <tabstop>m_cmbSourceChannel2</tabstop>
+  <tabstop>m_edTargetTemp2</tabstop>
+  <tabstop>m_edManHeater2</tabstop>
+  <tabstop>m_cmbPowerRange2</tabstop>
+  <tabstop>m_edPowerMax2</tabstop>
+  <tabstop>m_edPowerMin2</tabstop>
+  <tabstop>m_edP2</tabstop>
+  <tabstop>m_edI2</tabstop>
+  <tabstop>m_edD2</tabstop>
+  <tabstop>m_cmbExtDCSrc2</tabstop>
+  <tabstop>m_cmbExtDCSrcCh2</tabstop>
+  <tabstop>m_ckbExtIsPositive2</tabstop>
+  <tabstop>m_cmbSetupChannel</tabstop>
+  <tabstop>m_cmbExcitation</tabstop>
+  <tabstop>m_cmbThermometer</tabstop>
  </tabstops>
  <resources/>
  <connections/>
