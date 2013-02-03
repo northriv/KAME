@@ -168,6 +168,7 @@ private:
 	};
 	std::deque<Loop> m_loops;
 	Loop *loop(unsigned int lp) {return m_loops[lp];}
+	const Loop *loop(unsigned int lp) const {return m_loops[lp];}
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
