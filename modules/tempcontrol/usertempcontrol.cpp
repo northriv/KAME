@@ -680,10 +680,18 @@ double XLakeShore340::getTemp(shared_ptr<XChannel> &channel) {
 	return interface()->toDouble();
 }
 double XLakeShore340::getHeater(unsigned int loop) {
-	if(loop == 0)
+	if(loop == 0) {
 		interface()->query("HTR?");
-	else
-		interface()->query("AOUT?");
+	}
+	else {
+		interface()->query("ANALOG?2");
+		int mode;
+		if(interface()->scanf("%*d,%d", &mode) != 1)
+			throw XInterface::XConvError(__FILE__, __LINE__);
+		if(mode != 3)
+			return 0.0; //AOUT2 is not in loop mode.
+		interface()->query("AOUT?2");
+	}
 	return interface()->toDouble();
 }
 void XLakeShore340::onPChanged(unsigned int loop, double p) {
@@ -713,10 +721,8 @@ void XLakeShore340::onManualPowerChanged(unsigned int loop, double pow) {
 	interface()->sendf("MOUT %u,%f", loop + 1, pow);
 }
 void XLakeShore340::onPowerMaxChanged(unsigned int loop, double pow) {
-	interface()->sendf("CLIMIT %u,,%f", loop + 1, pow);
-}
-void XLakeShore340::onPowerMinChanged(unsigned int loop, double pow) {
-	interface()->sendf("CLIMIT %u,,,%f", loop + 1, pow);
+	if(loop == 0)
+		interface()->sendf("CLIMI %f", pow);
 }
 void XLakeShore340::onHeaterModeChanged(unsigned int loop, int) {
 	Snapshot shot( *this);
@@ -747,9 +753,11 @@ void XLakeShore340::open() throw (XKameError &) {
 		if(interface()->scanf("%*d,%d", &res) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 		interface()->queryf("CLIMIT? %u", idx + 1);
-		double maxv, minv;
-		if(interface()->scanf("%*f,%lf,%lf,%d", &maxv, &minv, &maxcurr_idx) != 3)
+		if(interface()->scanf("%*f,%*lf,%*lf,%d", &maxcurr_idx) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
+
+		interface()->query("CLIMI?");
+		double max_curr_loop1 = interface()->toDouble();
 
 		double maxcurr = pow(2.0, maxcurr_idx) * 0.125;
 		for(Transaction tr( *this);; ++tr) {
@@ -775,8 +783,11 @@ void XLakeShore340::open() throw (XKameError &) {
 				tr[ *heaterMode(idx)].add("PID");
 				tr[ *heaterMode(idx)].add("Man");
 
-				tr[ *powerMax(idx)] = maxv;
-				tr[ *powerMin(idx)] = minv;
+				if(idx == 0)
+					tr[ *powerMax(idx)] = max_curr_loop1;
+				else
+					tr[ *powerMax(idx)].setUIEnabled(false);
+				tr[ *powerMin(idx)].setUIEnabled(false);
 				if(tr.commit())
 					break;
 			}

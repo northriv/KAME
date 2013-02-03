@@ -101,6 +101,7 @@ XTempControl::Loop::start() {
 
 	m_extDCSource->setUIEnabled(false);
 	m_extDCSourceChannel->setUIEnabled(false);
+	m_extIsPositive->setUIEnabled(false);
 
 	m_tempAvg = 0.0;
 	m_tempErrAvg = 0.0;
@@ -133,6 +134,7 @@ XTempControl::Loop::stop() {
 
 	m_extDCSource->setUIEnabled(true);
 	m_extDCSourceChannel->setUIEnabled(true);
+	m_extIsPositive->setUIEnabled(true);
 
 	m_lsnOnPChanged.reset();
 	m_lsnOnIChanged.reset();
@@ -188,7 +190,7 @@ XTempControl::Loop::update(double temp) {
 		if(tr.commit())
 			break;
 	}
-	tempctrl->m_form->m_toolBox->setItemText(m_idx, i18n("Loop") + formatString(" %u: %.5g K, %.3g%s", temp, power,
+	tempctrl->m_form->m_toolBox->setItemText(m_idx, i18n("Loop") + formatString(" %u: %.5g K, %.3g%s", m_idx, temp, power,
 		tempctrl->m_heaterPowerUnit(m_idx)));
 }
 
