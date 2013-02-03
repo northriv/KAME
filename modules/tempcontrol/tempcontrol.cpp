@@ -61,7 +61,7 @@ XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
 			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
 		m_extIsPositive(tempctrl->create<XBoolNode> (
 			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
-	for(Transaction tr( tempctrl);; ++tr) {
+	for(Transaction tr( *tempctrl);; ++tr) {
 		m_currentChannel =
 			tempctrl->create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
 			tempctrl->m_channels);
@@ -89,7 +89,9 @@ XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
 }
 void
 XTempControl::Loop::start() {
-	for(Transaction tr( m_tempctrl);; ++tr) {
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
+	for(Transaction tr( *tempctrl);; ++tr) {
 		const Snapshot &shot(tr);
 		if(shared_ptr<XDCSource>(shot[ m_extDCSource])) {
 			tr[ m_heaterMode].clear();
@@ -118,7 +120,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	for(Transaction tr( m_tempctrl);; ++tr) {
+	for(Transaction tr( *tempctrl);; ++tr) {
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
 		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
@@ -159,7 +161,9 @@ XTempControl::Loop::stop() {
 }
 void
 XTempControl::Loop::update(double temp) {
-	Snapshot shot(m_tempctrl);
+	auto tempctrl = m_tempctrl.lock();
+	if( !tempctrl) return;
+	Snapshot shot( *tempctrl);
 
 	//calicurate std. deviations in some periods
 	double tau = shot[ *m_int] * 4.0;

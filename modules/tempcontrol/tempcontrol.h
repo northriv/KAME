@@ -106,11 +106,11 @@ protected:
 private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
-	struct Loop {
-		Loop(XTempControl &, unsigned int idx, const char *surfix,
+	struct Loop : public shared_from_this {
+		Loop(shared_ptr<XTempControl>, unsigned int idx, const char *surfix,
 			Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 
-		XTempControl &m_tempctrl;
+		weak_ptr<XTempControl> m_tempctrl;
 		const unsigned int m_idx;
 		shared_ptr<XItemNode<XChannelList, XChannel> >  m_currentChannel;
 		const shared_ptr<XDoubleNode> m_targetTemp;
@@ -165,9 +165,9 @@ private:
 		double m_tempErrAvg;
 		XTime m_lasttime;
 	};
-	std::deque<Loop> m_loops;
-	Loop *loop(unsigned int lp) {return &m_loops[lp];}
-	const Loop *loop(unsigned int lp) const {return &m_loops[lp];}
+	std::deque<shared_ptr<Loop> > m_loops;
+	shared_ptr<Loop> loop(unsigned int lp) {return m_loops[lp];}
+	const shared_ptr<Loop> loop(unsigned int lp) const {return m_loops[lp];}
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
