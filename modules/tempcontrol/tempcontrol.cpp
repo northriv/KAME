@@ -27,7 +27,8 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	m_excitation(create<XComboNode> ("Excitation", false)),
 	m_thermometers(list) {}
 
-XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl> tempctrl, Transaction &tr, unsigned int idx) :
+XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl> tempctrl, Transaction &tr,
+		unsigned int idx, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XNode(name, runtime),
 		m_tempctrl(tempctrl),
 		m_idx(idx),
@@ -483,13 +484,16 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
+		shared_ptr<Loop> p;
 		for(Transaction tr( *this);; ++tr) {
-			m_loops.push_back(create<Loop>(tr,
+			p = create<Loop>(tr,
 				formatString("Loop%u", lp + 1).c_str(), false,
-				sp, tr, lp));
+				dynamic_pointer_cast<XTempControl>(shared_from_this()), tr, lp,
+				tr_meas, meas);
 			if(tr.commit())
 				break;
 		}
+		m_loops.push_back(p);
 	}
 	if(num_of_loops > 1) {
 		auto lp = loop(1);

@@ -110,8 +110,7 @@ private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
 	struct Loop : public XNode {
-		Loop(const char *name, bool runtime, shared_ptr<XTempControl>, unsigned int idx,
-			Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+		Loop(const char *name, bool runtime, shared_ptr<XTempControl>, Transaction &tr, unsigned int idx);
 
 		weak_ptr<XTempControl> m_tempctrl;
 		const unsigned int m_idx;
