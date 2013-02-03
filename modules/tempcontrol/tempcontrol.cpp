@@ -30,7 +30,6 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
 	unsigned int idx, const char *surfix,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		m_tempctrl(tempctrl),
 		m_idx(idx),
 		m_targetTemp(tempctrl->create<XDoubleNode> (
 			formatString("TargetTemp%s", surfix).c_str(), true, "%.5g")),
@@ -62,6 +61,8 @@ XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
 			formatString("ExtDCSourceChannel%s", surfix).c_str(), false, true)),
 		m_extIsPositive(tempctrl->create<XBoolNode> (
 			formatString("ExtIsPositive%s", surfix).c_str(), false)) {
+	m_tempctrl = tempctrl;
+
 	for(Transaction tr( *tempctrl);; ++tr) {
 		m_currentChannel =
 			tempctrl->create<XItemNode<XChannelList, XChannel> >(tr, formatString("CurrentChannel%s", surfix).c_str(), true, ref(tr),
@@ -502,7 +503,6 @@ void XTempControl::createChannels(
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
 		auto sp = dynamic_pointer_cast<XTempControl>(shared_from_this());
-		assert(sp);
 		m_loops.push_back(shared_ptr<Loop>(
 			new Loop(sp, lp,
 			(lp == 0) ? "" : formatString("%u", lp + 1).c_str(),
