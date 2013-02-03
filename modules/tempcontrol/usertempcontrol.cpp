@@ -189,7 +189,7 @@ void XAVS47IB::open() throw (XKameError &) {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
 	trans( *currentChannel(0)).str(formatString("%d", (int) lrint(read("MUX"))));
-	onCurrentChannelChanged( ***currentChannel(0));
+	onCurrentChannelChanged(0, ***currentChannel(0));
 
 	start();
 
@@ -324,13 +324,13 @@ void XCryocon::open() throw (XKameError &) {
 		trans( *powerRange(idx)).clear();
 		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
 			getChannel(idx);
-			interface()->queryf("LOOP %u:PMAN?");
+			interface()->queryf("LOOP %u:PMAN?", idx + 1);
 			trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:PGAIN?");
+			interface()->queryf("LOOP %u:PGAIN?", idx + 1);
 			trans( *prop(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:IGAIN?");
+			interface()->queryf("LOOP %u:IGAIN?", idx + 1);
 			trans( *interval(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:DGAIN?");
+			interface()->queryf("LOOP %u:DGAIN?", idx + 1);
 			trans( *deriv(idx)).str(XString( &interface()->buffer()[0]));
 
 			for(Transaction tr( *this);; ++tr) {
@@ -342,7 +342,7 @@ void XCryocon::open() throw (XKameError &) {
 				if(tr.commit())
 					break;
 			}
-			interface()->queryf("LOOP %u:TYPE?");
+			interface()->queryf("LOOP %u:TYPE?", idx + 1);
 			QString s( &interface()->buffer()[0]);
 			trans( *heaterMode(idx)).str(s.simplified());
 		}
@@ -357,20 +357,20 @@ void XCryoconM32::open() throw (XKameError &) {
 	XCryocon::open();
 
 	for(Transaction tr( *this);; ++tr) {
-		tr[ *powerRange()].add("HI");
-		tr[ *powerRange()].add("MID");
-		tr[ *powerRange()].add("LOW");
+		tr[ *powerRange(0)].add("HI");
+		tr[ *powerRange(0)].add("MID");
+		tr[ *powerRange(0)].add("LOW");
 		if(tr.commit())
 			break;
 	}
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
-			interface()->queryf("LOOP %u:MAXPWR?");
+			interface()->queryf("LOOP %u:MAXPWR?", idx + 1);
 			trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));
 		}
 	}
 }
-void XCryocon32::onPowerMaxChanged(unsigned int loop, double x) {
+void XCryoconM32::onPowerMaxChanged(unsigned int loop, double x) {
 	interface()->sendf("LOOP %u:MAXPWR %f ", loop, x);
 }
 void XCryoconM62::open() throw (XKameError &) {
@@ -417,10 +417,10 @@ void XCryocon::onHeaterModeChanged(unsigned int loop, int) {
 	setHeaterMode(loop);
 }
 void XCryocon::onPowerRangeChanged(unsigned int /*loop*/, int) {
-	interface()->sendf("LOOP %u:RANGE " + ( **powerRange())->to_str(), 1);
+	interface()->sendf("LOOP %u:RANGE %s", 1, ( **powerRange())->to_str().c_str());
 }
 void XCryocon::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
-	interface()->sendf("LOOP %u:SOURCE " + ch->getName(), loop + 1);
+	interface()->sendf("LOOP %u:SOURCE %s", loop + 1, ch->getName());
 }
 void XCryocon::onExcitationChanged(const shared_ptr<XChannel> &ch, int) {
 	XScopedLock<XInterface> lock( *interface());
@@ -466,7 +466,7 @@ void XCryocon::setHeaterMode(unsigned int loop) {
 	else
 		control();
 
-	interface()->sendf("LOOP %u:TYPE " + shot[ *heaterMode(loop)].to_str(), loop + 1);
+	interface()->sendf("LOOP %u:TYPE %s", loop + 1, shot[ *heaterMode(loop)].to_str().c_str());
 }
 double XCryocon::getHeater(unsigned int loop) {
 	interface()->queryf("LOOP %u:OUTP?", loop + 1);
@@ -547,7 +547,7 @@ void XNeoceraLTC21::setHeater(unsigned int loop) {
 	Snapshot shot( *this);
 	interface()->sendf("SPID%u,%f,%f,%f,%f,100.0,%f;", loop + 1, (double)shot[ *prop(loop)],
 		(double)shot[ *interval(loop)], (double)shot[ *deriv(loop)], (double)shot[ *manualPower(loop)],
-		(double)shot[ *powerMax()]);
+		(double)shot[ *powerMax(loop)]);
 }
 void XNeoceraLTC21::onPChanged(unsigned int loop, double /*p*/) {
 	setHeater(loop);
@@ -790,7 +790,7 @@ void XLakeShore340::open() throw (XKameError &) {
 			if(idx == 0) {
 				interface()->query("RANGE?");
 				int range = interface()->toInt();
-				trans( *powerRange()) = range;
+				trans( *powerRange(0)) = range;
 			}
 
 			interface()->queryf("MOUT? %u", idx + 1);
@@ -843,15 +843,15 @@ void XLakeShore370::onDChanged(unsigned int /*loop*/, double d) {
 }
 void XLakeShore370::onTargetTempChanged(unsigned int /*loop*/, double temp) {
 	Snapshot shot( *this);
-	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel()])->thermometer()];
+	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(0)])->thermometer()];
 	if(thermo) {
 		interface()->sendf("CSET %s,,2",
-			(const char*)shot[ *currentChannel()].to_str().c_str());
+			(const char*)shot[ *currentChannel(0)].to_str().c_str());
 		temp = thermo->getRawValue(temp);
 	}
 	else {
 		interface()->sendf("CSET %s,,1",
-			(const char*)shot[ *currentChannel()].to_str().c_str());
+			(const char*)shot[ *currentChannel(0)].to_str().c_str());
 	}
 	interface()->sendf("SETP %f", temp);
 }
@@ -860,13 +860,13 @@ void XLakeShore370::onManualPowerChanged(unsigned int /*loop*/, double pow) {
 }
 void XLakeShore370::onHeaterModeChanged(unsigned int /*loop*/, int) {
 	Snapshot shot( *this);
-	if(shot[ *heaterMode()].to_str() == "Off") {
+	if(shot[ *heaterMode(0)].to_str() == "Off") {
 		interface()->send("CMODE 4");
 	}
-	if(shot[ *heaterMode()].to_str() == "PID") {
+	if(shot[ *heaterMode(0)].to_str() == "PID") {
 		interface()->send("CMODE 1");
 	}
-	if(shot[ *heaterMode()].to_str() == "Man") {
+	if(shot[ *heaterMode(0)].to_str() == "Man") {
 		interface()->send("CMODE 3");
 	}
 }
@@ -928,7 +928,7 @@ void XLakeShore370::open() throw (XKameError &) {
 		trans( *powerRange(0)) = range;
 
 		interface()->query("MOUT?");
-		trans( *manualPower()) = interface()->toDouble();
+		trans( *manualPower(0)) = interface()->toDouble();
 		interface()->query("PID?");
 		double p, i, d;
 		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
@@ -972,7 +972,7 @@ double XKE2700w7700::getRaw(shared_ptr<XChannel> &channel) {
 double XKE2700w7700::getTemp(shared_ptr<XChannel> &channel) {
 	return getRaw(channel);
 }
-double XKE2700w7700::getHeater() {
+double XKE2700w7700::getHeater(unsigned int) {
 	return 0.0;
 }
 
