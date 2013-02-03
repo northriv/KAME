@@ -69,7 +69,7 @@ XTempControl::Loop::Loop(shared_ptr<XTempControl> tempctrl,
 			tempctrl->m_channels);
 
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
+			shared_from_this(), &Loop::onExtDCSourceChanged);
 		if(tr.commit())
 			break;
 	}
