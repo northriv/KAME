@@ -27,8 +27,7 @@ XTempControl::XChannel::XChannel(const char *name, bool runtime,
 	m_excitation(create<XComboNode> ("Excitation", false)),
 	m_thermometers(list) {}
 
-XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl> tempctrl, unsigned int idx,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl> tempctrl, Transaction &tr, unsigned int idx) :
 		XNode(name, runtime),
 		m_tempctrl(tempctrl),
 		m_idx(idx),
@@ -47,11 +46,11 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		m_extDCSource(create<XItemNode<XDriverList, XDCSource> > ("ExtDCSource", false, ref(tr_meas), meas->drivers())),
 		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
 		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
-	for(Transaction tr( *this);; ++tr) {
-		m_currentChannel =
-			create<XItemNode<XChannelList, XChannel> >(tr, "CurrentChannel", true, ref(tr),
-			tempctrl->m_channels);
+	m_currentChannel =
+		create<XItemNode<XChannelList, XChannel> >("CurrentChannel", true, ref(tr),
+		tempctrl->m_channels);
 
+	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
 			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
 		if(tr.commit())
@@ -484,11 +483,13 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
 	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
-		auto sp = dynamic_pointer_cast<XTempControl>(shared_from_this());
-		m_loops.push_back(create<Loop>(
-			formatString("Loop%u", lp + 1).c_str(), false,
-			sp, lp,
-			ref(tr_meas), meas));
+		for(Transaction tr( *this);; ++tr) {
+			m_loops.push_back(create<Loop>(tr,
+				formatString("Loop%u", lp + 1).c_str(), false,
+				sp, tr, lp));
+			if(tr.commit())
+				break;
+		}
 	}
 	if(num_of_loops > 1) {
 		auto lp = loop(1);
