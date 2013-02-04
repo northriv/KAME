@@ -12,56 +12,33 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 
-#ifndef USERMOTOR_H_
-#define USERMOTOR_H_
+#ifndef USERFLOWCONTROLLER_H_
+#define USERFLOWCONTROLLER_H_
 
-#include "motor.h"
-#include "modbusrtuinterface.h"
+#include "flowcontroller.h"
+#include "fujikininterface.h"
 
-//ORIENTAL MOTOR FLEX CRK series.
-class XFlexCRK : public XModbusRTUDriver<XMotorDriver>  {
+//Fujikin FCST1000 Series Mass Flow Controllers.
+class XFCST1000 : public XFujikinProtocolDriver<XFlowControllerDriver>  {
 public:
-	XFlexCRK(const char *name, bool runtime,
+	XFCST1000(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XFlexCRK() {}
+	virtual ~XFCST1000() {}
 protected:
-protected:
-	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
-	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
-	virtual void setTarget(const Snapshot &shot, double target);
-	virtual void setActive(bool active);
-	virtual void setAUXBits(unsigned int bits);
-	virtual void setForward(); //!< continuous rotation.
-	virtual void setReverse();//!< continuous rotation.
-	virtual void stopRotation(); //!< stops motor and waits for deceleration.
-	//! stores current settings to the NV memory of the instrumeMotornt.
-	virtual void storeToROM();
-	virtual void clearPosition();
+	virtual bool isController(); //! distinguishes monitors and controllers.
+	virtual bool isUnitInSLM(); //! false for SCCM.
+	virtual double getFullScale();
+
+	virtual void getStatus(double &flow, double &valve_v, bool &alarm, bool &warning);
+	virtual void openValve();
+	virtual void closeValve();
+	virtual void changeControl(bool ctrl);
+	virtual void changeSetPoint(double target);
+	virtual void setRampTime(double time);
+
+	enum ClassID {NetworkClass = 0x03, DeviceManagerClass = 0x64, ExceptionClass = 0x65,
+		GasCalibrationClass = 0x66, FlowMeterClass = 0x68, FlowControllerClass = 0x69};
 private:
 };
 
-//ORIENTAL MOTOR FLEX AR/DG2 series.
-class XFlexAR : public XFlexCRK {
-public:
-	XFlexAR(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XFlexCRK(name, runtime, ref(tr_meas), meas) {}
-	virtual ~XFlexAR() {}
-protected:
-protected:
-	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
-	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
-	virtual void setTarget(const Snapshot &shot, double target);
-	virtual void setActive(bool active);
-	virtual void setAUXBits(unsigned int bits);
-	virtual void setForward(); //!< continuous rotation.
-	virtual void setReverse();//!< continuous rotation.
-	virtual void stopRotation();//!< stops motor and waits for deceleration.
-	//! stores current settings to the NV memory of the instrument.
-	virtual void storeToROM();
-	virtual void clearPosition();
-private:
-};
-
-#endif /* USERMOTOR_H_ */
+#endif /* USERFLOWCONTROLLER_H_ */

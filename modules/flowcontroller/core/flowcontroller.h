@@ -52,9 +52,15 @@ public:
 	const shared_ptr<XBoolNode> &warning() const {return m_warning;}
 	const shared_ptr<XBoolNode> &alarm() const {return m_alarm;}
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
+
+	struct Payload : public XPrimaryDriver::Payload {
+		XString m_unit;
+		double m_fullScale;
+	};
 protected:
 	virtual bool isController() = 0; //! distinguishes monitors and controllers.
 	virtual bool isUnitInSLM() = 0; //! false for SCCM.
+	virtual double getFullScaleInSLM() = 0;
 
 	virtual void getStatus(double &flow_in_slm, double &valve_v, bool &alarm, bool &warning) = 0;
 	virtual void openValve() = 0;
@@ -76,7 +82,7 @@ private:
 
 	shared_ptr<XListener> m_lsnTarget, m_lsnOpenValve, m_lsnCloseValve, m_lsnControl, m_lsnRampTime;
 	xqcon_ptr m_conFlow, m_conAlarm, m_conWarning, m_conTarget,
-		m_conRampTime;
+		m_conRampTime, m_conValve, m_conControl;
 
 	const qshared_ptr<FrmFlowController> m_form;
 

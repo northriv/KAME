@@ -59,7 +59,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>SCCM</string>
+             <string/>
             </property>
             <property name="wordWrap">
              <bool>false</bool>

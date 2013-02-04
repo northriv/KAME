@@ -72,6 +72,8 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 	m_extDCSource->setUIEnabled(true);
 	m_extDCSourceChannel->setUIEnabled(true);
 	m_extIsPositive->setUIEnabled(true);
+
+	tempctrl->m_form->m_toolBox->setItemText(m_idx, getLabel());
 }
 void
 XTempControl::Loop::start() {
@@ -190,7 +192,7 @@ XTempControl::Loop::update(double temp) {
 		if(tr.commit())
 			break;
 	}
-	tempctrl->m_form->m_toolBox->setItemText(m_idx, i18n("Loop") + formatString(" %u: %.5g K, %.3g%s", m_idx, temp, power,
+	tempctrl->m_form->m_toolBox->setItemText(m_idx, getLabel() + formatString(": %.5g K, %.3g%s", temp, power,
 		tempctrl->m_heaterPowerUnit(m_idx)));
 }
 
