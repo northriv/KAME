@@ -93,7 +93,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	}
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
-		tr[ *succeded()] = false;
+		tr[ *succeeded()] = false;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		if(tr.commit())
 			break;
@@ -206,7 +206,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			fmin, std::abs(reffmin), reftotal, std::abs(reff0));
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
 	if(std::abs(reff0) < tune_approach_goal) {
-		tr[ *succeded()] = true;
+		tr[ *succeeded()] = true;
 		return;
 	}
 
@@ -279,7 +279,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		tr[ *this].trace_prv.clear();
 		if(std::abs(reff0) < ref_sigma * 2) {
-			tr[ *succeded()] = true;
+			tr[ *succeeded()] = true;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -295,7 +295,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].fmin_err = fmin_err;
 		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
 		if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
-			tr[ *succeded()] = true;
+			tr[ *succeeded()] = true;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -360,7 +360,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		else {
 		//APPROACHING
-			dref = refmin - shot_this[ *this].ref_fmin_plus_dCa;
+			dref = reffmin - shot_this[ *this].ref_fmin_plus_dCa;
 		}
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 

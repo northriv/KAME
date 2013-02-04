@@ -194,7 +194,7 @@ XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
 	if(pulser__ && autotuner) {
 		Snapshot shot_tuner( *autotuner);
 		if(shot_tuner[ *autotuner->tuning()])
-			return;
+			return; //still tuner is running.
 		m_lsnOnActiveChanged.clear();
 		if( !shot_tuner[ *autotuner->succeeded()])
 			return;
