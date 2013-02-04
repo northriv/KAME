@@ -87,6 +87,7 @@ XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
 		onClear(shot_this, clear().get());
 	}
+	m_lsnOnActiveChanged.clear();
 }
 bool
 XNMRFSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const {
@@ -169,8 +170,13 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 			if(fabs(shot_tuner[ *autotuner->target()] - newf) > shot_this[ *autoTuneStep()] / 2) {
 				//Tunes Capacitors.
 				trans( *pulser__->output()) = false; // Pulse off.
-				trans( *autotuner->target()) = newf + shot_this[ *autoTuneStep()] / 2;
-				trans( *pulser__->output()) = true; // Pulse on.
+				for(Transaction tr( *this);; ++tr) {
+					m_lsnOnActiveChanged = tr[ *autotuner->tuning()].onValueChanged().connectWeakly(
+						shared_from_this(), &XNMRFSpectrum::onTuningChanged);
+					tr[ *autotuner->target()] = newf + shot_this[ *autoTuneStep()] / 2;
+					if(tr.commit())
+						break;
+				}
 			}
 		}
 
@@ -180,7 +186,22 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 			trans( *active()) = false;
 	}	
 }
-
+void
+XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
+	Snapshot shot_this( *this);
+    shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
+    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+	if(pulser__ && autotuner) {
+		Snapshot shot_tuner( *autotuner);
+		if(shot_tuner[ *autotuner->tuning()])
+			return;
+		m_lsnOnActiveChanged.clear();
+		if( !shot_tuner[ *autotuner->succeeded()])
+			return;
+		//Tuning has succeeded, go on.
+		trans( *pulser__->output()) = true; // Pulse on.
+	}
+}
 void
 XNMRFSpectrum::getValues(const Snapshot &shot_this, std::vector<double> &values) const {
 	int wave_size = shot_this[ *this].wave().size();

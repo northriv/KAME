@@ -71,7 +71,8 @@ private:
 	const shared_ptr<XBoolNode> m_active;
 	const shared_ptr<XDoubleNode> m_autoTuneStep;
   
-	shared_ptr<XListener> m_lsnOnActiveChanged;
+	shared_ptr<XListener> m_lsnOnActiveChanged,
+		m_lsnOnTuningChanged;
     
 	xqcon_ptr m_conCenterFreq,
 		m_conFreqSpan, m_conFreqStep;
@@ -79,6 +80,7 @@ private:
 		m_conAutoTuneStep, m_conAutoTuner, m_conPulser;
 
 	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
+	void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
 };
 
 
