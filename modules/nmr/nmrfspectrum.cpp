@@ -87,7 +87,7 @@ XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
 		onClear(shot_this, clear().get());
 	}
-	m_lsnOnActiveChanged.clear();
+	m_lsnOnTuningChanged.reset();
 }
 bool
 XNMRFSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const {
@@ -195,7 +195,7 @@ XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
 		Snapshot shot_tuner( *autotuner);
 		if(shot_tuner[ *autotuner->tuning()])
 			return; //still tuner is running.
-		m_lsnOnActiveChanged.clear();
+		m_lsnOnTuningChanged.reset();
 		if( !shot_tuner[ *autotuner->succeeded()])
 			return;
 		//Tuning has succeeded, go on.
