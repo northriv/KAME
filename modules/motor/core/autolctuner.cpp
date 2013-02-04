@@ -26,7 +26,9 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 		m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
 		m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
 		m_tuning(create<XBoolNode>("Tuning", true)),
+		m_succeeded(create<XBoolNode>("Succeeded", true)),
 		m_target(create<XDoubleNode>("Target", true)),
+		m_reflection(create<XDoubleNode>("Reflection", false)),
 		m_useSTM1(create<XBoolNode>("UseSTM1", false)),
 		m_useSTM2(create<XBoolNode>("UseSTM2", false)),
 		m_abortTuning(create<XTouchableNode>("AbortTuning", true)),
@@ -41,13 +43,17 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	m_conSTM2 = xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas));
 	m_conNetAna = xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas));
 	m_conTarget = xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget);
+	m_conReflection = xqcon_create<XQLineEditConnector>(reflection(), m_form->m_edReflection);
 	m_conAbortTuning = xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning);
 	m_conTuning = xqcon_create<XKLedConnector>(m_tuning, m_form->m_ledTuning);
+	m_conSucceeded = xqcon_create<XKLedConnector>(m_succeeded, m_form->m_ledSucceeded);
 	m_conUseSTM1 = xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1);
 	m_conUseSTM2 = xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2);
 
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = false;
+		tr[ *m_succeeded] = false;
+		tr[ *m_reflection] = -18.0;
 		tr[ *m_useSTM1] = true;
 		tr[ *m_useSTM2] = true;
 		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
@@ -87,6 +93,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	}
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
+		tr[ *succeded()] = false;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		if(tr.commit())
 			break;
@@ -97,7 +104,6 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
 		if( !tr[ *m_tuning])
 			break;
 		tr[ *m_tuning] = false;
-		tr[ *this].stage = Payload::STAGE_ABORTING;
 		if(tr.commit())
 			break;
 	}
@@ -165,7 +171,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if( !shot_this[ *useSTM1()]) stm1__.reset();
 	if( !shot_this[ *useSTM2()]) stm2__.reset();
 	if( !stm1__ && !stm2__) {
-		tr[ *this].stage = Payload::STAGE_ABORTING;
 		tr[ *m_tuning] = false;
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
@@ -198,8 +203,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, refav=%.2f, reff0=%.2f\n",
 			fmin, std::abs(reffmin), std::abs(refav), std::abs(reff0));
-	if(std::abs(reff0) < TUNE_APPROACH_GOAL) {
-		tr[ *this].stage = Payload::STAGE_SUCCESS;
+	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
+	if(std::abs(reff0) < tune_approach_goal) {
+		tr[ *succeded()] = true;
 		tr[ *m_tuning] = false;
 		return;
 	}
@@ -259,7 +265,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		//estimates errors.
 		if(shot_this[ *this].trace_prv.size() != trace_len) {
 			tr[ *m_tuning] = false;
-			tr[ *this].stage = Payload::STAGE_ABORTING;
 			throw XRecordError(i18n("Record is inconsistent."), __FILE__, __LINE__);
 		}
 		double ref_sigma = 0.0;
@@ -272,7 +277,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].trace_prv.clear();
 		if(std::abs(reff0) < ref_sigma * 2) {
 			tr[ *m_tuning] = false;
-			tr[ *this].stage = Payload::STAGE_SUCCESS;
+			tr[ *succeded()] = true;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -289,7 +294,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
 		if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
 			tr[ *m_tuning] = false;
-			tr[ *this].stage = Payload::STAGE_SUCCESS;
+			tr[ *succeded()] = true;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
 		}
@@ -318,7 +323,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if( !stm1__ || !stm2__) {
 				tr[ *m_tuning] = false;
-				tr[ *this].stage = Payload::STAGE_ABORTING;
 				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1/C2 is useless. Aborts.
 			}
 			//Ca is useless, try Cb.
@@ -353,7 +357,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if(tr[ *this].dCa > TUNE_DROT_ABORT)
 				tr[ *m_tuning] = false;
-				tr[ *this].stage = Payload::STAGE_ABORTING;
 				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
 		}
 		break;
@@ -495,7 +498,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 			}
 		}
 	}
-	else if((shot_this[ *this].stage == Payload::STAGE_SUCCESS) || (shot_this[ *this].stage == Payload::STAGE_ABORTING)){
+	else if(shot_this[ *succeeded()]){
 		const unsigned int tunebits = 0;
 		if(stm1__) {
 			for(Transaction tr( *stm1__);; ++tr) {

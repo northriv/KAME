@@ -54,14 +54,16 @@ public:
 
 	/// Target frequency [MHz]
 	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
+	const shared_ptr<XBoolNode> &succeeded() const {return m_succeeded;}
 	const shared_ptr<XDoubleNode> &target() const {return m_target;}
+	const shared_ptr<XDoubleNode> &reflection() const {return m_reflection;}
 	const shared_ptr<XBoolNode> &useSTM1() const {return m_useSTM1;}
 	const shared_ptr<XBoolNode> &useSTM2() const {return m_useSTM2;}
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
-		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB, STAGE_ABORTING, STAGE_SUCCESS};
+		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
 		STAGE stage;
 
 		std::complex<double> ref_av_first, ref_av_plus_dCa;
@@ -84,12 +86,15 @@ private:
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > m_netana;
 
 	const shared_ptr<XBoolNode> m_tuning;
+	const shared_ptr<XBoolNode> m_succeeded;
 	const shared_ptr<XDoubleNode> m_target;
+	const shared_ptr<XDoubleNode> m_reflection;
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
 
-	xqcon_ptr m_conTarget, m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning,
-		m_conTuning, m_conUseSTM1, m_conUseSTM2;
+	xqcon_ptr m_conTarget, m_conReflection,
+		m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning,
+		m_conTuning, m_conSucceeded, m_conUseSTM1, m_conUseSTM2;
 
 	shared_ptr<XListener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
 
@@ -100,7 +105,6 @@ private:
 
 	static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0, TUNE_DROT_ABORT = 360.0; //[deg.]
 	static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0; //[deg.]
-	static const double TUNE_APPROACH_GOAL = 0.1; // -20dB
 	static const double TUNE_APPROACH_START = 0.5; //-3dB
 	static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
 
