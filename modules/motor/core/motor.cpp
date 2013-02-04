@@ -221,6 +221,12 @@ XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
         e.print(getLabel() + " " + i18n("Error, "));
         return;
     }
+    for(Transaction tr( *this);; ++tr) {
+    	tr[ *target()] = tr[ *m_position];
+    	tr.unmark(m_lsnTarget);
+    	if(tr.commit())
+    		break;
+    }
 }
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {

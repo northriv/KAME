@@ -45,6 +45,7 @@ public:
 	const shared_ptr<XScalarEntry> &flow() const {return m_flow;} //!< [SLM]
 
 	const shared_ptr<XDoubleNode> &target() const {return m_target;} //!< [%]
+	const shared_ptr<XDoubleNode> &valve() const {return m_valve;} //!< [V]
 	const shared_ptr<XDoubleNode> &rampTime() const {return m_rampTime;} //!< [ms]
 	const shared_ptr<XTouchableNode> &openValve() const {return m_openValve;}
 	const shared_ptr<XTouchableNode> &closeValve() const {return m_closeValve;}
@@ -55,8 +56,7 @@ protected:
 	virtual bool isController() = 0; //! distinguishes monitors and controllers.
 	virtual bool isUnitInSLM() = 0; //! false for SCCM.
 
-	virtual double getFlowInSLM() = 0;
-	virtual void getStatus(bool &alarm, bool &warning) = 0;
+	virtual void getStatus(double &flow_in_slm, double &valve_v, bool &alarm, bool &warning) = 0;
 	virtual void openValve() = 0;
 	virtual void closeValve() = 0;
 	virtual void changeControl(bool ctrl) = 0;
@@ -66,6 +66,7 @@ private:
 	const shared_ptr<XScalarEntry> m_flow;
 
 	const shared_ptr<XDoubleNode> m_target;
+	const shared_ptr<XDoubleNode> m_valve;
 	const shared_ptr<XDoubleNode> m_rampTime;
 	const shared_ptr<XTouchableNode> m_openValve;
 	const shared_ptr<XTouchableNode> m_closeValve;

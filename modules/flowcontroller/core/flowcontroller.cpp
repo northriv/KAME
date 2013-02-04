@@ -24,6 +24,7 @@ XFlowController::XFlowController(const char *name, bool runtime,
     m_flow(create<XScalarEntry>("Flow", false,
 								  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_target(create<XDoubleNode>("Target", true)),
+    m_valve(create<XDoubleNode>("Valve", true)),
     m_rampTime(create<XDoubleNode>("RampTime", true)),
     m_openValve(create<XTouchableNode>("OpenValve", true)),
     m_closeValve(create<XTouchableNode>("CloseValve", true)),
@@ -44,6 +45,7 @@ XFlowController::XFlowController(const char *name, bool runtime,
 	m_form->setWindowTitle(i18n("Flow Controller - ") + getLabel() );
 
 	m_target->setUIEnabled(false);
+	m_valve->setUIEnabled(false);
 	m_rampTime->setUIEnabled(false);
 	m_openValve->setUIEnabled(false);
 	m_closeValve->setUIEnabled(false);
@@ -51,29 +53,16 @@ XFlowController::XFlowController(const char *name, bool runtime,
 	m_warning->setUIEnabled(false);
 	m_control->setUIEnabled(false);
 
-	m_conPosition = xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition);
+	m_conFlow = xqcon_create<XQLCDNumberConnector>(m_flow->value(), m_form->m_lcdFlow);
+	m_conValve = xqcon_create<XQLCDNumberConnector>(m_valve, m_form->m_lcdValve);
 	m_conTarget = xqcon_create<XKDoubleNumInputConnector>(m_target, m_form->m_dblTarget);
-	m_form->m_dblTarget->setRange(-3600.0, 3600.0, 1.0, true);
-	m_conStepMotor = xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor);
-	m_conStepEncoder = xqcon_create<XQLineEditConnector>(m_stepEncoder, m_form->m_edStepEncoder);
-	m_conCurrentStopping = xqcon_create<XQLineEditConnector>(m_currentStopping, m_form->m_edCurrStopping);
-	m_conCurrentRunning = xqcon_create<XQLineEditConnector>(m_currentRunning, m_form->m_edCurrRunning);
-	m_conSpeed = xqcon_create<XQLineEditConnector>(m_speed, m_form->m_edSpeed);
-	m_conTimeAcc = xqcon_create<XQLineEditConnector>(m_timeAcc, m_form->m_edTimeAcc);
-	m_conTimeDec = xqcon_create<XQLineEditConnector>(m_timeDec, m_form->m_edTimeDec);
-	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-	m_conMicroStep = xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping);
-	m_conSlipping = xqcon_create<XKLedConnector>(m_slipping, m_form->m_ledSlipping);
-	m_conReady = xqcon_create<XKLedConnector>(m_ready, m_form->m_ledReady);
-	m_conHasEncoder = xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder);
-	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
-	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
-	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
-	m_conRound = xqcon_create<XQToggleButtonConnector>(m_round, m_form->m_ckbRound);
-	m_conRoundBy = xqcon_create<XQLineEditConnector>(m_roundBy, m_form->m_edRoundBy);
-	m_conForwardMotor = xqcon_create<XQButtonConnector>(m_forwardMotor, m_form->m_btnFWD);
-	m_conReverseMotor = xqcon_create<XQButtonConnector>(m_reverseMotor, m_form->m_btnRVS);
-	m_conStopMotor = xqcon_create<XQButtonConnector>(m_stopMotor, m_form->m_btnSTOP);
+	m_form->m_dblTarget->setRange(0.0, 1000.0, 1, true);
+	m_conRampTime = xqcon_create<XQLineEditConnector>(m_rampTime, m_form->m_edRampTime);
+	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
+	m_conAlarm = xqcon_create<XKLedConnector>(m_alarm, m_form->m_ledAlarm);
+	m_conWarning = xqcon_create<XKLedConnector>(m_warning, m_form->m_ledWarning);
+	m_conOpenValve = xqcon_create<XQButtonConnector>(m_openValve, m_form->m_btnOpenValve);
+	m_conCloseValve = xqcon_create<XQButtonConnector>(m_closeValve, m_form->m_btnCloseValve);
 }
 
 void
@@ -85,14 +74,15 @@ XFlowController::showForms() {
 
 void
 XFlowController::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
-    double pos;
-    bool slip, isready;
-    pos = reader.pop<double>();
-    slip = reader.pop<uint16_t>();
-    isready = reader.pop<uint16_t>();
-    m_position->value(tr, pos);
-    tr[ *m_slipping] = slip;
-    tr[ *m_ready] = isready;
+    double flow, valve;
+    flow = reader.pop<double>();
+    valve = reader.pop<double>();
+    bool alarm = reader.pop<uin16_t>();
+    bool warning = reader.pop<uin16_t>();
+    tr[ *m_flow] = flow;
+    tr[ *m_valve] = valve;
+    tr[ *alarm] = alarm;
+    tr[ *warning] = warning;
 }
 void
 XFlowController::visualize(const Snapshot &shot) {
@@ -100,9 +90,8 @@ XFlowController::visualize(const Snapshot &shot) {
 
 void
 XFlowController::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
-	Snapshot shot_this( *this);
     try {
-        setTarget(shot_this, shot[ *target()]);
+        changeSetPoint(shot[ *target()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing target, "));
@@ -110,11 +99,9 @@ XFlowController::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 void
-XFlowController::onConditionsChanged(const Snapshot &shot, XValueNodeBase *) {
-	Snapshot shot_this( *this);
+XFlowController::onRampTimeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeConditions(shot_this);
-        setActive(shot_this[ *active()]);
+        changeRampTime(shot[ *rampTime()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing conditions, "));
@@ -122,70 +109,29 @@ XFlowController::onConditionsChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 void
-XFlowController::onClearTouched(const Snapshot &shot, XTouchableNode *) {
-	Snapshot shot_this( *this);
+XFlowController::onOpenValveTouched(const Snapshot &shot, XTouchableNode *) {
     try {
-        clearPosition();
+        openValve();
     }
     catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error while clearing position, "));
-        return;
-    }
-    for(Transaction tr( *this);; ++tr) {
-    	tr[ *target()] = 0.0;
-    	tr.unmark(m_lsnTarget);
-    	if(tr.commit())
-    		break;
-    }
-}
-void
-XFlowController::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
-	Snapshot shot_this( *this);
-    try {
-        storeToROM();
-    }
-    catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error while storing to NV, "));
+        e.print(getLabel() + " " + i18n("Error while opening valve, "));
         return;
     }
 }
 void
-XFlowController::onAUXChanged(const Snapshot &shot, XValueNodeBase *) {
+XFlowController::onCloseValveTouched(const Snapshot &shot, XTouchableNode *) {
     try {
-        setAUXBits(shot[ *auxBits()]);
+        closeValve();
     }
     catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error, "));
+        e.print(getLabel() + " " + i18n("Error while closeing valve, "));
         return;
     }
 }
 void
-XFlowController::onForwardMotorTouched(const Snapshot &shot, XTouchableNode *) {
-	Snapshot shot_this( *this);
+XFlowController::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        setForward();
-    }
-    catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error, "));
-        return;
-    }
-}
-void
-XFlowController::onReverseMotorTouched(const Snapshot &shot, XTouchableNode *) {
-	Snapshot shot_this( *this);
-    try {
-        setReverse();
-    }
-    catch (XKameError& e) {
-        e.print(getLabel() + " " + i18n("Error, "));
-        return;
-    }
-}
-void
-XFlowController::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
-	Snapshot shot_this( *this);
-    try {
-        stopRotation();
+        changeControl(shot[ *control()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));
@@ -194,34 +140,18 @@ XFlowController::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
 }
 void *
 XFlowController::execute(const atomic<bool> &terminated) {
-	for(Transaction tr( *this);; ++tr) {
-		getConditions(tr);
-		if(tr.commit())
-			break;
-	}
-
-	m_position->setUIEnabled(true);
 	m_target->setUIEnabled(true);
-	m_stepMotor->setUIEnabled(true);
-	m_stepEncoder->setUIEnabled(true);
-	m_currentStopping->setUIEnabled(true);
-	m_currentRunning->setUIEnabled(true);
-	m_speed->setUIEnabled(true);
-	m_timeAcc->setUIEnabled(true);
-	m_timeDec->setUIEnabled(true);
-	m_active->setUIEnabled(true);
-	m_ready->setUIEnabled(true);
-	m_slipping->setUIEnabled(true);
-	m_microStep->setUIEnabled(true);
-	m_clear->setUIEnabled(true);
-	m_store->setUIEnabled(true);
-	m_auxBits->setUIEnabled(true);
-	m_round->setUIEnabled(true);
-	m_roundBy->setUIEnabled(true);
-	m_forwardMotor->setUIEnabled(true);
-	m_reverseMotor->setUIEnabled(true);
-	m_stopMotor->setUIEnabled(true);
-//	m_hasEncoder->setUIEnabled(true);
+	m_valve->setUIEnabled(true);
+	m_rampTime->setUIEnabled(true);
+	m_openValve->setUIEnabled(true);
+	m_closeValve->setUIEnabled(true);
+	m_alarm->setUIEnabled(true);
+	m_warning->setUIEnabled(true);
+	m_control->setUIEnabled(true);
+
+
+
+
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnTarget = tr[ *target()].onValueChanged().connectWeakly(shared_from_this(), &XFlowController::onTargetChanged);
@@ -267,28 +197,14 @@ XFlowController::execute(const atomic<bool> &terminated) {
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
 
-	m_position->setUIEnabled(false);
 	m_target->setUIEnabled(false);
-	m_stepMotor->setUIEnabled(false);
-	m_stepEncoder->setUIEnabled(false);
-	m_currentStopping->setUIEnabled(false);
-	m_currentRunning->setUIEnabled(false);
-	m_speed->setUIEnabled(false);
-	m_timeAcc->setUIEnabled(false);
-	m_timeDec->setUIEnabled(false);
-	m_active->setUIEnabled(false);
-	m_ready->setUIEnabled(false);
-	m_slipping->setUIEnabled(false);
-	m_microStep->setUIEnabled(false);
-	m_clear->setUIEnabled(false);
-	m_store->setUIEnabled(false);
-	m_auxBits->setUIEnabled(false);
-	m_round->setUIEnabled(false);
-	m_roundBy->setUIEnabled(false);
-	m_forwardMotor->setUIEnabled(false);
-	m_reverseMotor->setUIEnabled(false);
-	m_stopMotor->setUIEnabled(false);
-//	m_hasEncoder->setUIEnabled(true);
+	m_valve->setUIEnabled(false);
+	m_rampTime->setUIEnabled(false);
+	m_openValve->setUIEnabled(false);
+	m_closeValve->setUIEnabled(false);
+	m_alarm->setUIEnabled(false);
+	m_warning->setUIEnabled(false);
+	m_control->setUIEnabled(false);
 
 	m_lsnTarget.reset();
 	m_lsnConditions.reset();
