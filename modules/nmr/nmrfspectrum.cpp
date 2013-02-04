@@ -171,7 +171,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 				//Tunes Capacitors.
 				trans( *pulser__->output()) = false; // Pulse off.
 				for(Transaction tr( *this);; ++tr) {
-					m_lsnOnActiveChanged = tr[ *autotuner->tuning()].onValueChanged().connectWeakly(
+					m_lsnOnTuningChanged = tr[ *autotuner->tuning()].onValueChanged().connectWeakly(
 						shared_from_this(), &XNMRFSpectrum::onTuningChanged);
 					tr[ *autotuner->target()] = newf + shot_this[ *autoTuneStep()] / 2;
 					if(tr.commit())
