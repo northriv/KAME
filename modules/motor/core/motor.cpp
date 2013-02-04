@@ -222,7 +222,7 @@ XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
         return;
     }
     for(Transaction tr( *this);; ++tr) {
-    	tr[ *target()] = tr[ *m_position];
+    	tr[ *target()] = tr[ *(m_position->value())];
     	tr.unmark(m_lsnTarget);
     	if(tr.commit())
     		break;
