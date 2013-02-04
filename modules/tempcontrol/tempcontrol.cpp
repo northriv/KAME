@@ -526,6 +526,7 @@ void XTempControl::createChannels(
 			m_form->m_cmbExtDCSrc2, ref(tr_meas));
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
+		lp->m_conExtIsPositive = xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive2);
 	}
 	else {
 		m_form->m_toolBox->removeItem(1);
@@ -558,6 +559,7 @@ void XTempControl::createChannels(
 			m_form->m_cmbExtDCSrc, ref(tr_meas));
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
+		lp->m_conExtIsPositive = xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive);
 	}
 	else {
 		m_form->m_toolBox->removeItem(0);

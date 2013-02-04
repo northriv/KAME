@@ -128,7 +128,7 @@ private:
 
 		const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
 		const shared_ptr<XComboNode> m_extDCSourceChannel;
-		const shared_ptr<XBoolNode> &m_extIsPositive;
+		const shared_ptr<XBoolNode> m_extIsPositive;
 
 		void start();
 		void stop();
