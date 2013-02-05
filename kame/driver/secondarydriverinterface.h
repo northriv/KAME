@@ -75,22 +75,24 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 			return;
 
 		bool skipped = false;
+		XKameError err;
 		XTime time_recorded = shot_emitter[ *driver].time();
 		try {
 			analyze(tr, shot_emitter, shot_all_drivers, driver);
 		}
 		catch (typename T::XSkippedRecordError& e) {
 			skipped = true;
-			if(e.msg().length())
-				e.print(this->getLabel() + ": " + i18n("Skipped, because "));
+			err = e;
 		}
 		catch (typename T::XRecordError& e) {
 			time_recorded = XTime(); //record is invalid
-			e.print(this->getLabel() + ": " + i18n("Record Error, because "));
+			err = e;
 		}
 		if( !skipped)
 			this->record(tr, shot_emitter[ *driver].timeAwared(), time_recorded);
 		if(tr.commit()) {
+			if(e.msg().length())
+				e.print(this->getLabel() + ": ");
 			this->visualize(tr);
 			break;
 		}

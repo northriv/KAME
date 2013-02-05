@@ -24,6 +24,7 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 
     XTime time_recorded = time_recorded_org;
 	for(Transaction tr( *this);; ++tr) {
+		XKameError err;
 		bool skipped = false;
 		if(time_recorded) {
 			try {
@@ -33,17 +34,18 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 			}
 			catch (XSkippedRecordError& e) {
 				skipped = true;
-				if(e.msg().length())
-					e.print(getLabel() + ": " + i18n("Skipped, because "));
+				err = e;
 			}
 			catch (XRecordError& e) {
 				time_recorded = XTime(); //record is invalid
-				e.print(getLabel() + ": " + i18n("Record Error, because "));
+				err = e;
 			}
 		}
 		if( !skipped)
 			record(tr, time_awared, time_recorded);
 		if(tr.commit()) {
+			if(e.msg().length())
+				e.print(getLabel() + ": ");
 			visualize(tr);
 			break;
 		}
