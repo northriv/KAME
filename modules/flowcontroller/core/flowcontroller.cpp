@@ -17,6 +17,7 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
+#include <QStatusBar>
 
 XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -72,8 +73,8 @@ XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw 
     double flow, valve;
     flow = reader.pop<double>();
     valve = reader.pop<double>();
-    bool alarm = reader.pop<uin16_t>();
-    bool warning = reader.pop<uin16_t>();
+    bool alarm = reader.pop<uint16_t>();
+    bool warning = reader.pop<uint16_t>();
     tr[ *m_flow] = flow;
     tr[ *m_valve] = valve;
     tr[ *m_alarm] = alarm;
@@ -100,7 +101,7 @@ XFlowControllerDriver::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XFlowControllerDriver::onRampTimeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        changeRampTime(shot[ *rampTime()]);
+        setRampTime(shot[ *rampTime()]);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing conditions, "));
@@ -144,9 +145,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 	// try/catch exception of communication errors
 	try {
 		fs = getFullScale();
-		tr[ *this].m_fullScale = fs;
 		unit_in_slm = isUnitInSLM();
-		tr[ *this].m_unit = unit_in_slm ? "SLM" : "SCCM";
 		if(isController()) {
 			m_target->setUIEnabled(true);
 			m_rampTime->setUIEnabled(true);
@@ -160,6 +159,8 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 	}
 
 	for(Transaction tr( *this);; ++tr) {
+		tr[ *this].m_fullScale = fs;
+		tr[ *this].m_unit = unit_in_slm ? "SLM" : "SCCM";
 		m_lsnTarget = tr[ *target()].onValueChanged().connectWeakly(shared_from_this(), &XFlowControllerDriver::onTargetChanged);
 		m_lsnRampTime = tr[ *rampTime()].onValueChanged().connectWeakly(shared_from_this(), &XFlowControllerDriver::onRampTimeChanged);
 		m_lsnControl = tr[ *control()].onValueChanged().connectWeakly(shared_from_this(), &XFlowControllerDriver::onControlChanged);
@@ -176,7 +177,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 		bool warning = false, alarm = false;
 		// try/catch exception of communication errors
 		try {
-			getStatus(&flow, &valve, &alarm, &warning);
+			getStatus(flow, valve, alarm, warning);
 		}
 		catch (XKameError &e) {
 			e.print(getLabel() + " " + i18n("Read Error, "));

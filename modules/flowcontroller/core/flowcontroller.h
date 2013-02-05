@@ -60,7 +60,7 @@ public:
 protected:
 	virtual bool isController() = 0; //! distinguishes monitors and controllers.
 	virtual bool isUnitInSLM() = 0; //! false for SCCM.
-	virtual double getFullScaleInSLM() = 0;
+	virtual double getFullScale() = 0;
 
 	virtual void getStatus(double &flow_in_slm, double &valve_v, bool &alarm, bool &warning) = 0;
 	virtual void openValve() = 0;

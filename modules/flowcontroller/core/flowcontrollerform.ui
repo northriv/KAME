@@ -41,7 +41,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLCDNumber" name="m_lcdPosition">
+           <widget class="QLCDNumber" name="m_lcdFlow">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum">
               <horstretch>0</horstretch>
@@ -87,7 +87,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLCDNumber" name="m_lcdValveOutput">
+           <widget class="QLCDNumber" name="m_lcdValve">
             <property name="sizePolicy">
              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum">
               <horstretch>0</horstretch>
