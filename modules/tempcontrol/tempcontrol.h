@@ -95,10 +95,7 @@ protected:
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
   
-	bool hasExtDevice(const Snapshot &shot, unsigned int loop) const {
-		return shared_ptr<XDCSource>(shot[ *extDevice(loop)]) ||
-			shared_ptr<XFlowControllerDriver>(shot[ *extDevice(loop)]);
-	}
+	bool hasExtDevice(const Snapshot &shot, unsigned int lp) const {return loop(lp)->hasExtDevice(shot, lp);}
 
 	virtual void onPChanged(unsigned int loop, double p) = 0;
 	virtual void onIChanged(unsigned int loop, double i) = 0;
@@ -140,6 +137,11 @@ private:
 		void stop();
 		void update(double temp);
 		double pid(const Snapshot &shot, XTime time, double temp);
+
+		bool hasExtDevice(const Snapshot &shot) const {
+			return shared_ptr<XDCSource>(shot[ *m_extDevice]) ||
+				shared_ptr<XFlowControllerDriver>(shot[ *m_extDevice]);
+		}
 
 		void onPChanged(const Snapshot &shot, XValueNodeBase *);
 		void onIChanged(const Snapshot &shot, XValueNodeBase *);

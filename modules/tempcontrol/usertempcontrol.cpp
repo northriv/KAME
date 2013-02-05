@@ -314,7 +314,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 		excitations_create, 2);
 }
 void XCryocon::open() throw (XKameError &) {
-	Snapshot shot( *channels());
+	Snapshot shot( *this);
 	const XNode::NodeList &list( *shot.list());
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
@@ -325,7 +325,7 @@ void XCryocon::open() throw (XKameError &) {
 
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		trans( *powerRange(idx)).clear();
-		if( !) {
+		if( !hasExtDevice(shot, idx)) {
 			getChannel(idx);
 			interface()->queryf("LOOP %u:PMAN?", idx + 1);
 			trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
