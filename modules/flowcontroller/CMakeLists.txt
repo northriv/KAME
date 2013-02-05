@@ -6,7 +6,7 @@ include_directories(
     )
     
 ########### next target ###############
-set(motor_SRCS
+set(flowcontroller_SRCS
     fujikininterface.cpp 
     userflowcontroller.cpp
  )
