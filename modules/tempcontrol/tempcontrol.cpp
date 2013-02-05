@@ -81,7 +81,7 @@ XTempControl::Loop::start() {
 	if( !tempctrl) return;
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
-		if(shared_ptr<XDriver>(shot[ m_extDevice])) {
+		if(hasExtDevice()) {
 			tr[ m_heaterMode].clear();
 			tr[ m_heaterMode].add("Off");
 			tr[ m_heaterMode].add("PID");
@@ -255,7 +255,7 @@ void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *this);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onPChanged(m_idx, shot[ *m_prop]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -267,7 +267,7 @@ void XTempControl::Loop::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onIChanged(m_idx, shot[ *m_int]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -279,7 +279,7 @@ void XTempControl::Loop::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onDChanged(m_idx, shot[ *m_deriv]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -291,7 +291,7 @@ void XTempControl::Loop::onTargetTempChanged(const Snapshot &shot, XValueNodeBas
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onTargetTempChanged(m_idx, shot[ *m_targetTemp]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -303,7 +303,7 @@ void XTempControl::Loop::onManualPowerChanged(const Snapshot &shot, XValueNodeBa
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onManualPowerChanged(m_idx, shot[ *m_manualPower]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -316,7 +316,7 @@ void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBas
 	m_pidAccum = 0;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onHeaterModeChanged(m_idx, shot[ *m_heaterMode]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -328,7 +328,7 @@ void XTempControl::Loop::onPowerMaxChanged(const Snapshot &shot, XValueNodeBase 
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMax]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -340,7 +340,7 @@ void XTempControl::Loop::onPowerMinChanged(const Snapshot &shot, XValueNodeBase 
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMin]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -352,7 +352,7 @@ void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBas
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
+		if( !hasExtDevice())
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerRange]);
 	}
 	catch(XInterface::XInterfaceError& e) {
