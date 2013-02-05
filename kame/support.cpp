@@ -47,6 +47,9 @@ static void __attribute__ ((constructor)) trapfpe (void)
 #endif
 #endif // __linux__
 
+XKameError::XKameError() : std::runtime_error(""), m_file(0) {
+
+}
 XKameError::XKameError(const XString &s, const char *file, int line)
 	: std::runtime_error(s.c_str()), m_msg(s), m_file(file), m_line(line), m_errno(errno) {
 	errno = 0;
