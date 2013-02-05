@@ -61,6 +61,7 @@ XKameError::print() {
 }
 void
 XKameError::print(const XString &msg, const char *file, int line, int errno_) {
+	if( !file) return;
 	if(errno_) {
 		errno = 0;
 		char buf[256];

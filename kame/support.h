@@ -82,6 +82,7 @@ gWarnPrint_redirected(const XString &str, const char *file, int line);
 #include <stdexcept>
 //! Base of exception
 struct XKameError : public std::runtime_error {
+	XKameError() : m_file(0) {}
 	virtual ~XKameError() throw() {}
 	//! errno is read and cleared after a construction
 	XKameError(const XString &s, const char *file, int line);
