@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>318</width>
-    <height>232</height>
+    <width>302</width>
+    <height>186</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -139,7 +139,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Warning</string>
+             <string>Warn</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>

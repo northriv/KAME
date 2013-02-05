@@ -15,7 +15,7 @@
 #include "userflowcontroller.h"
 //---------------------------------------------------------------------------
 
-REGISTER_TYPE(XDriverList, FCST1000, "FCST1000 Series Mass Flow Controllers");
+REGISTER_TYPE(XDriverList, FCST1000, "Fujikin FCST1000 Series Mass Flow Controllers");
 
 XFCST1000::XFCST1000(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
