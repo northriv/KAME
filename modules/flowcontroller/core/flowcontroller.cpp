@@ -153,6 +153,8 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 			m_closeValve->setUIEnabled(true);
 			m_control->setUIEnabled(true);
 		}
+		else
+			m_valve->setUIEnabled(false);
 	}
 	catch (XKameError &e) {
 		e.print(getLabel() + " " + i18n("Read Error, "));

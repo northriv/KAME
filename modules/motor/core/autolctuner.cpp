@@ -53,7 +53,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = false;
 		tr[ *m_succeeded] = false;
-		tr[ *m_reflection] = -18.0;
+		tr[ *m_reflection] = -15.0;
 		tr[ *m_useSTM1] = true;
 		tr[ *m_useSTM2] = true;
 		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
@@ -94,6 +94,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
+		tr[ *this].isSTMChanged = true;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		if(tr.commit())
 			break;
@@ -318,7 +319,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].dref_dCa = dref / shot_this[ *this].dCa;
 
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
-			if(tr[ *this].dCa < TUNE_DROT_ABORT) {
+			if(fabs(tr[ *this].dCa) < TUNE_DROT_ABORT) {
 				if(stm1__)
 					tr[ *this].stm1 += 2.0 * tr[ *this].dCa;
 				else
@@ -365,7 +366,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
-			if(tr[ *this].dCb < TUNE_DROT_ABORT) {
+			if(fabs(tr[ *this].dCb) < TUNE_DROT_ABORT) {
 				tr[ *this].stm2 += 2.0 * tr[ *this].dCb;
 				tr[ *this].dCb *= 3.0; //increases rotation angle to measure derivative.
 				tr[ *this].isSTMChanged = true;
@@ -373,7 +374,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				//rotate Cb more and try again.
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
-			if(tr[ *this].dCa > TUNE_DROT_ABORT)
+			if(fabs(tr[ *this].dCa) > TUNE_DROT_ABORT)
 				tr[ *m_tuning] = false;
 				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
 		}
@@ -396,11 +397,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dfmin_dCa, dfmin_dCb);
 	if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
 		if(( !stm1__ || !stm2__) ||
-			(tr[ *this].dCb > TUNE_DROT_ABORT)) {
+			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT)) {
 			//Tunes fmin to f0
 			dCa_next = -(fmin - f0) / dfmin_dCa;
 		}
-		else if(tr[ *this].dCa > TUNE_DROT_ABORT) {
+		else if(fabs(tr[ *this].dCa) > TUNE_DROT_ABORT) {
 			//Tunes fmin to f0
 			dCb_next = -(fmin - f0) / dfmin_dCb;
 		}
@@ -430,7 +431,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	else {
 		//Minimizing mode
 		if(( !stm1__ || !stm2__) ||
-			(tr[ *this].dCb > TUNE_DROT_ABORT) ||
+			(fabs(tr[ *this].dCb > TUNE_DROT_ABORT)) ||
 			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
 			//Decreses reftotal by 10%.
 			dCa_next = -(0.1 * reftotal) / std::real(dref_dCa);
