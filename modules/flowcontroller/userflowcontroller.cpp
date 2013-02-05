@@ -17,7 +17,7 @@
 
 REGISTER_TYPE(XDriverList, FCST1000, "FCST1000 Series Mass Flow Controllers");
 
-XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
+XFCST1000::XFCST1000(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XFujikinProtocolDriver<XFlowControllerDriver>(name, runtime, ref(tr_meas), meas) {
 	interface()->setSerialBaudRate(38400);
@@ -25,21 +25,21 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 	interface()->setSerialParity(XCharInterface::PARITY_NONE);
 }
 bool
-XFlowControllerDriver::isUnitInSLM() {
+XFCST1000::isUnitInSLM() {
 	XString unit = interface()->query<XString>(ValveDriverClass, 1, 0x03);
 	return (unit == "SLM");
 }
 bool
-XFlowControllerDriver::isController() {
+XFCST1000::isController() {
 	unsigned int type = interface()->query<uint8_t>(GasCalibrationClass, 1, 0xa0);
 	return (type != 0);
 }
 double
-XFlowControllerDriver::getFullScale() {
+XFCST1000::getFullScale() {
 	return interface()->query<uint16_t>(GasCalibrationClass, 1, 0x02);
 }
 void
-XFlowControllerDriver::getStatus(double &flow, double &valve_v, bool &alarm, bool &warning)  {
+XFCST1000::getStatus(double &flow, double &valve_v, bool &alarm, bool &warning)  {
 	flow = interface()->query<uint16_t>(ValveDriverClass, 1, 0xa9);
 	flow = (flow - 0x4000) / 0x8000;
 	flow *= getFullScale();
@@ -51,11 +51,11 @@ XFlowControllerDriver::getStatus(double &flow, double &valve_v, bool &alarm, boo
 	warning = bits & 32;
 }
 void
-XFlowControllerDriver::setValveState(bool open) {
+XFCST1000::setValveState(bool open) {
 	interface()->send(ValveDriverClass, 1, 0x01, open ? (uint8_t)0x02 : (uint8_t)0x01);
 }
 void
-XFlowControllerDriver::changeControl(bool ctrl) {
+XFCST1000::changeControl(bool ctrl) {
 	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x00);
 	if(ctrl)
 		interface()->send(FlowControllerClass, 1, 0x03, (uint8_t)0x01); //digital mode.
@@ -63,7 +63,7 @@ XFlowControllerDriver::changeControl(bool ctrl) {
 		interface()->send(FlowControllerClass, 1, 0x03, (uint8_t)0x02); //analog mode.
 }
 void
-XFlowControllerDriver::changeSetPoint(double target) {
+XFCST1000::changeSetPoint(double target) {
 	target  = target / getFullScale();
 	target = std::max(0.0, target);
 	target = std::min(1.0, target);
@@ -71,6 +71,6 @@ XFlowControllerDriver::changeSetPoint(double target) {
 	interface()->send(FlowControllerClass, 1, 0xa4, x);
 }
 void
-XFlowControllerDriver::setRampTime(double time) {
+XFCST1000::setRampTime(double time) {
 	interface()->send(ValveDriverClass, 1, 0xa4, (uint32_t)lrint(time));
 }

@@ -36,7 +36,7 @@ protected:
 	virtual void setRampTime(double time);
 
 	enum ClassID {NetworkClass = 0x03, DeviceManagerClass = 0x64, ExceptionClass = 0x65,
-		GasCalibrationClass = 0x66, FlowMeterClass = 0x68, FlowControllerClass = 0x69};
+		GasCalibrationClass = 0x66, FlowMeterClass = 0x68, FlowControllerClass = 0x69, ValveDriverClass = 0x6a};
 private:
 };
 
