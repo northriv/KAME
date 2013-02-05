@@ -80,7 +80,7 @@ T
 XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
 }
 template <>
-uin8_t
+uint8_t
 XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
 	std::vector<uint8_t> wbuf(0), rbuf;
 		communicate(classid, instanceid, attributeid, wbuf, &rbuf);
@@ -89,7 +89,7 @@ XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributei
 		return rbuf[0];
 }
 template <>
-uin16_t
+uint16_t
 XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
 	std::vector<uint8_t> wbuf(0), rbuf;
 		communicate(classid, instanceid, attributeid, wbuf, &rbuf);
@@ -102,7 +102,7 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 	const std::vector<uint8_t> &data, std::vector<uint8_t> *response) {
 	bool write = !response;
 	std::vector<uint8_t> buf;
-	buf.push_back("0"); //master
+	buf.push_back(0); //master
 	buf.push_back(STX);
 	uint8_t commandcode = write ? 0x81 : 0x80;
 	buf.push_back(commandcode);
@@ -118,7 +118,8 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 		checksum += *it;
 	buf.push_back(checksum);
 
-	master->write( reinterpret_cast<char*>(&buf[0]), buf.size());
+	auto master = m_master;
+	master->write( reinterpret_cast<char*>( &buf[0]), buf.size());
 	master->receive(1);
 	switch(master->buffer()[0]) {
 	case ACK:
@@ -146,7 +147,7 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
 			checksum += *it;
 		master->receive(len - 4);
-		if((master->buffer()[0] != classid) || (master->buffer()[1] != instance) || (master->buffer()[2] != attributeid))
+		if((master->buffer()[0] != classid) || (master->buffer()[1] != instanceid) || (master->buffer()[2] != attributeid))
 			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
 		if((master->buffer()[len - 6] != 0))
 			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);

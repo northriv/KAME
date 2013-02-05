@@ -51,12 +51,8 @@ XFlowControllerDriver::getStatus(double &flow, double &valve_v, bool &alarm, boo
 	warning = bits & 32;
 }
 void
-XFlowControllerDriver::openValve() {
-	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x02);
-}
-void
-XFlowControllerDriver::closeValve() {
-	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x01);
+XFlowControllerDriver::setValveState(bool open) {
+	interface()->send(ValveDriverClass, 1, 0x01, open ? (uint8_t)0x02 : (uint8_t)0x01);
 }
 void
 XFlowControllerDriver::changeControl(bool ctrl) {

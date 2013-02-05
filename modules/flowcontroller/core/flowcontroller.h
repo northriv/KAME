@@ -63,8 +63,7 @@ protected:
 	virtual double getFullScale() = 0;
 
 	virtual void getStatus(double &flow_in_slm, double &valve_v, bool &alarm, bool &warning) = 0;
-	virtual void openValve() = 0;
-	virtual void closeValve() = 0;
+	virtual void setValveState(bool open) = 0;
 	virtual void changeControl(bool ctrl) = 0;
 	virtual void changeSetPoint(double target) = 0;
 	virtual void setRampTime(double time) = 0;

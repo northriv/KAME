@@ -75,7 +75,7 @@ XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw 
     valve = reader.pop<double>();
     bool alarm = reader.pop<uint16_t>();
     bool warning = reader.pop<uint16_t>();
-    tr[ *m_flow] = flow;
+    m_flow->value(tr, flow);
     tr[ *m_valve] = valve;
     tr[ *m_alarm] = alarm;
     tr[ *m_warning] = warning;
@@ -111,7 +111,7 @@ XFlowControllerDriver::onRampTimeChanged(const Snapshot &shot, XValueNodeBase *)
 void
 XFlowControllerDriver::onOpenValveTouched(const Snapshot &shot, XTouchableNode *) {
     try {
-        openValve();
+        setValveState(true);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while opening valve, "));
@@ -121,7 +121,7 @@ XFlowControllerDriver::onOpenValveTouched(const Snapshot &shot, XTouchableNode *
 void
 XFlowControllerDriver::onCloseValveTouched(const Snapshot &shot, XTouchableNode *) {
     try {
-        closeValve();
+        setValveState(false);
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while closeing valve, "));
