@@ -193,7 +193,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			fmin = trace_start + i * trace_dfreq;
 		}
 	}
-	reftotal = sqrt(reftotal);
+	reftotal /= trace_len;
 	//Reflection at the target frequency.
 	std::complex<double> reff0;
 	for(int i = 0; i < trace_len; ++i) {
@@ -307,7 +307,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		//derivative of reflection.
 		std::complex<double> dref;
 		if(shot_this[ *this].mode == Payload::TUNE_MINIMIZING) {
-			tr[ *this].ref_sigma *= sqrt(trace_len); //sigma of ref_total.
+			tr[ *this].ref_sigma *= 2.0 * sqrt(reftotal) / sqrt(trace_len); //sigma of ref_total.
 			dref = shot_this[ *this].ref_total_plus_dCa - shot_this[ *this].ref_total_first;
 		}
 		else {
@@ -394,24 +394,25 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: re dref_dCa=%.2g, re dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 		std::real(dref_dCa), std::real(dref_dCb),
 		dfmin_dCa, dfmin_dCb);
-	if(( !stm1__ || !stm2__) ||
-		(tr[ *this].dCb > TUNE_DROT_ABORT)) {
-		//Tunes fmin to f0
-		dCa_next = -(fmin - f0) / dfmin_dCa;
-	}
-	else if(tr[ *this].dCa > TUNE_DROT_ABORT) {
-		//Tunes fmin to f0
-		dCb_next = -(fmin - f0) / dfmin_dCb;
-	}
-	else {
-		if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
+	if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
+		if(( !stm1__ || !stm2__) ||
+			(tr[ *this].dCb > TUNE_DROT_ABORT)) {
+			//Tunes fmin to f0
+			dCa_next = -(fmin - f0) / dfmin_dCa;
+		}
+		else if(tr[ *this].dCa > TUNE_DROT_ABORT) {
+			//Tunes fmin to f0
+			dCb_next = -(fmin - f0) / dfmin_dCb;
+		}
+		else {
+
 			double dc_err = 1e10;
-//			//Solves by real(ref) and imag(ref).
-//			determineNextC( dCa_next, dCb_next, dc_err,
-//				std::real(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-//				std::imag(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-//				std::real(dref_dCa), std::real(dref_dCb),
-//				std::imag(dref_dCa), std::imag(dref_dCb));
+	//			//Solves by real(ref) and imag(ref).
+	//			determineNextC( dCa_next, dCb_next, dc_err,
+	//				std::real(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+	//				std::imag(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+	//				std::real(dref_dCa), std::real(dref_dCb),
+	//				std::imag(dref_dCa), std::imag(dref_dCb));
 			//Solves by real(ref) and fmin.
 			determineNextC( dCa_next, dCb_next, dc_err,
 				std::real(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
@@ -424,22 +425,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				fmin - f0, fmin_err,
 				std::imag(dref_dCa), std::imag(dref_dCb),
 				dfmin_dCa, dfmin_dCb, "Im{ref(fmin)} and fmin");
-			//Solves by abs(ref) and fmin.
-			determineNextC( dCa_next, dCb_next, dc_err,
-				std::abs(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				fmin - f0, fmin_err,
-				std::abs(dref_dCa), std::abs(dref_dCb),
-				dfmin_dCa, dfmin_dCb, "|ref(fmin)|^2 and fmin");
+		}
+	}
+	else {
+		//Minimizing mode
+		if(( !stm1__ || !stm2__) ||
+			(tr[ *this].dCb > TUNE_DROT_ABORT) ||
+			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
+			//Decreses reftotal by 10%.
+			dCa_next = -(0.1 * reftotal) / std::real(dref_dCa);
 		}
 		else {
-		//Tunes fmin to f0 and ref_total to 0
-			double dc_err = 1e10;
-			//Solves by reftotal and fmin.
-			determineNextC( dCa_next, dCb_next, dc_err,
-				reftotal, ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				fmin - f0, fmin_err,
-				std::abs(dref_dCa), std::abs(dref_dCb),
-				dfmin_dCa, dfmin_dCb, "|refav|^2 and fmin");
+			//Decreses reftotal by 10%.
+			dCb_next = -(0.1 * reftotal) / std::real(dref_dCb);
 		}
 	}
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
