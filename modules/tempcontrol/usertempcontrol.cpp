@@ -753,7 +753,7 @@ void XLakeShore340::open() throw (XKameError &) {
 		if(interface()->scanf("%*d,%d", &res) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 		interface()->queryf("CLIMIT? %u", idx + 1);
-		if(interface()->scanf("%*f,%*lf,%*lf,%d", &maxcurr_idx) != 1)
+		if(interface()->scanf("%*f,%*f,%*f,%d", &maxcurr_idx) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 
 		interface()->query("CLIMI?");
