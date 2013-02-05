@@ -91,8 +91,8 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 		if( !skipped)
 			this->record(tr, shot_emitter[ *driver].timeAwared(), time_recorded);
 		if(tr.commit()) {
-			if(e.msg().length())
-				e.print(this->getLabel() + ": ");
+			if(err.msg().length())
+				err.print(this->getLabel() + ": ");
 			this->visualize(tr);
 			break;
 		}

@@ -94,7 +94,7 @@ struct XKameError : public std::runtime_error {
 	virtual const char* what() const throw();
 private:
 	XString m_msg;
-	char *const m_file;
+	const char * m_file;
 	int m_line;
 	int m_errno;
 };

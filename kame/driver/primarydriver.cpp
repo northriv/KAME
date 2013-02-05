@@ -44,8 +44,8 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		if( !skipped)
 			record(tr, time_awared, time_recorded);
 		if(tr.commit()) {
-			if(e.msg().length())
-				e.print(getLabel() + ": ");
+			if(err.msg().length())
+				err.print(getLabel() + ": ");
 			visualize(tr);
 			break;
 		}

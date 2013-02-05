@@ -54,6 +54,7 @@ XKameError::XKameError(const XString &s, const char *file, int line)
 	: std::runtime_error(s.c_str()), m_msg(s), m_file(file), m_line(line), m_errno(errno) {
 	errno = 0;
 }
+
 void
 XKameError::print(const XString &header) {
 	print(header + m_msg, m_file, m_line, m_errno);
