@@ -366,8 +366,8 @@ void XCryoconM32::open() throw (XKameError &) {
 		if(tr.commit())
 			break;
 	}
+	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		Snapshot shot( *this);
 		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("LOOP %u:MAXPWR?", idx + 1);
 			trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));

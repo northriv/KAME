@@ -168,8 +168,8 @@ XTempControl::Loop::update(double temp) {
 	m_tempErrAvg = std::min(m_tempErrAvg, temp * temp);
 
 	double power = 0.0;
-	shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource];
-	shared_ptr<XFlowControllerDriver> flowctrl = shot[ *m_extDCSource];
+	shared_ptr<XDCSource> dcsrc = shot[ *m_extDevice];
+	shared_ptr<XFlowControllerDriver> flowctrl = shot[ *m_extDevice];
 	if(dcsrc || flowctrl) {
 		double limit_min = shot[ *m_powerMin];
 		double limit_max = shot[ *m_powerMax];
@@ -188,7 +188,7 @@ XTempControl::Loop::update(double temp) {
 			}
 		}
 		if(flowctrl) {
-			limit_max = std::min(limit_max, Snapshot( *flowctrl).fullScale());
+			limit_max = std::min(limit_max, Snapshot( *flowctrl)[ *flowctrl].fullScale());
 			power = (limit_max - limit_min) * power / 100.0 + limit_min;
 			trans( *flowctrl->target()) = power;
 		}
@@ -236,7 +236,7 @@ void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
-		shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource];
+		shared_ptr<XDCSource> dcsrc = shot[ *m_extDevice];
 		if(dcsrc) {
 			//registers channel names.
 			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(

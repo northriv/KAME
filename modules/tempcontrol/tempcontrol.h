@@ -95,7 +95,7 @@ protected:
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
   
-	bool hasExtDevice(const Snapshot &shot, unsigned int lp) const {return loop(lp)->hasExtDevice(shot, lp);}
+	bool hasExtDevice(const Snapshot &shot, unsigned int lp) const {return loop(lp)->hasExtDevice(shot);}
 
 	virtual void onPChanged(unsigned int loop, double p) = 0;
 	virtual void onIChanged(unsigned int loop, double i) = 0;
