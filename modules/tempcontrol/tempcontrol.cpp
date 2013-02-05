@@ -168,10 +168,9 @@ XTempControl::Loop::update(double temp) {
 	m_tempErrAvg = std::min(m_tempErrAvg, temp * temp);
 
 	double power = 0.0;
-	shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
-	auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
-	auto flowctrl = dynamic_poitner_cast<XFlowControllerDriver>(extdev);
-	if(extdev) {
+	shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource];
+	shared_ptr<XFlowControllerDriver> flowctrl = shot[ *m_extDCSource];
+	if(dcsrc || flowctrl) {
 		double limit_min = shot[ *m_powerMin];
 		double limit_max = shot[ *m_powerMax];
 		if(shot[ *m_heaterMode].to_str() == "PID") {
@@ -237,9 +236,7 @@ void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
-		shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
-		auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
-		auto flowctrl = dynamic_poitner_cast<XFlowControllerDriver>(extdev);
+		shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource];
 		if(dcsrc) {
 			//registers channel names.
 			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(

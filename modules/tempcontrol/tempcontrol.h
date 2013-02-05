@@ -96,7 +96,8 @@ protected:
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
   
 	bool hasExtDevice(const Snapshot &shot, unsigned int loop) const {
-		return shared_ptr<XDriver>(shot[ *extDevice(loop)]);
+		return shared_ptr<XDCSource>(shot[ *extDevice(loop)]) ||
+			shared_ptr<XFlowControllerDriver>(shot[ *extDevice(loop)]);
 	}
 
 	virtual void onPChanged(unsigned int loop, double p) = 0;
