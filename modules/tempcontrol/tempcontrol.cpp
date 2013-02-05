@@ -192,8 +192,8 @@ XTempControl::Loop::update(double temp) {
 		if(tr.commit())
 			break;
 	}
-	tempctrl->m_form->m_toolBox->setItemText(m_idx, getLabel() + formatString(": %.5g K, %.3g%s", temp, power,
-		tempctrl->m_heaterPowerUnit(m_idx)));
+	tempctrl->m_form->m_toolBox->setItemText(m_idx, XString(getLabel() + formatString(": %.5g K, %.3g%s", temp, power,
+		tempctrl->m_heaterPowerUnit(m_idx))));
 }
 
 double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
