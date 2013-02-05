@@ -44,7 +44,7 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		m_heaterPower(create<XDoubleNode> ("HeaterPower", false, "%.4g")),
 		m_sourceTemp(create<XDoubleNode> ("SourceTemp", false, "%.5g")),
 		m_stabilized(create<XDoubleNode> ("Stabilized", true, "%g")),
-		m_extDevice(create<XItemNode<XDriverList, XDCSource, XFlowController> > ("ExtDevice", false, ref(tr_meas), meas->drivers())),
+		m_extDevice(create<XItemNode<XDriverList, XDCSource, XFlowControllerDriver> > ("ExtDevice", false, ref(tr_meas), meas->drivers())),
 		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
 		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
 	m_currentChannel =
@@ -170,7 +170,7 @@ XTempControl::Loop::update(double temp) {
 	double power = 0.0;
 	shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
 	auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
-	auto flowctrl = dynamic_poitner_cast<XFlowController>(extdev);
+	auto flowctrl = dynamic_poitner_cast<XFlowControllerDriver>(extdev);
 	if(extdev) {
 		double limit_min = shot[ *m_powerMin];
 		double limit_max = shot[ *m_powerMax];
@@ -239,7 +239,7 @@ void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase
 		tr[ *m_extDCSourceChannel].clear();
 		shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
 		auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
-		auto flowctrl = dynamic_poitner_cast<XFlowController>(extdev);
+		auto flowctrl = dynamic_poitner_cast<XFlowControllerDriver>(extdev);
 		if(dcsrc) {
 			//registers channel names.
 			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(

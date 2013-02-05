@@ -65,7 +65,7 @@ public:
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized(unsigned int lp) const {return loop(lp)->m_stabilized;}
 	//! PID control of an external device.
-	const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowController> > &extDevice(unsigned int lp) const {return loop(lp)->m_extDevice;}
+	const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowControllerDriver> > &extDevice(unsigned int lp) const {return loop(lp)->m_extDevice;}
 	const shared_ptr<XComboNode> &extDCSourceChannel(unsigned int lp) const {return loop(lp)->m_extDCSourceChannel;}
 	const shared_ptr<XBoolNode> &extIsPositive(unsigned int lp) const {return loop(lp)->m_extIsPositive;}
 
@@ -131,7 +131,7 @@ private:
 		//! holds an averaged error between target temp and actual one
 		const shared_ptr<XDoubleNode> m_stabilized;
 
-		const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowController> > m_extDevice;
+		const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowControllerDriver> > m_extDevice;
 		const shared_ptr<XComboNode> m_extDCSourceChannel;
 		const shared_ptr<XBoolNode> m_extIsPositive;
 
