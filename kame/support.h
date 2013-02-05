@@ -84,6 +84,7 @@ gWarnPrint_redirected(const XString &str, const char *file, int line);
 struct XKameError : public std::runtime_error {
 	XKameError();
 	virtual ~XKameError() throw() {}
+
 	//! errno is read and cleared after a construction
 	XKameError(const XString &s, const char *file, int line);
 	void print();
@@ -92,10 +93,10 @@ struct XKameError : public std::runtime_error {
 	const XString &msg() const;
 	virtual const char* what() const throw();
 private:
-	const XString m_msg;
-	const char *const m_file;
-	const int m_line;
-	const int m_errno;
+	XString m_msg;
+	char *const m_file;
+	int m_line;
+	int m_errno;
 };
 
 //! If true, Log all dbgPrint().
