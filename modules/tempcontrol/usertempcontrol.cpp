@@ -37,7 +37,7 @@ void XITC503::open() throw (XKameError &) {
 
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
-		if( !shared_ptr<XDCSource>(shot[ *extDCSource(0)])) {
+		if( !hasExtDevice(shot, 0)) {
 			tr[ *heaterMode(0)].clear();
 			tr[ *heaterMode(0)].add("PID");
 			tr[ *heaterMode(0)].add("Man");
@@ -195,7 +195,7 @@ void XAVS47IB::open() throw (XKameError &) {
 
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
-		if( !shared_ptr<XDCSource>(shot[ *extDCSource(0)])) {
+		if( !hasExtDevice(shot, 0)) {
 			tr[ *heaterMode(0)].clear();
 			tr[ *heaterMode(0)].add("PID");
 			tr[ *powerMax(0)].setUIEnabled(false);
@@ -325,7 +325,7 @@ void XCryocon::open() throw (XKameError &) {
 
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		trans( *powerRange(idx)).clear();
-		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
+		if( !) {
 			getChannel(idx);
 			interface()->queryf("LOOP %u:PMAN?", idx + 1);
 			trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
@@ -367,7 +367,8 @@ void XCryoconM32::open() throw (XKameError &) {
 			break;
 	}
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
+		Snapshot shot( *this);
+		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("LOOP %u:MAXPWR?", idx + 1);
 			trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));
 		}
@@ -599,8 +600,9 @@ void XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XNeoceraLTC21::open() throw (XKameError &) {
+	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
+		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("QOUT?%u;", idx + 1);
 			int sens, cmode, range;
 			if(idx == 0) {
@@ -747,6 +749,7 @@ void XLakeShore340::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XLakeShore340::open() throw (XKameError &) {
+	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		interface()->queryf("CDISP? %u", idx + 1);
 		int res, maxcurr_idx;
@@ -772,7 +775,7 @@ void XLakeShore340::open() throw (XKameError &) {
 			if(tr.commit())
 				break;
 		}
-		if( !shared_ptr<XDCSource>( ***extDCSource(idx))) {
+		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("CSET? %u", idx + 1);
 			for(Transaction tr( *this);; ++tr) {
 				char ch[2];
@@ -898,6 +901,7 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 		return;
 }
 void XLakeShore370::open() throw (XKameError &) {
+	Snapshot shot( *this);;
 	interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
 	double htr_res;
@@ -917,7 +921,7 @@ void XLakeShore370::open() throw (XKameError &) {
 		if(tr.commit())
 			break;
 	}
-	if( !shared_ptr<XDCSource>( ***extDCSource(0))) {
+	if( !hasExtDevice(shot, 0)) {
 		for(Transaction tr( *this);; ++tr) {
 			tr[ *currentChannel(0)].str(formatString("%d", ctrl_ch ));
 			tr[ *heaterMode(0)].clear();

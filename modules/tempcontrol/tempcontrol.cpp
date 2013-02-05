@@ -44,7 +44,7 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		m_heaterPower(create<XDoubleNode> ("HeaterPower", false, "%.4g")),
 		m_sourceTemp(create<XDoubleNode> ("SourceTemp", false, "%.5g")),
 		m_stabilized(create<XDoubleNode> ("Stabilized", true, "%g")),
-		m_extDCSource(create<XItemNode<XDriverList, XDCSource> > ("ExtDCSource", false, ref(tr_meas), meas->drivers())),
+		m_extDevice(create<XItemNode<XDriverList, XDCSource, XFlowController> > ("ExtDevice", false, ref(tr_meas), meas->drivers())),
 		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
 		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
 	m_currentChannel =
@@ -52,8 +52,8 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		tempctrl->m_channels);
 
 	for(Transaction tr( *this);; ++tr) {
-		m_lsnOnExtDCSourceChanged = tr[ *m_extDCSource].onValueChanged().connectWeakly(
-			shared_from_this(), &XTempControl::Loop::onExtDCSourceChanged);
+		m_lsnOnExtDeviceChanged = tr[ *m_extDevice].onValueChanged().connectWeakly(
+			shared_from_this(), &XTempControl::Loop::onExtDeviceChanged);
 		if(tr.commit())
 			break;
 	}
@@ -69,7 +69,7 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 	m_powerMin->setUIEnabled(true);
 	m_targetTemp->setUIEnabled(false);
 
-	m_extDCSource->setUIEnabled(true);
+	m_extDevice->setUIEnabled(true);
 	m_extDCSourceChannel->setUIEnabled(true);
 	m_extIsPositive->setUIEnabled(true);
 
@@ -81,7 +81,7 @@ XTempControl::Loop::start() {
 	if( !tempctrl) return;
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
-		if(shared_ptr<XDCSource>(shot[ m_extDCSource])) {
+		if(shared_ptr<XDriver>(shot[ m_extDevice])) {
 			tr[ m_heaterMode].clear();
 			tr[ m_heaterMode].add("Off");
 			tr[ m_heaterMode].add("PID");
@@ -101,7 +101,7 @@ XTempControl::Loop::start() {
 	m_manualPower->setUIEnabled(true);
 	m_targetTemp->setUIEnabled(true);
 
-	m_extDCSource->setUIEnabled(false);
+	m_extDevice->setUIEnabled(false);
 	m_extDCSourceChannel->setUIEnabled(false);
 	m_extIsPositive->setUIEnabled(false);
 
@@ -134,7 +134,7 @@ XTempControl::Loop::stop() {
 	m_manualPower->setUIEnabled(false);
 	m_targetTemp->setUIEnabled(false);
 
-	m_extDCSource->setUIEnabled(true);
+	m_extDevice->setUIEnabled(true);
 	m_extDCSourceChannel->setUIEnabled(true);
 	m_extIsPositive->setUIEnabled(true);
 
@@ -168,18 +168,30 @@ XTempControl::Loop::update(double temp) {
 	m_tempErrAvg = std::min(m_tempErrAvg, temp * temp);
 
 	double power = 0.0;
-	if(shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource]) {
-		int ch = shot[ *m_extDCSourceChannel];
-		if(ch >= 0) {
-			if(shot[ *m_heaterMode].to_str() == "PID") {
-				power = pid(shot, newtime, temp);
+	shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
+	auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
+	auto flowctrl = dynamic_poitner_cast<XFlowController>(extdev);
+	if(extdev) {
+		double limit_min = shot[ *m_powerMin];
+		double limit_max = shot[ *m_powerMax];
+		if(shot[ *m_heaterMode].to_str() == "PID") {
+			power = pid(shot, newtime, temp);
+		}
+		if(shot[ *m_heaterMode].to_str() == "Man") {
+			power = shot[ *m_manualPower];
+		}
+		if(dcsrc) {
+			int ch = shot[ *m_extDCSourceChannel];
+			if(ch >= 0) {
+				limit_max = std::min(limit_max, dcsrc->max(ch, false));
+				power = (limit_max - limit_min) * sqrt(power) / 10.0 + limit_min;
+				dcsrc->changeValue(ch, power, false);
 			}
-			if(shot[ *m_heaterMode].to_str() == "Man") {
-				power = shot[ *m_manualPower];
-			}
-			power = std::max(std::min(power, (double)shot[ *m_powerMax]), (double)shot[ *m_powerMin]);
-			double limit = dcsrc->max(ch, false);
-			dcsrc->changeValue(ch, limit * sqrt(power) / 10.0, false);
+		}
+		if(flowctrl) {
+			limit_max = std::min(limit_max, Snapshot( *flowctrl).fullScale());
+			power = (limit_max - limit_min) * power / 100.0 + limit_min;
+			trans( *flowctrl->target()) = power;
 		}
 	}
 	else
@@ -221,11 +233,15 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 
 	return -(dt + acc + dxdt * d) * p;
 }
-void XTempControl::Loop::onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *) {
+void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase *) {
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
-		if(shared_ptr<XDCSource> dcsrc = shot[ *m_extDCSource]) {
+		shared_ptr<XDCSource> extdev = shot[ *m_extDCSource];
+		auto dcsrc = dynamic_poitner_cast<XDCSource>(extdev);
+		auto flowctrl = dynamic_poitner_cast<XFlowController>(extdev);
+		if(dcsrc) {
+			//registers channel names.
 			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(
 				dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
 			for(std::deque<XItemNodeBase::Item>::const_iterator it =
@@ -242,7 +258,7 @@ void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *this);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onPChanged(m_idx, shot[ *m_prop]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -254,7 +270,7 @@ void XTempControl::Loop::onIChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onIChanged(m_idx, shot[ *m_int]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -266,7 +282,7 @@ void XTempControl::Loop::onDChanged(const Snapshot &shot, XValueNodeBase *) {
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onDChanged(m_idx, shot[ *m_deriv]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -278,7 +294,7 @@ void XTempControl::Loop::onTargetTempChanged(const Snapshot &shot, XValueNodeBas
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onTargetTempChanged(m_idx, shot[ *m_targetTemp]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -290,7 +306,7 @@ void XTempControl::Loop::onManualPowerChanged(const Snapshot &shot, XValueNodeBa
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onManualPowerChanged(m_idx, shot[ *m_manualPower]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -303,7 +319,7 @@ void XTempControl::Loop::onHeaterModeChanged(const Snapshot &shot, XValueNodeBas
 	m_pidAccum = 0;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onHeaterModeChanged(m_idx, shot[ *m_heaterMode]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -315,7 +331,7 @@ void XTempControl::Loop::onPowerMaxChanged(const Snapshot &shot, XValueNodeBase 
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMax]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -327,7 +343,7 @@ void XTempControl::Loop::onPowerMinChanged(const Snapshot &shot, XValueNodeBase 
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerMin]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -339,7 +355,7 @@ void XTempControl::Loop::onPowerRangeChanged(const Snapshot &shot, XValueNodeBas
 	if( !tempctrl) return;
 	try {
 		Snapshot shot( *tempctrl);
-		if( !shared_ptr<XDCSource>(shot[ *m_extDCSource]))
+		if( !shared_ptr<XDriver>(shot[ *m_extDevice]))
 			tempctrl->onPowerRangeChanged(m_idx, shot[ *m_powerRange]);
 	}
 	catch(XInterface::XInterfaceError& e) {
@@ -524,8 +540,8 @@ void XTempControl::createChannels(
 			m_form->m_lcdHeater2);
 		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
 			m_form->m_lcdSourceTemp2);
-		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
-			m_form->m_cmbExtDCSrc2, ref(tr_meas));
+		lp->m_conExtDevice = xqcon_create<XQComboBoxConnector> (lp->m_extDevice,
+			m_form->m_cmbExtDevice2, ref(tr_meas));
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel));
 		lp->m_conExtIsPositive = xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive2);
@@ -557,8 +573,8 @@ void XTempControl::createChannels(
 			m_form->m_lcdHeater);
 		lp->m_conTemp = xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp,
 			m_form->m_lcdSourceTemp);
-		lp->m_conExtDCSource = xqcon_create<XQComboBoxConnector> (lp->m_extDCSource,
-			m_form->m_cmbExtDCSrc, ref(tr_meas));
+		lp->m_conExtDevice = xqcon_create<XQComboBoxConnector> (lp->m_extDevice,
+			m_form->m_cmbExtDevice, ref(tr_meas));
 		lp->m_conExtDCSourceChannel = xqcon_create<XQComboBoxConnector> (
 			lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel));
 		lp->m_conExtIsPositive = xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive);

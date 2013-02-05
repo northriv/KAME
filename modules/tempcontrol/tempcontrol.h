@@ -16,6 +16,7 @@
 //---------------------------------------------------------------------------
 #include "thermometer.h"
 #include "dcsource.h"
+#include "flowcontroller.h"
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
@@ -64,7 +65,7 @@ public:
 	//! holds an averaged error between target temp and actual one
 	const shared_ptr<XDoubleNode> &stabilized(unsigned int lp) const {return loop(lp)->m_stabilized;}
 	//! PID control of an external device.
-	const shared_ptr<XItemNode<XDriverList, XDCSource> > &extDCSource(unsigned int lp) const {return loop(lp)->m_extDCSource;}
+	const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowController> > &extDevice(unsigned int lp) const {return loop(lp)->m_extDevice;}
 	const shared_ptr<XComboNode> &extDCSourceChannel(unsigned int lp) const {return loop(lp)->m_extDCSourceChannel;}
 	const shared_ptr<XBoolNode> &extIsPositive(unsigned int lp) const {return loop(lp)->m_extIsPositive;}
 
@@ -94,6 +95,10 @@ protected:
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
   
+	bool hasExtDevice(const Snapshot &shot, unsigned int loop) const {
+		return shared_ptr<XDriver>(shot[ *extDevice(loop)]);
+	}
+
 	virtual void onPChanged(unsigned int loop, double p) = 0;
 	virtual void onIChanged(unsigned int loop, double i) = 0;
 	virtual void onDChanged(unsigned int loop, double d) = 0;
@@ -126,7 +131,7 @@ private:
 		//! holds an averaged error between target temp and actual one
 		const shared_ptr<XDoubleNode> m_stabilized;
 
-		const shared_ptr<XItemNode<XDriverList, XDCSource> > m_extDCSource;
+		const shared_ptr<XItemNode<XDriverList, XDCSource, XFlowController> > m_extDevice;
 		const shared_ptr<XComboNode> m_extDCSourceChannel;
 		const shared_ptr<XBoolNode> m_extIsPositive;
 
@@ -145,20 +150,20 @@ private:
 		void onPowerMaxChanged(const Snapshot &shot, XValueNodeBase *);
 		void onPowerMinChanged(const Snapshot &shot, XValueNodeBase *);
 		void onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *);
-		void onExtDCSourceChanged(const Snapshot &shot, XValueNodeBase *);
+		void onExtDeviceChanged(const Snapshot &shot, XValueNodeBase *);
 
 		xqcon_ptr m_conCurrentChannel,
 			m_conHeaterMode, m_conPowerRange,
 			m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD,
 			m_conPowerMax, m_conPowerMin,
 			m_conHeater, m_conTemp,
-			m_conExtDCSource, m_conExtDCSourceChannel, m_conExtIsPositive;
+			m_conExtDevice, m_conExtDCSourceChannel, m_conExtIsPositive;
 
 		shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
 			m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
 			m_lsnOnPowerMaxChanged, m_lsnOnPowerMinChanged,
 			m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
-			m_lsnOnSetupChannelChanged, m_lsnOnExtDCSourceChanged;
+			m_lsnOnSetupChannelChanged, m_lsnOnExtDeviceChanged;
 
 		double m_pidAccum;
 		double m_pidLastTemp;

@@ -42,9 +42,9 @@ protected:
 
 public:
 	//! driver specific part below
-	const shared_ptr<XScalarEntry> &flow() const {return m_flow;} //!< [SLM]
+	const shared_ptr<XScalarEntry> &flow() const {return m_flow;} //!< [Given Unit]
 
-	const shared_ptr<XDoubleNode> &target() const {return m_target;} //!< [%]
+	const shared_ptr<XDoubleNode> &target() const {return m_target;} //!< [Given Unit]
 	const shared_ptr<XDoubleNode> &valve() const {return m_valve;} //!< [V]
 	const shared_ptr<XDoubleNode> &rampTime() const {return m_rampTime;} //!< [ms]
 	const shared_ptr<XTouchableNode> &openValve() const {return m_openValve;}
@@ -54,6 +54,7 @@ public:
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
 	struct Payload : public XPrimaryDriver::Payload {
+		double fullScale() const {return m_fullScale;}
 		XString m_unit;
 		double m_fullScale;
 	};

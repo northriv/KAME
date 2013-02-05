@@ -479,7 +479,7 @@
             </widget>
            </item>
            <item row="0" column="0" colspan="2">
-            <widget class="QComboBox" name="m_cmbExtDCSrc">
+            <widget class="QComboBox" name="m_cmbExtDevice">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -939,7 +939,7 @@
             </widget>
            </item>
            <item row="0" column="0" colspan="2">
-            <widget class="QComboBox" name="m_cmbExtDCSrc2">
+            <widget class="QComboBox" name="m_cmbExtDevice2">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -981,8 +981,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>207</width>
-         <height>449</height>
+         <width>186</width>
+         <height>162</height>
         </rect>
        </property>
        <attribute name="label">
@@ -1101,7 +1101,7 @@
   <tabstop>m_edP</tabstop>
   <tabstop>m_edI</tabstop>
   <tabstop>m_edD</tabstop>
-  <tabstop>m_cmbExtDCSrc</tabstop>
+  <tabstop>m_cmbExtDevice</tabstop>
   <tabstop>m_cmbExtDCSrcCh</tabstop>
   <tabstop>m_ckbExtIsPositive</tabstop>
   <tabstop>m_cmbHeaterMode2</tabstop>
@@ -1114,7 +1114,7 @@
   <tabstop>m_edP2</tabstop>
   <tabstop>m_edI2</tabstop>
   <tabstop>m_edD2</tabstop>
-  <tabstop>m_cmbExtDCSrc2</tabstop>
+  <tabstop>m_cmbExtDevice2</tabstop>
   <tabstop>m_cmbExtDCSrcCh2</tabstop>
   <tabstop>m_ckbExtIsPositive2</tabstop>
   <tabstop>m_cmbSetupChannel</tabstop>
