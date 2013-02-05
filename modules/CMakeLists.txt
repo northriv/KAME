@@ -21,7 +21,7 @@ add_subdirectory(montecarlo)
 add_subdirectory(nidaq)
 add_subdirectory(networkanalyzer)
 add_subdirectory(motor)
-add_subdirectory(flowcontroller)
+add_subdirectory(fulowcontroller)
 
 add_dependencies(testdriver kame)
 ########### install files ###############
