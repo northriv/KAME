@@ -11,77 +11,46 @@
 		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#ifndef MODBUSRTUINTERFACE_H_
-#define MODBUSRTUINTERFACE_H_
+#ifndef FUJIKININTERFACE_H_
+#define FUJIKININTERFACE_H_
 
 #include "charinterface.h"
 #include "chardevicedriver.h"
 
-class XModbusRTUInterface : public XCharInterface {
+class XFujikinInterface : public XCharInterface {
 public:
-	XModbusRTUInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-	virtual ~XModbusRTUInterface();
+	XFujikinInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+	virtual ~XFujikinInterface();
 
-	void readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data);
-	void presetSingleResistor(uint16_t res_addr, uint16_t data);
-	void presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data);
-	void diagnostics();
-
-	uint16_t readHoldingSingleResistor(uint16_t res_addr) {
-		std::vector<uint16_t> data(1);
-		readHoldingResistors(res_addr, 1, data);
-		return data[0];
-	}
-	uint32_t readHoldingTwoResistors(uint16_t res_addr) {
-		std::vector<uint16_t> data(2);
-		readHoldingResistors(res_addr, 2, data);
-		return data[0] * 0x10000uL + data[1];
-	}
-	void presetTwoResistors(uint16_t res_addr, uint32_t dword) {
-		std::vector<uint16_t> data(2);
-		data[0] = dword / 0x10000uL;
-		data[1] = dword % 0x10000uL;
-		presetMultipleResistors(res_addr, 2, data);
-	}
+	template <typename T>
+	void send(uint8_t classid, uint8_t instanceid, uint8_t attributeid, T data);
+	template <typename T>
+	T query(uint8_t classid, uint8_t instanceid, uint8_t attributeid);
 protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
 	virtual bool isOpened() const {return !!m_master;}
-
-	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
-	//Modbus utilizes Big endian.
-	static void set_word(unsigned char *ptr, uint16_t word) {
-		ptr[0] = static_cast<unsigned char>(word / 0x100u);
-		ptr[1] = static_cast<unsigned char>(word % 0x100u);
-	}
-	static void set_dword(unsigned char *ptr, uint32_t dword) {
-		set_word(ptr, static_cast<uint16_t>(dword / 0x10000u));
-		set_word(ptr + 2, static_cast<uint16_t>(dword % 0x10000u));
-	}
-	static uint16_t get_word(unsigned char *ptr) {
-		return ptr[1] +ptr[0] * 0x100u;
-	}
-	static uint32_t get_dword(unsigned char *ptr) {
-		return get_word(ptr + 2) + get_word(ptr) * 0x10000uL;
-	}
-	uint16_t crc16(const unsigned char *bytes, ssize_t count);
+	void communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
+		const std::vector<uint8_t> &data, std::vector<uint8_t> *response = 0);
 
-	shared_ptr<XModbusRTUInterface> m_master;
+	shared_ptr<XFujikinInterface> m_master;
 	static XMutex s_lock;
-	static std::deque<weak_ptr<XModbusRTUInterface> > s_masters; //guarded by s_lock.
+	static std::deque<weak_ptr<XFujikinInterface> > s_masters; //guarded by s_lock.
 	int m_openedCount; //guarded by s_lock.
+
+	enum {STX = 0x02, ACK = 0x06, 	NAK = 0x16};
 };
 
 template <class T>
-class XModbusRTUDriver : public XCharDeviceDriver<T, XModbusRTUInterface> {
+class XFujikinProtocolDriver : public XCharDeviceDriver<T, XFujikinInterface> {
 public:
-	XModbusRTUDriver(const char *name, bool runtime,
+	XFujikinProtocolDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		XCharDeviceDriver<T, XModbusRTUInterface>(name, runtime, ref(tr_meas), meas) {}
-	virtual ~XModbusRTUDriver() {};
+		XCharDeviceDriver<T, XFujikinInterface>(name, runtime, ref(tr_meas), meas) {}
+	virtual ~XFujikinProtocolDriver() {};
 };
 
-#endif /*MODBUSRTUINTERFACE_H_*/
+#endif /*FUJIKININTERFACE_H_*/

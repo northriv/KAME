@@ -91,13 +91,13 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 
 	buf.resize(ret_buf.size() + 4);
 	master->receive(2); //addr + func_code.
-	std::copy(buffer().begin(), buffer().end(), buf.begin());
+	std::copy(master->buffer().begin(), master->buffer().end(), buf.begin());
 
 	if((buf[0] != slave_addr) || ((buf[1] & 0x7fu) != func_code))
 		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
 	if(buf[1] != func_code) {
 		master->receive(3);
-		switch(buffer()[0]) {
+		switch(master->buffer()[0]) {
 		case 0x01:
 			throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
 		case 0x02:
@@ -112,7 +112,7 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 	}
 
 	master->receive( ret_buf.size() + 2); //Rest of message.
-	std::copy(buffer().begin(), buffer().end(), buf.begin() + 2);
+	std::copy(master->buffer().begin(), master->buffer().end(), buf.begin() + 2);
 	crc = crc16( &buf[0], buf.size() - 2);
 	if(crc != get_word( &buf[buf.size() - 2]))
 		throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);

@@ -1,23 +1,23 @@
-#include "modbusrtuinterface.h"
+#include "fujikininterface.h"
 
-std::deque<weak_ptr<XModbusRTUInterface> > XModbusRTUInterface::s_masters;
-XMutex XModbusRTUInterface::s_lock;
+std::deque<weak_ptr<XFujikinInterface> > XFujikinInterface::s_masters;
+XMutex XFujikinInterface::s_lock;
 
-XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
+XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
  XCharInterface(name, runtime, driver),
  m_openedCount(0) {
     setEOS("");
-	setSerialBaudRate(9600);
+	setSerialBaudRate(38400);
 	setSerialStopBits(1);
 }
 
-XModbusRTUInterface::~XModbusRTUInterface() {
+XFujikinInterface::~XFujikinInterface() {
 }
 void
-XModbusRTUInterface::open() throw (XInterfaceError &) {
+XFujikinInterface::open() throw (XInterfaceError &) {
 	{
-		XScopedLock<XModbusRTUInterface> lock( *this);
-		m_master = dynamic_pointer_cast<XModbusRTUInterface>(shared_from_this());
+		XScopedLock<XFujikinInterface> lock( *this);
+		m_master = dynamic_pointer_cast<XFujikinInterface>(shared_from_this());
 		Snapshot shot( *this);
 		XScopedLock<XMutex> glock(s_lock);
 		for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
@@ -37,8 +37,8 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
 	XCharInterface::open();
 }
 void
-XModbusRTUInterface::close() throw (XInterfaceError &) {
-	XScopedLock<XModbusRTUInterface> lock( *this);
+XFujikinInterface::close() throw (XInterfaceError &) {
+	XScopedLock<XFujikinInterface> lock( *this);
 	XScopedLock<XMutex> glock(s_lock);
 	if(m_master) {
 		m_master->m_openedCount--;
@@ -55,112 +55,109 @@ XModbusRTUInterface::close() throw (XInterfaceError &) {
 	}
 }
 
-uint16_t
-XModbusRTUInterface::crc16(const unsigned char *bytes, ssize_t count) {
-	uint16_t z = 0xffffu;
-	for(ssize_t i = 0; i < count; ++i) {
-		uint16_t x = bytes[i];
-		z ^= x;
-		for(int shifts = 0; shifts < 8; ++shifts) {
-			uint16_t lsb = z % 2;
-			z = z >> 1;
-			if(lsb)
-				z ^= 0xa001u;
-		}
-	}
-	return (z % 0x100u) * 0x100u + z / 0x100u;
+template <typename T>
+void
+XFujikinInterface::send(uint8_t classid, uint8_t instanceid, uint8_t attributeid, T data) {
+}
+template <>
+void
+XFujikinInterface::send(uint8_t classid, uint8_t instanceid, uint8_t attributeid, uint8_t data) {
+std::vector<uint8_t> wbuf(1);
+	wbuf[0] = data;
+	communicate(classid, instanceid, attributeid, wbuf);
+}
+template <>
+void
+XFujikinInterface::send(uint8_t classid, uint8_t instanceid, uint8_t attributeid, uint16_t data) {
+std::vector<uint8_t> wbuf(2);
+	wbuf[0] = data % 0x100u;
+	wbuf[1] = data / 0x100u;
+	communicate(classid, instanceid, attributeid, wbuf);
+}
+
+template <typename T>
+T
+XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
+}
+template <>
+uin8_t
+XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
+	std::vector<uint8_t> wbuf(0), rbuf;
+		communicate(classid, instanceid, attributeid, wbuf, &rbuf);
+		if(rbuf.size() != 1)
+			throw XInterfaceError("Fujikin Protocol Wrong Data-Size Error.", __FILE__, __LINE__);
+		return rbuf[0];
+}
+template <>
+uin16_t
+XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
+	std::vector<uint8_t> wbuf(0), rbuf;
+		communicate(classid, instanceid, attributeid, wbuf, &rbuf);
+		if(rbuf.size() != 2)
+			throw XInterfaceError("Fujikin Protocol Wrong Data-Size Error.", __FILE__, __LINE__);
+		return rbuf[0] + (uint16_t)rbuf[1] * 0x100u;
 }
 void
-XModbusRTUInterface::query_unicast(unsigned int func_code,
-		const std::vector<unsigned char> &bytes, std::vector<unsigned char> &ret_buf) {
-	auto master = m_master;
-	double msec_per_char = 1e3 / serialBaudRate() * 12;
-	XScopedLock<XModbusRTUInterface> lock( *master);
-	unsigned int slave_addr = ***address();
-	std::vector<unsigned char> buf(bytes.size() + 4);
-	buf[0] = static_cast<unsigned char>(slave_addr);
-	buf[1] = static_cast<unsigned char>(func_code);
-	std::copy(bytes.begin(), bytes.end(), &buf[2]);
-	uint16_t crc = crc16( &buf[0], buf.size() - 2);
-	set_word( &buf[buf.size() - 2], crc);
+XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
+	const std::vector<uint8_t> &data, std::vector<uint8_t> *response) {
+	bool write = !response;
+	std::vector<uint8_t> buf;
+	buf.push_back("0"); //master
+	buf.push_back(STX);
+	uint8_t commandcode = write ? 0x81 : 0x80;
+	buf.push_back(commandcode);
+	buf.push_back(9 + data.size());
+	buf.push_back(classid);
+	buf.push_back(instanceid);
+	buf.push_back(attributeid);
+	for(auto it = data.begin(); it != data.end(); ++it)
+		buf.push_back( *it);
+	buf.push_back(0); //pad
+	uint8_t checksum = 0;
+	for(auto it = buf.begin(); it != buf.end(); ++it)
+		checksum += *it;
+	buf.push_back(checksum);
 
-	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
 	master->write( reinterpret_cast<char*>(&buf[0]), buf.size());
-	msecsleep(buf.size() * msec_per_char); //For O_NONBLOCK.
-	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
-
-	buf.resize(ret_buf.size() + 4);
-	master->receive(2); //addr + func_code.
-	std::copy(buffer().begin(), buffer().end(), buf.begin());
-
-	if((buf[0] != slave_addr) || ((buf[1] & 0x7fu) != func_code))
-		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
-	if(buf[1] != func_code) {
-		master->receive(3);
-		switch(buffer()[0]) {
-		case 0x01:
-			throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
-		case 0x02:
-			throw XInterfaceError("Modbus RTU Wrong Data Address.", __FILE__, __LINE__);
-		case 0x03:
-			throw XInterfaceError("Modbus RTU Wrong Data.", __FILE__, __LINE__);
-		case 0x04:
-			throw XInterfaceError("Modbus RTU Slave Error.", __FILE__, __LINE__);
+	master->receive(1);
+	switch(master->buffer()[0]) {
+	case ACK:
+		break;
+	case NAK:
+	default:
+		throw XInterfaceError("Fujikin Protocol Communication Error.", __FILE__, __LINE__);
+	}
+	if(write) {
+		master->receive(1);
+		switch(master->buffer()[0]) {
+		case ACK:
+			break;
+		case NAK:
 		default:
-			throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
+			throw XInterfaceError("Fujikin Protocol Command Error.", __FILE__, __LINE__);
 		}
 	}
-
-	master->receive( ret_buf.size() + 2); //Rest of message.
-	std::copy(buffer().begin(), buffer().end(), buf.begin() + 2);
-	crc = crc16( &buf[0], buf.size() - 2);
-	if(crc != get_word( &buf[buf.size() - 2]))
-		throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);
-	std::copy(buffer().begin(), buffer().end() - 2, ret_buf.begin());
-}
-void
-XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
-	std::vector<unsigned char> wrbuf(4);
-	set_word( &wrbuf[0], res_addr);
-	set_word( &wrbuf[2], count);
-	std::vector<unsigned char> rdbuf(2 * count + 1);
-	query_unicast(0x03, wrbuf, rdbuf);
-	data.resize(count);
-	if(rdbuf[0] != 2 * count)
-		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
-	for(unsigned int i = 0; i < count; ++i) {
-		data[i] = get_word( &rdbuf[2 * i + 1]);
+	else {
+		master->receive(4);
+		if((master->buffer()[0] != 0) || (master->buffer()[1] != STX) || (master->buffer()[2] != commandcode))
+			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
+		int len = master->buffer()[3];
+		uint8_t checksum = 0;
+		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+			checksum += *it;
+		master->receive(len - 4);
+		if((master->buffer()[0] != classid) || (master->buffer()[1] != instance) || (master->buffer()[2] != attributeid))
+			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
+		if((master->buffer()[len - 6] != 0))
+			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
+		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+			checksum += *it;
+		checksum -= master->buffer().back() * 2;
+		if(checksum != 0)
+			throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
+		response->resize(len - 9);
+		for(int i = 0; i < response->size(); ++i) {
+			response[i] = master->buffer()[i + 3];
+		}
 	}
-}
-void
-XModbusRTUInterface::presetSingleResistor(uint16_t res_addr, uint16_t data) {
-	std::vector<unsigned char> wrbuf(4);
-	set_word( &wrbuf[0], res_addr);
-	set_word( &wrbuf[2], data);
-	std::vector<unsigned char> rdbuf(4);
-	query_unicast(0x06, wrbuf, rdbuf);
-	if(rdbuf.back() != wrbuf.back())
-		throw XInterfaceError("Modbus Format Error.", __FILE__, __LINE__);
-}
-void
-XModbusRTUInterface::presetMultipleResistors(uint16_t res_no, int count, const std::vector<uint16_t> &data) {
-	std::vector<unsigned char> wrbuf(5 + 2 * count);
-	set_word( &wrbuf[0], res_no);
-	set_word( &wrbuf[2], count);
-	wrbuf[4] = count * 2;
-	int idx = 5;
-	for(auto it = data.begin(); it != data.end(); ++it) {
-		set_word( &wrbuf[idx], *it);
-		idx += 2;
-	}
-	std::vector<unsigned char> rdbuf(4);
-	query_unicast(0x10, wrbuf, rdbuf);
-}
-void
-XModbusRTUInterface::diagnostics() {
-	std::vector<unsigned char> wrbuf(4);
-	set_word( &wrbuf[0], 0);
-	set_word( &wrbuf[2], 0x1234);
-	std::vector<unsigned char> rdbuf(4);
-	query_unicast(0x08, wrbuf, rdbuf);
 }
