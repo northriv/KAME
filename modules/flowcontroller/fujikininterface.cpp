@@ -158,7 +158,7 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 			throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
 		response->resize(len - 9);
 		for(int i = 0; i < response->size(); ++i) {
-			response[i] = master->buffer()[i + 3];
+			response->at(i) = master->buffer()[i + 3];
 		}
 	}
 }
