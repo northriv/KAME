@@ -95,6 +95,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
 		tr[ *this].isSTMChanged = true;
+		tr[ *this].sign_of_prev_dfmin = 0;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		if(tr.commit())
 			break;
@@ -224,7 +225,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(std::abs(reff0) < TUNE_FINETUNE_START) {
 			fprintf(stderr, "LCtuner: finetune mode\n");
 			tr[ *this].mode = Payload::TUNE_FINETUNE;
-			tr[ *this].dCa =TUNE_DROT_FINETUNE* ((tr[ *this].dCa > 0) ? 1.0 : -1.0);
+			tr[ *this].dCa =TUNE_DROT_FINETUNE * ((tr[ *this].dCa > 0) ? 1.0 : -1.0);
 			tr[ *this].dCb = TUNE_DROT_FINETUNE * ((tr[ *this].dCb > 0) ? 1.0 : -1.0);
 		}
 		else if(std::abs(reffmin) < TUNE_APPROACH_START) {
@@ -348,6 +349,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(stm1__ && stm2__) {
 			tr[ *this].isSTMChanged = true;
 			tr[ *this].stage = Payload::STAGE_DCB; //to next stage.
+			tr[ *this].stm1 -= tr[ *this].dCa;
 			tr[ *this].stm2 += tr[ *this].dCb;
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
@@ -355,7 +357,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	case Payload::STAGE_DCB:
 		fprintf(stderr, "LCtuner: +dCb\n");
-		//Ref( +dCa, +dCb)
+		//Ref( 0, +dCb)
 		double ref_sigma = shot_this[ *this].ref_sigma;
 		double fmin_err = shot_this[ *this].fmin_err;
 
@@ -367,13 +369,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		std::complex<double> dref;
 		switch(shot_this[ *this].mode) {
 		case Payload::TUNE_MINIMIZING:
-			dref = reftotal - shot_this[ *this].ref_total_plus_dCa;
+			dref = reftotal - shot_this[ *this].ref_total_first;
 			break;
 		case Payload::TUNE_APPROACHING:
-			dref = reffmin - shot_this[ *this].ref_fmin_plus_dCa;
+			dref = reffmin - shot_this[ *this].ref_fmin_first;
 			break;
 		case Payload::TUNE_FINETUNE:
-			dref = reff0 - shot_this[ *this].ref_f0_plus_dCa;
+			dref = reff0 - shot_this[ *this].ref_f0_first;
 			break;
 		}
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
@@ -485,7 +487,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
-	//restricts them within the trust region.
+	//detects oscillation symptom.
+	int sign_dfmin = (fmin - f0 > 0) ? 1 : -1;
+	if(tr[ *this].sign_of_prev_dfmin * sign_dfmin > 1) {
+		//reduces changes.
+		dCa_next /= 2;
+		dCb_next /= 2;
+	}
+	tr[ *this].sign_of_prev_dfmin = sign_dfmin;
+	//restricts changes within the trust region.
 	double dc_max = sqrt(dCa_next * dCa_next + dCb_next * dCb_next);
 	double dc_trust;
 	switch(shot_this[ *this].mode) {
@@ -506,8 +516,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dCb_next *= dc_trust / dc_max;
 		fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 	}
-	dCa_next -= shot_this[ *this].dCa / 2;
-	dCb_next -= shot_this[ *this].dCb / 2;
 	//remembers last direction.
 	tr[ *this].dCa = dCa_next;
 	tr[ *this].dCb = dCb_next;

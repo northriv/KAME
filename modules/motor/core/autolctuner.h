@@ -78,6 +78,7 @@ public:
 		std::vector<std::complex<double> > trace_prv;
 		double ref_sigma, fmin_err;
 		double stm1, stm2;
+		int sign_of_prev_dfmin;
 		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
