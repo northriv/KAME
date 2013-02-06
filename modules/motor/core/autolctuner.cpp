@@ -94,6 +94,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
+		tr[ *this].firsttime = true;
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].sign_of_prev_dfmin = 0;
 		tr[ *this].stage = Payload::STAGE_FIRST;
@@ -141,6 +142,16 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 		return false;
 
 	return true;
+}
+void
+XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
+	tr[ *m_tuning] = false;
+	if(std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) {
+		tr[ *this].stm1 = tr[ *this].stm1_original;
+		tr[ *this].stm2 = tr[ *this].stm2_original;
+		throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked. Back to the original positions."), __FILE__, __LINE__);
+	}
+	throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked."), __FILE__, __LINE__);
 }
 void
 XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
@@ -206,6 +217,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, reftotal=%.2f, reff0=%.2f\n",
 			fmin, std::abs(reffmin), reftotal, std::abs(reff0));
+
+	if(shot_this[ *this].iteration_count == 0) {
+		tr[ *this].stm1_original = tr[ *this].stm1;
+		tr[ *this].stm2_original = tr[ *this].stm2;
+		tr[ *this].ref_f0_original = reff0;
+	}
+	tr[ *this].iteration_count++;
+	if(shot_this[ *this].iteration_count > 10) {
+		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) ||
+			(shot_this[ *this].iteration_count > 20))
+			abortTuningFromAnalyze(tr, reff0);//Aborts.
+	}
+
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
 	if(std::abs(reff0) < tune_approach_goal) {
 		tr[ *succeeded()] = true;
@@ -341,8 +365,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
 			if( !stm1__ || !stm2__) {
-				tr[ *m_tuning] = false;
-				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1/C2 is useless. Aborts.
+				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
 			}
 			//Ca is useless, try Cb.
 		}
@@ -390,8 +413,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
 			if(fabs(tr[ *this].dCa) > TUNE_DROT_ABORT)
-				tr[ *m_tuning] = false;
-				throw XRecordError(i18n("Aborting. the target is out of tune, or capacitors have sticked."), __FILE__, __LINE__); //C1 and C2 are useless. Aborts.
+				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
 		}
 		break;
 	}

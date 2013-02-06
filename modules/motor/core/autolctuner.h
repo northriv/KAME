@@ -79,6 +79,9 @@ public:
 		double ref_sigma, fmin_err;
 		double stm1, stm2;
 		int sign_of_prev_dfmin;
+		int iteration_count;
+		double stm1_original, stm2_original;
+		std::complex<double> ref_f0_original;
 		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
@@ -118,6 +121,7 @@ private:
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2,
 		const char *msg);
+	void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
 };
 
 
