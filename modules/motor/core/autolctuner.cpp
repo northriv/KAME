@@ -221,7 +221,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_fmin_first = reffmin;
 		tr[ *this].ref_f0_first = reff0;
 		tr[ *this].ref_total_first = reftotal;
-		if( !stm1__ || !stm2__ || (std::abs(reffmin) < TUNE_APPROACH_START)) {
+		if(std::abs(reff0) < TUNE_FINETUNE_START) {
+			fprintf(stderr, "LCtuner: finetune mode\n");
+			tr[ *this].mode = Payload::TUNE_FINETUNE;
+			tr[ *this].dCa =TUNE_DROT_FINETUNE* ((tr[ *this].dCa > 0) ? 1.0 : -1.0);
+			tr[ *this].dCb = TUNE_DROT_FINETUNE * ((tr[ *this].dCb > 0) ? 1.0 : -1.0);
+		}
+		else if(std::abs(reffmin) < TUNE_APPROACH_START) {
 			fprintf(stderr, "LCtuner: approach mode\n");
 			tr[ *this].mode = Payload::TUNE_APPROACHING;
 			tr[ *this].dCa =TUNE_DROT_APPROACH * ((tr[ *this].dCa > 0) ? 1.0 : -1.0);
@@ -307,14 +313,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		//derivative of reflection.
 		std::complex<double> dref;
-		if(shot_this[ *this].mode == Payload::TUNE_MINIMIZING) {
+		switch(shot_this[ *this].mode) {
+		case Payload::TUNE_MINIMIZING:
 			tr[ *this].ref_sigma *= 2.0 * sqrt(reftotal) / sqrt(trace_len); //sigma of ref_total.
 			dref = shot_this[ *this].ref_total_plus_dCa - shot_this[ *this].ref_total_first;
-		}
-		else {
-		//APPROACHING
+			break;
+		case Payload::TUNE_APPROACHING:
 			dref = shot_this[ *this].ref_fmin_plus_dCa - shot_this[ *this].ref_fmin_first;
-//			dref = shot_this[ *this].ref_f0_plus_dCa - shot_this[ *this].ref_f0_first;
+			break;
+		case Payload::TUNE_FINETUNE:
+			dref = shot_this[ *this].ref_f0_plus_dCa - shot_this[ *this].ref_f0_first;
+			break;
 		}
 		tr[ *this].dref_dCa = dref / shot_this[ *this].dCa;
 
@@ -356,12 +365,16 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		//derivative of reflection.
 		std::complex<double> dref;
-		if(shot_this[ *this].mode == Payload::TUNE_MINIMIZING) {
+		switch(shot_this[ *this].mode) {
+		case Payload::TUNE_MINIMIZING:
 			dref = reftotal - shot_this[ *this].ref_total_plus_dCa;
-		}
-		else {
-		//APPROACHING
+			break;
+		case Payload::TUNE_APPROACHING:
 			dref = reffmin - shot_this[ *this].ref_fmin_plus_dCa;
+			break;
+		case Payload::TUNE_FINETUNE:
+			dref = reff0 - shot_this[ *this].ref_f0_plus_dCa;
+			break;
 		}
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 
@@ -395,7 +408,21 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: re dref_dCa=%.2g, re dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 		std::real(dref_dCa), std::real(dref_dCb),
 		dfmin_dCa, dfmin_dCb);
-	if(shot_this[ *this].mode == Payload::TUNE_APPROACHING) {
+
+	switch(shot_this[ *this].mode) {
+	case Payload::TUNE_MINIMIZING:
+		if(( !stm1__ || !stm2__) ||
+			(fabs(tr[ *this].dCb > TUNE_DROT_ABORT)) ||
+			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
+			//Decreases reftotal by 10%.
+			dCa_next = -(0.1 * reftotal) / std::real(dref_dCa);
+		}
+		else {
+			//Decreases reftotal by 10%.
+			dCb_next = -(0.1 * reftotal) / std::real(dref_dCb);
+		}
+		break;
+	case Payload::TUNE_APPROACHING:
 		if(( !stm1__ || !stm2__) ||
 			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT)) {
 			//Tunes fmin to f0
@@ -408,12 +435,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		else {
 
 			double dc_err = 1e10;
-	//			//Solves by real(ref) and imag(ref).
-	//			determineNextC( dCa_next, dCb_next, dc_err,
-	//				std::real(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-	//				std::imag(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-	//				std::real(dref_dCa), std::real(dref_dCb),
-	//				std::imag(dref_dCa), std::imag(dref_dCb));
 			//Solves by real(ref) and fmin.
 			determineNextC( dCa_next, dCb_next, dc_err,
 				std::real(reffmin), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
@@ -427,25 +448,57 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				std::imag(dref_dCa), std::imag(dref_dCb),
 				dfmin_dCa, dfmin_dCb, "Im{ref(fmin)} and fmin");
 		}
-	}
-	else {
-		//Minimizing mode
+		break;
+	case Payload::TUNE_FINETUNE:
 		if(( !stm1__ || !stm2__) ||
-			(fabs(tr[ *this].dCb > TUNE_DROT_ABORT)) ||
-			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
-			//Decreses reftotal by 10%.
-			dCa_next = -(0.1 * reftotal) / std::real(dref_dCa);
+			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT)) {
+			//Decreases reff0
+			dCa_next = -(std::real(reff0)) / std::real(dref_dCa);
+		}
+		else if(fabs(tr[ *this].dCa) > TUNE_DROT_ABORT) {
+			//Decreases reff0
+			dCb_next = -(std::real(reff0)) / std::real(dref_dCb);
 		}
 		else {
-			//Decreses reftotal by 10%.
-			dCb_next = -(0.1 * reftotal) / std::real(dref_dCb);
+			double dc_err = 1e10;
+//			//Solves by real(ref) and imag(ref).
+			determineNextC( dCa_next, dCb_next, dc_err,
+				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				std::real(dref_dCa), std::real(dref_dCb),
+				std::imag(dref_dCa), std::imag(dref_dCb), "Re{ref(f0)} and Im{ref(f0)}");
+			//Solves by real(ref) and fmin.
+			determineNextC( dCa_next, dCb_next, dc_err,
+				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				fmin - f0, fmin_err,
+				std::real(dref_dCa), std::real(dref_dCb),
+				dfmin_dCa, dfmin_dCb, "Re{ref(f0)} and fmin");
+			//Solves by imag(ref) and fmin.
+			determineNextC( dCa_next, dCb_next, dc_err,
+				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+				fmin - f0, fmin_err,
+				std::imag(dref_dCa), std::imag(dref_dCb),
+				dfmin_dCa, dfmin_dCb, "Im{ref(f0)} and fmin");
 		}
+		break;
 	}
+
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
 	//restricts them within the trust region.
 	double dc_max = sqrt(dCa_next * dCa_next + dCb_next * dCb_next);
-	double dc_trust = (shot_this[ *this].mode == Payload::TUNE_APPROACHING) ? TUNE_TRUST_APPROACH :TUNE_TRUST_MINIMIZING;
+	double dc_trust;
+	switch(shot_this[ *this].mode) {
+	case Payload::TUNE_MINIMIZING:
+		dc_trust = TUNE_TRUST_MINIMIZING;
+		break;
+	case Payload::TUNE_APPROACHING:
+		dc_trust = TUNE_TRUST_APPROACH;
+		break;
+	case Payload::TUNE_FINETUNE:
+		dc_trust = TUNE_TRUST_FINETUNE;
+		break;
+	}
 	dc_trust = std::max(dc_trust, fabs(shot_this[ *this].dCa) * 4);
 	dc_trust = std::max(dc_trust, fabs(shot_this[ *this].dCb) * 4);
 	if(dc_max > dc_trust) {
