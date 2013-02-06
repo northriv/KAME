@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2012 Kentaro Kitagawa
+		Copyright (C) 2002-2013 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -314,7 +314,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 		excitations_create, 2);
 }
 void XCryocon::open() throw (XKameError &) {
-	Snapshot shot( *channels());
+	Snapshot shot( *this);
 	const XNode::NodeList &list( *shot.list());
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
@@ -325,7 +325,7 @@ void XCryocon::open() throw (XKameError &) {
 
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		trans( *powerRange(idx)).clear();
-		if( !hasExtDevice(idx)) {
+		if( !hasExtDevice(shot, idx)) {
 			getChannel(idx);
 			interface()->queryf("LOOP %u:PMAN?", idx + 1);
 			trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
@@ -366,8 +366,8 @@ void XCryoconM32::open() throw (XKameError &) {
 		if(tr.commit())
 			break;
 	}
+	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		Snapshot shot( *this);
 		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("LOOP %u:MAXPWR?", idx + 1);
 			trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));

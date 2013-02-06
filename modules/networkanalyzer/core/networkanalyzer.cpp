@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2012 Kentaro Kitagawa
+		Copyright (C) 2002-2013 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -150,7 +150,6 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
 void
 XNetworkAnalyzer::visualize(const Snapshot &shot) {
 	  if( !shot[ *this].time()) {
-		tr[ *m_waveForm].clear();
 		return;
 	  }
 	const unsigned int length = shot[ *this].length();

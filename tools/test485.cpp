@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2012 Kentaro Kitagawa
+		Copyright (C) 2002-2013 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -49,10 +49,9 @@ int main(int argc, char **argv) {
 		abort();
 	}
     
-//	tcsetpgrp(scifd, getpgrp());
+	tcsetpgrp(scifd, getpgrp());
       
 	bzero( &ttyios, sizeof(ttyios));
-//      tcgetattr(m_scifd, &ttyios);
 
 	cfsetispeed( &ttyios, B115200);
 	cfsetospeed( &ttyios, B115200);
@@ -86,8 +85,9 @@ int main(int argc, char **argv) {
 //	}
 
     unsigned char wbuf[] =
-//    {0x03,0x03,0x03,0x80,0x00,0x02};
-    {0x03,0x08,0x00,0x00,0x12,0x34};
+   {0x03,0x03,0x03,0x80,0x00,0x02};
+    //{0x03,0x08,0x00,0x00,0x12,0x34};
+//    {0x00, 0x03,0x030, 0x83, 0x00, 0x02};
 //   {0x03,0x10,0x01,0x80,0x00,0x01,0x02,0x0,0x1};
 //   {0x03,0x06,0x01,0x80,0x0,0x1};
     uint16_t crc = crc16(wbuf, 6);
@@ -95,6 +95,7 @@ int main(int argc, char **argv) {
 	write(scifd, &crc, 2);
 	write(1, wbuf, sizeof(wbuf));
 	write(1, &crc, 2);
+	printf("\n");
 	char rbuf[20];
 	bzero(rbuf, 20);
 	usleep(10000);
