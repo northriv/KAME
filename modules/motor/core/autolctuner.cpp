@@ -94,7 +94,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
-		tr[ *this].firsttime = true;
+		tr[ *this].iteration_count = 0;
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].sign_of_prev_dfmin = 0;
 		tr[ *this].stage = Payload::STAGE_FIRST;
