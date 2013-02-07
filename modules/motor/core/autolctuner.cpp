@@ -224,9 +224,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_f0_original = reff0;
 	}
 	tr[ *this].iteration_count++;
-	if(shot_this[ *this].iteration_count > 10) {
+	if(shot_this[ *this].iteration_count > 40) {
 		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) ||
-			(shot_this[ *this].iteration_count > 20))
+			(shot_this[ *this].iteration_count > 100))
 			abortTuningFromAnalyze(tr, reff0);//Aborts.
 	}
 
