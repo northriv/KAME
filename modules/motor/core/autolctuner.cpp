@@ -486,11 +486,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		else {
 			double dc_err = 1e10;
 //			//Solves by real(ref) and imag(ref).
-			determineNextC( dCa_next, dCb_next, dc_err,
-				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-				std::real(dref_dCa), std::real(dref_dCb),
-				std::imag(dref_dCa), std::imag(dref_dCb), "Re{ref(f0)} and Im{ref(f0)}");
+//			determineNextC( dCa_next, dCb_next, dc_err,
+//				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+//				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+//				std::real(dref_dCa), std::real(dref_dCb),
+//				std::imag(dref_dCa), std::imag(dref_dCb), "Re{ref(f0)} and Im{ref(f0)}");
 			//Solves by real(ref) and fmin.
 			determineNextC( dCa_next, dCb_next, dc_err,
 				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
