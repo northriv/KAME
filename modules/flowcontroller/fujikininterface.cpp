@@ -102,7 +102,7 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 	const std::vector<uint8_t> &data, std::vector<uint8_t> *response) {
 	bool write = !response;
 	std::vector<uint8_t> buf;
-	buf.push_back(0); //master
+	buf.push_back( ***address());
 	buf.push_back(STX);
 	uint8_t commandcode = write ? 0x81 : 0x80;
 	buf.push_back(commandcode);

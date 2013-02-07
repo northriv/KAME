@@ -109,7 +109,7 @@ private:
 	void onAbortTuningTouched(const Snapshot &shot, XTouchableNode *);
 
 	static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0,
-		TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
+		TUNE_DROT_FINETUNE = 1.0, TUNE_DROT_ABORT = 360.0; //[deg.]
 	static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 180.0; //[deg.]
 	static const double TUNE_APPROACH_START = 0.5; //-3dB@minimum
 	static const double TUNE_FINETUNE_START = 0.5; //-3dB@f0
