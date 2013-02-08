@@ -95,8 +95,9 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
 		tr[ *this].iteration_count = 0;
+		tr[ *this].ref_f0_best = 1e10;
 		tr[ *this].isSTMChanged = true;
-		tr[ *this].sign_of_prev_dfmin = 0;
+		tr[ *this].sor_factor = SOR_FACTOR_MAX;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		if(tr.commit())
 			break;
@@ -146,10 +147,11 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
 	tr[ *m_tuning] = false;
-	if(std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) {
-		tr[ *this].stm1 = tr[ *this].stm1_original;
-		tr[ *this].stm2 = tr[ *this].stm2_original;
-		throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked. Back to the original positions."), __FILE__, __LINE__);
+	if(std::abs(reff0) > std::abs(tr[ *this].ref_f0_best)) {
+		tr[ *this].isSTMChanged = true;
+		tr[ *this].stm1 = tr[ *this].stm1_best;
+		tr[ *this].stm2 = tr[ *this].stm2_best;
+		throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked. Back to better positions."), __FILE__, __LINE__);
 	}
 	throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked."), __FILE__, __LINE__);
 }
@@ -218,18 +220,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, reftotal=%.2f, reff0=%.2f\n",
 			fmin, std::abs(reffmin), reftotal, std::abs(reff0));
 
-	if(shot_this[ *this].iteration_count == 0) {
-		tr[ *this].stm1_original = tr[ *this].stm1;
-		tr[ *this].stm2_original = tr[ *this].stm2;
-		tr[ *this].ref_f0_original = reff0;
-	}
-	tr[ *this].iteration_count++;
-	if(shot_this[ *this].iteration_count > 40) {
-		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) ||
-			(shot_this[ *this].iteration_count > 100))
-			abortTuningFromAnalyze(tr, reff0);//Aborts.
-	}
-
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
 	if(std::abs(reff0) < tune_approach_goal) {
 		tr[ *succeeded()] = true;
@@ -237,6 +227,33 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 
 	Payload::STAGE stage = shot_this[ *this].stage;
+
+	if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(reff0)) {
+		//stores good positions.
+		tr[ *this].stm1_best = tr[ *this].stm1;
+		tr[ *this].stm2_best = tr[ *this].stm2;
+		tr[ *this].ref_f0_best = reff0;
+		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
+	}
+	else {
+		tr[ *this].sor_factor = std::max(tr[ *this].sor_factor * 0.8, SOR_FACTOR_MIN);
+		if(stage == Payload::STAGE_FIRST) {
+			fprintf(stderr, "Rolls back.\n");
+			//rolls back to good positions.
+			tr[ *this].isSTMChanged = true;
+			tr[ *this].stm1 = tr[ *this].stm1_best;
+			tr[ *this].stm2 = tr[ *this].stm2_best;
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+	}
+
+	tr[ *this].iteration_count++;
+	if(shot_this[ *this].iteration_count > 40) {
+		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) ||
+			(shot_this[ *this].iteration_count > 100))
+			abortTuningFromAnalyze(tr, reff0);//Aborts.
+	}
+
 	switch(stage) {
 	default:
 	case Payload::STAGE_FIRST:
@@ -438,12 +455,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(( !stm1__ || !stm2__) ||
 			(fabs(tr[ *this].dCb > TUNE_DROT_ABORT)) ||
 			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
-			//Decreases reftotal by 10%.
-			dCa_next = -(0.1 * reftotal) / std::real(dref_dCa);
+			//Decreases reftotal by 2%.
+			dCa_next = -(0.02 * reftotal) / std::real(dref_dCa);
 		}
 		else {
-			//Decreases reftotal by 10%.
-			dCb_next = -(0.1 * reftotal) / std::real(dref_dCb);
+			//Decreases reftotal by 2%.
+			dCb_next = -(0.02 * reftotal) / std::real(dref_dCb);
 		}
 		break;
 	case Payload::TUNE_APPROACHING:
@@ -509,13 +526,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
-	//detects oscillation symptom.
-	int sign_dfmin = (fmin - f0 > 0) ? 1 : -1;
-	if(tr[ *this].sign_of_prev_dfmin * sign_dfmin > 1) {
-		//reduces changes.
-		dCa_next /= 2;
-		dCb_next /= 2;
-	}
+	dCa_next *= shot_this[ *this].sor_factor;
+	dCb_next *= shot_this[ *this].sor_factor;
 	tr[ *this].sign_of_prev_dfmin = sign_dfmin;
 	//restricts changes within the trust region.
 	double dc_max = sqrt(dCa_next * dCa_next + dCb_next * dCb_next);

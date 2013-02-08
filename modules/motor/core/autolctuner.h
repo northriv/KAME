@@ -78,10 +78,10 @@ public:
 		std::vector<std::complex<double> > trace_prv;
 		double ref_sigma, fmin_err;
 		double stm1, stm2;
-		int sign_of_prev_dfmin;
+		double sor_factor;
 		int iteration_count;
-		double stm1_original, stm2_original;
-		std::complex<double> ref_f0_original;
+		double stm1_best, stm2_best;
+		std::complex<double> ref_f0_best;
 		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
@@ -111,9 +111,11 @@ private:
 	static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0,
 		TUNE_DROT_FINETUNE = 1.0, TUNE_DROT_ABORT = 360.0; //[deg.]
 	static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 180.0; //[deg.]
-	static const double TUNE_APPROACH_START = 0.5; //-3dB@minimum
-	static const double TUNE_FINETUNE_START = 0.5; //-3dB@f0
+	static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
+	static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 	static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
+	static const double SOR_FACTOR_MAX = 0.8;
+	static const double SOR_FACTOR_MIN = 0.2;
 
 	void determineNextC(double &deltaC1, double &deltaC2, double &err,
 		double x, double x_err,
