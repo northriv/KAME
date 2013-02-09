@@ -330,7 +330,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 					if(p1dist_linear)
 						xhalf = (xlb + xub) / 2;
 					else
-						xhalf = (1/xlb + 1/xub) / 2; //reciprocal
+						xhalf = 1.0/((1/xlb + 1/xub) / 2); //reciprocal
 					mid = lrint(log(xhalf / p1min) * k_0);
 				}
 				assert((mid >= lb) && (mid <= ub));
@@ -362,6 +362,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 }
 void
 XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
+	requestAnalysis();
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
 		double p1min = shot[ *p1Min()];
@@ -374,7 +375,6 @@ XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
 		if(tr.commit())
 			break;
 	}
-	requestAnalysis();
 }
 void
 XNMRT1::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
