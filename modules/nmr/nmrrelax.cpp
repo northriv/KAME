@@ -29,16 +29,6 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #include <knuminput.h>
 #include <kiconloader.h>
 
-#define CONVOLUTION_CACHE_SIZE (3 * 10)
-
-#define P1DIST_LINEAR "Linear"
-#define P1DIST_LOG "Log"
-#define P1DIST_RECIPROCAL "Reciprocal"
-
-#define f(x) ((shot[ *p1Dist()].to_str() == P1DIST_LINEAR) ? (1-(x)) * p1min + (x) * p1max : \
-	      ((shot[ *p1Dist()].to_str() == P1DIST_LOG) ? p1min * exp((x) * log(p1max/p1min)) : \
-	       1/((1-(x))/p1min + (x)/p1max)))
-
 class XRelaxFuncPlot : public XFuncPlot {
 public:
 	XRelaxFuncPlot(const char *name, bool runtime, Transaction &tr, const shared_ptr<XGraph> &graph
@@ -85,6 +75,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_absFit(create<XBoolNode>("AbsFit", false)),
 	  m_p1Min(create<XDoubleNode>("P1Min", false)),
 	  m_p1Max(create<XDoubleNode>("P1Max", false)),
+	  m_p1Next(create<XDoubleNode>("P1Next", true)),
+	  m_p1AltNext(create<XDoubleNode>("P1Next", true)),
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
 	  m_freq(create<XDoubleNode>("Freq", false)),
 	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
@@ -92,6 +84,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_windowWidth(create<XComboNode>("WindowWidth", false, true)),
 	  m_mode(create<XComboNode>("Mode", false, true)),
 	  m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
+	  m_p1Strategy(create<XComboNode>("P1Strategy", false, true)),
 	  m_p1Dist(create<XComboNode>("P1Dist", false, true)),
 	  m_resetFit(create<XTouchableNode>("ResetFit", true)),
 	  m_clearAll(create<XTouchableNode>("ClearAll", true)),
@@ -173,6 +166,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *mode()].add("St.E. Measurement");
 		tr[ *mode()] = MEAS_T1;
 
+		tr[ *p1Strategy()].add(P1STRATEGY_RANDOM);
+		tr[ *p1Strategy()].add(P1STRATEGY_FLATTEN);
+		tr[ *p1Strategy()] = 1;
+
 		tr[ *p1Dist()].add(P1DIST_LINEAR);
 		tr[ *p1Dist()].add(P1DIST_LOG);
 		tr[ *p1Dist()].add(P1DIST_RECIPROCAL);
@@ -184,7 +181,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *autoPhase()] = true;
 		tr[ *autoWindow()] = true;
 		tr[ *mInftyFit()] = true;
-		tr[ *smoothSamples()] = 200;
+		tr[ *smoothSamples()] = 256;
 
 		if(tr.commit())
 			break;
@@ -194,12 +191,14 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 
 	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
 	m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
+	m_conP1Next = xqcon_create<XQLineEditConnector>(m_p1Next, m_form->m_edP1Next);
 	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
 	m_conAutoWindow = xqcon_create<XQToggleButtonConnector>(m_autoWindow, m_form->m_ckbAutoWindow);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
 	m_conWindowWidth = xqcon_create<XQComboBoxConnector>(m_windowWidth, m_form->m_cmbWindowWidth, Snapshot( *m_windowWidth));
 	m_conSmoothSamples = xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples);
+	m_conP1Strategy = xqcon_create<XQComboBoxConnector>(m_p1Strategy, m_form->m_cmbP1Strategy, Snapshot( *m_p1Strategy));
 	m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist, Snapshot( *m_p1Dist));
 	m_conClearAll = xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear);
 	m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
@@ -218,11 +217,14 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRT1::onActiveChanged);
-		m_lsnOnCondChanged = tr[ *p1Max()].onValueChanged().connectWeakly(
+		m_lsnOnP1CondChanged = tr[ *p1Max()].onValueChanged().connectWeakly(
+			shared_from_this(), &XNMRT1::onP1CondChanged);
+		tr[ *p1Min()].onValueChanged().connect(m_lsnOnP1CondChanged);
+		tr[ *p1Strategy()].onValueChanged().connect(m_lsnOnP1CondChanged);
+		tr[ *p1Dist()].onValueChanged().connect(m_lsnOnP1CondChanged);
+		tr[ *smoothSamples()].onValueChanged().connect(m_lsnOnP1CondChanged);
+		m_lsnOnCondChanged = tr[ *phase()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRT1::onCondChanged);
-		tr[ *p1Min()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *phase()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *smoothSamples()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *mInftyFit()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *absFit()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *relaxFunc()].onValueChanged().connect(m_lsnOnCondChanged);
@@ -252,6 +254,17 @@ XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
     trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
+double
+XNMRT1::distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1) {
+	double p1min = shot[ *p1Min()];
+	double p1max = shot[ *p1Max()];
+	if(shot[ *p1Dist()].to_str() == P1DIST_LINEAR)
+		return (1-(x)) * p1min + (x) * p1max;
+	if(shot[ *p1Dist()].to_str() == P1DIST_LOG)
+		return p1min * exp((x) * log(p1max/p1min));
+	//P1DIST_RECIPROCAL
+	return 1/((1-(x))/p1min + (x)/p1max);
+}
 void
 XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
 	for(Transaction tr( *this);; ++tr) {
@@ -263,9 +276,88 @@ XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
 	      	gErrPrint(i18n("Invalid P1Min or P1Max."));
 	      	return;
 		}
-		tr[ *this].m_params[0] = 1.0 / f(x);
+		tr[ *this].m_params[0] = 1.0 / distributeNewP1(shot, x);
 		tr[ *this].m_params[1] = 0.1;
 		tr[ *this].m_params[2] = 0.0;
+		if(tr.commit())
+			break;
+	}
+	requestAnalysis();
+}
+void
+XNMRT1::obtainNextP1(Transaction &tr) {
+	const Snapshot &shot(tr);
+	double x_0_to_1;
+	if(shot[ *p1Strategy()] == P1STRATEGY_RANDOM) {
+		x_0_to_1 = randMT19937();
+	}
+	else {
+	//FLATTEN
+		int samples = shot[ *this].m_sumpts.size();
+		if( !samples) {
+			x_0_to_1 = 0.5;
+		}
+		else {
+			//binary search for area having small sum isigma.
+			double p1min = shot[ *p1Min()];
+			double p1max = shot[ *p1Max()];
+			int lb = 0, ub = samples;
+			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
+			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
+			double k_0 = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
+			const auto &sumpts = shot_this[ *this].m_sumpts;
+			for(;;) {
+				int mid;
+				if(p1dist_log)
+					mid = (lb + ub) / 2;  //m_sumpts has been stored in log scale.
+				else {
+					double xlb = exp(lb / k_0) * p1min;
+					double xub = exp(ub / k_0) * p1min;
+					double xhalf;
+					if(p1dist_linear)
+						xhalf = (xlb + xub) / 2;
+					else
+						xhalf = (1/xlb + 1/xub) / 2; //reciprocal
+					mid = lrint(log(xhalf / p1min) * k_0);
+				}
+				assert((mid >= lb) && (mid <= ub));
+				int isigma_0 = 0;
+				for(int idx = lb; idx < mid; ++idx)
+					isigma_0 += sumpts[idx];
+				int isigma_1 = 0;
+				for(int idx = mid; idx < ub; ++idx)
+					isigma_1 += sumpts[idx];
+				if(isigma_0 == isigma_1) {
+					if(randMT19937() < 0.5)
+						ub = mid;
+					else
+						lb = mid;
+				}
+				if(isigma_0 < isigma_1)
+					ub = mid;
+				else
+					lb = mid;
+				if(mid - lb <= 1) {
+					x_0_to_1 = (double)lb / samples;
+					break;
+				}
+			}
+		}
+	}
+	tr[ *p1Next()] = distributeNextP1(shot, x_0_to_1);
+	tr[ *p1AltNext()] = distributeNextP1(shot, 1 - x_0_to_1);
+}
+void
+XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
+	for(Transaction tr( *this);; ++tr) {
+		const Snapshot &shot(tr);
+		double p1min = shot[ *p1Min()];
+		double p1max = shot[ *p1Max()];
+		if((p1min <= 0) || (p1min >= p1max)) {
+	      	gErrPrint(i18n("Invalid P1Min or P1Max."));
+	      	return;
+		}
+		obtainNextP1(tr);
 		if(tr.commit())
 			break;
 	}
@@ -375,7 +467,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
 	}
 
-	const int samples = shot_this[ *smoothSamples()];
+	int samples = shot_this[ *smoothSamples()];
 	if(samples <= 10) {
 		throw XRecordError(i18n("Invalid # of Samples."), __FILE__, __LINE__);
 	}
@@ -512,7 +604,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			//For St.E., T+tau = P1+3*tau.
 			if(mode__ == MEAS_ST_E)
 				p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
-			sumpts[idx].isigma += 1.0;
+			sumpts[idx].isigma += 1;
 			sumpts[idx].p1 += p1;
 			for(unsigned int i = 0; i < it->value_by_cond.size(); i++)
 				sumpts[idx].value_by_cond[i] += it->value_by_cond[i];
@@ -625,20 +717,15 @@ XNMRT1::visualize(const Snapshot &shot) {
 		shared_ptr<XPulser> pulser__ = shot[ *pulser()];
 		if(pulser__) {
 			for(Transaction tr( *pulser__);; ++tr) {
-				double p1min = shot[ *p1Min()];
-				double p1max = shot[ *p1Max()];
-				double x = randMT19937();
-				double np1, np2;
-				np1 = f(x);
-				np2 = f(1-x);
 				switch(shot[ *mode()]) {
 				case MEAS_T1:
 				case MEAS_ST_E:
-					tr[ *pulser__->combP1()] = np1;
-					tr[ *pulser__->combP1Alt()] = np2;
+					tr[ *pulser__->combP1()] = shot[ *p1Next()];
+					tr[ *pulser__->combP1Alt()] = shot[ *p1AltNext()];
+					obatinNewP1(tr);
 					break;
 				case MEAS_T2:
-					tr[ *pulser__->tau()] = np1 / 2.0;
+					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
 					break;
 				}
 				if(tr.commit())

@@ -68,7 +68,7 @@ public:
 			double var; /// auto-phase- or absolute value
 			std::complex<double> c;
 			double p1;
-			double isigma; /// weight
+			int isigma; /// weight
 			std::deque<std::complex<double> > value_by_cond;
 		};
 		struct ConvolutionCache {
@@ -114,6 +114,9 @@ public:
 	//! Region of P1 or 2tau for fitting, display, control of pulser [ms]
 	const shared_ptr<XDoubleNode> &p1Min() const {return m_p1Min;}
 	const shared_ptr<XDoubleNode> &p1Max() const {return m_p1Max;}
+	//! Candidate for the next P1/2tau.
+	const shared_ptr<XDoubleNode> &p1Next() const {return m_p1Next;}
+	const shared_ptr<XDoubleNode> &p1AltNext() const {return m_p1AltNext;}
 	//! (Deduced) phase of echoes [deg.]
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
 	//! Center freq of echoes [kHz].
@@ -129,6 +132,8 @@ public:
 	const shared_ptr<XComboNode> &mode() const {return m_mode;}
 	//! # of Samples for fitting and display
 	const shared_ptr<XUIntNode> &smoothSamples() const {return m_smoothSamples;}
+	//! Strategy for distributing P1 or 2tau
+	const shared_ptr<XComboNode> &p1Strategy() const {return m_p1Strategy;}
 	//! Distribution of P1 or 2tau
 	const shared_ptr<XComboNode> &p1Dist() const {return m_p1Dist;}
 	//! Relaxation Function
@@ -155,6 +160,8 @@ private:
 	const shared_ptr<XBoolNode> m_absFit;
 	const shared_ptr<XDoubleNode> m_p1Min;
 	const shared_ptr<XDoubleNode> m_p1Max;
+	const shared_ptr<XDoubleNode> m_p1Next;
+	const shared_ptr<XDoubleNode> m_p1AltNext;
 	const shared_ptr<XDoubleNode> m_phase;
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_bandWidth;
@@ -163,6 +170,7 @@ private:
 	const shared_ptr<XBoolNode> m_autoWindow;
 	const shared_ptr<XComboNode> m_mode;
 	const shared_ptr<XUIntNode> m_smoothSamples;
+	const shared_ptr<XComboNode> m_p1Strategy;
 	const shared_ptr<XComboNode> m_p1Dist;
 	shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  m_relaxFunc;
 	const shared_ptr<XTouchableNode> m_resetFit, m_clearAll;
@@ -178,16 +186,17 @@ private:
  
 	shared_ptr<XListener> m_lsnOnClearAll, m_lsnOnResetFit;
 	shared_ptr<XListener> m_lsnOnActiveChanged;
-	shared_ptr<XListener> m_lsnOnCondChanged;
+	shared_ptr<XListener> m_lsnOnCondChanged, m_lsnOnP1CondChanged;
 	void onClearAll (const Snapshot &shot, XTouchableNode *);
 	void onResetFit (const Snapshot &shot, XTouchableNode *);
 	void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
 	void onCondChanged (const Snapshot &shot, XValueNodeBase *);
-	xqcon_ptr m_conP1Min, m_conP1Max, m_conPhase, m_conFreq,
+	void onP1CondChanged (const Snapshot &shot, XValueNodeBase *);
+	xqcon_ptr m_conP1Min, m_conP1Max, m_conP1Next, m_conPhase, m_conFreq,
 		m_conWindowFunc, m_conWindowWidth, m_conAutoWindow,
 		m_conSmoothSamples, m_conASWClearance;
 	xqcon_ptr m_conFitStatus;
-	xqcon_ptr m_conP1Dist, m_conRelaxFunc;
+	xqcon_ptr m_conP1Strategy, m_conP1Dist, m_conRelaxFunc;
 	xqcon_ptr m_conClearAll, m_conResetFit;
 	xqcon_ptr m_conActive, m_conAutoPhase, m_conMInftyFit, m_conAbsFit;
 	xqcon_ptr m_conMode;
@@ -215,6 +224,18 @@ private:
 	std::deque<double> m_windowWidthList;
 
 	atomic<int> m_isPulserControlRequested;
+
+	const static int CONVOLUTION_CACHE_SIZE = (3 * 10);
+
+	const static char *P1DIST_LINEAR = "Linear";
+	const static char P1DIST_LOG[] = "Log";
+	const static char P1DIST_RECIPROCAL[] = "Reciprocal";
+
+	const static char P1STRATEGY_RANDOM[] = "Random";
+	const static char P1STRATEGY_FLATTEN[] = "Flatten";
+
+	double distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1);
+	double obtainNewP1(Transaction &tr);
 };
 
 //---------------------------------------------------------------------------
