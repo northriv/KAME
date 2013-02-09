@@ -228,25 +228,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	Payload::STAGE stage = shot_this[ *this].stage;
 
-	if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(reff0)) {
-		//stores good positions.
-		tr[ *this].stm1_best = tr[ *this].stm1;
-		tr[ *this].stm2_best = tr[ *this].stm2;
-		tr[ *this].ref_f0_best = reff0;
-		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
-	}
-	else {
-		tr[ *this].sor_factor = std::max(tr[ *this].sor_factor * 0.8, SOR_FACTOR_MIN);
-		if(stage == Payload::STAGE_FIRST) {
-			fprintf(stderr, "Rolls back.\n");
-			//rolls back to good positions.
-			tr[ *this].isSTMChanged = true;
-			tr[ *this].stm1 = tr[ *this].stm1_best;
-			tr[ *this].stm2 = tr[ *this].stm2_best;
-			throw XSkippedRecordError(__FILE__, __LINE__);
-		}
-	}
-
 	tr[ *this].iteration_count++;
 	if(shot_this[ *this].iteration_count > 40) {
 		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_best)) ||
@@ -331,6 +312,25 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tr[ *succeeded()] = true;
 			fprintf(stderr, "LCtuner: tuning done within errors.\n");
 			return;
+		}
+
+		if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(tr[ *this].ref_f0_plus_dCa) + ref_sigma) {
+			//stores good positions.
+			tr[ *this].stm1_best = tr[ *this].stm1;
+			tr[ *this].stm2_best = tr[ *this].stm2;
+			tr[ *this].ref_f0_best = std::abs(tr[ *this].ref_f0_plus_dCa) + ref_sigma0;
+			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
+		}
+		else {
+			tr[ *this].sor_factor = std::max(tr[ *this].sor_factor * 0.8, SOR_FACTOR_MIN);
+			if(stage == Payload::STAGE_FIRST) {
+				fprintf(stderr, "Rolls back.\n");
+				//rolls back to good positions.
+				tr[ *this].isSTMChanged = true;
+				tr[ *this].stm1 = tr[ *this].stm1_best;
+				tr[ *this].stm2 = tr[ *this].stm2_best;
+				throw XSkippedRecordError(__FILE__, __LINE__);
+			}
 		}
 
 		double fmin_err = trace_dfreq;
