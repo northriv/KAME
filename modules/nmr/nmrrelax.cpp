@@ -263,7 +263,7 @@ XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
     requestAnalysis();
 }
 double
-XNMRT1::distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1) {
+XNMRT1::distributeP1(const Snapshot &shot, double uniform_x_0_to_1) {
 	double p1min = shot[ *p1Min()];
 	double p1max = shot[ *p1Max()];
 	if(shot[ *p1Dist()].to_str() == P1DIST_LINEAR)
@@ -284,7 +284,7 @@ XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
 	      	gErrPrint(i18n("Invalid P1Min or P1Max."));
 	      	return;
 		}
-		tr[ *this].m_params[0] = 1.0 / distributeNewP1(shot, x);
+		tr[ *this].m_params[0] = 1.0 / distributeP1(shot, x);
 		tr[ *this].m_params[1] = 0.1;
 		tr[ *this].m_params[2] = 0.0;
 		if(tr.commit())
@@ -728,9 +728,9 @@ XNMRT1::visualize(const Snapshot &shot) {
 				switch(shot[ *mode()]) {
 				case MEAS_T1:
 				case MEAS_ST_E:
-					tr[ *pulser__->combP1()] = shot[ *p1Next()];
-					tr[ *pulser__->combP1Alt()] = shot[ *p1AltNext()];
-					obatinNewP1(tr);
+					tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
+					tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
+					obatinNextP1(tr);
 					break;
 				case MEAS_T2:
 					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;

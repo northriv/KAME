@@ -234,7 +234,7 @@ private:
 	const static char P1STRATEGY_RANDOM[];
 	const static char P1STRATEGY_FLATTEN[];
 
-	double distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1);
+	double distributeP1(const Snapshot &shot, double uniform_x_0_to_1);
 	double obtainNextP1(Transaction &tr);
 };
 
