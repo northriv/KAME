@@ -313,7 +313,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
 			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
 			double k_0 = shot[ *this].m_sumpts.size() / log(p1max/p1min);
-			const auto &sumpts = shot[ *this].m_sumpts.isigma;
+			const auto &sumpts = shot[ *this].m_sumpts;
 			for(;;) {
 				int mid;
 				if(p1dist_log)
