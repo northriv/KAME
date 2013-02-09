@@ -296,7 +296,7 @@ void
 XNMRT1::obtainNextP1(Transaction &tr) {
 	const Snapshot &shot(tr);
 	double x_0_to_1;
-	if(shot[ *p1Strategy()] == P1STRATEGY_RANDOM) {
+	if(shot[ *p1Strategy()] .to_str() == P1STRATEGY_RANDOM) {
 		x_0_to_1 = randMT19937();
 	}
 	else {
@@ -313,7 +313,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
 			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
 			double k_0 = shot[ *this].m_sumpts.size() / log(p1max/p1min);
-			const auto &sumpts = shot[ *this].m_sumpts;
+			const auto &isigma = shot[ *this].m_sumpts.isigma;
 			for(;;) {
 				int mid;
 				if(p1dist_log)
@@ -331,10 +331,10 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 				assert((mid >= lb) && (mid <= ub));
 				int isigma_0 = 0;
 				for(int idx = lb; idx < mid; ++idx)
-					isigma_0 += sumpts[idx];
+					isigma_0 += isigma[idx];
 				int isigma_1 = 0;
 				for(int idx = mid; idx < ub; ++idx)
-					isigma_1 += sumpts[idx];
+					isigma_1 += isigma[idx];
 				if(isigma_0 == isigma_1) {
 					if(randMT19937() < 0.5)
 						ub = mid;
