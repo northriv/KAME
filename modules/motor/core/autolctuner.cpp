@@ -318,7 +318,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			//stores good positions.
 			tr[ *this].stm1_best = tr[ *this].stm1;
 			tr[ *this].stm2_best = tr[ *this].stm2;
-			tr[ *this].ref_f0_best = std::abs(tr[ *this].ref_f0_plus_dCa) + ref_sigma0;
+			tr[ *this].ref_f0_best = std::abs(tr[ *this].ref_f0_plus_dCa) + ref_sigma;
 			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 		}
 		else {
