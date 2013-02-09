@@ -588,8 +588,11 @@
            <string>P1/Tau Generator</string>
           </property>
           <layout class="QGridLayout" name="gridLayout">
+           <property name="horizontalSpacing">
+            <number>-1</number>
+           </property>
            <property name="verticalSpacing">
-            <number>4</number>
+            <number>6</number>
            </property>
            <property name="margin">
             <number>4</number>

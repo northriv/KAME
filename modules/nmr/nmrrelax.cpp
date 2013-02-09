@@ -116,7 +116,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     	KIconLoader::global()->loadIcon("edit-redo",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
 
-    m_form->setWindowTitle(i18n("NMR Relax. Meas. - ") + getLabel() );
+    m_form->setWindowTitle(i18n("NMR Relaxation Measurement - ") + getLabel() );
 
     meas->scalarEntries()->insert(tr_meas, t1inv());
     meas->scalarEntries()->insert(tr_meas, t1invErr());
