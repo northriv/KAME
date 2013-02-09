@@ -227,7 +227,7 @@ private:
 
 	const static int CONVOLUTION_CACHE_SIZE = (3 * 10);
 
-	const static char *P1DIST_LINEAR = "Linear";
+	const static char P1DIST_LINEAR[] = "Linear";
 	const static char P1DIST_LOG[] = "Log";
 	const static char P1DIST_RECIPROCAL[] = "Reciprocal";
 
