@@ -29,12 +29,12 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #include <knuminput.h>
 #include <kiconloader.h>
 
-const static char XNMRT1::P1DIST_LINEAR[] = "Linear";
-const static char XNMRT1::P1DIST_LOG[] = "Log";
-const static char XNMRT1::P1DIST_RECIPROCAL[] = "Reciprocal";
+const char XNMRT1::P1DIST_LINEAR[] = "Linear";
+const char XNMRT1::P1DIST_LOG[] = "Log";
+const char XNMRT1::P1DIST_RECIPROCAL[] = "Reciprocal";
 
-const static char XNMRT1::P1STRATEGY_RANDOM[] = "Random";
-const static char XNMRT1::P1STRATEGY_FLATTEN[] = "Flatten";
+const char XNMRT1::P1STRATEGY_RANDOM[] = "Random";
+const char XNMRT1::P1STRATEGY_FLATTEN[] = "Flatten";
 
 
 class XRelaxFuncPlot : public XFuncPlot {
@@ -267,11 +267,11 @@ XNMRT1::distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1) {
 	double p1min = shot[ *p1Min()];
 	double p1max = shot[ *p1Max()];
 	if(shot[ *p1Dist()].to_str() == P1DIST_LINEAR)
-		return (1-(x)) * p1min + (x) * p1max;
+		return (1-(uniform_x_0_to_1)) * p1min + (uniform_x_0_to_1) * p1max;
 	if(shot[ *p1Dist()].to_str() == P1DIST_LOG)
-		return p1min * exp((x) * log(p1max/p1min));
+		return p1min * exp((uniform_x_0_to_1) * log(p1max/p1min));
 	//P1DIST_RECIPROCAL
-	return 1/((1-(x))/p1min + (x)/p1max);
+	return 1/((1-uniform_x_0_to_1)/p1min + (uniform_x_0_to_1)/p1max);
 }
 void
 XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
@@ -695,7 +695,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		for(std::deque<Payload::Pt>::iterator it = sumpts.begin(); it != sumpts.end(); it++) {
 			if(it->isigma == 0) continue;
 			it->p1 = it->p1 / it->isigma;
-			it->c =  it->value_by_cond[cond] * cph / it->isigma;
+			it->c =  it->value_by_cond[cond] * cph / (double)it->isigma;
 			it->var = (absfit__) ? std::abs(it->c) : std::real(it->c);
 			it->isigma = sqrt(it->isigma);
 		}
