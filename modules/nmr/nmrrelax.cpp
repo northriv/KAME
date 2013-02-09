@@ -266,12 +266,17 @@ double
 XNMRT1::distributeP1(const Snapshot &shot, double uniform_x_0_to_1) {
 	double p1min = shot[ *p1Min()];
 	double p1max = shot[ *p1Max()];
+	double p1;
 	if(shot[ *p1Dist()].to_str() == P1DIST_LINEAR)
-		return (1-(uniform_x_0_to_1)) * p1min + (uniform_x_0_to_1) * p1max;
-	if(shot[ *p1Dist()].to_str() == P1DIST_LOG)
-		return p1min * exp((uniform_x_0_to_1) * log(p1max/p1min));
-	//P1DIST_RECIPROCAL
-	return 1/((1-uniform_x_0_to_1)/p1min + (uniform_x_0_to_1)/p1max);
+		p1 = (1-(uniform_x_0_to_1)) * p1min + (uniform_x_0_to_1) * p1max;
+	else if(shot[ *p1Dist()].to_str() == P1DIST_LOG)
+		p1 = p1min * exp((uniform_x_0_to_1) * log(p1max/p1min));
+	else
+		//P1DIST_RECIPROCAL
+		p1 =1/((1-uniform_x_0_to_1)/p1min + (uniform_x_0_to_1)/p1max);
+
+	p1 = lrint(p1 * 1e4) / 1e4;//rounds.
+	return p1;
 }
 void
 XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
