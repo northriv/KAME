@@ -29,6 +29,14 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #include <knuminput.h>
 #include <kiconloader.h>
 
+const static char XNMRT1::P1DIST_LINEAR[] = "Linear";
+const static char XNMRT1::P1DIST_LOG[] = "Log";
+const static char XNMRT1::P1DIST_RECIPROCAL[] = "Reciprocal";
+
+const static char XNMRT1::P1STRATEGY_RANDOM[] = "Random";
+const static char XNMRT1::P1STRATEGY_FLATTEN[] = "Flatten";
+
+
 class XRelaxFuncPlot : public XFuncPlot {
 public:
 	XRelaxFuncPlot(const char *name, bool runtime, Transaction &tr, const shared_ptr<XGraph> &graph

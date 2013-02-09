@@ -227,12 +227,12 @@ private:
 
 	const static int CONVOLUTION_CACHE_SIZE = (3 * 10);
 
-	const static char P1DIST_LINEAR[] = "Linear";
-	const static char P1DIST_LOG[] = "Log";
-	const static char P1DIST_RECIPROCAL[] = "Reciprocal";
+	const static char P1DIST_LINEAR[];
+	const static char P1DIST_LOG[];
+	const static char P1DIST_RECIPROCAL[];
 
-	const static char P1STRATEGY_RANDOM[] = "Random";
-	const static char P1STRATEGY_FLATTEN[] = "Flatten";
+	const static char P1STRATEGY_RANDOM[];
+	const static char P1STRATEGY_FLATTEN[];
 
 	double distributeNewP1(const Snapshot &shot, double uniform_x_0_to_1);
 	double obtainNewP1(Transaction &tr);
