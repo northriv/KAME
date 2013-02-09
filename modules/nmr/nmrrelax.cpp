@@ -275,7 +275,7 @@ XNMRT1::distributeP1(const Snapshot &shot, double uniform_x_0_to_1) {
 		//P1DIST_RECIPROCAL
 		p1 =1/((1-uniform_x_0_to_1)/p1min + (uniform_x_0_to_1)/p1max);
 
-	p1 = lrint(p1 * 1e4) / 1e4;//rounds.
+	p1 = llrint(p1 * 1e4) / 1e4;//rounds.
 	return p1;
 }
 void
