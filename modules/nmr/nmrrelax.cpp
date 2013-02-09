@@ -312,8 +312,8 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			int lb = 0, ub = samples;
 			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
 			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
-			double k_0 = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
-			const auto &sumpts = shot_this[ *this].m_sumpts;
+			double k_0 = shot[ *this].m_sumpts.size() / log(p1max/p1min);
+			const auto &sumpts = shot[ *this].m_sumpts;
 			for(;;) {
 				int mid;
 				if(p1dist_log)
@@ -352,8 +352,8 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			}
 		}
 	}
-	tr[ *p1Next()] = distributeNextP1(shot, x_0_to_1);
-	tr[ *p1AltNext()] = distributeNextP1(shot, 1 - x_0_to_1);
+	tr[ *p1Next()] = distributeP1(shot, x_0_to_1);
+	tr[ *p1AltNext()] = distributeP1(shot, 1 - x_0_to_1);
 }
 void
 XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -730,7 +730,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 				case MEAS_ST_E:
 					tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
 					tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
-					obatinNextP1(tr);
+					obtainNextP1(tr);
 					break;
 				case MEAS_T2:
 					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
