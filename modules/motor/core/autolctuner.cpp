@@ -249,7 +249,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	tr[ *this].iteration_count++;
 	if(shot_this[ *this].iteration_count > 40) {
-		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_original)) ||
+		if((std::abs(reff0) > std::abs(tr[ *this].ref_f0_best)) ||
 			(shot_this[ *this].iteration_count > 100))
 			abortTuningFromAnalyze(tr, reff0);//Aborts.
 	}
@@ -528,7 +528,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	dCa_next *= shot_this[ *this].sor_factor;
 	dCb_next *= shot_this[ *this].sor_factor;
-	tr[ *this].sign_of_prev_dfmin = sign_dfmin;
 	//restricts changes within the trust region.
 	double dc_max = sqrt(dCa_next * dCa_next + dCb_next * dCb_next);
 	double dc_trust;
