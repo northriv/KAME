@@ -1,3 +1,7 @@
+* Sat Feb 9 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.2.23-1)
+- nmrrelax: Flatten P1 distribution.
+
 * Tue Feb 5 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.2.22-1)
 - autolctuner: works better.
