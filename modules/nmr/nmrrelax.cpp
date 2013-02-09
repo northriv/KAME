@@ -735,12 +735,16 @@ XNMRT1::visualize(const Snapshot &shot) {
 				case MEAS_ST_E:
 					tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
 					tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
-					obtainNextP1(tr);
 					break;
 				case MEAS_T2:
 					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
 					break;
 				}
+				if(tr.commit())
+					break;
+			}
+			for(Transaction tr( *this);; ++tr) {
+				obtainNextP1(tr);
 				if(tr.commit())
 					break;
 			}
