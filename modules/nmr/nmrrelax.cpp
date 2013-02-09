@@ -346,10 +346,12 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 					else
 						lb = mid;
 				}
-				if(isigma_0 < isigma_1)
-					ub = mid;
-				else
-					lb = mid;
+				else {
+					if(isigma_0 < isigma_1)
+						ub = mid;
+					else
+						lb = mid;
+				}
 				if(mid - lb <= 1) {
 					x_0_to_1 = (double)lb / samples;
 					break;
