@@ -113,7 +113,7 @@ private:
 	static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 180.0; //[deg.]
 	static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
 	static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
-	static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
+	static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.0;
 	static const double SOR_FACTOR_MAX = 0.8;
 	static const double SOR_FACTOR_MIN = 0.2;
 
