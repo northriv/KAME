@@ -456,11 +456,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			(fabs(tr[ *this].dCb > TUNE_DROT_ABORT)) ||
 			(std::abs(dref_dCa) > std::abs(dref_dCb)) ) {
 			//Decreases reftotal by 2%.
-			dCa_next = -(0.02 * reftotal) / std::real(dref_dCa);
+			if(fabs(std::real(dref_dCa)) > fabs(std::imag(dref_dCa)))
+				dCa_next = -(0.02 * reftotal) / std::real(dref_dCa);
+			else
+				dCa_next = -(0.02 * reftotal) / std::imag(dref_dCa);
 		}
 		else {
 			//Decreases reftotal by 2%.
-			dCb_next = -(0.02 * reftotal) / std::real(dref_dCb);
+			if(fabs(std::real(dref_dCb)) > fabs(std::imag(dref_dCb)))
+				dCb_next = -(0.02 * reftotal) / std::real(dref_dCb);
+			else
+				dCb_next = -(0.02 * reftotal) / std::imag(dref_dCb);
 		}
 		break;
 	case Payload::TUNE_APPROACHING:
@@ -474,7 +480,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			dCb_next = -(fmin - f0) / dfmin_dCb;
 		}
 		else {
-
 			double dc_err = 1e10;
 			//Solves by real(ref) and fmin.
 			determineNextC( dCa_next, dCb_next, dc_err,
@@ -492,22 +497,24 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	case Payload::TUNE_FINETUNE:
 		if(( !stm1__ || !stm2__) ||
-			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT)) {
+			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT) ||
+			((fsbs(fmin - f0) < fmin_err) && (std::abs(dref_dCa) > std::abs(dref_dCb)))) {
 			//Decreases reff0
-			dCa_next = -(std::real(reff0)) / std::real(dref_dCa);
+			if(fabs(std::real(dref_dCa)) > fabs(std::imag(dref_dCa)))
+				dCa_next = -(std::real(reff0)) / std::real(dref_dCa);
+			else
+				dCa_next = -(std::imag(reff0)) / std::imag(dref_dCa);
 		}
-		else if(fabs(tr[ *this].dCa) > TUNE_DROT_ABORT) {
+		else if((fabs(tr[ *this].dCa) > TUNE_DROT_ABORT) ||
+			((fsbs(fmin - f0) < fmin_err) && (std::abs(dref_dCa) < std::abs(dref_dCb)))) {
 			//Decreases reff0
-			dCb_next = -(std::real(reff0)) / std::real(dref_dCb);
+			if(fabs(std::real(dref_dCb)) > fabs(std::imag(dref_dCb)))
+				dCb_next = -(std::real(reff0)) / std::real(dref_dCb);
+			else
+				dCb_next = -(std::imag(reff0)) / std::imag(dref_dCb);
 		}
 		else {
 			double dc_err = 1e10;
-//			//Solves by real(ref) and imag(ref).
-//			determineNextC( dCa_next, dCb_next, dc_err,
-//				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-//				std::imag(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
-//				std::real(dref_dCa), std::real(dref_dCb),
-//				std::imag(dref_dCa), std::imag(dref_dCb), "Re{ref(f0)} and Im{ref(f0)}");
 			//Solves by real(ref) and fmin.
 			determineNextC( dCa_next, dCb_next, dc_err,
 				std::real(reff0), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
