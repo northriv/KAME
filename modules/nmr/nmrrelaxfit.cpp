@@ -384,7 +384,7 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 		double p1max = shot_this[ *p1Max()];
 		double p1min = shot_this[ *p1Min()];
 		tr[ *this].m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
-		tr[ *this].m_params[1] = (max_var - min_var) * (randMT19937() * 4.0 - 2.0);
+		tr[ *this].m_params[1] = (max_var - min_var) * (randMT19937() * 2.0 + 0.9) * ((randMT19937() < 0.5) ? 1 :  -1);
 		tr[ *this].m_params[2] = 0.0;
 		status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
 			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
