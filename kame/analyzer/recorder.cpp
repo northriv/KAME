@@ -138,13 +138,20 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	  m_entries(entrylist),
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_lastLine(create<XStringNode>("LastLine", true)),
-	  m_recording(create<XBoolNode>("Recording", true)) {
+	  m_recording(create<XBoolNode>("Recording", true)),
+	  m_logFilename(create<XStringNode>("LogFilename", true)),
+	  m_logRecording(create<XBoolNode>("LogRecording", true)),
+	  m_logEvery(create<XUIntNode>("LogEvery", false))  {
   
 	for(Transaction tr( *this);; ++tr) {
 	    tr[ *recording()] = false;
 	    tr[ *lastLine()].setUIEnabled(false);
+	    tr[ *logRecording()] = false;
+	    tr[ *logEvery()] = 300;
 	    m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XTextWriter::onFilenameChanged);
+	    m_lsnOnLogFilenameChanged = tr[ *logFilename()].onValueChanged().connectWeakly(
+	        shared_from_this(), &XTextWriter::onLogFilenameChanged);
 		if(tr.commit())
 			break;
 	}
@@ -187,13 +194,27 @@ XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
-	if( ***recording()) {
+	Snapshot shot_this( *this);
+	XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
+	XTime logtime = XTime::now();
+	XString logline;
+	if(shot_this[ *recording()]) {
 		if(shot[ *driver].time()) {
 			for(;;) {
 				Snapshot shot_entries( *m_entries);
 				if( !shot_entries.size())
 					break;
 				const XNode::NodeList &entries_list( *shot_entries.list());
+				//logger
+				if(logtime - m_loggedTime > shot_this[ *logEvery()]) {
+					m_loggedTime = logtime;
+					for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
+						auto entry = static_pointer_cast<XScalarEntry>( *it);
+						logline.append(shot_entries[ *entry->value()].to_str() + " ");
+					}
+					logline.append(m_loggedTime.getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
+				}
+				//triggered writer
 				bool triggered = false;
 				for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
 					auto entry = static_pointer_cast<XScalarEntry>( *it);
@@ -218,9 +239,15 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 				buf.append(shot[ *driver].time().getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 				if(tr_entries.commit()) {
 					trans( *lastLine()) = buf;
-					return;
+					break;
 				}
 			}
+		}
+	}
+	if(logline.length()) {
+		if(m_logStream.good()) {
+			m_logStream << logline
+					 << std::endl;
 		}
 	}
 }
@@ -272,5 +299,31 @@ XTextWriter::onFlush(const Snapshot &shot, XValueNodeBase *) {
 		XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 		if(m_stream.good())
 			m_stream.flush();
+	}
+}
+
+void
+XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
+	XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
+	if(m_logStream.is_open()) m_logStream.close();
+	m_logStream.clear();
+	m_logStream.open((const char*)QString(shot[ *logFilename()].to_str()).toLocal8Bit().data(), OFSMODE);
+
+	if(m_logStream.good()) {
+		XString buf;
+		buf = "#";
+		Snapshot shot_entries( *m_entries);
+		if(shot_entries.size()) {
+			const XNode::NodeList &entries_list( *shot_entries.list());
+			for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
+				auto entry = static_pointer_cast<XScalarEntry>( *it);
+				buf.append(entry->getLabel());
+				buf.append(" ");
+			}
+		}
+		buf.append("Time");
+	}
+	else {
+		gErrPrint(i18n("Failed to open file."));
 	}
 }

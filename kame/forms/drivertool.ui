@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>304</width>
-    <height>261</height>
+    <width>310</width>
+    <height>270</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,7 @@
   </property>
   <layout class="QGridLayout">
    <property name="margin">
-    <number>2</number>
+    <number>4</number>
    </property>
    <item row="0" column="0" colspan="3">
     <widget class="QGroupBox" name="groupBox1">
@@ -29,6 +29,9 @@
       <string>Raw Stream Recorder</string>
      </property>
      <layout class="QGridLayout">
+      <property name="margin">
+       <number>4</number>
+      </property>
       <item row="0" column="0">
        <widget class="KUrlRequester" name="m_urlBinRec">
         <property name="enabled">
@@ -149,6 +152,7 @@
    <class>KUrlRequester</class>
    <extends>QFrame</extends>
    <header>kurlrequester.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <includes>

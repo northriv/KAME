@@ -3,7 +3,7 @@ project( kame )
 
 find_package(KDE4 REQUIRED)
 
-add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"3.2\\"")
+add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"3.3\\"")
 
 include(KDE4Defaults)
 

@@ -131,7 +131,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
 
-	resize(QSize(std::min(1280, width()), 480 ));
+	resize(QSize(std::min(1280, width()), 560));
    
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);

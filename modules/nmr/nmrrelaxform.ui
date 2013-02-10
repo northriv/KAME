@@ -136,6 +136,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <widget class="QLabel" name="textLabel3">
             <property name="sizePolicy">
@@ -198,6 +201,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <widget class="QLabel" name="textLabel3_2">
             <property name="sizePolicy">
@@ -253,6 +259,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <widget class="QLabel" name="textLabel5">
             <property name="sizePolicy">
@@ -286,6 +295,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <widget class="QLabel" name="textLabel5_2">
             <property name="sizePolicy">
@@ -319,6 +331,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <widget class="QLabel" name="textLabel5_3">
             <property name="sizePolicy">
@@ -630,6 +645,9 @@
             <layout class="QHBoxLayout" name="_7">
              <item>
               <layout class="QHBoxLayout" name="_8">
+               <property name="spacing">
+                <number>6</number>
+               </property>
                <item>
                 <widget class="QLabel" name="textLabel2_2_3">
                  <property name="sizePolicy">
@@ -675,6 +693,9 @@
              </item>
              <item>
               <layout class="QHBoxLayout" name="_9">
+               <property name="spacing">
+                <number>6</number>
+               </property>
                <item>
                 <widget class="QLabel" name="textLabel2_2_2">
                  <property name="sizePolicy">

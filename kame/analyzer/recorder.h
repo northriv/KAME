@@ -72,7 +72,9 @@ public:
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
 	const shared_ptr<XStringNode> &lastLine() const {return m_lastLine;}
-
+	const shared_ptr<XStringNode> &logFilename() const {return m_logFilename;}
+	const shared_ptr<XBoolNode> &logRecording() const {return m_logRecording;}
+	const shared_ptr<XUIntNode> &logEvery() const {return m_logEvery;}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
@@ -82,19 +84,28 @@ private:
 	const shared_ptr<XStringNode> m_filename;
 	const shared_ptr<XStringNode> m_lastLine;
 	const shared_ptr<XBoolNode> m_recording;
+	const shared_ptr<XStringNode> m_logFilename;
+	const shared_ptr<XBoolNode> m_logRecording;
+	const shared_ptr<XUIntNode> m_logEvery;
 	shared_ptr<XListener> m_lsnOnRecord;
 	shared_ptr<XListener> m_lsnOnFlush;
 	shared_ptr<XListener> m_lsnOnCatch;
 	shared_ptr<XListener> m_lsnOnRelease; 
 	shared_ptr<XListener> m_lsnOnLastLineChanged; 
 	shared_ptr<XListener> m_lsnOnFilenameChanged;
+	shared_ptr<XListener> m_lsnOnLogFilenameChanged;
+	shared_ptr<XListener> m_lsnOnLogRecord;
 	void onRecord(const Snapshot &shot, XDriver *);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	void onLastLineChanged(const Snapshot &shot, XValueNodeBase *);
 	void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
+	void onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *);
     
 	std::fstream m_stream;
+	std::fstream m_logStream;
 	XRecursiveMutex m_filemutex;
+	XRecursiveMutex m_logFilemutex;
+	XTime m_loggedTime;
 };
 
 
