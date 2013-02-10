@@ -61,14 +61,14 @@ m_conTextLastLine(xqcon_create<XQLineEditConnector>(
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLastLine)),
 m_conLogWrite(xqcon_create<XQToggleButtonConnector>(
 		textWriter()->logRecording(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbLogWrite)),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbLoggerWrite)),
 m_conLogURL(xqcon_create<XKURLReqConnector>(
 		textWriter()->logFilename(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_urlLogWriter,
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_urlLogger,
 		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true)),
 m_conLogEvery(xqcon_create<XQLineEditConnector>(
 		textWriter()->logEvery(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLogEvery)),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLoggerEvery)),
 m_conBinURL(xqcon_create<XKURLReqConnector>(
 		rawStreamRecorder()->filename(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_urlBinRec,

@@ -74,6 +74,7 @@ private:
 	const xqcon_ptr m_conRecordReader,
 	m_conDrivers, m_conInterfaces, m_conEntries, m_conGraphs,
 	m_conTextWrite, m_conTextURL, m_conTextLastLine,
+	m_conLogURL, m_conLogWrite, m_conLogEvery,
 	m_conBinURL, m_conBinWrite, m_conUrlRubyThread,
 	m_conCalTable, m_conNodeBrowser;
 	shared_ptr<XListener> m_lsnOnReleaseDriver;
