@@ -59,6 +59,16 @@ m_conTextURL(xqcon_create<XKURLReqConnector>(
 m_conTextLastLine(xqcon_create<XQLineEditConnector>(
 		textWriter()->lastLine(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLastLine)),
+m_conLogWrite(xqcon_create<XQToggleButtonConnector>(
+		textWriter()->logRecording(),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbLogWrite)),
+m_conLogURL(xqcon_create<XKURLReqConnector>(
+		textWriter()->logFilename(),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_urlLogWriter,
+		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true)),
+m_conLogEvery(xqcon_create<XQLineEditConnector>(
+		textWriter()->logEvery(),
+		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLogEvery)),
 m_conBinURL(xqcon_create<XKURLReqConnector>(
 		rawStreamRecorder()->filename(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_urlBinRec,
