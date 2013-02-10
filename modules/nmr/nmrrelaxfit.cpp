@@ -377,7 +377,7 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 	for(;;) {
 		status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
 			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-		if( !status && (fabs(tr[ *this].m_params[1]) < (max_var - min_var) * 5))
+		if( !status && (fabs(tr[ *this].m_params[1]) < (max_var - min_var) * 10))
 			break;
 		if(XTime::now() - firsttime < 0.02) continue;
 		if(XTime::now() - firsttime > 0.07) break;
