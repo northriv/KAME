@@ -356,9 +356,11 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 	const Snapshot &shot_this(tr);
 	//# of samples.
 	int n = 0;
-	for(std::deque<Payload::Pt>::const_iterator it = shot_this[ *this].m_sumpts.begin();
-		it != shot_this[ *this].m_sumpts.end(); it++) {
+	double max_var = -1e90, min_var = 1e90;
+	for(auto it = shot_this[ *this].m_sumpts.begin(); it != shot_this[ *this].m_sumpts.end(); it++) {
 		if(it->isigma > 0)  n++;
+		max_var = std::max(max_var, it->var);
+		min_var = std::min(min_var, it->var);
     }    
 	struct NLLS nlls = {
 		&tr[ *this].m_sumpts,
@@ -375,13 +377,14 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 	for(;;) {
 		status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
 			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-		if( !status) break;
+		if( !status && (fabs(tr[ *this].m_params[1]) < max_var - min_var ))
+			break;
 		if(XTime::now() - firsttime < 0.01) continue;
 		if(XTime::now() - firsttime > 0.05) break;
 		double p1max = shot_this[ *p1Max()];
 		double p1min = shot_this[ *p1Min()];
 		tr[ *this].m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
-		tr[ *this].m_params[1] = 1.0*(randMT19937() - 0.5);
+		tr[ *this].m_params[1] = (max_var - min_var) * (randMT19937() * 2 - 1.0);
 		tr[ *this].m_params[2] = 0.0;
 		status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
 			 &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
