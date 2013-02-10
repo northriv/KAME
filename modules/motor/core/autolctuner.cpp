@@ -498,7 +498,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	case Payload::TUNE_FINETUNE:
 		if(( !stm1__ || !stm2__) ||
 			(fabs(tr[ *this].dCb) > TUNE_DROT_ABORT) ||
-			((fsbs(fmin - f0) < fmin_err) && (std::abs(dref_dCa) > std::abs(dref_dCb)))) {
+			((fabs(fmin - f0) < fmin_err) && (std::abs(dref_dCa) > std::abs(dref_dCb)))) {
 			//Decreases reff0
 			if(fabs(std::real(dref_dCa)) > fabs(std::imag(dref_dCa)))
 				dCa_next = -(std::real(reff0)) / std::real(dref_dCa);
