@@ -198,7 +198,9 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 	XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
 	XTime logtime = XTime::now();
 	XString logline;
-	if(shot_this[ *recording()]) {
+	bool record_log = shot_this[ *logRecording()] &&
+		(logtime - m_loggedTime > shot_this[ *logEvery()]);
+	if(shot_this[ *recording()] || record_log) {
 		if(shot[ *driver].time()) {
 			for(;;) {
 				Snapshot shot_entries( *m_entries);
@@ -206,7 +208,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 					break;
 				const XNode::NodeList &entries_list( *shot_entries.list());
 				//logger
-				if(logtime - m_loggedTime > shot_this[ *logEvery()]) {
+				if(record_log) {
 					m_loggedTime = logtime;
 					for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
 						auto entry = static_pointer_cast<XScalarEntry>( *it);
@@ -214,6 +216,8 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 					}
 					logline.append(m_loggedTime.getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 				}
+				if( !shot_this[ *recording()])
+					break;
 				//triggered writer
 				bool triggered = false;
 				for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
@@ -244,7 +248,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 			}
 		}
 	}
-	if(logline.length()) {
+	if(record_log) {
 		if(m_logStream.good()) {
 			m_logStream << logline
 					 << std::endl;
@@ -322,6 +326,8 @@ XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 			}
 		}
 		buf.append("Time");
+		m_logStream << buf
+				 << std::endl;
 	}
 	else {
 		gErrPrint(i18n("Failed to open file."));
