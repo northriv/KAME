@@ -85,8 +85,7 @@ public:
 	typedef uintptr_t FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
-	template <unsigned int SIZE>
-	inline void *allocate_pooled();
+	inline void *allocate_pooled(unsigned int SIZE);
 	virtual bool deallocate_pooled(char *p);
 	static bool create_allocator(int &aidx);
 	static bool release_allocator(PoolAllocator *alloc);
@@ -124,8 +123,7 @@ public:
 	typedef typename PoolAllocator<ALIGN, true, false>::FUINT FUINT;
 protected:
 	PoolAllocator(int count, char *addr, char *ppool);
-	template <unsigned int SIZE>
-	inline void *allocate_pooled();
+	inline void *allocate_pooled(unsigned int SIZE);
 	virtual bool deallocate_pooled(char *p);
 
 private:

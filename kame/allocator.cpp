@@ -66,8 +66,8 @@ inline T find_one_forward(T x) {
 //! Folds "OR" operations. O(log X).
 //! Expecting inline expansions of codes.
 //! \tparam X number of zeros to be looked for.
-template <unsigned int X, unsigned int SHIFTS, typename T>
-inline T fold_bits(T x) {
+template<typename T>
+inline T fold_bits(unsigned int X, unsigned int SHIFTS, T x) {
 //	printf("%d, %llx\n", SHIFTS, x);
 //	if(x == ~(T)0u)
 //		return x; //already filled.
@@ -77,8 +77,8 @@ inline T fold_bits(T x) {
 	if(X & SHIFTS)
 		x = (x >> SHIFTS) | x;
 	return (2 * SHIFTS < sizeof(T) * 8) ?
-		fold_bits<X, (2 * SHIFTS < sizeof(T) * 8) ? 2 * SHIFTS : 1>(x) : x;
-}
+		fold_bits(X, (2 * SHIFTS < sizeof(T) * 8) ? 2 * SHIFTS : 1, x) : x;
+};
 
 //! Bit scan forward, counting zeros in the LSBs.
 //! \param x should be 2^n.
@@ -105,21 +105,20 @@ inline unsigned int count_zeros_forward(T x) {
 //}
 
 //! Finds training zeros from LSB in \a x using O(log n) algorithm.
-//! \tparam X number of zeros to be looked for.
+//! \arg X number of zeros to be looked for.
 //! \return one bit at the LSB of the training zeros if enough zeros are found.
-template <int X, typename T>
-inline T find_training_zeros(T x) {
+template<typename T>
+inline T find_training_zeros (int X, T x) {
 //	if( !x) return 1u;
 	if(X == sizeof(T) * 8)
 		return !x ? 1u : 0u; //a trivial case.
-	x = fold_bits<X, 1>(x);
+	x = fold_bits(X, 1, x);
 	if(x == ~(T)0u)
 		return 0; //already filled.
 	x = find_zero_forward(x); //picking the first zero from LSB.
 	if(x > (T)1u << (sizeof(T) * 8 - X)) return 0; //checking if T has enough space in MSBs.
 	return x;
-}
-
+};
 
 inline void *malloc_mmap(size_t size) {
 //		fprintf(stderr, "mmap(), %d\n", (int)size);
@@ -240,9 +239,8 @@ PoolAllocator<ALIGN, false, DUMMY>::report_leaks() {
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-template <unsigned int SIZE>
 inline void *
-PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled() {
+PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	FUINT one;
 	int idx = this->m_idx;
 	for(;;) {
@@ -287,9 +285,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled() {
 }
 
 template <unsigned int ALIGN, bool DUMMY>
-template <unsigned int SIZE>
 inline void *
-PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled() {
+PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	if(m_available_bits < SIZE / ALIGN)
 		return 0;
 	FUINT oldv, ones, cand;
@@ -297,7 +294,7 @@ PoolAllocator<ALIGN, false, DUMMY>::allocate_pooled() {
 	FUINT *pflag = &this->m_flags[idx];
 	for(FUINT *pend = &this->m_flags[this->m_count];;) {
 		oldv = *pflag;
-		cand = find_training_zeros<SIZE / ALIGN>(oldv);
+		cand = find_training_zeros(SIZE / ALIGN, oldv);
 		if(cand) {
 			ones = cand *
 				(2u * (((FUINT)1u << (SIZE / ALIGN - 1u)) - 1u) + 1u); //N ones, not to overflow.
@@ -541,7 +538,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate() {
 		if(alloc && !(alloc & 1u) && (atomicCompareAndSet(alloc, alloc | 1u, palloc))) {
 			readBarrier();
 			if(void *p =
-				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled<SIZE>()) {
+				reinterpret_cast<PoolAllocator<ALIGN, DUMMY, DUMMY> *>(alloc)->allocate_pooled(SIZE)) {
 	//			fprintf(stderr, "a: %p\n", p);
 #ifdef GUARDIAN
 				for(unsigned int i = 0; i < SIZE / sizeof(uint64_t); ++i) {
