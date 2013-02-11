@@ -21,6 +21,7 @@ set(nmr_SRCS
 	nmrfspectrum.cpp 
 	nmrrelaxfit.cpp 
 	nmrrelax.cpp 
+    autolctuner.cpp
  )
 set(nmrpulser_SRCS
 	pulserdriversh.cpp 
@@ -33,7 +34,8 @@ kde4_add_ui_files(nmr_SRCS
     nmrpulseform.ui
     nmrrelaxform.ui
     nmrspectrumform.ui
-)
+  	autolctunerform.ui
+ )
  
 kde4_add_library(nmr MODULE ${nmr_SRCS} ${nmrpulser_SRCS})
 add_dependencies(nmr kame)
