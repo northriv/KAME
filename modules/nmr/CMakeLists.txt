@@ -21,8 +21,6 @@ set(nmr_SRCS
 	nmrfspectrum.cpp 
 	nmrrelaxfit.cpp 
 	nmrrelax.cpp 
- )
- set(nmrmisc_SRCS
     pulseanalyzer.cpp
     autolctuner.cpp
  )
@@ -36,23 +34,18 @@ kde4_add_ui_files(nmr_SRCS
     nmrpulseform.ui
     nmrrelaxform.ui
     nmrspectrumform.ui
- )
- 
- kde4_add_ui_files(nmrmisc_SRCS
   	autolctunerform.ui
  )
  
 kde4_add_library(nmr MODULE ${nmr_SRCS})
 target_link_libraries(nmr kame_nmrpulsercore kame_magnetpscore kame_sgcore kame_dmmcore kame_dsocore 
+	kame_networkanalyzercore kame_motorcore
 	${MODULE_LINKER_FLAGS})
-kde4_add_library(nmrmisc MODULE ${nmrmisc_SRCS})
-target_link_libraries(nmrmisc kame_nmrpulsercore kame_sgcore kame_dsocore 
-	kame_networkanalyzercore kame_motorcore ${MODULE_LINKER_FLAGS})
 kde4_add_library(nmrpulser MODULE ${nmrpulser_SRCS})
 target_link_libraries(nmrpulser kame_nmrpulsercore
 	 kame_charinterface ${MODULE_LINKER_FLAGS})
 ########### install files ###############
-install(TARGETS nmr nmrmisc nmrpulser LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
+install(TARGETS nmr nmrpulser LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
 
 ##AM_CXXFLAGS = $(CXXFLAGS) \
 ##	-O6  \
