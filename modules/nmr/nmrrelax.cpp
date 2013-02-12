@@ -315,9 +315,11 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			double p1min = shot[ *p1Min()];
 			double p1max = shot[ *p1Max()];
 			int lb = 0, ub = samples;
+			double k_0 = samples / log(p1max/p1min);
+			int idx_p1next = lrint(log(shot[ *p1Next()] / p1min) * k_0);
+			idx_p1next = std::min(std::max(idx_p1next, 0), samples);
 			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
 			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
-			double k_0 = shot[ *this].m_sumpts.size() / log(p1max/p1min);
 			const auto &sumpts = shot[ *this].m_sumpts;
 			for(;;) {
 				int mid;
@@ -340,6 +342,10 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 				int isigma_1 = 0;
 				for(int idx = mid; idx < ub; ++idx)
 					isigma_1 += sumpts[idx].isigma;
+				if((lb <= idx_p1next) && (mid > idx_p1next))
+					isigma_0++;
+				if((mid <= idx_p1next) && (ub > idx_p1next))
+					isigma_1++;
 				if(isigma_0 == isigma_1) {
 					if(randMT19937() < 0.5)
 						ub = mid;
@@ -601,7 +607,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 	}
 
 	tr[ *this].m_sumpts.resize(samples);
-	std::deque<Payload::Pt> &sumpts(tr[ *this].m_sumpts);
+	auto &sumpts(tr[ *this].m_sumpts);
 
 	{
 		Payload::Pt dummy;
@@ -609,10 +615,10 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
 		std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
 		double k = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
-		std::deque<Payload::RawPt>::const_iterator pts_begin(shot_this[ *this].m_pts.begin());
-		std::deque<Payload::RawPt>::const_iterator pts_end(shot_this[ *this].m_pts.end());
+		auto pts_begin(shot_this[ *this].m_pts.begin());
+		auto pts_end(shot_this[ *this].m_pts.end());
 		int sum_size = (int)shot_this[ *this].m_sumpts.size();
-		for(std::deque<Payload::RawPt>::const_iterator it = pts_begin; it != pts_end; it++) {
+		for(auto it = pts_begin; it != pts_end; it++) {
 			int idx = lrint(log(it->p1 / p1min) * k);
 			if((idx < 0) || (idx >= sum_size)) continue;
 			double p1 = it->p1;
@@ -630,7 +636,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		shot_this[ *this].m_convolutionCache.size()), corr(shot_this[ *this].m_convolutionCache.size());
 	double sum_t = 0.0;
 	int n = 0;
-	for(std::deque<Payload::Pt>::const_iterator it = shot_this[ *this].m_sumpts.begin();
+	for(auto it = shot_this[ *this].m_sumpts.begin();
 		it != shot_this[ *this].m_sumpts.end(); it++) {
 		if(it->isigma == 0) continue;
 		double t = log10(it->p1 / it->isigma);
@@ -699,7 +705,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
 		}
 		std::complex<double> cph(std::polar(1.0, -phase_by_cond[cond]));
-		for(std::deque<Payload::Pt>::iterator it = sumpts.begin(); it != sumpts.end(); it++) {
+		for(auto it = sumpts.begin(); it != sumpts.end(); it++) {
 			if(it->isigma == 0) continue;
 			it->p1 = it->p1 / it->isigma;
 			it->c =  it->value_by_cond[cond] * cph / (double)it->isigma;
@@ -776,7 +782,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 		double *colim = tr[ *m_wave].cols(5);
 		double *colisigma = tr[ *m_wave].cols(2);
 		int i = 0;
-		for(std::deque<Payload::Pt>::const_iterator it = shot[ *this].m_sumpts.begin();
+		for(auto it = shot[ *this].m_sumpts.begin();
 			it != shot[ *this].m_sumpts.end(); it++) {
 			if(it->isigma == 0) {
 				colval[i] = 0;

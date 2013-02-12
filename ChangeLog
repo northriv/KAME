@@ -1,3 +1,8 @@
+* Tue Feb 12 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.1-1)
+- Along with clang++.
+- Much faster .kam loading. (isThreadSafeDuringCreationByTypename()) 
+
 * Sun Feb 10 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.0-1)
 - textwriter: logger.

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>215</width>
-    <height>535</height>
+    <width>216</width>
+    <height>517</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -52,8 +52,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>207</width>
-         <height>449</height>
+         <width>208</width>
+         <height>431</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -459,9 +459,12 @@
         <item>
          <widget class="QGroupBox" name="groupBox2">
           <property name="title">
-           <string>External DC Source</string>
+           <string>External Device</string>
           </property>
           <layout class="QGridLayout" name="gridLayout">
+           <property name="margin">
+            <number>4</number>
+           </property>
            <item row="1" column="0">
             <widget class="QLabel" name="textLabel1">
              <property name="sizePolicy">
@@ -981,8 +984,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>186</width>
-         <height>162</height>
+         <width>207</width>
+         <height>449</height>
         </rect>
        </property>
        <attribute name="label">

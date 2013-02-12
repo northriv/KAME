@@ -88,7 +88,7 @@ public:
 		//! Stores all measured points.
 		std::deque<RawPt> m_pts;
 		//! Stores reduced points to manage fitting and display.
-		std::deque<Pt> m_sumpts;
+		std::vector<Pt> m_sumpts;
 		double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
 		double m_errors[3]; //!< std. deviations
 
@@ -178,7 +178,7 @@ private:
 
 	//! for Non-Lenear-Least-Square fitting
 	struct NLLS {
-		std::deque<Payload::Pt> *pts; //pointer to data
+		std::vector<Payload::Pt> *pts; //pointer to data
 		shared_ptr<XRelaxFunc> func; //pointer to the current relaxation function
 		bool is_minftyfit; //3param fit or not.
 		double fixed_minfty;

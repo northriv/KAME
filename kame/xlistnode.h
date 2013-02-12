@@ -27,6 +27,8 @@ public:
 	virtual shared_ptr<XNode> createByTypename(
         const XString &type, const XString &name) = 0;
 
+	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
+
 	struct Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
 		Talker<XListNodeBase*, XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
@@ -63,12 +65,15 @@ public:
 protected:    
 };
 
+//! List node for simples nodes, such like XIntNode.
 template <class NT>
 class XListNode : public  XListNodeBase {
 public:
 	explicit XListNode(const char *name, bool runtime = false)
 		:  XListNodeBase(name, runtime) {}
 	virtual ~XListNode() {}
+
+	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
 
 	virtual shared_ptr<XNode> createByTypename(
         const XString &, const XString &name) {
@@ -84,6 +89,8 @@ public:
 		:  XListNodeBase(name, runtime) {}
 	virtual ~XAliasListNode() {}
 
+	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
+
 	virtual shared_ptr<XNode> createByTypename(
         const XString &, const XString &) {
 		return shared_ptr<XNode>();
@@ -96,6 +103,8 @@ public:
 	explicit XCustomTypeListNode(const char *name, bool runtime = false)
 		:  XListNodeBase(name, runtime) {}
 	virtual ~XCustomTypeListNode() {}
+
+	virtual bool isThreadSafeDuringCreationByTypename() const {return false;} //! default behavior for safety.
 
 	virtual shared_ptr<XNode> createByTypename(
         const XString &type, const XString &name) = 0;

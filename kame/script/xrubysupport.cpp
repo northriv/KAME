@@ -153,18 +153,23 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 	      }
 			 */
 			if( !child) {
-				shared_ptr<Payload::tCreateChild> x(new Payload::tCreateChild);
-				x->lnode = lnode;
-				x->type = type;
-				x->name = name;
-				Snapshot shot( *st->xruby);
-				shot.talk(shot[ *st->xruby].onChildCreated(), x);
-				XScopedLock<XCondition> lock(x->cond);
-				while(x->lnode) {
-					x->cond.wait();
+				if(lnode->	isThreadSafeDuringCreationByTypename()) {
+					child = lnode->createByTypename(type, name);
 				}
-				child = x->child;
-				x->child.reset();
+				else {
+					shared_ptr<Payload::tCreateChild> x(new Payload::tCreateChild);
+					x->lnode = lnode;
+					x->type = type;
+					x->name = name;
+					Snapshot shot( *st->xruby);
+					shot.talk(shot[ *st->xruby].onChildCreated(), x);
+					XScopedLock<XCondition> lock(x->cond);
+					while(x->lnode) {
+						x->cond.wait();
+					}
+					child = x->child;
+					x->child.reset();
+				}
 			}
 			if( !child) {
 				throw formatString(
