@@ -81,6 +81,7 @@ private:
 
 	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
+	void performTuning(const Snapshot &shot_this, double newf, bool firsttime);
 };
 
 
