@@ -398,8 +398,8 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			double dt = fabs(newtime - lasttime);
 			//Estimates field deviation.
 			havg = (havg - magnet_field) * exp( -0.1 * dt) + magnet_field; //LPF by 10sec.
-			tr[ *stabilized()] = std::max(fabs(magnet_field - shot[ *targetField()]), fabs(havg - shot[ *targetField()]));
-			if(tr[ *stabilized()] > field_resolution * 1.5)
+			tr[ *stabilized()] = std::max(fabs(magnet_field - target_field_ps), fabs(havg - target_field_ps));
+			if(tr[ *stabilized()] > field_resolution * 1.1)
 				last_unstab_time = XTime::now();
 			if(tr.commit()) {
 				lasttime = newtime;
@@ -489,24 +489,22 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 					else {
 						//pcs heater is off
 						if(fabs(magnet_field - shot[ *targetField()]) >= field_resolution) {
-							if(fabs(magnet_field - output_field) < field_resolution) {
-								if(fabs(target_field_ps  - magnet_field) < field_resolution) {
-									//ready to go non-persistent.
-									m_statusPrinter->printMessage(getLabel() + " " +
-																  i18n("Non-Perisistent mode."));
-									double h = getPersistentField();
-									if(fabs(h - output_field) > field_resolution)
-										throw XInterface::XInterfaceError(getLabel() +
-																		  i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
-									pcsh_time = XTime::now();
-									toNonPersistent();
-								}
+							if((fabs(magnet_field - output_field) < field_resolution) &&
+								(fabs(target_field_ps  - magnet_field) < field_resolution)) {
+								//ready to go non-persistent.
+								m_statusPrinter->printMessage(getLabel() + " " +
+															  i18n("Non-Perisistent mode."));
+								double h = getPersistentField();
+								if(fabs(h - output_field) > field_resolution)
+									throw XInterface::XInterfaceError(getLabel() +
+																	  i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
+								pcsh_time = XTime::now();
+								toNonPersistent();
 							}
-							else {
+							else  {
 								//set output to persistent field.
 								if(shot[ *m_persistent]) {
-									if(target_field_ps != magnet_field)
-										setPoint(magnet_field);
+									setPoint(magnet_field);
 									toSetPoint();
 								}
 							}
