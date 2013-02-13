@@ -24,8 +24,8 @@ static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0,
 static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
 static const double TUNE_FINETUNE_START = 0.33; //-10dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.0;
-static const double SOR_FACTOR_MAX = 0.7;
-static const double SOR_FACTOR_MIN = 0.2;
+static const double SOR_FACTOR_MAX = 0.75;
+static const double SOR_FACTOR_MIN = 0.3;
 
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
@@ -171,10 +171,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_this(tr);
 	const Snapshot &shot_na(shot_emitter);
 
-	if( !shot_this[ *tuning()]) {
-		throw XSkippedRecordError(__FILE__, __LINE__);
-	}
-
 	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	//remembers original position.
@@ -182,6 +178,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].stm1 = shot_others[ *stm1__->position()->value()];
 	if(stm2__)
 		tr[ *this].stm2 = shot_others[ *stm2__->position()->value()];
+	if( !shot_this[ *useSTM1()]) stm1__.reset();
+	if( !shot_this[ *useSTM2()]) stm2__.reset();
 
 	if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
 			( stm2__  && !shot_others[ *stm2__->ready()]))
@@ -190,9 +188,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].isSTMChanged = false;
 		throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one before STM was moved. reload.
 	}
+	if( !shot_this[ *tuning()]) {
+		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
 
-	if( !shot_this[ *useSTM1()]) stm1__.reset();
-	if( !shot_this[ *useSTM2()]) stm2__.reset();
 	if( !stm1__ && !stm2__) {
 		tr[ *m_tuning] = false;
 		throw XSkippedRecordError(__FILE__, __LINE__);
@@ -312,6 +311,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace_prv[i]);
 		}
 		ref_sigma = sqrt(ref_sigma / trace_len);
+		if(ref_sigma > 0.1) {
+			fprintf(stderr, "LCtuner: too large errors.\n");
+			tr[ *this].stage = Payload::STAGE_FIRST; //to first stage.
+			throw XSkippedRecordError(__FILE__, __LINE__);
+
+		}
 		tr[ *this].ref_sigma = ref_sigma;
 
 		tr[ *this].trace_prv.clear();
@@ -379,10 +384,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 			if(fabs(tr[ *this].dCa) < TUNE_DROT_ABORT) {
 				if(stm1__)
-					tr[ *this].stm1 += 2.0 * tr[ *this].dCa;
+					tr[ *this].stm1 += 3.0 * tr[ *this].dCa;
 				else
-					tr[ *this].stm2 += 2.0 * tr[ *this].dCa;
-				tr[ *this].dCa *= 3.0; //increases rotation angle to measure derivative.
+					tr[ *this].stm2 += 3.0 * tr[ *this].dCa;
+				tr[ *this].dCa *= 4.0; //increases rotation angle to measure derivative.
 				tr[ *this].isSTMChanged = true;
 				tr[ *this].stage = Payload::STAGE_DCA_FIRST; //rotate C1 more and try again.
 				fprintf(stderr, "LCtuner: increasing dCa to %f\n", (double)tr[ *this].dCa);
@@ -429,8 +434,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 			if(fabs(tr[ *this].dCb) < TUNE_DROT_ABORT) {
-				tr[ *this].stm2 += 2.0 * tr[ *this].dCb;
-				tr[ *this].dCb *= 3.0; //increases rotation angle to measure derivative.
+				tr[ *this].stm2 += 3.0 * tr[ *this].dCb;
+				tr[ *this].dCb *= 4.0; //increases rotation angle to measure derivative.
 				tr[ *this].isSTMChanged = true;
 				fprintf(stderr, "LCtuner: increasing dCb to %f\n", (double)tr[ *this].dCb);
 				//rotate Cb more and try again.
@@ -606,25 +611,23 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 			msecsleep(50); //waits for relays.
 			trans( *tuning()) = false; //finishes tuning successfully.
 		}
-		else {
-			if(shot_this[ *this].isSTMChanged) {
-				if(stm1__) {
-					for(Transaction tr( *stm1__);; ++tr) {
-						if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
-							break;
-						tr[ *stm1__->target()] = shot_this[ *this].stm1;
-						if(tr.commit())
-							break;
-					}
+		if(shot_this[ *this].isSTMChanged) {
+			if(stm1__) {
+				for(Transaction tr( *stm1__);; ++tr) {
+					if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
+						break;
+					tr[ *stm1__->target()] = shot_this[ *this].stm1;
+					if(tr.commit())
+						break;
 				}
-				if(stm2__) {
-					for(Transaction tr( *stm2__);; ++tr) {
-						if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
-							break;
-						tr[ *stm2__->target()] = shot_this[ *this].stm2;
-						if(tr.commit())
-							break;
-					}
+			}
+			if(stm2__) {
+				for(Transaction tr( *stm2__);; ++tr) {
+					if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
+						break;
+					tr[ *stm2__->target()] = shot_this[ *this].stm2;
+					if(tr.commit())
+						break;
 				}
 			}
 		}

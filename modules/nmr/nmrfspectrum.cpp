@@ -81,13 +81,13 @@ void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
+		onClear(shot_this, clear().get());
     	double newf =
 				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
 		performTuning(shot_this, newf, true);
 		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
 		if(sg1__)
 			trans( *sg1__->freq()) = newf;
-		onClear(shot_this, clear().get());
 	}
     else
     	m_lsnOnTuningChanged.reset();
@@ -110,8 +110,8 @@ XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
     if(autotuner) {
     	if( !pulser__) return false;
     	if(shot_others[ *autotuner->tuning()]) return false;
-    	if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *autotuner].time()) return false;
-    	if(shot_others[ *pulser__].time() < shot_others[ *autotuner].time()) return false;
+//    	if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *autotuner].time()) return false;
+//    	if(shot_others[ *pulser__].time() < shot_others[ *autotuner].time()) return false;
     }
     return true;
 }
@@ -142,7 +142,7 @@ XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &s
 void
 XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf, bool firsttime) {
     shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
-	if(autotuner) {
+	if(autotuner && (shot_this[ *autoTuneStep()]  > 0.0)) {
 	    shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
 	    assert(pulser__);
 		Snapshot shot_tuner( *autotuner);
