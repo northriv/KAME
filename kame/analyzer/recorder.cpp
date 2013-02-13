@@ -139,8 +139,8 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	  m_filename(create<XStringNode>("Filename", true)),
 	  m_lastLine(create<XStringNode>("LastLine", true)),
 	  m_recording(create<XBoolNode>("Recording", true)),
-	  m_logFilename(create<XStringNode>("LogFilename", true)),
-	  m_logRecording(create<XBoolNode>("LogRecording", true)),
+	  m_logFilename(create<XStringNode>("LogFilename", false)),
+	  m_logRecording(create<XBoolNode>("LogRecording", false)),
 	  m_logEvery(create<XUIntNode>("LogEvery", false))  {
   
 	for(Transaction tr( *this);; ++tr) {
