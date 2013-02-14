@@ -198,7 +198,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Write every</string>
+           <string>Log every</string>
           </property>
          </widget>
         </item>
