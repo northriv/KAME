@@ -146,6 +146,19 @@ XCharInterface::toUInt() const throw (XConvError &) {
     return x;
 }
 
+XString
+XCharInterface::toStr() const {
+	return XString( &buffer()[0]);
+}
+XString
+XCharInterface::toStrSimplified() const {
+	char buf[1024];
+    int ret = this->scanf("%1023s", buf);
+    if(ret != 1)
+		throw XConvError(__FILE__, __LINE__);
+	return XString(buf);
+}
+
 const std::vector<char> &
 XCharInterface::buffer() const {return m_xport->buffer();}
 

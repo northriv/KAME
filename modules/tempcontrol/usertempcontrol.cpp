@@ -319,9 +319,9 @@ void XCryocon::open() throw (XKameError &) {
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
 	interface()->query("INPUT A:VBIAS?");
-	trans( *ch0->excitation()).str(QString( &interface()->buffer()[0]).simplified());
+	trans( *ch0->excitation()).str(interface()->toStrSimplified());
 	interface()->query("INPUT B:VBIAS?");
-	trans( *ch1->excitation()).str(QString( &interface()->buffer()[0]).simplified());
+	trans( *ch1->excitation()).str(interface()->toStrSimplified());
 
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		trans( *powerRange(idx)).clear();

@@ -35,6 +35,8 @@ public:
 	double toDouble() const throw (XConvError &);
 	int toInt() const throw (XConvError &);
 	unsigned int toUInt() const throw (XConvError &);
+	XString toStr() const;
+	XString toStrSimplified() const; //!< returns string white-spaces stripped.
   
 	void send(const XString &str) throw (XCommError &);
 	virtual void send(const char *str) throw (XCommError &);

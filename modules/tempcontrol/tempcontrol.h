@@ -177,8 +177,8 @@ private:
 		XTime m_lasttime;
 	};
 	std::deque<shared_ptr<Loop> > m_loops;
-	shared_ptr<Loop> loop(unsigned int lp) {return m_loops[lp];}
-	const shared_ptr<Loop> loop(unsigned int lp) const {return m_loops[lp];}
+	shared_ptr<Loop> loop(unsigned int lp) {return m_loops.at(lp);}
+	const shared_ptr<Loop> loop(unsigned int lp) const {return m_loops.at(lp);}
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 

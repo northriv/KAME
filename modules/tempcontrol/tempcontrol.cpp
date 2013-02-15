@@ -506,7 +506,7 @@ void XTempControl::createChannels(
 		shared_ptr<Loop> p;
 		for(Transaction tr( *this);; ++tr) {
 			p = create<Loop>(tr,
-				formatString("Loop%u", lp + 1).c_str(), false,
+				formatString("Loop%u", lp + 1u).c_str(), false,
 				dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), lp,
 				ref(tr_meas), meas);
 			if(tr.commit())
