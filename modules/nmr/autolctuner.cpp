@@ -20,7 +20,7 @@ REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 
 static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0,
 	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
-static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 720.0; //[deg.]
+static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.0;
@@ -292,7 +292,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		ref_targeted = reffmin;
 		break;
 	case Payload::TUNE_FINETUNE:
-		ref_targeted = reff0;
+		ref_targeted = reffmin;
+//		ref_targeted = reff0;
 		break;
 	}
 	switch(stage) {
@@ -553,8 +554,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dc_trust = TUNE_TRUST_FINETUNE;
 		break;
 	}
-	dc_trust = std::max(dc_trust, fabs(shot_this[ *this].dCa) * 4);
-	dc_trust = std::max(dc_trust, fabs(shot_this[ *this].dCb) * 4);
+	dc_trust = std::min(dc_trust, std::max(fabs(shot_this[ *this].dCa), fabs(shot_this[ *this].dCb)) * 10);
 	if(dc_max > dc_trust) {
 		dCa_next *= dc_trust / dc_max;
 		dCb_next *= dc_trust / dc_max;
