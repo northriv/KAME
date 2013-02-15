@@ -319,7 +319,12 @@ void XCryocon::open() throw (XKameError &) {
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
 	interface()->query("INPUT A:VBIAS?");
-	trans( *ch0->excitation()).str(interface()->toStrSimplified());
+	shared_ptr<XComboNode> exc = ch0->excitation();
+	for(Transaction tr( *exc);; ++tr) {
+		tr[ *exc].str(interface()->toStrSimplified());
+		if(tr.commit())
+			break;
+	}
 	interface()->query("INPUT B:VBIAS?");
 	trans( *ch1->excitation()).str(interface()->toStrSimplified());
 
