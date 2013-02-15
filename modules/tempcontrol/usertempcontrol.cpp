@@ -315,7 +315,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 }
 void XCryocon::open() throw (XKameError &) {
 	Snapshot shot( *this);
-	const XNode::NodeList &list(shot.list( *channels()));
+	const XNode::NodeList &list( *shot.list( *channels()));
 	assert(list.size() == 2);
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
