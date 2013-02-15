@@ -112,7 +112,8 @@ protected:
 private:
 	shared_ptr<XChannelList> m_channels;
 	//! LOOPs
-	struct Loop : public XNode {
+	class Loop : public XNode {
+	public:
 		Loop(const char *name, bool runtime, shared_ptr<XTempControl>, Transaction &tr,
 			unsigned int idx, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 
