@@ -314,16 +314,19 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 		excitations_create, 2);
 }
 void XCryocon::open() throw (XKameError &) {
-	Snapshot shot( *this);
-	const XNode::NodeList &list( *shot.list( *channels()));
-	assert(list.size() == 2);
-	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
-	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
-	interface()->query("INPUT A:VBIAS?");
-	trans( *ch0->excitation()).str(interface()->toStrSimplified());
-	interface()->query("INPUT B:VBIAS?");
-	trans( *ch1->excitation()).str(interface()->toStrSimplified());
+	{
+		Snapshot shot( *channels());
+		const XNode::NodeList &list( *shot.list());
+		assert(list.size() == 2);
+		shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
+		shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
+		interface()->query("INPUT A:VBIAS?");
+		trans( *ch0->excitation()).str(interface()->toStrSimplified());
+		interface()->query("INPUT B:VBIAS?");
+		trans( *ch1->excitation()).str(interface()->toStrSimplified());
+	}
 
+	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		trans( *powerRange(idx)).clear();
 		if( !hasExtDevice(shot, idx)) {
