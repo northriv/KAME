@@ -152,11 +152,7 @@ XCharInterface::toStr() const {
 }
 XString
 XCharInterface::toStrSimplified() const {
-	char buf[1024];
-    int ret = this->scanf("%1023s", buf);
-    if(ret != 1)
-		throw XConvError(__FILE__, __LINE__);
-	return XString(buf);
+	return QString( &interface()->buffer()[0]).simplified();
 }
 
 const std::vector<char> &
