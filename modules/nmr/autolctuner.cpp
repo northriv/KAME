@@ -23,7 +23,7 @@ static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0,
 static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
-static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.0;
+static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.5;
 static const double SOR_FACTOR_MAX = 0.8;
 static const double SOR_FACTOR_MIN = 0.3;
 
@@ -345,7 +345,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		fprintf(stderr, "LCtuner: +dCa, 2nd\n");
 		//Ref( +dCa, 0), averaged with the previous.
 		tr[ *this].fmin_plus_dCa = (tr[ *this].fmin_plus_dCa + fmin) / 2.0;
-		tr[ *this].ref_plus_dCa = (tr[ *this].ref_plus_dCa + reff0) / 2.0;
+		tr[ *this].ref_plus_dCa = (tr[ *this].ref_plus_dCa + ref_targeted) / 2.0;
 		//estimates errors.
 		if(shot_this[ *this].trace_prv.size() != trace_len) {
 			tr[ *m_tuning] = false;
@@ -525,11 +525,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			dabs_ref_dCa, dabs_ref_dCb,
 			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {
 			if(dabs_ref_dCb == 0.0) {
-				//Decreases reff0
+				//Decreases ref
 				dCa_next = -std::abs(ref_targeted) / dabs_ref_dCa;
 			}
 			else {
-				//Decreases reff0
+				//Decreases ref
 				dCb_next = -std::abs(ref_targeted) / dabs_ref_dCb;
 			}
 		}
@@ -541,7 +541,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	dCa_next *= shot_this[ *this].sor_factor;
 	dCb_next *= shot_this[ *this].sor_factor;
 	//restricts changes within the trust region.
-	double dc_max = sqrt(dCa_next * dCa_next + dCb_next * dCb_next);
 	double dc_trust;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_MINIMIZING:
@@ -554,12 +553,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dc_trust = TUNE_TRUST_FINETUNE;
 		break;
 	}
-	dc_trust = std::min(dc_trust, std::max(fabs(shot_this[ *this].dCa), fabs(shot_this[ *this].dCb)) * 10);
-	if(dc_max > dc_trust) {
-		dCa_next *= dc_trust / dc_max;
-		dCb_next *= dc_trust / dc_max;
-		fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
-	}
+	double dca_trust = fabs(shot_this[ *this].dCa) * 50;
+	double dcb_trust = fabs(shot_this[ *this].dCa) * 50;
+	double red_fac = std::min(1.0, std::min(std::min(dc_trust, dca_trust) / fabs(dCa_next), std::min(dc_trust, dcb_trust) / fabs(dCb_next)));
+	dCa_next *= red_fac;
+	dCb_next *= red_fac;
+	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 	//remembers last direction.
 	tr[ *this].dCa = dCa_next;
 	tr[ *this].dCb = dCb_next;
