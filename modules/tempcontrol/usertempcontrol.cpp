@@ -315,7 +315,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 }
 void XCryocon::open() throw (XKameError &) {
 	Snapshot shot( *this);
-	const XNode::NodeList &list( *channels()->list());
+	const XNode::NodeList &list(shot.list( *channels()));
 	assert(list.size() == 2);
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
@@ -347,13 +347,12 @@ void XCryocon::open() throw (XKameError &) {
 					break;
 			}
 			interface()->queryf("LOOP %u:TYPE?", idx + 1);
-			QString s( &interface()->buffer()[0]);
-			trans( *heaterMode(idx)).str(s.simplified());
+			trans( *heaterMode(idx)).str(interface()->toStrSimplified());
 		}
 	}
 
 	interface()->queryf("LOOP %u:RANGE?", 1);
-	trans( *powerRange(0)).str(QString( &interface()->buffer()[0]).simplified());
+	trans( *powerRange(0)).str(interface()->toStrSimplified());
 
 	start();
 }
