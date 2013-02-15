@@ -487,8 +487,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: re dref_dCa=%.2g, re dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 
-	switch(shot_this[ *this].mode) {
 	double dc_err = 1e10;
+	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_MINIMIZING:
 		if(fabs(dabs_ref_dCa) > fabs(dabs_ref_dCb)) {
 			//Decreases reftotal by 2%.
