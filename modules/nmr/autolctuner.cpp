@@ -286,13 +286,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> ref_targeted;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_MINIMIZING:
-		ref_targeted = reff0;
+		ref_targeted = reftotal;
 		break;
 	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
 		break;
 	case Payload::TUNE_FINETUNE:
-		ref_targeted = reftotal;
+		ref_targeted = reff0;
 		break;
 	}
 	switch(stage) {
@@ -484,7 +484,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double dCa_next = 0;
 	double dCb_next = 0;
 
-	fprintf(stderr, "LCtuner: re dref_dCa=%.2g, re dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
+	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 
 	double dc_err = 1e10;
@@ -522,7 +522,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			std::abs(ref_targeted), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
 			fmin - f0, fmin_err,
 			dabs_ref_dCa, dabs_ref_dCb,
-			dfmin_dCa, dfmin_dCb, "|ref(f0)| and fmin")) {
+			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {
 			if(dabs_ref_dCb == 0.0) {
 				//Decreases reff0
 				dCa_next = -std::abs(ref_targeted) / dabs_ref_dCa;
