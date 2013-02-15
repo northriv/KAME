@@ -315,17 +315,12 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
 }
 void XCryocon::open() throw (XKameError &) {
 	Snapshot shot( *this);
-	const XNode::NodeList &list( *shot.list());
+	const XNode::NodeList &list( *channels()->list());
 	assert(list.size() == 2);
 	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
 	interface()->query("INPUT A:VBIAS?");
-	shared_ptr<XComboNode> exc = ch0->excitation();
-	for(Transaction tr( *exc);; ++tr) {
-		tr[ *exc].str(interface()->toStrSimplified());
-		if(tr.commit())
-			break;
-	}
+	trans( *ch0->excitation()).str(interface()->toStrSimplified());
 	interface()->query("INPUT B:VBIAS?");
 	trans( *ch1->excitation()).str(interface()->toStrSimplified());
 
