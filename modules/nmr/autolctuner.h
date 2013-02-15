@@ -66,10 +66,8 @@ public:
 		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
 		STAGE stage;
 
-		std::complex<double> ref_f0_first, ref_f0_plus_dCa;
-		std::complex<double> ref_fmin_first, ref_fmin_plus_dCa;
+		std::complex<double> ref_first, ref_plus_dCa;
 		double fmin_first, fmin_plus_dCa;
-		double ref_total_first, ref_total_plus_dCa;
 		double dCa, dCb;
 
 		std::complex<double> dref_dCa, dref_dCb;
@@ -82,6 +80,7 @@ public:
 		int iteration_count;
 		double stm1_best, stm2_best;
 		std::complex<double> ref_f0_best;
+		double fmin_best;
 		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
@@ -108,7 +107,7 @@ private:
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onAbortTuningTouched(const Snapshot &shot, XTouchableNode *);
 
-	void determineNextC(double &deltaC1, double &deltaC2, double &err,
+	bool determineNextC(double &deltaC1, double &deltaC2, double &err,
 		double x, double x_err,
 		double y, double y_err,
 		double dxdC1, double dxdC2,
