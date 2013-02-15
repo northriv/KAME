@@ -272,17 +272,14 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(std::abs(reff0) < TUNE_FINETUNE_START) {
 			fprintf(stderr, "LCtuner: finetune mode\n");
 			tr[ *this].mode = Payload::TUNE_FINETUNE;
-			break;
 		}
 		else if(std::abs(reffmin) < TUNE_APPROACH_START) {
 			fprintf(stderr, "LCtuner: approach mode\n");
 			tr[ *this].mode = Payload::TUNE_APPROACHING;
-			break;
 		}
 		else {
 			fprintf(stderr, "LCtuner: minimizing mode\n");
 			tr[ *this].mode = Payload::TUNE_MINIMIZING;
-			break;
 		}
 	}
 	//Selects suitable reflection point to be minimized.
@@ -309,7 +306,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tune_drot = TUNE_DROT_MINIMIZING;
 			break;
 		case Payload::TUNE_APPROACHING:
-			tune_drot = TUNE_DROT_APPROACHING;
+			tune_drot = TUNE_DROT_APPROACH;
 			break;
 		case Payload::TUNE_FINETUNE:
 			tune_drot = TUNE_DROT_FINETUNE;
@@ -491,6 +488,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 
 	switch(shot_this[ *this].mode) {
+	double dc_err = 1e10;
 	case Payload::TUNE_MINIMIZING:
 		if(fabs(dabs_ref_dCa) > fabs(dabs_ref_dCb)) {
 			//Decreases reftotal by 2%.
@@ -502,7 +500,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		break;
 	case Payload::TUNE_APPROACHING:
-		double dc_err = 1e10;
 		//Solves by |ref| and fmin.
 		if( !determineNextC( dCa_next, dCb_next, dc_err,
 			std::abs(ref_targeted), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
@@ -520,7 +517,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		break;
 	case Payload::TUNE_FINETUNE:
-		double dc_err = 1e10;
 		//Solves by |ref| and fmin.
 		if( !determineNextC( dCa_next, dCb_next, dc_err,
 			std::abs(ref_targeted), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
