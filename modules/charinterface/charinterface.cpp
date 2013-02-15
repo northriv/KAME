@@ -152,7 +152,7 @@ XCharInterface::toStr() const {
 }
 XString
 XCharInterface::toStrSimplified() const {
-	return QString( &interface()->buffer()[0]).simplified();
+	return QString( &buffer()[0]).simplified();
 }
 
 const std::vector<char> &
