@@ -77,12 +77,14 @@ public:
 	void setSerialParity(unsigned int parity) {m_serialParity = parity;}
 	void setSerial7Bits(bool enable) {m_serial7Bits = enable;}
 	void setSerialFlushBeforeWrite(bool x) {m_serialFlushBeforeWrite = x;}
+	void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
 	unsigned int serialParity() const {return m_serialParity;}
 	bool serial7Bits() const {return m_serial7Bits;}
 	bool serialFlushBeforeWrite() const {return m_serialFlushBeforeWrite;}
+	const XString &serialEOS() const {return m_serialEOS;}
 
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
@@ -90,7 +92,7 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 private:
-	XString m_eos;
+	XString m_eos, m_serialEOS;
 	bool m_bGPIBUseSerialPollOnWrite;
 	bool m_bGPIBUseSerialPollOnRead;
 	int m_gpibWaitBeforeWrite;

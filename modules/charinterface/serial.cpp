@@ -92,7 +92,10 @@ XPosixSerialPort::open() throw (XInterface::XCommError &) {
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
     XString buf(str);
-    buf += m_pInterface->eos();
+    if(m_pInterface->EOS().length())
+    	buf += m_pInterface->eos();
+    else
+        buf += m_pInterface->serialEOS();
     this->write(buf.c_str(), buf.length());
 }
 void

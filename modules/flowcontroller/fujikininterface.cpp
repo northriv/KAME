@@ -7,6 +7,7 @@ XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const share
  XCharInterface(name, runtime, driver),
  m_openedCount(0) {
     setEOS("");
+    setSerialEOS("");
 	setSerialBaudRate(38400);
 	setSerialStopBits(1);
 }

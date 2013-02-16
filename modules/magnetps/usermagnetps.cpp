@@ -482,7 +482,7 @@ XCryogenicSMS::getOutputCurrent() {
 	XScopedLock<XInterface> lock( *interface());
 	double x = getOutputField();
 
-	return lrint(x / fieldResolution() * 100) * fieldResolution() / 100.0 / teslaPerAmp();
+	return x / teslaPerAmp();
 }
 double
 XCryogenicSMS::fieldResolution() {

@@ -495,17 +495,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	case Payload::TUNE_MINIMIZING:
 		if(fabs(dabs_ref_dCa) > fabs(dabs_ref_dCb)) {
 			//Decreases reftotal by 2%.
-			dCa_next = -0.02 * std::abs(ref_targeted) / dabs_ref_dCa;
+			dCa_next = -0.05 * std::abs(ref_targeted) / dabs_ref_dCa;
 		}
 		else {
 			//Decreases reftotal by 2%.
-			dCb_next = -0.02 * std::abs(ref_targeted) / dabs_ref_dCb;
+			dCb_next = -0.05 * std::abs(ref_targeted) / dabs_ref_dCb;
 		}
 		break;
 	case Payload::TUNE_APPROACHING:
 		//Solves by |ref| and fmin.
 		if( !determineNextC( dCa_next, dCb_next, dc_err,
-			std::abs(ref_targeted), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+			std::abs(ref_targeted), ref_sigma,
 			fmin - f0, fmin_err,
 			dabs_ref_dCa, dabs_ref_dCb,
 			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {
@@ -522,7 +522,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	case Payload::TUNE_FINETUNE:
 		//Solves by |ref| and fmin.
 		if( !determineNextC( dCa_next, dCb_next, dc_err,
-			std::abs(ref_targeted), ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA,
+			std::abs(ref_targeted), ref_sigma,
 			fmin - f0, fmin_err,
 			dabs_ref_dCa, dabs_ref_dCb,
 			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {

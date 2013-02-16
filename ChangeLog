@@ -1,3 +1,7 @@
+* Sun Feb 17 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.3-1)
+- charinterface: changes default EOS for serial to LF.
+
 * Sat Feb 16 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.2-3)
 - Better autolctuner.

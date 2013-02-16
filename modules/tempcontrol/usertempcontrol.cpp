@@ -295,6 +295,8 @@ XCryocon::XCryocon(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeWrite(20);
 	//    ExclusiveWaitAfterWrite = 10;
 	interface()->setGPIBWaitBeforeRead(20);
+	interface()->setSerialEOS("\n");
+	interface()->setSerialBaudRate(9600);
 }
 XCryoconM62::XCryoconM62(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -510,6 +512,7 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
 	createChannels(ref(tr_meas), meas, true, channels_create,
 		excitations_create, 2);
 	interface()->setEOS("");
+	interface()->setSerialEOS("\n");
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *powerRange(0)].add("0");
 		tr[ *powerRange(0)].add("0.05W");

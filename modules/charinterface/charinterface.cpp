@@ -30,6 +30,7 @@ XThreadLocal<std::vector<char> > XPort::s_tlBuffer;
 
 XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XInterface(name, runtime, driver), 
+    m_serialEOS("\n"),
     m_bGPIBUseSerialPollOnWrite(true),
     m_bGPIBUseSerialPollOnRead(true),
     m_gpibWaitBeforeWrite(1),

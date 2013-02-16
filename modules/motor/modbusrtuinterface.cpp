@@ -7,6 +7,7 @@ XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const s
  XCharInterface(name, runtime, driver),
  m_openedCount(0) {
     setEOS("");
+    setSerialEOS("");
 	setSerialBaudRate(9600);
 	setSerialStopBits(1);
 }

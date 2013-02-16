@@ -16,7 +16,7 @@
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, ILM, "Oxford ILM Helium Level Meter");
-REGISTER_TYPE(XDriverList, LM500, "LakeShore LM-500 Level Meter");
+REGISTER_TYPE(XDriverList, LM500, "Cryomagnetics LM-500 Level Meter");
 
 XILM::XILM(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -42,6 +42,8 @@ XLM500::XLM500(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeWrite(40);
 	//    ExclusiveWaitAfterWrite = 10;
 	interface()->setGPIBWaitBeforeRead(40);		
+	interface()->setSerialEOS("\n");
+	interface()->setSerialBaudRate(9600);
 }
 
 double
