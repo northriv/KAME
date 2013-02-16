@@ -117,6 +117,7 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
 		if( !tr[ *m_tuning])
 			break;
 		tr[ *m_tuning] = false;
+		tr[ *this].isSTMChanged = false;
 		if(tr.commit())
 			break;
 	}
@@ -604,25 +605,28 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 			msecsleep(50); //waits for relays.
 			trans( *tuning()) = false; //finishes tuning successfully.
 		}
-		if(shot_this[ *this].isSTMChanged) {
-			if(stm1__) {
-				for(Transaction tr( *stm1__);; ++tr) {
-					if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
-						break;
-					tr[ *stm1__->target()] = shot_this[ *this].stm1;
-					if(tr.commit())
-						break;
-				}
+	}
+	if(shot_this[ *this].isSTMChanged) {
+		if(stm1__) {
+			for(Transaction tr( *stm1__);; ++tr) {
+				if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
+					break;
+				tr[ *stm1__->target()] = shot_this[ *this].stm1;
+				if(tr.commit())
+					break;
 			}
-			if(stm2__) {
-				for(Transaction tr( *stm2__);; ++tr) {
-					if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
-						break;
-					tr[ *stm2__->target()] = shot_this[ *this].stm2;
-					if(tr.commit())
-						break;
-				}
+		}
+		if(stm2__) {
+			for(Transaction tr( *stm2__);; ++tr) {
+				if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
+					break;
+				tr[ *stm2__->target()] = shot_this[ *this].stm2;
+				if(tr.commit())
+					break;
 			}
+		}
+		if( !shot_this[ *tuning()]) {
+			trans( *this).isSTMChanged = false;
 		}
 	}
 }
