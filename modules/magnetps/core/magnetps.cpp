@@ -476,7 +476,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 						}
 						else {
 							if(is_pcs_fitted &&
-							   (fabs(magnet_field - target_field_ps) < field_resolution) && shot[ *allowPersistent()]) {
+							   (fabs(magnet_field - shot[ *targetField()]) < field_resolution) && shot[ *allowPersistent()]) {
 								if(XTime::now() - last_unstab_time >
 										std::max(30.0, (double)shot[ *m_pcshWait]) + field_resolution_for_stab * 1.05 / sweep_rate * 60.0) {
 									//field is not sweeping, and persistent mode is allowed
