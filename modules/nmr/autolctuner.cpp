@@ -241,7 +241,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	Payload::STAGE stage = shot_this[ *this].stage;
 
 	tr[ *this].iteration_count++;
-	if(shot_this[ *this].iteration_count > 100) {
+	if((shot_this[ *this].iteration_count > 100) || (shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.05)) {
 		abortTuningFromAnalyze(tr, reff0);//Aborts.
 	}
 
@@ -253,8 +253,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_f0_best = std::abs(reff0);
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 	}
-	if((std::abs(shot_this[ *this].ref_f0_best) * 2.0 < std::abs(reff0)) &&
-		(fabs(fmin - f0) > fabs(shot_this[ *this].fmin_best - f0))) {
+	if((std::abs(shot_this[ *this].ref_f0_best) < std::abs(reff0)) &&
+		(fabs(fmin - f0) > fabs(shot_this[ *this].fmin_best - f0)) &&
+		(shot_this[ *this].iteration_count > 15)) {
+		tr[ *this].iteration_count = 0;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
 		if(stage ==  Payload::STAGE_FIRST) {
 			fprintf(stderr, "LCtuner: Rolls back.\n");
