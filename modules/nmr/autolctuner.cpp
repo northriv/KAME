@@ -256,7 +256,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	if((std::abs(shot_this[ *this].ref_f0_best) < std::abs(reff0)) &&
 		(fabs(fmin - f0) > fabs(shot_this[ *this].fmin_best - f0)) &&
-		((shot_this[ *this].iteration_count > 15) || (std::abs(shot_this[ *this].ref_f0_best) < TUNE_APPROACH_START))) {
+		((shot_this[ *this].iteration_count > 15) ||
+		((shot_this[ *this].iteration_count > 5) && (std::abs(shot_this[ *this].ref_f0_best) * 2.0 <  std::abs(reff0))))) {
 		tr[ *this].iteration_count = 0;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
 		if(stage ==  Payload::STAGE_FIRST) {
