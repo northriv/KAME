@@ -129,23 +129,31 @@ XAutoLCTuner::determineNextC(double &deltaC1, double &deltaC2,
 	double dxdC1, double dxdC2,
 	double dydC1, double dydC2) {
 	double det = dxdC1 * dydC2 - dxdC2 *dydC1;
-	double limit_for_small_det = 1e-60;
-	double err_c1 = 1e60, err_c2 = 1e60;
-	if(det > limit_for_small_det) {
-		err_c1 = sqrt(dydC2 * x_err * dydC2 * x_err + dxdC2 * y_err * dxdC2 * y_err) / det;
-		err_c2 = sqrt(dydC1 * x_err * dydC1 * x_err + dxdC1 * y_err * dxdC1 * y_err) / det;
+	double slimit = 1e-60;
+	x -= ((x > 0) ? 1 : -1) * std::min(x_err, fabs(x)); //reduces as large as err.
+	y -= ((y > 0) ? 1 : -1) * std::min(y_err, fabs(y));
+	if(det > slimit) {
 		deltaC1 = -(dydC2 * x - dxdC2 * y) / det;
 		deltaC2 = -( -dydC1 * x + dxdC1 * y) / det;
 	}
-	if(fabs(deltaC1) < err_c1) {
-		deltaC2 = -(x / dxdC2 + y / dydC2);
-		err_c2 =  sqrt(x*x / dxdC2 / dxdC2 + y*y / dydC2 / dydC2);
-		deltaC1 = 0.0;
-	}
-	if(fabs(deltaC2) < err_c2) {
-		deltaC1 = -(x / dxdC1 + y / dydC1);
-		err_c1 =  sqrt(x*x / dxdC1 / dxdC1 + y*y / dydC1 / dydC1);
-		deltaC2 = 0.0; //superior to C1.
+	else {
+		if(fabs(x) > x_err) {
+			//superior to y
+			if(fabs(dxdC2) > slimit) {
+				deltaC2 = -x / dxdC2;
+			}
+			if(fabs(dxdC1) > slimit) {
+				deltaC1 = -x / dxdC1;
+			}
+		}
+		else {
+			if(fabs(dydC2) > slimit) {
+				deltaC2 = -y / dydC2;
+			}
+			if(fabs(dydC1) > slimit) {
+				deltaC1 = -y / dydC1;
+			}
+		}
 	}
 }
 bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
@@ -264,7 +272,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		((shot_this[ *this].iteration_count > 5) && (std::abs(shot_this[ *this].ref_f0_best) * 2.0 <  std::abs(reff0))))) {
 		tr[ *this].iteration_count = 0;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
-		if(shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.05) {
+		if(shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.03) {
 			abortTuningFromAnalyze(tr, reff0);//Aborts.
 		}
 		if(stage ==  Payload::STAGE_FIRST) {
