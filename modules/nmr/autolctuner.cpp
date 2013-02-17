@@ -433,8 +433,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
 			}
 			//Ca is useless, try Cb.
-			tr[ *this].dref_dCa = 0.0;
-			tr[ *this].dfmin_dCa = 0.0;
 		}
 		if(stm1__ && stm2__) {
 			tr[ *this].isSTMChanged = true;
@@ -471,8 +469,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if((shot_this[ *this].dfmin_dCa == 0.0) && (shot_this[ *this].dref_dCa == 0.0))
 				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
-			tr[ *this].dref_dCb = 0.0;
-			tr[ *this].dfmin_dCb = 0.0;
 		}
 		break;
 	}
