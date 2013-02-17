@@ -499,7 +499,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 
-	double dc_err = 1e10;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_MINIMIZING:
 		if(fabs(dabs_ref_dCa) > fabs(dabs_ref_dCb)) {
@@ -513,7 +512,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	case Payload::TUNE_APPROACHING:
 		//Solves by  fmin. and |ref|.
-		determineNextC( dCa_next, dCb_next, dc_err,
+		determineNextC( dCa_next, dCb_next,
 			fmin - f0, fmin_err,
 			std::abs(ref_targeted), ref_sigma,
 			dfmin_dCa, dfmin_dCb,
@@ -521,7 +520,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	case Payload::TUNE_FINETUNE:
 		//Solves by |ref| and fmin.
-		determineNextC( dCa_next, dCb_next, dc_err,
+		determineNextC( dCa_next, dCb_next,
 			std::abs(ref_targeted), ref_sigma,
 			fmin - f0, fmin_err,
 			dabs_ref_dCa, dabs_ref_dCb,
