@@ -122,26 +122,31 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
 			break;
 	}
 }
-bool
-XAutoLCTuner::determineNextC(double &deltaC1, double &deltaC2, double &err,
+void
+XAutoLCTuner::determineNextC(double &deltaC1, double &deltaC2,
 	double x, double x_err,
 	double y, double y_err,
 	double dxdC1, double dxdC2,
-	double dydC1, double dydC2,
-	const char *msg) {
+	double dydC1, double dydC2) {
 	double det = dxdC1 * dydC2 - dxdC2 *dydC1;
-	if(det < 1e-40)
-		return false;
-	double esq = (dydC2 * x_err * dydC2 * x_err + dxdC2 * y_err * dxdC2 * y_err) / det / det
-		+ (dydC1 * x_err * dydC1 * x_err + dxdC1 * y_err * dxdC1 * y_err) / det / det;
-	if(esq < err * err) {
-		err = sqrt(esq);
-		fprintf(stderr, "LCTuner: %s: c_err=%.2g\n", msg, err);
+	double limit_for_small_det = 1e-60;
+	double err_c1 = 1e60, err_c2 = 1e60;
+	if(det > limit_for_small_det) {
+		err_c1 = sqrt(dydC2 * x_err * dydC2 * x_err + dxdC2 * y_err * dxdC2 * y_err) / det;
+		err_c2 = sqrt(dydC1 * x_err * dydC1 * x_err + dxdC1 * y_err * dxdC1 * y_err) / det;
 		deltaC1 = -(dydC2 * x - dxdC2 * y) / det;
 		deltaC2 = -( -dydC1 * x + dxdC1 * y) / det;
-		return true;
 	}
-	return false;
+	if(fabs(deltaC1) < err_c1) {
+		deltaC2 = -(x / dxdC2 + y / dydC2);
+		err_c2 =  sqrt(x*x / dxdC2 / dxdC2 + y*y / dydC2 / dydC2);
+		deltaC1 = 0.0;
+	}
+	if(fabs(deltaC2) < err_c2) {
+		deltaC1 = -(x / dxdC1 + y / dydC1);
+		err_c1 =  sqrt(x*x / dxdC1 / dxdC1 + y*y / dydC1 / dydC1);
+		deltaC2 = 0.0; //superior to C1.
+	}
 }
 bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 	const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -242,10 +247,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	Payload::STAGE stage = shot_this[ *this].stage;
 
 	tr[ *this].iteration_count++;
-	if((shot_this[ *this].iteration_count > 100) || (shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.05)) {
+	if(shot_this[ *this].iteration_count > 100) {
 		abortTuningFromAnalyze(tr, reff0);//Aborts.
 	}
-
 	if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(reff0)) {
 		//remembers good positions.
 		tr[ *this].stm1_best = tr[ *this].stm1;
@@ -260,6 +264,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		((shot_this[ *this].iteration_count > 5) && (std::abs(shot_this[ *this].ref_f0_best) * 2.0 <  std::abs(reff0))))) {
 		tr[ *this].iteration_count = 0;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
+		if(shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.05) {
+			abortTuningFromAnalyze(tr, reff0);//Aborts.
+		}
 		if(stage ==  Payload::STAGE_FIRST) {
 			fprintf(stderr, "LCtuner: Rolls back.\n");
 			//rolls back to good positions.
@@ -505,38 +512,20 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		break;
 	case Payload::TUNE_APPROACHING:
-		//Solves by |ref| and fmin.
-		if( !determineNextC( dCa_next, dCb_next, dc_err,
-			std::abs(ref_targeted), ref_sigma,
+		//Solves by  fmin. and |ref|.
+		determineNextC( dCa_next, dCb_next, dc_err,
 			fmin - f0, fmin_err,
-			dabs_ref_dCa, dabs_ref_dCb,
-			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {
-			if(dfmin_dCb == 0.0) {
-				//Tunes fmin to f0
-				dCa_next = -(fmin - f0) / dfmin_dCa;
-			}
-			else {
-				//Tunes fmin to f0
-				dCb_next = -(fmin - f0) / dfmin_dCb;
-			}
-		}
+			std::abs(ref_targeted), ref_sigma,
+			dfmin_dCa, dfmin_dCb,
+			dabs_ref_dCa, dabs_ref_dCb);
 		break;
 	case Payload::TUNE_FINETUNE:
 		//Solves by |ref| and fmin.
-		if( !determineNextC( dCa_next, dCb_next, dc_err,
+		determineNextC( dCa_next, dCb_next, dc_err,
 			std::abs(ref_targeted), ref_sigma,
 			fmin - f0, fmin_err,
 			dabs_ref_dCa, dabs_ref_dCb,
-			dfmin_dCa, dfmin_dCb, "|ref(fmin)| and fmin")) {
-			if(dabs_ref_dCb == 0.0) {
-				//Decreases ref
-				dCa_next = -std::abs(ref_targeted) / dabs_ref_dCa;
-			}
-			else {
-				//Decreases ref
-				dCb_next = -std::abs(ref_targeted) / dabs_ref_dCb;
-			}
-		}
+			dfmin_dCa, dfmin_dCb);
 		break;
 	}
 

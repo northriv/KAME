@@ -107,12 +107,11 @@ private:
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onAbortTuningTouched(const Snapshot &shot, XTouchableNode *);
 
-	bool determineNextC(double &deltaC1, double &deltaC2, double &err,
+	void determineNextC(double &deltaC1, double &deltaC2,
 		double x, double x_err,
 		double y, double y_err,
 		double dxdC1, double dxdC2,
-		double dydC1, double dydC2,
-		const char *msg);
+		double dydC1, double dydC2);
 	void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
 };
 
