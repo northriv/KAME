@@ -236,7 +236,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace[i]);
 			tr[ *this].trace[i] = (shot_this[ *this].trace[i] + trace[i]) / 2.0; //takes averages.
 		}
-		ref_sigma = sqrt(ref_sigma / trace_len / 2);
+		ref_sigma = sqrt(ref_sigma / trace_len);
 		if(ref_sigma > 0.1) {
 			tr[ *this].trace.clear();
 			throw XSkippedRecordError(i18n("Too large errors in the trace."), __FILE__, __LINE__);
