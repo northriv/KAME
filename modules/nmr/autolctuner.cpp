@@ -283,6 +283,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 		}
 		fmin /= cnt;
+		reffmin /= (double)cnt;
 		//Takes averages around the target frequency.
 		cnt = 0;
 		for(int i = 0; i < trace_len; ++i) {
