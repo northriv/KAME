@@ -74,7 +74,6 @@ public:
 		double dfmin_dCa, dfmin_dCb;
 
 		std::vector<std::complex<double> > trace;
-		double ref_sigma, fmin_err;
 		double stm1, stm2;
 		double sor_factor;
 		int iteration_count;

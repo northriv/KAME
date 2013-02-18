@@ -107,7 +107,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].sor_factor = SOR_FACTOR_MAX;
 		tr[ *this].stage = Payload::STAGE_FIRST;
-		tr[ *this].trace_prv.clear();
+		tr[ *this].trace.clear();
 		if(tr.commit())
 			break;
 	}
@@ -426,7 +426,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 					tr[ *this].stm2 += 3.0 * tr[ *this].dCa;
 				tr[ *this].dCa *= 4.0; //increases rotation angle to measure derivative.
 				tr[ *this].isSTMChanged = true;
-				tr[ *this].stage = Payload::STAGE_DCA_FIRST; //rotate C1 more and try again.
+				tr[ *this].stage = Payload::STAGE_DCA; //rotate C1 more and try again.
 				fprintf(stderr, "LCtuner: increasing dCa to %f\n", (double)tr[ *this].dCa);
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
