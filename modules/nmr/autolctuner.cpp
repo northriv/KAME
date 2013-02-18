@@ -221,7 +221,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double ref_sigma = 0.0;
 	{
 		const std::complex<double> *trace = shot_na[ *na__].trace();
-		if( !shot_this[ *this].trace.size() != trace_len) {
+		if(shot_this[ *this].trace.size() != trace_len) {
 			//copies trace.
 			tr[ *this].trace.resize(trace_len);
 			for(int i = 0; i < trace_len; ++i) {
