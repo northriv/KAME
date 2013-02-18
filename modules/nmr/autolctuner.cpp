@@ -218,6 +218,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
 
 	int trace_len = shot_na[ *na__].length();
+	double ref_sigma = 0.0;
 	{
 		const std::complex<double> *trace = shot_na[ *na__].trace();
 		if( !shot_this[ *this].trace.size() != trace_len) {
@@ -231,7 +232,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 
 		//estimates errors.
-		double ref_sigma = 0.0;
 		for(int i = 0; i < trace_len; ++i) {
 			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace[i]);
 			tr[ *this].trace[i] = (shot_this[ *this].trace[i] + trace[i]) / 2.0; //takes averages.
