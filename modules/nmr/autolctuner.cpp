@@ -266,7 +266,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		for(int i = 0; i < trace_len; ++i) {
 			double flen_from_fmin = fabs(trace_start + i * trace_dfreq - fmin_peak);
 			if((flen_from_fmin > fmin_err) &&
-				(std::abs(reffmin) + ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA > std::abs(trace[i]))) {
+				(std::abs(reffmin_peak) + ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA > std::abs(trace[i]))) {
 					fmin_err = flen_from_fmin;
 			}
 		}
