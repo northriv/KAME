@@ -18,10 +18,9 @@
 
 REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 
-static const double TUNE_DROT_MINIMIZING = 10.0, TUNE_DROT_APPROACH = 5.0,
+static const double TUNE_DROT_APPROACH = 5.0,
 	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
-static const double TUNE_TRUST_MINIMIZING = 1440.0, TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
-static const double TUNE_APPROACH_START = 0.8; //-2dB@minimum
+static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.5;
 static const double SOR_FACTOR_MAX = 0.8;
@@ -108,6 +107,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].sor_factor = SOR_FACTOR_MAX;
 		tr[ *this].stage = Payload::STAGE_FIRST;
+		tr[ *this].trace_prv.clear();
 		if(tr.commit())
 			break;
 	}
@@ -217,34 +217,104 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
 
-	const std::complex<double> *trace = shot_na[ *na__].trace();
 	int trace_len = shot_na[ *na__].length();
+	{
+		const std::complex<double> *trace = shot_na[ *na__].trace();
+		if( !shot_this[ *this].trace.size() != trace_len) {
+			//copies trace.
+			tr[ *this].trace.resize(trace_len);
+			for(int i = 0; i < trace_len; ++i) {
+				tr[ *this].trace[i] = trace[i];
+			}
+			//re-acquires the same situation.
+			throw XSkippedRecordError(__FILE__, __LINE__);
+		}
+
+		//estimates errors.
+		double ref_sigma = 0.0;
+		for(int i = 0; i < trace_len; ++i) {
+			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace[i]);
+			tr[ *this].trace[i] = (shot_this[ *this].trace[i] + trace[i]) / 2.0; //takes averages.
+		}
+		ref_sigma = sqrt(ref_sigma / trace_len / 2);
+		if(ref_sigma > 0.1) {
+			tr[ *this].trace.clear();
+			throw XSkippedRecordError(i18n("Too large errors in the trace."), __FILE__, __LINE__);
+		}
+		tr[ *this].ref_sigma = ref_sigma;
+	}
 	double trace_dfreq = shot_na[ *na__].freqInterval();
 	double trace_start = shot_na[ *na__].startFreq();
-	std::complex<double> reffmin(1e10);
-	double f0 = shot_this[ *target()];
-	//searches for minimum in reflection.
-	double fmin = 0;
-	double reftotal = 0;
-	for(int i = 0; i < trace_len; ++i) {
-		double z = std::abs(trace[i]);
-		reftotal += z * z;
-		if(std::abs(reffmin) > z) {
-			reffmin = trace[i];
-			fmin = trace_start + i * trace_dfreq;
+	double fmin_err = trace_dfreq;
+	double fmin = 0.0;
+	std::complex<double> reffmin(0.0);
+	std::complex<double> reff0(0.0);
+	//analyzes trace.
+	{
+		const std::complex<double> *trace = &shot_this[ *this].trace[0];
+
+		std::complex<double> reffmin_peak(1e10);
+		double f0 = shot_this[ *target()];
+		//searches for minimum in reflection.
+		double fmin_peak = 0;
+		for(int i = 0; i < trace_len; ++i) {
+			double z = std::abs(trace[i]);
+			if(std::abs(reffmin_peak) > z) {
+				reffmin_peak = trace[i];
+				fmin_peak = trace_start + i * trace_dfreq;
+			}
 		}
-	}
-	reftotal /= trace_len;
-	//Reflection at the target frequency.
-	std::complex<double> reff0;
-	for(int i = 0; i < trace_len; ++i) {
-		if(trace_start + i * trace_dfreq >= f0) {
-			reff0 = trace[i];
-			break;
+		for(int i = 0; i < trace_len; ++i) {
+			double flen_from_fmin = fabs(trace_start + i * trace_dfreq - fmin_peak);
+			if((flen_from_fmin > fmin_err) &&
+				(std::abs(reffmin) + ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA > std::abs(trace[i]))) {
+					fmin_err = flen_from_fmin;
+			}
 		}
+		tr[ *this].fmin_err = fmin_err;
+
+		//Takes averages around the minimum.
+		int cnt = 0;
+		for(int i = 0; i < trace_len; ++i) {
+			double f = trace_start + i * trace_dfreq;
+			double flen_from_fmin = fabs(f - fmin_peak);
+			if(flen_from_fmin < fmin_err) {
+				cnt++;
+				reffmin += trace[i];
+				fmin += f;
+			}
+		}
+		fmin /= cnt;
+		//Takes averages around the target frequency.
+		cnt = 0;
+		for(int i = 0; i < trace_len; ++i) {
+			double f = trace_start + i * trace_dfreq;
+			if(fabs(f - f0) <= fmin_err * 1.1) {
+				cnt++;
+				reff0 += trace[i];
+			}
+		}
+		reff0 /= (double)cnt;
+		ref_sigma /= sqrt(cnt);
+		fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, reff0=%.2f\n",
+				fmin, std::abs(reffmin), std::abs(reff0));
+		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
+
+		tr[ *this].trace.clear();
 	}
-	fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, reftotal=%.2f, reff0=%.2f\n",
-			fmin, std::abs(reffmin), reftotal, std::abs(reff0));
+
+	if(std::abs(reff0) < ref_sigma * 2) {
+		tr[ *succeeded()] = true;
+		fprintf(stderr, "LCtuner: tuning done within errors.\n");
+		return;
+	}
+
+	if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
+		tr[ *succeeded()] = true;
+		fprintf(stderr, "LCtuner: tuning done within errors.\n");
+		return;
+	}
+
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
 	if(std::abs(reff0) < tune_approach_goal) {
@@ -292,21 +362,14 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			fprintf(stderr, "LCtuner: finetune mode\n");
 			tr[ *this].mode = Payload::TUNE_FINETUNE;
 		}
-		else if(std::abs(reffmin) < TUNE_APPROACH_START) {
+		else {
 			fprintf(stderr, "LCtuner: approach mode\n");
 			tr[ *this].mode = Payload::TUNE_APPROACHING;
-		}
-		else {
-			fprintf(stderr, "LCtuner: minimizing mode\n");
-			tr[ *this].mode = Payload::TUNE_MINIMIZING;
 		}
 	}
 	//Selects suitable reflection point to be minimized.
 	std::complex<double> ref_targeted;
 	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_MINIMIZING:
-		ref_targeted = reftotal;
-		break;
 	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
 		break;
@@ -322,9 +385,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].fmin_first = fmin;
 		double tune_drot;
 		switch(shot_this[ *this].mode) {
-		case Payload::TUNE_MINIMIZING:
-			tune_drot = TUNE_DROT_MINIMIZING;
-			break;
 		case Payload::TUNE_APPROACHING:
 			tune_drot = TUNE_DROT_APPROACH;
 			break;
@@ -337,75 +397,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_first = ref_targeted;
 
 		tr[ *this].isSTMChanged = true;
-		tr[ *this].stage = Payload::STAGE_DCA_FIRST;
+		tr[ *this].stage = Payload::STAGE_DCA;
 		if(stm1__)
 			tr[ *this].stm1 += tr[ *this].dCa;
 		else
 			tr[ *this].stm2 += tr[ *this].dCa;
 		throw XSkippedRecordError(__FILE__, __LINE__);  //rotate Ca
 		break;
-	case Payload::STAGE_DCA_FIRST:
-	{
-		fprintf(stderr, "LCtuner: +dCa, 1st\n");
-		//Ref( +dCa, 0)
-		tr[ *this].fmin_plus_dCa = fmin;
-		tr[ *this].ref_plus_dCa = ref_targeted;
-		tr[ *this].stage = Payload::STAGE_DCA_SECOND;
-		tr[ *this].trace_prv.resize(trace_len);
-		auto *trace_prv = &tr[ *this].trace_prv[0];
-		for(int i = 0; i < trace_len; ++i) {
-			trace_prv[i] = trace[i];
-		}
-		throw XSkippedRecordError(__FILE__, __LINE__); //to next stage.
-		break;
-	}
-	case Payload::STAGE_DCA_SECOND:
+	case Payload::STAGE_DCA:
 	{
 		fprintf(stderr, "LCtuner: +dCa, 2nd\n");
 		//Ref( +dCa, 0), averaged with the previous.
-		tr[ *this].fmin_plus_dCa = (tr[ *this].fmin_plus_dCa + fmin) / 2.0;
-		tr[ *this].ref_plus_dCa = (tr[ *this].ref_plus_dCa + ref_targeted) / 2.0;
-		//estimates errors.
-		if(shot_this[ *this].trace_prv.size() != trace_len) {
-			tr[ *m_tuning] = false;
-			throw XRecordError(i18n("Record is inconsistent."), __FILE__, __LINE__);
-		}
-		double ref_sigma = 0.0;
-		for(int i = 0; i < trace_len; ++i) {
-			ref_sigma += std::norm(trace[i] - shot_this[ *this].trace_prv[i]);
-		}
-		ref_sigma = sqrt(ref_sigma / trace_len);
-		if(ref_sigma > 0.1) {
-			fprintf(stderr, "LCtuner: too large errors.\n");
-			tr[ *this].stage = Payload::STAGE_FIRST; //to first stage.
-			throw XSkippedRecordError(__FILE__, __LINE__);
-
-		}
-		tr[ *this].ref_sigma = ref_sigma;
-
-		tr[ *this].trace_prv.clear();
-		if(std::abs(reff0) < ref_sigma * 2) {
-			tr[ *succeeded()] = true;
-			fprintf(stderr, "LCtuner: tuning done within errors.\n");
-			return;
-		}
-
-		double fmin_err = trace_dfreq;
-		for(int i = 0; i < trace_len; ++i) {
-			double flen_from_fmin = fabs(trace_start + i * trace_dfreq - fmin);
-			if((flen_from_fmin > fmin_err) &&
-				(std::abs(reffmin) + ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA > std::abs(trace[i]))) {
-					fmin_err = flen_from_fmin;
-			}
-		}
-		tr[ *this].fmin_err = fmin_err;
-		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
-
-		if(( !stm1__ || !stm2__) && (std::abs(fmin - f0) < fmin_err)) {
-			tr[ *succeeded()] = true;
-			fprintf(stderr, "LCtuner: tuning done within errors.\n");
-			return;
-		}
+		tr[ *this].fmin_plus_dCa = fmin;
+		tr[ *this].ref_plus_dCa = ref_targeted;
 
 		//derivative of freq_min.
 		double dfmin = shot_this[ *this].fmin_plus_dCa - shot_this[ *this].fmin_first;
@@ -413,15 +417,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		//derivative of reflection.
 		std::complex<double> dref;
-		switch(shot_this[ *this].mode) {
-		case Payload::TUNE_MINIMIZING:
-			tr[ *this].ref_sigma *= 2.0 * sqrt(reftotal) / sqrt(trace_len); //sigma of ref_total.
-			break;
-		case Payload::TUNE_APPROACHING:
-			break;
-		case Payload::TUNE_FINETUNE:
-			break;
-		}
 		dref = shot_this[ *this].ref_plus_dCa - shot_this[ *this].ref_first;
 		tr[ *this].dref_dCa = dref / shot_this[ *this].dCa;
 
@@ -504,16 +499,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 
 	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_MINIMIZING:
-		if(fabs(dabs_ref_dCa) > fabs(dabs_ref_dCb)) {
-			//Decreases reftotal by 2%.
-			dCa_next = -0.05 * std::abs(ref_targeted) / dabs_ref_dCa;
-		}
-		else {
-			//Decreases reftotal by 2%.
-			dCb_next = -0.05 * std::abs(ref_targeted) / dabs_ref_dCb;
-		}
-		break;
 	case Payload::TUNE_APPROACHING:
 		//Solves by  fmin. and |ref|.
 		determineNextC( dCa_next, dCb_next,
@@ -539,9 +524,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//restricts changes within the trust region.
 	double dc_trust;
 	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_MINIMIZING:
-		dc_trust = TUNE_TRUST_MINIMIZING;
-		break;
 	case Payload::TUNE_APPROACHING:
 		dc_trust = TUNE_TRUST_APPROACH;
 		break;
@@ -618,6 +600,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 					break;
 			}
 		}
+		msecsleep(50); //waits for ready indicators.
 		if( !shot_this[ *tuning()]) {
 			trans( *this).isSTMChanged = false;
 		}

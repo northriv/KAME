@@ -63,7 +63,7 @@ public:
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
-		enum STAGE {STAGE_FIRST, STAGE_DCA_FIRST, STAGE_DCA_SECOND, STAGE_DCB};
+		enum STAGE {STAGE_FIRST, STAGE_DCA, STAGE_DCB};
 		STAGE stage;
 
 		std::complex<double> ref_first, ref_plus_dCa;
@@ -73,7 +73,7 @@ public:
 		std::complex<double> dref_dCa, dref_dCb;
 		double dfmin_dCa, dfmin_dCb;
 
-		std::vector<std::complex<double> > trace_prv;
+		std::vector<std::complex<double> > trace;
 		double ref_sigma, fmin_err;
 		double stm1, stm2;
 		double sor_factor;
@@ -81,7 +81,7 @@ public:
 		double stm1_best, stm2_best;
 		std::complex<double> ref_f0_best;
 		double fmin_best;
-		enum MODE {TUNE_MINIMIZING, TUNE_APPROACHING, TUNE_FINETUNE};
+		enum MODE {TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
 	};
