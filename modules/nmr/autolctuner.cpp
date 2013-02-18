@@ -241,20 +241,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tr[ *this].trace.clear();
 			throw XSkippedRecordError(i18n("Too large errors in the trace."), __FILE__, __LINE__);
 		}
-		tr[ *this].ref_sigma = ref_sigma;
 	}
 	double trace_dfreq = shot_na[ *na__].freqInterval();
 	double trace_start = shot_na[ *na__].startFreq();
 	double fmin_err = trace_dfreq;
 	double fmin = 0.0;
 	std::complex<double> reffmin(0.0);
+	double f0 = shot_this[ *target()];
 	std::complex<double> reff0(0.0);
 	//analyzes trace.
 	{
 		const std::complex<double> *trace = &shot_this[ *this].trace[0];
 
 		std::complex<double> reffmin_peak(1e10);
-		double f0 = shot_this[ *target()];
 		//searches for minimum in reflection.
 		double fmin_peak = 0;
 		for(int i = 0; i < trace_len; ++i) {
@@ -271,7 +270,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 					fmin_err = flen_from_fmin;
 			}
 		}
-		tr[ *this].fmin_err = fmin_err;
 
 		//Takes averages around the minimum.
 		int cnt = 0;
@@ -449,9 +447,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	case Payload::STAGE_DCB:
 		fprintf(stderr, "LCtuner: +dCb\n");
 		//Ref( 0, +dCb)
-		double ref_sigma = shot_this[ *this].ref_sigma;
-		double fmin_err = shot_this[ *this].fmin_err;
-
 		//derivative of freq_min.
 		double dfmin = fmin - shot_this[ *this].fmin_plus_dCa;
 		tr[ *this].dfmin_dCb = dfmin / shot_this[ *this].dCb;
@@ -490,8 +485,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dabs_ref_dCb = 0.0;
 		dfmin_dCb = 0.0;
 	}
-	double fmin_err = shot_this[ *this].fmin_err;
-	double ref_sigma = shot_this[ *this].ref_sigma;
 	double dCa_next = 0;
 	double dCb_next = 0;
 
