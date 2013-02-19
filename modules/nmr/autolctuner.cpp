@@ -23,7 +23,7 @@ static const double TUNE_DROT_APPROACH = 5.0,
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
-static const double SOR_FACTOR_MAX = 0.8;
+static const double SOR_FACTOR_MAX = 0.7;
 static const double SOR_FACTOR_MIN = 0.25;
 
 //---------------------------------------------------------------------------
@@ -355,6 +355,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_f0_best = std::abs(reff0) + reff0_sigma;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 	}
+	else
+		tr[ *this].sor_factor = std::min(tr[ *this].sor_factor, (SOR_FACTOR_MAX + SOR_FACTOR_MIN) / 2);
+
 	if((std::abs(shot_this[ *this].ref_f0_best) + reff0_sigma < std::abs(reff0)) &&
 		((shot_this[ *this].iteration_count > 10) ||
 		((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - reff0_sigma)))) {
@@ -497,37 +500,52 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	double dabs_ref_dCa = (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa)) / std::abs(ref_targeted);
-	double dabs_ref_dCb = (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb)) / std::abs(ref_targeted);
+//	double dabs_ref_dCa = (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa)) / std::abs(ref_targeted);
+//	double dabs_ref_dCb = (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb)) / std::abs(ref_targeted);
+	double drefsq_dCa = 2.0 * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
+	double drefsq_dCb = 2.0 * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
 
 	double dfmin_dCa = shot_this[ *this].dfmin_dCa;
 	double dfmin_dCb = shot_this[ *this].dfmin_dCb;
 	if( !stm1__ || !stm2__) {
 		dref_dCb = 0.0;
-		dabs_ref_dCb = 0.0;
+//		dabs_ref_dCb = 0.0;
+		drefsq_dCb = 0.0;
 		dfmin_dCb = 0.0;
 	}
 	double dCa_next = 0;
 	double dCb_next = 0;
 
+//	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
+//		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
 	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
-		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
+		drefsq_dCa, drefsq_dCb, dfmin_dCa, dfmin_dCb);
 
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_APPROACHING:
 		//Solves by  fmin. and |ref|.
+//		determineNextC( dCa_next, dCb_next,
+//			fmin - f0, fmin_err,
+//			std::abs(ref_targeted), ref_sigma,
+//			dfmin_dCa, dfmin_dCb,
+//			dabs_ref_dCa, dabs_ref_dCb);
 		determineNextC( dCa_next, dCb_next,
 			fmin - f0, fmin_err,
-			std::abs(ref_targeted), ref_sigma,
+			std::norm(ref_targeted), ref_sigma * ref_sigma,
 			dfmin_dCa, dfmin_dCb,
-			dabs_ref_dCa, dabs_ref_dCb);
+			drefsq_dCa, drefsq_dCb);
 		break;
 	case Payload::TUNE_FINETUNE:
 		//Solves by |ref| and fmin.
+//		determineNextC( dCa_next, dCb_next,
+//			std::abs(ref_targeted), ref_sigma,
+//			fmin - f0, fmin_err,
+//			dabs_ref_dCa, dabs_ref_dCb,
+//			dfmin_dCa, dfmin_dCb);
 		determineNextC( dCa_next, dCb_next,
-			std::abs(ref_targeted), ref_sigma,
+			std::norm(ref_targeted), ref_sigma * ref_sigma,
 			fmin - f0, fmin_err,
-			dabs_ref_dCa, dabs_ref_dCb,
+			drefsq_dCa, drefsq_dCb,
 			dfmin_dCa, dfmin_dCb);
 		break;
 	}
