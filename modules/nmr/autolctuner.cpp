@@ -355,8 +355,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].ref_f0_best = std::abs(reff0) + reff0_sigma;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 	}
-	else
-		tr[ *this].sor_factor = std::min(tr[ *this].sor_factor, (SOR_FACTOR_MAX + SOR_FACTOR_MIN) / 2);
+//	else
+//		tr[ *this].sor_factor = std::min(tr[ *this].sor_factor, (SOR_FACTOR_MAX + SOR_FACTOR_MIN) / 2);
 
 	if((std::abs(shot_this[ *this].ref_f0_best) + reff0_sigma < std::abs(reff0)) &&
 		((shot_this[ *this].iteration_count > 10) ||
@@ -392,14 +392,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> ref_targeted;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_APPROACHING:
-		ref_targeted = reffmin;
-		ref_sigma = reffmin_sigma;
-		break;
 	case Payload::TUNE_FINETUNE:
 		ref_targeted = reffmin;
 		ref_sigma = reffmin_sigma;
-//		ref_targeted = reff0;
 		break;
+//		ref_targeted = reff0;
+//		ref_sigma = reff0_sigma;
 	}
 	switch(stage) {
 	default:
@@ -518,24 +516,24 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 //	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
 //		dabs_ref_dCa, dabs_ref_dCb, dfmin_dCa, dfmin_dCb);
-	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
-		drefsq_dCa, drefsq_dCb, dfmin_dCa, dfmin_dCb);
+	fprintf(stderr, "LCtuner: dref_dsqrtCa=%.2g, dref_dsqrtCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
+		sqrt(drefsq_dCa), sqrt(drefsq_dCb), dfmin_dCa, dfmin_dCb);
 
-	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_APPROACHING:
-		//Solves by  fmin. and |ref|.
+//	switch(shot_this[ *this].mode) {
+//	case Payload::TUNE_APPROACHING:
+////		determineNextC( dCa_next, dCb_next,
+////			fmin - f0, fmin_err,
+////			std::abs(ref_targeted), ref_sigma,
+////			dfmin_dCa, dfmin_dCb,
+////			dabs_ref_dCa, dabs_ref_dCb);
+//		//Solves by  fmin. and |ref|.
 //		determineNextC( dCa_next, dCb_next,
 //			fmin - f0, fmin_err,
-//			std::abs(ref_targeted), ref_sigma,
+//			std::norm(ref_targeted), ref_sigma * ref_sigma,
 //			dfmin_dCa, dfmin_dCb,
-//			dabs_ref_dCa, dabs_ref_dCb);
-		determineNextC( dCa_next, dCb_next,
-			fmin - f0, fmin_err,
-			std::norm(ref_targeted), ref_sigma * ref_sigma,
-			dfmin_dCa, dfmin_dCb,
-			drefsq_dCa, drefsq_dCb);
-		break;
-	case Payload::TUNE_FINETUNE:
+//			drefsq_dCa, drefsq_dCb);
+//		break;
+//	case Payload::TUNE_FINETUNE:
 		//Solves by |ref| and fmin.
 //		determineNextC( dCa_next, dCb_next,
 //			std::abs(ref_targeted), ref_sigma,
@@ -547,8 +545,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			fmin - f0, fmin_err,
 			drefsq_dCa, drefsq_dCb,
 			dfmin_dCa, dfmin_dCb);
-		break;
-	}
+//		break;
+//	}
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
