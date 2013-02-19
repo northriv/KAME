@@ -293,17 +293,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			fmin = fsum / wsum;
 			fmin_err = sqrt(fsqsum / wsum / wsum + trace_dfreq * trace_dfreq);
 			reffmin = refsum / wsum;
-			reff0_sigma = ref_sigma * sqrt(wsqsum) / wsum;
+			reffmin_sigma = ref_sigma * sqrt(wsqsum) / wsum;
 		}
 		//Takes averages around the target frequency.
 		double wsum = 0.0;
 		double wsqsum = 0.0;
 		std::complex<double> refsum = 0.0;
-		double f0_err_sq = pow(std::min(trace_dfreq * 5, fmin_err), 2.0);
+		double f0_err = std::min(trace_dfreq * 5, fmin_err);
 		for(int i = 0; i < trace_len; ++i) {
 			double f = trace_start + i * trace_dfreq;
-			if(fabs(f - f0) < f0_err_sq * 10) {
-				double w = exp( -(f - f0) * (f - f0) / (2.0 * f0_err_sq));
+			if(fabs(f - f0) < f0_err * 10) {
+				double w = exp( -(f - f0) * (f - f0) / (2.0 * f0_err * f0_err));
 				wsum += w;
 				wsqsum += w * w;
 				refsum += w * trace[i];
