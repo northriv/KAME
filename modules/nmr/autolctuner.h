@@ -56,7 +56,8 @@ public:
 	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
 	const shared_ptr<XBoolNode> &succeeded() const {return m_succeeded;}
 	const shared_ptr<XDoubleNode> &target() const {return m_target;}
-	const shared_ptr<XDoubleNode> &reflection() const {return m_reflection;}
+	const shared_ptr<XDoubleNode> &reflectionTargeted() const {return m_reflectionTargeted;}
+	const shared_ptr<XDoubleNode> &reflectionRequired() const {return m_reflectionRequired;}
 	const shared_ptr<XBoolNode> &useSTM1() const {return m_useSTM1;}
 	const shared_ptr<XBoolNode> &useSTM2() const {return m_useSTM2;}
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
@@ -91,11 +92,12 @@ private:
 	const shared_ptr<XBoolNode> m_tuning;
 	const shared_ptr<XBoolNode> m_succeeded;
 	const shared_ptr<XDoubleNode> m_target;
-	const shared_ptr<XDoubleNode> m_reflection;
+	const shared_ptr<XDoubleNode> m_reflectionTargeted;
+	const shared_ptr<XDoubleNode> m_reflectionRequired;
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
 
-	xqcon_ptr m_conTarget, m_conReflection,
+	xqcon_ptr m_conTarget, m_conReflectionTargeted, m_conReflectionRequired,
 		m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning,
 		m_conTuning, m_conSucceeded, m_conUseSTM1, m_conUseSTM2;
 

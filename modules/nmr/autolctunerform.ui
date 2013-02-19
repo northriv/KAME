@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>239</width>
-    <height>282</height>
+    <width>233</width>
+    <height>316</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,6 +15,9 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="spacing">
+     <number>-1</number>
+    </property>
     <property name="margin">
      <number>4</number>
     </property>
@@ -84,6 +87,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QLabel" name="textLabel20_4">
         <property name="sizePolicy">
@@ -123,6 +129,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_6">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QLabel" name="textLabel20_6">
         <property name="sizePolicy">
@@ -140,10 +149,52 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="m_edReflection"/>
+       <widget class="QLineEdit" name="m_edReflectionTargeted"/>
       </item>
       <item>
        <widget class="QLabel" name="textLabel20_7">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>dB</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_7">
+      <property name="spacing">
+       <number>4</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="textLabel20_8">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Required Reflection</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="m_edReflectionRequired"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="textLabel20_9">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -200,6 +251,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="_2">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QLabel" name="textLabel20">
         <property name="sizePolicy">
@@ -230,6 +284,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="_4">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QLabel" name="textLabel20_3">
         <property name="sizePolicy">
@@ -260,6 +317,9 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="_3">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QLabel" name="textLabel20_2">
         <property name="sizePolicy">

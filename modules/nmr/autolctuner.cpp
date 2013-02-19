@@ -22,9 +22,9 @@ static const double TUNE_DROT_APPROACH = 5.0,
 	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
-static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.5;
+static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
 static const double SOR_FACTOR_MAX = 0.8;
-static const double SOR_FACTOR_MIN = 0.3;
+static const double SOR_FACTOR_MIN = 0.25;
 
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
@@ -36,7 +36,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 		m_tuning(create<XBoolNode>("Tuning", true)),
 		m_succeeded(create<XBoolNode>("Succeeded", true)),
 		m_target(create<XDoubleNode>("Target", true)),
-		m_reflection(create<XDoubleNode>("Reflection", false)),
+		m_reflectionTargeted(create<XDoubleNode>("ReflectionTargeted", false)),
+		m_reflectionRequired(create<XDoubleNode>("ReflectionRequired", false)),
 		m_useSTM1(create<XBoolNode>("UseSTM1", false)),
 		m_useSTM2(create<XBoolNode>("UseSTM2", false)),
 		m_abortTuning(create<XTouchableNode>("AbortTuning", true)),
@@ -51,7 +52,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	m_conSTM2 = xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas));
 	m_conNetAna = xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas));
 	m_conTarget = xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget);
-	m_conReflection = xqcon_create<XQLineEditConnector>(reflection(), m_form->m_edReflection);
+	m_conReflectionTargeted = xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted);
+	m_conReflectionRequired = xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired);
 	m_conAbortTuning = xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning);
 	m_conTuning = xqcon_create<XKLedConnector>(m_tuning, m_form->m_ledTuning);
 	m_conSucceeded = xqcon_create<XKLedConnector>(m_succeeded, m_form->m_ledSucceeded);
@@ -315,36 +317,40 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 
 
-	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflection()]);
+	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
 	if(std::abs(reff0) < tune_approach_goal) {
 		tr[ *succeeded()] = true;
 		return;
+	}
+	double tune_approach_goal2 = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
+	if(std::abs(reff0) < tune_approach_goal2) {
+		if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -4.0) + SOR_FACTOR_MIN) {
+			tr[ *succeeded()] = true;
+			return;
+		}
 	}
 
 	Payload::STAGE stage = shot_this[ *this].stage;
 
 	tr[ *this].iteration_count++;
-	if(shot_this[ *this].iteration_count > 100) {
-		abortTuningFromAnalyze(tr, reff0);//Aborts.
-	}
 	if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(reff0)) {
+		tr[ *this].iteration_count = 0;
 		//remembers good positions.
 		tr[ *this].stm1_best = tr[ *this].stm1;
 		tr[ *this].stm2_best = tr[ *this].stm2;
 		tr[ *this].fmin_best = fmin;
-		tr[ *this].ref_f0_best = std::abs(reff0);
+		tr[ *this].ref_f0_best = std::abs(reff0) + ref_sigma;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 	}
-	if((std::abs(shot_this[ *this].ref_f0_best) < std::abs(reff0)) &&
-		(fabs(fmin - f0) > fabs(shot_this[ *this].fmin_best - f0)) &&
-		((shot_this[ *this].iteration_count > 15) ||
-		((shot_this[ *this].iteration_count > 5) && (std::abs(shot_this[ *this].ref_f0_best) * 2.0 <  std::abs(reff0))))) {
-		tr[ *this].iteration_count = 0;
-		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
-		if(shot_this[ *this].sor_factor < SOR_FACTOR_MIN * 1.03) {
-			abortTuningFromAnalyze(tr, reff0);//Aborts.
-		}
+	if((std::abs(shot_this[ *this].ref_f0_best) + ref_sigma < std::abs(reff0)) &&
+		((shot_this[ *this].iteration_count > 10) ||
+		((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - ref_sigma)))) {
 		if(stage ==  Payload::STAGE_FIRST) {
+			tr[ *this].iteration_count = 0;
+			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
+			if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -6.0) + SOR_FACTOR_MIN) {
+				abortTuningFromAnalyze(tr, reff0);//Aborts.
+			}
 			fprintf(stderr, "LCtuner: Rolls back.\n");
 			//rolls back to good positions.
 			tr[ *this].isSTMChanged = true;
@@ -391,8 +397,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tune_drot = TUNE_DROT_FINETUNE;
 			break;
 		}
-		tr[ *this].dCa = tune_drot * ((tr[ *this].dCa > 0) ? 1.0 : -1.0); //same direction.
-		tr[ *this].dCb = tune_drot * ((tr[ *this].dCb > 0) ? 1.0 : -1.0);
+		tr[ *this].dCa = tune_drot * ((shot_this[ *this].dfmin_dCa * (fmin - f0) < 0) ? 1.0 : -1.0); //direction to approach.
+		tr[ *this].dCb = tune_drot * ((shot_this[ *this].dfmin_dCb * (fmin - f0) < 0) ? 1.0 : -1.0);
 		tr[ *this].ref_first = ref_targeted;
 
 		tr[ *this].isSTMChanged = true;
@@ -405,7 +411,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	case Payload::STAGE_DCA:
 	{
-		fprintf(stderr, "LCtuner: +dCa, 2nd\n");
+		fprintf(stderr, "LCtuner: +dCa\n");
 		//Ref( +dCa, 0), averaged with the previous.
 		tr[ *this].fmin_plus_dCa = fmin;
 		tr[ *this].ref_plus_dCa = ref_targeted;
