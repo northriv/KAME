@@ -63,7 +63,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *m_tuning] = false;
 		tr[ *m_succeeded] = false;
-		tr[ *m_reflection] = -15.0;
+		tr[ *m_reflectionTargeted] = -15.0;
+		tr[ *m_reflectionRequired] = -7.0;
 		tr[ *m_useSTM1] = true;
 		tr[ *m_useSTM2] = true;
 		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
