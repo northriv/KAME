@@ -247,11 +247,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	double trace_dfreq = shot_na[ *na__].freqInterval();
 	double trace_start = shot_na[ *na__].startFreq();
-	double fmin_err = trace_dfreq;
-	double fmin = 0.0;
+	double fmin_err;
+	double fmin;
 	std::complex<double> reffmin(0.0);
 	double f0 = shot_this[ *target()];
 	std::complex<double> reff0(0.0);
+	double reffmin_sigma, reff0_sigma;
 	//analyzes trace.
 	{
 		const std::complex<double> *trace = &shot_this[ *this].trace[0];
@@ -266,46 +267,57 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				fmin_peak = trace_start + i * trace_dfreq;
 			}
 		}
-		for(int i = 0; i < trace_len; ++i) {
-			double flen_from_fmin = fabs(trace_start + i * trace_dfreq - fmin_peak);
-			if((flen_from_fmin > fmin_err) &&
-				(std::abs(reffmin_peak) + ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA > std::abs(trace[i]))) {
-					fmin_err = flen_from_fmin;
-			}
-		}
 
 		//Takes averages around the minimum.
-		int cnt = 0;
-		for(int i = 0; i < trace_len; ++i) {
-			double f = trace_start + i * trace_dfreq;
-			double flen_from_fmin = fabs(f - fmin_peak);
-			if(flen_from_fmin < fmin_err) {
-				cnt++;
-				reffmin += trace[i];
-				fmin += f;
+		reffmin = reffmin_peak;
+		double ref_sigma_sq = ref_sigma * ref_sigma;
+		for(int cnt = 0; cnt < 2; ++cnt) {
+			double wsum = 0.0;
+			double wsqsum = 0.0;
+			std::complex<double> refsum = 0.0;
+			double fsum = 0.0;
+			double refsqsum = 0.0;
+			double fsqsum = 0.0;
+			for(int i = 0; i < trace_len; ++i) {
+				double f = trace_start + i * trace_dfreq;
+				double zsq = std::norm(trace[i] - reffmin);
+				if(zsq < ref_sigma_sq * 10) {
+					double w = exp( -zsq / (2.0 * ref_sigma_sq));
+					wsum += w;
+					wsqsum += w * w;
+					refsum += w * trace[i];
+					fsum += w * f;
+					fsqsum += w * w * (f - fmin) * (f - fmin);
+				}
 			}
+			fmin = fsum / wsum;
+			fmin_err = sqrt(fsqsum / wsum / wsum + trace_dfreq * trace_dfreq);
+			reffmin = refsum / wsum;
+			reff0_sigma = ref_sigma * sqrt(wsqsum) / wsum;
 		}
-		fmin /= cnt;
-		reffmin /= (double)cnt;
 		//Takes averages around the target frequency.
-		cnt = 0;
+		double wsum = 0.0;
+		double wsqsum = 0.0;
+		std::complex<double> refsum = 0.0;
+		double f0_err_sq = pow(std::min(trace_dfreq * 5, fmin_err), 2.0);
 		for(int i = 0; i < trace_len; ++i) {
 			double f = trace_start + i * trace_dfreq;
-			if(fabs(f - f0) <= fmin_err * 1.1) {
-				cnt++;
-				reff0 += trace[i];
+			if(fabs(f - f0) < f0_err_sq * 10) {
+				double w = exp( -(f - f0) * (f - f0) / (2.0 * f0_err_sq));
+				wsum += w;
+				wsqsum += w * w;
+				refsum += w * trace[i];
 			}
 		}
-		reff0 /= (double)cnt;
-		ref_sigma /= sqrt(cnt);
-		fprintf(stderr, "LCtuner: fmin=%.2f, reffmin=%.2f, reff0=%.2f\n",
-				fmin, std::abs(reffmin), std::abs(reff0));
-		fprintf(stderr, "LCtuner: ref_sigma=%f, fmin_err=%f\n", ref_sigma, fmin_err);
+		reff0 = refsum / wsum;
+		reff0_sigma = ref_sigma * sqrt(wsqsum / wsum * wsum);
+		fprintf(stderr, "LCtuner: fmin=%.4f+-%.4f, reffmin=%.3f+-%.3f, reff0=%.3f+-%.3f\n",
+				fmin, fmin_err, std::abs(reffmin), reffmin_sigma, std::abs(reff0), reff0_sigma);
 
 		tr[ *this].trace.clear();
 	}
 
-	if(std::abs(reff0) < ref_sigma * 2) {
+	if(std::abs(reff0) < reff0_sigma * 2) {
 		tr[ *succeeded()] = true;
 		fprintf(stderr, "LCtuner: tuning done within errors.\n");
 		return;
@@ -340,12 +352,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *this].stm1_best = tr[ *this].stm1;
 		tr[ *this].stm2_best = tr[ *this].stm2;
 		tr[ *this].fmin_best = fmin;
-		tr[ *this].ref_f0_best = std::abs(reff0) + ref_sigma;
+		tr[ *this].ref_f0_best = std::abs(reff0) + reff0_sigma;
 		tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MAX) / 2;
 	}
-	if((std::abs(shot_this[ *this].ref_f0_best) + ref_sigma < std::abs(reff0)) &&
+	if((std::abs(shot_this[ *this].ref_f0_best) + reff0_sigma < std::abs(reff0)) &&
 		((shot_this[ *this].iteration_count > 10) ||
-		((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - ref_sigma)))) {
+		((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - reff0_sigma)))) {
 		if(stage ==  Payload::STAGE_FIRST) {
 			tr[ *this].iteration_count = 0;
 			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
@@ -378,9 +390,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
+		ref_sigma = reffmin_sigma;
 		break;
 	case Payload::TUNE_FINETUNE:
 		ref_targeted = reffmin;
+		ref_sigma = reffmin_sigma;
 //		ref_targeted = reff0;
 		break;
 	}
