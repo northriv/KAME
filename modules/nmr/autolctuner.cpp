@@ -24,7 +24,7 @@ static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
 static const double SOR_FACTOR_MAX = 0.7;
-static const double SOR_FACTOR_MIN = 0.25;
+static const double SOR_FACTOR_MIN = 0.2;
 
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
