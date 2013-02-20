@@ -461,7 +461,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(stm1__ && stm2__) {
 			tr[ *this].isSTMChanged = true;
 			tr[ *this].stage = Payload::STAGE_DCB; //to next stage.
-			tr[ *this].stm1 -= tr[ *this].dCa;
 			tr[ *this].stm2 += tr[ *this].dCb;
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
@@ -540,11 +539,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	dCa_next *= red_fac;
 	dCb_next *= red_fac;
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
-	//remembers last direction.
-	tr[ *this].dCa = dCa_next;
-	tr[ *this].dCb = dCb_next;
 
 	tr[ *this].isSTMChanged = true;
+	dCa_next -= shot_this[ *this].dCa / 2;
+	dCb_next -= shot_this[ *this].dCb / 2;
 	if(stm1__ && stm2__) {
 		tr[ *this].stm1 += dCa_next;
 		tr[ *this].stm2 += dCb_next;
