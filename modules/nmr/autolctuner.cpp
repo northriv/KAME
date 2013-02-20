@@ -23,7 +23,7 @@ static const double TUNE_DROT_APPROACH = 5.0,
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
-static const double SOR_FACTOR_MAX = 1.0;
+static const double SOR_FACTOR_MAX = 0.9;
 static const double SOR_FACTOR_MIN = 0.3;
 
 //---------------------------------------------------------------------------
@@ -498,7 +498,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	const double gamma = 0.7;
+	const double gamma = 1.0;
 	double a = gamma * 2.0 * pow(std::norm(ref_targeted), gamma - 1.0);
 	double drefgamma_dCa = a * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
 	double drefgamma_dCb = a * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
