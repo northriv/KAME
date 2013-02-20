@@ -502,7 +502,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double gamma;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_APPROACHING:
-		gamma = 1.0;
+		gamma = 0.9;
 		break;
 	case Payload::TUNE_FINETUNE:
 		gamma = 0.5;
