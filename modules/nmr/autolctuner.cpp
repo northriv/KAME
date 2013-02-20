@@ -497,8 +497,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	double drefsq_dCa = 2.0 * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
-	double drefsq_dCb = 2.0 * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
+	const double gamma = 0.7;
+	double a = gamma * 2.0 * pow(std::norm(ref_targeted), gamma - 1.0);
+	double drefgamma_dCa = a * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
+	double drefgamma_dCb = a * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
 
 	double dfmin_dCa = shot_this[ *this].dfmin_dCa;
 	double dfmin_dCb = shot_this[ *this].dfmin_dCb;
@@ -510,13 +512,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double dCa_next = 0;
 	double dCb_next = 0;
 
-	fprintf(stderr, "LCtuner: drefsq_dCa=%.2g, drefsq_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
-		drefsq_dCa, dref_dCb, dfmin_dCa, dfmin_dCb);
+	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
+		drefgamma_dCa, drefgamma_dCb, dfmin_dCa, dfmin_dCb);
 
 	determineNextC( dCa_next, dCb_next,
-		std::norm(ref_targeted), ref_sigma * ref_sigma,
+		pow(std::norm(ref_targeted), gamma), pow(ref_sigma, gamma * 2.0),
 		fmin - f0, fmin_err,
-		drefsq_dCa, drefsq_dCb,
+		drefgamma_dCa, drefgamma_dCb,
 		dfmin_dCa, dfmin_dCb);
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
