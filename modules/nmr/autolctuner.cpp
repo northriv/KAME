@@ -391,9 +391,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> ref_targeted;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_FINETUNE:
-//		ref_targeted = reff0;
-//		ref_sigma = reff0_sigma;
-//		break;
+		ref_targeted = reff0;
+		ref_sigma = reff0_sigma;
+		break;
 	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
 		ref_sigma = reffmin_sigma;
@@ -501,11 +501,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
 	double gamma;
 	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_APPROACHING:
-		gamma = 0.9;
-		break;
 	case Payload::TUNE_FINETUNE:
-		gamma = 0.5;
+//		gamma = 0.5;
+//		break;
+	case Payload::TUNE_APPROACHING:
+		gamma = 1.0;
 		break;
 	}
 	double a = gamma * 2.0 * pow(std::norm(ref_targeted), gamma - 1.0);
