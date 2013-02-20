@@ -21,7 +21,7 @@ REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 static const double TUNE_DROT_APPROACH = 5.0,
 	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
-static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
+static const double TUNE_FINETUNE_START = 0.7; //-3dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
 static const double SOR_FACTOR_MAX = 0.9;
 static const double SOR_FACTOR_MIN = 0.3;
@@ -390,13 +390,14 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//Selects suitable reflection point to be minimized.
 	std::complex<double> ref_targeted;
 	switch(shot_this[ *this].mode) {
-	case Payload::TUNE_APPROACHING:
 	case Payload::TUNE_FINETUNE:
+		ref_targeted = reff0;
+		ref_sigma = reff0_sigma;
+		break;
+	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
 		ref_sigma = reffmin_sigma;
 		break;
-//		ref_targeted = reff0;
-//		ref_sigma = reff0_sigma;
 	}
 	switch(stage) {
 	default:
@@ -498,7 +499,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	const double gamma = 1.0;
+	double gamma;
+	switch(shot_this[ *this].mode) {
+	case Payload::TUNE_APPROACHING:
+		gamma = 1.0;
+		break;
+	case Payload::TUNE_FINETUNE:
+		gamma = 0.5;
+		break;
+	}
 	double a = gamma * 2.0 * pow(std::norm(ref_targeted), gamma - 1.0);
 	double drefgamma_dCa = a * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
 	double drefgamma_dCb = a * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
