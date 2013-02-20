@@ -276,7 +276,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			double wsqsum = 0.0;
 			std::complex<double> refsum = 0.0;
 			double fsum = 0.0;
-			double refsqsum = 0.0;
 			double fsqsum = 0.0;
 			for(int i = 0; i < trace_len; ++i) {
 				double f = trace_start + i * trace_dfreq;
@@ -506,7 +505,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double dfmin_dCb = shot_this[ *this].dfmin_dCb;
 	if( !stm1__ || !stm2__) {
 		dref_dCb = 0.0;
-		drefsq_dCb = 0.0;
+		drefgamma_dCb = 0.0;
 		dfmin_dCb = 0.0;
 	}
 	double dCa_next = 0;
