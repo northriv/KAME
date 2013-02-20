@@ -497,8 +497,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	double dref_dCa = 2.0 * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
-	double dref_dCb = 2.0 * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
+	double drefsq_dCa = 2.0 * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
+	double drefsq_dCb = 2.0 * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
 
 	double dfmin_dCa = shot_this[ *this].dfmin_dCa;
 	double dfmin_dCb = shot_this[ *this].dfmin_dCb;
