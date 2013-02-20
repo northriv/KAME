@@ -19,12 +19,15 @@
 REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 
 static const double TUNE_DROT_APPROACH = 5.0,
-	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 360.0; //[deg.]
+	TUNE_DROT_FINETUNE = 2.0, TUNE_DROT_ABORT = 180.0; //[deg.]
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.7; //-3dB@f0
-static const double TUNE_DROT_REQUIRED_N_SIGMA = 2.0;
+static const double TUNE_DROT_REQUIRED_N_SIGMA_FINETUNE = 1.0;
+static const double TUNE_DROT_REQUIRED_N_SIGMA_APPROACH = 2.0;
 static const double SOR_FACTOR_MAX = 0.9;
 static const double SOR_FACTOR_MIN = 0.3;
+static const double TUNE_DROT_MUL_FINETUNE = 2.5;
+static const double TUNE_DROT_MUL_APPROACH = 3.5;
 
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
@@ -389,14 +392,20 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	//Selects suitable reflection point to be minimized.
 	std::complex<double> ref_targeted;
+	double tune_drot_required_nsigma;
+	double tune_drot_mul;
 	switch(shot_this[ *this].mode) {
 	case Payload::TUNE_FINETUNE:
 		ref_targeted = reff0;
 		ref_sigma = reff0_sigma;
+		tune_drot_required_nsigma = TUNE_DROT_REQUIRED_N_SIGMA_FINETUNE;
+		tune_drot_mul = TUNE_DROT_MUL_FINETUNE;
 		break;
 	case Payload::TUNE_APPROACHING:
 		ref_targeted = reffmin;
 		ref_sigma = reffmin_sigma;
+		tune_drot_required_nsigma = TUNE_DROT_REQUIRED_N_SIGMA_APPROACH;
+		tune_drot_mul = TUNE_DROT_MUL_APPROACH;
 		break;
 	}
 	switch(stage) {
@@ -404,6 +413,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	case Payload::STAGE_FIRST:
 		//Ref(0, 0)
 		tr[ *this].fmin_first = fmin;
+		tr[ *this].ref_first = ref_targeted;
 		double tune_drot;
 		switch(shot_this[ *this].mode) {
 		case Payload::TUNE_APPROACHING:
@@ -415,7 +425,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 		tr[ *this].dCa = tune_drot * ((shot_this[ *this].dfmin_dCa * (fmin - f0) < 0) ? 1.0 : -1.0); //direction to approach.
 		tr[ *this].dCb = tune_drot * ((shot_this[ *this].dfmin_dCb * (fmin - f0) < 0) ? 1.0 : -1.0);
-		tr[ *this].ref_first = ref_targeted;
 
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].stage = Payload::STAGE_DCA;
@@ -441,14 +450,16 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dref = shot_this[ *this].ref_plus_dCa - shot_this[ *this].ref_first;
 		tr[ *this].dref_dCa = dref / shot_this[ *this].dCa;
 
-		if((fabs(dfmin) < fmin_err * TUNE_DROT_REQUIRED_N_SIGMA) &&
-			(std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
+		if((fabs(dfmin) < fmin_err * tune_drot_required_nsigma) &&
+			(std::abs(dref) < ref_sigma * tune_drot_required_nsigma)) {
 			if(fabs(tr[ *this].dCa) < TUNE_DROT_ABORT) {
+				tr[ *this].dCa *= tune_drot_mul; //increases rotation angle to measure derivative.
+				tr[ *this].fmin_first = fmin; //the present data may be influenced by backlashes.
+				tr[ *this].ref_first = ref_targeted;
 				if(stm1__)
-					tr[ *this].stm1 += 3.0 * tr[ *this].dCa;
+					tr[ *this].stm1 += tr[ *this].dCa;
 				else
-					tr[ *this].stm2 += 3.0 * tr[ *this].dCa;
-				tr[ *this].dCa *= 4.0; //increases rotation angle to measure derivative.
+					tr[ *this].stm2 += tr[ *this].dCa;
 				tr[ *this].isSTMChanged = true;
 				tr[ *this].stage = Payload::STAGE_DCA; //rotate C1 more and try again.
 				fprintf(stderr, "LCtuner: increasing dCa to %f\n", (double)tr[ *this].dCa);
@@ -479,11 +490,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dref = ref_targeted - shot_this[ *this].ref_plus_dCa;
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 
-		if((std::min(fabs(shot_this[ *this].dfmin_dCa * shot_this[ *this].dCa), fabs(dfmin)) < fmin_err * TUNE_DROT_REQUIRED_N_SIGMA) &&
-			(std::min(std::abs(shot_this[ *this].dref_dCa * shot_this[ *this].dCa), std::abs(dref)) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
+		if((std::min(fabs(shot_this[ *this].dfmin_dCa * shot_this[ *this].dCa), fabs(dfmin)) < fmin_err * tune_drot_required_nsigma) &&
+			(std::min(std::abs(shot_this[ *this].dref_dCa * shot_this[ *this].dCa), std::abs(dref)) < ref_sigma * tune_drot_required_nsigma)) {
 			if(fabs(tr[ *this].dCb) < TUNE_DROT_ABORT) {
-				tr[ *this].stm2 += 3.0 * tr[ *this].dCb;
-				tr[ *this].dCb *= 4.0; //increases rotation angle to measure derivative.
+				tr[ *this].dCb *= tune_drot_mul; //increases rotation angle to measure derivative.
+				tr[ *this].fmin_plus_dCa = fmin; //the present data may be influenced by backlashes.
+				tr[ *this].ref_plus_dCa = ref_targeted;
+				tr[ *this].stm2 += tr[ *this].dCb;
 				tr[ *this].isSTMChanged = true;
 				fprintf(stderr, "LCtuner: increasing dCb to %f\n", (double)tr[ *this].dCb);
 				//rotate Cb more and try again.
