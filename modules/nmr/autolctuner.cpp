@@ -475,7 +475,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 		//derivative of reflection.
 		std::complex<double> dref;
-		dref = ref_targeted - shot_this[ *this].ref_first;
+		dref = ref_targeted - shot_this[ *this].ref_plus_dCa;
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 
 		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
@@ -541,8 +541,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
 	tr[ *this].isSTMChanged = true;
-	dCa_next -= shot_this[ *this].dCa / 2;
-	dCb_next -= shot_this[ *this].dCb / 2;
 	if(stm1__ && stm2__) {
 		tr[ *this].stm1 += dCa_next;
 		tr[ *this].stm2 += dCb_next;
