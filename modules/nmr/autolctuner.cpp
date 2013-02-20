@@ -23,8 +23,8 @@ static const double TUNE_DROT_APPROACH = 5.0,
 static const double TUNE_TRUST_APPROACH = 720.0, TUNE_TRUST_FINETUNE = 360.0; //[deg.]
 static const double TUNE_FINETUNE_START = 0.5; //-6dB@f0
 static const double TUNE_DROT_REQUIRED_N_SIGMA = 3.0;
-static const double SOR_FACTOR_MAX = 0.9;
-static const double SOR_FACTOR_MIN = 0.2;
+static const double SOR_FACTOR_MAX = 1.0;
+static const double SOR_FACTOR_MIN = 0.3;
 
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
@@ -497,26 +497,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	std::complex<double> dref_dCa = shot_this[ *this].dref_dCa;
 	std::complex<double> dref_dCb = shot_this[ *this].dref_dCb;
-	double dabsref_dCa = (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa)) / std::abs(ref_targeted);
-	double dabsref_dCb = (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb)) / std::abs(ref_targeted);
+	double dref_dCa = 2.0 * (std::real(ref_targeted) * std::real(dref_dCa) + std::imag(ref_targeted) * std::imag(dref_dCa));
+	double dref_dCb = 2.0 * (std::real(ref_targeted) * std::real(dref_dCb) + std::imag(ref_targeted) * std::imag(dref_dCb));
 
 	double dfmin_dCa = shot_this[ *this].dfmin_dCa;
 	double dfmin_dCb = shot_this[ *this].dfmin_dCb;
 	if( !stm1__ || !stm2__) {
 		dref_dCb = 0.0;
-		dabsref_dCb = 0.0;
+		drefsq_dCb = 0.0;
 		dfmin_dCb = 0.0;
 	}
 	double dCa_next = 0;
 	double dCb_next = 0;
 
-	fprintf(stderr, "LCtuner: dref_dCa=%.2g, dref_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
-		dabsref_dCa, dabsref_dCb, dfmin_dCa, dfmin_dCb);
+	fprintf(stderr, "LCtuner: drefsq_dCa=%.2g, drefsq_dCb=%.2g, dfmin_dCa=%.2g, dfmin_dCb=%.2g\n",
+		drefsq_dCa, dref_dCb, dfmin_dCa, dfmin_dCb);
 
 	determineNextC( dCa_next, dCb_next,
-		std::abs(ref_targeted), ref_sigma * ref_sigma,
+		std::norm(ref_targeted), ref_sigma * ref_sigma,
 		fmin - f0, fmin_err,
-		dabsref_dCa, dabsref_dCb,
+		drefsq_dCa, drefsq_dCb,
 		dfmin_dCa, dfmin_dCb);
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
