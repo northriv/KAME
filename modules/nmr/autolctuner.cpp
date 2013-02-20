@@ -440,7 +440,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dref = shot_this[ *this].ref_plus_dCa - shot_this[ *this].ref_first;
 		tr[ *this].dref_dCa = dref / shot_this[ *this].dCa;
 
-		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
+		if((fabs(dfmin) < fmin_err * TUNE_DROT_REQUIRED_N_SIGMA) &&
+			(std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 			if(fabs(tr[ *this].dCa) < TUNE_DROT_ABORT) {
 				if(stm1__)
 					tr[ *this].stm1 += 3.0 * tr[ *this].dCa;
@@ -477,7 +478,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		dref = ref_targeted - shot_this[ *this].ref_plus_dCa;
 		tr[ *this].dref_dCb = dref / shot_this[ *this].dCb;
 
-		if((fabs(dfmin) < fmin_err) && (std::abs(dref) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
+		if((std::min(fabs(shot_this[ *this].dfmin_dCa * shot_this[ *this].dCa), fabs(dfmin)) < fmin_err * TUNE_DROT_REQUIRED_N_SIGMA) &&
+			(std::min(std::abs(shot_this[ *this].dref_dCa * shot_this[ *this].dCa), std::abs(dref)) < ref_sigma * TUNE_DROT_REQUIRED_N_SIGMA)) {
 			if(fabs(tr[ *this].dCb) < TUNE_DROT_ABORT) {
 				tr[ *this].stm2 += 3.0 * tr[ *this].dCb;
 				tr[ *this].dCb *= 4.0; //increases rotation angle to measure derivative.
@@ -486,7 +488,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				//rotate Cb more and try again.
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
-			if((shot_this[ *this].dfmin_dCa == 0.0) && (shot_this[ *this].dref_dCa == 0.0))
+			if(fabs(tr[ *this].dCa) >= TUNE_DROT_ABORT)
 				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
 		}
 		break;
