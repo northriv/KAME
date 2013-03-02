@@ -94,7 +94,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	con.conport = xqcon_create<XQLineEditConnector>(interface->port(), edPort, false);
 	m_pItem->setCellWidget(i, 3, edPort);
 	QSpinBox *numAddr(new QSpinBox(m_pItem) );
-	numAddr->setRange(0, 32);
+	numAddr->setRange(0, 255);
 	numAddr->setSingleStep(1);
 	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);

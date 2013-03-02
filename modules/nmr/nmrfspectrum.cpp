@@ -150,6 +150,9 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf, bool firstt
 				(fabs(shot_tuner[ *autotuner->target()] - newf) > shot_this[ *autoTuneStep()] / 2)) {
 			//Tunes Capacitors.
 			trans( *pulser__->output()) = false; // Pulse off.
+		    shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+		    if(pulse__)
+		    	trans( *pulse__->avgClear()).touch();
 			for(Transaction tr( *autotuner);; ++tr) {
 				m_lsnOnTuningChanged = tr[ *autotuner->tuning()].onValueChanged().connectWeakly(
 					shared_from_this(), &XNMRFSpectrum::onTuningChanged);

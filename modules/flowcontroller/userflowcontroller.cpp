@@ -26,12 +26,14 @@ XFCST1000::XFCST1000(const char *name, bool runtime,
 }
 bool
 XFCST1000::isUnitInSLM() {
-	XString unit = interface()->query<XString>(ValveDriverClass, 1, 0x03);
+	XString unit = interface()->query<XString>(GasCalibrationClass, 1, 0x03);
 	return (unit == "SLM");
 }
 bool
 XFCST1000::isController() {
-	unsigned int type = interface()->query<uint8_t>(GasCalibrationClass, 1, 0xa0);
+	unsigned int type = interface()->query<uint8_t>(ValveDriverClass, 1, 0xa0);
+	if(type >= 3)
+		throw XInteface::XInterfaceError(i18n("Unknown valve type.", __FILE__, __LINE__));
 	return (type != 0);
 }
 double
@@ -43,10 +45,10 @@ XFCST1000::getStatus(double &flow, double &valve_v, bool &alarm, bool &warning) 
 	flow = interface()->query<uint16_t>(ValveDriverClass, 1, 0xa9);
 	flow = (flow - 0x4000) / 0x8000;
 	flow *= getFullScale();
-	valve_v = interface()->query<uint16_t>(ValveDriverClass, 1, 0xa9);
+	valve_v = interface()->query<uint16_t>(ValveDriverClass, 1, 0xb6);
 	valve_v = (valve_v - 0x4000) / 0x8000 * 100.0;
 
-	int bits = interface()->query<uint8_t>(ValveDriverClass, 1, 0xa0);
+	int bits = interface()->query<uint8_t>(ExceptionClass, 1, 0xa0);
 	alarm = bits & 2;
 	warning = bits & 32;
 }

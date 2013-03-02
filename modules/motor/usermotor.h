@@ -17,6 +17,7 @@
 
 #include "motor.h"
 #include "modbusrtuinterface.h"
+#include "chardevicedriver.h"
 
 //ORIENTAL MOTOR FLEX CRK series.
 class XFlexCRK : public XModbusRTUDriver<XMotorDriver>  {
@@ -59,6 +60,29 @@ protected:
 	virtual void setReverse();//!< continuous rotation.
 	virtual void stopRotation();//!< stops motor and waits for deceleration.
 	//! stores current settings to the NV memory of the instrument.
+	virtual void storeToROM();
+	virtual void clearPosition();
+private:
+};
+
+//ORIENTAL MOTOR EMP401.
+class XEMP401 : public XCharDeviceDriver<XMotorDriver>  {
+public:
+	XEMP401(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XEMP401() {}
+protected:
+protected:
+	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
+	virtual void changeConditions(const Snapshot &shot);
+	virtual void getConditions(Transaction &tr);
+	virtual void setTarget(const Snapshot &shot, double target);
+	virtual void setActive(bool active);
+	virtual void setAUXBits(unsigned int bits);
+	virtual void setForward(); //!< continuous rotation.
+	virtual void setReverse();//!< continuous rotation.
+	virtual void stopRotation(); //!< stops motor and waits for deceleration.
+	//! stores current settings to the NV memory of the instrumeMotornt.
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
