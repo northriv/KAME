@@ -114,6 +114,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].sor_factor = SOR_FACTOR_MAX;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		tr[ *this].trace.clear();
+		tr[ *this].started = XTime::now();
 		if(tr.commit())
 			break;
 	}
@@ -179,6 +180,12 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 }
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
+	double tune_approach_goal2 = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
+	if(tune_approach_goal2 > std::abs(reff0)) {
+		tr[ *succeeded()] = true;
+		fprintf(stderr, "LCtuner: tuning done within the required value.\n");
+		return;
+	}
 	tr[ *m_tuning] = false;
 	if(std::abs(reff0) > std::abs(tr[ *this].ref_f0_best)) {
 		tr[ *this].isSTMChanged = true;
@@ -334,15 +341,22 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
 	if(std::abs(reff0) < tune_approach_goal) {
+		fprintf(stderr, "LCtuner: tuning done satisfactorily.\n");
 		tr[ *succeeded()] = true;
 		return;
 	}
 	double tune_approach_goal2 = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
 	if(std::abs(reff0) < tune_approach_goal2) {
 		if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -4.0) + SOR_FACTOR_MIN) {
+			fprintf(stderr, "LCtuner: tuning done within the required value.\n");
 			tr[ *succeeded()] = true;
 			return;
 		}
+	}
+	bool timeout = (XTime::now() - shot_this[ *this].started > 240); //4min.
+	if(timeout) {
+		abortTuningFromAnalyze(tr, reff0);//Aborts.
+		return;
 	}
 
 	Payload::STAGE stage = shot_this[ *this].stage;
@@ -368,6 +382,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
 			if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -6.0) + SOR_FACTOR_MIN) {
 				abortTuningFromAnalyze(tr, reff0);//Aborts.
+				return;
 			}
 			fprintf(stderr, "LCtuner: Rolls back.\n");
 			//rolls back to good positions.
@@ -467,6 +482,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			}
 			if( !stm1__ || !stm2__) {
 				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
+				return;
 			}
 			//Ca is useless, try Cb.
 		}
@@ -502,8 +518,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				//rotate Cb more and try again.
 				throw XSkippedRecordError(__FILE__, __LINE__);
 			}
-			if(fabs(tr[ *this].dCa) >= TUNE_DROT_ABORT)
+			if(fabs(tr[ *this].dCa) >= TUNE_DROT_ABORT) {
 				abortTuningFromAnalyze(tr, reff0);//C1/C2 is useless. Aborts.
+				return;
+			}
 		}
 		break;
 	}

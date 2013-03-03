@@ -280,13 +280,14 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
 			}
 			try {
 				solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
+				int imax = std::min((int)wave.size() - pos, (int)memout.size());
+				for(unsigned int i = 0; i < imax; i++) {
+					wave[i + pos] -= solverPNR.ifft()[i];
+				}
 			}
 			catch (XKameError &e) {
-				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
-			}
-			int imax = std::min((int)wave.size() - pos, (int)memout.size());
-			for(unsigned int i = 0; i < imax; i++) {
-				wave[i + pos] -= solverPNR.ifft()[i];
+				e.print();
+//				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
 			}
 		}
 	}

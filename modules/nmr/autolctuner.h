@@ -84,6 +84,7 @@ public:
 		enum MODE {TUNE_APPROACHING, TUNE_FINETUNE};
 		MODE mode;
 		bool isSTMChanged;
+		XTime started;
 	};
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
