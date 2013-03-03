@@ -33,7 +33,7 @@ bool
 XFCST1000::isController() {
 	unsigned int type = interface()->query<uint8_t>(ValveDriverClass, 1, 0xa0);
 	if(type >= 3)
-		throw XInteface::XInterfaceError(i18n("Unknown valve type.", __FILE__, __LINE__));
+		throw XInterface::XInterfaceError(i18n("Unknown valve type."), __FILE__, __LINE__);
 	return (type != 0);
 }
 double
@@ -42,6 +42,7 @@ XFCST1000::getFullScale() {
 }
 void
 XFCST1000::getStatus(double &flow, double &valve_v, bool &alarm, bool &warning)  {
+	XScopedLock<XInterface> lock( *interface());
 	flow = interface()->query<uint16_t>(ValveDriverClass, 1, 0xa9);
 	flow = (flow - 0x4000) / 0x8000;
 	flow *= getFullScale();
@@ -58,14 +59,19 @@ XFCST1000::setValveState(bool open) {
 }
 void
 XFCST1000::changeControl(bool ctrl) {
-	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x00);
-	if(ctrl)
+	XScopedLock<XInterface> lock( *interface());
+	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x00); //MFC
+	if(ctrl) {
 		interface()->send(FlowControllerClass, 1, 0x03, (uint8_t)0x01); //digital mode.
+		interface()->send(FlowControllerClass, 1, 0x05, (uint8_t)0x01); //freeze follow.
+	}
 	else
 		interface()->send(FlowControllerClass, 1, 0x03, (uint8_t)0x02); //analog mode.
 }
 void
 XFCST1000::changeSetPoint(double target) {
+	XScopedLock<XInterface> lock( *interface());
+	interface()->send(ValveDriverClass, 1, 0x01, (uint8_t)0x00); //MFC
 	target  = target / getFullScale();
 	target = std::max(0.0, target);
 	target = std::min(1.0, target);

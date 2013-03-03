@@ -23,7 +23,7 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_flow(create<XScalarEntry>("Flow", false,
-								  dynamic_pointer_cast<XDriver>(shared_from_this())), "%.4f"),
+								  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4f")),
     m_target(create<XDoubleNode>("Target", true)),
     m_valve(create<XDoubleNode>("Valve", true, "%.4f")),
     m_rampTime(create<XDoubleNode>("RampTime", true)),

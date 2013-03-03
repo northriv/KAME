@@ -75,7 +75,16 @@ std::vector<uint8_t> wbuf(2);
 	wbuf[1] = data / 0x100u;
 	communicate(classid, instanceid, attributeid, wbuf);
 }
-
+template <>
+void
+XFujikinInterface::send(uint8_t classid, uint8_t instanceid, uint8_t attributeid, uint32_t data) {
+std::vector<uint8_t> wbuf(4);
+	wbuf[0] = data % 0x100u;
+	wbuf[1] = (data / 0x100uL) % 0x100u;
+	wbuf[1] = (data / 0x10000uL) % 0x100u;
+	wbuf[1] = data / 0x1000000uL;
+	communicate(classid, instanceid, attributeid, wbuf);
+}
 template <typename T>
 T
 XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributeid) {
@@ -128,6 +137,8 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 	buf.push_back(checksum);
 
 	auto master = m_master;
+	XScopedLock<XFujikinInterface> lock( *master);
+	msecsleep(1);
 	master->write( reinterpret_cast<char*>( &buf[0]), buf.size());
 	master->receive(1);
 	switch(master->buffer()[0]) {
