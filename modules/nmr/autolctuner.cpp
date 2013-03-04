@@ -180,7 +180,7 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 }
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
-	double tune_approach_goal2 = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
+	double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
 	if(tune_approach_goal2 > std::abs(reff0)) {
 		tr[ *succeeded()] = true;
 		fprintf(stderr, "LCtuner: tuning done within the required value.\n");
