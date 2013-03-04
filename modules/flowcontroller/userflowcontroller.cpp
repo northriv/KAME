@@ -38,7 +38,7 @@ XFCST1000::isController() {
 }
 double
 XFCST1000::getFullScale() {
-	return interface()->query<uint16_t>(GasCalibrationClass, 1, 0x02);
+	return interface()->query<uint16_t>(GasCalibrationClass, 1, 0x02) * 0.1;
 }
 void
 XFCST1000::getStatus(double &flow, double &valve_v, bool &alarm, bool &warning)  {
