@@ -18,9 +18,11 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+#include <complex>
 
 class XScalarEntry;
 class FIR;
+class XSG;
 
 class QMainWindow;
 class Ui_FrmDSO;
@@ -79,6 +81,11 @@ public:
 	const shared_ptr<XDoubleNode> &firCenterFreq() const {return m_firCenterFreq;} ///< [kHz]
 	const shared_ptr<XDoubleNode> &firSharpness() const {return m_firSharpness;}
 
+	enum DRFMODE {DRFMODE_OFF = 0, DRFMODE_GIVEN_FREQ = 1, DRFMODE_FREQ_BY_SG = 2, DRFMODE_COHERENT_SG = 3};
+	const shared_ptr<XComboNode> &dRFMode() const {return m_dRFMode;}
+	const shared_ptr<XItemNode<XDriverList, XSG> > &dRFSG() const {return m_dRFSG;}
+	const shared_ptr<XDoubleNode> &dRFFreq() const {return m_dRFFreq;}
+
 	struct Payload : public XPrimaryDriver::Payload {
 		Payload() : m_rawDisplayOnly(false), m_numChannelsDisp(0) {}
 		double trigPos() const {return m_trigPos;} ///< unit is interval
@@ -103,13 +110,14 @@ public:
 		std::vector<double> m_waves;
 
 		//! for displaying.
-		bool m_rawDisplayOnly;
+		bool m_rawDisplayOnly; ///< flag for skipping to record.
 		double m_trigPosDisp; ///< unit is interval
 		unsigned int m_numChannelsDisp;
 		double m_timeIntervalDisp; //! [sec]
 		std::vector<double> m_wavesDisp;
 
 		shared_ptr<FIR> m_fir;
+		shared_ptr<std::vector<std::complex<double> > > m_dRFRefWave; ///< exp(i omega t)
 	};
 protected:
 	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -147,7 +155,12 @@ protected:
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) = 0;
 	//! Converts the raw to a display-able style.
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
-  
+
+	virtual bool isDRFCoherentSGSupported() const {return false;}
+
+	//! Calculates RF phase for coherent detection, at given count.
+	double phaseOfRF(const Snapshot &shot_of_this, uint64_t count);
+
 	const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
 private:
 	enum {FETCHMODE_NEVER = 0, FETCHMODE_AVG = 1, FETCHMODE_SEQ = 2};
@@ -183,11 +196,17 @@ private:
 	const shared_ptr<XDoubleNode> m_firCenterFreq; ///< [kHz]
 	const shared_ptr<XDoubleNode> m_firSharpness;
 
+	const shared_ptr<XComboNode> m_dRFMode;
+	const shared_ptr<XItemNode<XDriverList, XSG> > m_dRFSG;
+	const shared_ptr<XDoubleNode> m_dRFFreq;
+
 	const qshared_ptr<FrmDSO> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
   
-	//! Convert the raw to a display-able style and performs extra digital processing.
+	//! Converts the raw to a display-able style and performs extra digital processing.
 	void convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	//! Digital direct conversion.
+	void demodulateDisp(Transaction &tr) throw (XRecordError&);
   
 	shared_ptr<XListener> m_lsnOnSingleChanged;
 	shared_ptr<XListener> m_lsnOnAverageChanged;
@@ -212,8 +231,10 @@ private:
 	shared_ptr<XListener> m_lsnOnForceTriggerTouched;
 	shared_ptr<XListener> m_lsnOnRestartTouched;
 	shared_ptr<XListener> m_lsnOnCondChanged;
+	shared_ptr<XListener> m_lsnOnDRFCondChanged;
   
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
+	void onDRFCondChanged(const Snapshot &shot, XValueNodeBase *);
   
 	const xqcon_ptr m_conAverage, m_conSingle,
 		m_conTrace1, m_conTrace2, m_conTrace3, m_conTrace4;
@@ -223,6 +244,7 @@ private:
 	const xqcon_ptr m_conVOffset1, m_conVOffset2, m_conVOffset3, m_conVOffset4,
 		m_conForceTrigger, m_conRecordLength;
 	const xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
+	const xqcon_ptr m_conDRFMode, m_conDRFSG, m_conDRFFreq;
  
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 

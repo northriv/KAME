@@ -41,7 +41,7 @@ public:
 		//! Following analyses have to be based on this time.
 		//! It is undefined if record is invalid.
 		const XTime &time() const {return m_recordTime;}
-		//! A time stamp when an operator (you) can see outputs.
+		//! A time stamp when an operator (ones) can see outputs.
 		//! Manual operations (e.g. pushing a clear button) have to be based on this time.
 		//! It is a time when a phenomenon starts if measurement is going on.
 		//! It is a time when a record was read for a non-real-time analysis.

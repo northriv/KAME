@@ -61,6 +61,8 @@ protected:
 
 	//! Loads waveform and settings from instrument
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
+
+	virtual bool isDRFCoherentSGSupported() const {return true;}
 private:
 	typedef int16 tRawAI;
 	unique_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;

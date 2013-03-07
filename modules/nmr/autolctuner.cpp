@@ -353,7 +353,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			return;
 		}
 	}
-	bool timeout = (XTime::now() - shot_this[ *this].started > 240); //4min.
+	bool timeout = (XTime::now() - shot_this[ *this].started > 300); //5min.
 	if(timeout) {
 		abortTuningFromAnalyze(tr, reff0);//Aborts.
 		return;

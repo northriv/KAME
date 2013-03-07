@@ -41,7 +41,7 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 			return;
 		if( !shot_all_drivers.isUpperOf( *driver))
 			return;
-		Transaction tr( *this, shot_all_drivers); //Transaction should be made for all the drivers at the same time.
+		Transaction tr( *this, shot_all_drivers);
 		const Snapshot &shot_this(tr);
 
 		if(driver != this) {

@@ -22,6 +22,7 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
+#include "signalgenerator.h"
 
 #include "ui_dsoform.h"
 
@@ -62,6 +63,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_firBandWidth(create<XDoubleNode>("FIRBandWidth", false)),
 	m_firCenterFreq(create<XDoubleNode>("FIRCenterFreq", false)),
 	m_firSharpness(create<XDoubleNode>("FIRSharpness", false)),
+	m_dRFMode(create<XComboNode>("RFMode", false)),
+	m_dRFSG(create<XItemNode<XDriverList, XSG> >("RFSG", false, ref(tr_meas), meas->drivers(), true)),
+	m_dRFFreq(create<XDoubleNode>("RFFreq", false)),
 	m_form(new FrmDSO(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
 								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)),
@@ -91,8 +95,10 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
 	m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
 	m_conFIRCenterFreq(xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq)),
+	m_conDRFMode(xqcon_create<XQComboBoxConnector>(m_dRFMode, m_form->m_cmbRFMode, Snapshot( *m_dRFMode))),
+	m_conDRFSG(xqcon_create<XQComboBoxConnector>(m_dRFSG, m_form->m_cmbRFSG, ref(tr_meas))),
+	m_conDRFFreq(xqcon_create<XQLineEditConnector>(m_dRFFreq, m_form->m_edRFFreq)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
-
 	m_form->m_btnForceTrigger->setIcon(
 		KIconLoader::global()->loadIcon("quickopen",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
@@ -102,6 +108,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
 	m_form->m_dockTrace1->show();
 	m_form->m_dockTrace1->raise();
+	m_form->tabifyDockWidget(m_form->m_dockFIR, m_form->m_dockRF);
+	m_form->m_dockRF->show();
+	m_form->m_dockFIR->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
 
 	for(Transaction tr( *this);; ++tr) {
@@ -144,6 +153,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
+	dRFMode()->setUIEnabled(false);
+	dRFFreq()->setUIEnabled(false);
+//	dRFSG()->setUIEnabled(false);
 
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		tr[ *m_waveForm].setColCount(4, s_trace_names);
@@ -264,6 +276,9 @@ XDSO::execute(const atomic<bool> &terminated) {
 	vOffset4()->setUIEnabled(true);
 	forceTrigger()->setUIEnabled(true);
 	recordLength()->setUIEnabled(true);
+	dRFMode()->setUIEnabled(true);
+	dRFFreq()->setUIEnabled(true);
+	dRFSG()->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
@@ -310,7 +325,17 @@ XDSO::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XDSO::onForceTriggerTouched);
 		m_lsnOnRestartTouched = tr[ *restart()].onTouch().connectWeakly(
 			shared_from_this(), &XDSO::onRestartTouched);
-		if(tr.commit())
+		m_lsnOnDRFCondChanged = tr[ *dRFMode()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onDRFCondChanged);
+		 tr[ *dRFSG()].onValueChanged().connect(m_lsnOnDRFCondChanged);
+		 tr[ *dRFFreq()].onValueChanged().connect(m_lsnOnDRFCondChanged);
+
+		 tr[ *dRFMode()].add("OFF");
+		 tr[ *dRFMode()].add("By Given Freq.");
+		 tr[ *dRFMode()].add("By SG Freq.");
+		 if(isDRFCoherentSGSupported())
+			 tr[ *dRFMode()].add("With Coherent SG");
+		 if(tr.commit())
 			break;
 	}
 
@@ -422,6 +447,9 @@ XDSO::execute(const atomic<bool> &terminated) {
 	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
+	dRFMode()->setUIEnabled(false);
+	dRFFreq()->setUIEnabled(false);
+//	dRFSG()->setUIEnabled(false);
 
 	m_lsnOnAverageChanged.reset();
 	m_lsnOnSingleChanged.reset();
@@ -445,6 +473,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 	m_lsnOnForceTriggerTouched.reset();
 	m_lsnOnRestartTouched.reset();
 	m_lsnOnRecordLengthChanged.reset();
+	m_lsnOnDRFCondChanged.reset();
 
 	return NULL;
 }
@@ -455,11 +484,69 @@ XDSO::onCondChanged(const Snapshot &shot, XValueNodeBase *) {
 	visualize(shot_this);
 }
 void
+XDSO::onDRFCondChanged(const Snapshot &shot, XValueNodeBase *) {
+	for(Transaction tr( *this);; ++tr) {
+		tr[ *this].m_dRFRefWave.reset();
+		tr[ *restart()].touch();
+		if(tr.commit())
+			break;
+	}
+}
+double
+XDSO::phaseOfRF(const Snapshot &shot_of_this, uint64_t count) {
+	double freq = shot_of_this[ *dRFFreq()];
+	double interv = getTimeInterval();
+	return 2.0 * M_PI * freq * interv * count;
+}
+void
 XDSO::Payload::setParameters(unsigned int channels, double startpos, double interval, unsigned int length) {
 	m_numChannelsDisp = channels;
 	m_wavesDisp.resize(channels * length, 0.0);
 	m_trigPosDisp = -startpos / interval;
 	m_timeIntervalDisp = interval;
+}
+void
+XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
+	Snapshot &shot(tr);
+	unsigned int num_channels = shot[ *this].numChannelsDisp();
+	unsigned int length = shot[ *this].lengthDisp();
+	if( !shot[ *this].m_dRFRefWave) {
+		tr[ *this].m_dRFRefWave.reset(new std::vector<std::complex<double> >(length));
+		auto *vec = &shot[ *this].m_dRFRefWave->at(0);
+		double omega = phaseOfRF(shot, 1);
+		for(int i = 0; i < length; ++i) {
+			vec[i] = std::polar(1.0, omega * i);
+		}
+	}
+
+	auto *wave_ref = &shot[ *this].m_dRFRefWave->at(0);
+	switch(shot[ *dRFMode()]) {
+	case DRFMODE_COHERENT_SG:
+		{
+			if(num_channels % 2 == 1)
+				throw XSkippedRecordError(__FILE__, __LINE__);
+			for(unsigned int i = 0; i < num_channels; i += 2) {
+				double *wave_re = tr[ *this].waveDisp(i);
+				double *wave_im = tr[ *this].waveDisp(i + 1);
+				for(int i = 0; i < length; ++i) {
+					auto z = wave_ref[i] * std::complex<double>(wave_re[i], wave_im[i]);
+					wave_re[i] = std::real(z);
+					wave_im[i] = std::imag(z);
+				}
+			}
+		}
+		break;
+	default:
+		{
+			for(unsigned int i = 0; i < num_channels; ++i) {
+				double *wave_re = tr[ *this].waveDisp(i);
+				for(int i = 0; i < length; ++i) {
+					wave_re[i] = std::real(wave_ref[i] * wave_re[i]);
+				}
+			}
+		}
+		break;
+	}
 }
 void
 XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
@@ -469,6 +556,9 @@ XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordErr
 	unsigned int num_channels = shot[ *this].numChannelsDisp();
 	if( !num_channels) {
 		throw XSkippedRecordError(__FILE__, __LINE__);
+	}
+	if(shot[ *dRFMode()] > DRFMODE_OFF) {
+		demodulateDisp(tr); //digital RF demodulation.
 	}
 	if(shot[ *firEnabled()]) {
 		double  bandwidth = shot[ *firBandWidth()] * 1000.0 * shot[ *this].timeIntervalDisp();
@@ -493,7 +583,7 @@ XDSO::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
     convertRawToDisp(reader, tr);
 
 	if(tr[ *this].m_rawDisplayOnly) {
-		throw XSkippedRecordError(__FILE__, __LINE__);
+		throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 	}
 	//    std::fill(m_wavesRecorded.begin(), m_wavesRecorded.end(), 0.0);
 	tr[ *this].m_numChannels = tr[ *this].m_numChannelsDisp;

@@ -660,15 +660,16 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
-	if( !shot[ *this].time() || !shot[ *this].m_avcount) {
-		for(Transaction tr( *this);; ++tr) {
-			tr[ *ftWaveGraph()].clearPoints();
-			tr[ *waveGraph()].clearPoints();
-			tr[ *m_peakPlot->maxCount()] = 0;
-			if(tr.commit())
-				break;
-		}
-		return;
+	for(Transaction tr( *this);; ++tr) {
+		Snapshot &shot(tr);
+		if(shot[ *this].time() && shot[ *this].m_avcount)
+			break;
+
+		tr[ *ftWaveGraph()].clearPoints();
+		tr[ *waveGraph()].clearPoints();
+		tr[ *m_peakPlot->maxCount()] = 0;
+		if(tr.commit())
+			return;
 	}
 
 	if(m_isPulseInversionRequested.compareAndSet((int)true, (int)false)) {
@@ -684,10 +685,12 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		}
 	}
 
-	const SpectrumSolver &solver(shot[ *m_solver].solver());
+	for(Transaction tr( *this);; ++tr) {
+		Snapshot &shot(tr);
+		const SpectrumSolver &solver(shot[ *m_solver].solver());
 
-	int ftsize = shot[ *this].m_ftWave.size();
-	for(Transaction tr( *ftWaveGraph());; ++tr) {
+		int ftsize = shot[ *this].m_ftWave.size();
+
 		tr[ *ftWaveGraph()].setRowCount(ftsize);
 		double normalize = 1.0 / shot[ *this].m_wave.size();
 		double darknormalize =
@@ -722,11 +725,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			points[i] = XGraph::ValPoint(0.001 * x * dfreq, peaks[i].first * normalize);
 		}
 		ftWaveGraph()->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
-	for(Transaction tr( *waveGraph());; ++tr) {
+
 		int length = shot[ *this].m_dsoWave.size();
 		const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
 		const std::complex<double> *ifft( &solver.ifft()[0]);
