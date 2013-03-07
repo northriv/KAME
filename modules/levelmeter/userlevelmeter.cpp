@@ -51,7 +51,7 @@ XLM500::getLevel(unsigned int ch) {
 	interface()->queryf("MEAS? %u", ch + 1);
 	if(interface()->scanf("MEAS? %u", &ch) == 1) {
 		//serial port echoes back.
-		interaface()->receive();
+		interface()->receive();
 	}
 	return interface()->toDouble();
 }
