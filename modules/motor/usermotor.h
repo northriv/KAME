@@ -40,6 +40,7 @@ protected:
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
+	void sendStopSignal(bool wait);
 };
 
 //ORIENTAL MOTOR FLEX AR/DG2 series.
@@ -63,6 +64,7 @@ protected:
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
+	void sendStopSignal(bool wait);
 };
 
 //ORIENTAL MOTOR EMP401.

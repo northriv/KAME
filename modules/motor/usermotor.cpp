@@ -109,6 +109,10 @@ XFlexCRK::getConditions(Transaction &tr) {
 }
 void
 XFlexCRK::stopRotation() {
+	sendStopSignal(false);
+}
+void
+XFlexCRK::sendStopSignal(bool wait) {
 	for(int i = 0;; ++i) {
 		uint32_t output = interface()->readHoldingTwoResistors(0x20); //reading status1:status2
 		bool isready = (output & 0x20000000u);
@@ -116,6 +120,8 @@ XFlexCRK::stopRotation() {
 		if(i ==0) {
 			interface()->presetSingleResistor(0x1e, 0x3001u); //C-ON, STOP, M0
 			interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
+			if( !wait)
+				break;
 		}
 		msecsleep(100);
 		if(i > 10) {
@@ -126,19 +132,17 @@ XFlexCRK::stopRotation() {
 void
 XFlexCRK::setForward() {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
 	interface()->presetSingleResistor(0x1e, 0x2201u); //C-ON, FWD, M0
 }
 void
 XFlexCRK::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
 	interface()->presetSingleResistor(0x1e, 0x2401u); //C-ON, RVS, M0
 }
 void
 XFlexCRK::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
+	sendStopSignal(true);
 	interface()->presetTwoResistors(0x402, lrint(target / 360.0 * shot[ *stepMotor()]));
 	interface()->presetSingleResistor(0x1e, 0x2101u); //C-ON, START, M0
 	interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
@@ -150,7 +154,7 @@ XFlexCRK::setActive(bool active) {
 		interface()->presetSingleResistor(0x1e, 0x2001u); //C-ON, M0
 	}
 	else {
-		stopRotation();
+		sendStopSignal(true);
 		interface()->presetSingleResistor(0x1e, 0x0001u); //M0
 	}
 }
@@ -240,7 +244,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	}
 
 	if(conf_needed) {
-		stopRotation();
+		sendStopSignal(true);
 		interface()->presetTwoResistors(0x18c, 1);
 		interface()->presetTwoResistors(0x18c, 0);
 	}
@@ -281,7 +285,7 @@ XFlexAR::getConditions(Transaction &tr) {
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
+	sendStopSignal(true);
 	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
 	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
 	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
@@ -289,6 +293,10 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
 }
 void
 XFlexAR::stopRotation() {
+	 sendStopSignal(false);
+}
+void
+XFlexAR::sendStopSignal(bool wait) {
 	for(int i = 0;; ++i) {
 		uint32_t output = interface()->readHoldingTwoResistors(0x7e);
 		bool isready = output & 0x20;
@@ -296,23 +304,23 @@ XFlexAR::stopRotation() {
 		if(i ==0) {
 			interface()->presetTwoResistors(0x7c, 0x20u); //STOP
 			interface()->presetTwoResistors(0x7c, 0x0u);
+			if( !wait)
+				break;
 		}
-		msecsleep(100);
+		msecsleep(150);
 		if(i > 10) {
-			gErrPrint(getLabel() + i18n(", Motor is still running"));
+			gWarnPrint(getLabel() + i18n(", Motor is still running"));
 		}
 	}
 }
 void
 XFlexAR::setForward() {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
 	interface()->presetTwoResistors(0x7c, 0x4000u); //FWD
 }
 void
 XFlexAR::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
-	stopRotation();
 	interface()->presetTwoResistors(0x7c, 0x8000u); //RVS
 }
 void
@@ -322,7 +330,7 @@ XFlexAR::setActive(bool active) {
 		interface()->presetTwoResistors(0x7c, 0x0u);
 	}
 	else {
-		stopRotation();
+		sendStopSignal(true);
 		interface()->presetTwoResistors(0x7c, 0x40u); //FREE
 	}
 }

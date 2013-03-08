@@ -159,6 +159,11 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 	catch (XKameError &e) {
 		e.print(getLabel() + " " + i18n("Read Error, "));
 	}
+	m_target->setUIEnabled(true);
+	m_rampTime->setUIEnabled(true);
+	m_openValve->setUIEnabled(true);
+	m_closeValve->setUIEnabled(true);
+	m_control->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *this].m_fullScale = fs;
