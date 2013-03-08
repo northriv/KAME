@@ -105,7 +105,7 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
 	if(m_pInterface->serialHasEchoBack() && (size >= 2)) {
 		for(int cnt = 0; cnt < size; ++cnt) {
 		//sends 1 char.
-			write(sendbuf[cnt], 1);
+			write(sendbuf + cnt, 1);
 		//waits for echo back.
 			receive(1);
 			if(buffer()[0] != sendbuf[cnt])

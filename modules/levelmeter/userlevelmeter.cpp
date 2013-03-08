@@ -44,14 +44,11 @@ XLM500::XLM500(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeRead(40);		
 	interface()->setSerialEOS("\r\n");
 	interface()->setSerialBaudRate(9600);
+	interface()->setSerialHasEchoBack(true);
 }
 
 double
 XLM500::getLevel(unsigned int ch) {
 	interface()->queryf("MEAS? %u", ch + 1);
-	if(interface()->scanf("MEAS? %u", &ch) == 1) {
-		//serial port echoes back.
-		interface()->receive();
-	}
 	return interface()->toDouble();
 }

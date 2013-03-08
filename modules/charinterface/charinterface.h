@@ -78,6 +78,7 @@ public:
 	void setSerial7Bits(bool enable) {m_serial7Bits = enable;}
 	void setSerialFlushBeforeWrite(bool x) {m_serialFlushBeforeWrite = x;}
 	void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
+	void setSerialHasEchoBack(bool x) {m_serialHasEchoBack = x;}
   
 	unsigned int serialBaudRate() const {return m_serialBaudRate;}
 	unsigned int serialStopBits() const {return m_serialStopBits;}
@@ -85,6 +86,7 @@ public:
 	bool serial7Bits() const {return m_serial7Bits;}
 	bool serialFlushBeforeWrite() const {return m_serialFlushBeforeWrite;}
 	const XString &serialEOS() const {return m_serialEOS;}
+	bool serialHasEchoBack() const {return m_serialHasEchoBack;}
 
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
@@ -105,6 +107,7 @@ private:
 	unsigned int m_serialParity;
 	bool m_serial7Bits;
 	bool m_serialFlushBeforeWrite;
+	bool m_serialHasEchoBack;
 	
 	shared_ptr<XPort> m_xport;
 

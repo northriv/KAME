@@ -35,14 +35,25 @@ XSecondaryDriverInterface<T>::requestAnalysis() {
 template <class T>
 void
 XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, XDriver *driver) {
+	Snapshot shot_all_drivers( *m_drivers.lock());
+	if( !shot_all_drivers.isUpperOf( *this))
+		return;
+	Snapshot shot_this( *this, shot_all_drivers);
+	Transaction tr(shot_this);
+	bool firsttime = true;
 	for(;;) {
-		Snapshot shot_all_drivers( *m_drivers.lock());
-		if( !shot_all_drivers.isUpperOf( *this))
-			return;
+		if( !firsttime) {
+			try {
+				shot_all_drivers = tr.newTransactionUsingSnapshotFor( *m_drivers.lock());
+				shot_this = tr;
+			}
+			catch (typename T::NodeNotFoundError &) {
+				return; //has been freed from the list.
+			}
+		}
+		firsttime = false;
 		if( !shot_all_drivers.isUpperOf( *driver))
-			return;
-		Transaction tr( *this, shot_all_drivers);
-		const Snapshot &shot_this(tr);
+			return; //driver has been freed from the list.
 
 		if(driver != this) {
 		//checking if emitter has already connected unless self-emitted.

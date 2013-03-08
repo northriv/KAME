@@ -501,14 +501,6 @@ public:
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 	}
-	//! Prepares a transaction for a subtree beneath \a node.
-	//! \param[in] x The snapshot containing the old value of \a node.
-	Transaction(Node<XN> &node, const Snapshot<XN> &x) :
-		Snapshot<XN>(node, x),
-		m_oldpacket(this->m_packet), m_multi_nodal(true) {
-		XTime time(XTime::now());
-		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-	}
 	virtual ~Transaction() {
 		//Do not leave the time stamp.
 		if(m_started_time) {
@@ -555,6 +547,19 @@ public:
 		m_messages.reset();
 		this->m_packet->node().snapshot( *this, m_multi_nodal);
 		return *this;
+	}
+	//! Prepares for a next transaction after taking a snapshot for \a supernode.
+	//! \return a snapshot for \a supernode.
+	Snapshot<XN> newTransactionUsingSnapshotFor(Node<XN> &supernode) {
+		Snapshot<XN> shot( *this); //for node persistence.
+		Node<XN> &node(this->m_packet->node());
+		this->operator++();
+		supernode.snapshot( *this, true);
+		Snapshot<XN> shot_super( *this);
+		Snapshot<XN> shot_this(node, shot_super);
+		this->Snapshot<XN>::operator=(shot_this);
+		this->m_oldpacket = this->m_packet;
+		return shot_super;
 	}
 
 	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.

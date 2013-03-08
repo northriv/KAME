@@ -59,6 +59,8 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
 	m_conAlarm = xqcon_create<XKLedConnector>(m_alarm, m_form->m_ledAlarm);
 	m_conWarning = xqcon_create<XKLedConnector>(m_warning, m_form->m_ledWarning);
+	m_conOpenValve = xqcon_create<XQButtonConnector>(m_openValve, m_form->m_btnOpenValve);
+	m_conCloseValve = xqcon_create<XQButtonConnector>(m_closeValve, m_form->m_btnCloseValve);
 }
 
 void
@@ -159,11 +161,6 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 	catch (XKameError &e) {
 		e.print(getLabel() + " " + i18n("Read Error, "));
 	}
-	m_target->setUIEnabled(true);
-	m_rampTime->setUIEnabled(true);
-	m_openValve->setUIEnabled(true);
-	m_closeValve->setUIEnabled(true);
-	m_control->setUIEnabled(true);
 
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *this].m_fullScale = fs;

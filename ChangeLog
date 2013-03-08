@@ -1,3 +1,9 @@
+* Fri Mar 8 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.5-1)
+- secondarydriverinterface: does negotiation.
+- flowcontroller: valves gets working.
+- serial, levelmeter: supports echo backs.
+
 * Tue Feb 19 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.4-1)
 - autotuner: better tuning.
