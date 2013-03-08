@@ -102,6 +102,18 @@ void
 XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
 
+	if(m_pInterface->serialHasEchoBack() && (size >= 2)) {
+		for(int cnt = 0; cnt < size; ++cnt) {
+		//sends 1 char.
+			write(sendbuf[cnt], 1);
+		//waits for echo back.
+			receive(1);
+			if(buffer()[0] != sendbuf[cnt])
+				throw XInterface::XCommError(i18n("inconsistent echo back"), __FILE__, __LINE__);
+		}
+		return;
+	}
+
 	if(m_pInterface->serialFlushBeforeWrite()) {
 		for (;;) {
 			int ret = tcflush(m_scifd, TCIFLUSH);
