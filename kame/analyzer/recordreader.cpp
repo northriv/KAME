@@ -98,9 +98,9 @@ XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "rb");
 }
 void
-XRawStreamRecordReader::readHeader(void *fd__)
+XRawStreamRecordReader::readHeader(void *_fd)
 	throw (XRawStreamRecordReader::XRecordError &) {
-	gzFile fd = static_cast<gzFile>(fd__);
+	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd))
 		throw XIOError(__FILE__, __LINE__);
@@ -117,9 +117,9 @@ XRawStreamRecordReader::readHeader(void *fd__)
 	m_time = XTime(sec, usec);
 }
 void
-XRawStreamRecordReader::parseOne(void *fd__, XMutex &mutex)
+XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex)
 	throw (XRawStreamRecordReader::XRecordError &) {
-	gzFile fd = static_cast<gzFile>(fd__);
+	gzFile fd = static_cast<gzFile>(_fd);
 
 	readHeader(fd);
 	char name[256], sup[256];
@@ -177,9 +177,9 @@ XRawStreamRecordReader::parseOne(void *fd__, XMutex &mutex)
 	}
 }
 void
-XRawStreamRecordReader::gzgetline(void* fd__, unsigned char*buf, unsigned int len, int del)
+XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int del)
 	throw (XIOError &) {
-	gzFile fd = static_cast<gzFile>(fd__);
+	gzFile fd = static_cast<gzFile>(_fd);
 
 	int c;
 	for(unsigned int i = 0; i < len; i++) {
@@ -211,9 +211,9 @@ XRawStreamRecordReader::next_(void *fd)
 	if(gzseek(static_cast<gzFile>(fd), m_allsize - headersize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::goToHeader(void *fd__)
+XRawStreamRecordReader::goToHeader(void *_fd)
 	throw (XRawStreamRecordReader::XRecordError &) {
-	gzFile fd = static_cast<gzFile>(fd__);
+	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);
 	std::vector<char> buf(sizeof(uint32_t));

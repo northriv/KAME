@@ -586,11 +586,11 @@ public:
 	//! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
 	template <typename T, typename tArgRef>
 	void mark(T &talker, tArgRef arg) {
-		Message__<XN> *m = talker.createMessage(arg);
+		Message_<XN> *m = talker.createMessage(arg);
 		if(m) {
 			if( !m_messages)
 				m_messages.reset(new MessageList);
-			m_messages->push_back(shared_ptr<Message__<XN> >(m));
+			m_messages->push_back(shared_ptr<Message_<XN> >(m));
 		}
 	}
 	//! Cancels reserved events made toward \a x.
@@ -611,7 +611,7 @@ private:
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
-	typedef std::deque<shared_ptr<Message__<XN> > > MessageList;
+	typedef std::deque<shared_ptr<Message_<XN> > > MessageList;
 	unique_ptr<MessageList> m_messages;
 };
 

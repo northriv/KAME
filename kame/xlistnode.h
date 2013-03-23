@@ -157,10 +157,10 @@ struct XTypeHolder {
 	std::deque<XString> names, labels;
 };
 
-#define DEFINE_TYPE_HOLDER_W_FUNC(tFunc__) \
-  typedef XTypeHolder<tFunc__> TypeHolder; \
+#define DEFINE_TYPE_HOLDER_W_FUNC(tFunc_) \
+  typedef XTypeHolder<tFunc_> TypeHolder; \
   static TypeHolder s_types; \
-  static tFunc__ creator(const XString &tp) {return s_types.creator(tp);} \
+  static tFunc_ creator(const XString &tp) {return s_types.creator(tp);} \
   static std::deque<XString> &typenames() {return s_types.names;} \
   static std::deque<XString> &typelabels() {return s_types.labels;}
 

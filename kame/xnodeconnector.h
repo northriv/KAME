@@ -46,11 +46,11 @@ public:
 
 class XQConnector;
 
-class XQConnectorHolder__ : public QObject {
+class XQConnectorHolder_ : public QObject {
 	Q_OBJECT
 public:
-	XQConnectorHolder__(XQConnector *con);
-	~XQConnectorHolder__();
+	XQConnectorHolder_(XQConnector *con);
+	~XQConnectorHolder_();
 	bool isAlive() const;
 private slots:
 		protected slots:
@@ -60,7 +60,7 @@ protected:
 public:
 };
 
-typedef qshared_ptr<XQConnectorHolder__> xqcon_ptr;
+typedef qshared_ptr<XQConnectorHolder_> xqcon_ptr;
 
 #include <xnodeconnector_prv.h>
 
@@ -108,7 +108,7 @@ public:
 private slots:
 protected slots:
 protected:
-	friend class XQConnectorHolder__;
+	friend class XQConnectorHolder_;
 	bool isItemAlive() const {return m_pWidget;}
 	shared_ptr<XListener> m_lsnUIEnabled;
 	void onUIFlagsChanged(const Snapshot &shot, XNode *node);

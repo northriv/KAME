@@ -303,12 +303,12 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
 						XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
 						XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
-						double min__ = std::min(src, dst);
-						double max__ = std::max(src, dst);
+						double _min = std::min(src, dst);
+						double _max = std::max(src, dst);
 						if(tr[ *m_foundAxis->minValue()].isUIEnabled())
-							tr[ *m_foundAxis->minValue()] = min__;
+							tr[ *m_foundAxis->minValue()] = _min;
 						if(tr[ *m_foundAxis->maxValue()].isUIEnabled())
-							tr[ *m_foundAxis->maxValue()] = max__;
+							tr[ *m_foundAxis->maxValue()] = _max;
 						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
 							tr[ *m_foundAxis->autoScale()] = false;
 					}

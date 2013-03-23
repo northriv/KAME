@@ -154,12 +154,13 @@ protected:
 	//! Loads waveforms and settings from the instrument.
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) = 0;
 	//! Converts the raw to a display-able style.
+	//! In the coherent SG mode,  real and imaginary parts should be stored in \a Payload::waveDisp().
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
 
 	virtual bool isDRFCoherentSGSupported() const {return false;}
 
 	//! Calculates RF phase for coherent detection, at given count.
-	double phaseOfRF(const Snapshot &shot_of_this, uint64_t count);
+	double phaseOfRF(const Snapshot &shot_of_this, uint64_t count, double interval);
 
 	const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
 private:

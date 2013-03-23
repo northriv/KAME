@@ -70,8 +70,8 @@ public:
 
 	template <class T__>
 	static shared_ptr<T__> createOrphan(const char *name) {return createOrphan<T__>(name, false);}
-	template <class T__, typename... Args__>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args__... args);
+	template <class T__, typename... Args_>
+	static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args_... args);
 
 	//! \return internal/scripting name. Use latin1 chars.
 	XString getName() const;

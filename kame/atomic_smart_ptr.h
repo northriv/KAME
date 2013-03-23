@@ -130,11 +130,11 @@ protected:
 	T *get() { return this->m_ref ? ((Ref*)this->m_ref)->ptr : NULL; }
 	const T *get() const { return this->m_ref ? ((const Ref*)this->m_ref)->ptr : NULL; }
 
-	int use_count__() const {return ((const Ref*)this->m_ref)->refcnt;}
+	int _use_count_() const {return ((const Ref*)this->m_ref)->refcnt;}
 
 	union {
 		RefLocal_ m_ref;
-		int64_t for_alignment__;
+		int64_t _for_alignment_;
 	}; // __attribute__((aligned(8)));
 	enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(intptr_t))};
 };
@@ -155,7 +155,7 @@ protected:
 	T *get() { return (T*)this->m_ref; }
 	const T *get() const { return (const T*)this->m_ref; }
 
-	int use_count__() const {return ((const T*)this->m_ref)->refcnt;}
+	int _use_count_() const {return ((const T*)this->m_ref)->refcnt;}
 
 	RefLocal_ m_ref;
 	enum {ATOMIC_SHARED_REF_ALIGNMENT = (sizeof(double))};
@@ -237,7 +237,7 @@ public:
 		static_assert(sizeof(static_cast<const T*>(x.get())), "");
 		readBarrier(); return (this->pref_() != (const Ref *)x.pref_());}
 
-	int use_count() const { return this->use_count__();}
+	int use_count() const { return this->_use_count_();}
 	bool unique() const {return use_count() == 1;}
 protected:
 	template <typename Y> friend class local_shared_ptr;

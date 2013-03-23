@@ -964,11 +964,11 @@ XAxis::axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *
 }
 XGraph::GFloat
 XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) {
-	XGraph::SFloat x__ = scr.x - shot[ *x()];
-	XGraph::SFloat y__ = scr.y - shot[ *y()];
-	XGraph::SFloat z__ = scr.z - shot[ *z()];
-	XGraph::GFloat pos = ((m_direction == DirAxisX) ? x__ :
-						  ((m_direction == DirAxisY) ? y__ : z__)) / (XGraph::SFloat)shot[ *length()];
+	XGraph::SFloat _x = scr.x - shot[ *x()];
+	XGraph::SFloat _y = scr.y - shot[ *y()];
+	XGraph::SFloat _z = scr.z - shot[ *z()];
+	XGraph::GFloat pos = ((m_direction == DirAxisX) ? _x :
+						  ((m_direction == DirAxisY) ? _y : _z)) / (XGraph::SFloat)shot[ *length()];
 	return pos;
 }
 XGraph::VFloat

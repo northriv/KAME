@@ -240,7 +240,7 @@
          <double>0.000000000000000</double>
         </property>
         <property name="suffix" stdset="0">
-         <string>%</string>
+         <string/>
         </property>
         <property name="minValue" stdset="0">
          <number>0</number>
@@ -249,7 +249,7 @@
          <number>0</number>
         </property>
         <property name="precision" stdset="0">
-         <number>1</number>
+         <number>2</number>
         </property>
        </widget>
       </item>

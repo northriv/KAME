@@ -15,23 +15,23 @@
 #define XSIGNAL_PRV_H_
 
 template <class Arg>
-class XListenerImpl__ : public XListener {
+class XListenerImpl_ : public XListener {
 protected:
-	XListenerImpl__(XListener::FLAGS flags)
+	XListenerImpl_(XListener::FLAGS flags)
 		: XListener(flags), arg() {}
 public:
-	virtual ~XListenerImpl__() {}
+	virtual ~XListenerImpl_() {}
 	virtual void operator() (const Arg &) const = 0;
 	//! is used when m_bAvoidDup is on.
 	atomic_unique_ptr<Arg> arg;
 };
 template <class Arg>
-class XListenerStatic__ : public XListenerImpl__<Arg> {
+class XListenerStatic_ : public XListenerImpl_<Arg> {
 	friend class XTalker<Arg>;
 protected:
-	XListenerStatic__(void (*func)(const Arg &),
+	XListenerStatic_(void (*func)(const Arg &),
 					 XListener::FLAGS flags) :
-		XListenerImpl__<Arg>(flags), m_func(func) {
+		XListenerImpl_<Arg>(flags), m_func(func) {
     }
 public:
 	virtual void operator() (const Arg &x) const {
@@ -41,12 +41,12 @@ private:
 	void (*const m_func)(const Arg &);
 };
 template <class tClass, class Arg>
-class XListenerWeak__ : public XListenerImpl__<Arg> {
+class XListenerWeak_ : public XListenerImpl_<Arg> {
 	friend class XTalker<Arg>;
 protected:
-	XListenerWeak__(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
+	XListenerWeak_(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
 				   XListener::FLAGS flags) :
-		XListenerImpl__<Arg>(flags), m_func(func), m_obj(obj) {
+		XListenerImpl_<Arg>(flags), m_func(func), m_obj(obj) {
     }
 public:
 	virtual void operator() (const Arg &x) const {
@@ -57,12 +57,12 @@ private:
 	const weak_ptr<tClass> m_obj;
 };
 template <class tClass, class Arg>
-class XListenerShared__ : public XListenerImpl__<Arg> {
+class XListenerShared_ : public XListenerImpl_<Arg> {
 	friend class XTalker<Arg>;
 protected:
-	XListenerShared__(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
+	XListenerShared_(const shared_ptr<tClass> &obj, void (tClass::*func)(const Arg &),
 					 XListener::FLAGS flags) :
-		XListenerImpl__<Arg>(flags), m_obj(obj), m_func(func)   {
+		XListenerImpl_<Arg>(flags), m_obj(obj), m_func(func)   {
         assert(obj);
 	}
 public:

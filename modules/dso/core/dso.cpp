@@ -108,9 +108,9 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
 	m_form->m_dockTrace1->show();
 	m_form->m_dockTrace1->raise();
-	m_form->tabifyDockWidget(m_form->m_dockFIR, m_form->m_dockRF);
-	m_form->m_dockRF->show();
-	m_form->m_dockFIR->raise();
+	m_form->tabifyDockWidget(m_form->m_dockTrigger, m_form->m_dockRF);
+	m_form->m_dockTrigger->show();
+	m_form->m_dockTrigger->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
 
 	for(Transaction tr( *this);; ++tr) {
@@ -130,6 +130,16 @@ XDSO::XDSO(const char *name, bool runtime,
 				tr[ *fetchMode()].add(*mode);
 		}
 		tr[ *fetchMode()] = FETCHMODE_SEQ;
+
+		 tr[ *dRFMode()].add("OFF");
+		 tr[ *dRFMode()].add("By Given Freq.");
+		 tr[ *dRFMode()].add("By SG Freq.");
+		 tr[ *dRFMode()].add("With Coherent SG");
+
+		m_lsnOnDRFCondChanged = tr[ *dRFMode()].onValueChanged().connectWeakly(
+			shared_from_this(), &XDSO::onDRFCondChanged);
+		 tr[ *dRFSG()].onValueChanged().connect(m_lsnOnDRFCondChanged);
+		 tr[ *dRFFreq()].onValueChanged().connect(m_lsnOnDRFCondChanged);
 
 		if(tr.commit())
 			break;
@@ -153,8 +163,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
-	dRFMode()->setUIEnabled(false);
-	dRFFreq()->setUIEnabled(false);
+//	dRFMode()->setUIEnabled(false);
+//	dRFFreq()->setUIEnabled(false);
 //	dRFSG()->setUIEnabled(false);
 
 	for(Transaction tr( *m_waveForm);; ++tr) {
@@ -325,16 +335,6 @@ XDSO::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XDSO::onForceTriggerTouched);
 		m_lsnOnRestartTouched = tr[ *restart()].onTouch().connectWeakly(
 			shared_from_this(), &XDSO::onRestartTouched);
-		m_lsnOnDRFCondChanged = tr[ *dRFMode()].onValueChanged().connectWeakly(
-			shared_from_this(), &XDSO::onDRFCondChanged);
-		 tr[ *dRFSG()].onValueChanged().connect(m_lsnOnDRFCondChanged);
-		 tr[ *dRFFreq()].onValueChanged().connect(m_lsnOnDRFCondChanged);
-
-		 tr[ *dRFMode()].add("OFF");
-		 tr[ *dRFMode()].add("By Given Freq.");
-		 tr[ *dRFMode()].add("By SG Freq.");
-		 if(isDRFCoherentSGSupported())
-			 tr[ *dRFMode()].add("With Coherent SG");
 		 if(tr.commit())
 			break;
 	}
@@ -447,8 +447,8 @@ XDSO::execute(const atomic<bool> &terminated) {
 	vOffset4()->setUIEnabled(false);
 	forceTrigger()->setUIEnabled(false);
 	recordLength()->setUIEnabled(false);
-	dRFMode()->setUIEnabled(false);
-	dRFFreq()->setUIEnabled(false);
+//	dRFMode()->setUIEnabled(false);
+//	dRFFreq()->setUIEnabled(false);
 //	dRFSG()->setUIEnabled(false);
 
 	m_lsnOnAverageChanged.reset();
@@ -493,10 +493,28 @@ XDSO::onDRFCondChanged(const Snapshot &shot, XValueNodeBase *) {
 	}
 }
 double
-XDSO::phaseOfRF(const Snapshot &shot_of_this, uint64_t count) {
-	double freq = shot_of_this[ *dRFFreq()];
-	double interv = getTimeInterval();
-	return 2.0 * M_PI * freq * interv * count;
+XDSO::phaseOfRF(const Snapshot &shot_of_this, uint64_t count, double interval) {
+	double freq;
+	switch (shot_of_this[ *dRFMode()]) {
+	default:
+		return 0.0;
+	case DRFMODE_GIVEN_FREQ:
+		freq = shot_of_this[ *dRFFreq()] * 1e6;
+		break;
+	case DRFMODE_COHERENT_SG:
+	case DRFMODE_FREQ_BY_SG:
+		shared_ptr<XSG> sg = shot_of_this[ *dRFSG()];
+		if( !sg)
+			return 0.0;
+		freq = ***sg->freq() * 1e6;
+		break;
+	}
+	const uint64_t tens = 10000000000uLL; //# of tens for SG PLL.
+	uint64_t a = llrint(freq * interval * tens);
+	a = a % tens;
+	count = count % tens;
+	double x = ((long double)a * count) / tens;
+	return 2.0 * M_PI * x; //2pi f/T
 }
 void
 XDSO::Payload::setParameters(unsigned int channels, double startpos, double interval, unsigned int length) {
@@ -513,9 +531,10 @@ XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
 	if( !shot[ *this].m_dRFRefWave) {
 		tr[ *this].m_dRFRefWave.reset(new std::vector<std::complex<double> >(length));
 		auto *vec = &shot[ *this].m_dRFRefWave->at(0);
-		double omega = phaseOfRF(shot, 1);
+		double omega = phaseOfRF(shot, 1, shot[ *this].timeIntervalDisp());
+		double trigpos = shot[ *this].trigPosDisp();
 		for(int i = 0; i < length; ++i) {
-			vec[i] = std::polar(1.0, omega * i);
+			vec[i] = std::polar(1.0, omega * (i - trigpos));
 		}
 	}
 
@@ -523,8 +542,10 @@ XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
 	switch(shot[ *dRFMode()]) {
 	case DRFMODE_COHERENT_SG:
 		{
+			 if( !isDRFCoherentSGSupported())
+					throw XSkippedRecordError(i18n("RF with coherent SG is not supported."), __FILE__, __LINE__);
 			if(num_channels % 2 == 1)
-				throw XSkippedRecordError(__FILE__, __LINE__);
+				throw XSkippedRecordError(i18n("Inconsistent number of channels."), __FILE__, __LINE__);
 			for(unsigned int i = 0; i < num_channels; i += 2) {
 				double *wave_re = tr[ *this].waveDisp(i);
 				double *wave_im = tr[ *this].waveDisp(i + 1);

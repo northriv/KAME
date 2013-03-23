@@ -65,7 +65,6 @@ protected:
 	virtual bool isDRFCoherentSGSupported() const {return true;}
 private:
 	typedef int16 tRawAI;
-	unique_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_trigRoute;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	shared_ptr<XListener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
 	void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
@@ -83,6 +82,7 @@ private:
 		unsigned int accumCount;
 		unsigned int recordLength;
 		int acqCount;
+		bool isComplex; //true in the coherent SG mode.
 		std::vector<int32_t> record;
 		atomic<int> locked;
 		bool tryLock() {
@@ -100,7 +100,7 @@ private:
 	int m_dsoRawRecordBankLatest;
 	//! for moving av.
 	std::deque<std::vector<tRawAI> > m_record_av; 
-	TaskHandle m_task;
+	TaskHandle m_task, m_taskFreqOut;
 	double m_interval;
 	unsigned int m_preTriggerPos;
 	void clearAcquision();
@@ -118,6 +118,8 @@ private:
 	XRecursiveMutex m_readMutex;
 
 	inline bool tryReadAISuspend(const atomic<bool> &terminated);
+	void configureFreqOutPin();
+//	unique_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_freqOutRoute, m_sampleClockRoute;
 };
 
 #endif

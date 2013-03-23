@@ -118,13 +118,13 @@ protected:
 };
 //! A pointer to a XListNode TL, T1 is value type
 template <class TL, class T1>
-class XItemNode__ : public XPointerItemNode<TL> {
+class XItemNode_ : public XPointerItemNode<TL> {
 public:
-	XItemNode__(const char *name, bool runtime, Transaction &tr_list,
+	XItemNode_(const char *name, bool runtime, Transaction &tr_list,
 		const shared_ptr<TL> &list, bool auto_set_any = false)
 		:  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
 	}
-	virtual ~XItemNode__() {}
+	virtual ~XItemNode_() {}
 
 	struct Payload : public XPointerItemNode<TL>::Payload {
 		Payload() : XPointerItemNode<TL>::Payload() {}
@@ -139,19 +139,19 @@ public:
 };
 //! A pointer to a XListNode TL, T is value type
 template <class TL, class T1, class T2 = T1>
-class XItemNode : public XItemNode__<TL, T1> {
+class XItemNode : public XItemNode_<TL, T1> {
 public:
 	XItemNode(const char *name, bool runtime, Transaction &tr_list,
 		const shared_ptr<TL> &list, bool auto_set_any = false)
-		:  XItemNode__<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
+		:  XItemNode_<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
 	}
 	virtual ~XItemNode() {}
 
-	struct Payload : public XItemNode__<TL, T1>::Payload {
-		Payload() : XItemNode__<TL, T1>::Payload() {}
+	struct Payload : public XItemNode_<TL, T1>::Payload {
+		Payload() : XItemNode_<TL, T1>::Payload() {}
 		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>) *this);}
 		Payload &operator=(const shared_ptr<XNode> &t) {
-			XItemNode__<TL, T1>::Payload::operator=(t);
+			XItemNode_<TL, T1>::Payload::operator=(t);
 			return *this;
 		}
 	};

@@ -55,24 +55,24 @@ void sharedPtrQDeleter_(QObject *obj) {
         obj->deleteLater();
 }
 
-XQConnectorHolder__::XQConnectorHolder__(XQConnector *con) :
+XQConnectorHolder_::XQConnectorHolder_(XQConnector *con) :
     QObject(0L) {
     m_connector = s_conCreating.back();
     s_conCreating.pop_back();
     connect(con->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
     assert(con->shared_from_this());
 }
-XQConnectorHolder__::~XQConnectorHolder__() {
+XQConnectorHolder_::~XQConnectorHolder_() {
     if(m_connector)
         disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
 }
 bool
-XQConnectorHolder__::isAlive() const {
+XQConnectorHolder_::isAlive() const {
     return !!m_connector;
 }
 
 void
-XQConnectorHolder__::destroyed () {
+XQConnectorHolder_::destroyed () {
 	disconnect(m_connector->m_pWidget, SIGNAL( destroyed() ), this, SLOT( destroyed() ) );
 	std::map<const QWidget*, weak_ptr<XNode> >::iterator it = s_widgetMap.find(m_connector->m_pWidget);
 	assert(it != s_widgetMap.end());

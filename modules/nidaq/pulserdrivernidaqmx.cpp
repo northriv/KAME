@@ -19,6 +19,10 @@
 //! "BUG: sleeping function called from invalid context at mm/slub.c:..."
 //! Perhaps a global lock on DAQmx functions is necessary....
 
+// The following terminals are internally used.
+// Ctr0InternalOutput
+// When "PausingBit" is enabled, Ctr1InternalOutput and PFI4
+
 #define PAUSING_BLANK_BEFORE 1u
 #define PAUSING_BLANK_AFTER 1u
 
@@ -333,7 +337,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		}
 //		CHECK_DAQMX_RET(DAQmxSetAOReglitchEnable(m_taskAO, ch, false));
 	}
-
+	//Voltage calibration/ranges.
 	for(unsigned int ch = 0; ch < NUM_AO_CH; ch++) {
 		//obtain range info.
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)

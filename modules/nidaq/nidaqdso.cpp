@@ -26,6 +26,9 @@
 #include <kmessagebox.h>
 #include "xwavengraph.h"
 
+//PFI7 is connected to ai/SampleClock
+//FREQ OUT is set to 10MHz output.
+
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 
 #define TASK_UNDEF ((TaskHandle)-1)
@@ -35,7 +38,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XNIDAQmxDriver<XDSO>(name, runtime, ref(tr_meas), meas),
 	m_dsoRawRecordBankLatest(0),
-	m_task(TASK_UNDEF) {
+	m_task(TASK_UNDEF), m_taskFreqOut(TASK_UNDEF) {
 
 	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
 	for(Transaction tr( *this);; ++tr) {
@@ -184,6 +187,11 @@ XNIDAQmxDSO::close() throw (XKameError &) {
 	m_recordBuf.clear();
 	m_record_av.clear();
 
+	if(m_taskFreqOut != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxClearTask(m_taskFreqOut));
+	}
+	m_taskFreqOut = TASK_UNDEF;
+
 	interface()->stop();
 }
 void
@@ -224,7 +232,6 @@ XNIDAQmxDSO::disableTrigger() {
 	}
 
 	m_preTriggerPos = 0;
-	m_trigRoute.reset();
 
 	//reset virtual trigger setup.
 	if(m_softwareTrigger)
@@ -355,7 +362,7 @@ XNIDAQmxDSO::setupTiming() {
 	const unsigned int len = shot[ *recordLength()];
 	for(unsigned int i = 0; i < 2; i++) {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
-		rec.record.resize(len * num_ch);
+		rec.record.resize(len * num_ch * (rec.isComplex ? 2 : 1));
 		assert(rec.numCh == num_ch);
 		if(g_bUseMLock) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
@@ -388,6 +395,8 @@ XNIDAQmxDSO::setupTiming() {
 
 	interface()->synchronizeClock(m_task);
 
+	configureFreqOutPin();
+
 	{
 		uInt32 size;
 		CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &size));
@@ -398,6 +407,11 @@ XNIDAQmxDSO::setupTiming() {
 		}
 	}
 
+	CHECK_DAQMX_RET(DAQmxSetExportedSampClkOutputTerm(m_task, formatString("/%s/PFI7", interface()->devName()).c_str()));
+//    m_sampleClockRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+//    										formatString("/%s/ai/SampleClock", interface()->devName()).c_str(),
+//    										formatString("/%s/PFI7", interface()->devName()).c_str()));
+
 	float64 rate;
 	//	CHECK_DAQMX_RET(DAQmxGetRefClkRate(m_task, &rate));
 	//	dbgPrint(QString("Reference Clk rate = %1.").arg(rate));
@@ -407,6 +421,24 @@ XNIDAQmxDSO::setupTiming() {
 	setupTrigger();
 
 	startSequence();
+}
+void
+XNIDAQmxDSO::configureFreqOutPin() {
+	XString freqout = formatString("/%s/FrequencyOutput", interface()->devName());
+	XString ctrdev = formatString("%s/freqout", interface()->devName());
+	//Continuous pulse train generation. Duty = 50%.
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskFreqOut));
+    double freq = 10e6; //10MHz
+	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskFreqOut,
+											   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+											   freq, 0.5));
+   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxPulser::onTaskDone_, this));
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), formatString("/%s/PFI14", interface()->devName()).c_str()));
+	CHECK_DAQMX_RET(DAQmxStartTask(m_taskFreqOut));
+//	m_freqOutRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+//    										freqout.c_str(),
+//    										formatString("/%s/PFI14", interface()->devName()).c_str()));
 }
 void
 XNIDAQmxDSO::createChannels() {
@@ -504,6 +536,7 @@ XNIDAQmxDSO::createChannels() {
 		rec.acqCount = 0;
 		rec.accumCount = 0;
 		rec.numCh = num_ch;
+		rec.isComplex = (shot[ *dRFMode()] == DRFMODE_COHERENT_SG);
 	}
 
 	if(num_ch == 0)  {
@@ -633,6 +666,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 		const float64 freq = 1.0 / m_interval;
 		unsigned int cnt = 0;
 
+		uint64_t samplecnt_at_trigger = 0;
 		if(m_softwareTrigger) {
 			shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
 
@@ -641,10 +675,11 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 					return;
 				uInt64 total_samps;
 				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-				if(uint64_t lastcnt = vt->tryPopFront(total_samps, freq)) {
+				samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
+				if(samplecnt_at_trigger) {
 					uInt32 bufsize;
 					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-					if(total_samps - lastcnt + m_preTriggerPos > bufsize * 4 / 5) {
+					if(total_samps - samplecnt_at_trigger + m_preTriggerPos > bufsize * 4 / 5) {
 						gWarnPrint(i18n("Buffer Overflow."));
 						continue;
 					}
@@ -661,7 +696,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 					CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 					uInt64 curr_rdpos;
 					CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
-					int32 offset = lastcnt - m_preTriggerPos - curr_rdpos;
+					int32 offset = samplecnt_at_trigger - m_preTriggerPos - curr_rdpos;
 					CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
 					//					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
 					break;
@@ -746,21 +781,48 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 		tRawAI *pbuf = &m_recordBuf[0];
 		const int32_t *pold = &old_rec.record[0];
 		int32_t *paccum = &new_rec.record[0];
-		//for optimization.
+		//Optimized accumlation.
 		unsigned int div = bufsize / 4;
 		unsigned int rest = bufsize % 4;
-		for(unsigned int i = 0; i < div; i++) {
-			*paccum++ = *pold++ + *pbuf++;
-			*paccum++ = *pold++ + *pbuf++;
-			*paccum++ = *pold++ + *pbuf++;
-			*paccum++ = *pold++ + *pbuf++;
+		if(new_rec.isComplex) {
+			double ph = phaseOfRF(shot, samplecnt_at_trigger, m_interval);
+			double cosph = cos(ph);
+			double sinph = sin(ph);
+			//real part.
+			for(unsigned int i = 0; i < div; i++) {
+				*paccum++ = *pold++ + *pbuf++ * cosph;
+				*paccum++ = *pold++ + *pbuf++ * cosph;
+				*paccum++ = *pold++ + *pbuf++ * cosph;
+				*paccum++ = *pold++ + *pbuf++ * cosph;
+			}
+			for(unsigned int i = 0; i < rest; i++)
+				*paccum++ = *pold++ + *pbuf++ * cosph;
+			//imag part.
+			for(unsigned int i = 0; i < div; i++) {
+				*paccum++ = *pold++ + *pbuf++ * sinph;
+				*paccum++ = *pold++ + *pbuf++ * sinph;
+				*paccum++ = *pold++ + *pbuf++ * sinph;
+				*paccum++ = *pold++ + *pbuf++ * sinph;
+			}
+			for(unsigned int i = 0; i < rest; i++)
+				*paccum++ = *pold++ + *pbuf++ * cosph;
 		}
-		for(unsigned int i = 0; i < rest; i++)
-			*paccum++ = *pold++ + *pbuf++;
+		else {
+			for(unsigned int i = 0; i < div; i++) {
+				*paccum++ = *pold++ + *pbuf++;
+				*paccum++ = *pold++ + *pbuf++;
+				*paccum++ = *pold++ + *pbuf++;
+				*paccum++ = *pold++ + *pbuf++;
+			}
+			for(unsigned int i = 0; i < rest; i++)
+				*paccum++ = *pold++ + *pbuf++;
+		}
 		new_rec.acqCount = old_rec.acqCount + 1;
 		accumcnt++;
 
-		while(!sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
+		while( !sseq && (av <= m_record_av.size()) && !m_record_av.empty())  {
+			if(new_rec.isComplex)
+				throw XInterface::XInterfaceError(i18n("Moving average with coherent SG is not supported."), __FILE__, __LINE__);
 			int32_t *paccum = &(new_rec.record[0]);
 			tRawAI *psub = &(m_record_av.front()[0]);
 			unsigned int div = bufsize / 4;
@@ -808,7 +870,7 @@ XNIDAQmxDSO::startSequence() {
 		DSORawRecord &rec(m_dsoRawRecordBanks[0]);
 		if(!rec.numCh)
 			return;
-		rec.recordLength = rec.record.size() / rec.numCh;
+		rec.recordLength = rec.record.size() / rec.numCh / (rec.isComplex ? 2 : 1);
 		memset(&rec.record[0], 0, rec.record.size() * sizeof(int32_t));
 	}
 	m_record_av.clear();
@@ -888,12 +950,14 @@ XNIDAQmxDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 		rec.unlock();
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
 	}
-	const uInt32 num_ch = rec.numCh;
-	const uInt32 len = rec.recordLength;
+	uInt32 num_ch = rec.numCh;
+	uInt32 len = rec.recordLength;
 
 	char buf[2048];
 	CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
 
+	if(rec.isComplex)
+		num_ch *= 2;
 	writer->push((uint32_t)num_ch);
 	writer->push((uint32_t)m_preTriggerPos);
 	writer->push((uint32_t)len);
@@ -901,7 +965,9 @@ XNIDAQmxDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 	writer->push((double)m_interval);
 	for(unsigned int ch = 0; ch < num_ch; ch++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
-			writer->push((double)m_coeffAI[ch][i]);
+			int ch_real = ch;
+			if(rec.isComplex) ch_real = ch / 2;
+			writer->push((double)m_coeffAI[ch_real][i]);
 		}
 	}
 	const int32_t *p = &(rec.record[0]);
@@ -925,8 +991,8 @@ XNIDAQmxDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordEr
 
 	tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
-	double *wave[NUM_MAX_CH];
-	float64 coeff[NUM_MAX_CH][CAL_POLY_ORDER];
+	double *wave[NUM_MAX_CH * 2];
+	float64 coeff[NUM_MAX_CH * 2][CAL_POLY_ORDER];
 	for(unsigned int j = 0; j < num_ch; j++) {
 		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
 			coeff[j][i] = reader.pop<double>();
