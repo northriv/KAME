@@ -434,7 +434,7 @@ XNIDAQmxDSO::configureFreqOutPin() {
 											   freq, 0.5));
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxDSO::onTaskDone_, this));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
-	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), formatString("/%s/frequencyOutput", interface()->devName()).c_str()));
+	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), "frequencyOutput"));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskFreqOut));
 //	m_freqOutRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
 //    										freqout.c_str(),
