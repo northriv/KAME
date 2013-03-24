@@ -249,8 +249,6 @@ XNIDAQmxInterface::busArchType() const {
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	const float64 rate = g_pciClockMasterRate;
-	if(rate == 0.0)
-		return;
 	if(devName() == g_pciClockMaster) {
 		return;
 	}
@@ -408,7 +406,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 		}
 		if(pcidevs.size() > 1) {
 			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-				rtsi_term = formatString("/%s/RTSI7", it->c_str());
+				XString rtsi_term = formatString("/%s/RTSI7", it->c_str());
 				if(routeExternalClockSource(it->c_str(),  rtsi_term.c_str()))
 					break;
 
@@ -500,13 +498,9 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	for(uint64_t *f = freq_cand; *f; ++f) {
 		if(fabs(freq - *f) < *f * 0.08) {
 			g_pciClockMasterRate = *f;
-			g_pciClockMaster = dev;
 			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-			route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-							inp_term, rtsi_term));
+			route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(inp_term, rtsi_term));
 			g_daqmx_sync_routes.push_back(route);
-			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, inp_term.c_str()));
-			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, *f));
 			fprintf(stderr, "Reference Clock exported from %s\n", inp_term.c_str());
 			return true;
 		}
