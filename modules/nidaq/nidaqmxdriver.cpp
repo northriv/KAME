@@ -499,7 +499,7 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 		if(fabs(freq - *f) < *f * 0.08) {
 			g_pciClockMasterRate = *f;
 			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-			route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(inp_term, rtsi_term));
+			route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(inp_term.c_str(), rtsi_term.c_str()));
 			g_daqmx_sync_routes.push_back(route);
 			fprintf(stderr, "Reference Clock exported from %s\n", inp_term.c_str());
 			return true;
