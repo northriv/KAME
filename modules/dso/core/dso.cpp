@@ -473,7 +473,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 	m_lsnOnForceTriggerTouched.reset();
 	m_lsnOnRestartTouched.reset();
 	m_lsnOnRecordLengthChanged.reset();
-	m_lsnOnDRFCondChanged.reset();
+//	m_lsnOnDRFCondChanged.reset();
 
 	return NULL;
 }
