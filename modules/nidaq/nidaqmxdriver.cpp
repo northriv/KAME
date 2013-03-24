@@ -487,10 +487,12 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
 	float64 freq;
-	CHECK_DAQMX_RET(DAQmxReadCounterScalarF64(taskCounting, 2, &freq, NULL));
-	fprintf(stderr, "%.5g Hz detected at the counter input term %s.\n", (double)freq, inp_term.c_str());
+	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.1, &freq, NULL);
 	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
+	if( !ret)
+		return false;
+	fprintf(stderr, "%.5g Hz detected at the counter input term %s.\n", (double)freq, inp_term.c_str());
 
 	uint64_t freq_cand[] = {10000000, 20000000, 0};
 	for(uint64_t *f = freq_cand; *f; ++f) {
