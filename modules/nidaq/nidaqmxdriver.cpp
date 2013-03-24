@@ -482,16 +482,15 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	CHECK_DAQMX_RET(DAQmxCreateCIFreqChan(taskCounting,
 		ctrdev.c_str(), "", 100000, 2000000, DAQmx_Val_Hz,
 		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.001, 20, ""));
-	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_FiniteSamps, 1));
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
 	msecsleep(100); //measuring.
-	DAQmxStopTask(taskCounting);
-
 	float64 freq;
 	CHECK_DAQMX_RET(DAQmxReadCounterScalarF64(taskCounting, 2, &freq, NULL));
 	fprintf(stderr, "%.5g Hz detected at the counter input term %s.\n", (double)freq, inp_term.c_str());
+	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
 
 	uint64_t freq_cand[] = {10000000, 20000000, 0};
