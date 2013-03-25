@@ -484,7 +484,7 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	CHECK_DAQMX_RET(DAQmxCreateTask("",&taskCounting));
 	CHECK_DAQMX_RET(DAQmxCreateCIFreqChan(taskCounting,
 		ctrdev.c_str(), "", 1000000, 25000000, DAQmx_Val_Hz,
-		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 4, NULL));
+		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 10000, NULL));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_ContSamps, 1000));
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
