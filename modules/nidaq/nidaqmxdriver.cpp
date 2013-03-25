@@ -491,7 +491,6 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
 	float64 freq = 0.0;
 	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
-	ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
 	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
 	if(ret)
