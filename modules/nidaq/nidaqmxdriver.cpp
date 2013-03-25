@@ -409,29 +409,32 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				XString rtsi_term = formatString("/%s/RTSI7", it->c_str());
 				if(routeExternalClockSource(it->c_str(),  rtsi_term.c_str()))
 					break;
-
-				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-				XString type = buf;
-				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == XString("S"))) {
-						//M series device cannot export 20MHzTimebase freely.
-						//RTSI synchronizations.
-						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-						float64 freq = 20.0e6;
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-										formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
-										rtsi_term.c_str()));
-						g_daqmx_sync_routes.push_back(route);
-						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
-						g_pciClockMaster = *it;
-						g_pciClockMasterRate = freq;
-						break;
-					}
-				}
-				if(g_pciClockMaster.length())
-					break;
 			}
-			if( !g_pciClockMaster.length()) {
+			if(g_pciClockMasterRate != 0.0) {
+				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+					XString type = buf;
+					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+						if((pit->type == type) && (pit->series == XString("S"))) {
+							//M series device cannot export 20MHzTimebase freely.
+							//RTSI synchronizations.
+							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+							float64 freq = 20.0e6;
+							route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+											formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
+											formatString("/%s/RTSI7", it->c_str()).c_str()));
+							g_daqmx_sync_routes.push_back(route);
+							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
+							g_pciClockMaster = *it;
+							g_pciClockMasterRate = freq;
+							break;
+						}
+					}
+					if(g_pciClockMaster.length())
+						break;
+				}
+			}
+			if(g_pciClockMasterRate != 0.0) {
 				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					//Assuming M series only.
 					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
@@ -486,11 +489,11 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
-	float64 freq;
+	float64 freq = 0.0;
 	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.1, &freq, NULL);
 	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
-	if( !ret)
+	if(ret)
 		return false;
 	fprintf(stderr, "%.5g Hz detected at the counter input term %s.\n", (double)freq, inp_term.c_str());
 
