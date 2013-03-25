@@ -410,7 +410,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				if(routeExternalClockSource(it->c_str(),  rtsi_term.c_str()))
 					break;
 			}
-			if(g_pciClockMasterRate != 0.0) {
+			if(g_pciClockMasterRate == 0.0) {
 				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 					XString type = buf;
@@ -434,7 +434,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						break;
 				}
 			}
-			if(g_pciClockMasterRate != 0.0) {
+			if(g_pciClockMasterRate == 0.0) {
 				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					//Assuming M series only.
 					CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
@@ -483,8 +483,8 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	//Measures an external source frequency.
 	CHECK_DAQMX_RET(DAQmxCreateTask("",&taskCounting));
 	CHECK_DAQMX_RET(DAQmxCreateCIFreqChan(taskCounting,
-		ctrdev.c_str(), "", 100000, 2000000, DAQmx_Val_Hz,
-		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.001, 20, ""));
+		ctrdev.c_str(), "", 1000000, 2000000, DAQmx_Val_Hz,
+		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 20, ""));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_ContSamps, 1000));
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
