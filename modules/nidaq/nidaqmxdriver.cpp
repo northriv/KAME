@@ -483,14 +483,16 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	//Measures an external source frequency.
 	CHECK_DAQMX_RET(DAQmxCreateTask("",&taskCounting));
 	CHECK_DAQMX_RET(DAQmxCreateCIFreqChan(taskCounting,
-		ctrdev.c_str(), "", 1000000, 25000000, DAQmx_Val_Hz,
-		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 10000, NULL));
+		ctrdev.c_str(), "", 1000000, 20000000, DAQmx_Val_Hz,
+		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 1000, NULL));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_ContSamps, 1000));
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
 	float64 freq = 0.0;
-	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
+//	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
+	float64 duty = 0.0;
+	int32 ret = DAQmxReadCtrFreqScalar(taskCounting, 0.05, &freq, &duty, NULL);
 	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
 	if(ret)
