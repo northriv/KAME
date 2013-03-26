@@ -483,20 +483,19 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 	//Measures an external source frequency.
 	CHECK_DAQMX_RET(DAQmxCreateTask("",&taskCounting));
 	CHECK_DAQMX_RET(DAQmxCreateCIFreqChan(taskCounting,
-		ctrdev.c_str(), "", 1000000, 20000000, DAQmx_Val_Hz,
-		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 1000, NULL));
+		ctrdev.c_str(), "", 1000000, 25000000, DAQmx_Val_Hz,
+		DAQmx_Val_Rising, DAQmx_Val_LargeRng2Ctr, 0.01, 100, NULL));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(taskCounting, DAQmx_Val_ContSamps, 1000));
 	CHECK_DAQMX_RET(DAQmxSetCIFreqTerm(taskCounting, ctrdev.c_str(), inp_term.c_str()));
 
 	CHECK_DAQMX_RET(DAQmxStartTask(taskCounting));
-	float64 freq = 0.0;
-//	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
 	float64 data[1000];
 	int32 cnt;
 	int32 ret = DAQmxReadCounterF64(taskCounting, 1000, 0.05, data,1000, &cnt, 0);
-	for(int i = 0; i < cnt; ++i)
-		fprintf(stderr, "%.5g\n", data[i]);
-	freq = data[0];
+	float64 freq = 0.0;
+	for(int i = cnt / 2; i < cnt; ++i)
+		freq += data[i];
+	freq /= cnt - cnt / 2; //averaging.
 	DAQmxStopTask(taskCounting);
 	DAQmxClearTask(taskCounting);
 	if(ret)
@@ -505,7 +504,7 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 
 	uint64_t freq_cand[] = {10000000, 20000000, 0};
 	for(uint64_t *f = freq_cand; *f; ++f) {
-		if(fabs(freq - *f) < *f * 0.08) {
+		if(fabs(freq - *f) < *f * 0.01) {
 			g_pciClockMasterRate = *f;
 			shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 			route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(inp_term.c_str(), rtsi_term));
