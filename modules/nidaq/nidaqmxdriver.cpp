@@ -413,8 +413,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 					if((pit->type == type) && (pit->series == XString("S"))) {
 						//M series device cannot export 20MHzTimebase freely.
-						XString inp_term = formatString("/%s/PFI9", dev);
-						if(routeExternalClockSource(it->c_str(),  inp_term.c_str(), rtsi_term.c_str())) {
+						XString inp_term = formatString("/%s/PFI9", it->c_str());
+						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 							fprintf(stderr, "Reference Clock Set to %s\n", inp_term.c_str());
 							CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(g_task_master_clock, inp_term.c_str()));
 							CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(g_task_master_clock, g_pciClockMasterRate));
@@ -442,8 +442,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					XString type = buf;
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
-							XString inp_term = formatString("/%s/PFI9", dev);
-							if(routeExternalClockSource(it->c_str(),  inp_term.c_str(), rtsi_term.c_str())) {
+							XString inp_term = formatString("/%s/PFI9", it->c_str());
+							if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 								fprintf(stderr, "Reference Clock Set to %s\n", inp_term.c_str());
 								CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_task_master_clock, inp_term.c_str()));
 								CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_task_master_clock, g_pciClockMasterRate));

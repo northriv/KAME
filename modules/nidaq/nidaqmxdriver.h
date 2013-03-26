@@ -167,7 +167,7 @@ protected:
 	virtual void close() throw (XInterfaceError &);
 private:
 	//! \return true if an external source is detected and rounted.
-	bool routeExternalClockSource(const char *dev, const char *inp_term, const char *rtsi_term);
+	bool routeExternalClockSource(const char *dev, const char *inp_term);
 
 	struct ProductInfo {
 	  	const char *type;
