@@ -483,7 +483,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 #endif //HAVE_NI_DAQMX
 }
 bool
-XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_term, const char *rtsi_term) {
+XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_term) {
 	XString ctrdev = formatString("/%s/ctr0", dev);
 	TaskHandle taskCounting = 0;
 	//Measures an external source frequency.
