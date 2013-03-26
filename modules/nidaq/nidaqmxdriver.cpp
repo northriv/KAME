@@ -493,7 +493,7 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *rtsi_te
 //	int32 ret = DAQmxReadCounterScalarF64(taskCounting, 0.05, &freq, NULL);
 	float64 data[1000];
 	int32 cnt;
-	int32 ret = DAQmxReadCounterF64(taskHandle, 1000, 0.05, data,1000, &cnt, 0);
+	int32 ret = DAQmxReadCounterF64(taskCounting, 1000, 0.05, data,1000, &cnt, 0);
 	for(int i = 0; i < cnt; ++i)
 		fprintf(stderr, "%.5g\n", data[i]);
 	freq = data[0];
