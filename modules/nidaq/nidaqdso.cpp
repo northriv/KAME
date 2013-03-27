@@ -432,6 +432,7 @@ XNIDAQmxDSO::configureFreqOutPin() {
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskFreqOut,
 											   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 											   freq, 0.5));
+	interface()->synchronizeClock(m_taskFreqOut);
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxDSO::onTaskDone_, this));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
 	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), "frequencyOutput"));
