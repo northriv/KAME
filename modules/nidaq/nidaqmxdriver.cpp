@@ -526,7 +526,6 @@ XNIDAQmxInterface::close() throw (XInterfaceError &) {
 		if(g_daqmx_open_cnt == 0) {
 			g_daqmx_sync_routes.clear();
 			g_pciClockMaster.clear();
-			g_clockMasterFromTerm.clear();
 			g_pciClockMasterRate = 0.0;
 		}
 	}
