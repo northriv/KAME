@@ -20,8 +20,8 @@
 //! Perhaps a global lock on DAQmx functions is necessary....
 
 // The following terminals are internally used.
-// Ctr0InternalOutput
-// When "PausingBit" is enabled, Ctr1InternalOutput and PFI4
+// FrequencyOutput
+// When "PausingBit" is enabled, Ctr0InternalOutput and PFI4
 
 #define PAUSING_BLANK_BEFORE 1u
 #define PAUSING_BLANK_AFTER 1u
@@ -229,8 +229,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
-		m_pausingCh = formatString("%s/ctr1", intfCtr()->devName());
-		m_pausingSrcTerm = formatString("/%s/Ctr1InternalOutput", intfCtr()->devName());
+		m_pausingCh = formatString("%s/ctr0", intfCtr()->devName());
+		m_pausingSrcTerm = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr,
