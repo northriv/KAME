@@ -431,6 +431,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, inp_term.c_str()));
 							CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockMasterRate));
 							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
+							g_pciClockMaster = *it;
 							g_pciClockMasterRate = freq;
 						}
 						break;
