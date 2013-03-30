@@ -397,7 +397,6 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
 							//RTSI synchronizations.
-							float64 freq = 10.0e6;
 							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
 							g_masterTimeBaseSrc = formatString("/%s/10MHzRefClock", it->c_str());
 							g_masterTimeBaseRate = freq;
