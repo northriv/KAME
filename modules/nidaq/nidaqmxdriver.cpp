@@ -418,6 +418,11 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							//Detects external clock source.
 							if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 								fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
+								shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+								route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+												inp_term.c_str(),
+												formatString("/%s/ExternalReferenceClock", it->c_str()).c_str()));
+								g_daqmx_sync_routes.push_back(route);
 							}
 							//RTSI synchronizations.
 							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
