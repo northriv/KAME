@@ -418,7 +418,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						//Detects external clock source.
 						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 							fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
-							XString ctrdev = formatString("%s/freqout", it->c_str());
+							XString ctrdev = formatString("%s/ctr2", it->c_str());
 							//Continuous pulse train generation. Duty = 50%.
 							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
 							double freq = 20e6; //20MHz
