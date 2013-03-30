@@ -245,6 +245,32 @@ XNIDAQmxInterface::busArchType() const {
 	return "n/a";
 #endif //HAVE_NI_DAQMX
 }
+void
+XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
+	const float64 rate = g_masterTimeBaseRate;
+	const XString src = g_masterTimeBaseSrc;
+	
+	if(productSeries() == XString("M")) {
+		if(busArchType() == XString("PCI")) {
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
+			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
+		}
+		if(busArchType() == XString("PXI")) {
+			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"PXI_Clk10"));
+			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, 10e6));
+		}
+	}
+	if(productSeries() == XString("S")) {
+		if(busArchType() == XString("PCI")) {
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
+		}
+		if(busArchType() == XString("PXI")) {
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
+		}
+	}
+}
 
 XString
 XNIDAQmxInterface::getNIDAQmxErrMessage()
@@ -397,6 +423,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
 							//RTSI synchronizations.
+							float64 freq = 10.0e6;
 							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
 							g_masterTimeBaseSrc = formatString("/%s/10MHzRefClock", it->c_str());
 							g_masterTimeBaseRate = freq;
