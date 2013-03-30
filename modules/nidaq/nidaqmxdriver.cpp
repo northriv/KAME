@@ -252,8 +252,8 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	
 	if(productSeries() == XString("M")) {
 		if(busArchType() == XString("PCI")) {
-			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
-			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
+			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
 		}
 		if(busArchType() == XString("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task,"PXI_Clk10"));
