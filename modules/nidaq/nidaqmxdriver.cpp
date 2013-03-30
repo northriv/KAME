@@ -354,8 +354,6 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
 	if(g_daqmx_open_cnt == 0) {
-		//Routes the master clock for synchronizations.
-		g_pciClockMasterRate = 0.0;
 //	    CHECK_DAQMX_RET(DAQmxCreateTask("", &g_task_sync_master));
 		char buf[2048];		
 		CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
@@ -379,6 +377,10 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						//Detects external clock source.
 						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 							fprintf(stderr, "Reference Clock Set to %s\n", inp_term.c_str());
+							float64 freq = 20.0e6;
+							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
+							g_masterTimeBaseSrc = formatString("/%s/20MHzTimebase", it->c_str());
+							g_masterTimeBaseRate = freq;
 						}
 					}
 				}
@@ -394,11 +396,13 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
 							//RTSI synchronizations.
 							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
-							g_pciClockMasterSrc = formatString("/%s/10MHzRefClock", it->c_str());
-							g_pciClockMasterRate = freq;
+							g_masterTimeBaseSrc = formatString("/%s/10MHzRefClock", it->c_str());
+							g_masterTimeBaseRate = freq;
 							break;
 						}
 					}
+					if(g_masterTimeBaseSrc.length())
+						break;
 				}
 			}
 			if( !g_masterTimeBaseSrc.length()) {
@@ -411,12 +415,12 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							//RTSI synchronizations.
 							float64 freq = 20.0e6;
 							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
-							g_pciClockMasterSrc = formatString("/%s/20MHzTimebase", it->c_str());
-							g_pciClockMasterRate = freq;
+							g_masterTimeBaseSrc = formatString("/%s/20MHzTimebase", it->c_str());
+							g_masterTimeBaseRate = freq;
 							break;
 						}
 					}
-					if(g_pciClockMaster.length())
+					if(g_masterTimeBaseSrc.length())
 						break;
 				}
 			}
@@ -490,3 +494,4 @@ XNIDAQmxInterface::close() throw (XInterfaceError &) {
 		}
 	}
 }
+
