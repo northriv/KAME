@@ -250,12 +250,10 @@ XNIDAQmxInterface::busArchType() const {
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	const float64 rate = g_pciClockMasterRate;
+	XString src = formatString("/%s/RTSI7", devName());
 	if(devName() == g_pciClockMaster) {
-		return;
+		src = g_pciClockMasterTerm;
 	}
-	XString src = g_pciClockMasterTerm;
-	if(src)
-		src = formatString("/%s/RTSI7", devName());
 	
 	if(productSeries() == XString("M")) {
 		if(busArchType() == XString("PCI")) {
