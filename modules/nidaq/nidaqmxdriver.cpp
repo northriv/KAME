@@ -254,6 +254,10 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	}
 	const XString src = formatString("/%s/RTSI7", devName());
 	
+	CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseSrc(task, "/Dev1/PFI0"));
+	CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseRate(task, 1e-7));
+	return;
+
 	if(productSeries() == XString("M")) {
 		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
@@ -268,10 +272,12 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
+			CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseMasterTimebaseDiv(task, 1));
 		}
 		if(busArchType() == XString("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
+			CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseMasterTimebaseDiv(task, 1));
 		}
 	}
 }

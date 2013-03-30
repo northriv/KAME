@@ -385,8 +385,6 @@ XNIDAQmxDSO::setupTiming() {
 							  bufsize
 							  ));
 
-	interface()->synchronizeClock(m_task);
-
 	{
 		uInt32 size;
 		CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &size));
@@ -409,6 +407,8 @@ XNIDAQmxDSO::setupTiming() {
 	m_interval = 1.0 / rate;
 
 	setupTrigger();
+
+	interface()->synchronizeClock(m_task);
 
 	startSequence();
 }
