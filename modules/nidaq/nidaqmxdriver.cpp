@@ -255,7 +255,7 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	}
 	XString src = g_pciClockMasterTerm;
 	if(src)
-		src = formatString("/%s/RTSI7", devName().c_str());
+		src = formatString("/%s/RTSI7", devName());
 	
 	if(productSeries() == XString("M")) {
 		if(busArchType() == XString("PCI")) {
