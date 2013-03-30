@@ -100,7 +100,7 @@ private:
 	int m_dsoRawRecordBankLatest;
 	//! for moving av.
 	std::deque<std::vector<tRawAI> > m_record_av; 
-	TaskHandle m_task, m_taskFreqOut;
+	TaskHandle m_task;
 	double m_interval;
 	unsigned int m_preTriggerPos;
 	void clearAcquision();
@@ -118,8 +118,6 @@ private:
 	XRecursiveMutex m_readMutex;
 
 	inline bool tryReadAISuspend(const atomic<bool> &terminated);
-	void configureFreqOutPin();
-//	unique_ptr<XNIDAQmxInterface::XNIDAQmxRoute> m_freqOutRoute, m_sampleClockRoute;
 };
 
 #endif

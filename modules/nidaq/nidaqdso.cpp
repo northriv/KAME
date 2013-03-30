@@ -26,9 +26,6 @@
 #include <kmessagebox.h>
 #include "xwavengraph.h"
 
-//PFI7 is connected to ai/SampleClock
-//FREQ OUT is set to 10MHz output.
-
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 
 #define TASK_UNDEF ((TaskHandle)-1)
@@ -38,7 +35,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XNIDAQmxDriver<XDSO>(name, runtime, ref(tr_meas), meas),
 	m_dsoRawRecordBankLatest(0),
-	m_task(TASK_UNDEF), m_taskFreqOut(TASK_UNDEF) {
+	m_task(TASK_UNDEF) {
 
 	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
 	for(Transaction tr( *this);; ++tr) {
@@ -186,11 +183,6 @@ XNIDAQmxDSO::close() throw (XKameError &) {
 
 	m_recordBuf.clear();
 	m_record_av.clear();
-
-	if(m_taskFreqOut != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxClearTask(m_taskFreqOut));
-	}
-	m_taskFreqOut = TASK_UNDEF;
 
 	interface()->stop();
 }
@@ -395,8 +387,6 @@ XNIDAQmxDSO::setupTiming() {
 
 	interface()->synchronizeClock(m_task);
 
-	configureFreqOutPin();
-
 	{
 		uInt32 size;
 		CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &size));
@@ -422,25 +412,7 @@ XNIDAQmxDSO::setupTiming() {
 
 	startSequence();
 }
-void
-XNIDAQmxDSO::configureFreqOutPin() {
-	XString freqout = formatString("/%s/FrequencyOutput", interface()->devName());
-	XString ctrdev = formatString("%s/freqout", interface()->devName());
-	//Continuous pulse train generation. Duty = 50%.
-    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskFreqOut));
-    double freq = 10e6; //10MHz
-	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskFreqOut,
-											   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-											   freq, 0.5));
-	interface()->synchronizeClock(m_taskFreqOut);
-   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxDSO::onTaskDone_, this));
-	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
-	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), "frequencyOutput"));
-	CHECK_DAQMX_RET(DAQmxStartTask(m_taskFreqOut));
-//	m_freqOutRoute.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-//    										freqout.c_str(),
-//    										formatString("/%s/PFI14", interface()->devName()).c_str()));
-}
+
 void
 XNIDAQmxDSO::createChannels() {
 	XScopedLock<XInterface> lock( *interface());
