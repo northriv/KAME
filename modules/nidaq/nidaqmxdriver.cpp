@@ -418,10 +418,10 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						//Detects external clock source.
 						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
 							fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
-							XString ctrdev = formatString("%s/ctr2", it->c_str());
+							XString ctrdev = formatString("%s/freqout", it->c_str());
 							//Continuous pulse train generation. Duty = 50%.
 							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
-							double freq = 20e6; //20MHz
+							double freq = 10e6; //10MHz
 							CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
 																	   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 																	   freq, 0.5));
@@ -430,6 +430,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
 							CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, inp_term.c_str()));
 							CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockMasterRate));
+							g_pciClockMaster = *it;
+							g_pciClockMasterRate = freq;
 						}
 						break;
 					}
