@@ -51,6 +51,7 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 //for synchronization.
 static XString g_pciClockMaster;
 static float64 g_pciClockMasterRate = 0.0;
+static TaskHandle g_pciClockMasterTask = -1;
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
@@ -407,6 +408,35 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 			}
 		}
 		if(pcidevs.size() > 1) {
+			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+				//M series only.
+				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+				XString type = buf;
+				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+					if((pit->type == type) && (pit->series == XString("M"))) {
+						XString inp_term = formatString("/%s/PFI0", it->c_str());
+						//Detects external clock source.
+						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
+							fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
+							XString ctrdev = formatString("%s/freqout", dev);
+							//Continuous pulse train generation. Duty = 50%.
+							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
+							double freq = 20e6; //20MHz
+							CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
+																	   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+																	   freq, 0.5));
+							CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(g_pciClockMasterTask, DAQmx_Val_ContSamps, 1000));
+							CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(g_pciClockMasterTask, ctrdev.c_str(), formatString("/%s/RTSI7", it->c_str()).c_str()));
+							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
+							CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, inp_term.c_str()));
+							CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockMasterRate));
+						}
+						break;
+					}
+					if(g_pciClockMaster.length())
+						break;
+				}
+			}
 			if(g_pciClockMasterRate == 0.0) {
 				for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 					//M series only.
@@ -415,15 +445,6 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
 							XString inp_term = formatString("/%s/PFI0", it->c_str());
-							//Detects external clock source.
-							if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
-								fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
-								shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-								route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-												inp_term.c_str(),
-												formatString("/%s/ExternalReferenceClock", it->c_str()).c_str()));
-								g_daqmx_sync_routes.push_back(route);
-							}
 							//RTSI synchronizations.
 							shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 							float64 freq = 20.0e6;
@@ -436,6 +457,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							g_pciClockMasterRate = freq;
 							break;
 						}
+						if(g_pciClockMaster.length())
+							break;
 					}
 				}
 			}
@@ -517,7 +540,6 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_ter
 	}
 	return false;
 }
-
 void
 XNIDAQmxInterface::close() throw (XInterfaceError &) {
 	m_productInfo = NULL;
@@ -527,6 +549,10 @@ XNIDAQmxInterface::close() throw (XInterfaceError &) {
 		XScopedLock<XMutex> lock(g_daqmx_mutex);
 		g_daqmx_open_cnt--;
 		if(g_daqmx_open_cnt == 0) {
+			if(g_pciClockMasterTask != -1) {
+				CHECK_DAQMX_RET(DAQmxClearTask(g_pciClockMasterTask));
+			}
+			g_pciClockMasterTask = -1;
 			g_daqmx_sync_routes.clear();
 			g_pciClockMaster.clear();
 			g_pciClockMasterRate = 0.0;
