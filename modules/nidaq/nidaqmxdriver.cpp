@@ -249,7 +249,7 @@ XNIDAQmxInterface::busArchType() const {
 }
 void
 XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
-	const float64 rate = g_pciClockMasterRate;
+	float64 rate = g_pciClockMasterRate;
 	XString src = formatString("/%s/RTSI7", devName());
 	if(devName() == g_pciClockMaster) {
 		src = g_pciClockMasterTerm;
