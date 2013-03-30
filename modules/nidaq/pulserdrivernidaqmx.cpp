@@ -180,8 +180,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
 	}
 	else {
-		do_clk_src = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
-		XString ctrdev = formatString("%s/ctr0", intfCtr()->devName());
+		do_clk_src = formatString("/%s/FrequencyOutput", intfCtr()->devName());
+		XString ctrdev = formatString("%s/freqout", intfCtr()->devName());
 		//Continuous pulse train generation. Duty = 50%.
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr,
