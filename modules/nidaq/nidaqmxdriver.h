@@ -60,7 +60,6 @@ public:
 	//! Split camma-separated strings.
 	static void parseList(const char *list, std::deque<XString> &buf);
   
-	//! Each task must call this to tell the reference frequency.
 	void synchronizeClock(TaskHandle task);
     
 	class XNIDAQmxRoute {

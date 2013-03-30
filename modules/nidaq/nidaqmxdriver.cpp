@@ -51,6 +51,8 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 //for synchronization.
 static XString g_masterTimeBaseSrc;
 static double g_masterTimeBaseRate;
+static int g_daqmx_open_cnt;
+static XMutex g_daqmx_mutex;
 
 atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
@@ -395,6 +397,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 						if((pit->type == type) && (pit->series == XString("M"))) {
 							//RTSI synchronizations.
+							float64 freq = 10.0e6;
 							fprintf(stderr, "10MHz Reference Clock exported from %s\n", it->c_str());
 							g_masterTimeBaseSrc = formatString("/%s/10MHzRefClock", it->c_str());
 							g_masterTimeBaseRate = freq;
