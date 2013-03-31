@@ -440,6 +440,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					if((pit->type == type) && (pit->series == XString("M"))) {
 						//Detects external clock source.
 						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
+						//M series device cannot export 20MHzTimebase freely.
 						XString ctrdev = formatString("%s/ctr1", it->c_str());
 						//Continuous pulse train generation. Duty = 50%.
 						CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
@@ -468,7 +469,6 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				XString type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 					if((pit->type == type) && (pit->series == XString("S"))) {
-						//S series device cannot export 20MHzTimebase freely.
 						//RTSI synchronizations.
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
 						float64 freq = 20.0e6;

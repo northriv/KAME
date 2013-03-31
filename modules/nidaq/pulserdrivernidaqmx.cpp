@@ -19,8 +19,8 @@
 //! "BUG: sleeping function called from invalid context at mm/slub.c:..."
 //! Perhaps a global lock on DAQmx functions is necessary....
 
-#define PAUSING_BLANK_BEFORE 1u
-#define PAUSING_BLANK_AFTER 1u
+#define PAUSING_BLANK_BEFORE 2u
+#define PAUSING_BLANK_AFTER 2u
 
 #include "interface.h"
 
