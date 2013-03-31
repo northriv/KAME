@@ -19,8 +19,8 @@
 //! "BUG: sleeping function called from invalid context at mm/slub.c:..."
 //! Perhaps a global lock on DAQmx functions is necessary....
 
-#define PAUSING_BLANK_BEFORE 2u
-#define PAUSING_BLANK_AFTER 2u
+#define PAUSING_BLANK_BEFORE 1u
+#define PAUSING_BLANK_AFTER 1u
 
 #include "interface.h"
 
@@ -194,7 +194,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 										  do_clk_src.c_str(),
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
-//    intfDO()->synchronizeClock(m_taskDO);
+    intfDO()->synchronizeClock(m_taskDO);
 
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
