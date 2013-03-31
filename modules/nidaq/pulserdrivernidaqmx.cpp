@@ -275,7 +275,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
-    CHECK_DAQMX_RET(DAQmxSetOnDemandSimultaneousAOEnable(m_taskAO, true));
 
     int oversamp = lrint(resolution() / resolutionQAM());
 	setupTasksDO(oversamp == 1);
