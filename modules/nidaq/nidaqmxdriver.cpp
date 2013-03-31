@@ -254,6 +254,8 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 	if(devName() == g_pciClockMaster) {
 		src = g_pciClockMasterTerm;
 		rate = g_pciClockMasterRate2;
+		if( !src.length())
+			return;
 	}
 	
 	if(productSeries() == XString("M")) {
@@ -270,12 +272,10 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, rate));
-			CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseMasterTimebaseDiv(task, 1));
 		}
 		if(busArchType() == XString("PXI")) {
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseSrc(task,"PXI_Clk10"));
 			CHECK_DAQMX_RET(DAQmxSetMasterTimebaseRate(task, 10e6));
-			CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseMasterTimebaseDiv(task, 1));
 		}
 	}
 }
