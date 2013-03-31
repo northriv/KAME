@@ -453,7 +453,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							double freq = 20e6; //20MHz
 							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
 							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
-							CHECK_DAQMX_RET(DAQmxExportSignal(DAQmx_Val_20MHzTimebaseClock, formatString("/%s/RTSI7", it->c_str()).c_str()));
+							CHECK_DAQMX_RET(DAQmxExportSignal(g_pciClockMasterTask, DAQmx_Val_20MHzTimebaseClock, formatString("/%s/RTSI7", it->c_str()).c_str()));
 							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
 							g_pciClockMaster = *it;
 							g_pciClockMasterRate = freq;
