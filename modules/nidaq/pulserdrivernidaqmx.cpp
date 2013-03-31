@@ -19,10 +19,6 @@
 //! "BUG: sleeping function called from invalid context at mm/slub.c:..."
 //! Perhaps a global lock on DAQmx functions is necessary....
 
-// The following terminals are internally used.
-// FrequencyOutput
-// When "PausingBit" is enabled, Ctr0InternalOutput and PFI4
-
 #define PAUSING_BLANK_BEFORE 1u
 #define PAUSING_BLANK_AFTER 1u
 
@@ -180,8 +176,8 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	    fprintf(stderr, "Using ao/SampleClock for DO.\n");
 	}
 	else {
-		do_clk_src = formatString("/%s/FrequencyOutput", intfCtr()->devName());
-		XString ctrdev = formatString("%s/freqout", intfCtr()->devName());
+		do_clk_src = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
+		XString ctrdev = formatString("%s/ctr0", intfCtr()->devName());
 		//Continuous pulse train generation. Duty = 50%.
 	    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskDOCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskDOCtr,
@@ -229,8 +225,9 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
-		m_pausingCh = formatString("%s/ctr0", intfCtr()->devName());
-		m_pausingSrcTerm = formatString("/%s/Ctr0InternalOutput", intfCtr()->devName());
+		unsigned int ctr_no = use_ao_clock ? 0 : 1;
+		m_pausingCh = formatString("%s/ctr%u", intfCtr()->devName(), ctr_no);
+		m_pausingSrcTerm = formatString("/%s/Ctr%uInternalOutput", intfCtr()->devName(), ctr_no);
 		//set idle state to high level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr,

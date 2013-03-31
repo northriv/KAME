@@ -431,6 +431,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(g_pciClockMasterTask, ctrdev.c_str(), formatString("/%s/RTSI7", it->c_str()).c_str()));
 							CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, inp_term.c_str()));
 							CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockMasterRate));
+							//							CHECK_DAQMX_RET(DAQmxExportSignal(DAQmx_Val_20MHzTimebaseClock, formatString("/%s/RTSI7", it->c_str()).c_str()));
 							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
 							g_pciClockMaster = *it;
 							g_pciClockMasterRate2 = g_pciClockMasterRate;
