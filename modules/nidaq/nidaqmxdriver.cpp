@@ -411,26 +411,26 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 			}
 		}
 		if(pcidevs.size() > 1) {
-//			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-//				//M series only.
-//				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-//				XString type = buf;
-//				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-//					if((pit->type == type) && (pit->series == XString("M"))) {
-//						XString inp_term = formatString("/%s/PFI0", it->c_str());
-//						//Detects external clock source.
-//						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
-//							fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
-//							g_pciClockMaster = *it;
-//							pcidevs.clear();
-//							pcidevs.push_back(g_pciClockMaster);
-//						}
-//						break;
-//					}
-//					if(g_pciClockMaster.length())
-//						break;
-//				}
-//			}
+			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+				//M series only.
+				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+				XString type = buf;
+				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+					if((pit->type == type) && (pit->series == XString("M"))) {
+						XString inp_term = formatString("/%s/PFI0", it->c_str());
+						//Detects external clock source.
+						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
+							fprintf(stderr, "Reference Clock for PLL Set to %s\n", inp_term.c_str());
+							g_pciClockMaster = *it;
+							pcidevs.clear();
+							pcidevs.push_back(g_pciClockMaster);
+						}
+						break;
+					}
+				}
+				if(g_pciClockMaster.length())
+					break;
+			}
 			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 				//M series only.
 				//M series device has better time accuracy than S.
