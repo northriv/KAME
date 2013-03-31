@@ -453,6 +453,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
 							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
 							double freq = 20e6; //20MHz
+							XString ctrdev = formatString("%s/ctr1", it->c_str());
 							CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
 																	   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 																	   freq, 0.5));
