@@ -482,9 +482,9 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						break;
 					}
 				}
+				if(g_pciClockMaster.length())
+					break;
 			}
-			if(g_pciClockMaster.length())
-				break;
 		}
 	}
 	g_daqmx_open_cnt++;
