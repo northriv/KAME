@@ -194,7 +194,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 										  do_clk_src.c_str(),
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
-    intfDO()->synchronizeClock(m_taskDO);
+//    intfDO()->synchronizeClock(m_taskDO); //not applicable for M series.
 
 	uInt32 onbrdsize, bufsize;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
@@ -228,7 +228,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 		unsigned int ctr_no = use_ao_clock ? 0 : 1;
 		m_pausingCh = formatString("%s/ctr%u", intfCtr()->devName(), ctr_no);
 		m_pausingSrcTerm = formatString("/%s/Ctr%uInternalOutput", intfCtr()->devName(), ctr_no);
-		//set idle state to high level for synchronization.
+		//set idle state to low level for synchronization.
 		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskGateCtr));
 		CHECK_DAQMX_RET(DAQmxCreateCOPulseChanTime(m_taskGateCtr,
 												   m_pausingCh.c_str(), "", DAQmx_Val_Seconds, DAQmx_Val_Low,
@@ -299,7 +299,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
-//		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskAO, true));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskAO, true));
 	}
 
 	m_softwareTrigger->setArmTerm(
