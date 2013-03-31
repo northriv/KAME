@@ -459,9 +459,9 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						pcidevs.clear();
 						break;
 					}
-					if(g_pciClockMaster.length())
-						break;
 				}
+				if(g_pciClockMaster.length())
+					break;
 			}
 			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
@@ -482,9 +482,9 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						break;
 					}
 				}
-				if(g_pciClockMaster.length())
-					break;
 			}
+			if(g_pciClockMaster.length())
+				break;
 		}
 	}
 	g_daqmx_open_cnt++;
