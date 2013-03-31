@@ -245,7 +245,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 												 m_pausingGateTerm.c_str(),
 												 DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
-		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, false));
+//		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, false));
 		if( !use_ao_clock) {
 			char doch[256];
 			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDOCtr, doch, 256));
