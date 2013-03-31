@@ -439,26 +439,24 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
 					if((pit->type == type) && (pit->series == XString("M"))) {
 						//Detects external clock source.
-						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
-							fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
-							XString ctrdev = formatString("%s/ctr1", it->c_str());
-							//Continuous pulse train generation. Duty = 50%.
-							CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
-							double freq = 20e6; //20MHz
-							CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
-																	   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
-																	   freq, 0.5));
-							CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(g_pciClockMasterTask, DAQmx_Val_ContSamps, 1000));
-							CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(g_pciClockMasterTask, ctrdev.c_str(), formatString("/%s/RTSI7", it->c_str()).c_str()));
-							if(g_pciClockExtRefTerm.length()) {
-								CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, g_pciClockExtRefTerm.c_str()));
-								CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockExtRefTermRate));
-							}
-							CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
-							g_pciClockMaster = *it;
-							g_pciClockMasterRate = freq;
-							pcidevs.clear();
+						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
+						XString ctrdev = formatString("%s/ctr1", it->c_str());
+						//Continuous pulse train generation. Duty = 50%.
+						CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
+						double freq = 20e6; //20MHz
+						CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
+																   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+																   freq, 0.5));
+						CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(g_pciClockMasterTask, DAQmx_Val_ContSamps, 1000));
+						CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(g_pciClockMasterTask, ctrdev.c_str(), formatString("/%s/RTSI7", it->c_str()).c_str()));
+						if(g_pciClockExtRefTerm.length()) {
+							CHECK_DAQMX_RET(DAQmxSetRefClkSrc(g_pciClockMasterTask, g_pciClockExtRefTerm.c_str()));
+							CHECK_DAQMX_RET(DAQmxSetRefClkRate(g_pciClockMasterTask, g_pciClockExtRefRate));
 						}
+						CHECK_DAQMX_RET(DAQmxStartTask(g_pciClockMasterTask));
+						g_pciClockMaster = *it;
+						g_pciClockMasterRate = freq;
+						pcidevs.clear();
 						break;
 					}
 					if(g_pciClockMaster.length())
