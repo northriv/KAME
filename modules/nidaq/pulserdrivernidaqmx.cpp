@@ -193,7 +193,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	//M series needs an external sample clock and trigger for DO channels.
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskDO,
 										  do_clk_src.c_str(),
-										  freq, DAQmx_Val_Falling, DAQmx_Val_ContSamps, buf_size_hint));
+										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
 //    intfDO()->synchronizeClock(m_taskDO); //not applicable for M series.
 
 	uInt32 onbrdsize, bufsize;
@@ -245,7 +245,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 												 m_pausingGateTerm.c_str(),
 												 DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetStartTrigRetriggerable(m_taskGateCtr, true));
-//		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, false));
+//		CHECK_DAQMX_RET(DAQmxSetDigEdgeStartTrigDigSyncEnable(m_taskGateCtr, true));
 		if( !use_ao_clock) {
 			char doch[256];
 			CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDOCtr, doch, 256));
@@ -275,6 +275,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
+    CHECK_DAQMX_RET(DAQmxSetSampClkDigSyncEnable(m_taskAO, true));
 
     int oversamp = lrint(resolution() / resolutionQAM());
 	setupTasksDO(oversamp == 1);
@@ -299,6 +300,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
+		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskAO, true));
 	}
 
 	m_softwareTrigger->setArmTerm(
