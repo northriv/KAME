@@ -432,8 +432,31 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 					break;
 			}
 			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+				//AO of S series device cannot handle external master clock properly.
+				//Thus S should be a master when high-speed AOs are used.
+				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+				XString type = buf;
+				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+					if((pit->type == type) && (pit->series == XString("S"))) {
+						//RTSI synchronizations.
+						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
+						float64 freq = 20.0e6;
+						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
+										formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
+										formatString("/%s/RTSI7", it->c_str()).c_str()));
+						g_daqmx_sync_routes.push_back(route);
+						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
+						g_pciClockMaster = *it;
+						g_pciClockMasterRate = freq;
+						pcidevs.clear();
+						break;
+					}
+				}
+				if(g_pciClockMaster.length())
+					break;
+			}
+			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
 				//M series only.
-				//M series device has better time accuracy than S.
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
@@ -458,27 +481,6 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						g_pciClockMaster = *it;
 						g_pciClockMasterRate = freq;
 						pcidevs.clear();
-						break;
-					}
-				}
-				if(g_pciClockMaster.length())
-					break;
-			}
-			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
-				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
-				XString type = buf;
-				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == XString("S"))) {
-						//RTSI synchronizations.
-						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
-						float64 freq = 20.0e6;
-						route.reset(new XNIDAQmxInterface::XNIDAQmxRoute(
-										formatString("/%s/20MHzTimebase", it->c_str()).c_str(),
-										formatString("/%s/RTSI7", it->c_str()).c_str()));
-						g_daqmx_sync_routes.push_back(route);
-						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
-						g_pciClockMaster = *it;
-						g_pciClockMasterRate = freq;
 						break;
 					}
 				}

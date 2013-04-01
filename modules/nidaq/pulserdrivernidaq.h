@@ -56,7 +56,7 @@ protected:
     virtual bool hasQAMPorts() const {return true;}
     
 	virtual const shared_ptr<XNIDAQmxInterface> &intfAO() const {return m_ao_interface;} 
-	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return interface();}
+	virtual const shared_ptr<XNIDAQmxInterface> &intfCtr() const {return m_ao_interface;}
 private:
  
 	const shared_ptr<XNIDAQmxInterface> m_ao_interface;

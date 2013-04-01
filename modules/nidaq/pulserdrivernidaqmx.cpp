@@ -224,7 +224,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	}
 
 	if(m_pausingBit) {
-		m_pausingGateTerm = formatString("/%s/PFI4", intfCtr()->devName());
+		m_pausingGateTerm = formatString("/%s/PFI4", intfDO()->devName());
 		unsigned int ctr_no = use_ao_clock ? 0 : 1;
 		m_pausingCh = formatString("%s/ctr%u", intfCtr()->devName(), ctr_no);
 		m_pausingSrcTerm = formatString("/%s/Ctr%uInternalOutput", intfCtr()->devName(), ctr_no);
