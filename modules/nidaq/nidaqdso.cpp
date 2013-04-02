@@ -35,7 +35,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XNIDAQmxDriver<XDSO>(name, runtime, ref(tr_meas), meas),
 	m_dsoRawRecordBankLatest(0),
-	m_task(TASK_UNDEF) {
+	m_task(TASK_UNDEF), m_taskHWCoutner(TASK_UNDEF) {
 
 	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
 	for(Transaction tr( *this);; ++tr) {
@@ -230,6 +230,15 @@ XNIDAQmxDSO::disableTrigger() {
 		m_softwareTrigger->disconnect();
 	m_lsnOnSoftTrigStarted.reset();
 	m_softwareTrigger.reset();
+
+	//reset HW trigger counter.
+	if(m_taskHWCounter != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxStopTask(m_taskHWCounter));
+		CHECK_DAQMX_RET(DAQmxClearTask(m_taskHWCounter));
+	}
+	m_taskHWCounter = TASK_UNDEF;
+	m_countHWTriggered = 0;
+	m_countHWTriggeredMSW = 0;
 }
 void
 XNIDAQmxDSO::setupTrigger() {
@@ -297,6 +306,25 @@ XNIDAQmxDSO::setupTrigger() {
 									   dtrig.c_str(), trig_spec, pretrig));
 		}
 	}
+
+
+	//Setups counter for HW trigger/origin of SW trigger.
+	XString ctrdev = formatString("%s/ctr0", interface()->devName());
+	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
+		m_taskHWCounter, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Tics, DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 1, NULL));
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskHWCounter,
+		formatString("%s/aiSampleClock", interface()->devName()).c_str(),
+		1.0 / m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+	XString hwcounter_input_term;
+	if( !pretrig) {
+		hwcounter_input_term = formatString("%s/aiStartTrigger", interface()->devName());
+	}
+	else {
+		hwcounter_input_term = formatString("%s/aiReferenceTrigger", interface()->devName());
+	}
+	char ch_ctr[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskHWCounter, ch_ctr, sizeof(ch_ctr)));
+	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskHWCounter, ch_ctr, hwcounter_input_term.c_str()));
 
 	char ch[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
@@ -612,10 +640,42 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
 	}
 	return NULL;
 }
+uint64_t
+XNIDAQmxDSO::storeCountHWTriggered() {
+	for(;;) {
+	//Checks available data
+		uInt32 st_count;
+		CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_taskHWCounter, &st_count));
+		if( !st_count)
+			break;
+		float64 count_max;
+		uInt32 count_lsw, count_raw;
+		CHECK_DAQMX_RET(DAQmxReadCounterScalarU32(m_taskHWCounter, 0, &count_lsw, NULL));
+		char ch_ctr[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskHWCounter, ch_ctr, sizeof(ch_ctr)));
+		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskHWCounter, ch_ctr, &count_max));
+		m_countHWTriggered += count_lsw;
+		checkOverflowForCounterHWTriggered();
+		m_countHWTriggered += m_countHWTriggeredMSW * (llrint(count_max) +1);
+		m_countHWTriggeredMSW = 0;
+		fprintf("%f, %f, %f\n", (double)count_max, (double)count_lsw, (double)count_raw);
+	}
+	return m_countHWTriggered;
+}
+bool
+XNIDAQmxDSO::checkOverflowForCounterHWTriggered() {
+	bool32 reached;
+	CHECK_DAQMX_RET(DAQmxGetCITCReached(m_taskHWCounter, &reached));
+	if(reached) {
+		m_countHWTriggeredMSW++;
+	}
+	return reached;
+}
 void
 XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 	XScopedLock<XRecursiveMutex> lock(m_readMutex);
 	while( !terminated) {
+		checkOverflowForCounterHWTriggered();
 
 		if( !m_running) {
 			tryReadAISuspend(terminated);
@@ -687,6 +747,10 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 
 			CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
+		 //Reads count for the origin/trigger.
+		storeCountHWTriggered();
+		samplecnt_at_trigger += m_countHWTriggered;
+
 		if(terminated)
 			return;
 

@@ -115,6 +115,14 @@ private:
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
+	//Counter measuring time stamp for software-trigger origin/HW trigger.
+	TaskHandle m_taskHWCounter;
+	uint64_t m_countHWTriggeredMSW;
+	uint64_t m_countHWTriggered;
+	bool checkOverflowForCounterHWTriggered();
+	//! \return the counts at the origin/trigger.
+	uint64_t storeCountHWTriggered();
+
 	XRecursiveMutex m_readMutex;
 
 	inline bool tryReadAISuspend(const atomic<bool> &terminated);
