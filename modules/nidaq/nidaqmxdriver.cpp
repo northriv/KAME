@@ -467,7 +467,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 						XString ctrdev = formatString("%s/ctr1", it->c_str());
 						//Continuous pulse train generation. Duty = 50%.
 						CHECK_DAQMX_RET(DAQmxCreateTask("", &g_pciClockMasterTask));
-						double freq = 20e6; //20MHz
+						float64 freq = 20e6; //20MHz
 						CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(g_pciClockMasterTask,
 																   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 																   freq, 0.5));

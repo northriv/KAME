@@ -275,7 +275,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskAO, "",
 										  freq, DAQmx_Val_Rising, DAQmx_Val_ContSamps, buf_size_hint));
     intfAO()->synchronizeClock(m_taskAO);
-    CHECK_DAQMX_RET(DAQmxSetSampClkDigSyncEnable(m_taskAO, true));
 
     int oversamp = lrint(resolution() / resolutionQAM());
 	setupTasksDO(oversamp == 1);
@@ -300,7 +299,6 @@ XNIDAQmxPulser::setupTasksAODO() {
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
-		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskAO, true));
 	}
 
 	m_softwareTrigger->setArmTerm(

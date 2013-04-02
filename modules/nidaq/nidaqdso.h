@@ -116,12 +116,12 @@ private:
 	void onTaskDone(TaskHandle task, int32 status);
 
 	//Counter measuring time stamp for software-trigger origin/HW trigger.
-	TaskHandle m_taskHWCounter;
-	uint64_t m_countHWTriggeredMSW;
-	uint64_t m_countHWTriggered;
-	bool checkOverflowForCounterHWTriggered();
+	TaskHandle m_taskCounterOrigin;
+	uint64_t m_countOriginMSW;
+	uint64_t m_countOrigin
+	bool checkOverflowForCounterOrigin();
 	//! \return the counts at the origin/trigger.
-	uint64_t storeCountHWTriggered();
+	uint64_t storeCountOrigin();
 
 	XRecursiveMutex m_readMutex;
 
