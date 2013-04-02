@@ -311,9 +311,11 @@ XNIDAQmxDSO::setupTrigger() {
 	XString ctrdev = formatString("%s/ctr0", interface()->devName());
 	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
 		m_taskCounterOrigin, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Ticks, DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 1, NULL));
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin,
-		formatString("%s/aiSampleClock", interface()->devName()).c_str(),
-		1.0 / m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+	char ch_ctr[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
+	interface()->synchronizeClock(m_taskCounterOrigin);
 	XString hwcounter_input_term;
 	if( !pretrig) {
 		hwcounter_input_term = formatString("%s/aiStartTrigger", interface()->devName());
@@ -321,8 +323,6 @@ XNIDAQmxDSO::setupTrigger() {
 	else {
 		hwcounter_input_term = formatString("%s/aiReferenceTrigger", interface()->devName());
 	}
-	char ch_ctr[256];
-	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
 
 	char ch[256];
