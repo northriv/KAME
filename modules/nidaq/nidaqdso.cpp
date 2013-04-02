@@ -238,7 +238,6 @@ XNIDAQmxDSO::disableTrigger() {
 	}
 	m_taskCounterOrigin = TASK_UNDEF;
 	m_countOrigin = 0;
-	m_countOriginMSW = 0;
 }
 void
 XNIDAQmxDSO::setupTrigger() {
@@ -648,17 +647,11 @@ XNIDAQmxDSO::storeCountOrigin() {
 		CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_taskCounterOrigin, &st_count));
 		if( !st_count)
 			break;
-		float64 count_max;
 		uInt32 count_lsw, count_raw;
 		CHECK_DAQMX_RET(DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL));
-		char ch_ctr[256];
-		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
-		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskCounterOrigin, ch_ctr, &count_max));
 		m_countOrigin += count_lsw;
 		checkOverflowForCounterOrigin();
-		m_countOrigin += m_countOriginMSW * (llrint(count_max) +1);
-		m_countOriginMSW = 0;
-		fprintf(stderr, "%f, %f, %f\n", (double)count_max, (double)count_lsw, (double)count_raw);
+		fprintf(stderr, "sC %f, %f\n", (double)count_lsw, (double)count_raw);
 	}
 	return m_countOrigin;
 }
@@ -669,7 +662,10 @@ XNIDAQmxDSO::checkOverflowForCounterOrigin() {
 	bool32 reached;
 	CHECK_DAQMX_RET(DAQmxGetCITCReached(m_taskCounterOrigin, ch_ctr, &reached));
 	if(reached) {
-		m_countOriginMSW++;
+		float64 count_max;
+		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskCounterOrigin, ch_ctr, &count_max));
+		fprintf(stderr, "cm %f\n", (double)count_max);
+		m_countOrigin += llrint(count_max + 1);
 	}
 	return reached;
 }
