@@ -157,7 +157,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 		m_taskCounterOrigin, ctrdev.c_str(), "", DAQmx_Val_Rising, 0, DAQmx_Val_CountUp));
 	XString hwcounter_input_term;
 //	if( !pretrig) {
-		hwcounter_input_term = "%s/ai/StartTrigger";
+		hwcounter_input_term = "ai/StartTrigger";
 //	}
 //	else {
 //		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
