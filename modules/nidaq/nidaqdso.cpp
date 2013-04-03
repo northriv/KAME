@@ -310,33 +310,30 @@ XNIDAQmxDSO::setupTrigger() {
 	}
 
 
-	//SampClkSrc of edge counting for HW trigger.
-	if(dtrig.length()) {
-		//Setups counter for HW trigger/origin of SW trigger.
-		m_countOrigin = 0;
-		m_countOriginMSW = 0;
-		CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
-		XString ctrdev = formatString("%s/ctr1", interface()->devName());
-		CHECK_DAQMX_RET(DAQmxCreateCICountEdgesChan(
-			m_taskCounterOrigin, ctrdev.c_str(), "", DAQmx_Val_Rising, 0, DAQmx_Val_CountUp));
-		XString hwcounter_input_term;
-	//	if( !pretrig) {
-//			hwcounter_input_term = "ai/StartTrigger";
-	//	}
-	//	else {
-	//		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
-	//	}
-		hwcounter_input_term = dtrig;
-		char ch_ctr[256];
-		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
-	//	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), 1.0/m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
-	//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
-		interface()->synchronizeClock(m_taskCounterOrigin);
-		CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
-		CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
-		CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
+	//Setups counter for HW trigger/origin of SW trigger.
+	m_countOrigin = 0;
+	m_countOriginMSW = 0;
+	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
+	XString ctrdev = formatString("%s/ctr1", interface()->devName());
+	CHECK_DAQMX_RET(DAQmxCreateCICountEdgesChan(
+		m_taskCounterOrigin, ctrdev.c_str(), "", DAQmx_Val_Rising, 0, DAQmx_Val_CountUp));
+	XString hwcounter_input_term;
+	if( !pretrig) {
+		hwcounter_input_term = "ai/StartTrigger";
 	}
+	else {
+		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
+	}
+	char ch_ctr[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+//	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(),
+		1.0/m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
+	interface()->synchronizeClock(m_taskCounterOrigin);
+	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
+	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
+	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
 	char ch[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
