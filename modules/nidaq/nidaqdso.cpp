@@ -169,7 +169,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), rate_ctr, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
 //	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
 	interface()->synchronizeClock(m_taskCounterOrigin);
-//	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, ));
+	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "20MHzTimebase"));
 	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
