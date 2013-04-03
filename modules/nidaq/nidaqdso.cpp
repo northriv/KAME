@@ -146,6 +146,33 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 				break;
 		}
 	}
+
+
+	//Setups counter for HW trigger/origin of SW trigger.
+	m_countOrigin = 0;
+	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
+	XString ctrdev = formatString("%s/ctr1", interface()->devName());
+	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
+		m_taskCounterOrigin, ctrdev.c_str(), "", 1.0, 10000000, DAQmx_Val_Ticks,
+		DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 4, NULL));
+	char ch_ctr[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
+//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
+	float64 rate_ctr;
+	CHECK_DAQMX_RET(DAQmxGetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, &rate_ctr));
+	fprintf(stderr, "%g %g\n", m_interval, rate_ctr);
+	interface()->synchronizeClock(m_taskCounterOrigin);
+	XString hwcounter_input_term;
+	if( !pretrig) {
+		hwcounter_input_term = formatString("ai/StartTrigger", interface()->devName());
+	}
+	else {
+		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
+	}
+	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
+	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
+
 	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
 
 	m_suspendRead = true;
@@ -183,6 +210,13 @@ XNIDAQmxDSO::close() throw (XKameError &) {
 
 	m_recordBuf.clear();
 	m_record_av.clear();
+
+	//reset HW trigger counter.
+	if(m_taskCounterOrigin != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxStopTask(m_taskCounterOrigin));
+		CHECK_DAQMX_RET(DAQmxClearTask(m_taskCounterOrigin));
+	}
+	m_taskCounterOrigin = TASK_UNDEF;
 
 	interface()->stop();
 }
@@ -230,14 +264,6 @@ XNIDAQmxDSO::disableTrigger() {
 		m_softwareTrigger->disconnect();
 	m_lsnOnSoftTrigStarted.reset();
 	m_softwareTrigger.reset();
-
-	//reset HW trigger counter.
-	if(m_taskCounterOrigin != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxStopTask(m_taskCounterOrigin));
-		CHECK_DAQMX_RET(DAQmxClearTask(m_taskCounterOrigin));
-	}
-	m_taskCounterOrigin = TASK_UNDEF;
-	m_countOrigin = 0;
 }
 void
 XNIDAQmxDSO::setupTrigger() {
@@ -305,28 +331,6 @@ XNIDAQmxDSO::setupTrigger() {
 									   dtrig.c_str(), trig_spec, pretrig));
 		}
 	}
-
-
-	//Setups counter for HW trigger/origin of SW trigger.
-	m_countOrigin = 0;
-	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
-	XString ctrdev = formatString("%s/ctr0", interface()->devName());
-	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
-		m_taskCounterOrigin, ctrdev.c_str(), "", 1.0, 10000000, DAQmx_Val_Ticks,
-		DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 4, NULL));
-	char ch_ctr[256];
-	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
-	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
-	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
-	interface()->synchronizeClock(m_taskCounterOrigin);
-	XString hwcounter_input_term;
-	if( !pretrig) {
-		hwcounter_input_term = formatString("%s/aiStartTrigger", interface()->devName());
-	}
-	else {
-		hwcounter_input_term = formatString("%s/aiReferenceTrigger", interface()->devName());
-	}
-	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
 
 	char ch[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
