@@ -331,6 +331,14 @@ XNIDAQmxDSO::setupTrigger() {
 		}
 	}
 
+
+	//SampClkSrc of edge counting for HW trigger.
+	if(dtrig.length()) {
+		char ch_ctr[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+		CHECK_DAQMX_RET(DAQmxSetSampClkSrc(m_taskCounterOrigin, ch_ctr, dtrig.c_str()));
+	}
+
 	char ch[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_task, ch, sizeof(ch)));
 	if(interface()->productFlags() & XNIDAQmxInterface::FLAG_BUGGY_DMA_AI) {
