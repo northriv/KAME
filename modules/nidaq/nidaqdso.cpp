@@ -235,6 +235,11 @@ XNIDAQmxDSO::disableTrigger() {
 	}
 	m_taskCounterOrigin = TASK_UNDEF;
 
+	if(m_taskFreqOut != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxClearTask(m_taskFreqOut));
+	}
+	m_taskFreqOut = TASK_UNDEF;
+
 
 	//reset virtual trigger setup.
 	if(m_softwareTrigger)
@@ -309,6 +314,18 @@ XNIDAQmxDSO::setupTrigger() {
 		}
 	}
 
+	XString freqout = formatString("/%s/FrequencyOutput", interface()->devName());
+	XString ctrdev = formatString("%s/freqout", interface()->devName());
+	//Continuous pulse train generation. Duty = 50%.
+    CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskFreqOut));
+    double freq = 1.0 / m_interval;
+	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskFreqOut,
+											   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+											   freq, 0.5));
+   	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxDSO::onTaskDone_, this));
+	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), "frequencyOutput"));
+	CHECK_DAQMX_RET(DAQmxStartTask(m_taskFreqOut));
 
 	//Setups counter for HW trigger/origin of SW trigger.
 	m_countOrigin = 0;
@@ -331,7 +348,7 @@ XNIDAQmxDSO::setupTrigger() {
 		1.0/m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
 //	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
 	interface()->synchronizeClock(m_taskCounterOrigin);
-	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
+	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, freqout.c_str()));
 	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
