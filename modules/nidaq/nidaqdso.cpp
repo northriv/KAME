@@ -229,6 +229,7 @@ XNIDAQmxDSO::disableTrigger() {
 
 	//reset HW trigger counter.
 	if(m_taskCounterOrigin != TASK_UNDEF) {
+		fprintf(stderr, "Dis %f\n", (double)m_countOrigin);
 		CHECK_DAQMX_RET(DAQmxStopTask(m_taskCounterOrigin));
 		CHECK_DAQMX_RET(DAQmxClearTask(m_taskCounterOrigin));
 	}
@@ -329,7 +330,7 @@ XNIDAQmxDSO::setupTrigger() {
 		char ch_ctr[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 	//	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
-		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), 1000, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+		CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), 1.0/m_interval, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
 	//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
 		interface()->synchronizeClock(m_taskCounterOrigin);
 		CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
