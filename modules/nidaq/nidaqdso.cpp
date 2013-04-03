@@ -155,13 +155,6 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	XString ctrdev = formatString("%s/ctr1", interface()->devName());
 	CHECK_DAQMX_RET(DAQmxCreateCICountEdgesChan(
 		m_taskCounterOrigin, ctrdev.c_str(), "", DAQmx_Val_Rising, 0, DAQmx_Val_CountUp));
-	char ch_ctr[256];
-	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
-//	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
-	float64 rate_ctr = 5e6;
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, NULL, rate_ctr, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
-//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
-	interface()->synchronizeClock(m_taskCounterOrigin);
 	XString hwcounter_input_term;
 //	if( !pretrig) {
 		hwcounter_input_term = "%s/ai/StartTrigger";
@@ -169,7 +162,14 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 //	else {
 //		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
 //	}
-	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
+	char ch_ctr[256];
+	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+//	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
+	float64 rate_ctr = 5e6;
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), rate_ctr, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+//	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
+	interface()->synchronizeClock(m_taskCounterOrigin);
+//	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, ));
 	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
@@ -659,6 +659,8 @@ XNIDAQmxDSO::storeCountOrigin() {
 		fprintf(stderr, "sC %f\n", (double)count_lsw);
 		if(st_count != 1)
 			continue;
+		char ch_ctr[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 		float64 count_max;
 		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskCounterOrigin, ch_ctr, &count_max));
 		m_countOrigin = count_lsw + (uint64_t)llrint(count_max + 1) * m_countOriginMSW;
