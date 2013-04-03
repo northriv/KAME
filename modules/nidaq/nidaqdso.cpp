@@ -312,7 +312,7 @@ XNIDAQmxDSO::setupTrigger() {
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
 	XString ctrdev = formatString("%s/ctr0", interface()->devName());
 	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
-		m_taskCounterOrigin, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Ticks,
+		m_taskCounterOrigin, ctrdev.c_str(), "", 1.0, 10000000, DAQmx_Val_Ticks,
 		DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 4, NULL));
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
