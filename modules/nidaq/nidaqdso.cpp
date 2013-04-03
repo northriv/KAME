@@ -308,6 +308,8 @@ XNIDAQmxDSO::setupTrigger() {
 
 
 	//Setups counter for HW trigger/origin of SW trigger.
+	m_countOrigin = 0;
+	CHECK_DAQMX_RET(DAQmxCreateTask( &m_taskCounterOrigin));
 	XString ctrdev = formatString("%s/ctr0", interface()->devName());
 	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
 		m_taskCounterOrigin, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Ticks, DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 1, NULL));
