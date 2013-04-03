@@ -116,7 +116,7 @@ private:
 	void onTaskDone(TaskHandle task, int32 status);
 
 	//Counter measuring time stamp for software-trigger origin/HW trigger.
-	TaskHandle m_taskCounterOrigin;
+	TaskHandle m_taskCounterOrigin, m_taskFreqOut;
 	uint64_t m_countOrigin, m_countOriginMSW;
 	bool checkOverflowForCounterOrigin();
 	//! \return the counts at the origin/trigger.

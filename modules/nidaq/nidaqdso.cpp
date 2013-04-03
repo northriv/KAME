@@ -315,16 +315,16 @@ XNIDAQmxDSO::setupTrigger() {
 	}
 
 	XString freqout = formatString("/%s/FrequencyOutput", interface()->devName());
-	XString ctrdev = formatString("%s/freqout", interface()->devName());
+	XString freqdev = formatString("%s/freqout", interface()->devName());
 	//Continuous pulse train generation. Duty = 50%.
     CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskFreqOut));
     double freq = 1.0 / m_interval;
 	CHECK_DAQMX_RET(DAQmxCreateCOPulseChanFreq(m_taskFreqOut,
-											   ctrdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
+											   freqdev.c_str(), "", DAQmx_Val_Hz, DAQmx_Val_Low, 0.0,
 											   freq, 0.5));
    	CHECK_DAQMX_RET(DAQmxRegisterDoneEvent(m_taskFreqOut, 0, &XNIDAQmxDSO::onTaskDone_, this));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskFreqOut, DAQmx_Val_ContSamps, 1000));
-	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, ctrdev.c_str(), "frequencyOutput"));
+	CHECK_DAQMX_RET(DAQmxSetCOPulseTerm(m_taskFreqOut, freqdev.c_str(), "frequencyOutput"));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskFreqOut));
 
 	//Setups counter for HW trigger/origin of SW trigger.
