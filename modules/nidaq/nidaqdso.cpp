@@ -169,7 +169,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), rate_ctr, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
 //	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
 	interface()->synchronizeClock(m_taskCounterOrigin);
-	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "20MHzTimebase"));
+	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
 	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
@@ -652,13 +652,15 @@ XNIDAQmxDSO::storeCountOrigin() {
 	//Checks available data
 		uInt32 st_count;
 		CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_taskCounterOrigin, &st_count));
-		if( !st_count)
-			break;
+//		if( !st_count)
+//			break;
 		uInt32 count_lsw;
-		CHECK_DAQMX_RET(DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL));
+		int ret = (DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL));
+		if( !ret)
+			break;
 		fprintf(stderr, "sC %f\n", (double)count_lsw);
-		if(st_count != 1)
-			continue;
+//		if(st_count != 1)
+//			continue;
 		char ch_ctr[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 		float64 count_max;
@@ -680,6 +682,10 @@ bool
 XNIDAQmxDSO::checkOverflowForCounterOrigin() {
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
+	uInt32 count_now;
+	CHECK_DAQMX_RET(DAQmxGetCICount(m_taskCounterOrigin, ch_ctr, &count_now));
+	fprintf(stderr, "CN %f\n", (double)count_now);
+
 	bool32 reached;
 	CHECK_DAQMX_RET(DAQmxGetCITCReached(m_taskCounterOrigin, ch_ctr, &reached));
 	if(reached) {
