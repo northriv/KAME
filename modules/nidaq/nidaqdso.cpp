@@ -165,8 +165,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 //	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
-	float64 rate_ctr = 5e6;
-	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), rate_ctr, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+	CHECK_DAQMX_RET(DAQmxCfgSampClkTiming(m_taskCounterOrigin, hwcounter_input_term.c_str(), 1000, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
 //	CHECK_DAQMX_RET(DAQmxSetCICtrTimebaseRate(m_taskCounterOrigin, ch_ctr, 1.0 / m_interval));
 	interface()->synchronizeClock(m_taskCounterOrigin);
 	CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "RTSI7"));
@@ -648,19 +647,12 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
 }
 uint64_t
 XNIDAQmxDSO::storeCountOrigin() {
-	for(;;) {
-	//Checks available data
-		uInt32 st_count;
-		CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_taskCounterOrigin, &st_count));
-//		if( !st_count)
-//			break;
-		uInt32 count_lsw;
-		int ret = (DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL));
-		if( !ret)
-			break;
+	uInt32 counts[1000];
+	int32 cnt_read;
+	int ret = (DAQmxReadCounterU32(m_taskCounterOrigin, DAQmx_Val_Auto, 0, counts, 1000, &cnt_read, NULL));
+	if( !ret) {
+		uInt32 count_lsw = counts[cnt_read - 1];
 		fprintf(stderr, "sC %f\n", (double)count_lsw);
-//		if(st_count != 1)
-//			continue;
 		char ch_ctr[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 		float64 count_max;
