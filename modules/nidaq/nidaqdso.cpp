@@ -164,12 +164,12 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	fprintf(stderr, "%g %g\n", m_interval, rate_ctr);
 	interface()->synchronizeClock(m_taskCounterOrigin);
 	XString hwcounter_input_term;
-	if( !pretrig) {
+//	if( !pretrig) {
 		hwcounter_input_term = formatString("ai/StartTrigger", interface()->devName());
-	}
-	else {
-		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
-	}
+//	}
+//	else {
+//		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
+//	}
 	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
