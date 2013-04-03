@@ -309,10 +309,11 @@ XNIDAQmxDSO::setupTrigger() {
 
 	//Setups counter for HW trigger/origin of SW trigger.
 	m_countOrigin = 0;
-	CHECK_DAQMX_RET(DAQmxCreateTask( &m_taskCounterOrigin));
+	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_taskCounterOrigin));
 	XString ctrdev = formatString("%s/ctr0", interface()->devName());
 	CHECK_DAQMX_RET(DAQmxCreateCIPeriodChan(
-		m_taskCounterOrigin, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Ticks, DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 1, NULL));
+		m_taskCounterOrigin, ctrdev.c_str(), "", m_interval, 1.0, DAQmx_Val_Ticks,
+		DAQmx_Val_Rising, DAQmx_Val_LowFreq1Ctr, 1, 4, NULL));
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 	CHECK_DAQMX_RET(DAQmxCfgImplicitTiming(m_taskCounterOrigin, DAQmx_Val_ContSamps, 1000));
@@ -649,11 +650,11 @@ XNIDAQmxDSO::storeCountOrigin() {
 		CHECK_DAQMX_RET(DAQmxGetReadAvailSampPerChan(m_taskCounterOrigin, &st_count));
 		if( !st_count)
 			break;
-		uInt32 count_lsw, count_raw;
+		uInt32 count_lsw;
 		CHECK_DAQMX_RET(DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL));
 		m_countOrigin += count_lsw;
 		checkOverflowForCounterOrigin();
-		fprintf(stderr, "sC %f, %f\n", (double)count_lsw, (double)count_raw);
+		fprintf(stderr, "sC %f\n", (double)count_lsw);
 	}
 	return m_countOrigin;
 }
