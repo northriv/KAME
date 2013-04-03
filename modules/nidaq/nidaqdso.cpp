@@ -164,7 +164,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	interface()->synchronizeClock(m_taskCounterOrigin);
 	XString hwcounter_input_term;
 //	if( !pretrig) {
-		hwcounter_input_term = formatString("%s/ai/StartTrigger", interface()->devName());
+		hwcounter_input_term = "%s/ai/StartTrigger";
 //	}
 //	else {
 //		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
@@ -659,10 +659,12 @@ XNIDAQmxDSO::storeCountOrigin() {
 		fprintf(stderr, "sC %f\n", (double)count_lsw);
 		if(st_count != 1)
 			continue;
-		m_countOrigin = count_lsw + (uint64_t)llrint(count_max + 1) * m_countOriginMSW;
+		char ch_ctr[256];
+		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 		float64 count_max;
-		uInt32 count_now;
 		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskCounterOrigin, ch_ctr, &count_max));
+		m_countOrigin = count_lsw + (uint64_t)llrint(count_max + 1) * m_countOriginMSW;
+		uInt32 count_now;
 		checkOverflowForCounterOrigin();
 		CHECK_DAQMX_RET(DAQmxGetCICount(m_taskCounterOrigin, ch_ctr, &count_now));
 		if(count_now < count_lsw) {

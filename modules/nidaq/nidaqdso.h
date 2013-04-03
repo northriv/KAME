@@ -117,7 +117,7 @@ private:
 
 	//Counter measuring time stamp for software-trigger origin/HW trigger.
 	TaskHandle m_taskCounterOrigin;
-	uint64_t m_countOrigin;
+	uint64_t m_countOrigin, m_countOriginMSW;
 	bool checkOverflowForCounterOrigin();
 	//! \return the counts at the origin/trigger.
 	uint64_t storeCountOrigin();
