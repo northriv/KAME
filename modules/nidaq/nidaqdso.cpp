@@ -165,7 +165,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 	interface()->synchronizeClock(m_taskCounterOrigin);
 	XString hwcounter_input_term;
 //	if( !pretrig) {
-		hwcounter_input_term = formatString("ai/StartTrigger", interface()->devName());
+		hwcounter_input_term = formatString("%s/ai/StartTrigger", interface()->devName());
 //	}
 //	else {
 //		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
