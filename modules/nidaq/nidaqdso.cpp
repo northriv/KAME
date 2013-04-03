@@ -171,6 +171,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 //		hwcounter_input_term = formatString("ai/ReferenceTrigger", interface()->devName());
 //	}
 	CHECK_DAQMX_RET(DAQmxSetCIPeriodTerm(m_taskCounterOrigin, ch_ctr, hwcounter_input_term.c_str()));
+	CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_OverwriteUnreadSamps));
 	CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
 
 	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
@@ -659,6 +660,7 @@ XNIDAQmxDSO::storeCountOrigin() {
 		m_countOrigin += count_lsw;
 		checkOverflowForCounterOrigin();
 		fprintf(stderr, "sC %f\n", (double)count_lsw);
+		fprintf(stderr, "CO %f\n", (double)m_countOrigin);
 	}
 	return m_countOrigin;
 }
@@ -673,6 +675,7 @@ XNIDAQmxDSO::checkOverflowForCounterOrigin() {
 		CHECK_DAQMX_RET(DAQmxGetCIMax(m_taskCounterOrigin, ch_ctr, &count_max));
 		fprintf(stderr, "cm %f\n", (double)count_max);
 		m_countOrigin += llrint(count_max + 1);
+		fprintf(stderr, "CO %f\n", (double)m_countOrigin);
 	}
 	return reached;
 }
