@@ -653,6 +653,8 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
 }
 uint64_t
 XNIDAQmxDSO::storeCountOrigin() {
+	if(m_taskCounterOrigin == TASK_UNDEF)
+		return m_countOrigin;
 	uInt32 counts[1000];
 	int32 cnt_read;
 	int ret = (DAQmxReadCounterU32(m_taskCounterOrigin, DAQmx_Val_Auto, 0, counts, 1000, &cnt_read, NULL));
@@ -678,6 +680,8 @@ XNIDAQmxDSO::storeCountOrigin() {
 }
 bool
 XNIDAQmxDSO::checkOverflowForCounterOrigin() {
+	if(m_taskCounterOrigin == TASK_UNDEF)
+		return false;
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 	uInt32 count_now;
