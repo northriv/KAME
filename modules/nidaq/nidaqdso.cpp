@@ -333,6 +333,7 @@ XNIDAQmxDSO::setupTrigger() {
 		CHECK_DAQMX_RET(DAQmxSetCICountEdgesTerm(m_taskCounterOrigin, ch_ctr, "ai/SampleClock"));
 		CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_taskCounterOrigin, DAQmx_Val_DoNotOverwriteUnreadSamps));
 		CHECK_DAQMX_RET(DAQmxStartTask(m_taskCounterOrigin));
+		fprintf(stderr, "Origin counter at %s\n", hwcounter_input_term.c_str());
 	}
 
 	char ch[256];
@@ -658,7 +659,7 @@ XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
 bool
 XNIDAQmxDSO::storeCountOrigin() {
 	if(m_taskCounterOrigin == TASK_UNDEF)
-		return m_countOrigin;
+		return true;
 	uInt32 count_lsw;
 	int ret = DAQmxReadCounterScalarU32(m_taskCounterOrigin, 0, &count_lsw, NULL);
 	if(ret)
