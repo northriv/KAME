@@ -962,15 +962,15 @@ XNIDAQmxDSO::startSequence() {
 			if(m_task != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 		}
+		uInt32 num_ch;
+		CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));
+		if(num_ch > 0) {
+			CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+			m_suspendRead = false;
+			m_running = true;
+		}
+		//	CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 	}
-	uInt32 num_ch;
-	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));
-	if(num_ch > 0) {
-		CHECK_DAQMX_RET(DAQmxStartTask(m_task));
-		m_suspendRead = false;
-		m_running = true;
-	}
-	//	CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 }
 
 int
