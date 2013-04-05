@@ -115,13 +115,6 @@ private:
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
 
-	//Counter measuring time stamp for software-trigger origin/HW trigger.
-	TaskHandle m_taskCounterOrigin;
-	uint64_t m_countOrigin, m_countOriginMSW;
-	bool checkOverflowForCounterOrigin();
-	//! \return the counts at the origin/trigger.
-	uint64_t storeCountOrigin();
-
 	XRecursiveMutex m_readMutex;
 
 	inline bool tryReadAISuspend(const atomic<bool> &terminated);
