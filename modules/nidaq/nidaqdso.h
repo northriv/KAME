@@ -119,8 +119,8 @@ private:
 	TaskHandle m_taskCounterOrigin;
 	uint64_t m_countOrigin, m_countOriginMSW;
 	bool checkOverflowForCounterOrigin();
-	//! \return has been encountered the HW trigger.
-	bool storeCountOrigin();
+	//! \return the counts at the origin/trigger.
+	uint64_t storeCountOrigin();
 
 	XRecursiveMutex m_readMutex;
 
