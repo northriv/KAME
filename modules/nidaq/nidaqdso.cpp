@@ -730,16 +730,22 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 		if(m_softwareTrigger) {
 			shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
 
+			 //Reads count for the origin/trigger.
+			if( !storeCountOrigin()) {
+				msecsleep(30);
+				return;
+			}
+
 			while( !terminated) {
 				if(tryReadAISuspend(terminated))
 					return;
 				uInt64 total_samps;
 				CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-				samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
+				samplecnt_at_trigger = vt->tryPopFront(total_samps - m_countOrigin, freq);
 				if(samplecnt_at_trigger) {
 					uInt32 bufsize;
 					CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-					if(total_samps - samplecnt_at_trigger + m_preTriggerPos > bufsize * 4 / 5) {
+					if(total_samps - (samplecnt_at_trigger + m_countOrigin) + m_preTriggerPos > bufsize * 4 / 5) {
 						gWarnPrint(i18n("Buffer Overflow."));
 						continue;
 					}
@@ -774,9 +780,6 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 
 			CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 		}
-		 //Reads count for the origin/trigger.
-		storeCountOrigin();
-		samplecnt_at_trigger += m_countOrigin;
 
 		if(terminated)
 			return;
