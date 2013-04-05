@@ -688,8 +688,8 @@ XNIDAQmxDSO::checkOverflowForCounterOrigin() {
 	char ch_ctr[256];
 	CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskCounterOrigin, ch_ctr, sizeof(ch_ctr)));
 	uInt32 count_now;
-//	CHECK_DAQMX_RET(DAQmxGetCICount(m_taskCounterOrigin, ch_ctr, &count_now));
-//	fprintf(stderr, "CN %f\n", (double)count_now);
+	CHECK_DAQMX_RET(DAQmxGetCICount(m_taskCounterOrigin, ch_ctr, &count_now));
+	fprintf(stderr, "CN %f\n", (double)count_now);
 
 	bool32 reached;
 	CHECK_DAQMX_RET(DAQmxGetCITCReached(m_taskCounterOrigin, ch_ctr, &reached));
