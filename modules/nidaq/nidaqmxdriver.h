@@ -95,7 +95,8 @@ public:
 	double maxAORate(unsigned int /*num_scans*/) const {return m_productInfo->ao_max_rate;}
 	double maxDIRate(unsigned int /*num_scans*/) const {return m_productInfo->di_max_rate;}
 	double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
-	  
+
+	//! Stores and reads time stamps between synchronized devices.
 	class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
 	protected:
 		SoftwareTrigger(const char *label, unsigned int bits);
@@ -112,6 +113,7 @@ public:
 		void stop();
 		void forceStamp(uint64_t now, float64 freq);
 		void stamp(uint64_t cnt);
+		//! \param time unit in 1/freq().
 		template <typename T>
 		void changeValue(T oldval, T val, uint64_t time) {
 			if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
@@ -120,10 +122,11 @@ public:
 				stamp(time);
 			}
 		}
+
 		void connect(uint32_t rising_edge_mask, 
 					 uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
 		void disconnect();
-		//! \param blankterm in seconds.
+		//! \param blankterm in seconds, not to stamp so frequently.
 		void setBlankTerm(float64 blankterm) {
 			m_blankTerm = llrint(blankterm * freq());
 			memoryBarrier();
@@ -132,8 +135,11 @@ public:
 		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onStart;}
 		//! for changeing list.
 		static XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return s_onChange;}
-			
+		//! clears all time stamps.
 		void clear(uint64_t now, float64 freq);
+		//! \return if not, zero will be returned.
+		//! \param freq frequency of reader.
+		//! \param threshold upper bound to be pop, unit in 1/\a freq (2nd param.).
 		uint64_t tryPopFront(uint64_t threshold, float64 freq);
 			
 		typedef std::deque<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
@@ -147,15 +153,16 @@ public:
 		XString m_armTerm;
 		unsigned int m_bits;
 		uint32_t m_risingEdgeMask, m_fallingEdgeMask;
-		uint64_t m_blankTerm, m_endOfBlank;
+		uint64_t m_blankTerm;
+		uint64_t m_endOfBlank; //!< next stamp must not be less than this.
 		float64 m_freq; //!< [Hz].
 		enum {QUEUE_SIZE = 8192};
 		typedef atomic_queue_reserved<uint64_t, QUEUE_SIZE> FastQueue;
-		FastQueue m_fastQueue;
+		FastQueue m_fastQueue; //!< recorded stamps.
 		typedef std::deque<uint64_t> SlowQueue;
-		SlowQueue m_slowQueue;
+		SlowQueue m_slowQueue; //!< recorded stamps, when \a m_fastQueue is full.
 		atomic<unsigned int> m_slowQueueSize;
-		XMutex m_mutex;
+		XMutex m_mutex; //!< for \a m_slowQueue.
 		XTalker<shared_ptr<SoftwareTrigger> > m_onStart;
 		static XTalker<shared_ptr<SoftwareTrigger> > s_onChange;
 		static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
