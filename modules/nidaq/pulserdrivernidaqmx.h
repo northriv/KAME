@@ -190,7 +190,8 @@ private:
 	void stopBufWriter();
 	void *executeWriter(const atomic<bool> &);
 	void *executeFillBuffer(const atomic<bool> &);
-	void preparePatternGen(unsigned int cnt_prezeros, bool use_dummypattern, unsigned int blankpattern);
+	void preparePatternGen(unsigned int cnt_prezeros, const Snapshot &shot,
+			bool use_dummypattern, unsigned int blankpattern);
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_stateLock;

@@ -403,7 +403,8 @@ fastFill(T* p, T x, unsigned int cnt) {
 }
 
 void
-XNIDAQmxPulser::preparePatternGen(unsigned int cnt_prezeros, bool use_dummypattern, unsigned int blankpattern) {
+XNIDAQmxPulser::preparePatternGen(unsigned int cnt_prezeros, const Snapshot &shot,
+		bool use_dummypattern, unsigned int blankpattern) {
 	if(use_dummypattern) {
 		//Creates dummy pattern.
     	shared_ptr<std::vector<GenPattern> > patlist_dummy(new std::vector<GenPattern>());
@@ -445,11 +446,11 @@ XNIDAQmxPulser::fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern) 
 	std::vector<tRawDO> zeros(cnt_do, blankpattern);
 	ssize_t samps_do = writeToDAQmxDO( &zeros[0], cnt_do);
 	if(m_taskAO != TASK_UNDEF) {
-		std::vector<tRawAOSet> zeros(cnt_ao, m_genAOZeroLevel);
+		std::vector<tRawAOSet> zeros(samps_do * oversamp_ao, m_genAOZeroLevel);
 		for(int32 cnt_ao = samps_do * oversamp_ao; cnt_ao;) {
-			ssize_t samps = writeToDAQmxDO(zeros[0].ch, cnt_ao);
+			ssize_t samps = writeToDAQmxAO(zeros[0].ch, cnt_ao);
 			cnt_ao -= samps;
-			msecsleep(cnt_ao * resolutionAO());
+			msecsleep(cnt_ao * resolutionQAM());
 		}
 	}
 	return samps_do;
@@ -495,7 +496,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		}
 
 		m_genTotalCount = 0;
-		preparePatternGen(1000);
+		preparePatternGen(1000, shot, false, 0);
 
 		//synchronizes with the software trigger.
 		m_softwareTrigger->start(1e3 / resolution());
@@ -627,7 +628,7 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos, bool allow_regen) {
 			relpos_do = -(int32)samps_left_ao / oversamp_ao;
 	}
 	relpos_do += cnt_from_gen_pos; //adds given term.
-	relpos_do = std::min(relpos_do, -PAUSING_ALIGN);
+	relpos_do = std::min(relpos_do, (int32)-PAUSING_ALIGN);
 	m_genTotalCount += relpos_do;
 	if(m_pausingBit) {
 		int32 shift = PAUSING_ALIGN - (m_genTotalCount % PAUSING_ALIGN);
@@ -635,18 +636,20 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos, bool allow_regen) {
 		relpos_do += shift; //aligns to beginning of pausing triggers.
 		assert(m_genTotalCount % PAUSING_ALIGN == 0);
 	}
-	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, rel_pos_do));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos_do));
 	if(m_taskAO != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, rel_pos_do * oversamp_ao));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos_do * oversamp_ao));
 	}
-	fprintf(stderr, "%d\n", relpos_do);;
+	fprintf(stderr, "%d\n", (int)relpos_do);;
 	return -relpos_do;
 }
 void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-		m_softwareTrigger->clear();
+		//clears sent software triggers.
+		if(m_softwareTrigger)
+			m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
 
 		stopBufWriter();
 
@@ -656,7 +659,7 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 		m_freeRunning = true;
 		m_blankPattern = blankpattern;
 
-		preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), true, blankpattern);
+		preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), Snapshot( *this), true, blankpattern);
 	}
 }
 void
@@ -666,7 +669,7 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	//sets position padding=200ms. after the current generating position.
 	int64_t rewound = rewindBufPos(200.0, false);
 	m_freeRunning = false;
-	preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), false, 0);
+	preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), shot, false, 0);
 }
 
 inline XNIDAQmxPulser::tRawAOSet
@@ -691,7 +694,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
  	double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();
 
- 	auto_ptr<XThread<XNIDAQmxPulser> > th_genbuf;
+ 	unique_ptr<XThread<XNIDAQmxPulser> > th_genbuf;
 	//Starts a child thread generating patterns concurrently.
 	th_genbuf.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 													  &XNIDAQmxPulser::executeFillBuffer));
@@ -740,7 +743,6 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			catch (XInterface::XInterfaceError &e) {
 	//			e.print(getLabel());
 			}
-			break;
 		}
 	}
 
@@ -823,7 +825,7 @@ XNIDAQmxPulser::fillBuffer() {
 					aoidx = 0;
 					pAO = fastFill(pAO, raw_zero, pausing_align_pad * oversamp_ao);
 				}
-				to_next -= pausing_align_pad;
+				tonext -= pausing_align_pad;
 				samps_rest -= pausing_align_pad;
 			}
 			//generates a pausing trigger.
