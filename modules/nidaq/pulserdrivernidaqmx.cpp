@@ -448,7 +448,7 @@ XNIDAQmxPulser::fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern) 
 	if(m_taskAO != TASK_UNDEF) {
 		std::vector<tRawAOSet> zeros(samps_do * oversamp_ao, m_genAOZeroLevel);
 		for(int32 cnt_ao = samps_do * oversamp_ao; cnt_ao;) {
-			ssize_t samps = writeToDAQmxAO(zeros[0].ch, cnt_ao);
+			ssize_t samps = writeToDAQmxAO( &zeros[0], cnt_ao);
 			cnt_ao -= samps;
 			msecsleep(cnt_ao * resolutionQAM());
 		}
@@ -648,8 +648,7 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
 		//clears sent software triggers.
-		if(m_softwareTrigger)
-			m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
+		m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
 
 		stopBufWriter();
 
