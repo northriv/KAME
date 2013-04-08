@@ -503,10 +503,21 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
 	m_genTotalCount = 0;
-	preparePatternGen(1000, shot, false, 0);
-
 	//synchronizes with the software trigger.
 	m_softwareTrigger->start(1e3 / resolution());
+
+	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+	if(m_taskAO != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+	}
+
+	preparePatternGen(1000, shot, false, 0);
 
 	//Wating for buffer filling.
 	while( !m_isThreadWriterReady) {
