@@ -79,7 +79,7 @@ private:
 	void abortPulseGen();
 	
 	void stopPulseGenFreeRunning(unsigned int blankpattern);
-	void startPulseGenFromFreeRun();
+	void startPulseGenFromFreeRun(const Snapshot &shot);
 
 	void clearTasks();
 	void setupTasksDO(bool use_ao_clock);
@@ -180,20 +180,23 @@ private:
 	//! \return Succeeded or not.
 	template <bool UseAO>
 	inline bool fillBuffer();
-	void fillDAQmxBuffersPlain(
-		int32 rel_pos_do, int32 rel_pos_ao,
-		unsigned int cnt_do, unsigned int cnt_ao, tRawDO blankpattern);
+	unsigned int fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern);
+	//\return rewound counts.
+	int64_t rewindBufPos(double ms_from_gen_pos, bool allow_regen);
 	//! \return Counts being sent.
 	ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
 	ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
+	void startBufWriter();
 	void stopBufWriter();
 	void *executeWriter(const atomic<bool> &);
 	void *executeFillBuffer(const atomic<bool> &);
-
- 	uint64_t m_buffer_written_total_ao, m_buffer_written_total_do; //!< # of samples sent to the DAQmx write func.
+	viud preparePatternGen(unsigned int cnt_prezeros, bool use_dummypattern, unsigned int blankpattern);
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_stateLock;
+
+	bool m_freeRunning; //!< If true, the device emits zero patterns.
+	unsigned int m_blankPattern;
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/
