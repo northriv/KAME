@@ -733,16 +733,12 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 				written = writeToDAQmxAO(pAO, std::min(samps_ao, (ssize_t)m_transferSizeHintAO));
 				if(written)
 					m_patBufAO.finReading(written);
-				else
-					msecsleep(lrint(resolutionQAM() * samps_ao));
 				written_total_ao += written;
 			}
 			else {
 				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
 				if(written)
 					m_patBufDO.finReading(written);
-				else
-					msecsleep(lrint(resolution() * samps_do));
 				written_total_do += written;
 			}
 			if((written_total_do > m_preFillSizeDO) && ( !pAO || (written_total_ao > m_preFillSizeAO)))
