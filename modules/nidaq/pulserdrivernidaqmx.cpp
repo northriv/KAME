@@ -967,7 +967,7 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int bla
 		startPulseGen(shot);
 	}
 	else {
-		if(m_freeRunning)
+		if(m_running)
 			stopPulseGenFreeRunning(blankpattern);
 		else
 			stopPulseGen();
