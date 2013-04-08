@@ -443,7 +443,7 @@ XNIDAQmxPulser::fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern) 
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 
 	std::vector<tRawDO> zeros(cnt_do, blankpattern);
-	ssize_t samps_do = writeToDAQmxDO(zeros[0], cnt_do);
+	ssize_t samps_do = writeToDAQmxDO( &zeros[0], cnt_do);
 	if(m_taskAO != TASK_UNDEF) {
 		std::vector<tRawAOSet> zeros(cnt_ao, m_genAOZeroLevel);
 		for(int32 cnt_ao = samps_do * oversamp_ao; cnt_ao;) {
