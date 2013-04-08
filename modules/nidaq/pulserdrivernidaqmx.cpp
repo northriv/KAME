@@ -458,48 +458,40 @@ XNIDAQmxPulser::fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern) 
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
+	if(m_freeRunning) {
+		startPulseGenFromFreeRun(shot);
+		return;
+	}
+
+	stopPulseGen();
+
+	unsigned int pausingbit = selectedPorts(shot, PORTSEL_PAUSING);
+	m_aswBit = selectedPorts(shot, PORTSEL_ASW);
+
+	if((m_taskDO == TASK_UNDEF) ||
+	   (m_pausingBit != pausingbit)) {
+		m_pausingBit = pausingbit;
+		clearTasks();
+		if(hasQAMPorts())
+			setupTasksAODO();
+		else
+			setupTasksDO(false);
+	}
 	{
-		if(m_freeRunning) {
-			startPulseGenFromFreeRun(shot);
-			return;
-		}
-
-		stopPulseGen();
-
-		unsigned int pausingbit = selectedPorts(shot, PORTSEL_PAUSING);
-		m_aswBit = selectedPorts(shot, PORTSEL_ASW);
-
-		if((m_taskDO == TASK_UNDEF) ||
-		   (m_pausingBit != pausingbit)) {
-			m_pausingBit = pausingbit;
-			clearTasks();
-			if(hasQAMPorts())
-				setupTasksAODO();
-			else
-				setupTasksDO(false);
-		}
-		{
-			uInt32 bufsize;
-			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
-			if( !m_pausingBit & (bufsize < 2047uL))
-				throw XInterface::XInterfaceError(
-					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
-							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
-		}
-		if(m_taskAO != TASK_UNDEF) {
-			uInt32 bufsize;
-			CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
-			if( !m_pausingBit & (bufsize < 8192uL))
-				throw XInterface::XInterfaceError(
-					i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
-							   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
-		}
-
-		m_genTotalCount = 0;
-		preparePatternGen(1000, shot, false, 0);
-
-		//synchronizes with the software trigger.
-		m_softwareTrigger->start(1e3 / resolution());
+		uInt32 bufsize;
+		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &bufsize));
+		if( !m_pausingBit & (bufsize < 2047uL))
+			throw XInterface::XInterfaceError(
+				i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+						   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
+	}
+	if(m_taskAO != TASK_UNDEF) {
+		uInt32 bufsize;
+		CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &bufsize));
+		if( !m_pausingBit & (bufsize < 8192uL))
+			throw XInterface::XInterfaceError(
+				i18n("Use the pausing feature for a cheap DAQmx board.") + "\n"
+						   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 	}
 
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
@@ -509,6 +501,12 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
+
+	m_genTotalCount = 0;
+	preparePatternGen(1000, shot, false, 0);
+
+	//synchronizes with the software trigger.
+	m_softwareTrigger->start(1e3 / resolution());
 
 	//Wating for buffer filling.
 	while( !m_isThreadWriterReady) {
