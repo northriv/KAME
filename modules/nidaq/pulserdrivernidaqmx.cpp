@@ -403,7 +403,7 @@ fastFill(T* p, T x, unsigned int cnt) {
 }
 
 void
-XNIDAQmxPulser::preparePatternGen(unsigned int cnt_prezeros, const Snapshot &shot,
+XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 		bool use_dummypattern, unsigned int blankpattern) {
 	if(use_dummypattern) {
 		//Creates dummy pattern.
@@ -433,28 +433,9 @@ XNIDAQmxPulser::preparePatternGen(unsigned int cnt_prezeros, const Snapshot &sho
 		m_patBufAO.reserve(m_preFillSizeAO);
 	}
 
-	//Pads preceding zeros.
-	m_genTotalCount += fillDAQmxBuffersPlain(cnt_prezeros, 0);
-
 	startBufWriter();
 }
 
-unsigned int
-XNIDAQmxPulser::fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern) {
-	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
-
-	std::vector<tRawDO> zeros(cnt_do, blankpattern);
-	ssize_t samps_do = writeToDAQmxDO( &zeros[0], cnt_do);
-	if(m_taskAO != TASK_UNDEF) {
-		std::vector<tRawAOSet> zeros(samps_do * oversamp_ao, m_genAOZeroLevel);
-		for(int32 cnt_ao = samps_do * oversamp_ao; cnt_ao;) {
-			ssize_t samps = writeToDAQmxAO( &zeros[0], cnt_ao);
-			cnt_ao -= samps;
-			msecsleep(cnt_ao * resolutionQAM());
-		}
-	}
-	return samps_do;
-}
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
@@ -494,6 +475,41 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 						   + i18n("Look at the port-selection table."), __FILE__, __LINE__);
 	}
 
+	m_genTotalCount = 0;
+
+	const unsigned int cnt_prezeros = 1000;
+	m_genTotalCount += cnt_prezeros;
+	//prefilling of the buffers.
+	if(m_taskAO != TASK_UNDEF) {
+		//Pads preceding zeros.
+		const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
+		std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+		int32 samps;
+		CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
+											false, 0.5,
+											DAQmx_Val_GroupByScanNumber,
+											zeros[0].ch,
+											&samps, NULL));
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+	}
+	//Pads preceding zeros.
+	std::vector<tRawDO> zeros(cnt_prezeros, 0);
+
+	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+	int32 samps;
+	CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_prezeros,
+										 false, 0.0,
+										 DAQmx_Val_GroupByScanNumber,
+										 &zeros[0],
+										 &samps, NULL));
+	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+
 	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
 	if(m_taskDOCtr != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
@@ -502,22 +518,10 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
-	m_genTotalCount = 0;
 	//synchronizes with the software trigger.
 	m_softwareTrigger->start(1e3 / resolution());
 
-	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_FirstSample));
-	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
-	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
-	if(m_taskAO != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
-	}
-
-	preparePatternGen(1000, shot, false, 0);
+	preparePatternGen(shot, false, 0);
 
 	//Wating for buffer filling.
 	while( !m_isThreadWriterReady) {
@@ -667,7 +671,7 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 		m_freeRunning = true;
 		m_blankPattern = blankpattern;
 
-		preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), Snapshot( *this), true, blankpattern);
+		preparePatternGen(Snapshot( *this), true, blankpattern);
 	}
 }
 void
@@ -677,7 +681,7 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	//sets position padding=200ms. after the current generating position.
 	int64_t rewound = rewindBufPos(200.0, false);
 	m_freeRunning = false;
-	preparePatternGen( rewound ? 0 : lrint(200.0 / resolution()), shot, false, 0);
+	preparePatternGen(shot, false, 0);
 }
 
 inline XNIDAQmxPulser::tRawAOSet

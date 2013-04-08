@@ -180,7 +180,6 @@ private:
 	//! \return Succeeded or not.
 	template <bool UseAO>
 	inline bool fillBuffer();
-	unsigned int fillDAQmxBuffersPlain(unsigned int cnt_do, tRawDO blankpattern);
 	//\return rewound counts.
 	int64_t rewindBufPos(double ms_from_gen_pos, bool allow_regen);
 	//! \return Counts being sent.
@@ -190,7 +189,7 @@ private:
 	void stopBufWriter();
 	void *executeWriter(const atomic<bool> &);
 	void *executeFillBuffer(const atomic<bool> &);
-	void preparePatternGen(unsigned int cnt_prezeros, const Snapshot &shot,
+	void preparePatternGen(const Snapshot &shot,
 			bool use_dummypattern, unsigned int blankpattern);
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
