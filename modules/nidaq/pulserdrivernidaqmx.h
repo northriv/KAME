@@ -181,7 +181,7 @@ private:
 	template <bool UseAO>
 	inline bool fillBuffer();
 	//\return rewound counts.
-	int64_t rewindBufPos(double ms_from_gen_pos, bool allow_regen);
+	int64_t rewindBufPos(double ms_from_gen_pos);
 	//! \return Counts being sent.
 	ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
 	ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
@@ -196,7 +196,6 @@ private:
 	XRecursiveMutex m_stateLock;
 
 	bool m_freeRunning; //!< If true, the device emits zero patterns.
-	unsigned int m_blankPattern;
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/

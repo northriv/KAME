@@ -21,7 +21,6 @@
 
 #define PAUSING_BLANK_BEFORE 1u
 #define PAUSING_BLANK_AFTER 1u
-#define PAUSING_ALIGN (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER + 1)
 
 #include "interface.h"
 
@@ -616,39 +615,26 @@ XNIDAQmxPulser::abortPulseGen() {
 }
 
 int64_t
-XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos, bool allow_regen) {
-	if(m_pausingBit) {
-		ms_from_gen_pos /= (double)m_pausingCount / PAUSING_ALIGN; //asserts rewound area is filled with pausing pulses.
-	}
+XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	int32 cnt_from_gen_pos = lrint(ms_from_gen_pos / resolution());
 
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	uInt64 samp_gen, currpos;
 	CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &samp_gen));
 	CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &currpos));
-	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO,
-		allow_regen ? DAQmx_Val_AllowRegen : DAQmx_Val_DoNotAllowRegen));
 	uInt64 samps_left_do = currpos - samp_gen, samps_left_ao;
 	int32 relpos_do = -(int32)samps_left_do; //rolls back to the current generating pos.
 	if(m_taskAO != TASK_UNDEF) {
 		uInt64 samp_gen, currpos;
 		CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskAO, &samp_gen));
 		CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskAO, &currpos));
-		CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO,
-			allow_regen ? DAQmx_Val_AllowRegen : DAQmx_Val_DoNotAllowRegen));
 		samps_left_ao = currpos - samp_gen;
 		if(samps_left_do > samps_left_ao / oversamp_ao)
 			relpos_do = -(int32)samps_left_ao / oversamp_ao;
 	}
 	relpos_do += cnt_from_gen_pos; //adds given term.
-	relpos_do = std::min(relpos_do, (int32)-PAUSING_ALIGN);
+	relpos_do = std::min(relpos_do, (int32)0);
 	m_genTotalCount += relpos_do;
-	if(m_pausingBit) {
-		int32 shift = PAUSING_ALIGN - (m_genTotalCount % PAUSING_ALIGN);
-		m_genTotalCount += shift;
-		relpos_do += shift; //aligns to beginning of pausing triggers.
-		assert(m_genTotalCount % PAUSING_ALIGN == 0);
-	}
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos_do));
 	if(m_taskAO != TASK_UNDEF) {
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos_do * oversamp_ao));
@@ -665,11 +651,10 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 
 		stopBufWriter();
 
-		//fills buffer from the current generating position to the current write position.
-		int64_t rewound = rewindBufPos(0.0, true);
+		//sets position padding=200ms. after the current generating position.
+		int64_t rewound = rewindBufPos(200.0);
 
 		m_freeRunning = true;
-		m_blankPattern = blankpattern;
 
 		preparePatternGen(Snapshot( *this), true, blankpattern);
 	}
@@ -679,7 +664,7 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	stopBufWriter();
 
 	//sets position padding=200ms. after the current generating position.
-	int64_t rewound = rewindBufPos(200.0, false);
+	int64_t rewound = rewindBufPos(200.0);
 	m_freeRunning = false;
 	preparePatternGen(shot, false, 0);
 }
@@ -812,7 +797,6 @@ XNIDAQmxPulser::fillBuffer() {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	assert(pausing_period == PAUSING_ALIGN);
 	uint64_t pausing_cost = std::max(16uLL, pausing_period);
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
@@ -832,20 +816,7 @@ XNIDAQmxPulser::fillBuffer() {
 		//Bits for digital lines.
 		tRawDO patDO = PAT_DO_MASK & pat;
 		//Case:  QAM and ASW is off.
-		if(pausingbit && (pidx == 0) && !(pat & aswbit) && (samps_rest > PAUSING_ALIGN)) {
-			unsigned int pausing_align_pad = total % PAUSING_ALIGN;
-			if(pausing_align_pad) {
-				//Padding to align pausing triggers.
-				//writes digital pattern.
-				pDO = fastFill(pDO, patDO, pausing_align_pad);
-				if(UseAO) {
-					//writes a blank in analog lines.
-					aoidx = 0;
-					pAO = fastFill(pAO, raw_zero, pausing_align_pad * oversamp_ao);
-				}
-				tonext -= pausing_align_pad;
-				samps_rest -= pausing_align_pad;
-			}
+		if(pausingbit && (pidx == 0) && !(pat & aswbit)) {
 			//generates a pausing trigger.
 			assert(tonext > 0);
 			unsigned int lps = (unsigned int)std::min(
@@ -864,6 +835,8 @@ XNIDAQmxPulser::fillBuffer() {
 				if(UseAO)
 					pAO = fastFill(pAO, raw_zero, lps * oversamp_ao * (pausing_cnt_blank_before + pausing_cnt_blank_after));
 			}
+			assert(tonext > 0);
+			break; //necessary for frequent tagging of buffer.
 		}
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
