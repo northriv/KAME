@@ -836,7 +836,8 @@ XNIDAQmxPulser::fillBuffer() {
 					pAO = fastFill(pAO, raw_zero, lps * oversamp_ao * (pausing_cnt_blank_before + pausing_cnt_blank_after));
 			}
 			assert(tonext > 0);
-			break; //necessary for frequent tagging of buffer.
+			if(samps_rest < pausing_cost)
+				break; //necessary for frequent tagging of buffer.
 		}
 		//number of samples to be written into buffer.
 		unsigned int gen_cnt = std::min((uint64_t)samps_rest, tonext);
