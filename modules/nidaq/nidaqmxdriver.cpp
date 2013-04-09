@@ -204,7 +204,10 @@ XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 freq__) {
 
 	XScopedLock<XMutex> lock(m_mutex);
 	uint64_t x;
-	while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
+	for(;;) {
+		FastQueue::key t = m_fastQueue.atomicFront(&x);
+		if( !t)
+			m_endOfBlank = 0;
 		if(x <= now)
 			m_fastQueue.atomicPop(t);
 		else
