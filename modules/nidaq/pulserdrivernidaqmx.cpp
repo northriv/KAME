@@ -407,7 +407,8 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 	if(use_dummypattern) {
 		//Creates dummy pattern.
     	shared_ptr<std::vector<GenPattern> > patlist_dummy(new std::vector<GenPattern>());
-    	patlist_dummy->push_back(GenPattern(blankpattern, 10000));
+    	patlist_dummy->push_back(GenPattern(blankpattern, 100000));
+    	patlist_dummy->push_back(GenPattern(blankpattern, 100000));
 		m_genPatternList = patlist_dummy;
 		for(unsigned int j = 0; j < PAT_QAM_MASK / PAT_QAM_PHASE; j++) {
 			m_genPulseWaveAO[j].reset();
@@ -644,14 +645,26 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 			m_genTotalCount = it->first;
 			m_genTotalSamps = it->second;
 			m_genRestCount = 0;
-			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos));
-			if(m_taskAO != TASK_UNDEF) {
-				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos * oversamp_ao));
-			}
-			fprintf(stderr, "%d\n", (int)relpos);;
 			break;
 		}
 	}
+	if(relpos > 0) {
+		for(auto rit = m_queueTimeGenCnt.rend(); rit != m_queueTimeGenCnt.rbegin(); ++rit) {
+			if(rit->second < currpos) {
+				relpos = -(int64_t)(currpos - rit->second);
+				m_genTotalCount = rit->first;
+				m_genTotalSamps = rit->second;
+				m_genRestCount = 0;
+				break;
+			}
+		}
+	}
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos));
+	if(m_taskAO != TASK_UNDEF) {
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos * oversamp_ao));
+	}
+	fprintf(stderr, "%g,%g,%g,%g,%g,%d\n", (double)samp_gen, (double)currpos,
+		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps, (int)relpos);;
 }
 void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
