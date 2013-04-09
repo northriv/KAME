@@ -679,6 +679,8 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 
 	//Writes dummy data, because DAQmxGetWriteSpaceAvail() cannot be performed after setting offset.
 	const unsigned int cnt_prezeros = 1000;
+	msecsleep(cnt_prezeros * resolution());
+
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
 	//prefilling of the buffers.
@@ -966,12 +968,12 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 			buffer_not_full = fillBuffer<false>();
 		}
 		if( !m_queueTimeGenCnt.size() ||
-			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(50.0 / resolution()))) {
+			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(30.0 / resolution()))) {
 			m_queueTimeGenCnt.push_back(std::pair<uint64_t, uint64_t>(
-				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 50ms.
+				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 30ms.
 		}
 		while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first > lrint(500000.0 / resolution())) {
-			m_queueTimeGenCnt.pop_front(); //limits only within last 500s.
+			m_queueTimeGenCnt.pop_front(); //limits only within last 300s.
 		}
 		if( !buffer_not_full) {
 			//Waiting until previous data have been sent.
