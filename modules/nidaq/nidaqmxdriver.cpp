@@ -196,22 +196,9 @@ XNIDAQmxInterface::SoftwareTrigger::tryPopFront(uint64_t threshold, float64 freq
 }
 
 void
-XNIDAQmxInterface::SoftwareTrigger::clear(float64 freq__) {
-	unsigned int freq_em= lrint(freq());
-	unsigned int freq_rc = lrint(freq__);
-	unsigned int gcd__ = gcd(freq_em, freq_rc);
-	now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
-
+XNIDAQmxInterface::SoftwareTrigger::clear() {
 	XScopedLock<XMutex> lock(m_mutex);
-	uint64_t x;
-	while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
-		m_fastQueue.atomicPop(t);
-	}
-	m_endOfBlank = 0;
-	while(m_slowQueue.size() && (m_slowQueue.front() <= now)) {
-		m_slowQueue.pop_front();
-		--m_slowQueueSize;
-	}
+	clear_();
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::forceStamp(uint64_t now, float64 freq__) {
