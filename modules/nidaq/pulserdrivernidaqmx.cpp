@@ -439,7 +439,7 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
-	if(m_freeRunning) {
+	if(m_running && m_freeRunning) {
 		startPulseGenFromFreeRun(shot);
 		return;
 	}
@@ -650,6 +650,7 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	if(m_taskAO != TASK_UNDEF)
 		currsamps  = std::min(currsamps, m_totalWrittenSampsAO / oversamp_ao);
 	if(m_genTotalSamps > currsamps) {
+		//Requested time is beyond the current buffer writing position.
 		for(auto rit = m_queueTimeGenCnt.rbegin(); rit != m_queueTimeGenCnt.rend(); ++rit) {
 			if(rit->second <= currsamps) {
 				m_genTotalCount = rit->first;
@@ -665,6 +666,36 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	}
 	fprintf(stderr, "%g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
 		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
+
+	const unsigned int cnt_prezeros = 1000;
+	m_genTotalCount += cnt_prezeros;
+	m_genTotalSamps += cnt_prezeros;
+	//prefilling of the buffers.
+	if(m_taskAO != TASK_UNDEF) {
+		//Pads preceding zeros.
+		const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
+		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
+		std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+		int32 samps;
+		CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
+											false, 0.5,
+											DAQmx_Val_GroupByScanNumber,
+											zeros[0].ch,
+											&samps, NULL));
+		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_CurrWritePos));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
+	}
+	//Pads preceding zeros.
+	std::vector<tRawDO> zeros(cnt_prezeros, 0);
+
+	int32 samps;
+	CHECK_DAQMX_RET(DAQmxWriteDigitalU16(m_taskDO, cnt_prezeros,
+										 false, 0.0,
+										 DAQmx_Val_GroupByScanNumber,
+										 &zeros[0],
+										 &samps, NULL));
+	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 }
 void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
