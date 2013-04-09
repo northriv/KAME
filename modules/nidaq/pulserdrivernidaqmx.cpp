@@ -482,9 +482,9 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
 	//prefilling of the buffers.
+	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	if(m_taskAO != TASK_UNDEF) {
 		//Pads preceding zeros.
-		const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
@@ -523,8 +523,8 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	//synchronizes with the software trigger.
 	m_softwareTrigger->start(1e3 / resolution());
 
-	m_totalWrittenSampsDO = 0;
-	m_totalWrittenSampsAO = 0;
+	m_totalWrittenSampsDO = cnt_prezeros;
+	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
 
 	preparePatternGen(shot, false, 0);
 
@@ -667,6 +667,9 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	fprintf(stderr, "%g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
 		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
 
+	m_totalWrittenSampsDO = m_genTotalSamps;
+	m_totalWrittenSampsAO = m_genTotalSamps * oversamp_ao;
+
 	const unsigned int cnt_prezeros = 1000;
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
@@ -696,6 +699,9 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 										 &samps, NULL));
 	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
+
+	m_totalWrittenSampsDO += cnt_prezeros;
+	m_totalWrittenSampsAO += cnt_prezeros * oversamp_ao;
 }
 void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
