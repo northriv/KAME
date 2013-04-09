@@ -257,7 +257,6 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 //			CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigDigSyncEnable(m_taskDOCtr, true));
 		}
 	}
-	m_freeRunning = false;
 }
 void
 XNIDAQmxPulser::setupTasksAODO() {
@@ -721,9 +720,8 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 
 		stopBufWriter();
 
-		//sets position padding=200ms. after the current generating position.
-		rewindBufPos(200.0);
-		m_freeRunning = true;
+		//sets position padding=100ms. after the current generating position.
+		rewindBufPos(100.0);
 		preparePatternGen(Snapshot( *this), true, blankpattern);
 	}
 }
@@ -734,9 +732,8 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 
 	stopBufWriter();
 
-	//sets position padding=200ms. after the current generating position.
-	rewindBufPos(200.0);
-	m_freeRunning = false;
+	//sets position padding=100ms. after the current generating position.
+	rewindBufPos(100.0);
 	preparePatternGen(shot, false, 0);
 }
 
