@@ -525,6 +525,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_totalWrittenSampsDO = cnt_prezeros;
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
 
+	m_genOriginTime = XTime::now();
 	preparePatternGen(shot, false, 0);
 
 	//Wating for buffer filling.
@@ -960,6 +961,10 @@ XNIDAQmxPulser::fillBuffer() {
 void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 	while( !terminating) {
+		if((m_genTotalCount - m_genRestCount) * resolution() * 1e-3 - (XTime::now() - m_genOrigTime) > 3.0) {
+			msecsleep(10);
+			continue;
+		}
 		bool buffer_not_full;
 		if(m_taskAO != TASK_UNDEF) {
 			buffer_not_full = fillBuffer<true>();
@@ -968,12 +973,12 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 			buffer_not_full = fillBuffer<false>();
 		}
 		if( !m_queueTimeGenCnt.size() ||
-			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(30.0 / resolution()))) {
+			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(20.0 / resolution()))) {
 			m_queueTimeGenCnt.push_back(std::pair<uint64_t, uint64_t>(
-				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 30ms.
+				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 20ms.
 		}
-		while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first > lrint(500000.0 / resolution())) {
-			m_queueTimeGenCnt.pop_front(); //limits only within last 300s.
+		while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first > lrint(20000.0 / resolution())) {
+			m_queueTimeGenCnt.pop_front(); //limits only within last 20s.
 		}
 		if( !buffer_not_full) {
 			//Waiting until previous data have been sent.
