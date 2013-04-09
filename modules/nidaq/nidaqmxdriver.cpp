@@ -202,7 +202,7 @@ XNIDAQmxInterface::SoftwareTrigger::clear() {
 	m_endOfBlank =  0;
 }
 void
-XNIDAQmxInterface::SoftwareTrigger::clear(float64 freq__) {
+XNIDAQmxInterface::SoftwareTrigger::clear(uint64_t now, float64 freq__) {
 	unsigned int freq_em= lrint(freq());
 	unsigned int freq_rc = lrint(freq__);
 	unsigned int gcd__ = gcd(freq_em, freq_rc);

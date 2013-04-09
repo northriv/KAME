@@ -717,7 +717,7 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
 		//clears sent software triggers.
-		m_softwareTrigger->clear(1.0/resolution());
+		m_softwareTrigger->clear();
 
 		stopBufWriter();
 
@@ -730,7 +730,7 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 void
 XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	//clears sent software triggers.
-	m_softwareTrigger->clear(1.0/resolution());
+	m_softwareTrigger->clear();
 
 	stopBufWriter();
 

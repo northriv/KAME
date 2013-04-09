@@ -137,6 +137,8 @@ public:
 		static XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return s_onChange;}
 		//! clears all time stamps.
 		void clear();
+		//! clears past time stamps.
+		void clear(uint64_t now, float64 freq);
 		//! \return if not, zero will be returned.
 		//! \param freq frequency of reader.
 		//! \param threshold upper bound to be pop, unit in 1/\a freq (2nd param.).
