@@ -439,7 +439,7 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
-	if(m_running && m_freeRunning) {
+	if(m_running) {
 		startPulseGenFromFreeRun(shot);
 		return;
 	}
@@ -488,7 +488,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-		std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+		std::vector<tRawAOSet> zeros(cnt_prezeros_ao, m_genAOZeroLevel);
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
 											false, 0.5,
@@ -687,7 +687,7 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 		//Pads preceding zeros.
 		const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
-		std::vector<tRawAOSet> zeros(cnt_prezeros, m_genAOZeroLevel);
+		std::vector<tRawAOSet> zeros(cnt_prezeros_ao, m_genAOZeroLevel);
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
 											false, 0.5,
