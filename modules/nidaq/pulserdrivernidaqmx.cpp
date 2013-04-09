@@ -632,6 +632,8 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 		samp_gen = std::max(samp_gen_ao / oversamp_ao, samp_gen);
 	}
 	uint64_t count_gen;
+	uint64_t count_old = m_genTotalCount;
+	assert(m_genRestCount == 0);
 	for(auto it = m_queueTimeGenCnt.begin(); it != m_queueTimeGenCnt.end(); ++it) {
 		if(it->second > samp_gen) {
 			count_gen = it->first;
@@ -660,6 +662,15 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 			}
 		}
 	}
+	if(m_genTotalSamps > currsamps) {
+		m_genTotalSamps = currsamps;
+		m_genTotalCount = count_old;
+		m_genRestCount = 0;
+	}
+
+	//clears sent software triggers.
+	m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
+
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO,  -(int32_t)(m_totalWrittenSampsDO - m_genTotalSamps)));
 	if(m_taskAO != TASK_UNDEF) {
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO,   -(int32_t)(m_totalWrittenSampsAO - m_genTotalSamps * oversamp_ao)));
@@ -670,6 +681,7 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	m_totalWrittenSampsDO = m_genTotalSamps;
 	m_totalWrittenSampsAO = m_genTotalSamps * oversamp_ao;
 
+	//Writes dummy data, because DAQmxGetWriteSpaceAvail() cannot be performed after setting offset.
 	const unsigned int cnt_prezeros = 1000;
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
@@ -708,9 +720,6 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
 		stopBufWriter();
-
-		//clears sent software triggers.
-		m_softwareTrigger->clear(m_genTotalCount - m_genRestCount, 1.0/resolution());
 
 		//sets position padding=200ms. after the current generating position.
 		rewindBufPos(200.0);
@@ -970,6 +979,8 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 			usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));
 		}
 	}
+	m_genTotalCount -= m_genRestCount;
+	m_genRestCount = 0;
 	return NULL;
 }
 void
