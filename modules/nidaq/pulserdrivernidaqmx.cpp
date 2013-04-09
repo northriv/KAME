@@ -424,7 +424,7 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 
 	//prepares ring buffers for pattern generation.
 	m_genLastPatIt = m_genPatternList->begin();
-	m_genRestSamps = m_genPatternList->front().tonext;
+	m_genRestCount = m_genPatternList->front().tonext;
 	m_genTotalCount += m_genPatternList->front().tonext;
 	m_patBufDO.reserve(m_preFillSizeDO);
 	if(m_taskAO != TASK_UNDEF) {
@@ -475,9 +475,11 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	}
 
 	m_genTotalCount = 0;
+	m_genTotalSamps = 0;
 
 	const unsigned int cnt_prezeros = 1000;
 	m_genTotalCount += cnt_prezeros;
+	m_genTotalSamps += cnt_prezeros;
 	//prefilling of the buffers.
 	if(m_taskAO != TASK_UNDEF) {
 		//Pads preceding zeros.
@@ -614,48 +616,55 @@ XNIDAQmxPulser::abortPulseGen() {
 	}
 }
 
-int64_t
+void
 XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	int32 cnt_from_gen_pos = lrint(ms_from_gen_pos / resolution());
-
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
 	uInt64 samp_gen, currpos;
 	CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &samp_gen));
 	CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &currpos));
-	uInt64 samps_left_do = currpos - samp_gen, samps_left_ao;
-	int32 relpos_do = -(int32)samps_left_do; //rolls back to the current generating pos.
 	if(m_taskAO != TASK_UNDEF) {
-		uInt64 samp_gen, currpos;
-		CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskAO, &samp_gen));
+		uInt64 samp_gen_ao, currpos_ao;
+		CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskAO, &samp_gen_ao));
 		CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskAO, &currpos));
-		samps_left_ao = currpos - samp_gen;
-		if(samps_left_do > samps_left_ao / oversamp_ao)
-			relpos_do = -(int32)samps_left_ao / oversamp_ao;
+		samp_gen = std::max(samp_gen_ao / oversamp_ao, samp_gen);
+		currpos = std::min(currpos_ao / oversamp_ao, currpos);
 	}
-	relpos_do += cnt_from_gen_pos; //adds given term.
-	relpos_do = std::min(relpos_do, (int32)0);
-	m_genTotalCount += relpos_do;
-	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos_do));
-	if(m_taskAO != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos_do * oversamp_ao));
+	uint64_t count_gen;
+	int64_t relpos = 0;
+	for(auto it = m_queueTimeGenCnt.begin(); it != m_queueTimeGenCnt.end(); ++it) {
+		if(it->second() > samp_gen) {
+			count_gen = it->first();
+			break;
+		}
 	}
-	fprintf(stderr, "%d\n", (int)relpos_do);;
-	return -relpos_do;
+	for(auto it = m_queueTimeGenCnt.begin(); it != m_queueTimeGenCnt.end(); ++it) {
+		if(it->first() > count_gen + cnt_from_gen_pos) {
+			relpos = -(int64_t)(currpos - it->second());
+			m_genTotalCount = it->first();
+			m_genTotalSamps = it->second();
+			m_genRestCount = 0;
+			CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos));
+			if(m_taskAO != TASK_UNDEF) {
+				CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos * oversamp_ao));
+			}
+			fprintf(stderr, "%d\n", (int)relpos);;
+			break;
+		}
+	}
 }
 void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-		//clears sent software triggers.
-		m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
-
 		stopBufWriter();
 
+		//clears sent software triggers.
+		m_softwareTrigger->clear(m_genTotalCount - m_genRestCount, 1.0/resolution());
+
 		//sets position padding=200ms. after the current generating position.
-		int64_t rewound = rewindBufPos(200.0);
-
+		rewindBufPos(200.0);
 		m_freeRunning = true;
-
 		preparePatternGen(Snapshot( *this), true, blankpattern);
 	}
 }
@@ -664,7 +673,7 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	stopBufWriter();
 
 	//sets position padding=200ms. after the current generating position.
-	int64_t rewound = rewindBufPos(200.0);
+	rewindBufPos(200.0);
 	m_freeRunning = false;
 	preparePatternGen(shot, false, 0);
 }
@@ -788,7 +797,7 @@ XNIDAQmxPulser::fillBuffer() {
 
 	GenPatternIterator it = m_genLastPatIt;
 	uint32_t pat = it->pattern;
-	uint64_t tonext = m_genRestSamps;
+	uint64_t tonext = m_genRestCount;
 	uint64_t total = m_genTotalCount;
 	unsigned int aoidx = m_genAOIndex;
 	tRawDO pausingbit = m_pausingBit;
@@ -802,6 +811,7 @@ XNIDAQmxPulser::fillBuffer() {
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
 	tRawDO *pDO = m_patBufDO.curWritePos();
+	tRawDO *pDOorg = pDO;
 	if( !pDO)
 		return false;
 	tRawAOSet *pAO = (UseAO) ? m_patBufAO.curWritePos() : NULL;
@@ -876,10 +886,11 @@ XNIDAQmxPulser::fillBuffer() {
 			total += tonext;
 		}
 	}
-	m_genRestSamps = tonext;
+	m_genRestCount = tonext;
 	m_genLastPatIt = it;
 	m_genAOIndex = aoidx;
 	m_genTotalCount = total;
+	m_genTotalSamps += pDO - pDOorg;
 	//Here ensures the pattern data is ready.
 	m_patBufDO.finWriting(pDO);
 	if(UseAO)
@@ -895,6 +906,14 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 		}
 		else {
 			buffer_not_full = fillBuffer<false>();
+		}
+		if( !m_queueTimeGenCnt.size() ||
+			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first() > lrint(50.0 / resolution()))) {
+			m_queueTimeGenCnt.push_back(std::pair<uint64_t, uint64_t>(
+				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 50ms.
+		}
+		while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first() > lrint(500000.0 / resolution())) {
+			m_queueTimeGenCnt.pop_front(); //limits only within last 500s.
 		}
 		if( !buffer_not_full) {
 			//Waiting until previous data have been sent.
@@ -962,9 +981,9 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int bla
 		startPulseGen(shot);
 	}
 	else {
-//		if(m_running)
-//			stopPulseGenFreeRunning(blankpattern);
-//		else
+		if(m_running)
+			stopPulseGenFreeRunning(blankpattern);
+		else
 			stopPulseGen();
 	}
 }
