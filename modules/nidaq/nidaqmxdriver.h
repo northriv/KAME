@@ -136,7 +136,7 @@ public:
 		//! for changeing list.
 		static XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return s_onChange;}
 		//! clears all time stamps.
-		void clear(float64 freq);
+		void clear();
 		//! \return if not, zero will be returned.
 		//! \param freq frequency of reader.
 		//! \param threshold upper bound to be pop, unit in 1/\a freq (2nd param.).

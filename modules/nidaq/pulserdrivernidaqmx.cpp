@@ -668,9 +668,6 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 		m_genRestCount = 0;
 	}
 
-	//clears sent software triggers.
-	m_softwareTrigger->clear(m_genTotalCount, 1.0/resolution());
-
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO,  -(int32_t)(m_totalWrittenSampsDO - m_genTotalSamps)));
 	if(m_taskAO != TASK_UNDEF) {
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO,   -(int32_t)(m_totalWrittenSampsAO - m_genTotalSamps * oversamp_ao)));
@@ -719,6 +716,9 @@ void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
+		//clears sent software triggers.
+		m_softwareTrigger->clear(1.0/resolution());
+
 		stopBufWriter();
 
 		//sets position padding=200ms. after the current generating position.
@@ -729,6 +729,9 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 }
 void
 XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
+	//clears sent software triggers.
+	m_softwareTrigger->clear(1.0/resolution());
+
 	stopBufWriter();
 
 	//sets position padding=200ms. after the current generating position.
