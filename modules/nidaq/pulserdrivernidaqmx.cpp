@@ -426,10 +426,10 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 	m_genLastPatIt = m_genPatternList->begin();
 	m_genRestCount = m_genPatternList->front().tonext;
 	m_genTotalCount += m_genPatternList->front().tonext;
-	m_patBufDO.reserve(m_preFillSizeDO);
+	m_patBufDO.reserve(m_preFillSizeDO, std::min((long)m_preFillSizeDO / 16, lrint(30.0 / resolution())));
 	if(m_taskAO != TASK_UNDEF) {
 		m_genAOIndex = 0;
-		m_patBufAO.reserve(m_preFillSizeAO);
+		m_patBufAO.reserve(m_preFillSizeAO, std::min((long)m_preFillSizeAO / 16, lrint(30.0 / resolutionQAM())));
 	}
 
 	startBufWriter();
