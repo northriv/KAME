@@ -523,6 +523,9 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	//synchronizes with the software trigger.
 	m_softwareTrigger->start(1e3 / resolution());
 
+	m_totalWrittenSampsDO = 0;
+	m_totalWrittenSampsAO = 0;
+
 	preparePatternGen(shot, false, 0);
 
 	//Wating for buffer filling.
@@ -621,18 +624,14 @@ void
 XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	int32 cnt_from_gen_pos = lrint(ms_from_gen_pos / resolution());
 	const unsigned int oversamp_ao = lrint(resolution() / resolutionQAM());
-	uInt64 samp_gen, currpos;
+	uInt64 samp_gen;
 	CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskDO, &samp_gen));
-	CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskDO, &currpos));
 	if(m_taskAO != TASK_UNDEF) {
 		uInt64 samp_gen_ao, currpos_ao;
 		CHECK_DAQMX_RET(DAQmxGetWriteTotalSampPerChanGenerated(m_taskAO, &samp_gen_ao));
-		CHECK_DAQMX_RET(DAQmxGetWriteCurrWritePos(m_taskAO, &currpos));
 		samp_gen = std::max(samp_gen_ao / oversamp_ao, samp_gen);
-		currpos = std::min(currpos_ao / oversamp_ao, currpos);
 	}
 	uint64_t count_gen;
-	int64_t relpos = 0;
 	for(auto it = m_queueTimeGenCnt.begin(); it != m_queueTimeGenCnt.end(); ++it) {
 		if(it->second > samp_gen) {
 			count_gen = it->first;
@@ -641,17 +640,18 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	}
 	for(auto it = m_queueTimeGenCnt.begin(); it != m_queueTimeGenCnt.end(); ++it) {
 		if(it->first > count_gen + cnt_from_gen_pos) {
-			relpos = -(int64_t)(currpos - it->second);
 			m_genTotalCount = it->first;
 			m_genTotalSamps = it->second;
 			m_genRestCount = 0;
 			break;
 		}
 	}
-	if(relpos > 0) {
-		for(auto rit = m_queueTimeGenCnt.rend(); rit != m_queueTimeGenCnt.rbegin(); ++rit) {
-			if(rit->second < currpos) {
-				relpos = -(int64_t)(currpos - rit->second);
+	uint64_t currsamps = m_totalWrittenSampsDO;
+	if(m_taskAO != TASK_UNDEF)
+		currsamps  = std::min(currsamps, m_totalWrittenSampsAO / oversamp_ao);
+	if(m_genTotalSamps > currsamps) {
+		for(auto rit = m_queueTimeGenCnt.rbegin(); rit != m_queueTimeGenCnt.rend(); ++rit) {
+			if(rit->second <= currsamps) {
 				m_genTotalCount = rit->first;
 				m_genTotalSamps = rit->second;
 				m_genRestCount = 0;
@@ -659,11 +659,11 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 			}
 		}
 	}
-	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, relpos));
+	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO,  -(int32_t)(m_totalWrittenSampsDO - m_genTotalSamps)));
 	if(m_taskAO != TASK_UNDEF) {
-		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, relpos * oversamp_ao));
+		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO,   -(int32_t)(m_totalWrittenSampsAO - m_genTotalSamps * oversamp_ao)));
 	}
-	fprintf(stderr, "%g,%g,%g,%g,%g,%d\n", (double)samp_gen, (double)currpos,
+	fprintf(stderr, "%g,%g,%g,%g,%g,%d\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
 		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps, (int)relpos);;
 }
 void
@@ -712,7 +712,6 @@ void *
 XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
  	double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();
-	uint64_t written_total_do = 0, written_total_ao = 0;
 
  	//Starting a child thread generating patterns concurrently.
 	XThread<XNIDAQmxPulser> th_genbuf(shared_from_this(),
@@ -741,7 +740,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 					m_patBufAO.finReading(written);
 				else
 					msecsleep(lrint(resolutionQAM() * samps_ao) / 2);
-				written_total_ao += written;
+				m_totalWrittenSampsAO += written;
 			}
 			else {
 				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
@@ -749,9 +748,9 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 					m_patBufDO.finReading(written);
 				else
 					msecsleep(lrint(resolution() * samps_do) / 2);
-				written_total_do += written;
+				m_totalWrittenSampsDO += written;
 			}
-			if((written_total_do > m_preFillSizeDO) && ( !pAO || (written_total_ao > m_preFillSizeAO)))
+			if((m_totalWrittenSampsDO > m_preFillSizeDO) && ( !pAO || (m_totalWrittenSampsAO > m_preFillSizeAO)))
 				m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
 		}
 		catch (XInterface::XInterfaceError &e) {

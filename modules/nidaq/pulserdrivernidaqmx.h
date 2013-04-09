@@ -111,6 +111,7 @@ private:
 	 //! During the pattern generation, total # of samplings that has been generated for DO buffered device.
 	//! \a m_genTotalSamps is different from \a m_genTotalCount when pausing clocks are active.
 	uint64_t m_genTotalSamps;
+	uint64_t m_totalWrittenSampsDO, m_totalWrittenSampsAO; //!< # of samps written to DAQmx lib.
 	bool m_running;
 protected:	
 	double m_resolutionDO, m_resolutionAO;
