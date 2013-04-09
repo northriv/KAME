@@ -91,9 +91,7 @@ private:
 	shared_ptr<std::vector<GenPattern> > m_genPatternList;
 
 	typedef std::vector<GenPattern>::iterator GenPatternIterator;
-
 	GenPatternIterator m_genLastPatIt;
-	uint64_t m_genRestSamps;
 
 	unsigned int m_genAOIndex; //!< Preserved index for \a m_genPulseWaveAO[], \sa fillBuffer().
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
@@ -107,7 +105,12 @@ private:
 	unsigned int m_preFillSizeAO;
 	unsigned int m_transferSizeHintDO; //!< Max size of data transfer to DAQmx lib.
 	unsigned int m_transferSizeHintAO;
+	//! During the pattern generation, indicates total # of clocks at the next pattern change that has elapsed from the origin.
 	uint64_t m_genTotalCount;
+	uint64_t m_genRestCount; //!< indicates the remaining # of clocks to the next pattern change.
+	 //! During the pattern generation, total # of samplings that has been generated for DO buffered device.
+	//! \a m_genTotalSamps is different from \a m_genTotalCount when pausing clocks are active.
+	uint64_t m_genTotalSamps;
 	bool m_running;
 protected:	
 	double m_resolutionDO, m_resolutionAO;
@@ -180,8 +183,7 @@ private:
 	//! \return Succeeded or not.
 	template <bool UseAO>
 	inline bool fillBuffer();
-	//\return rewound counts.
-	int64_t rewindBufPos(double ms_from_gen_pos);
+	void rewindBufPos(double ms_from_gen_pos);
 	//! \return Counts being sent.
 	ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
 	ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
@@ -194,6 +196,9 @@ private:
 
 	int makeWaveForm(int num, double pw, tpulsefunc func, double dB, double freq = 0.0, double phase = 0.0);
 	XRecursiveMutex m_stateLock;
+
+	typedef std::deque<std::pair<uint64_t, uint64_t> > QueueTimeGenCnt;
+	QueueTimeGenCnt m_queueTimeGenCnt; //!< pairs of real time and # of DO samps, which are identical if pausing feature is off.
 
 	bool m_freeRunning; //!< If true, the device emits zero patterns.
 };
