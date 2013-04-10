@@ -1,3 +1,7 @@
+* Thu Apr 11 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.6-1)
+- nmrpulser: On-line start/stop to keep coherency to DSO. 
+
 * Fri Mar 8 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.5-1)
 - secondarydriverinterface: does negotiation.

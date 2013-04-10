@@ -208,7 +208,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	fprintf(stderr, "DO Using bufsize = %d, freq = %f\n", (int)bufsize, freq);
 	m_preFillSizeDO = bufsize / 2;
 	m_transferSizeHintDO = std::min((unsigned int)onbrdsize / 2, m_preFillSizeDO / 16);
-	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_AllowRegen));
+	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
 	{
 //		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskDO, DAQmx_Val_Poll));
@@ -320,7 +320,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	fprintf(stderr, "AO Using bufsize = %d\n", (int)bufsize);
 	m_preFillSizeAO = m_preFillSizeDO * oversamp;
 	m_transferSizeHintAO = std::min((unsigned int)onbrdsize / 2, m_transferSizeHintDO * oversamp);
-	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_AllowRegen));
+	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	{
 //		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskAO, DAQmx_Val_Poll));
