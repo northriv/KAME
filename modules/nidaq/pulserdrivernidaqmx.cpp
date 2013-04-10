@@ -674,8 +674,8 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	if(m_taskAO != TASK_UNDEF) {
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO,   -(int32_t)(m_totalWrittenSampsAO - m_genTotalSamps * oversamp_ao)));
 	}
-	fprintf(stderr, "%g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
-		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
+//	fprintf(stderr, "%g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
+//		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
 
 	m_totalWrittenSampsDO = m_genTotalSamps;
 	m_totalWrittenSampsAO = m_genTotalSamps * oversamp_ao;
@@ -730,8 +730,8 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 		}
 		stopBufWriter();
 
-		//sets position padding=200ms. after the current generating position.
-		rewindBufPos(200.0);
+		//sets position padding=150ms. after the current generating position.
+		rewindBufPos(150.0);
 		preparePatternGen(Snapshot( *this), true, blankpattern);
 	}
 }
@@ -747,8 +747,8 @@ XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	}
 	stopBufWriter();
 
-	//sets position padding=200ms. after the current generating position.
-	rewindBufPos(200.0);
+	//sets position padding=150ms. after the current generating position.
+	rewindBufPos(150.0);
 	preparePatternGen(shot, false, 0);
 }
 
