@@ -442,7 +442,7 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 void
 XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
-	if(m_running) {
+	if(m_running && m_softwareTrigger->isPersistentCoherentMode()) {
 		startPulseGenFromFreeRun(shot);
 		return;
 	}
@@ -1054,7 +1054,7 @@ XNIDAQmxPulser::changeOutput(const Snapshot &shot, bool output, unsigned int bla
 		startPulseGen(shot);
 	}
 	else {
-		if(m_running)
+		if(m_running && m_softwareTrigger->isPersistentCoherentMode())
 			stopPulseGenFreeRunning(blankpattern);
 		else
 			stopPulseGen();

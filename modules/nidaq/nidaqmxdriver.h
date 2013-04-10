@@ -106,7 +106,8 @@ public:
 		const char *label() const {return m_label.c_str();}
 		void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
 		const char *armTerm() const {return m_armTerm.c_str();}
-			
+		bool isPersistentCoherentMode() const {return m_isPersistentCoherent;}
+		void setPersistentCoherentMode(bool x) {m_isPersistentCoherent = x;}
 		void start(float64 freq);
 		float64 freq() const {return m_freq;} //!< [Hz].
 		unsigned int bits() const {return m_bits;}
@@ -168,6 +169,7 @@ public:
 		XTalker<shared_ptr<SoftwareTrigger> > m_onStart;
 		static XTalker<shared_ptr<SoftwareTrigger> > s_onChange;
 		static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
+		bool m_isPersistentCoherent;
 	};
 protected:
 	virtual void open() throw (XInterfaceError &);
