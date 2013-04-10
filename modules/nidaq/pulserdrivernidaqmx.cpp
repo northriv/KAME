@@ -982,6 +982,7 @@ XNIDAQmxPulser::fillBuffer() {
 }
 void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
+	m_queueTimeGenCnt.clear();
 	while( !terminating) {
 //		if((m_genTotalCount - m_genRestCount) * resolution() * 1e-3 - (XTime::now() - m_genOriginTime) > 3.0) {
 //			if(m_genTotalSamps > m_totalWrittenSampsDO) {
