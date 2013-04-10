@@ -211,7 +211,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskDO, DAQmx_Val_DoNotAllowRegen));
 
 	{
-		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskDO, DAQmx_Val_Poll));
+//		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskDO, DAQmx_Val_Poll));
 //		CHECK_DAQMX_RET(DAQmxSetWriteSleepTime(m_taskDO, 0.001));
 		char ch[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskDO, ch, sizeof(ch)));
@@ -323,7 +323,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxSetWriteRegenMode(m_taskAO, DAQmx_Val_DoNotAllowRegen));
 
 	{
-		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskAO, DAQmx_Val_Poll));
+//		CHECK_DAQMX_RET(DAQmxSetWriteWaitMode(m_taskAO, DAQmx_Val_Poll));
 //		CHECK_DAQMX_RET(DAQmxSetWriteSleepTime(m_taskAO, 0.001));
 		char ch[256];
 		CHECK_DAQMX_RET(DAQmxGetTaskChannels(m_taskAO, ch, sizeof(ch)));
@@ -561,7 +561,6 @@ XNIDAQmxPulser::startBufWriter() {
 	//Starting threads that writing buffers concurrently.
 	m_threadWriter.reset(new XThread<XNIDAQmxPulser>(shared_from_this(),
 													  &XNIDAQmxPulser::executeWriter));
-	m_isThreadWriterReady = false;
 	m_threadWriter->resume();
 }
 void
@@ -724,7 +723,12 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	{
 		//clears sent software triggers.
 		m_softwareTrigger->clear();
-
+		//assures that buffer content is enough.
+		while( !m_isThreadWriterReady) {
+			if(m_threadWriter->isTerminated())
+				return;
+			usleep(1000);
+		}
 		stopBufWriter();
 
 		//sets position padding=100ms. after the current generating position.
@@ -736,7 +740,12 @@ void
 XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	//clears sent software triggers.
 	m_softwareTrigger->clear();
-
+	//assures that buffer content is enough.
+	while( !m_isThreadWriterReady) {
+		if(m_threadWriter->isTerminated())
+			return;
+		usleep(1000);
+	}
 	stopBufWriter();
 
 	//sets position padding=100ms. after the current generating position.
@@ -771,6 +780,8 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 													  &XNIDAQmxPulser::executeFillBuffer);
 	th_genbuf.resume();
 
+	m_isThreadWriterReady = false;
+	uint64_t total_samps_do = 0, total_samps_ao = 0;
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
 		ssize_t samps_do = m_patBufDO.writtenSize();
@@ -785,6 +796,11 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 				1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
 			continue;
 		}
+		if(std::max(samps_do, samps_ao) < m_transferSizeHintDO / 4) {
+			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period,
+				1e3 * m_transferSizeHintAO * dma_ao_period) / 2) / 4);
+			continue;
+		}
 		try {
 			ssize_t written;
 			if(samps_ao > samps_do) {
@@ -793,7 +809,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 					m_patBufAO.finReading(written);
 				else
 					msecsleep(lrint(resolutionQAM() * samps_ao) / 2);
-				m_totalWrittenSampsAO += written;
+				total_samps_ao += written;
 			}
 			else {
 				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
@@ -801,9 +817,9 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 					m_patBufDO.finReading(written);
 				else
 					msecsleep(lrint(resolution() * samps_do) / 2);
-				m_totalWrittenSampsDO += written;
+				total_samps_do += written;
 			}
-			if((m_totalWrittenSampsDO > m_preFillSizeDO) && ( !pAO || (m_totalWrittenSampsAO > m_preFillSizeAO)))
+			if((total_samps_do > m_preFillSizeDO) && ( !pAO || (total_samps_ao > m_preFillSizeAO)))
 				m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
 		}
 		catch (XInterface::XInterfaceError &e) {
@@ -822,6 +838,8 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			}
 		}
 	}
+	m_totalWrittenSampsDO += total_samps_do;
+	m_totalWrittenSampsAO += total_samps_ao;
 
 	th_genbuf.terminate();
 	th_genbuf.waitFor();
