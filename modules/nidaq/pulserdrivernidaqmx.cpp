@@ -200,7 +200,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "DO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		buf_size_hint /= 16;
+		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	if(bufsize < buf_size_hint)
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
@@ -312,7 +312,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "AO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		buf_size_hint /= 16;
+		buf_size_hint /= 4;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	if(bufsize < buf_size_hint)
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
