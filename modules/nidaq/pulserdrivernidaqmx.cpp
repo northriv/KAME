@@ -722,12 +722,6 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	{
 		//clears sent software triggers.
 		m_softwareTrigger->clear();
-		//assures that buffer content is enough.
-		while( !m_isThreadWriterReady) {
-			if(m_threadWriter->isTerminated())
-				return;
-			usleep(1000);
-		}
 		stopBufWriter();
 
 		//sets position padding=150ms. after the current generating position.
@@ -739,12 +733,6 @@ void
 XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
 	//clears sent software triggers.
 	m_softwareTrigger->clear();
-	//assures that buffer content is enough.
-	while( !m_isThreadWriterReady) {
-		if(m_threadWriter->isTerminated())
-			return;
-		usleep(1000);
-	}
 	stopBufWriter();
 
 	//sets position padding=150ms. after the current generating position.
