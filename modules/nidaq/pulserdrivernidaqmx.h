@@ -202,8 +202,6 @@ private:
 
 	typedef std::deque<std::pair<uint64_t, uint64_t> > QueueTimeGenCnt;
 	QueueTimeGenCnt m_queueTimeGenCnt; //!< pairs of real time and # of DO samps, which are identical if pausing feature is off.
-
-//	XTime m_genOriginTime;
 };
 
 #endif /*PULSERDRIVERNIDAQMX_H_*/

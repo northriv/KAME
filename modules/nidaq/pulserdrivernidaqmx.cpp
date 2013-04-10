@@ -200,7 +200,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskDO, &onbrdsize));
 	fprintf(stderr, "DO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		buf_size_hint /= 4;
+		buf_size_hint /= 16;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskDO, &bufsize));
 	if(bufsize < buf_size_hint)
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskDO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
@@ -312,7 +312,7 @@ XNIDAQmxPulser::setupTasksAODO() {
 	CHECK_DAQMX_RET(DAQmxGetBufOutputOnbrdBufSize(m_taskAO, &onbrdsize));
 	fprintf(stderr, "AO On-board bufsize = %d\n", (int)onbrdsize);
 	if(m_pausingBit)
-		buf_size_hint /= 4;
+		buf_size_hint /= 16;
 	CHECK_DAQMX_RET(DAQmxGetBufOutputBufSize(m_taskAO, &bufsize));
 	if(bufsize < buf_size_hint)
 		CHECK_DAQMX_RET(DAQmxCfgOutputBuffer(m_taskAO, std::max((uInt32)buf_size_hint, onbrdsize / 4)));
@@ -529,7 +529,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_totalWrittenSampsDO = cnt_prezeros;
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
 
-//	m_genOriginTime = XTime::now();
 	preparePatternGen(shot, false, 0);
 
 	//Wating for buffer filling.
@@ -984,17 +983,6 @@ void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 	m_queueTimeGenCnt.clear();
 	while( !terminating) {
-//		if((m_genTotalCount - m_genRestCount) * resolution() * 1e-3 - (XTime::now() - m_genOriginTime) > 3.0) {
-//			if(m_genTotalSamps > m_totalWrittenSampsDO) {
-//				if(m_taskAO != TASK_UNDEF) {
-//				    int oversamp_ao = lrint(resolution() / resolutionQAM());
-//					if(m_genTotalSamps * oversamp_ao > m_totalWrittenSampsAO)
-//						m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
-//				}
-//			}
-//			msecsleep(10);
-//			continue;
-//		}
 		bool buffer_not_full;
 		if(m_taskAO != TASK_UNDEF) {
 			buffer_not_full = fillBuffer<true>();
