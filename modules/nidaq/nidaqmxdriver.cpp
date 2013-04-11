@@ -81,6 +81,7 @@ XNIDAQmxInterface::SoftwareTrigger::SoftwareTrigger(const char *label, unsigned 
 	: m_label(label), m_bits(bits),
 	  m_risingEdgeMask(0u), m_fallingEdgeMask(0u) {
  	clear_();
+	m_isPersistentCoherent = false;
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger> &p) {
