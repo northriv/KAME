@@ -265,7 +265,7 @@ XNIDAQmxDSO::setupTrigger() {
 		trig_spec = DAQmx_Val_RisingSlope;
 		pretrig = 0;
 		CHECK_DAQMX_RET(DAQmxSetReadOverWrite(m_task, DAQmx_Val_OverwriteUnreadSamps));
-		m_softwareTrigger->setPersistentCoherentMode(shot[ *dRFMode()]);
+		m_softwareTrigger->setPersistentCoherentMode(shot[ *dRFMode()] >= 1);
 	}
 
 	//Small # of pretriggers is not allowed for ReferenceTrigger.
