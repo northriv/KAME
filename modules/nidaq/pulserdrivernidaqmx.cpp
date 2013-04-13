@@ -297,7 +297,7 @@ XNIDAQmxPulser::setupTasksAODO() {
     }
 
 	if(m_pausingBit) {
-		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Rising));
+		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Falling));
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
@@ -430,10 +430,10 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 	m_genLastPatIt = m_genPatternList->begin();
 	m_genRestCount = m_genPatternList->front().tonext;
 	m_genTotalCount += m_genPatternList->front().tonext;
-	m_patBufDO.reserve(m_preFillSizeDO, std::min((long)m_preFillSizeDO / 16, lrint(30.0 / resolution())));
+	m_patBufDO.reserve(m_preFillSizeDO);
 	if(m_taskAO != TASK_UNDEF) {
 		m_genAOIndex = 0;
-		m_patBufAO.reserve(m_preFillSizeAO, std::min((long)m_preFillSizeAO / 16, lrint(30.0 / resolutionQAM())));
+		m_patBufAO.reserve(m_preFillSizeAO);
 	}
 
 	startBufWriter();
@@ -876,7 +876,7 @@ XNIDAQmxPulser::fillBuffer() {
 	uint64_t pausing_cnt_blank_before = PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER;
 	uint64_t pausing_cnt_blank_after = 1;
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
-	uint64_t pausing_cost = std::max(16uLL, pausing_period);
+	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
