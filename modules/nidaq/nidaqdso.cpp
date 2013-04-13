@@ -122,6 +122,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 				}
 			}
 		}
+		tr.unmark(m_lsnOnTrigSourceChanged);
 		if(tr.commit())
 			break;
 	}

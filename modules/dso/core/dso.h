@@ -163,6 +163,8 @@ protected:
 	double phaseOfRF(const Snapshot &shot_of_this, uint64_t count, double interval);
 
 	const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
+
+	shared_ptr<XListener> m_lsnOnTrigSourceChanged;
 private:
 	enum {FETCHMODE_NEVER = 0, FETCHMODE_AVG = 1, FETCHMODE_SEQ = 2};
  
@@ -211,7 +213,6 @@ private:
   
 	shared_ptr<XListener> m_lsnOnSingleChanged;
 	shared_ptr<XListener> m_lsnOnAverageChanged;
-	shared_ptr<XListener> m_lsnOnTrigSourceChanged;
 	shared_ptr<XListener> m_lsnOnTrigPosChanged;
 	shared_ptr<XListener> m_lsnOnTrigLevelChanged;
 	shared_ptr<XListener> m_lsnOnTrigFallingChanged;
