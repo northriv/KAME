@@ -515,14 +515,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 
-	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
-	if(m_taskDOCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
-	if(m_taskGateCtr != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
-	if(m_taskAO != TASK_UNDEF)
-		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
-
 	//synchronizes with the software trigger.
 	m_softwareTrigger->start(1e3 / resolution());
 
@@ -530,6 +522,14 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
 
 	preparePatternGen(shot, false, 0);
+
+	CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDO, DAQmx_Val_Task_Commit));
+	if(m_taskDOCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Commit));
+	if(m_taskGateCtr != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskGateCtr, DAQmx_Val_Task_Commit));
+	if(m_taskAO != TASK_UNDEF)
+		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
 	//Wating for buffer filling.
 	while( !m_isThreadWriterReady) {
@@ -674,8 +674,8 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 	if(m_taskAO != TASK_UNDEF) {
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO,   -(int32_t)(m_totalWrittenSampsAO - m_genTotalSamps * oversamp_ao)));
 	}
-//	fprintf(stderr, "%g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
-//		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
+	fprintf(stderr, "Rewind: %g,%g,%g,%g,%g\n", (double)samp_gen, (double)m_totalWrittenSampsDO,
+		(double)count_gen,(double)m_genTotalCount, (double)m_genTotalSamps);;
 
 	m_totalWrittenSampsDO = m_genTotalSamps;
 	m_totalWrittenSampsAO = m_genTotalSamps * oversamp_ao;
