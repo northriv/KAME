@@ -122,9 +122,8 @@ private:
 	//! Ring buffer storing AO/DO patterns being transfered to DAQmx lib.
 	template <typename T>
 	struct RingBuffer {
-		void reserve(ssize_t s, ssize_t chunk_size) {
-			m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s; m_chunkSize = chunk_size;
-		}
+		enum {CHUNK_DIVISOR = 16};
+		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
 		const T*curReadPos() const { return &m_data[m_curReadPos];}
 		ssize_t writtenSize() const {
 			ssize_t end_of_written = m_endOfWritten;
@@ -141,8 +140,8 @@ private:
 			m_curReadPos = p;
 		}
 		//! Size of a writing space beginning with \a curWritePos().
-		ssize_t chunkSize() const {
-			return m_chunkSize;
+		ssize_t chunkSize() {
+			return m_data.size() / CHUNK_DIVISOR;
 		}
 		T *curWritePos() {
 			ssize_t readpos = m_curReadPos;
@@ -166,7 +165,6 @@ private:
 		atomic<ssize_t> m_curReadPos, m_endOfWritten;
 		atomic<ssize_t> m_end;
 		std::vector<T> m_data;
-		ssize_t m_chunkSize;
 	};
 
 	RingBuffer<tRawDO> m_patBufDO; //!< Buffer containing generated patterns for DO.
