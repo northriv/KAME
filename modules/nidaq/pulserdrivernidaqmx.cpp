@@ -761,6 +761,7 @@ void *
 XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
  	double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();
+ 	uint64_t written_total_ao = 0, written_total_do = 0;
 
  	//Starting a child thread generating patterns concurrently.
 	XThread<XNIDAQmxPulser> th_genbuf(shared_from_this(),
@@ -768,7 +769,6 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 	th_genbuf.resume();
 
 	m_isThreadWriterReady = false;
-	uint64_t total_samps_do = 0, total_samps_ao = 0;
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
 		ssize_t samps_do = m_patBufDO.writtenSize();
@@ -783,30 +783,19 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 				1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
 			continue;
 		}
-		if(std::max(samps_do, samps_ao) < m_transferSizeHintDO / 4) {
-			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period,
-				1e3 * m_transferSizeHintAO * dma_ao_period) / 2) / 4);
-			continue;
-		}
 		try {
 			ssize_t written;
 			if(samps_ao > samps_do) {
 				written = writeToDAQmxAO(pAO, std::min(samps_ao, (ssize_t)m_transferSizeHintAO));
-				if(written)
-					m_patBufAO.finReading(written);
-				else
-					msecsleep(lrint(resolutionQAM() * samps_ao) / 2);
-				total_samps_ao += written;
+				if(written) m_patBufAO.finReading(written);
+				written_total_ao += written;
 			}
 			else {
 				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
-				if(written)
-					m_patBufDO.finReading(written);
-				else
-					msecsleep(lrint(resolution() * samps_do) / 2);
-				total_samps_do += written;
+				if(written) m_patBufDO.finReading(written);
+				written_total_do += written;
 			}
-			if((total_samps_do > m_preFillSizeDO) && ( !pAO || (total_samps_ao > m_preFillSizeAO)))
+			if((written_total_do > m_preFillSizeDO) && ( !pAO || (written_total_ao > m_preFillSizeAO)))
 				m_isThreadWriterReady = true; //Count written into the devices has exceeded a certain value.
 		}
 		catch (XInterface::XInterfaceError &e) {
@@ -825,8 +814,8 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			}
 		}
 	}
-	m_totalWrittenSampsDO += total_samps_do;
-	m_totalWrittenSampsAO += total_samps_ao;
+	m_totalWrittenSampsDO += written_total_do;
+	m_totalWrittenSampsAO += written_total_ao;
 
 	th_genbuf.terminate();
 	th_genbuf.waitFor();
