@@ -399,16 +399,19 @@ XEMP401::getConditions(Transaction &tr) {
 	if(interface()->scanf("%*d: T = %d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *timeAcc()] = x * 0.1;
+	interface()->receive(2); //For "0>"
 
 	interface()->query("V");
 	if(interface()->scanf("%*d: V = %d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *speed()] = x;
+	interface()->receive(2); //For "0>"
 
 	interface()->query("UNIT");
 	double n1,n2;
 	if(interface()->scanf("%*d: UNIT = %lf,%lf", &n1, &n2) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
+	interface()->receive(2); //For "0>"
 	tr[ *microStep()] = (n2 > 1.1);
 	tr[ *stepMotor()] = 1.0 / n1;
 }
