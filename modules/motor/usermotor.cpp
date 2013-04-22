@@ -343,9 +343,10 @@ XEMP401::XEMP401(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
 	interface()->setSerialBaudRate(9600);
-	interface()->setSerialStopBits(1);
+//	interface()->setSerialStopBits(1);
 	interface()->setSerialParity(XCharInterface::PARITY_NONE);
-	interface()->setEOS("\n");
+	interface()->setSerialHasEchoBack(true);
+	interface()->setEOS("\r\n");
 	stepEncoder()->disable();
 	hasEncoder()->disable();
 	timeDec()->disable();
@@ -369,7 +370,7 @@ XEMP401::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 	for(;;) {
 		interface()->receive();
 		int x;
-		if(interface()->scanf("PC1 = %d", &x) == 1) {
+		if(interface()->scanf("PC = %d", &x) == 1) {
 			*position = x; // / (double)shot[ *stepMotor()];
 			break;
 		}
@@ -395,18 +396,18 @@ XEMP401::getConditions(Transaction &tr) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->query("T");
 	int x;
-	if(interface()->scanf("T%*d = %d", &x) != 1)
+	if(interface()->scanf("%*d: T = %d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *timeAcc()] = x * 0.1;
 
 	interface()->query("V");
-	if(interface()->scanf("V%*d = %d", &x) != 1)
+	if(interface()->scanf("%*d: V = %d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *speed()] = x;
 
 	interface()->query("UNIT");
 	double n1,n2;
-	if(interface()->scanf("UNIT%*d = %lf,%lf", &n1, &n2) != 2)
+	if(interface()->scanf("%*d: UNIT = %lf,%lf", &n1, &n2) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *microStep()] = (n2 > 1.1);
 	tr[ *stepMotor()] = 1.0 / n1;
