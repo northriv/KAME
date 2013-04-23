@@ -297,7 +297,7 @@ XNIDAQmxPulser::setupTasksAODO() {
     }
 
 	if(m_pausingBit) {
-		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Falling));
+		CHECK_DAQMX_RET(DAQmxSetSampClkTimebaseActiveEdge(m_taskAO, DAQmx_Val_Rising));
 		CHECK_DAQMX_RET(DAQmxSetPauseTrigType(m_taskAO, DAQmx_Val_DigLvl));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigSrc(m_taskAO, m_pausingSrcTerm.c_str()));
 		CHECK_DAQMX_RET(DAQmxSetDigLvlPauseTrigWhen(m_taskAO, DAQmx_Val_High));
@@ -491,6 +491,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskAO, DAQmx_Val_FirstSample));
 		CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskAO, 0));
 		const unsigned int cnt_prezeros_ao = cnt_prezeros * oversamp_ao - 0;
+		m_genAOZeroLevel = shot[ *this].m_genAOZeroLevelNext;
 		std::vector<tRawAOSet> zeros(cnt_prezeros_ao, m_genAOZeroLevel);
 		int32 samps;
 		CHECK_DAQMX_RET(DAQmxWriteBinaryI16(m_taskAO, cnt_prezeros_ao,
@@ -520,6 +521,8 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 
 	m_totalWrittenSampsDO = cnt_prezeros;
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
+
+	m_isThreadWriterReady = false; //to be set to true in the buffer-writing thread.
 
 	preparePatternGen(shot, false, 0);
 
@@ -768,7 +771,6 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 													  &XNIDAQmxPulser::executeFillBuffer);
 	th_genbuf.resume();
 
-	m_isThreadWriterReady = false;
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
 		ssize_t samps_do = m_patBufDO.writtenSize();
