@@ -361,7 +361,18 @@ XEMP401::storeToROM() {
 }
 void
 XEMP401::clearPosition() {
+	XScopedLock<XInterface> lock( *interface());
 	interface()->send("RTNCR");
+	waitForCursor();
+}
+void
+XEMP401::waitForCursor() {
+	for(;;) {
+		interface()->receive(1);
+		if(interface()->buffer()[0] == '>')
+			break;
+	}
+	msecsleep(10);
 }
 void
 XEMP401::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
@@ -370,26 +381,31 @@ XEMP401::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 	for(;;) {
 		interface()->receive();
 		int x;
-		if(interface()->scanf("PC = %d", &x) == 1) {
+		if(interface()->scanf(" PC =%d", &x) == 1) {
 			*position = x; // / (double)shot[ *stepMotor()];
 			break;
 		}
-		if(interface()->scanf("Ready = %d", &x) == 1) {
+		if(interface()->scanf(" Ready =%d", &x) == 1) {
 			*ready = (x != 0);
 		}
 		*slipping = false;
 	}
+	waitForCursor();
 }
 void
 XEMP401::changeConditions(const Snapshot &shot) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->sendf("T,%d", (int)lrint(shot[ *timeAcc()] * 10));
+	interface()->queryf("T,%d", (int)lrint(shot[ *timeAcc()] * 10));
 	double n2 = 1.0;
 	if(shot[ *microStep()])
 		 n2 = 10;
-	interface()->sendf("UNIT,%.4f,%.1f", 1.0 / shot[ *stepMotor()], n2);
-	interface()->sendf("V,%d", (int)lrint(shot[ *speed()]));
-	interface()->sendf("VS,%d", (int)lrint(shot[ *speed()]));
+	waitForCursor();
+	interface()->queryf("UNIT,%.4f,%.1f", 1.0 / shot[ *stepMotor()], n2);
+	waitForCursor();
+	interface()->queryf("V,%d", (int)lrint(shot[ *speed()]));
+	waitForCursor();
+	interface()->queryf("VS,%d", (int)lrint(shot[ *speed()]));
+	waitForCursor();
 }
 void
 XEMP401::getConditions(Transaction &tr) {
@@ -400,44 +416,57 @@ XEMP401::getConditions(Transaction &tr) {
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *timeAcc()] = x * 0.1;
 
+	waitForCursor();
 	interface()->query("V");
 	if(interface()->scanf("%*d: V = %d", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *speed()] = x;
 
+	waitForCursor();
 	interface()->query("UNIT");
 	double n1,n2;
 	if(interface()->scanf("%*d: UNIT = %lf,%lf", &n1, &n2) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	tr[ *microStep()] = (n2 > 1.1);
 	tr[ *stepMotor()] = 1.0 / n1;
+	waitForCursor();
 }
 void
 XEMP401::stopRotation() {
 	XScopedLock<XInterface> lock( *interface());
+	interface()->setSerialHasEchoBack(false);
 	interface()->write("\x1b", 1); //ESC.
+	interface()->setSerialHasEchoBack(true);
+	waitForCursor();
 	interface()->send("S");
+	waitForCursor();
 }
 void
 XEMP401::setForward() {
 	XScopedLock<XInterface> lock( *interface());
 	stopRotation();
-	interface()->send("H,+");
+	interface()->query("H,+");
+	waitForCursor();
 	interface()->send("SCAN");
+	waitForCursor();
 }
 void
 XEMP401::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
 	stopRotation();
-	interface()->send("H,-");
+	interface()->query("H,-");
+	waitForCursor();
 	interface()->send("SCAN");
+	waitForCursor();
 }
 void
 XEMP401::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
 	stopRotation();
-	interface()->sendf("D,%+.2f", target);
+	interface()->queryf("D,%+.2f", target);
+	waitForCursor();
 	interface()->send("ABS");
+	waitForCursor();
 }
 void
 XEMP401::setActive(bool active) {
@@ -450,6 +479,7 @@ XEMP401::setActive(bool active) {
 }
 void
 XEMP401::setAUXBits(unsigned int bits) {
-	interface()->sendf("OUT,%1u%1u%1u%1u%1u%1u",
+	interface()->queryf("OUT,%1u%1u%1u%1u%1u%1u",
 		(bits / 32u) % 2u, (bits / 16u) % 2u, (bits / 8u) % 2u, (bits / 4u) % 2u, (bits / 2u) % 2u, bits % 2u);
+	waitForCursor();
 }

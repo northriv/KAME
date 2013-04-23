@@ -88,6 +88,7 @@ protected:
 	virtual void storeToROM();
 	virtual void clearPosition();
 private:
+	void waitForCursor();
 };
 
 #endif /* USERMOTOR_H_ */

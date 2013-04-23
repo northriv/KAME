@@ -91,18 +91,25 @@ XPosixSerialPort::open() throw (XInterface::XCommError &) {
 }
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
-    XString buf(str);
-    if(m_pInterface->eos().length())
-    	buf += m_pInterface->eos();
-    else
-        buf += m_pInterface->serialEOS();
-    this->write(buf.c_str(), buf.length());
+	XString buf(str);
+	if(m_pInterface->eos().length())
+		buf += m_pInterface->eos();
+	else
+		buf += m_pInterface->serialEOS();
+	if(m_pInterface->serialHasEchoBack()) {
+		this->write(str, strlen(str));	//every char should wait for echo back.
+		this->write(buf.c_str() + strlen(str), buf.length() - strlen(str)); //EOS
+		this->receive(); //wait for EOS.
+	}
+	else {
+		this->write(buf.c_str(), buf.length());
+	}
 }
 void
 XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
 
-	if(m_pInterface->serialHasEchoBack() && (size >= 2)) {
+	if(m_pInterface->serialHasEchoBack() && (size >= 2) && isprint(sendbuf[0])) {
 		for(int cnt = 0; cnt < size; ++cnt) {
 		//sends 1 char.
 			write(sendbuf + cnt, 1);
@@ -111,8 +118,11 @@ XPosixSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
 				receive(1);
 				if(buffer()[0] == sendbuf[cnt])
 					break;
-				if( !m_pInterface->serialFlushBeforeWrite())
-					throw XInterface::XCommError(i18n("inconsistent echo back"), __FILE__, __LINE__);
+				if(isspace(buffer()[0]))
+					continue; //ignores spaces.
+				throw XInterface::XCommError(
+						formatString("inconsistent echo back %c against %c", buffer()[0], sendbuf[cnt]).c_str(),
+						__FILE__, __LINE__);
 			}
 		}
 		return;
