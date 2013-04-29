@@ -145,14 +145,15 @@ private:
 		}
 		T *curWritePos() {
 			ssize_t readpos = m_curReadPos;
-			if(m_endOfWritten + chunkSize() > m_data.size()) {
+			ssize_t write_next_end = m_endOfWritten + chunkSize();
+			if((readpos > m_endOfWritten) && (readpos <= write_next_end))
+				return NULL;
+			if(write_next_end > m_data.size()) {
 				if(readpos == 0)
 					return NULL;
 				m_end = m_endOfWritten;
 				m_endOfWritten = 0;
 			}
-			if((readpos > m_endOfWritten) && (readpos <= m_endOfWritten + chunkSize()))
-				return NULL;
 			return &m_data[m_endOfWritten];
 		}
 		//! Tags as written.

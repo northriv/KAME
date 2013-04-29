@@ -534,7 +534,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	if(m_taskAO != TASK_UNDEF)
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
-	//Wating for buffer filling.
+	//Waits for buffer filling.
 	while( !m_isThreadWriterReady) {
 		if(m_threadWriter->isTerminated())
 			return;
