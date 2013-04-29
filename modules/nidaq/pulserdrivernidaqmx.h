@@ -124,7 +124,11 @@ private:
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
 		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
-		const T*curReadPos() const { return &m_data[m_curReadPos];}
+		const T*curReadPos() const {
+			if((m_endOfWritten < m_curReadPos) && (m_curReadPos == m_end))
+				m_curReadPos = 0;
+			return &m_data[m_curReadPos];
+		}
 		ssize_t writtenSize() const {
 			ssize_t end_of_written = m_endOfWritten;
 			if(m_curReadPos <= end_of_written) {
@@ -135,25 +139,24 @@ private:
 		//! Tags as read.
 		void finReading(ssize_t size_read) {
 			ssize_t p = m_curReadPos + size_read;
-			assert(p <= m_end);
-			if((m_endOfWritten < m_curReadPos) && (p == m_end)) p = 0;
 			m_curReadPos = p;
 		}
-		//! Size of a writing space beginning with \a curWritePos().
+		//! Size of reserved writing space beginning with \a curWritePos().
 		ssize_t chunkSize() {
 			return m_data.size() / CHUNK_DIVISOR;
 		}
 		T *curWritePos() {
 			ssize_t readpos = m_curReadPos;
-			ssize_t write_next_end = m_endOfWritten + chunkSize();
-			if((readpos > m_endOfWritten) && (readpos <= write_next_end))
-				return NULL;
-			if(write_next_end > m_data.size()) {
+			ssize_t write_reserve_end = m_endOfWritten + chunkSize();
+			if(write_reserve_end > m_data.size()) {
 				if(readpos == 0)
 					return NULL;
 				m_end = m_endOfWritten;
 				m_endOfWritten = 0;
+				write_reserve_end = m_endOfWritten + chunkSize();
 			}
+			if((readpos > m_endOfWritten) && (readpos <= write_reserve_end))
+				return NULL; //not enough space.
 			return &m_data[m_endOfWritten];
 		}
 		//! Tags as written.
