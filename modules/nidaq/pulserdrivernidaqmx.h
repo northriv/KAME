@@ -124,7 +124,7 @@ private:
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
 		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
-		const T*curReadPos() const {
+		const T*curReadPos() {
 			if((m_endOfWritten < m_curReadPos) && (m_curReadPos == m_end))
 				m_curReadPos = 0;
 			return &m_data[m_curReadPos];
@@ -142,7 +142,7 @@ private:
 			m_curReadPos = p;
 		}
 		//! Size of reserved writing space beginning with \a curWritePos().
-		ssize_t chunkSize() {
+		ssize_t chunkSize() const {
 			return m_data.size() / CHUNK_DIVISOR;
 		}
 		T *curWritePos() {
