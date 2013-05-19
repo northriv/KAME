@@ -534,7 +534,7 @@ XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
 		double omega = phaseOfRF(shot, 1, shot[ *this].timeIntervalDisp());
 		double trigpos = shot[ *this].trigPosDisp();
 		for(int i = 0; i < length; ++i) {
-			vec[i] = std::polar(1.0, omega * (i - trigpos));
+			vec[i] = std::polar(1.0, - omega * (i - trigpos)); // exp( -i omega t)
 		}
 	}
 

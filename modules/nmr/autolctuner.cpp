@@ -353,7 +353,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			return;
 		}
 	}
-	bool timeout = (XTime::now() - shot_this[ *this].started > 300); //5min.
+	bool timeout = (XTime::now() - shot_this[ *this].started > 360); //6min.
 	if(timeout) {
 		abortTuningFromAnalyze(tr, reff0);//Aborts.
 		return;
@@ -559,14 +559,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	determineNextC( dCa_next, dCb_next,
 		pow(std::norm(ref_targeted), gamma), pow(ref_sigma, gamma * 2.0),
-		fmin - f0, fmin_err,
+		(fmin - f0) * shot_this[ *this].sor_factor, fmin_err,
 		drefgamma_dCa, drefgamma_dCb,
 		dfmin_dCa, dfmin_dCb);
 
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
-	dCa_next *= shot_this[ *this].sor_factor;
-	dCb_next *= shot_this[ *this].sor_factor;
 	//restricts changes within the trust region.
 	double dc_trust;
 	switch(shot_this[ *this].mode) {
