@@ -615,12 +615,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	tr[ *this].isSTMChanged = true;
 	if(stm1__)
-		tr[ *this].stm1 = dCa_next;
+		tr[ *this].stm1 += dCa_next;
 	if(stm2__) {
 		if(stm1__)
-			tr[ *this].stm2 = dCb_next;
+			tr[ *this].stm2 += dCb_next;
 		else
-			tr[ *this].stm2 = dCa_next;
+			tr[ *this].stm2 += dCa_next;
 	}
 	tr[ *this].dCa = dCa_next;
 	tr[ *this].dCb = dCb_next;
