@@ -440,6 +440,8 @@ XEMP401::stopRotation() {
 	waitForCursor();
 	interface()->send("S");
 	waitForCursor();
+	interface()->query("ACTL 0,0,0,0");
+	waitForCursor();
 }
 void
 XEMP401::setForward() {
