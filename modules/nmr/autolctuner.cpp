@@ -114,7 +114,10 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].sor_factor = SOR_FACTOR_MAX;
 		tr[ *this].stage = Payload::STAGE_FIRST;
 		tr[ *this].trace.clear();
+		tr[ *this].dCa = 0.0;
+		tr[ *this].dCb = 0.0;
 		tr[ *this].started = XTime::now();
+		tr[ *this].isTargetAbondoned = false;
 		if(tr.commit())
 			break;
 	}
@@ -179,12 +182,31 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 	return true;
 }
 void
+XAutoLCTuner::rollBack(Transaction &tr) {
+	fprintf(stderr, "LCtuner: Rolls back.\n");
+	//rolls back to good positions.
+	tr[ *this].isSTMChanged = true;
+	tr[ *this].dCa = 0.0;
+	tr[ *this].dCb = 0.0;
+	tr[ *this].stm1 = tr[ *this].stm1_best;
+	tr[ *this].stm2 = tr[ *this].stm2_best;
+	tr[ *this].ref_f0_best = 1e10; //resets the best pos.
+	throw XSkippedRecordError(__FILE__, __LINE__);
+}
+void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
 	double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
-	if(tune_approach_goal2 > std::abs(reff0)) {
-		tr[ *succeeded()] = true;
-		fprintf(stderr, "LCtuner: tuning done within the required value.\n");
-		return;
+	if(tune_approach_goal2 > std::abs(tr[ *this].ref_f0_best)) {
+		fprintf(stderr, "LCtuner: Softens target value.\n");
+		tr[ *this].iteration_count = 0;
+		tr[ *this].ref_f0_best = 1e10;
+		tr[ *this].isSTMChanged = true;
+		tr[ *this].sor_factor = SOR_FACTOR_MAX;
+		tr[ *this].stage = Payload::STAGE_FIRST;
+		tr[ *this].trace.clear();
+		tr[ *this].started = XTime::now();
+		tr[ *this].isTargetAbondoned = true;
+		rollBack(tr); //rolls back and skps.
 	}
 	tr[ *m_tuning] = false;
 	if(std::abs(reff0) > std::abs(tr[ *this].ref_f0_best)) {
@@ -340,26 +362,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
+	if(shot_this[ *this].isTargetAbondoned)
+		tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
 	if(std::abs(reff0) < tune_approach_goal) {
 		fprintf(stderr, "LCtuner: tuning done satisfactorily.\n");
 		tr[ *succeeded()] = true;
 		return;
 	}
-	double tune_approach_goal2 = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
-	if(std::abs(reff0) < tune_approach_goal2) {
-		if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -4.0) + SOR_FACTOR_MIN) {
-			fprintf(stderr, "LCtuner: tuning done within the required value.\n");
-			tr[ *succeeded()] = true;
-			return;
-		}
-	}
-	bool timeout = (XTime::now() - shot_this[ *this].started > 360); //6min.
-	if(timeout) {
-		abortTuningFromAnalyze(tr, reff0);//Aborts.
-		return;
-	}
-
-	Payload::STAGE stage = shot_this[ *this].stage;
 
 	tr[ *this].iteration_count++;
 	if(std::abs(shot_this[ *this].ref_f0_best) > std::abs(reff0)) {
@@ -374,22 +383,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 //	else
 //		tr[ *this].sor_factor = std::min(tr[ *this].sor_factor, (SOR_FACTOR_MAX + SOR_FACTOR_MIN) / 2);
 
-	if((std::abs(shot_this[ *this].ref_f0_best) + reff0_sigma < std::abs(reff0)) &&
-		((shot_this[ *this].iteration_count > 10) ||
-		((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - reff0_sigma)))) {
-		if(stage ==  Payload::STAGE_FIRST) {
+	bool timeout = (XTime::now() - shot_this[ *this].started > 360); //6min.
+	if(timeout) {
+		fprintf(stderr, "LCtuner: Time out.\n");
+		abortTuningFromAnalyze(tr, reff0);//Aborts.
+		return;
+	}
+
+	Payload::STAGE stage = shot_this[ *this].stage;
+
+	if(stage ==  Payload::STAGE_FIRST) {
+		if((std::abs(shot_this[ *this].ref_f0_best) + reff0_sigma < std::abs(reff0)) &&
+			((shot_this[ *this].iteration_count > 10) ||
+			((shot_this[ *this].iteration_count > 4) && (std::abs(shot_this[ *this].ref_f0_best) * 1.5 <  std::abs(reff0) - reff0_sigma)))) {
 			tr[ *this].iteration_count = 0;
 			tr[ *this].sor_factor = (tr[ *this].sor_factor + SOR_FACTOR_MIN) / 2;
 			if(shot_this[ *this].sor_factor < (SOR_FACTOR_MAX - SOR_FACTOR_MIN) * pow(2.0, -6.0) + SOR_FACTOR_MIN) {
 				abortTuningFromAnalyze(tr, reff0);//Aborts.
 				return;
 			}
-			fprintf(stderr, "LCtuner: Rolls back.\n");
-			//rolls back to good positions.
-			tr[ *this].isSTMChanged = true;
-			tr[ *this].stm1 = tr[ *this].stm1_best;
-			tr[ *this].stm2 = tr[ *this].stm2_best;
-			throw XSkippedRecordError(__FILE__, __LINE__);
+			rollBack(tr); //rolls back and skps.
 		}
 	}
 
@@ -438,8 +451,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			tune_drot = TUNE_DROT_FINETUNE;
 			break;
 		}
-		tr[ *this].dCa = tune_drot * ((shot_this[ *this].dfmin_dCa * (fmin - f0) < 0) ? 1.0 : -1.0); //direction to approach.
-		tr[ *this].dCb = tune_drot * ((shot_this[ *this].dfmin_dCb * (fmin - f0) < 0) ? 1.0 : -1.0);
+		tr[ *this].dCa /= tune_drot_mul * tune_drot_mul; //considers the last change.
+		tr[ *this].dCb /= tune_drot_mul * tune_drot_mul;
+		if(fabs(tr[ *this].dCa) < tune_drot)
+			tr[ *this].dCa = tune_drot * ((shot_this[ *this].dfmin_dCa * (fmin - f0) < 0) ? 1.0 : -1.0); //direction to approach.
+		if(fabs(tr[ *this].dCb) < tune_drot)
+			tr[ *this].dCb = tune_drot * ((shot_this[ *this].dfmin_dCb * (fmin - f0) < 0) ? 1.0 : -1.0);
 
 		tr[ *this].isSTMChanged = true;
 		tr[ *this].stage = Payload::STAGE_DCA;
@@ -559,7 +576,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	determineNextC( dCa_next, dCb_next,
 		pow(std::norm(ref_targeted), gamma), pow(ref_sigma, gamma * 2.0),
-		(fmin - f0) * shot_this[ *this].sor_factor, fmin_err,
+		(fmin - f0), fmin_err,
 		drefgamma_dCa, drefgamma_dCb,
 		dfmin_dCa, dfmin_dCb);
 
@@ -576,23 +593,37 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		break;
 	}
 	double dca_trust = fabs(shot_this[ *this].dCa) * 50;
-	double dcb_trust = fabs(shot_this[ *this].dCa) * 50;
-	double red_fac = std::min(1.0, std::min(std::min(dc_trust, dca_trust) / fabs(dCa_next), std::min(dc_trust, dcb_trust) / fabs(dCb_next)));
+	double dcb_trust = fabs(shot_this[ *this].dCb) * 50;
+	//mixes with the best result.
+	double sor = shot_this[ *this].sor_factor;
+	double red_fac = 1.0;
+	if(fabs(tr[ *this].dCa) < fabs(dCa_next)) {
+		if(stm1__)
+			dCa_next = dCa_next * sor + (tr[ *this].stm1_best - tr[ *this].stm1)  * (1.0 - sor);
+		else
+			dCa_next = dCa_next * sor + (tr[ *this].stm2_best - tr[ *this].stm2)  * (1.0 - sor);
+		red_fac =std::min(red_fac, std::min(dc_trust, dca_trust) / fabs(dCa_next));
+	}
+	if(fabs(tr[ *this].dCb) < fabs(dCb_next)) {
+		if(stm1__ && stm2__)
+				dCb_next = dCb_next * sor + (tr[ *this].stm2_best - tr[ *this].stm2)  * (1.0 - sor);
+		red_fac =std::min(red_fac, std::min(dc_trust, dcb_trust) / fabs(dCb_next));
+	}
 	dCa_next *= red_fac;
 	dCb_next *= red_fac;
 	fprintf(stderr, "LCtuner: deltaCa=%f, deltaCb=%f\n", dCa_next, dCb_next);
 
 	tr[ *this].isSTMChanged = true;
-	if(stm1__ && stm2__) {
-		tr[ *this].stm1 += dCa_next;
-		tr[ *this].stm2 += dCb_next;
-	}
-	else {
+	if(stm1__)
+		tr[ *this].stm1 = dCa_next;
+	if(stm2__) {
 		if(stm1__)
-			tr[ *this].stm1 += dCa_next;
-		if(stm2__)
-			tr[ *this].stm2 += dCa_next;
+			tr[ *this].stm2 = dCb_next;
+		else
+			tr[ *this].stm2 = dCa_next;
 	}
+	tr[ *this].dCa = dCa_next;
+	tr[ *this].dCb = dCb_next;
 	throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void

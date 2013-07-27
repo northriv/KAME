@@ -1,6 +1,11 @@
-* Thu Apr 11 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
-- (3.3.6-1)
-- nmrpulser: On-line start/stop to keep coherency to DSO. 
+* Sat Jul 28 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.7-1)
+- autotuner: Improved.
+
+* Thu Apr 25 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (3.3.6-2)
+- nmrpulser: On-line start/stop to keep coherency to DSO, when Digital RF is on.
+- nidaqdso.cpp: bug fix for pulser creation. 
 
 * Fri Mar 8 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.5-1)

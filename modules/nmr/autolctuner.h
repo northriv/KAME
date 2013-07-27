@@ -85,6 +85,7 @@ public:
 		MODE mode;
 		bool isSTMChanged;
 		XTime started;
+		bool isTargetAbondoned;
 	};
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
@@ -115,6 +116,7 @@ private:
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2);
 	void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
+	void rollBack(Transaction &tr);
 };
 
 
