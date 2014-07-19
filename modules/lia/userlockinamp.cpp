@@ -50,6 +50,7 @@ void
 XSR830::get(double *cos, double *sin) {
 	double sens = 0;
 	int idx;
+	bool ovld = false;
 	Snapshot shot( *this);
 	bool autoscale_x = shot[ *autoScaleX()];
 	bool autoscale_y = shot[ *autoScaleY()];
@@ -62,11 +63,13 @@ XSR830::get(double *cos, double *sin) {
 		case 1: sens *= 5; break;
 		case 2: sens *= 10; break;
 		}
+		interface()->query("LIAS?");
+		ovld = (interface()->toInt() & 1);
 	}
 	interface()->query("SNAP?1,2");
 	if(interface()->scanf("%lf,%lf", cos, sin) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	if((autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
+	if(ovld || (autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
 	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)))
 		trans( *sensitivity()) = idx + 1;
 	if((autoscale_x && (sqrt( *cos * *cos) < sens * 0.2)) ||
