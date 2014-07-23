@@ -63,7 +63,7 @@ private:
 	//! def. input gets(). Return nil if the buffer is empty.
 	static VALUE my_rbdefin(VALUE self, VALUE threadid);
 	//! 
-	static VALUE is_main_terminated(VALUE self);
+    static VALUE is_main_terminated(VALUE self);
 	//! XNode wrappers
 	static int strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value);
 	static VALUE getValueOfNode(const shared_ptr<XValueNodeBase> &node);
@@ -84,7 +84,7 @@ private:
   
 	const weak_ptr<XMeasure> m_measure;
 	XThread<XRuby> m_thread;
-  
+
 };
 
 //---------------------------------------------------------------------------

@@ -6,32 +6,32 @@ $KCODE = 'UTF8'
 #redirect defout, deferr
 class << $stdout
   def write(str)
-	str = str.gsub(/&/, "&amp;")
-  	str = str.gsub(/</, "&lt;")
-  	str = str.gsub(/>/, "&gt;")
+    str = str.gsub(/&/, "&amp;")
+    str = str.gsub(/</, "&lt;")
+    str = str.gsub(/>/, "&gt;")
 #  	str = str.gsub(/"/, "&quot;")
-  	str.each_line {|line|
+	str.each_line {|line|
 		line = line.gsub(/\n/, "")
-	  	if /^\s*#/ =~ str then
+		if /^\s*#/ =~ str then
 			line = line.gsub(/^/, "<font color=#008800>")
 			line = line.gsub(/$/, "</font>")
-	  	end
-	  	XRubyThreads.my_rbdefout(line, Thread.current.object_id)
-  	}
+		end
+		XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+	}
   end
 end
 class << $stderr
   def write(str)
-	str = str.gsub(/&/, "&amp;")
-	str = str.gsub(/</, "&lt;")
-	str = str.gsub(/>/, "&gt;")
-	#  	str = str.gsub(/"/, "&quot;")
-  	str.each_line {|line|
-		line = line.gsub(/\n/, "")
-		line = line.gsub(/^/, "<font color=#ff0000>")
-		line = line.gsub(/$/, "</font>")
-	  	XRubyThreads.my_rbdefout(line, Thread.current.object_id)
-  	}
+    str = str.gsub(/&/, "&amp;")
+    str = str.gsub(/</, "&lt;")
+    str = str.gsub(/>/, "&gt;")
+    #  	str = str.gsub(/"/, "&quot;")
+    str.each_line {|line|
+        line = line.gsub(/\n/, "")
+        line = line.gsub(/^/, "<font color=#ff0000>")
+        line = line.gsub(/$/, "</font>")
+        XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+    }
   end
 end
 class Mystdin

@@ -42,13 +42,13 @@ void makeIcons()
 	g_pIconKame24x24 = new QPixmap;
     g_pIconKame24x24->loadFromData( icon_kame_24x24_png, sizeof( icon_kame_24x24_png ), "PNG" );
 	
-    g_pIconKame = new QPixmap(":/image/rovert.png");
+    g_pIconKame = new QPixmap(":/icons/kame.png");
 
-    g_pIconRoverT = new QPixmap(":/image/rovert.png");
+    g_pIconRoverT = new QPixmap(":/icons/rovert.png");
 
-    g_pIconLEDOn = new QPixmap(":/image/ledon.png");
+    g_pIconLEDOn = new QPixmap(":/icons/ledon.png");
 
-    g_pIconLEDOff = new QPixmap(":/image/ledoff.png");
+    g_pIconLEDOff = new QPixmap(":/icons/ledoff.png");
 
     g_pIconInfo = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(48,48));
 	
@@ -68,7 +68,7 @@ void makeIcons()
 
     g_pIconScalar = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView).pixmap(48,48));
 
-    g_pIconGraph = new QPixmap(":/image/graph.png");;
+    g_pIconGraph = new QPixmap(":/icons/graph.png");;
 
-    g_pIconScript = new QPixmap(":/image/ruby.png");
+    g_pIconScript = new QPixmap(":/icons/ruby.png");
 }

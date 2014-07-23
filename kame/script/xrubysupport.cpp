@@ -14,23 +14,18 @@
 //---------------------------------------------------------------------------
 #include "xrubysupport.h"
 #include "measure.h"
-#include <QStandardPaths>
+#include <QFile>
+#include <QDataStream>
 #include <math.h>
 #include <ruby.h>
 
-#define XRUBYSUPPORT_RB "xrubysupport.rb"
+#define XRUBYSUPPORT_RB ":/script/xrubysupport.rb" //in the qrc.
 
 //\todo Ruby.framework(Mac) cannot work with snprintf().
 
-//\todo Ruby.framework(Mac) cannot work with rb_str_new2().
 static inline VALUE string2RSTRING(const XString &str) {
-    if(str.empty()) return rb_str_new("",0);
-    return rb_str_new(str.c_str(), strlen(str.c_str()));
-}
-//\todo Ruby.framework(Mac) cannot work with rb_float_new().
-static inline VALUE double2VALUE(double x) {
-//    return rb_float_new(x);
-    return rb_eval_string(formatString("Float(%f)", x).c_str());
+    if(str.empty()) return rb_str_new2("");
+    return rb_str_new2(str.c_str());
 }
 
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
@@ -42,7 +37,7 @@ m_thread(shared_from_this(), &XRuby::execute) {
 			&XRuby::onChildCreated, XListener::FLAG_MAIN_THREAD_CALL);
 		if(tr.commit())
 			break;
-	}
+    }
 }
 XRuby::~XRuby() {
 }
@@ -63,8 +58,8 @@ XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby) {
 	VALUE rnew;
 	auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 	if(vnode) {
-		rnew = Data_Wrap_Struct(xruby->rbClassValueNode, 0, rnode_free, st);
-	}
+        rnew = Data_Wrap_Struct(xruby->rbClassValueNode, 0, rnode_free, st);
+    }
 	else {
 		auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
 		if(lnode) {
@@ -74,6 +69,7 @@ XRuby::rnode_create(const shared_ptr<XNode> &node, XRuby *xruby) {
 			rnew = Data_Wrap_Struct(xruby->rbClassNode, 0, rnode_free, st);
 		}
 	}
+    Data_Get_Struct(rnew, struct rnode_ptr, st);
 	return rnew;
 }
 VALUE
@@ -85,9 +81,9 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 		Data_Get_Struct(self, struct rnode_ptr, st);
 
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			switch (TYPE(var)) {
+            switch (int type = TYPE(var)) {
 			long idx;
-			case T_FIXNUM:
+            case T_FIXNUM:
 				idx = NUM2LONG(var);
 				{ Snapshot shot( *node);
 				if(shot.size()) {
@@ -96,8 +92,8 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 				}
 				}
 				if(! child ) {
-					throw formatString("No such node idx:%ld on %s\n",
-						idx, node->getName().c_str());
+                    throw formatString("No such node idx:%ld on %s\n",
+                        idx, node->getName().c_str());
 				}
 				break;
 			case T_STRING:
@@ -485,7 +481,7 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
 	auto bnode = dynamic_pointer_cast<XBoolNode>(node);
 	auto snode = dynamic_pointer_cast<XStringNode>(node);
 	Snapshot shot( *node);
-    if(dnode) {return double2VALUE((double)shot[ *dnode]);}
+    if(dnode) {return rb_float_new((double)shot[ *dnode]);}
 	if(inode) {return INT2NUM(shot[ *inode]);}
 	if(uinode) {return UINT2NUM(shot[ *uinode]);}
 	if(lnode) {return LONG2NUM(shot[ *lnode]);}
@@ -550,9 +546,9 @@ XRuby::my_rbdefin(VALUE self, VALUE threadid) {
 }
 VALUE
 XRuby::is_main_terminated(VALUE self) {
-	struct rnode_ptr *st;
-	Data_Get_Struct(self, struct rnode_ptr, st);
-	return (st->xruby->m_thread.isTerminated()) ? Qtrue : Qfalse;
+    struct rnode_ptr *st;
+    Data_Get_Struct(self, struct rnode_ptr, st);
+    return (st->xruby->m_thread.isTerminated()) ? Qtrue : Qfalse;
 }
 
 void *
@@ -564,23 +560,23 @@ XRuby::execute(const atomic<bool> &terminated) {
 		ruby_init_loadpath();
 
 		rbClassNode = rb_define_class("XNode", rb_cObject);
-		rb_global_variable(&rbClassNode);
+        rb_global_variable(&rbClassNode);
 		typedef VALUE(*fp)(...);
-		rb_define_method(rbClassNode, "name", (fp)rnode_name, 0);
-		rb_define_method(rbClassNode, "touch", (fp)rnode_touch, 0);
-		rb_define_method(rbClassNode, "child", (fp)rnode_child, 1);
-		//      rb_define_method(rbClassNode, "[]", (fp)rnode_child, 1);
-		rb_define_method(rbClassNode, "count", (fp)rnode_count, 0);
+        rb_define_method(rbClassNode, "name", (fp)rnode_name, 0);
+        rb_define_method(rbClassNode, "touch", (fp)rnode_touch, 0);
+        rb_define_method(rbClassNode, "child", (fp)rnode_child, 1);
+        //      rb_define_method(rbClassNode, "[]", (fp)rnode_child, 1);
+        rb_define_method(rbClassNode, "count", (fp)rnode_count, 0);
 		rbClassValueNode = rb_define_class("XValueNode", rbClassNode);
-		rb_global_variable(&rbClassValueNode);
-		rb_define_method(rbClassValueNode, "internal_set", (fp)rvaluenode_set, 1);
-		rb_define_method(rbClassValueNode, "internal_load", (fp)rvaluenode_load, 1);
-		rb_define_method(rbClassValueNode, "internal_get", (fp)rvaluenode_get, 0);
-		rb_define_method(rbClassValueNode, "to_str", (fp)rvaluenode_to_str, 0);
+        rb_global_variable(&rbClassValueNode);
+        rb_define_method(rbClassValueNode, "internal_set", (fp)rvaluenode_set, 1);
+        rb_define_method(rbClassValueNode, "internal_load", (fp)rvaluenode_load, 1);
+        rb_define_method(rbClassValueNode, "internal_get", (fp)rvaluenode_get, 0);
+        rb_define_method(rbClassValueNode, "to_str", (fp)rvaluenode_to_str, 0);
 		rbClassListNode = rb_define_class("XListNode", rbClassNode);
-		rb_global_variable(&rbClassListNode);
-		rb_define_method(rbClassListNode, "internal_create", (fp)rlistnode_create_child, 2);
-		rb_define_method(rbClassListNode, "release", (fp)rlistnode_release_child, 1);
+        rb_global_variable(&rbClassListNode);
+        rb_define_method(rbClassListNode, "internal_create", (fp)rlistnode_create_child, 2);
+        rb_define_method(rbClassListNode, "release", (fp)rlistnode_release_child, 1);
 
 		{
 			shared_ptr<XMeasure> measure = m_measure.lock();
@@ -592,32 +588,33 @@ XRuby::execute(const atomic<bool> &terminated) {
 			rb_define_global_const("RootNode", rbRootNode);
 		}
 		{
-			VALUE rbRubyThreads = rnode_create(shared_from_this(), this);
-			rb_define_singleton_method(rbRubyThreads, "my_rbdefout", (fp)my_rbdefout, 2);
-			rb_define_singleton_method(rbRubyThreads, "my_rbdefin", (fp)my_rbdefin, 1);
-			rb_define_singleton_method(rbRubyThreads, "is_main_terminated", (fp)is_main_terminated, 0);
-			rb_define_global_const("XRubyThreads", rbRubyThreads);
-		}
+            VALUE rbRubyThreads = rnode_create(shared_from_this(), this);
+            rb_define_global_const("XRubyThreads", rbRubyThreads);
+            rb_define_singleton_method(rbRubyThreads, "my_rbdefout", (fp)my_rbdefout, 2);
+            rb_define_singleton_method(rbRubyThreads, "my_rbdefin", (fp)my_rbdefin, 1);
+            rb_define_singleton_method(rbRubyThreads, "is_main_terminated", (fp)is_main_terminated, 0);
+        }
 
 		{
 			int state = 0;
-            QString filename = QStandardPaths::locate(QStandardPaths::DataLocation, XRUBYSUPPORT_RB);
-			if(filename.isEmpty()) {
-				g_statusPrinter->printError("No KAME ruby support file installed.");
+            QFile scriptfile(XRUBYSUPPORT_RB);
+            if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                gErrPrint("No KAME ruby support file installed.");
                 break;
-			}
-			else {
-				fprintf(stderr, "Loading ruby scripting monitor:%s\n", filename.toLatin1().data());
-                rb_load_protect (string2RSTRING(filename), 0, &state);
-				if(state) {
-					fprintf(stderr, "Ruby, exception(s) occurred\n");
-				}
-			}
+            }
+            fprintf(stderr, "Loading ruby scripting monitor.\n");
+            char data[65536];
+            QDataStream( &scriptfile).readRawData(data, sizeof(data));
+            rb_eval_string_protect(data, &state);
+            if(state) {
+                fprintf(stderr, "Ruby, exception(s) occurred\n");
+            }
 		}
 		ruby_finalize();
 
 		fprintf(stderr, "ruby finished\n");
 
+        break;
 	}
 	return NULL;
 }

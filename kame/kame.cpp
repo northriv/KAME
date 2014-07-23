@@ -431,7 +431,8 @@ void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
         this, "",
         i18n("Open Script File"),
-        "KAME Script files (*.seq)"
+        "KAME Script files (*.seq);;"
+        "Ruby Script files (*.rb)"
         );
 	if( !filename.isEmpty()) {
 		static unsigned int thread_no = 1;
