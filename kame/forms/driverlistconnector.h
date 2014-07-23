@@ -21,7 +21,7 @@
 class Ui_FrmDriver;
 typedef QForm<QWidget, Ui_FrmDriver> FrmDriver;
 
-class Q3Table;
+class QTableWidget;
 class QLabel;
 
 class XDriverListConnector : public XListQConnector {
@@ -34,7 +34,7 @@ protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
-void clicked ( int row, int col, int button, const QPoint& );
+void cellClicked ( int row, int col);
 private:
 	shared_ptr<XTouchableNode> m_create, m_release;
   

@@ -14,57 +14,25 @@
    <string>Interfaces</string>
   </property>
   <layout class="QGridLayout">
-   <property name="margin">
+   <property name="leftMargin">
+    <number>2</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
     <number>2</number>
    </property>
    <item row="0" column="0">
-    <widget class="Q3Table" name="tblInterfaces">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="minimumSize">
-      <size>
-       <width>300</width>
-       <height>150</height>
-      </size>
-     </property>
-     <property name="numRows">
-      <number>0</number>
-     </property>
-     <property name="numCols">
-      <number>0</number>
-     </property>
-     <property name="sorting">
-      <bool>false</bool>
-     </property>
-     <property name="selectionMode">
-      <enum>Q3Table::Single</enum>
-     </property>
-    </widget>
+    <widget class="QTableWidget" name="m_tblInterface"/>
    </item>
   </layout>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
-  <customwidget>
-   <class>Q3Frame</class>
-   <extends>QFrame</extends>
-   <header>Qt3Support/Q3Frame</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>Q3Table</class>
-   <extends>Q3Frame</extends>
-   <header>q3table.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

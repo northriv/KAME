@@ -36,5 +36,12 @@ xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d) {
 											  T(a, b, c, d)));        
     return pHolder;
 }
+//! function for creating XQConnector instances
+template <class T, class A, class B, typename C, typename D, typename E>
+xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, C c, D d, E e) {
+    xqcon_ptr pHolder(new XQConnectorHolder_( new
+                                              T(a, b, c, d, e)));
+    return pHolder;
+}
 
 #endif /*XNODECONNECTOR_PRV_H_*/

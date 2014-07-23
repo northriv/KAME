@@ -16,9 +16,9 @@
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <qpushbutton.h>
+#include <QPushButton>
 #include <qstatusbar.h>
-#include <qcheckbox.h>
+#include <QCheckBox>
 
 XFuncSynth::XFuncSynth(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

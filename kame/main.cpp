@@ -13,15 +13,14 @@
 ***************************************************************************/
 #include "support.h"
 
-#include <kcmdlineargs.h>
-#include <kaboutdata.h>
-#include <kapplication.h>
+#include <QCommandLineParser>
+#include <QCommandLineOption>
+#include <QApplication>
+#include <QMainWindow>
 
 #include "kame.h"
 #include "xsignal.h"
 #include "icons/icon.h"
-#include <kiconloader.h>
-#include <kstandarddirs.h>
 #include <QGLFormat>
 #include <QFile>
 #include <QTextCodec>
@@ -42,45 +41,52 @@ int load_module(const char *filename, lt_ptr data) {
 }
 
 int main(int argc, char *argv[]) {
+    char dummy_for_mlock[2048];
 #ifdef HAVE_LIBGCCPP
 	//initialize GC
 	GC_INIT();
 	// GC_find_leak = 1;
 	//GC_dont_gc
 #endif  
-	const char *description =
-	I18N_NOOP("KAME");
-	// INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
-   
-	KAboutData aboutData( "kame", "", ki18n("KAME"),
-						  VERSION, ki18n(description), KAboutData::License_GPL,
-						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@kochi-u.ac.jp");
-	KCmdLineArgs::init( argc, argv, &aboutData );
+    Q_INIT_RESOURCE(kame);
+    QApplication app(argc, argv);
+    QApplication::setApplicationName("kame");
+    QApplication::setApplicationVersion(VERSION);
 
-	KCmdLineOptions options;
-	options.add("logging", ki18n("log debugging info."));
-	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
-	options.add("nomlock", ki18n("never use mlock"));
-	options.add("nodr");
-	options.add("nodirectrender", ki18n("do not use direct rendering"));
-	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
-	options.add("+[File]", ki18n("measurement file to open"));
+    QCommandLineParser parser;
+    parser.setApplicationDescription("KAME");
+    parser.addHelpOption();
+    parser.addVersionOption();
 
-	KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
+    parser.addPositionalArgument("file", QCoreApplication::translate("main", "Measurement file to open"));
 
-	KApplication *app;
-	app = new KApplication;
-  
+    QCommandLineOption logOption(QStringList() << "l" << "logging", "Log debugging info.");
+    parser.addOption(logOption);
+    QCommandLineOption mlockAllOption(QStringList() << "m" << "mlockall",
+          "Never cause swapping, perhaps you need 'ulimit -l <MB>'");
+    parser.addOption(mlockAllOption);
+    QCommandLineOption noMLockOption(QStringList() << "n" << "nomlock", "Never use mlock");
+    parser.addOption(noMLockOption);
+    QCommandLineOption noDirectRenderOption("nodr", QCoreApplication::translate("main", "Do not use direct rendering"));
+    parser.addOption(noDirectRenderOption);
+
+    QCommandLineOption moduleDirectoryOption("moduledir",
+            QCoreApplication::translate("main", "search modules in <path> instead of the standard dirs"),
+            QCoreApplication::translate("main", "path"));
+    parser.addOption(moduleDirectoryOption);
+
+    parser.process(app); //processes args.
+
+    QStringList args = parser.positionalArguments();
+
 	QStringList module_dir;
 	{
-		KGlobal::dirs()->addPrefix(".");
-		makeIcons( KIconLoader::global());
+//		KGlobal::dirs()->addPrefix(".");
+        makeIcons();
 		{
-			KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
-                    
-			g_bLogDbgPrint = args->isSet("logging");
+            g_bLogDbgPrint = parser.isSet(logOption);
             
-			g_bMLockAlways = args->isSet("mlockall");
+            g_bMLockAlways = parser.isSet(mlockAllOption);
 
 			if(g_bMLockAlways) {
 				if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
@@ -91,18 +97,18 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
-			g_bUseMLock = args->isSet("mlock");
+            g_bUseMLock = !parser.isSet(noMLockOption);
 			if(g_bUseMLock)
-				mlock(&aboutData, 4096uL); //reserve stack of main thread.
+                mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
         
 			QGLFormat f;
-			f.setDirectRendering(args->isSet("directrender") );
+            f.setDirectRendering( !parser.isSet(noDirectRenderOption) );
 			QGLFormat::setDefaultFormat( f );
             
-			// Use UTF8 conversion from std::string to QString.
-			QTextCodec::setCodecForCStrings(QTextCodec::codecForName("utf8") );
+            // Use UTF8 conversion from std::string to QString.
+//            QTextCodec::setCodecForLocale(QTextCodec::codecForName("utf8") );
             
-			module_dir = args->getOptionList("moduledir");
+            module_dir = parser.values(moduleDirectoryOption);
 
 #ifdef __SSE2__
 			// Check CPU specs.
@@ -115,12 +121,12 @@ int main(int argc, char *argv[]) {
 			FrmKameMain *form;
 			form = new FrmKameMain();
             
-			if (args->count()) {
-				form->openMes( args->arg(0) );
+            if (args.count()) {
+                form->openMes( args.at(0) );
 			}
 			else {
 			}
-			args->clear();
+            args.clear();
 		}
 	}
 
@@ -137,7 +143,7 @@ int main(int argc, char *argv[]) {
 	*/
 	fprintf(stderr, "Start processing events.\n");
 
-	app->processEvents();
+    app.processEvents();
 
 	fprintf(stderr, "Initializing LTDL.\n");
 	lt_dlinit();
@@ -145,7 +151,7 @@ int main(int argc, char *argv[]) {
 	LTDL_SET_PRELOADED_SYMBOLS();
 #endif
 	if(module_dir.isEmpty())
-		module_dir = KGlobal::dirs()->resourceDirs("lib");
+        module_dir = app.libraryPaths();
 	std::deque<XString> modules;
 	for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
 		QString path;
@@ -165,7 +171,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	int ret = app->exec();
+    int ret = app.exec();
 
 	return ret;
 }  

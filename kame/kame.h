@@ -14,9 +14,9 @@
 #ifndef KAME_H
 #define KAME_H
 
-#include <kmainwindow.h>
-#include <support.h>
-#include <xnodeconnector.h>
+#include "support.h"
+#include "xnodeconnector.h"
+#include <QMainWindow>
 
 class Ui_FrmRecordReader;
 typedef QForm<QWidget, Ui_FrmRecordReader> FrmRecordReader;
@@ -46,7 +46,7 @@ class QMdiSubWindow;
  * use \a g_pFrmMain to access this.
  * \sa g_pFrmMain
  */
-class FrmKameMain : public KMainWindow {
+class FrmKameMain : public QMainWindow {
 	Q_OBJECT
 public:
 	FrmKameMain();

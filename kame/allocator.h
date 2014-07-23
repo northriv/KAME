@@ -54,14 +54,14 @@ public:
 	template<typename Y> allocator(const allocator<Y> &) throw () {}
 	~allocator() throw () {}
 
-	pointer allocate(size_type num, const void *hint = 0) {
+    pointer allocate(size_type num, const void */*hint*/ = 0) {
 		return (pointer) (operator new(num * sizeof(T)));
 	}
 	void construct(pointer p, const T& value) {
 		new((void*) p) T(value);
 	}
 
-	void deallocate(pointer p, size_type num) {
+    void deallocate(pointer p, size_type /*num*/) {
 		operator delete((void *) p);
 	}
 	void destroy(pointer p) {

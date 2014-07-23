@@ -12,14 +12,16 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "icon.h"
-#include <qpixmap.h>
-#include <kiconloader.h>
+#include <QApplication>
+#include <QPixmap>
+#include <QStyle>
+#include <QIcon>
 
 //#include "kame-24x24-png.c"
 extern const unsigned char icon_kame_24x24_png[1065];
 
 QPixmap *g_pIconKame24x24;
-QPixmap *g_pIconKame48x48;
+QPixmap *g_pIconKame;
 QPixmap *g_pIconWarn;
 QPixmap *g_pIconError;
 QPixmap *g_pIconInfo;
@@ -31,46 +33,42 @@ QPixmap *g_pIconReader;
 QPixmap *g_pIconScalar;
 QPixmap *g_pIconGraph;
 QPixmap *g_pIconScript;
+QPixmap *g_pIconRoverT;
+QPixmap *g_pIconLEDOn;
+QPixmap *g_pIconLEDOff;
 
-void makeIcons(KIconLoader *loader)
+void makeIcons()
 {
 	g_pIconKame24x24 = new QPixmap;
-	g_pIconKame24x24->loadFromData( icon_kame_24x24_png, sizeof( icon_kame_24x24_png ), "PNG" );
+    g_pIconKame24x24->loadFromData( icon_kame_24x24_png, sizeof( icon_kame_24x24_png ), "PNG" );
 	
-	g_pIconKame48x48 = new QPixmap(
-		loader->loadIcon("kame", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, true ));
-	if(g_pIconKame48x48->isNull() ) g_pIconKame48x48 = g_pIconKame24x24;
+    g_pIconKame = new QPixmap(":/image/rovert.png");
 
-	g_pIconInfo = new QPixmap(
-		loader->loadIcon("dialog-infomation", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+    g_pIconRoverT = new QPixmap(":/image/rovert.png");
+
+    g_pIconLEDOn = new QPixmap(":/image/ledon.png");
+
+    g_pIconLEDOff = new QPixmap(":/image/ledoff.png");
+
+    g_pIconInfo = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(48,48));
 	
-	g_pIconWarn = new QPixmap(
-		loader->loadIcon("dialog-warning", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconError = new QPixmap(
-		loader->loadIcon("dialog-error", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconStop = new QPixmap(
-		loader->loadIcon("process-stop", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconClose = new QPixmap(
-		loader->loadIcon("document-close", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconDriver = new QPixmap(
-		loader->loadIcon("system-run", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconInterface = new QPixmap(
-		loader->loadIcon("computer", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconReader = new QPixmap(
-		loader->loadIcon("multimedia-player", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconScalar = new QPixmap(
-		loader->loadIcon("server-database", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconGraph = new QPixmap(
-		loader->loadIcon("graph", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
-	
-	g_pIconScript = new QPixmap(
-		loader->loadIcon("ruby", KIconLoader::Toolbar, 0, KIconLoader::DefaultState, QStringList(), 0, false ));
+    g_pIconWarn = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(48,48));
+
+    g_pIconError = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MessageBoxCritical).pixmap(48,48));
+
+    g_pIconStop = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_BrowserStop).pixmap(48,48));
+
+    g_pIconClose = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_TitleBarCloseButton).pixmap(48,48));
+
+    g_pIconDriver = g_pIconKame;
+
+    g_pIconInterface = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(48,48));
+
+    g_pIconReader = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_MediaPlay).pixmap(48,48));
+
+    g_pIconScalar = new QPixmap(QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView).pixmap(48,48));
+
+    g_pIconGraph = new QPixmap(":/image/graph.png");;
+
+    g_pIconScript = new QPixmap(":/image/ruby.png");
 }

@@ -19,7 +19,7 @@
 #include "graphwidget.h"
 
 XQPulserDriverConnector::XQPulserDriverConnector(
-    const shared_ptr<XPulser> &node, Q3Table *item, XQGraph *qgraph)
+    const shared_ptr<XPulser> &node, QTableWidget *item, XQGraph *qgraph)
 	: XQConnector(node, item),
       m_pTable(item),
       m_pulser(node),
@@ -33,7 +33,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 		if(tr.commit())
 			break;
 	}
-	m_pTable->setNumCols(3);
+	m_pTable->setColumnCount(3);
 	double def = 50;
 	m_pTable->setColumnWidth(0, (int)(def * 1.5));
 	m_pTable->setColumnWidth(1, (int)(def * 1.5));
@@ -42,9 +42,9 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 	labels += "Time [ms]";
 	labels += "Diff [ms]";
 	labels += "Pattern (Port 0, 1, ...)";
-	m_pTable->setColumnLabels(labels);
+	m_pTable->setHorizontalHeaderLabels(labels);
 	m_pTable->setReadOnly(true);
-	m_pTable->setSelectionMode(Q3Table::MultiRow);
+	m_pTable->setSelectionMode(QTableWidget::MultiRow);
 
 	Q3Header *header = m_pTable->verticalHeader();
 	header->setResizeEnabled(false);
@@ -190,7 +190,7 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
         int i = 0;
         for(XPulser::Payload::RelPatList::const_iterator it = shot[ *pulser].relPatList().begin();
 			it != shot[ *pulser].relPatList().end(); it++) {
-			//        Form->tblPulse->insertRows(i);
+			//        Form->tblPulse->insertRow(i);
 			m_pTable->setText(i, 0, formatString("%.4f", it->time * pulser->resolution()));
 			m_pTable->setText(i, 1, formatString("%.4f", it->toappear * pulser->resolution()));
 			QString s;

@@ -14,21 +14,21 @@
 #include "entrylistconnector.h"
 #include "analyzer.h"
 #include "driver.h"
-#include <q3table.h>
-#include <qlabel.h>
-#include <qpushbutton.h>
-#include <qcheckbox.h>
-#include <knuminput.h>
+#include <QLabel>
+#include <QPushButton>
+#include <QCheckBox>
+#include <QTableWidget>
+#include <QDoubleSpinBox>
 
 //---------------------------------------------------------------------------
 
 XEntryListConnector::XEntryListConnector
-(const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist)
+(const shared_ptr<XScalarEntryList> &node, QTableWidget *item, const shared_ptr<XChartList> &chartlist)
 	: XListQConnector(node, item),
 	  m_chartList(chartlist) {
-	connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
-			this, SLOT(clicked( int, int, int, const QPoint& )) );
-	m_pItem->setNumCols(4);
+    connect(item, SIGNAL( cellClicked( int, int)),
+            this, SLOT(cellClicked( int, int)) );
+	m_pItem->setColumnCount(4);
 	const double def = 50;
 	m_pItem->setColumnWidth(0, (int)(def * 2.5));
 	m_pItem->setColumnWidth(1, (int)(def * 2.0));
@@ -39,7 +39,7 @@ XEntryListConnector::XEntryListConnector
 	labels += i18n("Value");
 	labels += i18n("Store");
 	labels += i18n("Delta");
-	m_pItem->setColumnLabels(labels);
+	m_pItem->setHorizontalHeaderLabels(labels);
   
 	Snapshot shot( *node);
 	if(shot.size()) {
@@ -62,7 +62,7 @@ XEntryListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 }
 
 void
-XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
+XEntryListConnector::cellClicked ( int row, int col) {
 	switch(col) {
 	case 0:
 	case 1: {
@@ -81,9 +81,9 @@ XEntryListConnector::clicked ( int row, int col, int, const QPoint& ) {
 void
 XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end();) {
-		assert(m_pItem->numRows() == (int)m_cons.size());
+		assert(m_pItem->rowCount() == (int)m_cons.size());
 		if(( *it)->entry == e.released) {
-			for(int i = 0; i < m_pItem->numRows(); i++) {
+			for(int i = 0; i < m_pItem->rowCount(); i++) {
 				if(m_pItem->cellWidget(i, 1) == ( *it)->label) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
@@ -96,9 +96,9 @@ XEntryListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payloa
 void
 XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XScalarEntry> entry = static_pointer_cast<XScalarEntry>(e.caught);
-	int i = m_pItem->numRows();
-	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, entry->getLabel().c_str());
+	int i = m_pItem->rowCount();
+	m_pItem->insertRow(i);
+    m_pItem->setItem(i, 0, new QTableWidgetItem(entry->getLabel().c_str()));
 
 	shared_ptr<XDriver> driver = entry->driver();
 
@@ -125,6 +125,6 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 			break;
 	}
 
-	assert(m_pItem->numRows() == (int)m_cons.size());
+	assert(m_pItem->rowCount() == (int)m_cons.size());
 }
 

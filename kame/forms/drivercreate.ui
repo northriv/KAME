@@ -76,15 +76,7 @@
     </layout>
    </item>
    <item row="0" column="0">
-    <widget class="Q3ListBox" name="m_lstType">
-     <property name="resizePolicy">
-      <enum>Q3ScrollView::AutoOneFit</enum>
-     </property>
-     <item>
-      <property name="text">
-       <string>New Item</string>
-      </property>
-     </item>
+    <widget class="QListWidget" name="m_lstType">
     </widget>
    </item>
    <item row="1" column="0">
@@ -109,17 +101,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
-  <customwidget>
-   <class>Q3Frame</class>
-   <extends>QFrame</extends>
-   <header>Qt3Support/Q3Frame</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>Q3ListBox</class>
-   <extends>Q3Frame</extends>
-   <header>q3listbox.h</header>
-  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>m_lstType</tabstop>

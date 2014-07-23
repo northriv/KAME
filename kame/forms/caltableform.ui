@@ -6,15 +6,24 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>160</width>
-    <height>149</height>
+    <width>326</width>
+    <height>309</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Calibration Table</string>
   </property>
   <layout class="QGridLayout">
-   <property name="margin">
+   <property name="leftMargin">
+    <number>2</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
     <number>2</number>
    </property>
    <item row="0" column="0">
@@ -45,7 +54,7 @@
         </widget>
        </item>
        <item>
-        <widget class="KComboBox" name="cmbThermometer">
+        <widget class="QComboBox" name="cmbThermometer">
          <property name="acceptDrops">
           <bool>false</bool>
          </property>
@@ -171,13 +180,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
-  <customwidget>
-   <class>KComboBox</class>
-   <extends>QComboBox</extends>
-   <header>kcombobox.h</header>
-  </customwidget>
- </customwidgets>
  <tabstops>
   <tabstop>cmbThermometer</tabstop>
   <tabstop>edTemp</tabstop>
@@ -185,7 +187,6 @@
   <tabstop>btnDisplay</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kcombobox.h</include>
  </includes>
  <resources/>
  <connections/>

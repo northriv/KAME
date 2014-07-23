@@ -96,7 +96,7 @@ public:
 		weak_ptr<XNode> m_var;
 	};
 private:  
-	void onItemReleased(const Snapshot& shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+    void onItemReleased(const Snapshot& /*shot*/, const XListNodeBase::Payload::ReleaseEvent &e) {
 		for(Snapshot shot( *this);;) {
 			if(e.released != (shared_ptr<XNode>)shot[ *this])
 				break;

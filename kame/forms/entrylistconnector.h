@@ -18,7 +18,7 @@
 #include "driver.h"
 //---------------------------------------------------------------------------
 
-class Q3Table;
+class QTableWidget;
 class XScalarEntry;
 class XChartList;
 class XScalarEntryList;
@@ -28,13 +28,13 @@ class XEntryListConnector : public XListQConnector {
 	Q_OBJECT
 public:
 	XEntryListConnector
-	(const shared_ptr<XScalarEntryList> &node, Q3Table *item, const shared_ptr<XChartList> &chartlist);
+    (const shared_ptr<XScalarEntryList> &node, QTableWidget *item, const shared_ptr<XChartList> &chartlist);
 	virtual ~XEntryListConnector() {}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
-void clicked ( int row, int col, int button, const QPoint& );
+void cellClicked ( int row, int col);
 private:
 	const shared_ptr<XChartList> m_chartList;
 

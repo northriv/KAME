@@ -26,7 +26,7 @@ class XGraph;
 class XQPulserDriverConnector : public XQConnector {
 	Q_OBJECT
 public:
-	XQPulserDriverConnector(const shared_ptr<XPulser> &node, Q3Table *item, XQGraph *graph);
+	XQPulserDriverConnector(const shared_ptr<XPulser> &node, QTableWidget *item, XQGraph *graph);
 public:
 	virtual ~XQPulserDriverConnector();
 
@@ -40,7 +40,7 @@ private:
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	void onPulseChanged(const Snapshot &shot, XDriver*);
   
-	Q3Table *const m_pTable;
+	QTableWidget *const m_pTable;
 	const weak_ptr<XPulser> m_pulser;
 
 	const shared_ptr<XGraph> m_graph;

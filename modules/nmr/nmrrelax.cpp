@@ -23,9 +23,9 @@
 
 REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 
-#include <qpushbutton.h>
-#include <qcombobox.h>
-#include <qcheckbox.h>
+#include <QPushButton>
+#include <QComboBox>
+#include <QCheckBox>
 #include <knuminput.h>
 #include <kiconloader.h>
 

@@ -14,14 +14,12 @@
 #include "xrubythreadconnector.h"
 #include "xrubysupport.h"
 #include "xrubythread.h"
-#include <qpushbutton.h>
-#include <qlabel.h>
-#include <qtextbrowser.h>
-#include <qlineedit.h>
+#include <QPushButton>
+#include <QLabel>
+#include <QTextBrowser>
+#include <QLineEdit>
 #include "ui_rubythreadtool.h"
 #include "icons/icon.h"
-#include <kapplication.h>
-#include <kiconloader.h>
 
 XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
@@ -43,15 +41,15 @@ XRubyThreadConnector::XRubyThreadConnector(
 	m_conLineinput(xqcon_create<XQLineEditConnector>(
 		rbthread->lineinput(), form->m_edLineinput)) {
 
-    KIconLoader *loader = KIconLoader::global();
-	form->m_pbtnResume->setIcon(loader->loadIcon("system-reboot",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->m_pbtnKill->setIcon(loader->loadIcon("process-stop",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->m_pbtnResume->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+    form->m_pbtnKill->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_BrowserStop));
             
-    m_pForm->m_ptxtDefout->setMaxLogLines(10000);
-    m_pForm->m_ptxtDefout->setTextFormat(Qt::LogText);    
-    
+    m_pForm->m_ptxtDefout->setReadOnly(true);
+    m_pForm->m_ptxtDefout->setOpenLinks(false);
+    m_pForm->m_ptxtDefout->setOpenExternalLinks(false);
+
     for(Transaction tr( *m_resume);; ++tr) {
 		m_lsnOnResumeTouched = tr[ *m_resume].onTouch().connectWeakly(
 			shared_from_this(), &XRubyThreadConnector::onResumeTouched);

@@ -15,19 +15,19 @@
 #include "interfacelistconnector.h"
 #include "driver.h"
 
-#include <q3table.h>
 #include <QLineEdit>
 #include <QComboBox>
 #include <QPushButton>
 #include <QSpinBox>
-#include <kiconloader.h>
+#include <QTableWidget>
+#include <QApplication>
 
 XInterfaceListConnector::XInterfaceListConnector(
-    const shared_ptr<XInterfaceList> &node, Q3Table *item)
+    const shared_ptr<XInterfaceList> &node, QTableWidget *item)
 	: XListQConnector(node, item), m_interfaceList(node) {
-	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
-			this, SLOT(clicked( int, int, int, const QPoint& )) );
-	item->setNumCols(5);
+    connect(m_pItem, SIGNAL(cellClicked( int, int)),
+            this, SLOT(cellClicked( int, int)) );
+	item->setColumnCount(5);
 	double def = 45;
 	item->setColumnWidth(0, (int)(def * 1.5));
 	item->setColumnWidth(1, (int)(def * 1.2));
@@ -40,7 +40,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 	labels += i18n("Device");
 	labels += i18n("Port");
 	labels += i18n("Addr");
-	item->setColumnLabels(labels);
+	item->setHorizontalHeaderLabels(labels);
 
 	Snapshot shot( *node);
 	if(shot.size()) {
@@ -58,15 +58,14 @@ void
 XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(it->interface->control().get() == node) {
-		    KIconLoader *loader = KIconLoader::global();
 			if(shot[ *it->interface->control()]) {
-				it->btn->setIcon( loader->loadIcon("process-stop",
-					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+                it->btn->setIcon(
+                    QApplication::style()->standardIcon(QStyle::SP_MediaStop));
 				it->btn->setText(i18n("&STOP"));
 			}
 			else {
-				it->btn->setIcon( loader->loadIcon("system-run",
-					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+                it->btn->setIcon(
+                    QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
 				it->btn->setText(i18n("&RUN"));
 			}
 		}
@@ -75,9 +74,9 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
 void
 XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	auto interface = static_pointer_cast<XInterface>(e.caught);
-	int i = m_pItem->numRows();
-	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, interface->getLabel().c_str());
+	int i = m_pItem->rowCount();
+	m_pItem->insertRow(i);
+    m_pItem->setItem(i, 0, new QTableWidgetItem(interface->getLabel().c_str()));
 	m_cons.push_back(tcons());
 	tcons &con(m_cons.back());
 	con.interface = interface;
@@ -96,7 +95,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
 	QSpinBox *numAddr(new QSpinBox(m_pItem) );
 	numAddr->setRange(0, 255);
 	numAddr->setSingleStep(1);
-	con.conaddr = xqcon_create<XQSpinBoxConnector>(interface->address(), numAddr);
+    con.conaddr = xqcon_create<XQSpinBoxUnsignedConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
 	for(Transaction tr( *interface);; ++tr) {
 		con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
@@ -112,7 +111,7 @@ void
 XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(auto it = m_cons.begin(); it != m_cons.end();) {
 		if(it->interface == e.released) {
-			for(int i = 0; i < m_pItem->numRows(); i++) {
+			for(int i = 0; i < m_pItem->rowCount(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->btn) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
@@ -123,7 +122,7 @@ XInterfaceListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Pa
 	}  
 }
 void
-XInterfaceListConnector::clicked ( int row, int , int , const QPoint& ) {
+XInterfaceListConnector::cellClicked ( int row, int ) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++)
 	{
 		if(m_pItem->cellWidget(row, 1) == it->btn)

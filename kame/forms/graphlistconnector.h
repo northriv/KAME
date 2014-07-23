@@ -20,20 +20,20 @@
 //---------------------------------------------------------------------------
 
 class QPushButton;
-class Q3Table;
+class QTableWidget;
 class XGraphList;
 
 class XGraphListConnector : public XListQConnector {
 	Q_OBJECT
 public:
-	XGraphListConnector(const shared_ptr<XGraphList> &node, Q3Table *item,
+    XGraphListConnector(const shared_ptr<XGraphList> &node, QTableWidget *item,
 						QPushButton *btnnew, QPushButton *btndelete);
 	virtual ~XGraphListConnector() {}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
-void clicked ( int row, int col, int button, const QPoint& );
+void cellClicked ( int row, int col);
 private:
 	const shared_ptr<XGraphList> m_graphlist;
   

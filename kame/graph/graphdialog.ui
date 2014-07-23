@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>280</width>
-    <height>466</height>
+    <width>282</width>
+    <height>479</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,7 +17,16 @@
    <bool>true</bool>
   </property>
   <layout class="QGridLayout">
-   <property name="margin">
+   <property name="leftMargin">
+    <number>2</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
     <number>2</number>
    </property>
    <item row="1" column="0">
@@ -82,7 +91,16 @@
        <string>Plots</string>
       </attribute>
       <layout class="QGridLayout">
-       <property name="margin">
+       <property name="leftMargin">
+        <number>2</number>
+       </property>
+       <property name="topMargin">
+        <number>2</number>
+       </property>
+       <property name="rightMargin">
+        <number>2</number>
+       </property>
+       <property name="bottomMargin">
         <number>2</number>
        </property>
        <item row="3" column="0">
@@ -116,7 +134,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrBarColor">
+            <widget class="QPushButton" name="clrBarColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -157,7 +175,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrLineColor">
+            <widget class="QPushButton" name="clrLineColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -198,7 +216,7 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrPointColor">
+            <widget class="QPushButton" name="clrPointColor">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -237,7 +255,7 @@
           </spacer>
          </item>
          <item>
-          <widget class="KColorCombo" name="clrMajorGridColor">
+          <widget class="QPushButton" name="clrMajorGridColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -274,7 +292,7 @@
           </spacer>
          </item>
          <item>
-          <widget class="KColorCombo" name="clrMinorGridColor">
+          <widget class="QPushButton" name="clrMinorGridColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -285,15 +303,10 @@
        <item row="0" column="0">
         <layout class="QHBoxLayout">
          <item>
-          <widget class="Q3ListBox" name="lbPlots">
+          <widget class="QListWidget" name="lbPlots">
            <property name="enabled">
             <bool>false</bool>
            </property>
-           <item>
-            <property name="text">
-             <string>New Item</string>
-            </property>
-           </item>
           </widget>
          </item>
          <item>
@@ -338,6 +351,9 @@
        </item>
        <item row="6" column="0">
         <layout class="QHBoxLayout">
+         <property name="spacing">
+          <number>-1</number>
+         </property>
          <item>
           <widget class="QLabel" name="textLabel1_4">
            <property name="text">
@@ -349,7 +365,14 @@
           </widget>
          </item>
          <item>
-          <widget class="KDoubleNumInput" name="dblIntensity" native="true">
+          <widget class="QSlider" name="m_slIntensity">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="m_dblIntensity">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -378,14 +401,14 @@
          <item>
           <layout class="QHBoxLayout">
            <item>
-            <widget class="KColorCombo" name="clrColorPlotLow">
+            <widget class="QPushButton" name="clrColorPlotLow">
              <property name="enabled">
               <bool>false</bool>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="KColorCombo" name="clrColorPlotHigh">
+            <widget class="QPushButton" name="clrColorPlotHigh">
              <property name="enabled">
               <bool>false</bool>
              </property>
@@ -402,7 +425,16 @@
        <string>Axes</string>
       </attribute>
       <layout class="QGridLayout">
-       <property name="margin">
+       <property name="leftMargin">
+        <number>2</number>
+       </property>
+       <property name="topMargin">
+        <number>2</number>
+       </property>
+       <property name="rightMargin">
+        <number>2</number>
+       </property>
+       <property name="bottomMargin">
         <number>2</number>
        </property>
        <item row="2" column="0">
@@ -481,15 +513,10 @@
        <item row="0" column="0">
         <layout class="QHBoxLayout">
          <item>
-          <widget class="Q3ListBox" name="lbAxes">
+          <widget class="QListWidget" name="lbAxes">
            <property name="enabled">
             <bool>false</bool>
            </property>
-           <item>
-            <property name="text">
-             <string>New Item</string>
-            </property>
-           </item>
           </widget>
          </item>
          <item>
@@ -600,7 +627,7 @@
           </widget>
          </item>
          <item>
-          <widget class="KColorCombo" name="m_clrBackGroundColor">
+          <widget class="QPushButton" name="m_clrBackGroundColor">
            <property name="enabled">
             <bool>false</bool>
            </property>
@@ -636,19 +663,26 @@
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="KDoubleNumInput" name="m_dblPersistence" native="true">
+	     <item>
+          <widget class="QSlider" name="m_slPersistence">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item> 
+          <widget class="QDoubleSpinBox" name="m_dblPersistence">
            <property name="enabled">
             <bool>false</bool>
            </property>
-           <property name="label" stdset="0">
-            <string/>
+           <property name="suffix">
+            <string> sec</string>
            </property>
-           <property name="value" stdset="0">
+           <property name="value">
             <double>0.000000000000000</double>
            </property>
-           <property name="suffix" stdset="0">
-            <string> sec</string>
+           <property name="label" stdset="0">
+            <string/>
            </property>
            <property name="maxValue" stdset="0">
             <number>1</number>
@@ -709,29 +743,6 @@
   </layout>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <customwidgets>
-  <customwidget>
-   <class>Q3Frame</class>
-   <extends>QFrame</extends>
-   <header>Qt3Support/Q3Frame</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>Q3ListBox</class>
-   <extends>Q3Frame</extends>
-   <header>q3listbox.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KColorCombo</class>
-   <extends>QComboBox</extends>
-   <header>kcolorcombo.h</header>
-  </customwidget>
- </customwidgets>
  <tabstops>
   <tabstop>tab1</tabstop>
   <tabstop>lbPlots</tabstop>
@@ -747,7 +758,6 @@
   <tabstop>clrMajorGridColor</tabstop>
   <tabstop>ckbDisplayMinorGrids</tabstop>
   <tabstop>clrMinorGridColor</tabstop>
-  <tabstop>dblIntensity</tabstop>
   <tabstop>ckbColorPlot</tabstop>
   <tabstop>clrColorPlotLow</tabstop>
   <tabstop>clrColorPlotHigh</tabstop>
@@ -766,20 +776,6 @@
   <tabstop>buttonHelp</tabstop>
   <tabstop>buttonOk</tabstop>
  </tabstops>
- <includes>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">kcolorcombo.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
- </includes>
  <resources/>
  <connections>
   <connection>

@@ -17,11 +17,8 @@
 #include "graphwidget.h"
 #include "graph.h"
 
-#include <kurlrequester.h>
-#include <qpushbutton.h>
-#include <kiconloader.h>
-#include <kapplication.h>
-#include <qstatusbar.h>
+#include <QPushButton>
+#include <QStatusBar>
 
 #define OFSMODE (std::ios::out | std::ios::app | std::ios::ate)
 
@@ -32,19 +29,19 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
 		name, false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
 		XStringNode> ("FileName", true)) {
 	item->m_graphwidget->setGraph(m_graph);
-	m_conFilename = xqcon_create<XKURLReqConnector> (m_filename, item->m_url,
-		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true);
+    m_conFilename = xqcon_create<XFilePathConnector> (m_filename, item->m_edUrl, item->m_btnUrl,
+		"Data files (*.dat);;All files (*.*)", true);
 	m_conDump = xqcon_create<XQButtonConnector> (m_dump, item->m_btnDump);
 	init();
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
-	KUrlRequester *urlreq, QPushButton *btndump) :
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
 	XNode(name, runtime), m_btnDump(btndump), m_graph(create<XGraph> (name,
 		false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
 		XStringNode> ("FileName", true)) {
 	graphwidget->setGraph(m_graph);
-	m_conFilename = xqcon_create<XKURLReqConnector> (m_filename, urlreq,
-		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true);
+    m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
+		"Data files (*.dat);;All files (*.*)", true);
 	m_conDump = xqcon_create<XQButtonConnector> (m_dump, btndump);
 	init();
 }
@@ -206,13 +203,12 @@ XWaveNGraph::Payload::setRowCount(unsigned int n) {
 void
 XWaveNGraph::onIconChanged(const Snapshot &shot, bool v) {
 	if( !m_conDump->isAlive()) return;
-	KIconLoader *loader = KIconLoader::global();
 	if( !v)
-		m_btnDump->setIcon(loader->loadIcon("document-save", KIconLoader::Toolbar,
-			KIconLoader::SizeSmall, true));
+        m_btnDump->setIcon(QApplication::style()->
+            standardIcon(QStyle::SP_DialogSaveButton));
 	else
-		m_btnDump->setIcon(loader->loadIcon("edit-redo", KIconLoader::Toolbar,
-			KIconLoader::SizeSmall, true));
+        m_btnDump->setIcon(QApplication::style()->
+            standardIcon(QStyle::SP_BrowserReload));
 }
 void
 XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {

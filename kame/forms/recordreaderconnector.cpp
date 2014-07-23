@@ -14,8 +14,8 @@
 //---------------------------------------------------------------------------
 #include "recordreaderconnector.h"
 #include "recordreader.h"
-#include <qpushbutton.h>
-#include <kiconloader.h>
+#include <QPushButton>
+
 #include "ui_recordreaderform.h"
 
 XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
@@ -23,9 +23,9 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	XQConnector(reader, form),
 	m_reader(reader),
 	m_pForm(form),
-	m_conRecordFile(xqcon_create<XKURLReqConnector>(
-						reader->filename(), form->urlBinRec,
-						("*.bin|Binary files (*.bin)\n*.*|All files (*.*)"), false)),
+    m_conRecordFile(xqcon_create<XFilePathConnector>(
+                        reader->filename(), form->m_edPath, form->m_btnPath,
+                        ("Binary files (*.bin);;All files (*.*)"), false)),
 	m_conFF(xqcon_create<XQToggleButtonConnector>(reader->fastForward(), form->btnFF)),
 	m_conRW(xqcon_create<XQToggleButtonConnector>(reader->rewind(), form->btnRW)),
 	m_conStop(xqcon_create<XQButtonConnector>(reader->stop(), form->btnStop)),
@@ -35,17 +35,16 @@ XRawStreamRecordReaderConnector::XRawStreamRecordReaderConnector(
 	m_conPosString(xqcon_create<XQLineEditConnector>(reader->posString(), form->edTime)),
 	m_conSpeed(xqcon_create<XQComboBoxConnector>(reader->speed(), form->cmbSpeed, Snapshot( *reader->speed()))) {
 
-	KIconLoader *loader = KIconLoader::global();
-	form->btnNext->setIcon( loader->loadIcon("media-seek-forward",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->btnBack->setIcon( loader->loadIcon("media-seek-backward",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->btnFF->setIcon( loader->loadIcon("media-skip-forward",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->btnRW->setIcon( loader->loadIcon("media-skip-backward",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->btnFirst->setIcon( loader->loadIcon("media-playback-start",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	form->btnStop->setIcon( loader->loadIcon("media-playback-stop",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    form->btnNext->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaSeekForward));
+    form->btnBack->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaSeekBackward));
+    form->btnFF->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaSkipForward));
+    form->btnRW->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaSkipBackward));
+    form->btnFirst->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+    form->btnStop->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_MediaPause));
 }

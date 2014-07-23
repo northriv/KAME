@@ -13,33 +13,31 @@
 ***************************************************************************/
 #include "xnodeconnector.h"
 #include <deque>
-#include <kapplication.h>
 #include <QPushButton>
 #include <QLineEdit>
-#include <kurlrequester.h>
 #include <QCheckBox>
-#include <q3listbox.h>
+#include <QListWidget>
 #include <QComboBox>
-#include <kcolorbutton.h>
-#include <kcolorcombo.h>
 #include <QLabel>
-#include <q3table.h>
-#include <kled.h>
-#include <knuminput.h>
+#include <QTableWidget>
+#include <QHeaderView>
 #include <QDoubleSpinBox>
 #include <QSlider>
 #include <QLCDNumber>
-#include <q3textbrowser.h>
+#include <QTextBrowser>
 #include <QToolTip>
 #include <QStatusBar>
-#include <kpassivepopup.h>
-#include <kfiledialog.h>
+#include <QSlider>
+#include <QToolButton>
+#include <QFileDialog>
+#include <QColorDialog>
 
 #include <QMainWindow>
 
 #include <map>
 #include "measure.h"
 #include "icons/icon.h"
+#include <type_traits>
 
 //ms
 #define UI_DISP_DELAY 10
@@ -181,15 +179,15 @@ XValueQConnector::~XValueQConnector() {
 XQLineEditConnector::XQLineEditConnector(
     const shared_ptr<XValueNodeBase> &node, QLineEdit *item, bool forcereturn)
 	: XValueQConnector(node, item),
-	  m_node(node), m_pItem(item) {
+      m_node(node), m_pItem(item), m_editing(false) {
     connect(item, SIGNAL( returnPressed() ), this, SLOT( onReturnPressed() ) );
-    connect(item, SIGNAL( lostFocus() ), this, SLOT( onExit() ) );
     if(forcereturn) {
-		connect(item, SIGNAL( textChanged( const QString &) ),
+        connect(item, SIGNAL( editingFinished() ), this, SLOT( onExit() ) );
+        connect(item, SIGNAL( textEdited( const QString &) ),
 				this, SLOT( onTextChanged(const QString &) ) );
     }
     else {
-		connect(item, SIGNAL( textChanged( const QString &) ),
+        connect(item, SIGNAL( textEdited( const QString &) ),
 				this, SLOT( onTextChanged2(const QString &) ) );
     }
     onValueChanged(Snapshot( *node), node.get());
@@ -199,6 +197,7 @@ XQLineEditConnector::onTextChanged(const QString &text) {
 	QPalette palette(m_pItem->palette());
 	palette.setColor(QPalette::Text, Qt::blue);
 	m_pItem->setPalette(palette);
+    m_editing = true;
 }
 void
 XQLineEditConnector::onTextChanged2(const QString &text) {
@@ -234,9 +233,11 @@ XQLineEditConnector::onReturnPressed() {
     	palette.setColor(QPalette::Text, Qt::red);
     }
 	m_pItem->setPalette(palette);
+    m_editing = false;
 }
 void
 XQLineEditConnector::onExit() {
+    if( !m_editing) return;
 	QPalette palette(m_pItem->palette());
 	palette.setColor(QPalette::Text, Qt::black);
 	m_pItem->setPalette(palette);
@@ -256,127 +257,139 @@ XQLineEditConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 	m_pItem->blockSignals(false);
 }
   
-XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
-	QSpinBox *item, QSlider *slider)
+template <class QN, class XN, class X>
+XQSpinBoxConnectorTMPL<QN,XN,X>::XQSpinBoxConnectorTMPL(const shared_ptr<XN> &node,
+    QN *item, QSlider *slider)
 	: XValueQConnector(node, item),
-	  m_iNode(node),
-	  m_uINode(),
+      m_node(node),
 	  m_pItem(item),
 	  m_pSlider(slider) {
-    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-    onValueChanged(Snapshot( *node), node.get());
+    if(slider) {
+        if(std::is_integral<X>::value) {
+            slider->setRange(item->minimum(), item->maximum());
+            slider->setSingleStep(item->singleStep());
+        }
+        else {
+            slider->setRange(0, 100);
+            slider->setSingleStep(5);
+        }
+    }
 }
-XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
-	QSpinBox *item, QSlider *slider)
-	: XValueQConnector(node, item),
-	  m_iNode(),
-	  m_uINode(node),
-	  m_pItem(item),
-	  m_pSlider(slider) {
+XQSpinBoxConnector::XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
+    QSpinBox *item, QSlider *slider)
+    : XQSpinBoxConnectorTMPL<QSpinBox, XIntNode, int>(node, item, slider) {
     connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
     if(slider) {
-        connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
-        slider->setRange(item->minimum(), item->maximum());
-        slider->setSingleStep(item->singleStep());
+        connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onSliderChange(int) ) );
     }
     onValueChanged(Snapshot( *node), node.get());
 }
-void
-XQSpinBoxConnector::onChange(int val) {
-    if(m_iNode) {
-    	for(Transaction tr( *m_iNode);; ++tr) {
-    		tr[ *m_iNode] = val;
-    		tr.unmark(m_lsnValueChanged);
-    		if(tr.commit())
-    			break;
-    	}
+XQSpinBoxUnsignedConnector::XQSpinBoxUnsignedConnector(const shared_ptr<XUIntNode> &node,
+    QSpinBox *item, QSlider *slider)
+    : XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int>(node, item, slider) {
+    connect(item, SIGNAL( valueChanged(int) ), this, SLOT( onChange(int) ) );
+    if(slider) {
+        connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onSliderChange(int) ) );
     }
-    if(m_uINode) {
-    	for(Transaction tr( *m_uINode);; ++tr) {
-    		tr[ *m_uINode] = val;
-    		tr.unmark(m_lsnValueChanged);
-    		if(tr.commit())
-    			break;
-    	}
+    onValueChanged(Snapshot( *node), node.get());
+}
+XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
+    QDoubleSpinBox *item, QSlider *slider)
+    : XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double>(node, item, slider) {
+    connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
+    if(slider) {
+        connect(slider, SIGNAL( valueChanged(int) ), this, SLOT( onSliderChange(int) ) );
+    }
+    onValueChanged(Snapshot( *node), node.get());
+}
+template <class QN, class XN, class X>
+void
+XQSpinBoxConnectorTMPL<QN,XN,X>::onChangeTMPL(X val) {
+    int var = val;
+    if( !std::is_integral<X>::value) {
+        double max = m_pItem->maximum();
+        double min = m_pItem->minimum();
+        var = lrint((val + min) / (max - min) * 100);
+    }
+    m_pSlider->blockSignals(true);
+    m_pSlider->setValue(var);
+    m_pSlider->blockSignals(false);
+    for(Transaction tr( *m_node);; ++tr) {
+        tr[ *m_node] = val;
+        tr.unmark(m_lsnValueChanged);
+        if(tr.commit())
+            break;
     }
 }
+template <class QN, class XN, class X>
 void
-XQSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+XQSpinBoxConnectorTMPL<QN,XN,X>::onSliderChangeTMPL(int val) {
+    X var = val;
+    if( !std::is_integral<X>::value) {
+        double max = m_pItem->maximum();
+        double min = m_pItem->minimum();
+        var = val / 100.0 * (max - min) + min;
+    }
+    m_pItem->blockSignals(true);
+    m_pItem->setValue(var);
+    m_pItem->blockSignals(false);
+    for(Transaction tr( *m_node);; ++tr) {
+        tr[ *m_node] = var;
+        tr.unmark(m_lsnValueChanged);
+        if(tr.commit())
+            break;
+    }
+}
+template <class QN, class XN, class X>
+void
+XQSpinBoxConnectorTMPL<QN,XN,X>::onValueChangedTMPL(const Snapshot &shot, XValueNodeBase *node) {
+    X var = std::is_integral<X>::value ?
+        QString(shot[ *node].to_str()).toInt() :
+        QString(shot[ *node].to_str()).toDouble();
 	m_pItem->blockSignals(true);
-	m_pItem->setValue(QString(shot[ *node].to_str()).toInt());
-	m_pItem->blockSignals(false);
+    m_pItem->setValue(var);
+    m_pItem->blockSignals(false);
 	if(m_pSlider) {
+        int svar = var;
+        if( !std::is_integral<X>::value) {
+            double max = m_pItem->maximum();
+            double min = m_pItem->minimum();
+            svar = lrint((var + min) / (max - min) * 100);
+        }
 		m_pSlider->blockSignals(true);
-		m_pSlider->setValue(QString(shot[ *node].to_str()).toInt());
-		m_pSlider->blockSignals(false);
+        m_pSlider->setValue(var);
+        m_pSlider->blockSignals(false);
 	}
 }
 
-XKDoubleNumInputConnector::XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, KDoubleNumInput *item)
-	: XValueQConnector(node, item),
-	  m_node(node),
-	  m_pItem(item) {
-    connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
-    onValueChanged(Snapshot( *node), node.get());
-}
-void
-XKDoubleNumInputConnector::onChange(double val) {
-	for(Transaction tr( *m_node);; ++tr) {
-		tr[ *m_node] = val;
-		tr.unmark(m_lsnValueChanged);
-		if(tr.commit())
-			break;
-	}
-}
-void
-XKDoubleNumInputConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-	m_pItem->blockSignals(true);
-	m_pItem->setValue((double)shot[ *m_node]);
-	m_pItem->blockSignals(false);
-}
+template class XQSpinBoxConnectorTMPL<QSpinBox, XIntNode, int>;
+template class XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int>;
+template class XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double>;
 
-XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node, QDoubleSpinBox *item)
-	: XValueQConnector(node, item),
-	  m_node(node),
-	  m_pItem(item) {
-    connect(item, SIGNAL( valueChanged(double) ), this, SLOT( onChange(double) ) );
-    onValueChanged(Snapshot( *node), node.get());
+XFilePathConnector::XFilePathConnector(const shared_ptr<XStringNode> &node,
+    QLineEdit *edit, QAbstractButton *btn, const char *filter, bool saving)
+    : XQLineEditConnector(node, edit),
+      m_pBtn(btn), m_dialog(new QFileDialog(btn)) {
+    connect(btn, SIGNAL( clicked ( ) ), this, SLOT( onClick( ) ) );
+    connect( &*m_dialog, SIGNAL( accepted ( ) ), this, SLOT( onAccept( ) ) );
+    m_dialog->setNameFilter(filter);
+    m_dialog->setAcceptMode(saving ? QFileDialog::AcceptSave : QFileDialog::AcceptOpen);
+    m_dialog->setFileMode( saving ? QFileDialog::AnyFile : QFileDialog::ExistingFile);
+////    onValueChanged(Snapshot( *node), node.get());
 }
 void
-XQDoubleSpinBoxConnector::onChange(double val) {
-	for(Transaction tr( *m_node);; ++tr) {
-		tr[ *m_node] = val;
-		tr.unmark(m_lsnValueChanged);
-		if(tr.commit())
-			break;
-	}
+XFilePathConnector::onClick() {
+    m_dialog->open();
 }
 void
-XQDoubleSpinBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-	m_pItem->blockSignals(true);
-	m_pItem->setValue((double)shot[ *m_node]);
-	m_pItem->blockSignals(false);
-}
-      
-XKURLReqConnector::XKURLReqConnector(const shared_ptr<XStringNode> &node,
-									 KUrlRequester *item, const char *filter, bool saving)
-	: XValueQConnector(node, item),
-	  m_node(node),
-	  m_pItem(item) {
-    connect(item, SIGNAL( urlSelected ( const KUrl & ) ),
-			this, SLOT( onSelect( const KUrl & ) ) );
-    m_pItem->button()->setAutoDefault(false);
-    m_pItem->setFilter(filter);
-    m_pItem->setMode( saving ?
-			(KFile::File | KFile::LocalOnly)
-			: (KFile::File | KFile::LocalOnly | KFile::ExistingOnly ));
-//    onValueChanged(Snapshot( *node), node.get());
-}
-void
-XKURLReqConnector::onSelect( const KUrl &l) {
+XFilePathConnector::onAccept() {
+    QString var = m_dialog->selectedFiles().at(0);
+    m_pItem->blockSignals(true);
+    m_pItem->setText(var);
+    m_pItem->blockSignals(false);
     try {
 		for(Transaction tr( *m_node);; ++tr) {
-			tr[ *m_node].str(m_pItem->text());
+            tr[ *m_node].str(var);
 			tr.unmark(m_lsnValueChanged);
 			if(tr.commit())
 				break;
@@ -388,8 +401,9 @@ XKURLReqConnector::onSelect( const KUrl &l) {
 }
 
 void
-XKURLReqConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-	m_pItem->setUrl(KUrl(shot[ *node].to_str()));
+XFilePathConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    m_dialog->selectFile(shot[ *node].to_str());
+    XQLineEditConnector::onValueChanged(shot, node);
 }
 
 XQLabelConnector::XQLabelConnector(const shared_ptr<XValueNodeBase> &node, QLabel *item)
@@ -403,7 +417,7 @@ XQLabelConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->setText(shot[ *node].to_str());
 }
 
-XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, Q3TextBrowser *item)
+XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, QTextBrowser *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     onValueChanged(Snapshot( *node), node.get());
@@ -422,21 +436,22 @@ XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, 
 void
 XQLCDNumberConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
     QString buf(shot[ *node].to_str());
-    if((int)buf.length() > m_pItem->numDigits())
-        m_pItem->setNumDigits(buf.length());
+    if((int)buf.length() > m_pItem->digitCount())
+        m_pItem->setDigitCount(buf.length());
     m_pItem->display(buf);
 }
   
-XKLedConnector::XKLedConnector(const shared_ptr<XBoolNode> &node, KLed *item)
+XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
+    item->setCheckable(false);
     onValueChanged(Snapshot( *node), node.get());
 }
 
 void
-XKLedConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-	if(shot[ *m_node])
-		m_pItem->on(); else m_pItem->off();
+XQLedConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    m_pItem->setIcon(shot[ *m_node] ?
+        *g_pIconLEDOn : *g_pIconLEDOff);
 }
 
 XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &node, QAbstractButton *item)
@@ -462,7 +477,7 @@ XQToggleButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *no
 		m_pItem->toggle();
 }
 
-XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item)
+XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWidget *item)
 	: XQConnector(node, item),
 	  m_pItem(item), m_list(node) {
 
@@ -476,25 +491,24 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table 
 		if(tr.commit())
 			break;
 	}
-    m_pItem->setReadOnly(true);
-
-    m_pItem->setSelectionMode(Q3Table::SingleRow);
-
-    m_pItem->setRowMovingEnabled(true);
-    Q3Header *header = m_pItem->verticalHeader();
-    header->setResizeEnabled(false);
-    connect(header, SIGNAL( indexChange(int, int, int)),
-			this, SLOT( indexChange(int, int, int)));    
+    QHeaderView *header = m_pItem->verticalHeader();
+    header->setSectionsMovable(true);
+    header->setSectionResizeMode(QHeaderView::Fixed);
+    connect(header, SIGNAL( sectionMoved(int, int, int)),
+            this, SLOT( OnSectionMoved(int, int, int)));
     header->setToolTip(i18n("Use drag-n-drop with ctrl pressed to reorder."));
 }
 XListQConnector::~XListQConnector() {
     if(isItemAlive()) {
-		disconnect(m_pItem, NULL, this, NULL );
-		m_pItem->setNumRows(0);
+        QHeaderView *header = m_pItem->verticalHeader();
+        disconnect(header, NULL, this, NULL );
+        m_pItem->clearSpans();
     }
 }
 void
-XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
+XListQConnector::OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex) {
+    int fromIndex = oldVisualIndex;
+    int toIndex = newVisualIndex;
 	if(toIndex > fromIndex)
 		toIndex--;
 //	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
@@ -513,11 +527,11 @@ XListQConnector::indexChange ( int section, int fromIndex, int toIndex ) {
 }
 void
 XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
+    QHeaderView *header = m_pItem->verticalHeader();
     int dir = (e.src_idx - e.dst_idx > 0) ? 1 : -1;
     for(unsigned int idx = e.dst_idx; idx != e.src_idx; idx += dir) {
-        m_pItem->swapRows(idx, idx + dir);
+        header->swapSections(idx, idx + dir);
     }
-    m_pItem->updateContents();
 }
 
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
@@ -622,18 +636,26 @@ XQComboBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Pa
     onValueChanged(shot, e.emitter);
 }
 
-XQListBoxConnector::XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
-	Q3ListBox *item, const Snapshot &shot_of_list)
+XQListWidgetConnector::XQListWidgetConnector(const shared_ptr<XItemNodeBase> &node,
+    QListWidget *item, const Snapshot &shot_of_list)
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    connect(item, SIGNAL(highlighted(int) ), this, SLOT( onSelect(int) ) );
-    connect(item, SIGNAL(selected(int) ), this, SLOT( onSelect(int) ) );
-
+    connect(item, SIGNAL( itemSelectionChanged() ),
+            this, SLOT( OnItemSelectionChanged() ) );
+    item->setMovement(QListView::Static);
+    item->setSelectionBehavior(QAbstractItemView::SelectRows);
+    item->setSelectionMode(QAbstractItemView::SingleSelection);
     XItemNodeBase::Payload::ListChangeEvent e(shot_of_list, node.get());
     onListChanged(Snapshot( *node), e);
 }
+XQListWidgetConnector::~XQListWidgetConnector() {
+    if(isItemAlive()) {
+        m_pItem->clear();
+    }
+}
 void
-XQListBoxConnector::onSelect(int idx) {
+XQListWidgetConnector::OnItemSelectionChanged() {
+    int idx = m_pItem->currentRow();
     try {
 		for(Transaction tr( *m_node);; ++tr) {
 	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
@@ -650,72 +672,69 @@ XQListBoxConnector::onSelect(int idx) {
     }
 }
 void
-XQListBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+XQListWidgetConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
     QString str = shot[ *node].to_str();
 	m_pItem->blockSignals(true);
 	unsigned int i = 0;
 	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
         if(str == QString(it->label))
-            m_pItem->setCurrentItem(i);
+            m_pItem->setCurrentRow(i);
         i++;
 	}
 	m_pItem->blockSignals(false);
 }
 void
-XQListBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
+XQListWidgetConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
 	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
 	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
-		m_pItem->insertItem(it->label);
+        new QListWidgetItem(it->label, m_pItem);
 	}
     onValueChanged(shot, e.emitter);
 }
 
-XKColorButtonConnector::XKColorButtonConnector(const shared_ptr<XHexNode> &node, KColorButton *item)
+XColorConnector::XColorConnector(const shared_ptr<XHexNode> &node, QAbstractButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    connect(item, SIGNAL( changed(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
+    connect(item, SIGNAL( clicked(const QColor &) ), this, SLOT( onClick() ) );
     onValueChanged(Snapshot( *node), node.get());
 }
 void
-XKColorButtonConnector::onClick(const QColor &newColor) {
-	for(Transaction tr( *m_node);; ++tr) {
-		tr[ *m_node] = newColor.rgb();
-		tr.unmark(m_lsnValueChanged);
-		if(tr.commit())
-			break;
-	}
+XColorConnector::onClick() {
+    auto dialog = m_dialog;
+    if( !dialog) {
+        dialog.reset(new QColorDialog());
+        m_dialog = dialog;
+    }
+    connect( &*dialog, SIGNAL( colorSelected(const QColor &) ), this, SLOT( OnColorSelected(const QColor &) ) );
+    Snapshot shot( *m_node);
+    dialog->setCurrentColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
+    dialog->open();
 }
 void
-XKColorButtonConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	m_pItem->setColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
-}
-  
-XKColorComboConnector::XKColorComboConnector(const shared_ptr<XHexNode> &node, KColorCombo *item)
-	: XValueQConnector(node, item),
-	  m_node(node), m_pItem(item) {
-    connect(item, SIGNAL( activated(const QColor &) ), this, SLOT( onClick(const QColor &) ) );
-    onValueChanged(Snapshot( *node), node.get());
-}
-void
-XKColorComboConnector::onClick(const QColor &newColor) {
-	for(Transaction tr( *m_node);; ++tr) {
-		tr[ *m_node] = newColor.rgb();
-		tr.unmark(m_lsnValueChanged);
-		if(tr.commit())
-			break;
-	}
+XColorConnector::OnColorSelected(const QColor & color) {
+    m_dialog.reset();
+    for(Transaction tr( *m_node);; ++tr) {
+        tr[ *m_node] = color.rgb();
+        tr.unmark(m_lsnValueChanged);
+        if(tr.commit())
+            break;
+    }
 }
 void
-XKColorComboConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
-	m_pItem->setColor(QColor((QRgb)(unsigned int)shot[ *m_node]));
+XColorConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
+    QColor color((QRgb)(unsigned int)shot[ *m_node]);
+    auto dialog = m_dialog;
+    if(dialog)
+        dialog->setCurrentColor(color);
+    QPalette palette(color);
+    m_pItem->setPalette(palette);
 }
 
 XStatusPrinter::XStatusPrinter(QMainWindow *window) {
     if( !window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
     m_pWindow = (window);
     m_pBar = (window->statusBar());
-    m_pPopup  = (new KPassivePopup( window ));
     s_statusPrinterCreating.push_back(shared_ptr<XStatusPrinter>(this));
 	m_pBar->hide();
 	m_lsn = m_tlkTalker.connectWeak(
@@ -779,8 +798,8 @@ XStatusPrinter::print(const tstatus &status) {
 		m_pBar->clearMessage();
 	}
 	if(status.ms && popup) {
-		m_pPopup->hide();
-		m_pPopup->setTimeout(status.ms);
+//		m_pPopup->hide();
+//		m_pPopup->setTimeout(status.ms);
 		QPixmap *icon;
 		switch(status.type) {
 		case tstatus::Normal:
@@ -793,10 +812,10 @@ XStatusPrinter::print(const tstatus &status) {
 			icon = g_pIconError;
 			break;
 		}
-		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
-		m_pPopup->show();
+//		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
+//		m_pPopup->show();
 	}
 	else {
-		m_pPopup->hide();
+//		m_pPopup->hide();
 	}
 }

@@ -14,7 +14,7 @@
 //---------------------------------------------------------------------
 #include "caltable.h"
 #include "measure.h"
-#include <qpushbutton.h>
+#include <QPushButton>
 #include <fstream>
 #include "graph.h"
 #include "graphwidget.h"

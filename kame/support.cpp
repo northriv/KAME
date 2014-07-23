@@ -47,6 +47,12 @@ static void __attribute__ ((constructor)) trapfpe (void)
 #endif
 #endif // __linux__
 
+#include <QObject>
+
+QString	i18n(const char *src, const char *disambiguos, int n) {
+    return QObject::tr(src, disambiguos, n);
+}
+
 XKameError::XKameError() : std::runtime_error(""), m_msg(""), m_file(0), m_line(0), m_errno(0) {
 
 }

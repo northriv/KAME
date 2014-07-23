@@ -17,19 +17,19 @@
 #include "interface.h"
 #include "xnodeconnector.h"
 
-class Q3Table;
+class QTableWidget;
 class QPushButton;
 
 class XInterfaceListConnector : public XListQConnector {
 	Q_OBJECT
 public:
-	XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, Q3Table *item);
+    XInterfaceListConnector(const shared_ptr<XInterfaceList> &node, QTableWidget *item);
 	virtual ~XInterfaceListConnector() {}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 protected slots:
-void clicked ( int row, int col, int button, const QPoint& );
+void cellClicked ( int row, int col);
 private:
 	struct tcons {
 		xqcon_ptr condev, concontrol, conport, conaddr;

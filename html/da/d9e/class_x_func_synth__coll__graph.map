@@ -1,7 +1,0 @@
-base referer
-rect $d6/d66/class_x_primary_driver.html 264,149 378,175
-rect $d1/d87/class_x_driver.html 8,7 74,34
-rect $d6/d9b/class_x_thread_local.html 98,7 298,34
-rect $d6/d9b/class_x_thread_local.html 322,7 562,34
-rect $d7/deb/classqshared__ptr.html 586,7 709,34
-rect $d7/deb/classqshared__ptr.html 702,149 908,175

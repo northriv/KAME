@@ -15,17 +15,17 @@
 
 #include "graphlistconnector.h"
 
-#include <q3table.h>
 #include <QComboBox>
 #include <QPushButton>
-#include <kiconloader.h>
+#include <QTableWidget>
+#include <QApplication>
 
 #include "recorder.h"
 #include "analyzer.h"
 
 //---------------------------------------------------------------------------
 
-XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3Table *item,
+XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTableWidget *item,
 										 QPushButton *btnnew, QPushButton *btndelete) :
     XListQConnector(node, item),
     m_graphlist(node),
@@ -33,15 +33,15 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
     m_deleteGraph(XNode::createOrphan<XTouchableNode>("DeleteGraph", true)),
     m_conNewGraph(xqcon_create<XQButtonConnector>(m_newGraph, btnnew)),
     m_conDeleteGraph(xqcon_create<XQButtonConnector>(m_deleteGraph, btndelete)) {
-    KIconLoader *loader = KIconLoader::global();
-	btnnew->setIcon( loader->loadIcon("window-new",
-																				KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );  
-	btndelete->setIcon( loader->loadIcon("window-close",
-																				   KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) ); 
+
+    btnnew->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_FileDialogStart));
+    btndelete->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_DialogCloseButton));
                
-	connect(item, SIGNAL( clicked( int, int, int, const QPoint& )),
-			this, SLOT(clicked( int, int, int, const QPoint& )) );
-	m_pItem->setNumCols(4);
+    connect(item, SIGNAL( cellClicked( int, int)),
+            this, SLOT(cellClicked( int, int)) );
+	m_pItem->setColumnCount(4);
 	const double def = 50;
 	m_pItem->setColumnWidth(0, (int)(def * 2.0));
 	m_pItem->setColumnWidth(1, (int)(def * 2.0));
@@ -52,7 +52,7 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, Q3T
 	labels += i18n("Axis X");
 	labels += i18n("Axis Y");
 	labels += i18n("Axis Z");
-	m_pItem->setColumnLabels(labels);
+	m_pItem->setHorizontalHeaderLabels(labels);
 
 	Snapshot shot( *node);
 	if(shot.size()) {
@@ -96,7 +96,7 @@ XGraphListConnector::onDeleteGraph (const Snapshot &shot, XTouchableNode *) {
 	}
 }
 void
-XGraphListConnector::clicked ( int row, int col, int, const QPoint& ) {
+XGraphListConnector::cellClicked ( int row, int col) {
 	switch(col) {
 	case 0: {
 			Snapshot shot( *m_graphlist);
@@ -115,7 +115,7 @@ void
 XGraphListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(auto it = m_cons.begin(); it != m_cons.end();) {
 		if(it->node == e.released) {
-			for(int i = 0; i < m_pItem->numRows(); i++) {
+			for(int i = 0; i < m_pItem->rowCount(); i++) {
 				if(m_pItem->cellWidget(i, 1) == it->widget) m_pItem->removeRow(i);
 			}
 			it = m_cons.erase(it);
@@ -128,9 +128,9 @@ XGraphListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payloa
 void
 XGraphListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XValGraph> graph = static_pointer_cast<XValGraph>(e.caught);
-	int i = m_pItem->numRows();
-	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, graph->getLabel().c_str());
+	int i = m_pItem->rowCount();
+	m_pItem->insertRow(i);
+    m_pItem->setItem(i, 0, new QTableWidgetItem(graph->getLabel().c_str()));
 
 	Snapshot shot_entries( *m_graphlist->entries());
 	struct tcons con;

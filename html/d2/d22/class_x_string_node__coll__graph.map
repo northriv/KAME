@@ -1,9 +1,0 @@
-base referer
-rect $d1/d8a/class_x_value_node_base.html 173,114 301,141
-rect $dd/d83/class_x_node.html 8,8 72,34
-rect $d6/dbd/class_x_talker.html 96,8 378,34
-rect $dc/db7/classatomic.html 486,114 628,141
-rect $da/dad/classatomic__shared__ptr.html 402,8 616,34
-rect $dc/db7/classatomic.html 640,8 781,34
-rect $d2/db1/class_x_recursive_mutex.html 749,114 880,141
-rect $d1/d2b/class_x_pthread_mutex.html 805,8 922,34

@@ -13,14 +13,13 @@
 ***************************************************************************/
 #include "graphdialogconnector.h"
 #include <qpixmap.h>
-#include <qpushbutton.h>
+#include <QPushButton>
 #include <qpainter.h>
 #include <qtooltip.h>
 #include <qtabwidget.h>
 #include <qimage.h>
 #include <qlayout.h>
-#include <knuminput.h>
-#include <qcheckbox.h>
+#include <QCheckBox>
 #include "ui_graphdialog.h"
 
 XQGraphDialogConnector::XQGraphDialogConnector
@@ -34,18 +33,20 @@ XQGraphDialogConnector::XQGraphDialogConnector
 		if(tr.commit())
 			break;
 	}
-    m_conBackGround = xqcon_create<XKColorComboConnector>
+    m_pItem->m_dblIntensity->setRange(0.0, 2.0);
+    m_pItem->m_dblIntensity->setSingleStep(0.1);
+    m_pItem->m_dblPersistence->setRange(0.0, 1.0);
+    m_pItem->m_dblPersistence->setSingleStep(0.1);
+
+    m_conBackGround = xqcon_create<XColorConnector>
 					(graph->backGround(), m_pItem->m_clrBackGroundColor);
     m_conDrawLegends = xqcon_create<XQToggleButtonConnector>
 					 (graph->drawLegends(), m_pItem->m_ckbDrawLegends);
-    m_conPersistence = xqcon_create<XKDoubleNumInputConnector>
-					 (graph->persistence(), m_pItem->m_dblPersistence);
-    m_conPlots = xqcon_create<XQListBoxConnector>(m_selPlot, m_pItem->lbPlots, Snapshot( *graph));
-    m_conAxes = xqcon_create<XQListBoxConnector>(m_selAxis, m_pItem->lbAxes, Snapshot( *graph));
+    m_conPersistence = xqcon_create<XQDoubleSpinBoxConnector>
+                     (graph->persistence(), m_pItem->m_dblPersistence, m_pItem->m_slPersistence);
+    m_conPlots = xqcon_create<XQListWidgetConnector>(m_selPlot, m_pItem->lbPlots, Snapshot( *graph));
+    m_conAxes = xqcon_create<XQListWidgetConnector>(m_selAxis, m_pItem->lbAxes, Snapshot( *graph));
 
-	m_pItem->dblIntensity->setRange(0.0, 2.0, 0.1, true);
-    m_pItem->m_dblPersistence->setRange(0.0, 1.0, 0.1, true);
-    
 	for(Transaction tr( *m_selAxis);; ++tr) {
 	    m_lsnAxisChanged = tr[ *m_selAxis].onValueChanged().connectWeakly
 	        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
@@ -127,27 +128,27 @@ XQGraphDialogConnector::onSelPlotChanged(const Snapshot &shot, XValueNodeBase *)
 		(plot->displayMajorGrid(), m_pItem->ckbDisplayMajorGrids);
 	m_conDisplayMinorGrids = xqcon_create<XQToggleButtonConnector>
 		(plot->displayMinorGrid(), m_pItem->ckbDisplayMinorGrids);
-	m_conMajorGridColor = xqcon_create<XKColorComboConnector>
+    m_conMajorGridColor = xqcon_create<XColorConnector>
 		(plot->majorGridColor(), m_pItem->clrMajorGridColor);
-	m_conMinorGridColor = xqcon_create<XKColorComboConnector>
+    m_conMinorGridColor = xqcon_create<XColorConnector>
 		(plot->minorGridColor(), m_pItem->clrMinorGridColor);
-	m_conPointColor = xqcon_create<XKColorComboConnector>
+    m_conPointColor = xqcon_create<XColorConnector>
 		(plot->pointColor(), m_pItem->clrPointColor);
-	m_conLineColor = xqcon_create<XKColorComboConnector>
+    m_conLineColor = xqcon_create<XColorConnector>
 		(plot->lineColor(), m_pItem->clrLineColor);
-	m_conBarColor = xqcon_create<XKColorComboConnector>
+    m_conBarColor = xqcon_create<XColorConnector>
 		(plot->barColor(), m_pItem->clrBarColor);
 	m_conMaxCount = xqcon_create<XQLineEditConnector>
 		(plot->maxCount(), m_pItem->edMaxCount);
 	m_conClearPoints = xqcon_create<XQButtonConnector>
 		(plot->clearPoints(), m_pItem->btnClearPoints);
-	m_conIntensity = xqcon_create<XKDoubleNumInputConnector>
-		(plot->intensity(), m_pItem->dblIntensity);
+    m_conIntensity = xqcon_create<XQDoubleSpinBoxConnector>
+        (plot->intensity(), m_pItem->m_dblIntensity, m_pItem->m_slIntensity);
 	m_conColorPlot = xqcon_create<XQToggleButtonConnector>
 		(plot->colorPlot(), m_pItem->ckbColorPlot);
-	m_conColorPlotColorLow = xqcon_create<XKColorComboConnector>
+    m_conColorPlotColorLow = xqcon_create<XColorConnector>
 		(plot->colorPlotColorLow(), m_pItem->clrColorPlotLow);
-	m_conColorPlotColorHigh = xqcon_create<XKColorComboConnector>
+    m_conColorPlotColorHigh = xqcon_create<XColorConnector>
 		(plot->colorPlotColorHigh(), m_pItem->clrColorPlotHigh);
 }
 

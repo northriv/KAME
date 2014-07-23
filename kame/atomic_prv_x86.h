@@ -159,7 +159,7 @@ inline void atomicAdd(T *target, T x ) {
 //! \return true if new value is zero.
 template <typename T>
 inline bool atomicAddAndTest(T *target, T x ) {
-	register unsigned char ret;
+    unsigned char ret;
 	asm volatile (
 		"lock; add %2,%1;"
 		" sete %0" // ret = zflag ? 1 : 0
@@ -234,7 +234,7 @@ template <typename T>
 inline
 typename std::enable_if<(4 > sizeof(T)), bool>::type
 atomicDecAndTest(T *target ) {
-	register unsigned char ret;
+    unsigned char ret;
 	asm volatile (
 		"lock; dec%z1 %1;"
 		" sete %0" // ret = zflag ? 1 : 0
@@ -247,7 +247,7 @@ template <typename T>
 inline
 typename std::enable_if<(4 == sizeof(T)), bool>::type //hack for buggy %z.
 atomicDecAndTest(T *target ) {
-	register unsigned char ret;
+    unsigned char ret;
 	asm volatile (
 		"lock; decw %1;"
 		" sete %0" // ret = zflag ? 1 : 0
@@ -260,7 +260,7 @@ template <typename T>
 inline
 typename std::enable_if<(8 == sizeof(T)), bool>::type //hack for buggy %z.
 atomicDecAndTest(T *target ) {
-	register unsigned char ret;
+    unsigned char ret;
 	asm volatile (
 		"lock; decq %1;"
 		" sete %0" // ret = zflag ? 1 : 0

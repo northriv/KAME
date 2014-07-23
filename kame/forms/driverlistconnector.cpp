@@ -15,12 +15,10 @@
 #include "driverlistconnector.h"
 #include "driver.h"
 #include "measure.h"
-#include <qlineedit.h>
-#include <qpushbutton.h>
-#include <q3table.h>
-#include <q3listbox.h>
-#include <qlabel.h>
-#include <kiconloader.h>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QLabel>
 #include "ui_drivertool.h"
 #include "ui_drivercreate.h"
 
@@ -34,16 +32,15 @@ XDriverListConnector::XDriverListConnector
 	  m_conCreate(xqcon_create<XQButtonConnector>(m_create, item->m_btnNew)),
 	  m_conRelease(xqcon_create<XQButtonConnector>(m_release, item->m_btnDelete))   {
 
-    KIconLoader *loader = KIconLoader::global();
-	item->m_btnNew->setIcon( loader->loadIcon("document-new",
-					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	item->m_btnDelete->setIcon( loader->loadIcon("document-close",
-					KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    item->m_btnNew->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_FileDialogStart));
+    item->m_btnDelete->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_DialogCloseButton));
     
-	connect(m_pItem, SIGNAL( clicked( int, int, int, const QPoint& )),
-			this, SLOT(clicked( int, int, int, const QPoint& )) );
+    connect(m_pItem, SIGNAL( cellClicked( int, int)),
+            this, SLOT(cellClicked( int, int)) );
   
-	m_pItem->setNumCols(3);
+    m_pItem->setColumnCount(3);
 	double def = 50;
 	m_pItem->setColumnWidth(0, (int)(def * 1.5));
 	m_pItem->setColumnWidth(1, (int)(def * 1.0));
@@ -52,7 +49,7 @@ XDriverListConnector::XDriverListConnector
 	labels += i18n("Driver");
 	labels += i18n("Type");
 	labels += i18n("Recorded Time");
-	m_pItem->setColumnLabels(labels);
+    m_pItem->setHorizontalHeaderLabels(labels);
 
 	Snapshot shot( *node);
 	if(shot.size()) {
@@ -83,11 +80,11 @@ void
 XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
 	shared_ptr<XDriver> driver(static_pointer_cast<XDriver>(e.caught));
   
-	int i = m_pItem->numRows();
-	m_pItem->insertRows(i);
-	m_pItem->setText(i, 0, driver->getLabel().c_str());
+    int i = m_pItem->rowCount();
+    m_pItem->insertRow(i);
+    m_pItem->setItem(i, 0, new QTableWidgetItem(driver->getLabel().c_str()));
 	// typename is not set at this moment
-	m_pItem->setText(i, 1, driver->getTypename().c_str());
+    m_pItem->setItem(i, 1, new QTableWidgetItem(driver->getTypename().c_str()));
 
 	m_cons.push_back(shared_ptr<tcons>(new tcons));
 	m_cons.back()->label = new QLabel(m_pItem);
@@ -101,14 +98,14 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
 			break;
 	}
 
-	assert(m_pItem->numRows() == (int)m_cons.size());
+    assert(m_pItem->rowCount() == (int)m_cons.size());
 }
 void
 XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	for(auto it = m_cons.begin(); it != m_cons.end();) {
-		assert(m_pItem->numRows() == (int)m_cons.size());
+        assert(m_pItem->rowCount() == (int)m_cons.size());
 		if(( *it)->driver == e.released) {
-			for(int i = 0; i < m_pItem->numRows(); i++) {
+            for(int i = 0; i < m_pItem->rowCount(); i++) {
 				if(m_pItem->cellWidget(i, 2) == ( *it)->label)
 					m_pItem->removeRow(i);
 			}
@@ -119,7 +116,7 @@ XDriverListConnector::onRelease(const Snapshot &shot, const XListNodeBase::Paylo
 	}
 }
 void
-XDriverListConnector::clicked ( int row, int col, int , const QPoint& ) {
+XDriverListConnector::cellClicked ( int row, int col) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(m_pItem->cellWidget(row, 2) == ( *it)->label) {
 			if(col < 3) ( *it)->driver->showForms();
@@ -145,14 +142,14 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
    
 	dlg->m_lstType->clear();
 	for(unsigned int i = 0; i < XDriverList::typelabels().size(); i++) {
-        dlg->m_lstType->insertItem(XDriverList::typelabels()[i].c_str());
+        dlg->m_lstType->addItem(XDriverList::typelabels()[i].c_str());
 	}
    
-	dlg->m_lstType->setCurrentItem(-1);
+    dlg->m_lstType->setCurrentRow(-1);
 	if(dlg->exec() == QDialog::Rejected) {
 		return;
 	}
-	int idx = dlg->m_lstType->currentItem();
+    int idx = dlg->m_lstType->currentRow();
 	shared_ptr<XNode> driver;
 	if((idx >= 0) && (idx < (int)XDriverList::typenames().size())) {
 		if(m_list->getChild(dlg->m_edName->text().toUtf8().data())) {

@@ -12,19 +12,25 @@
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 //---------------------------------------------------------------------------
-
 #include "xrubysupport.h"
 #include "measure.h"
-#include <ruby.h>
-
+#include <QStandardPaths>
 #include <math.h>
-#include <kstandarddirs.h>
+#include <ruby.h>
 
 #define XRUBYSUPPORT_RB "xrubysupport.rb"
 
+//\todo Ruby.framework(Mac) cannot work with snprintf().
+
+//\todo Ruby.framework(Mac) cannot work with rb_str_new2().
 static inline VALUE string2RSTRING(const XString &str) {
-	if(str.empty()) return rb_str_new2("");
-	return rb_str_new2(str.c_str());
+    if(str.empty()) return rb_str_new("",0);
+    return rb_str_new(str.c_str(), strlen(str.c_str()));
+}
+//\todo Ruby.framework(Mac) cannot work with rb_float_new().
+static inline VALUE double2VALUE(double x) {
+//    return rb_float_new(x);
+    return rb_eval_string(formatString("Float(%f)", x).c_str());
 }
 
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
@@ -96,7 +102,7 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 				break;
 			case T_STRING:
 			{
-				const char *name = RSTRING(var)->ptr;
+                const char *name = RSTRING_PTR(var);
 				child = node->getChild(name);
 				if( !child ) {
 					throw formatString("No such node name:%s on %s\n",
@@ -113,11 +119,11 @@ XRuby::rnode_child(VALUE self, VALUE var) {
 		}
 		return rnode_create(child, st->xruby );
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
@@ -125,8 +131,8 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 	if(TYPE(rbtype) != T_STRING) return Qnil;
 	Check_Type(rbname, T_STRING);
 	if(TYPE(rbname) != T_STRING) return Qnil;
-	char *type = RSTRING(rbtype)->ptr;
-	char *name = RSTRING(rbname)->ptr;
+    char *type = RSTRING_PTR(rbtype);
+    char *name = RSTRING_PTR(rbname);
 
 	char errmsg[256];
 	try {
@@ -182,11 +188,11 @@ XRuby::rlistnode_create_child(VALUE self, VALUE rbtype, VALUE rbname) {
 		}
 		return rnode_create(child, st->xruby );
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 void
 XRuby::onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x)  {
@@ -197,40 +203,40 @@ XRuby::onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChi
 }
 VALUE
 XRuby::rlistnode_release_child(VALUE self, VALUE rbchild) {
-	struct rnode_ptr *st;
-	Data_Get_Struct(self, struct rnode_ptr, st);
-	char errmsg[256];
-	try {
-		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			Snapshot shot( *node);
-			if( !shot[ *node].isUIEnabled()) {
-				throw formatString("Node %s is read-only!\n", node->getName().c_str());
-			}     
-			auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
-			if( !lnode) {
-				throw formatString("Error on %s : Not ListNode. Could not release child\n"
-					, node->getName().c_str());
-			}
-			struct rnode_ptr *st_child;
-			Data_Get_Struct(rbchild, struct rnode_ptr, st_child);
-			if(shared_ptr<XNode> child = st_child->ptr.lock()) {
-				lnode->release(child);
-				return Qnil;  
-			}
-			else {
-				throw XString("Node no longer exists\n");
-			}
-		}
-		else {
-			throw XString("Node no longer exists\n");
-		}
-		return self;
-	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    struct rnode_ptr *st;
+    Data_Get_Struct(self, struct rnode_ptr, st);
+    char errmsg[256];
+    try {
+        if(shared_ptr<XNode> node = st->ptr.lock()) {
+            Snapshot shot( *node);
+            if( !shot[ *node].isUIEnabled()) {
+                throw formatString("Node %s is read-only!\n", node->getName().c_str());
+            }
+            auto lnode = dynamic_pointer_cast<XListNodeBase>(node);
+            if( !lnode) {
+                throw formatString("Error on %s : Not ListNode. Could not release child\n"
+                    , node->getName().c_str());
+            }
+            struct rnode_ptr *st_child;
+            Data_Get_Struct(rbchild, struct rnode_ptr, st_child);
+            if(shared_ptr<XNode> child = st_child->ptr.lock()) {
+                lnode->release(child);
+                return Qnil;
+            }
+            else {
+                throw XString("Node no longer exists\n");
+            }
+        }
+        else {
+            throw XString("Node no longer exists\n");
+        }
+        return self;
+    }
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 
 VALUE
@@ -240,17 +246,17 @@ XRuby::rnode_name(VALUE self) {
 	char errmsg[256];
 	try {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
-			return string2RSTRING(node->getName());
+            return string2RSTRING(node->getName());
 		}
 		else {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rnode_count(VALUE self) {
@@ -267,11 +273,11 @@ XRuby::rnode_count(VALUE self) {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rnode_touch(VALUE self) {
@@ -298,11 +304,11 @@ XRuby::rnode_touch(VALUE self) {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rvaluenode_set(VALUE self, VALUE var) {
@@ -330,11 +336,11 @@ XRuby::rvaluenode_set(VALUE self, VALUE var) {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rvaluenode_load(VALUE self, VALUE var) {
@@ -362,11 +368,11 @@ XRuby::rvaluenode_load(VALUE self, VALUE var) {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 
 }
 VALUE
@@ -384,11 +390,11 @@ XRuby::rvaluenode_get(VALUE self) {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::rvaluenode_to_str(VALUE self) {
@@ -399,17 +405,17 @@ XRuby::rvaluenode_to_str(VALUE self) {
 		if(shared_ptr<XNode> node = st->ptr.lock()) {
 			auto vnode = dynamic_pointer_cast<XValueNodeBase>(node);
 			assert(vnode);
-			return string2RSTRING(( **vnode)->to_str());
+            return string2RSTRING(( **vnode)->to_str());
 		}
 		else {
 			throw XString("Node no longer exists\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 
 int
@@ -440,7 +446,7 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 		if(dnode) { trans( *dnode) = dbl; return 0;}
 		throw formatString("FIXNUM is not appropreate on %s\n", node->getName().c_str());
 	case T_FLOAT:
-		dbl = RFLOAT(value)->value;
+        dbl = NUM2DBL(value);
 		if(dnode) { trans( *dnode) = dbl; return 0;}
 		throw formatString("FLOAT is not appropreate on %s\n", node->getName().c_str());
 	case T_BIGNUM:
@@ -451,7 +457,7 @@ XRuby::strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value) {
 		//    if(inode && (dbl <= INT_MAX)) {inode->value(integer); return 0;}
 	case T_STRING:
 		try {
-			trans( *node).str(XString(RSTRING(value)->ptr));
+            trans( *node).str(XString(RSTRING_PTR(value)));
 		}
 		catch (XKameError &e) {
 			throw formatString("Validation error %s on %s\n"
@@ -479,13 +485,13 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
 	auto bnode = dynamic_pointer_cast<XBoolNode>(node);
 	auto snode = dynamic_pointer_cast<XStringNode>(node);
 	Snapshot shot( *node);
-	if(dnode) {return rb_float_new((double)shot[ *dnode]);}
+    if(dnode) {return double2VALUE((double)shot[ *dnode]);}
 	if(inode) {return INT2NUM(shot[ *inode]);}
 	if(uinode) {return UINT2NUM(shot[ *uinode]);}
 	if(lnode) {return LONG2NUM(shot[ *lnode]);}
 	if(ulnode) {return ULONG2NUM(shot[ *ulnode]);}
 	if(bnode) {return (shot[ *bnode]) ? Qtrue : Qfalse;}
-	if(snode) {return string2RSTRING(shot[ *snode]);}
+    if(snode) {return string2RSTRING(shot[ *snode]);}
 	return Qnil;
 }
 
@@ -509,7 +515,7 @@ XRuby::findRubyThread(VALUE self, VALUE threadid)
 }
 VALUE
 XRuby::my_rbdefout(VALUE self, VALUE str, VALUE threadid) {
-	shared_ptr<XString> sstr(new XString(RSTRING(str)->ptr));
+    shared_ptr<XString> sstr(new XString(RSTRING_PTR(str)));
 	shared_ptr<XRubyThread> rubythread(findRubyThread(self, threadid));
 	if(rubythread) {
 		Snapshot shot( *rubythread);
@@ -529,18 +535,18 @@ XRuby::my_rbdefin(VALUE self, VALUE threadid) {
 		if(rubythread) {
 			XString line = rubythread->gets();
 			if(line.length())
-				return string2RSTRING(line);
+                return string2RSTRING(line);
 			return Qnil;  
 		}
 		else {
 			throw XString("UNKNOWN Ruby thread\n");
 		}
 	}
-	catch (XString &s) {
-		snprintf(errmsg, 256, "%s", s.c_str());
-	}
-	rb_raise(rb_eRuntimeError, "%s", errmsg);
-	return Qnil;  
+    catch (XString &s) {
+        strncpy(errmsg, s.c_str(), sizeof(errmsg));
+    }
+    rb_raise(rb_eRuntimeError, "%s", errmsg); //C++ objects should be destroyed before.
+    return Qnil;
 }
 VALUE
 XRuby::is_main_terminated(VALUE self) {
@@ -595,13 +601,14 @@ XRuby::execute(const atomic<bool> &terminated) {
 
 		{
 			int state = 0;
-			QString filename = KStandardDirs::locate("appdata", XRUBYSUPPORT_RB);
+            QString filename = QStandardPaths::locate(QStandardPaths::DataLocation, XRUBYSUPPORT_RB);
 			if(filename.isEmpty()) {
 				g_statusPrinter->printError("No KAME ruby support file installed.");
+                break;
 			}
 			else {
 				fprintf(stderr, "Loading ruby scripting monitor:%s\n", filename.toLatin1().data());
-				rb_load_protect (string2RSTRING(filename), 0, &state);
+                rb_load_protect (string2RSTRING(filename), 0, &state);
 				if(state) {
 					fprintf(stderr, "Ruby, exception(s) occurred\n");
 				}

@@ -19,24 +19,27 @@
      <number>2</number>
     </property>
     <item row="1" column="0">
-     <layout class="QHBoxLayout">
-      <item>
-       <widget class="KUrlRequester" name="m_url">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="m_btnDump">
-        <property name="text">
-         <string>DUMP</string>
-        </property>
-       </widget>
-      </item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QLineEdit" name="m_edUrl"/>
+     </item>
+     <item>
+      <widget class="QToolButton" name="m_btnUrl">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="m_btnDump">
+       <property name="text">
+        <string>DUMP</string>
+       </property>
+      </widget>
+     </item>
      </layout>
     </item>
     <item row="0" column="0">
@@ -55,21 +58,12 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
   </customwidget>
  </customwidgets>
  <includes>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
-  <include location="local">graphwidget.h</include>
  </includes>
  <resources/>
  <connections/>

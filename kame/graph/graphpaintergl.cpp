@@ -16,16 +16,13 @@
 #include "graphwidget.h"
 #include <QTimer>
 #include <GL/glu.h>
+#include <QStandardPaths>
 
 using std::min;
 using std::max;
 
 #include<stdio.h>
 #include <QString>
-#include <kstandarddirs.h>
-#include <kapplication.h>
-#include <kconfig.h>
-#include <kconfigbase.h>
 #include <errno.h>
 
 #define checkGLError() \
@@ -67,8 +64,8 @@ FTFont *XQGraphPainter::s_pFont = NULL;
 void
 XQGraphPainter::openFont() {
 	if(s_fontRefCount == 0) {
-		QString filename = KStandardDirs::locate("appdata", FONT_FILE);
-		if(filename.isEmpty())
+        QString filename = QStandardPaths::locate(QStandardPaths::DataLocation, FONT_FILE);
+        if(filename.isEmpty())
 		{
 			gErrPrint(i18n("No Fontfile!!"));
 		}

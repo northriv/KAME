@@ -23,7 +23,8 @@
 #include <fstream>
 
 class XQGraph;
-class KUrlRequester;
+class QLineEdit;
+class QAbstractButton;
 class QPushButton;
 class XAxis;
 class XXYPlot;
@@ -37,7 +38,7 @@ class XWaveNGraph: public XNode {
 public:
 	XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
 	XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
-		KUrlRequester *urlreq, QPushButton *btndump);
+        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
 	virtual ~XWaveNGraph();
 
 	const shared_ptr<XGraph> &graph() const { return m_graph;}

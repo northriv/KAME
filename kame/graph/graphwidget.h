@@ -19,14 +19,14 @@ class XQGraphPainter;
 
 #include "support.h"
 #include "xnodeconnector.h"
-#include <qgl.h>
+#include <QGLWidget>
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
 class XQGraph : public QGLWidget {
 	Q_OBJECT
 public:
-	XQGraph( QWidget* parent = 0, Qt::WFlags fl = 0 );
+    XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = 0 );
 	virtual ~XQGraph();
 	//! register XGraph instance just after creating
 	void setGraph(const shared_ptr<XGraph> &);

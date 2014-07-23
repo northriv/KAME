@@ -14,11 +14,11 @@
 //---------------------------------------------------------------------------
 #include "nodebrowser.h"
 #include "measure.h"
-#include <qlineedit.h>
-#include <qcursor.h>
-#include <qtimer.h>
-#include <q3textbrowser.h>
-#include <kapplication.h>
+#include <QLineEdit>
+#include <QCursor>
+#include <QTimer>
+#include <QTextBrowser>
+#include <QApplication>
 
 #include "ui_nodebrowserform.h"
 
@@ -33,7 +33,7 @@ XNodeBrowser::XNodeBrowser
 	m_pTimer = new QTimer(this);
 	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
 	m_pTimer->start(500);
-	form->m_txtDesc->setTextFormat(Qt::RichText);
+    form->m_txtDesc->setAcceptRichText(true);
 }
 
 XNodeBrowser::~XNodeBrowser() {
@@ -55,7 +55,7 @@ XNodeBrowser::process() {
 	//	widget = KApplication::kApplication()->focusWidget();
 	//		node = connectedNode(widget);
 	if( !node) {
-		widget = KApplication::widgetAt(QCursor::pos());
+        widget = QApplication::widgetAt(QCursor::pos());
 		node = connectedNode(widget);
 		if( !node && widget) {
 			widget = widget->parentWidget();

@@ -139,7 +139,7 @@ public:
 
 		virtual void catchEvent(const shared_ptr<XN>&, int) {}
 		virtual void releaseEvent(const shared_ptr<XN>&, int) {}
-		virtual void moveEvent(unsigned int src_idx, unsigned int dst_idx) {}
+        virtual void moveEvent(unsigned int /*src_idx*/, unsigned int /*dst_idx*/) {}
 		virtual void listChangeEvent() {}
 	private:
 		friend class Node;

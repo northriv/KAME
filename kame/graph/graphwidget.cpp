@@ -13,19 +13,20 @@
 ***************************************************************************/
 #include "graphwidget.h"
 #include "graph.h"
-#include <qpixmap.h>
-#include <qpainter.h>
-#include <qimage.h>
+#include <QDialog>
+#include <QPixmap>
+#include <QPainter>
+#include <QImage>
+#include <QLayout>
+#include <QMouseEvent>
 #include "graphpainter.h"
-#include <qlayout.h>
 #include "measure.h"
 #include "graphdialogconnector.h"
 #include "ui_graphdialog.h"
-#include "QMouseEvent"
 
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
-XQGraph::XQGraph( QWidget* parent, Qt::WFlags fl ) :
+XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba | QGL::DepthBuffer | QGL::AccumBuffer )
 			   , parent, 0, fl) {
     if( !format().directRendering()) dbgPrint("direct rendering disabled");
@@ -88,7 +89,8 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 		case Qt::LeftButton:
 			m_conDialog = xqcon_create<XQGraphDialogConnector>(
 				m_graph,
-				new DlgGraphSetup(this, Qt::WDestructiveClose));
+                new DlgGraphSetup(this));
+            //\todo setAttribute Qt::WA_DeleteOnClose
 			break;
 		case Qt::MidButton:
 			break;

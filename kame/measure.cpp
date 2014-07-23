@@ -11,14 +11,39 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "measure.h"#include "kame.h"#include "xrubysupport.h"#include "primarydriver.h"#include "interface.h"#include "analyzer.h"#include "recorder.h"#include "recordreader.h"#include "thermometer.h"#include "caltable.h"#include "analyzer.h"
-#include "driverlistconnector.h"#include "interfacelistconnector.h"#include "entrylistconnector.h"#include "graphlistconnector.h"#include "recordreaderconnector.h"#include "nodebrowser.h"
-#include "ui_caltableform.h"
+#include "measure.h"
+#include "kame.h"
+
+#include "xrubysupport.h"
+
+#include "primarydriver.h"
+#include "interface.h"
+#include "analyzer.h"
+#include "recorder.h"
+#include "recordreader.h"
+
+#include "thermometer.h"
+#include "caltable.h"
+
+#include "analyzer.h"
+#include "driverlistconnector.h"
+#include "interfacelistconnector.h"
+#include "entrylistconnector.h"
+#include "graphlistconnector.h"
+#include "recordreaderconnector.h"
+#include "nodebrowser.h"
+
+#include "ui_caltableform.h"
 #include "ui_drivercreate.h"
 #include "ui_nodebrowserform.h"
 #include "ui_recordreaderform.h"
 #include "ui_rubythreadtool.h"
-#include "ui_graphtool.h"#include "ui_interfacetool.h"#include "ui_drivertool.h"#include "ui_scalarentrytool.h"#include <q3textbrowser.h>#include <kfiledialog.h>#include <kstandarddirs.h>#include <kmessagebox.h>
+#include "ui_graphtool.h"
+#include "ui_interfacetool.h"
+#include "ui_drivertool.h"
+#include "ui_scalarentrytool.h"
+
+#include <QTextBrowser>
 shared_ptr<XStatusPrinter> g_statusPrinter;
 
 XMeasure::XMeasure(const char *name, bool runtime) :
@@ -40,39 +65,42 @@ m_conDrivers(xqcon_create<XDriverListConnector>(
 		m_drivers, dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver)),
 m_conInterfaces(xqcon_create<XInterfaceListConnector>(
 		m_interfaces,
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmInterface->tblInterfaces)),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmInterface->m_tblInterface)),
 m_conEntries(xqcon_create<XEntryListConnector>(
 		scalarEntries(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_tblEntries,
 		charts())),
 m_conGraphs(xqcon_create<XGraphListConnector>(graphs(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->tblGraphs,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->m_tblGraphs,
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnNewGraph,
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmGraphList->btnDeleteGraph)),
 m_conTextWrite(xqcon_create<XQToggleButtonConnector>(
 		textWriter()->recording(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbTextWrite)),
-m_conTextURL(xqcon_create<XKURLReqConnector>(
-		textWriter()->filename(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_urlTextWriter,
-		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true)),
+m_conTextURL(xqcon_create<XFilePathConnector>(
+        textWriter()->filename(),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edTextWriter,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_btnTextWriter,
+        "Data files (*.dat);;All files (*.*)", true)),
 m_conTextLastLine(xqcon_create<XQLineEditConnector>(
 		textWriter()->lastLine(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLastLine)),
 m_conLogWrite(xqcon_create<XQToggleButtonConnector>(
 		textWriter()->logRecording(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_ckbLoggerWrite)),
-m_conLogURL(xqcon_create<XKURLReqConnector>(
+m_conLogURL(xqcon_create<XFilePathConnector>(
 		textWriter()->logFilename(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_urlLogger,
-		"*.dat|Data files (*.dat)\n*.*|All files (*.*)", true)),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLogFile,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_btnLogFile,
+        "Data files (*.dat);;All files (*.*)", true)),
 m_conLogEvery(xqcon_create<XQLineEditConnector>(
 		textWriter()->logEvery(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmScalarEntry->m_edLoggerEvery)),
-m_conBinURL(xqcon_create<XKURLReqConnector>(
+m_conBinURL(xqcon_create<XFilePathConnector>(
 		rawStreamRecorder()->filename(),
-		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_urlBinRec,
-		"*.bin|Binary files (*.bin)\n*.*|All files (*.*)", true)),
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_edRec,
+        dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_btnRec,
+        "Binary files (*.bin);;All files (*.*)", true)),
 m_conBinWrite(xqcon_create<XQToggleButtonConnector>(
 		rawStreamRecorder()->recording(),
 		dynamic_cast<FrmKameMain*>(g_pFrmMain)->m_pFrmDriver->m_ckbBinRecWrite)),

@@ -1,11 +1,11 @@
 cmake_minimum_required (VERSION 2.6)
 project( kame )
 
-find_package(KDE4 REQUIRED)
+find_package(Qt5 REQUIRED)
 
-add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"3.3\\"")
+add_definitions(${QT_DEFINITIONS} -DVERSION="\\"4.0\\"")
 
-include(KDE4Defaults)
+include(${QT_USE_FILE})
 
 include(MacroLibrary)
 

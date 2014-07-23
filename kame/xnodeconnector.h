@@ -160,90 +160,83 @@ protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	const shared_ptr<XValueNodeBase> m_node;
 	QLineEdit *const m_pItem;
+    bool m_editing;
 };
 
-class Q3TextBrowser;
+class QTextBrowser;
 
 class XQTextBrowserConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
-		Q3TextBrowser *item);
+        QTextBrowser *item);
 	virtual ~XQTextBrowserConnector() {}
 protected slots:
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	const shared_ptr<XValueNodeBase> m_node;
-	Q3TextBrowser *const m_pItem;
+    QTextBrowser *const m_pItem;
+};
+
+class QSlider;
+
+template <class QN, class XN, class X>
+class XQSpinBoxConnectorTMPL : public XValueQConnector {
+public:
+    XQSpinBoxConnectorTMPL(const shared_ptr<XN> &node,
+        QN *item, QSlider *slider);
+    virtual ~XQSpinBoxConnectorTMPL() {}
+protected:
+    void onChangeTMPL(X val);
+    void onSliderChangeTMPL(int val);
+    void onValueChangedTMPL(const Snapshot &shot, XValueNodeBase *node);
+    const shared_ptr<XN> m_node;
+    QN *const m_pItem;
+    QSlider *const m_pSlider;
 };
 
 class QSpinBox;
-class QSlider;
 
-class XQSpinBoxConnector : public XValueQConnector {
-	Q_OBJECT
+class XQSpinBoxConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XIntNode, int> {
+    Q_OBJECT
 public:
-	XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
-		QSpinBox *item, QSlider *slider = 0L);
-	XQSpinBoxConnector(const shared_ptr<XUIntNode> &node,
-		QSpinBox *item, QSlider *slider = 0L);
-	virtual ~XQSpinBoxConnector() {}
+    XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
+        QSpinBox *item, QSlider *slider = 0L);
+    virtual ~XQSpinBoxConnector() {}
 protected slots:
-void onChange(int val);
+void onChange(int val) {onChangeTMPL(val);}
+void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XIntNode> m_iNode;
-	const shared_ptr<XUIntNode> m_uINode;
-	QSpinBox *const m_pItem;
-	QSlider *const m_pSlider;
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+        onValueChangedTMPL(shot, node); }
 };
-
-class KDoubleNumInput;
-
-class XKDoubleNumInputConnector : public XValueQConnector {
-	Q_OBJECT
+class XQSpinBoxUnsignedConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int> {
+    Q_OBJECT
 public:
-	XKDoubleNumInputConnector(const shared_ptr<XDoubleNode> &node, 
-		KDoubleNumInput *item);
-	virtual ~XKDoubleNumInputConnector() {}
+    XQSpinBoxUnsignedConnector(const shared_ptr<XUIntNode> &node,
+        QSpinBox *item, QSlider *slider = 0L);
+    virtual ~XQSpinBoxUnsignedConnector() {}
 protected slots:
-void onChange(double val);
+    void onChange(int val) {onChangeTMPL(val);}
+    void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XDoubleNode> m_node;
-	KDoubleNumInput *const m_pItem;
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+        onValueChangedTMPL(shot, node); }
 };
 
 class QDoubleSpinBox;
-
-class XQDoubleSpinBoxConnector : public XValueQConnector {
-	Q_OBJECT
+class XQDoubleSpinBoxConnector : public XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double> {
+    Q_OBJECT
 public:
-	XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
-		QDoubleSpinBox *item);
-	virtual ~XQDoubleSpinBoxConnector() {}
+    XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
+        QDoubleSpinBox *item, QSlider *slider = 0L);
+    virtual ~XQDoubleSpinBoxConnector() {}
 protected slots:
-void onChange(double val);
+    void onChange(int val) {onChangeTMPL(val);}
+    void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XDoubleNode> m_node;
-	QDoubleSpinBox *const m_pItem;
-};
-
-class KUrlRequester;
-class KUrl;
-class XKURLReqConnector : public XValueQConnector {
-	Q_OBJECT
-public:
-	XKURLReqConnector(const shared_ptr<XStringNode> &node, 
-		KUrlRequester *item, const char *filter, bool saving);
-	virtual ~XKURLReqConnector() {}
-protected slots:
-void onSelect( const KUrl& );
-protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XStringNode> m_node;
-	KUrlRequester *const m_pItem;
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+        onValueChangedTMPL(shot, node); }
 };
 
 class QLabel;
@@ -261,21 +254,6 @@ protected:
 	QLabel *const m_pItem;
 };
 
-class KLed;
-
-class XKLedConnector : public XValueQConnector {
-	Q_OBJECT
-public:
-	XKLedConnector(const shared_ptr<XBoolNode> &node,
-		KLed *item);
-	virtual ~XKLedConnector() {}
-protected slots:
-protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XBoolNode> m_node;
-	KLed *const m_pItem;
-};
-
 class QLCDNumber;
 
 class XQLCDNumberConnector : public XValueQConnector {
@@ -288,6 +266,21 @@ protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	const shared_ptr<XDoubleNode> m_node;
 	QLCDNumber *const m_pItem;
+};
+
+class XQLedConnector : public XValueQConnector {
+    Q_OBJECT
+public:
+    XQLedConnector(const shared_ptr<XBoolNode> &node,
+        QAbstractButton *item);
+    virtual ~XQLedConnector() {}
+protected slots:
+protected:
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    const shared_ptr<XBoolNode> m_node;
+    QAbstractButton *const m_pItem;
+    QIcon *m_pIconOn;
+    QIcon *m_pIconOff;
 };
 
 class XQToggleButtonConnector : public XValueQConnector {
@@ -304,15 +297,32 @@ protected:
 	QAbstractButton *const m_pItem;
 };
 
-class Q3Table;
+class QToolButton;
+class QFileDialog;
+class XFilePathConnector : public XQLineEditConnector {
+    Q_OBJECT
+public:
+    XFilePathConnector(const shared_ptr<XStringNode> &node,
+        QLineEdit *edit, QAbstractButton *btn, const char *filter, bool saving);
+    virtual ~XFilePathConnector() {}
+protected slots:
+void onClick();
+void onAccept();
+protected:
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    QAbstractButton *const m_pBtn;
+    qshared_ptr<QFileDialog> m_dialog;
+};
+
+class QTableWidget;
 class XListQConnector : public XQConnector {
 	Q_OBJECT
 public:
-	XListQConnector(const shared_ptr<XListNodeBase> &node, Q3Table *item);
+    XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWidget *item);
 	virtual ~XListQConnector();
 private slots:
 protected slots:
-void indexChange(int section, int fromIndex, int toIndex);
+void OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex);
 protected:
 	shared_ptr<XListener> m_lsnMove;
 	virtual void onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e);
@@ -320,7 +330,7 @@ protected:
 	shared_ptr<XListener> m_lsnRelease;
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) = 0;
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) = 0;
-	Q3Table *const m_pItem;
+    QTableWidget *const m_pItem;
 	const shared_ptr<XListNodeBase> m_list;
 };
 
@@ -356,59 +366,44 @@ protected:
 	int findItem(const QString &);
 };
 
-class Q3ListBox;
+class QListWidget;
+class QListWidgetItem;
 
-class XQListBoxConnector : public XItemQConnector {
+class XQListWidgetConnector : public XItemQConnector {
 	Q_OBJECT
 public:
-	XQListBoxConnector(const shared_ptr<XItemNodeBase> &node,
-		Q3ListBox *item, const Snapshot &shot_of_list);
-	virtual ~XQListBoxConnector() {}
+    XQListWidgetConnector(const shared_ptr<XItemNodeBase> &node,
+        QListWidget *item, const Snapshot &shot_of_list);
+    virtual ~XQListWidgetConnector();
 protected slots:
-virtual void onSelect(int index);
+virtual void OnItemSelectionChanged();
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e);
 	const shared_ptr<XItemNodeBase> m_node;
-	Q3ListBox *const m_pItem;
+    QListWidget *const m_pItem;
 };
 
-class KColorButton;
-
-class XKColorButtonConnector : public XValueQConnector {
+class QColorDialog;
+class XColorConnector : public XValueQConnector {
 	Q_OBJECT
 public:
-	XKColorButtonConnector(const shared_ptr<XHexNode> &node,
-		KColorButton *item);
-	virtual ~XKColorButtonConnector() {}
+    XColorConnector(const shared_ptr<XHexNode> &node,
+        QAbstractButton *item);
+    virtual ~XColorConnector() {}
 protected slots:
-void onClick(const QColor &newColor);
+void onClick();
+void OnColorSelected(const QColor & color);
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	const shared_ptr<XHexNode> m_node;
-	KColorButton *const m_pItem;
-};
-
-class KColorCombo;
-
-class XKColorComboConnector : public XValueQConnector {
-	Q_OBJECT
-public:
-	XKColorComboConnector(const shared_ptr<XHexNode> &node, 
-		KColorCombo *item);
-	virtual ~XKColorComboConnector() {}
-protected slots:
-void onClick(const QColor &newColor);
-protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	const shared_ptr<XHexNode> m_node;
-	KColorCombo *const m_pItem;
+    QAbstractButton *const m_pItem;
+    qshared_ptr<QColorDialog> m_dialog;
 };
 
 //! Show status
 class QMainWindow;
 class QStatusBar;
-class KPassivePopup;
 class XStatusPrinter : public enable_shared_from_this<XStatusPrinter> {
 protected:
 	explicit XStatusPrinter(QMainWindow *window = NULL);
@@ -425,7 +420,6 @@ private:
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;
 	QStatusBar *m_pBar;
-	KPassivePopup *m_pPopup;
 	void print(const tstatus &status);
 };
 

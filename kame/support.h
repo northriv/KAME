@@ -54,7 +54,9 @@ using std::reference_wrapper;
 #include <math.h>
 #include <string>
 #include <QString>
-#include <klocale.h>
+
+QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);
+#define I18N_NOOP(txt) QT_TR_NOOP(txt)
 
 class XString : public std::string {
 typedef std::string base_type;

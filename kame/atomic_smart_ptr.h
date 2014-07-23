@@ -99,7 +99,7 @@ template <typename T> class local_shared_ptr;
 //! intrusive counting to obtain better performance.
 struct atomic_countable {
 	atomic_countable() : refcnt(1) {}
-	atomic_countable(const atomic_countable &x) : refcnt(1) {}
+    atomic_countable(const atomic_countable &) : refcnt(1) {}
 	~atomic_countable() { assert(refcnt == 0); }
 private:
 	template <typename X, typename E> friend struct atomic_shared_ptr_base;

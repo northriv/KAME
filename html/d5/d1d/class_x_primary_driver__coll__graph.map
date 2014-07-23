@@ -1,9 +1,0 @@
-base referer
-rect $d1/d87/class_x_driver.html 333,114 399,141
-rect $dd/d83/class_x_node.html 7,8 71,34
-rect $d6/dbd/class_x_talker.html 95,8 319,34
-rect $df/d6b/class_x_time.html 343,8 405,34
-rect $d6/df8/class_x_recursive_r_w_lock.html 437,8 578,34
-rect $d6/d9b/class_x_thread_local.html 438,114 638,141
-rect $d6/d9b/class_x_thread_local.html 657,8 795,34
-rect $d6/d9b/class_x_thread_local.html 662,114 902,141
