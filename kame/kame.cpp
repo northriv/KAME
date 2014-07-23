@@ -447,10 +447,10 @@ void FrmKameMain::scriptLineShellAction_activated() {
         g_statusPrinter->printError("No KAME ruby support file installed.");
     }
     else {
-		static unsigned int int_no = 1;
-		runNewScript(formatString("Line Shell%d", int_no), filename );
-		int_no++;
-	}
+        static unsigned int int_no = 1;
+        runNewScript(formatString("Line Shell%d", int_no), filename );
+        int_no++;
+    }
 }
 
 void FrmKameMain::scriptDotSaveAction_activated() {

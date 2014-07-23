@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/rovert.png</file>
+        <file>icons/ledon.png</file>
+        <file>icons/ledoff.png</file>
+        <file>icons/graph.png</file>
+        <file>icons/ruby.png</file>
+        <file>icons/kame.png</file>
+        <file>script/xrubysupport.rb</file>
+    </qresource>
+    <qresource prefix="/scripts"/>
+</RCC>

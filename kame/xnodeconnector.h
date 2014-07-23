@@ -232,7 +232,7 @@ public:
         QDoubleSpinBox *item, QSlider *slider = 0L);
     virtual ~XQDoubleSpinBoxConnector() {}
 protected slots:
-    void onChange(int val) {onChangeTMPL(val);}
+    void onChange(double val) {onChangeTMPL(val);}
     void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -385,11 +385,11 @@ protected:
 };
 
 class QColorDialog;
+class QPushButton;
 class XColorConnector : public XValueQConnector {
 	Q_OBJECT
 public:
-    XColorConnector(const shared_ptr<XHexNode> &node,
-        QAbstractButton *item);
+    XColorConnector(const shared_ptr<XHexNode> &node, QPushButton *item);
     virtual ~XColorConnector() {}
 protected slots:
 void onClick();
@@ -397,7 +397,7 @@ void OnColorSelected(const QColor & color);
 protected:
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
 	const shared_ptr<XHexNode> m_node;
-    QAbstractButton *const m_pItem;
+    QPushButton *const m_pItem;
     qshared_ptr<QColorDialog> m_dialog;
 };
 

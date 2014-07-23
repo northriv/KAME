@@ -12,11 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "graphpainter.h"
-#include "FTGL/FTGLPixmapFont.h"
 #include "graphwidget.h"
 #include <QTimer>
 #include <GL/glu.h>
-#include <QStandardPaths>
 
 using std::min;
 using std::max;
@@ -53,38 +51,8 @@ using std::max;
 	} \
 } 
 
-
-#define FONT_FILE "mikachan/mikachan.ttf"
-	
 #define DEFAULT_FONT_SIZE 12
 
-int XQGraphPainter::s_fontRefCount = 0;
-FTFont *XQGraphPainter::s_pFont = NULL;
-
-void
-XQGraphPainter::openFont() {
-	if(s_fontRefCount == 0) {
-        QString filename = QStandardPaths::locate(QStandardPaths::DataLocation, FONT_FILE);
-        if(filename.isEmpty())
-		{
-			gErrPrint(i18n("No Fontfile!!"));
-		}
-		s_pFont = new FTGLPixmapFont(filename.toLocal8Bit().data() );
-		assert(s_pFont->Error() == 0);
-		s_pFont->CharMap(ft_encoding_unicode);
-	}
-
-	s_fontRefCount++;
-}
-
-void
-XQGraphPainter::closeFont() {
-	s_fontRefCount--;
-	if(s_fontRefCount == 0) {
-		delete s_pFont;
-		s_pFont = NULL;
-	}
-}
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
     
@@ -92,14 +60,6 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
-    closeFont();
-}
-std::wstring
-XQGraphPainter::string2wstring(const XString &str) {
-	QString qstr(str);
-    std::vector<wchar_t> buf(qstr.length() + 1);
-    qstr.toWCharArray(&buf[0]);
-    return &buf[0];
 }
 
 int
@@ -223,48 +183,36 @@ XQGraphPainter::selectFont(const XString &str,
 			h = y;
 		}
 	}
-	float llx, lly, llz, urx, ury, urz;
-	std::wstring wstr = string2wstring(str);
 	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
 	m_curAlign = align;
     
-	for(;;) {
- 		s_pFont->FaceSize(m_curFontSize);
-		s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
+    QFont font(m_pItem->font());
+    for(;;) {
+        font.setPointSize(m_curFontSize);
+        QRect bb = m_pItem->fontMetrics().boundingRect(str);
 		if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
-		if((urx < w ) && (ury < h)) break;
+        if((bb.width() < w ) && (bb.height() < h)) break;
 		m_curFontSize--;
 	}
     checkGLError();
     
 	return 0;
-}void
+}
+void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-	float llx, lly, llz, urx, ury, urz;
-	std::wstring wstr = string2wstring(str);
-
-	glRasterPos3f(p.x, p.y, p.z);
-    checkGLError();
-
- 	s_pFont->FaceSize(m_curFontSize);
-	s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-	int w = lrintf(urx);
-	int h = lrintf(ury);
-	
-	float x = 0.0f, y = 0.0f;
-	if( (m_curAlign & Qt::AlignVCenter) ) y -= h / 2;
-	if( (m_curAlign & Qt::AlignTop) ) y -= h;
+    double x,y,z;
+    screenToWindow(p, &x, &y, &z);
+    QFont font(m_pItem->font());
+    font.setPointSize(m_curFontSize);
+    QRect bb = m_pItem->fontMetrics().boundingRect(str);
+    int w = bb.width();
+    int h = bb.height();
+    if( (m_curAlign & Qt::AlignVCenter) ) y += h / 2;
+    if( (m_curAlign & Qt::AlignTop) ) y += h;
 	if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
 	if( (m_curAlign & Qt::AlignRight) ) x -= w;
-    // Move raster position
-    if((x != 0.0f) || (y != 0.0f))
-    	glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
-	
- 	s_pFont->Render(wstr.c_str());
-	checkGLError();
-	if(s_pFont->Error())
-		gWarnPrint(i18n("GL Font Error."));
-} 
+    m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
+}
 
 #define VIEW_NEAR -1.5
 #define VIEW_FAR 0.5
@@ -492,7 +440,7 @@ XQGraphPainter::paintGL () {
         glCallList(m_listpoints);
 // //       glDisable(GL_DEPTH_TEST);
 #ifdef __APPLE__
-        if(1) { //On mac, FTGL fonts have to be drawn every time.
+        if(1) { //On mac, fonts have to be drawn every time.
 #else
         if(m_bIsAxisRedrawNeeded) {
 #endif // __APPLE__

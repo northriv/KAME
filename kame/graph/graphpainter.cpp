@@ -14,7 +14,8 @@
 #include "graphpainter.h"
 #include "measure.h"
 #include "graphwidget.h"
-
+#include <QFont>
+#include <QFontMetrics>
 
 #define SELECT_WIDTH 0.08
 #define SELECT_DEPTH 0.05
@@ -35,8 +36,6 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_bIsAxisRedrawNeeded(false),
 	m_bTilted(false),
 	m_bReqHelp(false) {
-
-	openFont();
 	item->m_painter.reset(this);
 	for(Transaction tr( *graph);; ++tr) {
 		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(

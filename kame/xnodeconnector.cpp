@@ -31,6 +31,7 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QColorDialog>
+#include <QPainter>
 
 #include <QMainWindow>
 
@@ -357,7 +358,7 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onValueChangedTMPL(const Snapshot &shot, XValue
             svar = lrint((var + min) / (max - min) * 100);
         }
 		m_pSlider->blockSignals(true);
-        m_pSlider->setValue(var);
+        m_pSlider->setValue(svar);
         m_pSlider->blockSignals(false);
 	}
 }
@@ -693,17 +694,19 @@ XQListWidgetConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::
     onValueChanged(shot, e.emitter);
 }
 
-XColorConnector::XColorConnector(const shared_ptr<XHexNode> &node, QAbstractButton *item)
+XColorConnector::XColorConnector(const shared_ptr<XHexNode> &node, QPushButton *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
-    connect(item, SIGNAL( clicked(const QColor &) ), this, SLOT( onClick() ) );
+    connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
+    item->setAutoDefault(false);
+    item->setDefault(false);
     onValueChanged(Snapshot( *node), node.get());
 }
 void
 XColorConnector::onClick() {
     auto dialog = m_dialog;
     if( !dialog) {
-        dialog.reset(new QColorDialog());
+        dialog.reset(new QColorDialog(m_pItem));
         m_dialog = dialog;
     }
     connect( &*dialog, SIGNAL( colorSelected(const QColor &) ), this, SLOT( OnColorSelected(const QColor &) ) );
@@ -713,10 +716,8 @@ XColorConnector::onClick() {
 }
 void
 XColorConnector::OnColorSelected(const QColor & color) {
-    m_dialog.reset();
     for(Transaction tr( *m_node);; ++tr) {
         tr[ *m_node] = color.rgb();
-        tr.unmark(m_lsnValueChanged);
         if(tr.commit())
             break;
     }
@@ -727,8 +728,9 @@ XColorConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
     auto dialog = m_dialog;
     if(dialog)
         dialog->setCurrentColor(color);
-    QPalette palette(color);
-    m_pItem->setPalette(palette);
+    QPixmap pixmap(m_pItem->size());
+    pixmap.fill(color);
+    m_pItem->setIcon(pixmap);
 }
 
 XStatusPrinter::XStatusPrinter(QMainWindow *window) {

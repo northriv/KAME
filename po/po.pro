@@ -1,0 +1,4 @@
+TEMPLATE = subdir
+
+SUBDIRS = ja
+

@@ -16,7 +16,6 @@
 
 #include "graph.h"
 
-class FTFont;
 class XQGraph;
 
 #include <Qt>
@@ -161,9 +160,9 @@ private:
  bool m_bReqHelp;
  
  GLdouble m_proj_rot[16]; // Current Rotation matrix
-	GLdouble m_proj[16]; // Current Projection matrix
-	GLdouble m_model[16]; // Current Modelview matrix
-	GLint m_viewport[4]; // Current Viewport
+ GLdouble m_proj[16]; // Current Projection matrix
+ GLdouble m_model[16]; // Current Modelview matrix
+ GLint m_viewport[4]; // Current Viewport
 	
 	//! ghost stuff
 	std::vector<GLubyte> m_lastFrame;
@@ -172,11 +171,6 @@ private:
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
 	int m_curFontSize;
 	int m_curAlign;
-	static void openFont();
-	static void closeFont();
-	static std::wstring string2wstring(const XString &str);
-	static int s_fontRefCount;
-	static FTFont *s_pFont;  
 };
 
 #endif
