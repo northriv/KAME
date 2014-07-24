@@ -33,7 +33,7 @@
       <widget class="QLineEdit" name="m_edDump"/>
      </item>
      <item>
-      <widget class="QToolButton" name="m_slDump">
+      <widget class="QToolButton" name="m_tlDump">
        <property name="text">
         <string>...</string>
        </property>
@@ -1502,17 +1502,6 @@
  <layoutdefault spacing="3" margin="6"/>
  <customwidgets>
   <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
@@ -1548,10 +1537,6 @@
   <tabstop>m_edFIRCenterFreq</tabstop>
  </tabstops>
  <includes>
-  <include location="local">knuminput.h</include>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
   <include location="local">graphwidget.h</include>
  </includes>
  <resources/>
