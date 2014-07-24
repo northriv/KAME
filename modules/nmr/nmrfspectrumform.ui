@@ -554,8 +554,15 @@
              </property>
             </widget>
            </item>
-           <item>
-            <widget class="KDoubleNumInput" name="m_numPhase" native="true">
+          <item>
+          <widget class="QSlider" name="m_slPhase">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+                    <item>
+            <widget class="QDoubleSpinBox" name="m_dblPhase" native="true">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -730,11 +737,6 @@
    <extends>QFrame</extends>
    <header>kurlrequester.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
   </customwidget>
   <customwidget>
    <class>XQGraph</class>

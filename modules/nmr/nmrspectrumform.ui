@@ -571,8 +571,14 @@ Analyzer</string>
                </property>
               </widget>
              </item>
-             <item>
-              <widget class="KDoubleNumInput" name="m_numPhase">
+          <item>
+          <widget class="QSlider" name="m_slPhase">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>             <item>
+              <widget class="QDoubleSpinBox" name="m_dblPhase">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -640,8 +646,15 @@ Analyzer</string>
                </property>
               </widget>
              </item>
+          <item>
+          <widget class="QSlider" name="m_slWindowWidth">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>             
              <item>
-              <widget class="KDoubleNumInput" name="m_numWindowWidth">
+              <widget class="QDoubleSpinBox" name="m_numWindowWidth">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -732,11 +745,6 @@ Analyzer</string>
    <header>kurlrequester.h</header>
   </customwidget>
   <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
@@ -761,13 +769,6 @@ Analyzer</string>
   <tabstop>m_cmbBWList</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
  </includes>
  <resources/>
  <connections/>

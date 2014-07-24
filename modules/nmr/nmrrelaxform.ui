@@ -114,7 +114,14 @@
            </widget>
           </item>
           <item>
-           <widget class="KDoubleNumInput" name="m_numPhase" native="true">
+          <widget class="QSlider" name="m_slPhase">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+                   <item>
+           <widget class="QDoubleSpinBox" name="m_dblPhase" native="true">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -877,11 +884,6 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
@@ -914,10 +916,6 @@
   <tabstop>m_btnDump</tabstop>
  </tabstops>
  <includes>
-  <include location="local">knuminput.h</include>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
  </includes>
  <resources/>
  <connections/>

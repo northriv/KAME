@@ -173,7 +173,14 @@
          </widget>
         </item>
         <item>
-         <widget class="KDoubleNumInput" name="m_dblTarget" native="true">
+          <widget class="QSlider" name="m_slTrigPos">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="m_dblTarget" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -565,11 +572,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
   </customwidgets>
  <tabstops>
   <tabstop>m_ckbActive</tabstop>

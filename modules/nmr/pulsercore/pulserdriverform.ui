@@ -329,7 +329,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="KDoubleNumInput" name="m_dblP1Level">
+                <widget class="QDoubleSpinBox" name="m_dblP1Level">
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
@@ -448,7 +448,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="KDoubleNumInput" name="m_dblP2Level">
+                <widget class="QDoubleSpinBox" name="m_dblP2Level">
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
@@ -531,7 +531,14 @@
            </widget>
           </item>
           <item>
-           <widget class="KDoubleNumInput" name="m_dblMasterLevel">
+          <widget class="QSlider" name="m_slMasterLevel">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="m_dblMasterLevel">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -864,7 +871,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="KDoubleNumInput" name="m_dblCombLevel">
+                <widget class="QDoubleSpinBox" name="m_dblCombLevel">
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
@@ -1103,22 +1110,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>Q3Frame</class>
-   <extends>QFrame</extends>
-   <header>Qt3Support/Q3Frame</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>Q3Table</class>
-   <extends>Q3Frame</extends>
-   <header>q3table.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
@@ -1149,14 +1140,6 @@
   <tabstop>m_tblPulse</tabstop>
  </tabstops>
  <includes>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
-  <include location="local">knuminput.h</include>
   <include location="local">graphwidget.h</include>
  </includes>
  <resources/>

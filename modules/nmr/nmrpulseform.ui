@@ -724,7 +724,14 @@
            </widget>
           </item>
           <item>
-           <widget class="KDoubleNumInput" name="m_numPhaseAdv">
+          <widget class="QSlider" name="m_slPhaseAdv">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+                   <item>
+           <widget class="QDoubleSpinBox" name="m_dblPhaseAdv">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -775,7 +782,14 @@
            </widget>
           </item>
           <item>
-           <widget class="KDoubleNumInput" name="m_numWindowWidth">
+          <widget class="QSlider" name="m_slWindowWIdth">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+                   <item>
+           <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -996,11 +1010,6 @@
    <class>KUrlRequester</class>
    <extends>QFrame</extends>
    <header>kurlrequester.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
   </customwidget>
   <customwidget>
    <class>XQGraph</class>
