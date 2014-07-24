@@ -29,22 +29,16 @@
       <property name="spacing">
        <number>2</number>
       </property>
-      <item>
-       <widget class="KUrlRequester" name="m_urlDump">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="cursor">
-         <cursorShape>ArrowCursor</cursorShape>
-        </property>
-        <property name="focusPolicy">
-         <enum>Qt::StrongFocus</enum>
-        </property>
-       </widget>
-      </item>
+     <item>
+      <widget class="QLineEdit" name="m_edDump"/>
+     </item>
+     <item>
+      <widget class="QToolButton" name="m_slDump">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>
       <item>
        <widget class="QPushButton" name="m_btnDump">
         <property name="text">
