@@ -82,7 +82,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3, Snapshot( *m_vFullScale3))),
 	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4, Snapshot( *m_vFullScale4))),
 	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource, Snapshot( *m_trigSource))),
-	m_conTrigPos(xqcon_create<XKDoubleNumInputConnector>(m_trigPos, m_form->m_numTrigPos)),
+	m_conTrigPos(xqcon_create<XQDoubleSpinBoxConnector>(m_trigPos, m_form->m_dblTrigPos, m_form->m_slTrigPos)),
 	m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
 	m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
 	m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
@@ -102,7 +102,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->m_btnForceTrigger->setIcon(
 		KIconLoader::global()->loadIcon("quickopen",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	m_form->m_numTrigPos->setRange(0.0, 100.0, 1.0, true);
+	m_form->m_numTrigPos->setRange(0.0, 100.0);
+	m_form->m_numTrigPos->setSingleStep(1.0);
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);

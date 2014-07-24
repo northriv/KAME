@@ -340,20 +340,24 @@
          </property>
         </widget>
        </item>
-       <item>
-        <widget class="KDoubleNumInput" name="m_numTrigPos" native="true">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>120</width>
-           <height>0</height>
-          </size>
-         </property>
+         <item>
+          <widget class="QSlider" name="m_slTrigPos">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="m_dblTrigPos">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="maxValue" stdset="0">
+            <number>2</number>
+           </property>
+           <property name="precision" stdset="0">
+            <number>2</number>
+           </property>
          <property name="suffix" stdset="0">
           <string>%</string>
          </property>
@@ -365,9 +369,10 @@
          </property>
          <property name="precision" stdset="0">
           <number>2</number>
-         </property>
-        </widget>
-       </item>
+         </property>           
+          </widget>
+         </item>
+
       </layout>
      </item>
      <item>
