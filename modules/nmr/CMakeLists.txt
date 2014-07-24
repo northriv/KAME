@@ -10,6 +10,7 @@ include_directories(
      ${CMAKE_SOURCE_DIR}/modules/charinterface
      ${CMAKE_SOURCE_DIR}/kame/math
      ${CMAKE_SOURCE_DIR}/kame/graph
+     ${CMAKE_SOURCE_DIR}/kame/icons
      ${CMAKE_BINARY_DIR}/kame/graph
      ${CMAKE_SOURCE_DIR}/modules/nmr/pulsercore
      ${CMAKE_SOURCE_DIR}/modules/sg/core)
