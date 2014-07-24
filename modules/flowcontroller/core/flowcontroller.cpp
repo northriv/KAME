@@ -86,7 +86,7 @@ XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw 
 void
 XFlowControllerDriver::visualize(const Snapshot &shot) {
 	if(m_form->m_lblUnit->text().isEmpty()) {
-		m_form->m_dblTarget->setRange(0.0, shot[ *this].m_fullScale, 1, true);
+		m_form->m_dblTarget->setRange(0.0, shot[ *this].m_fullScale);
 		m_form->m_lblUnit->setText(shot[ *this].m_unit);
 	}
 }
