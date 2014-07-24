@@ -55,7 +55,7 @@ using std::reference_wrapper;
 #include <string>
 #include <QString>
 
-#if WITH_KDE
+#if defined(WITH_KDE)
 	#include <klocale.h>
 #else
 	QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);

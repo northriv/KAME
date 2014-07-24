@@ -32,6 +32,9 @@
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QPainter>
+#ifdef WITH_KDE
+	#include <kpassivepopup.h>
+#endif
 
 #include <QMainWindow>
 
@@ -493,8 +496,13 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 			break;
 	}
     QHeaderView *header = m_pItem->verticalHeader();
+#if QT_VERSION  < 0x050000
+    header->setMovable(true);
+    header->setResizeMode(QHeaderView::Fixed);
+#else
     header->setSectionsMovable(true);
     header->setSectionResizeMode(QHeaderView::Fixed);
+#endif
     connect(header, SIGNAL( sectionMoved(int, int, int)),
             this, SLOT( OnSectionMoved(int, int, int)));
     header->setToolTip(i18n("Use drag-n-drop with ctrl pressed to reorder."));
@@ -742,6 +750,9 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window) {
 	m_lsn = m_tlkTalker.connectWeak(
         shared_from_this(), &XStatusPrinter::print,
         XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+#ifdef WITH_KDE
+    m_pPopup  = (new KPassivePopup( window ));
+#endif
 }
 XStatusPrinter::~XStatusPrinter() {
 }
@@ -800,8 +811,10 @@ XStatusPrinter::print(const tstatus &status) {
 		m_pBar->clearMessage();
 	}
 	if(status.ms && popup) {
-//		m_pPopup->hide();
-//		m_pPopup->setTimeout(status.ms);
+#ifdef WITH_KDE
+		m_pPopup->hide();
+		m_pPopup->setTimeout(status.ms);
+#endif
 		QPixmap *icon;
 		switch(status.type) {
 		case tstatus::Normal:
@@ -814,10 +827,14 @@ XStatusPrinter::print(const tstatus &status) {
 			icon = g_pIconError;
 			break;
 		}
-//		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
-//		m_pPopup->show();
+#ifdef WITH_KDE
+		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
+		m_pPopup->show();
+#endif
 	}
 	else {
-//		m_pPopup->hide();
+#ifdef WITH_KDE
+		m_pPopup->hide();
+#endif
 	}
 }
