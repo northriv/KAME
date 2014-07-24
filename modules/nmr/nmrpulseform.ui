@@ -606,23 +606,16 @@
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
        <layout class="QHBoxLayout">
-        <item>
-         <widget class="KUrlRequester" name="m_urlDump">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="cursor">
-           <cursorShape>ArrowCursor</cursorShape>
-          </property>
-          <property name="focusPolicy">
-           <enum>Qt::StrongFocus</enum>
-          </property>
-         </widget>
-        </item>
-        <item>
+     <item>
+      <widget class="QLineEdit" name="m_edDump"/>
+     </item>
+     <item>
+      <widget class="QToolButton" name="m_tbDump">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>        <item>
          <widget class="QPushButton" name="m_btnDump">
           <property name="text">
            <string>D&amp;UMP</string>
@@ -1007,11 +1000,6 @@
  <layoutdefault spacing="4" margin="2"/>
  <customwidgets>
   <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
@@ -1042,10 +1030,6 @@
   <tabstop>m_btnAvgClear</tabstop>
  </tabstops>
  <includes>
-  <include location="local">knuminput.h</include>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
  </includes>
  <resources/>
  <connections/>

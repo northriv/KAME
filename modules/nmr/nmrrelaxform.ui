@@ -392,7 +392,7 @@
          </widget>
         </item>
         <item>
-         <widget class="Q3TextBrowser" name="m_txtFitStatus">
+         <widget class="QTextBrowser" name="m_txtFitStatus">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -410,9 +410,6 @@
           </property>
           <property name="frameShadow">
            <enum>QFrame::Raised</enum>
-          </property>
-          <property name="textFormat">
-           <enum>Qt::PlainText</enum>
           </property>
          </widget>
         </item>
@@ -824,22 +821,16 @@
         </item>
         <item>
          <layout class="QHBoxLayout">
-          <item>
-           <widget class="KUrlRequester" name="m_urlDump">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="cursor">
-             <cursorShape>ArrowCursor</cursorShape>
-            </property>
-            <property name="focusPolicy">
-             <enum>Qt::StrongFocus</enum>
-            </property>
-           </widget>
-          </item>
+     <item>
+      <widget class="QLineEdit" name="m_edDump"/>
+     </item>
+     <item>
+      <widget class="QToolButton" name="m_tbDump">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>
           <item>
            <widget class="QPushButton" name="m_btnDump">
             <property name="text">
@@ -861,28 +852,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
-  <customwidget>
-   <class>Q3Frame</class>
-   <extends>QFrame</extends>
-   <header>Qt3Support/Q3Frame</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>Q3TextEdit</class>
-   <extends>Q3Frame</extends>
-   <header>q3textedit.h</header>
-  </customwidget>
-  <customwidget>
-   <class>Q3TextBrowser</class>
-   <extends>Q3TextEdit</extends>
-   <header>Qt3Support/Q3TextBrowser</header>
-  </customwidget>
-  <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-   <container>1</container>
-  </customwidget>
   <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>

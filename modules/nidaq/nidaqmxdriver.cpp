@@ -515,7 +515,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 }
 bool
 XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_term) {
-	XString ctrdev = formatString("/%s/ctr0", dev);
+#ifdef HAVE_NI_DAQMX
+    XString ctrdev = formatString("/%s/ctr0", dev);
 	TaskHandle taskCounting = 0;
 	//Measures an external source frequency.
 	CHECK_DAQMX_RET(DAQmxCreateTask("",&taskCounting));
@@ -547,6 +548,8 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_ter
 			return true;
 		}
 	}
+#endif //HAVE_NI_DAQMX
+
 	return false;
 }
 void

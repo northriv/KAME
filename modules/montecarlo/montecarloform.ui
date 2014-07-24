@@ -234,7 +234,7 @@
     </item>
     <item row="0" column="1" rowspan="6">
      <layout class="QGridLayout">
-      <item row="1" column="1">
+      <item row="1" column="2">
        <widget class="QPushButton" name="m_btnDump">
         <property name="text">
          <string>DUMP</string>
@@ -242,12 +242,12 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="KUrlRequester" name="m_urlDump">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+       <widget class="QLineEdit" name="m_edDump"/>
+      </item>
+      <item row="1" column="1">
+       <widget class="QToolButton" name="m_tbDump">
+        <property name="text">
+         <string>...</string>
         </property>
        </widget>
       </item>
@@ -430,20 +430,12 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-  </customwidget>
-  <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>
    <header>graphwidget.h</header>
   </customwidget>
  </customwidgets>
  <includes>
-  <include location="local">kurlrequester.h</include>
-  <include location="local">klineedit.h</include>
-  <include location="local">kpushbutton.h</include>
   <include location="local">graphwidget.h</include>
  </includes>
  <resources/>

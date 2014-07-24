@@ -26,8 +26,6 @@ REGISTER_TYPE(XDriverList, NMRT1, "NMR relaxation measurement");
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
-#include <knuminput.h>
-#include <kiconloader.h>
 
 const char XNMRT1::P1DIST_LINEAR[] = "Linear";
 const char XNMRT1::P1DIST_LOG[] = "Log";
@@ -100,7 +98,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
 	  m_form(new FrmNMRT1(g_pFrmMain)),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
-	  m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)) {
+      m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
 	for(Transaction tr( *this);; ++tr) {
 		m_relaxFunc = create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
@@ -109,12 +107,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 			break;
 	}
 
-	m_form->m_btnClear->setIcon(
-    	KIconLoader::global()->loadIcon("edit-clear",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-    m_form->m_btnResetFit->setIcon(
-    	KIconLoader::global()->loadIcon("edit-redo",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
+    m_form->m_btnResetFit->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
 
     m_form->setWindowTitle(i18n("NMR Relaxation Measurement - ") + getLabel() );
 
@@ -195,12 +189,13 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 			break;
 	}
 
-	m_form->m_numPhase->setRange( -360.0, 360.0, 10.0, true);
+    m_form->m_dblPhase->setRange( -360.0, 360.0);
+    m_form->m_dblPhase->setSingleStep(10.0);
 
 	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
 	m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
 	m_conP1Next = xqcon_create<XQLineEditConnector>(m_p1Next, m_form->m_edP1Next);
-	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
+    m_conPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_phase, m_form->m_dblPhase, m_form->m_slPhase);
 	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
 	m_conAutoWindow = xqcon_create<XQToggleButtonConnector>(m_autoWindow, m_form->m_ckbAutoWindow);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));

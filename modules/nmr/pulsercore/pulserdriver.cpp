@@ -20,7 +20,6 @@
 #include "analyzer.h"
 #include "xnodeconnector.h"
 #include <QStatusBar>
-#include <kiconloader.h>
 
 #include <gsl/gsl_sf.h>
 #define bessel_i0 gsl_sf_bessel_I0
@@ -138,9 +137,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conMoreConfigShow = xqcon_create<XQButtonConnector>(
         m_moreConfigShow, m_form->m_btnMoreConfig);
 
-    m_form->m_btnMoreConfig->setIcon(
-		KIconLoader::global()->loadIcon("configure",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    m_form->m_btnMoreConfig->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogContentsView));
 
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
@@ -239,7 +236,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conCombPW = xqcon_create<XQLineEditConnector>(m_combPW, m_form->m_edCombPW);
 	m_conPW1 = xqcon_create<XQLineEditConnector>(m_pw1, m_form->m_edPW1);
 	m_conPW2 = xqcon_create<XQLineEditConnector>(m_pw2, m_form->m_edPW2);
-	m_conCombNum = xqcon_create<XQSpinBoxConnector>(m_combNum, m_form->m_numCombNum);
+    m_conCombNum = xqcon_create<XQSpinBoxUnsignedConnector>(m_combNum, m_form->m_numCombNum);
 	m_conCombPT = xqcon_create<XQLineEditConnector>(m_combPT, m_form->m_edCombPT);
 	m_conCombP1 = xqcon_create<XQLineEditConnector>(m_combP1, m_form->m_edCombP1);
 	m_conCombP1Alt = xqcon_create<XQLineEditConnector>(m_combP1Alt, m_form->m_edCombP1Alt);
@@ -247,7 +244,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conASWHold = xqcon_create<XQLineEditConnector>(m_aswHold, m_formMore->m_edASWHold);
 	m_conALTSep = xqcon_create<XQLineEditConnector>(m_altSep, m_formMore->m_edALTSep);
 	m_conG2Setup = xqcon_create<XQLineEditConnector>(m_g2Setup, m_formMore->m_edG2Setup);
-	m_conEchoNum = xqcon_create<XQSpinBoxConnector>(m_echoNum, m_formMore->m_numEcho);
+    m_conEchoNum = xqcon_create<XQSpinBoxUnsignedConnector>(m_echoNum, m_formMore->m_numEcho);
 	m_conDrivenEquilibrium = xqcon_create<XQToggleButtonConnector>(m_drivenEquilibrium, m_formMore->m_ckbDrivenEquilibrium);
 	m_conNumPhaseCycle = xqcon_create<XQComboBoxConnector>(m_numPhaseCycle, m_formMore->m_cmbPhaseCycle, Snapshot( *m_numPhaseCycle));
 	m_conCombOffRes = xqcon_create<XQLineEditConnector>(m_combOffRes, m_form->m_edCombOffRes);
@@ -256,14 +253,18 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conP1Func = xqcon_create<XQComboBoxConnector>(m_p1Func, m_form->m_cmbP1Func, Snapshot( *m_p1Func));
 	m_conP2Func = xqcon_create<XQComboBoxConnector>(m_p2Func, m_form->m_cmbP2Func, Snapshot( *m_p2Func));
 	m_conCombFunc = xqcon_create<XQComboBoxConnector>(m_combFunc, m_form->m_cmbCombFunc, Snapshot( *m_combFunc));
-	m_form->m_dblP1Level->setRange(-20.0, 3.0, 1.0, false);
-	m_conP1Level = xqcon_create<XKDoubleNumInputConnector>(m_p1Level, m_form->m_dblP1Level);
-	m_form->m_dblP2Level->setRange(-20.0, 3.0, 1.0, false);
-	m_conP2Level = xqcon_create<XKDoubleNumInputConnector>(m_p2Level, m_form->m_dblP2Level);
-	m_form->m_dblCombLevel->setRange(-20.0, 3.0, 1.0, false);
-	m_conCombLevel = xqcon_create<XKDoubleNumInputConnector>(m_combLevel, m_form->m_dblCombLevel);
-	m_form->m_dblMasterLevel->setRange(-30.0, 0.0, 1.0, true);
-	m_conMasterLevel = xqcon_create<XKDoubleNumInputConnector>(m_masterLevel, m_form->m_dblMasterLevel);
+    m_form->m_dblP1Level->setRange(-20.0, 3.0);
+    m_form->m_dblP1Level->setSingleStep(1.0);
+    m_conP1Level = xqcon_create<XQDoubleSpinBoxConnector>(m_p1Level, m_form->m_dblP1Level);
+    m_form->m_dblP2Level->setRange(-20.0, 3.0);
+    m_form->m_dblP2Level->setSingleStep(1.0);
+    m_conP2Level = xqcon_create<XQDoubleSpinBoxConnector>(m_p2Level, m_form->m_dblP2Level);
+    m_form->m_dblCombLevel->setRange(-20.0, 3.0);
+    m_form->m_dblCombLevel->setSingleStep(1.0);
+    m_conCombLevel = xqcon_create<XQDoubleSpinBoxConnector>(m_combLevel, m_form->m_dblCombLevel);
+    m_form->m_dblMasterLevel->setRange(-30.0, 0.0);
+    m_form->m_dblMasterLevel->setSingleStep(1.0);
+    m_conMasterLevel = xqcon_create<XQDoubleSpinBoxConnector>(m_masterLevel, m_form->m_dblMasterLevel, m_form->m_slMasterLevel);
 	m_conQAMOffset1 = xqcon_create<XQLineEditConnector>(m_qamOffset1, m_formMore->m_edQAMOffset1);  
 	m_conQAMOffset2 = xqcon_create<XQLineEditConnector>(m_qamOffset2, m_formMore->m_edQAMOffset2);
 	m_conQAMLevel1 = xqcon_create<XQLineEditConnector>(m_qamLevel1, m_formMore->m_edQAMLevel1);  
@@ -272,7 +273,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	m_conQAMDelay2 = xqcon_create<XQLineEditConnector>(m_qamDelay2, m_formMore->m_edQAMDelay2);
 	m_conDIFFreq = xqcon_create<XQLineEditConnector>(m_difFreq, m_formMore->m_edDIFFreq);  
 	m_conInduceEmission = xqcon_create<XQToggleButtonConnector>(m_induceEmission, m_formMore->m_ckbInduceEmission);
-	m_conInduceEmissionPhase = xqcon_create<XKDoubleNumInputConnector>(m_induceEmissionPhase, m_formMore->m_numInduceEmissionPhase);
+    m_conInduceEmissionPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_induceEmissionPhase, m_formMore->m_numInduceEmissionPhase);
 	m_conQSWDelay = xqcon_create<XQLineEditConnector>(m_qswDelay, m_formMore->m_edQSWDelay);  
 	m_conQSWWidth = xqcon_create<XQLineEditConnector>(m_qswWidth, m_formMore->m_edQSWWidth);  
 	m_conQSWSoftSWOff = xqcon_create<XQLineEditConnector>(m_qswSoftSWOff, m_formMore->m_edQSWSoftSWOff);  

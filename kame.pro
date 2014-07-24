@@ -5,11 +5,11 @@ CONFIG += ordered
 
 #
 SUBDIRS = tests\
-    kame
-#        modules\
-#modules.depends = kame
+        kame\
+        modules\
 
-    kame.depends = tests
+modules.depends = kame
+kame.depends = tests
 
 #        po\
 

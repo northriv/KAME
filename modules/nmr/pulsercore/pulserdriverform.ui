@@ -1076,28 +1076,6 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="numRows">
-           <number>0</number>
-          </property>
-          <property name="numCols">
-           <number>2</number>
-          </property>
-          <property name="readOnly">
-           <bool>true</bool>
-          </property>
-          <property name="selectionMode">
-           <enum>QTableWidget::MultiRow</enum>
-          </property>
-          <column>
-           <property name="text">
-            <string>1</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>2</string>
-           </property>
-          </column>
          </widget>
         </item>
        </layout>

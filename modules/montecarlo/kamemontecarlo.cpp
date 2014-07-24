@@ -85,7 +85,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 		dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_form(new FrmMonteCarlo(g_pFrmMain)),
     m_wave3D(create<XWaveNGraph>("Wave3D", false, 
-		m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+        m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
     m_statusPrinter(XStatusPrinter::create(m_form.get())) {
 
 	meas->scalarEntries()->insert(tr_meas, m_entryT);

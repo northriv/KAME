@@ -42,7 +42,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_calThru(create<XTouchableNode>("CalThru", true)),
 	m_form(new FrmNetworkAnalyzer(g_pFrmMain)),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
-								   m_form->m_graphwidget, m_form->m_urlDump, m_form->m_btnDump)) {
+                                   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
 	meas->scalarEntries()->insert(tr_meas, m_marker1X);
 	meas->scalarEntries()->insert(tr_meas, m_marker1Y);

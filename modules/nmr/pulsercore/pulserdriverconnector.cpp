@@ -48,7 +48,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 //	m_pTable->setSelectionModel(QItemSelectionModel::Rows);
 
 	QHeaderView *header = m_pTable->verticalHeader();
-	header->setResizeMode(QHeaderView::Fixed);
+    header->setSectionResizeMode(QHeaderView::Fixed);
       
 	connect(m_pTable, SIGNAL( selectionChanged()), this, SLOT(selectionChanged()) );
 	connect(m_pTable, SIGNAL( clicked( int, int, int, const QPoint& )), this,

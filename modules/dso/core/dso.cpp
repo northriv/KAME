@@ -11,8 +11,6 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include <kiconloader.h>
-#include <knuminput.h>
 #include "dso.h"
 #include "graph.h"
 #include "graphwidget.h"
@@ -99,9 +97,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conDRFSG(xqcon_create<XQComboBoxConnector>(m_dRFSG, m_form->m_cmbRFSG, ref(tr_meas))),
 	m_conDRFFreq(xqcon_create<XQLineEditConnector>(m_dRFFreq, m_form->m_edRFFreq)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
-	m_form->m_btnForceTrigger->setIcon(
-		KIconLoader::global()->loadIcon("quickopen",
-																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    m_form->m_btnForceTrigger->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
 	m_form->m_dblTrigPos->setRange(0.0, 100.0);
 	m_form->m_dblTrigPos->setSingleStep(1.0);
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);

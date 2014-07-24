@@ -1,8 +1,6 @@
 TARGET = kame
 TEMPLATE = app
 
-SUBDIRS =
-
 CONFIG += qt exceptions
 CONFIG += sse2 rtti
 

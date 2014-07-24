@@ -15,7 +15,7 @@
 #include "testdriver.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
-#include <qstatusbar.h>
+#include <QStatusBar>
 #include "rand.h"
 
 REGISTER_TYPE(XDriverList, TestDriver, "Test driver: random number generation");

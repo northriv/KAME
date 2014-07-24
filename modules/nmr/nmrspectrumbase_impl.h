@@ -22,8 +22,6 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
-#include <knuminput.h>
-#include <kiconloader.h>
 //---------------------------------------------------------------------------
 template <class FRM>
 XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
@@ -42,10 +40,8 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, m_solverList, m_windowFunc, m_windowWidth)),
 	m_form(new FRM(g_pFrmMain)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())),
-	m_spectrum(create<XWaveNGraph>("Spectrum", true, m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)) {
-	m_form->m_btnClear->setIcon(
-    	KIconLoader::global()->loadIcon("edit-clear",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    m_spectrum(create<XWaveNGraph>("Spectrum", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
+    m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
     
 	connect(pulse());
 
@@ -111,15 +107,17 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
   
 	m_conBandWidth = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
 	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList, Snapshot( *m_bwList));
-	m_conPhase = xqcon_create<XKDoubleNumInputConnector>(m_phase, m_form->m_numPhase);
-	m_form->m_numPhase->setRange(-360.0, 360.0, 10.0, true);
+    m_conPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_phase, m_form->m_dblPhase, m_form->m_slPhase);
+    m_form->m_dblPhase->setRange(-360.0, 360.0);
+    m_form->m_dblPhase->setSingleStep(10.0);
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
 	m_conPulse = xqcon_create<XQComboBoxConnector>(m_pulse, m_form->m_cmbPulse, ref(tr_meas));
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
 	m_conSolverList = xqcon_create<XQComboBoxConnector>(m_solverList, m_form->m_cmbSolver, Snapshot( *m_solverList));
-	m_conWindowWidth = xqcon_create<XKDoubleNumInputConnector>(m_windowWidth,
-		m_form->m_numWindowWidth);
-	m_form->m_numWindowWidth->setRange(0.1, 200.0, 1.0, true);
+    m_conWindowWidth = xqcon_create<XQDoubleSpinBoxConnector>(m_windowWidth,
+        m_form->m_dblWindowWidth, m_form->m_slWindowWidth);
+    m_form->m_dblWindowWidth->setRange(0.1, 200.0);
+    m_form->m_dblWindowWidth->setSingleStep(1.0);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc,
 		m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
 

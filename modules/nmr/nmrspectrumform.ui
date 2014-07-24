@@ -468,23 +468,17 @@ Analyzer</string>
      <layout class="QVBoxLayout" name="verticalLayout_3">
       <item>
        <layout class="QHBoxLayout">
-        <item>
-         <widget class="KUrlRequester" name="m_urlDump">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="cursor">
-           <cursorShape>ArrowCursor</cursorShape>
-          </property>
-          <property name="focusPolicy">
-           <enum>Qt::StrongFocus</enum>
-          </property>
-         </widget>
-        </item>
-        <item>
+     <item>
+      <widget class="QLineEdit" name="m_edDump"/>
+     </item>
+     <item>
+      <widget class="QToolButton" name="m_tbDump">
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+     </item>
+       <item>
          <widget class="QPushButton" name="m_btnDump">
           <property name="text">
            <string>&amp;DUMP</string>
@@ -654,7 +648,7 @@ Analyzer</string>
           </widget>
          </item>             
              <item>
-              <widget class="QDoubleSpinBox" name="m_numWindowWidth">
+              <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -739,11 +733,6 @@ Analyzer</string>
  </widget>
  <layoutdefault spacing="4" margin="2"/>
  <customwidgets>
-  <customwidget>
-   <class>KUrlRequester</class>
-   <extends>QFrame</extends>
-   <header>kurlrequester.h</header>
-  </customwidget>
   <customwidget>
    <class>XQGraph</class>
    <extends>QWidget</extends>

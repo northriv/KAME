@@ -74,14 +74,12 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(XString("Magnet Power Supply - " + getLabel() ));
 	m_formConfig->statusBar()->hide();
-	m_formConfig->setWindowTitle(XString("Magnet PS Detail Configuration - " + getLabel() ));
+    m_formConfig->setWindowTitle(XString("Magnet PS Detail Configuration - " + getLabel() ));
 
 	m_conConfigShow = xqcon_create<XQButtonConnector>(
         m_configShow, m_form->m_btnConfig);
 
-    m_form->m_btnConfig->setIcon(
-		KIconLoader::global()->loadIcon("configure",
-		KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
+    m_form->m_btnConfig->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogOpenButton));
 
 	m_conAllowPersistent = xqcon_create<XQToggleButtonConnector>(
 		allowPersistent(), m_form->m_ckbAllowPersistent);

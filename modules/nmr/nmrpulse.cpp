@@ -16,12 +16,12 @@
 #include "ui_nmrpulseform.h"
 #include "freqestleastsquare.h"
 
-#include <graph.h>
-#include <graphwidget.h>
-#include <ui_graphnurlform.h>
-#include <analyzer.h>
-#include <xnodeconnector.h>
-#include <kiconloader.h>
+#include "icon.h"
+#include "graph.h"
+#include "graphwidget.h"
+#include "ui_graphnurlform.h"
+#include "analyzer.h"
+#include "xnodeconnector.h"
 
 REGISTER_TYPE(XDriverList, NMRPulseAnalyzer, "NMR FID/echo analyzer");
 
@@ -58,12 +58,12 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form(new FrmNMRPulse(g_pFrmMain)),
 		m_statusPrinter(XStatusPrinter::create(m_form.get())),
 		m_spectrumForm(new FrmGraphNURL(g_pFrmMain)), m_waveGraph(create<XWaveNGraph>("Wave", true,
-			m_form->m_graph, m_form->m_urlDump, m_form->m_btnDump)),
+            m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
 		m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm.get())),
 		m_solver(create<SpectrumSolverWrapper>("SpectrumSolverWrapper", true, m_solverList, m_windowFunc, m_windowWidth)),
 		m_solverPNR(create<SpectrumSolverWrapper>("PNRSpectrumSolverWrapper", true, m_pnrSolverList, shared_ptr<XComboNode>(), shared_ptr<XDoubleNode>(), true)) {
-	m_form->m_btnAvgClear->setIcon(KIconLoader::global()->loadIcon("edit-clear", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
-	m_form->m_btnSpectrum->setIcon(KIconLoader::global()->loadIcon("graph", KIconLoader::Toolbar, KIconLoader::SizeSmall, true) );
+    m_form->m_btnAvgClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
+    m_form->m_btnSpectrum->setIcon( *g_pIconGraph);
 	
 	connect(dso());
 	connect(pulser());
@@ -98,9 +98,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_conFromTrig = xqcon_create<XQLineEditConnector>(fromTrig(),
 		m_form->m_edPos);
 	m_conWidth = xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth);
-	m_form->m_numPhaseAdv->setRange(-180.0, 180.0, 10.0, true);
-	m_conPhaseAdv = xqcon_create<XKDoubleNumInputConnector>(phaseAdv(),
-		m_form->m_numPhaseAdv);
+    m_form->m_dblPhaseAdv->setRange(-180.0, 180.0);
+    m_form->m_dblPhaseAdv->setSingleStep(10.0);
+    m_conPhaseAdv = xqcon_create<XQDoubleSpinBoxConnector>(phaseAdv(),
+        m_form->m_dblPhaseAdv, m_form->m_slPhaseAdv);
 	m_conUsePNR = xqcon_create<XQToggleButtonConnector>(usePNR(),
 		m_form->m_ckbPNR);
 	m_conPNRSolverList = xqcon_create<XQComboBoxConnector>(pnrSolverList(),
@@ -115,19 +116,20 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	m_conFFTLen = xqcon_create<XQLineEditConnector>(fftLen(),
 		m_form->m_edFFTLen);
 	m_form->m_numExtraAvg->setRange(0, 100000);
-	m_conExtraAv = xqcon_create<XQSpinBoxConnector>(extraAvg(),
+    m_conExtraAv = xqcon_create<XQSpinBoxUnsignedConnector>(extraAvg(),
 		m_form->m_numExtraAvg);
 	m_conExAvgIncr = xqcon_create<XQToggleButtonConnector>(exAvgIncr(),
 		m_form->m_ckbIncrAvg);
-	m_conNumEcho = xqcon_create<XQSpinBoxConnector>(numEcho(),
+    m_conNumEcho = xqcon_create<XQSpinBoxUnsignedConnector>(numEcho(),
 		m_form->m_numEcho);
 	m_conEchoPeriod = xqcon_create<XQLineEditConnector>(echoPeriod(),
 		m_form->m_edEchoPeriod);
 	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(),
 		m_form->m_cmbWindowFunc, Snapshot( *windowFunc()));
-	m_form->m_numWindowWidth->setRange(3.0, 200.0, 1.0, true);
-	m_conWindowWidth = xqcon_create<XKDoubleNumInputConnector>(windowWidth(),
-		m_form->m_numWindowWidth);
+    m_form->m_dblWindowWidth->setRange(3.0, 200.0);
+    m_form->m_dblWindowWidth->setSingleStep(1.0);
+    m_conWindowWidth = xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(),
+        m_form->m_dblWindowWidth, m_form->m_slWindowWIdth);
 	m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(),
 		m_form->m_edDIFFreq);
 

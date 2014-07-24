@@ -23,7 +23,6 @@
 #endif //HAVE_NI_DAQMX
 
 #include <qmessagebox.h>
-#include <kmessagebox.h>
 #include "xwavengraph.h"
 
 REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
