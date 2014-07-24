@@ -12,9 +12,19 @@ set(script_SRCS
 	xdotwriter.cpp
  )
 
-kde4_add_library(script STATIC ${script_SRCS})
+set(script_HEADERS
+	xdotwriter.h
+	xrubysupport.h
+	xrubythread.h
+	xrubythreadconnector.h
+	xrubywriter.h
+	)
+	
+QT4_WRAP_CPP(fscript_MOC ${script_HEADERS})
+
+add_library(script STATIC ${script_MOC} ${script_SRCS})
 add_dependencies(script forms)
 
 ########### install files ###############
 
-install(FILES  xrubysupport.rb rubylineshell.rb DESTINATION ${DATA_INSTALL_DIR}/kame)
+install(FILES  rubylineshell.rb DESTINATION ${DATA_INSTALL_DIR}/kame)

@@ -24,7 +24,9 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QFileDialog>
-#include <QStandardPaths>
+#if QT_VERSION >= 0x050000
+	#include <QStandardPaths>
+#endif
 
 #include "kame.h"
 #include "xsignal.h"
@@ -442,7 +444,12 @@ void FrmKameMain::scriptRunAction_activated() {
 }
 
 void FrmKameMain::scriptLineShellAction_activated() {
-    QString filename = QStandardPaths::locate(QStandardPaths::DataLocation, "rubylineshell.rb");
+	QString filename =
+#if QT_VERSION >= 0x050000
+		QStandardPaths::locate(QStandardPaths::DataLocation, "rubylineshell.rb");
+#else
+		DATA_INSTALL_DIR "rubylineshell.rb";
+#endif
     if(filename.isEmpty()) {
         g_statusPrinter->printError("No KAME ruby support file installed.");
     }

@@ -3,8 +3,17 @@ TEMPLATE = app
 
 SUBDIRS =
 
-CONFIG += qt
-CONFIG += rtti c++11
+CONFIG += qt exceptions
+CONFIG += sse2 rtti
+
+greaterThan(QT_MAJOR_VERSION, 4) {
+	CONFIG += c++11
+}
+else {
+# for g++ with C++0x spec.
+	QMAKE_CXXFLAGS += -std=c++0x -Wall
+#	 -stdlib=libc++
+}
 
 QT       += core gui opengl
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -12,6 +21,11 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 VERSTR = '\\"4.0\\"'
 DEFINES += VERSION=\"$${VERSTR}\"
 DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/kame/modules\"\'
+greaterThan(QT_MAJOR_VERSION, 4) {
+}
+else {
+	DEFINES += DATA_INSTALL_DIR=\'\"/usr/share/kame\"\'
+}
 
 TRANSLATIONS =
 
@@ -164,7 +178,10 @@ macx {
  LIBS += -framework Ruby
  INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/1.8/Headers
 }
-else: LIBS += -lruby
+else {
+	INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
+	LIBS += -lruby
+}
 
 macx {
     LIBS += -L/opt/local/lib/ #MacPorts

@@ -2,7 +2,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/kame/driver
     ${CMAKE_SOURCE_DIR}/kame/analyzer
     ${CMAKE_SOURCE_DIR}/kame/graph
-    ${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
+    ${QT_INCLUDES} )
 
 ########### next target ###############
 
@@ -15,7 +15,7 @@ set(forms_SRCS
 	nodebrowser.cpp
  )
 
-kde4_add_ui_files(forms_SRCS
+set(forms_FORMS
     recordreaderform.ui
 	graphtool.ui 
 	scalarentrytool.ui 
@@ -26,7 +26,19 @@ kde4_add_ui_files(forms_SRCS
     nodebrowserform.ui
     caltableform.ui)
 
-kde4_add_library(forms STATIC ${forms_SRCS})
+set(forms_HEADERS
+	driverlistconnector.h
+	entrylistconnector.h
+	graphlistconnector.h
+	interfacelistconnector.h
+	nodebrowser.h
+	recordreaderconnector.h
+	)
+	
+QT4_WRAP_UI(forms_FORMS_HEADERS ${forms_FORMS})
+QT4_WRAP_CPP(forms_MOC ${forms_HEADERS})
+
+add_library(forms STATIC ${forms_MOC} ${forms_FORMS_HEADERS} ${forms_SRCS})
 
 ########### install files ###############
 
