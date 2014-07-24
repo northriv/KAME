@@ -97,6 +97,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/kame
 %{_datadir}/applications/kde4/*.desktop
 %{_datadir}/kde4/apps/kame
+%{_datadir}/icons/*/*/apps/*.png
 %{_datadir}/locale/*/LC_MESSAGES/*.mo
 %{_datadir}/doc/HTML/*/kame
 %{_libdir}/kame/modules/libtestdriver*
