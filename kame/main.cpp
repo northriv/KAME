@@ -13,10 +13,16 @@
 ***************************************************************************/
 #include "support.h"
 
-#include <QCommandLineParser>
-#include <QCommandLineOption>
-#include <QApplication>
-#include <QMainWindow>
+#ifdef KDE_VERSION_STRING
+	#include <kcmdlineargs.h>
+	#include <kaboutdata.h>
+	#include <kapplication.h>
+#else
+	#include <QCommandLineParser>
+	#include <QCommandLineOption>
+	#include <QApplication>
+	#include <QMainWindow>
+#endif
 
 #include "kame.h"
 #include "xsignal.h"
@@ -48,7 +54,40 @@ int main(int argc, char *argv[]) {
 	// GC_find_leak = 1;
 	//GC_dont_gc
 #endif  
-    Q_INIT_RESOURCE(kame);
+
+	Q_INIT_RESOURCE(kame);
+
+#ifdef KDE_VERSION_STRING
+	const char *description =
+	I18N_NOOP("KAME");
+	// INSERT A DESCRIPTION FOR YOUR APPLICATION HERE
+
+	KAboutData aboutData( "kame", "", ki18n("KAME"),
+						  VERSION, ki18n(description), KAboutData::License_GPL,
+						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@kochi-u.ac.jp");
+	KCmdLineArgs::init( argc, argv, &aboutData );
+
+	KCmdLineOptions options;
+	options.add("logging", ki18n("log debugging info."));
+	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
+	options.add("nomlock", ki18n("never use mlock"));
+	options.add("nodr");
+	options.add("nodirectrender", ki18n("do not use direct rendering"));
+	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
+	options.add("+[File]", ki18n("measurement file to open"));
+
+	KCmdLineArgs::addCmdLineOptions( options ); // Add our own options.
+
+	KApplication app;
+
+	KGlobal::dirs()->addPrefix(".");
+
+	g_bLogDbgPrint = args->isSet("logging");
+	g_bMLockAlways = args->isSet("mlockall");
+	g_bUseMLock = args->isSet("mlock");
+	QStringList  module_dir = args->getOptionList("moduledir");
+    bool usedirectrender =args->isSet("directrender") ;
+#else
     QApplication app(argc, argv);
     QApplication::setApplicationName("kame");
     QApplication::setApplicationVersion(VERSION);
@@ -79,14 +118,16 @@ int main(int argc, char *argv[]) {
 
     QStringList args = parser.positionalArguments();
 
-	QStringList module_dir;
+    g_bLogDbgPrint = parser.isSet(logOption);
+    g_bMLockAlways = parser.isSet(mlockAllOption);
+    g_bUseMLock = !parser.isSet(noMLockOption);
+	QStringList  module_dir = parser.values(moduleDirectoryOption);
+    bool usedirectrender = !parser.isSet(noDirectRenderOption);
+#endif
+
 	{
-//		KGlobal::dirs()->addPrefix(".");
         makeIcons();
 		{
-            g_bLogDbgPrint = parser.isSet(logOption);
-            
-            g_bMLockAlways = parser.isSet(mlockAllOption);
 
 			if(g_bMLockAlways) {
 				if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
@@ -97,19 +138,16 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
-            g_bUseMLock = !parser.isSet(noMLockOption);
 			if(g_bUseMLock)
                 mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
         
 			QGLFormat f;
-            f.setDirectRendering( !parser.isSet(noDirectRenderOption) );
+            f.setDirectRendering( usedirectrender);
 			QGLFormat::setDefaultFormat( f );
             
             // Use UTF8 conversion from std::string to QString.
 //            QTextCodec::setCodecForLocale(QTextCodec::codecForName("utf8") );
             
-            module_dir = parser.values(moduleDirectoryOption);
-
 #ifdef __SSE2__
 			// Check CPU specs.
 			if(cg_cpuSpec.verSSE < 2) {

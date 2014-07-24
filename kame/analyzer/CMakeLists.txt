@@ -10,14 +10,6 @@ set(analyzer_SRCS
 	recordreader.cpp
 	analyzer.cpp)
 
-set(analyzer_HEADERS
-	analyzer.h
-	recorder.h
-	recordreader.h
-	)
-	
-QT4_WRAP_CPP(analyzer_MOC ${analyzer_HEADERS})
-
-add_library(analyzer STATIC ${analyzer_SRCS} ${analyzer_MOC})
+kde4_add_library(analyzer STATIC ${analyzer_SRCS})
 add_dependencies(analyzer graph driver)
 ########### install files ###############

@@ -8,14 +8,8 @@ set(thermometer_SRCS
 	caltable.cpp
 	thermometer.cpp
 )
-set(thermometer_HEADERS
-	caltable.h
-	thermometer.h
-	)
-	
-QT4_WRAP_CPP(thermometer_MOC ${thermometer_HEADERS})
 
-add_library(thermometer STATIC ${thermometer_SRCS} ${thermometer_MOC})
+kde4_add_library(thermometer STATIC ${thermometer_SRCS})
 add_dependencies(thermometer forms graph)
 
 ########### install files ###############

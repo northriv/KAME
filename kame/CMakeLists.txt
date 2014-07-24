@@ -41,50 +41,21 @@ set(kame_SRCS
     main.cpp
     )
 
-set(kame_HEADERS
-	allocator_prv.h
-	allocator.h
-	atomic_list.h
-	atomic_prv_x86.h
-	atomic_queue.h
-	atomic_smart_ptr.h
-	atomic.h
-	kame.h
-	measure.h
-	pthreadlock.h
-	support.h
-	threadlocal.h
-	transaction_impl.h
-	transaction_signal.h
-	transaction.h
-	xitemnode.h
-	xlistnode.h
-	xnode.h
-	xnodeconnector_prv.h
-	xnodeconnector.h
-	xscheduler.h
-	xsignal_prv.h
-	xsignal.h
-	xthread.h
-	xtime.h
-	)
-	
 set(kame_RESOURCES
 	kame.qrc
 	)
-
-QT4_WRAP_CPP(kame_MOC ${kame_HEADERS})    
-
+	
 QT4_ADD_RESOURCES(kame_RESOURCES_RCC ${kame_RESOURCES})
 
-add_executable(kame ${kame_SRCS} ${kame_RESOURCES_RCC} ${kame_MOC})
+kde4_add_executable(kame ${kame_SRCS} ${kame_RESOURCES})
 target_link_libraries(kame forms thermometer kamemath script analyzer driver icons graph 
     m
-    ${GLU_LIBRARY}
+    ${GLU_LIBRARY} ${FTGL_LIBRARY} ${FREETYPE_LIBRARIES}
     ${RUBY_LIBRARY} ${GSL_LIBRARY} ${FFTW3_LIBRARY}
     ${LAPACK_LIBRARIES}
     ${ZLIB_LIBRARIES}
-    ${LTDL_LIBRARY})
+    ${LTDL_LIBRARY}
+    ${KDE4_KDEUI_LIBS} ${KDE4_KIO_LIBS} ${QT_QT3SUPPORT_LIBRARY} ${QT_QTOPENGL_LIBRARY})
  
 set_target_properties(kame PROPERTIES ENABLE_EXPORTS ON)
 
@@ -94,5 +65,5 @@ install(TARGETS kame ${INSTALL_TARGETS_DEFAULT_ARGS})
 install(FILES  kame.desktop DESTINATION ${XDG_APPS_INSTALL_DIR})
 install(FILES  DESTINATION ${DATA_INSTALL_DIR}/kame)
 
-#kde4_install_icons(${ICON_INSTALL_DIR})
+kde4_install_icons(${ICON_INSTALL_DIR})
 

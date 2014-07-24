@@ -3,7 +3,9 @@ set(icons_SRCS
 	icon.cpp
 	kame-24x24-png.c)
 
-add_library(icons STATIC ${icons_SRCS})
+kde4_add_library(icons STATIC ${icons_SRCS})
+
+
 ########### install files ###############
 
 install(FILES  cdrom.png graph.png ruby.png DESTINATION ${DATA_INSTALL_DIR}/kame/pics)
