@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
 
 	KGlobal::dirs()->addPrefix(".");
 
+	KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
 	g_bLogDbgPrint = args->isSet("logging");
 	g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
