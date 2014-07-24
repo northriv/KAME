@@ -17,4 +17,4 @@ add_dependencies(script forms)
 
 ########### install files ###############
 
-install(FILES  xrubysupport.rb rubylineshell.rb DESTINATION ${DATA_INSTALL_DIR}/kame)
+install(FILES rubylineshell.rb DESTINATION ${DATA_INSTALL_DIR}/kame)

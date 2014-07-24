@@ -47,15 +47,15 @@ set(kame_RESOURCES
 	
 QT4_ADD_RESOURCES(kame_RESOURCES_RCC ${kame_RESOURCES})
 
-kde4_add_executable(kame ${kame_SRCS} ${kame_RESOURCES})
+kde4_add_executable(kame ${kame_SRCS} ${kame_RESOURCES_RCC})
 target_link_libraries(kame forms thermometer kamemath script analyzer driver icons graph 
     m
-    ${GLU_LIBRARY} ${FTGL_LIBRARY} ${FREETYPE_LIBRARIES}
+    ${GLU_LIBRARY} 
     ${RUBY_LIBRARY} ${GSL_LIBRARY} ${FFTW3_LIBRARY}
     ${LAPACK_LIBRARIES}
     ${ZLIB_LIBRARIES}
     ${LTDL_LIBRARY}
-    ${KDE4_KDEUI_LIBS} ${KDE4_KIO_LIBS} ${QT_QT3SUPPORT_LIBRARY} ${QT_QTOPENGL_LIBRARY})
+    ${KDE4_KDEUI_LIBS} ${KDE4_KIO_LIBS} ${QT_QTOPENGL_LIBRARY})
  
 set_target_properties(kame PROPERTIES ENABLE_EXPORTS ON)
 

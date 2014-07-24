@@ -1,5 +1,4 @@
 include_directories(
-    ${FTGL_INCLUDE_DIR}
     ${FREETYPE_INCLUDE_DIR}
     ${GLU_INCLUDE_PATH})
 

@@ -89,6 +89,9 @@ int main(int argc, char *argv[]) {
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
     bool usedirectrender =args->isSet("directrender") ;
+
+    XString mesfile = args->count() ? args->arg(0) : "";
+    args->clear();
 #else
     QApplication app(argc, argv);
     QApplication::setApplicationName("kame");
@@ -125,6 +128,9 @@ int main(int argc, char *argv[]) {
     g_bUseMLock = !parser.isSet(noMLockOption);
 	QStringList  module_dir = parser.values(moduleDirectoryOption);
     bool usedirectrender = !parser.isSet(noDirectRenderOption);
+
+    XString mesfile = args.count() ? args.at(0) : "";
+    args.clear();
 #endif
 
 	{
@@ -161,12 +167,9 @@ int main(int argc, char *argv[]) {
 			FrmKameMain *form;
 			form = new FrmKameMain();
             
-            if (args.count()) {
-                form->openMes( args.at(0) );
+            if(mesfile.length()) {
+                form->openMes(mesfile);
 			}
-			else {
-			}
-            args.clear();
 		}
 	}
 

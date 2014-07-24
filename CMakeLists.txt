@@ -80,15 +80,6 @@ else(1)
     message(FATAL_ERROR "LTDL not found: ${LTDL_INCLUDE_DIR} ${LTDL_LIBRARY}")
 endif( LTDL_INCLUDE_DIR AND LTDL_LIBRARY )
 
-find_path( FTGL_INCLUDE_DIR
-	NAMES FTGL/ftgl.h FTGL/FTGL.h PATHS /usr/include /usr/local/include /sw/include /opt/local/include)
-find_library( FTGL_LIBRARY ftgl /usr/lib /usr/local/lib /sw/lib /opt/local/lib)
-if( FTGL_INCLUDE_DIR AND FTGL_LIBRARY )
-    message(STATUS "FTGL found: ${FTGL_INCLUDE_DIR} ${FTGL_LIBRARY}")
-else(1)
-    message(FATAL_ERROR "FTGL not found: ${FTGL_INCLUDE_DIR} ${FTGL_LIBRARY}")
-endif( FTGL_INCLUDE_DIR AND FTGL_LIBRARY )
-
 find_library( GL_LIBRARY NAMES GL PATHS /usr/lib /usr/local/lib /sw/lib /opt/local/lib)
 if( GL_LIBRARY )
     message(STATUS "GL found: ${GL_LIBRARY}")
@@ -101,20 +92,6 @@ message(STATUS "GLU found: ${GLU_INCLUDE_PATH} ${GLU_LIBRARY}")
 
 #find_package( GLUT REQUIRED)
 #message(STATUS "GLUT found: ${GLUT_INCLUDE_DIR} ${GLUT_LIBRARIES}")
-
-#find_package(freetype REQUIRED)
-find_program(FREETYPE_FOUND freetype-config)
-if( FREETYPE_FOUND )
-    execute_process(COMMAND freetype-config --prefix OUTPUT_VARIABLE FREETYPE_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
-    find_path( FREETYPE_INCLUDE_DIR
-    	freetype/freetype.h "${FREETYPE_PREFIX}/include/freetype2" "${FREETYPE_PREFIX}/include")
-    execute_process(COMMAND freetype-config --libs OUTPUT_VARIABLE FREETYPE_LIBRARY OUTPUT_STRIP_TRAILING_WHITESPACE)
-    message(STATUS "FREETYPE found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARY}")
-else(1)
-    message(FATAL_ERROR "FREETYPE not found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARY}")
-endif( FREETYPE_FOUND )
-set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
-#message(STATUS "Freetype found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARIES}")
 
 find_path( NIDAQMX_INCLUDE_DIR
 	NIDAQmx.h /usr/include /usr/local/include /sw/include /opt/local/include)
@@ -162,7 +139,6 @@ include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES}
 #add more include direcories, using INCLUDE_DIRECTORIES()
 #add more link libraries, using TARGET_LINK_LIBRARIES()
 #add some compile switches, using ADD_DEFINITIONS()
-add_definitions (-DQT3_SUPPORT -DQT3_SUPPORT_WARNINGS)
 
 #add some "configure" checks, see How To Do Platform Checks and How To Find Installed Software
 #take special care of former libtool convenience libraries. 
