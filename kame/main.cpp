@@ -17,6 +17,7 @@
 	#include <kcmdlineargs.h>
 	#include <kaboutdata.h>
 	#include <kapplication.h>
+	#include <kstandarddirs.h>
 #else
 	#include <QCommandLineParser>
 	#include <QCommandLineOption>
