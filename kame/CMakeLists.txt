@@ -8,7 +8,6 @@ add_subdirectory(graph)
 add_subdirectory(thermometer)
 add_subdirectory(analyzer)
 add_subdirectory(icons)
-add_subdirectory(mikachanfont)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/kame/forms
