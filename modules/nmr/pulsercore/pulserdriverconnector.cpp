@@ -44,10 +44,10 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 	labels += "Pattern (Port 0, 1, ...)";
 	m_pTable->setHorizontalHeaderLabels(labels);
 	m_pTable->setReadOnly(true);
-	m_pTable->setSelectionMode(QTableWidget::MultiRow);
+	m_pTable->setSelectionModel(QItemSelectionModel::Rows);
 
-	Q3Header *header = m_pTable->verticalHeader();
-	header->setResizeEnabled(false);
+	QHeaderView *header = m_pTable->verticalHeader();
+	header->setResizeMode(QHeaderView::Fixed);
       
 	connect(m_pTable, SIGNAL( selectionChanged()), this, SLOT(selectionChanged()) );
 	connect(m_pTable, SIGNAL( clicked( int, int, int, const QPoint& )), this,
@@ -149,7 +149,7 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
 		for(XPulser::Payload::RelPatList::const_iterator it = relpatlist.begin();
 			it != relpatlist.end(); it++) {
 			double time = it->time * pulser->resolution();
-			if(m_pTable->isRowSelected(i)) {
+			if(m_pTable->itemAt(1, i)->isSelected(i)) {
 				if(firsttime < 0) firsttime = time;
 				lasttime = time;
 			}
@@ -186,13 +186,13 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
     shared_ptr<XPulser> pulser(m_pulser);
     if(shot[ *pulser].time()) {
         m_pTable->blockSignals(true);
-        m_pTable->setNumRows(shot[ *pulser].relPatList().size());
+        m_pTable->setRowCount(shot[ *pulser].relPatList().size());
         int i = 0;
         for(XPulser::Payload::RelPatList::const_iterator it = shot[ *pulser].relPatList().begin();
 			it != shot[ *pulser].relPatList().end(); it++) {
 			//        Form->tblPulse->insertRow(i);
-			m_pTable->setText(i, 0, formatString("%.4f", it->time * pulser->resolution()));
-			m_pTable->setText(i, 1, formatString("%.4f", it->toappear * pulser->resolution()));
+			m_pTable->setItem(i, 0, new QTableWidgetItem(formatString("%.4f", it->time * pulser->resolution())));
+			m_pTable->setItem(i, 1, new QTableWidgetItem(formatString("%.4f", it->toappear * pulser->resolution())));
 			QString s;
 			uint32_t pat = it->pattern;
 			for(int j = 0; j < XPulser::NUM_DO_PORTS; j++) {
@@ -200,7 +200,7 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
 				s += (pat % 2) ? "1" : "0";
 				pat /= 2;
 			}
-			m_pTable->setText(i, 2, s);
+			m_pTable->setItem(i, 2, new QTableWidgetItem(s));
 			i++;
 		}
         m_pTable->blockSignals(false);
@@ -208,7 +208,7 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
         updateGraph(shot, false);
     }
     else {
-        m_pTable->setNumRows(0);
+        m_pTable->clear();
     	for(Transaction tr( *m_graph);; ++tr) {
 			for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
 				it != m_plots.end(); it++) {
