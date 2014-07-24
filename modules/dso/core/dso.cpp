@@ -102,8 +102,8 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->m_btnForceTrigger->setIcon(
 		KIconLoader::global()->loadIcon("quickopen",
 																KIconLoader::Toolbar, KIconLoader::SizeSmall, true ) );
-	m_form->m_numTrigPos->setRange(0.0, 100.0);
-	m_form->m_numTrigPos->setSingleStep(1.0);
+	m_form->m_dblTrigPos->setRange(0.0, 100.0);
+	m_form->m_dblTrigPos->setSingleStep(1.0);
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
