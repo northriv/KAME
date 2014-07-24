@@ -88,6 +88,8 @@ int main(int argc, char *argv[]) {
 	g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
+	if(module_dir.isEmpty())
+		module_dir = KGlobal::dirs()->resourceDirs("lib");
     bool usedirectrender =args->isSet("directrender") ;
 
     XString mesfile = args->count() ? args->arg(0) : "";
