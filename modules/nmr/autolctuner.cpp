@@ -58,8 +58,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	m_conReflectionTargeted = xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted);
 	m_conReflectionRequired = xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired);
 	m_conAbortTuning = xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning);
-	m_conTuning = xqcon_create<XKLedConnector>(m_tuning, m_form->m_ledTuning);
-	m_conSucceeded = xqcon_create<XKLedConnector>(m_succeeded, m_form->m_ledSucceeded);
+	m_conTuning = xqcon_create<XQLedConnector>(m_tuning, m_form->m_ledTuning);
+	m_conSucceeded = xqcon_create<XQLedConnector>(m_succeeded, m_form->m_ledSucceeded);
 	m_conUseSTM1 = xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1);
 	m_conUseSTM2 = xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2);
 

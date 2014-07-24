@@ -301,7 +301,7 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="KLed" name="m_ledSwitchHeater" native="true"/>
+         <widget class="QPushButton" name="m_ledSwitchHeater" native="true"/>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15">
@@ -324,7 +324,7 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="KLed" name="m_ledPersistent" native="true"/>
+         <widget class="QPushButton" name="m_ledPersistent" native="true"/>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15_2">
@@ -347,7 +347,7 @@
       <item>
        <layout class="QHBoxLayout" name="_2">
         <item>
-         <widget class="KLed" name="m_ledAborting" native="true"/>
+         <widget class="QPushButton" name="m_ledAborting" native="true"/>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15_3">
@@ -553,11 +553,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
-  <customwidget>
-   <class>KLed</class>
-   <extends>QWidget</extends>
-   <header>kled.h</header>
-  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>m_edTargetField</tabstop>
@@ -565,8 +560,6 @@
   <tabstop>m_ckbAllowPersistent</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kled.h</include>
-  <include location="local">kled.h</include>
  </includes>
  <resources/>
  <connections/>

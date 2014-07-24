@@ -26,7 +26,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
-         <widget class="KLed" name="m_ledTuning" native="true">
+         <widget class="QPushButton" name="m_ledTuning" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -56,7 +56,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_4">
         <item>
-         <widget class="KLed" name="m_ledSucceeded" native="true">
+         <widget class="QPushButton" name="m_ledSucceeded" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
             <horstretch>0</horstretch>
@@ -354,12 +354,7 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
-  <customwidget>
-   <class>KLed</class>
-   <extends>QWidget</extends>
-   <header>kled.h</header>
-  </customwidget>
- </customwidgets>
+  </customwidgets>
  <tabstops>
   <tabstop>m_edTarget</tabstop>
   <tabstop>m_ckbUseSTM1</tabstop>
@@ -370,7 +365,6 @@
   <tabstop>m_cmbNetAna</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kled.h</include>
  </includes>
  <resources/>
  <connections/>

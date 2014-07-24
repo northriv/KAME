@@ -70,7 +70,7 @@
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_3">
             <item>
-             <widget class="KLed" name="m_ledReady" native="true"/>
+             <widget class="QPushButton" name="m_ledReady" native="true"/>
             </item>
             <item>
              <widget class="QLabel" name="textLabel2_10">
@@ -93,7 +93,7 @@
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
-             <widget class="KLed" name="m_ledSlipping" native="true"/>
+             <widget class="QPushButton" name="m_ledSlipping" native="true"/>
             </item>
             <item>
              <widget class="QLabel" name="textLabel2_11">
@@ -570,12 +570,7 @@
    <extends>QWidget</extends>
    <header>knuminput.h</header>
   </customwidget>
-  <customwidget>
-   <class>KLed</class>
-   <extends>QWidget</extends>
-   <header>kled.h</header>
-  </customwidget>
- </customwidgets>
+  </customwidgets>
  <tabstops>
   <tabstop>m_ckbActive</tabstop>
   <tabstop>m_ckbRound</tabstop>
@@ -597,7 +592,6 @@
   <tabstop>m_btnStore</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kled.h</include>
  </includes>
  <resources/>
  <connections/>

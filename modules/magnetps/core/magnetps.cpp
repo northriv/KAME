@@ -97,11 +97,11 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 		outputCurrent(), m_form->m_lcdCurrent);
 	m_conOutputVolt = xqcon_create<XQLCDNumberConnector>(
 		outputVolt(), m_form->m_lcdVoltage);
-	m_conPCSH = xqcon_create<XKLedConnector>(
+	m_conPCSH = xqcon_create<XQLedConnector>(
 		pcsHeater(), m_form->m_ledSwitchHeater);
-	m_conPersist = xqcon_create<XKLedConnector>(
+	m_conPersist = xqcon_create<XQLedConnector>(
 		persistent(), m_form->m_ledPersistent);
-	m_conAborting = xqcon_create<XKLedConnector>(
+	m_conAborting = xqcon_create<XQLedConnector>(
 		m_aborting, m_form->m_ledAborting);
 	m_conApproach = xqcon_create<XQComboBoxConnector>(
 		m_approach, m_form->m_cmbApproach, Snapshot( *m_approach));

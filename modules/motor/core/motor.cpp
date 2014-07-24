@@ -93,8 +93,8 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_conTimeDec = xqcon_create<XQLineEditConnector>(m_timeDec, m_form->m_edTimeDec);
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
 	m_conMicroStep = xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping);
-	m_conSlipping = xqcon_create<XKLedConnector>(m_slipping, m_form->m_ledSlipping);
-	m_conReady = xqcon_create<XKLedConnector>(m_ready, m_form->m_ledReady);
+	m_conSlipping = xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipping);
+	m_conReady = xqcon_create<XQLedConnector>(m_ready, m_form->m_ledReady);
 	m_conHasEncoder = xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder);
 	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
 	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
