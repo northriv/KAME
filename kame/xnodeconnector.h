@@ -268,6 +268,7 @@ protected:
 	QLCDNumber *const m_pItem;
 };
 
+class QIcon;
 class XQLedConnector : public XValueQConnector {
     Q_OBJECT
 public:
