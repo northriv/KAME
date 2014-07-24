@@ -15,6 +15,7 @@
 #include "pulserdriver.h"
 #include "analyzer.h"
 #include <QTableWidget>
+#include <QHeaderView>
 #include "graph.h"
 #include "graphwidget.h"
 
@@ -43,8 +44,8 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 	labels += "Diff [ms]";
 	labels += "Pattern (Port 0, 1, ...)";
 	m_pTable->setHorizontalHeaderLabels(labels);
-	m_pTable->setReadOnly(true);
-	m_pTable->setSelectionModel(QItemSelectionModel::Rows);
+//	m_pTable->setReadOnly(true);
+//	m_pTable->setSelectionModel(QItemSelectionModel::Rows);
 
 	QHeaderView *header = m_pTable->verticalHeader();
 	header->setResizeMode(QHeaderView::Fixed);
@@ -149,7 +150,7 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
 		for(XPulser::Payload::RelPatList::const_iterator it = relpatlist.begin();
 			it != relpatlist.end(); it++) {
 			double time = it->time * pulser->resolution();
-			if(m_pTable->itemAt(1, i)->isSelected(i)) {
+			if(m_pTable->itemAt(1, i)->isSelected()) {
 				if(firsttime < 0) firsttime = time;
 				lasttime = time;
 			}
