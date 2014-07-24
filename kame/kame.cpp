@@ -24,7 +24,7 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QFileDialog>
-#ifdef KDE_VERSION_STRING
+#ifdef WITH_KDE
 	#include <kstandarddirs.h>
 #else
 	#include <QStandardPaths>
@@ -447,7 +447,7 @@ void FrmKameMain::scriptRunAction_activated() {
 
 void FrmKameMain::scriptLineShellAction_activated() {
 	QString filename =
-#ifdef KDE_VERSION_STRING
+#ifdef WITH_KDE
 		KStandardDirs::locate("appdata", "rubylineshell.rb");
 #else
 		QStandardPaths::locate(QStandardPaths::DataLocation, "rubylineshell.rb");

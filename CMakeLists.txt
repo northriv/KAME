@@ -5,7 +5,7 @@ project( kame )
 
 find_package(KDE4 REQUIRED)
 
-add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} -DVERSION="\\"4.0\\"")
+add_definitions(${QT_DEFINITIONS} WITH_KDE ${KDE4_DEFINITIONS} -DVERSION="\\"4.0\\"")
 
 include(KDE4Defaults)
 SET(QT_USE_QTOPENGL TRUE)

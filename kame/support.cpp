@@ -49,7 +49,7 @@ static void __attribute__ ((constructor)) trapfpe (void)
 
 #include <QObject>
 
-#if !defined( KDE_VERSION_STRING)
+#if !defined(WITH_KDE)
 	QString	i18n(const char *src, const char *disambiguos, int n) {
 		return QObject::tr(src, disambiguos, n);
 	}

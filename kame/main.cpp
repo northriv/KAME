@@ -13,7 +13,7 @@
 ***************************************************************************/
 #include "support.h"
 
-#ifdef KDE_VERSION_STRING
+#ifdef WITH_KDE
 	#include <kcmdlineargs.h>
 	#include <kaboutdata.h>
 	#include <kapplication.h>
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
 	Q_INIT_RESOURCE(kame);
 
-#ifdef KDE_VERSION_STRING
+#ifdef WITH_KDE
 	const char *description =
 	I18N_NOOP("KAME");
 	// INSERT A DESCRIPTION FOR YOUR APPLICATION HERE

@@ -55,7 +55,7 @@ using std::reference_wrapper;
 #include <string>
 #include <QString>
 
-#if !defined( KDE_VERSION_STRING)
+#if !defined(WITH_KDE)
 	QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);
 	#define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
