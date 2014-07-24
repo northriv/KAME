@@ -14,7 +14,7 @@
 #include "pulserdriverconnector.h"
 #include "pulserdriver.h"
 #include "analyzer.h"
-#include <q3table.h>
+#include <QTableWidget>
 #include "graph.h"
 #include "graphwidget.h"
 
