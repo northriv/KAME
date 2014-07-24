@@ -49,9 +49,11 @@ static void __attribute__ ((constructor)) trapfpe (void)
 
 #include <QObject>
 
-QString	i18n(const char *src, const char *disambiguos, int n) {
-    return QObject::tr(src, disambiguos, n);
-}
+#if !defined( KDE_VERSION_STRING)
+	QString	i18n(const char *src, const char *disambiguos, int n) {
+		return QObject::tr(src, disambiguos, n);
+	}
+#endif
 
 XKameError::XKameError() : std::runtime_error(""), m_msg(""), m_file(0), m_line(0), m_errno(0) {
 
