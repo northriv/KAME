@@ -386,7 +386,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 				.arg(m_foundPlaneAxis2->valToString(dst2).c_str());
 		}
 		else {
-			msg = i18n("R-DBL-CLICK TO SHOW HELP").toUtf8().data();
+			msg = i18n("R-DBL-CLICK TO SHOW HELP");
 		}
 		break;
 	case SelPlane:
@@ -490,7 +490,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 	default:
 		break;
 	}
-	m_onScreenMsg = msg.toUtf8().data();
+	m_onScreenMsg = msg;
 }
 void
 XQGraphPainter::showHelp() {
@@ -584,32 +584,32 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot) {
 	setColor(shot[ *m_graph->backGround()], 1.0);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!").toUtf8().data());
+	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));
 	m_curAlign = Qt::AlignVCenter | Qt::AlignLeft;
 	y -= 0.1;
 	double x = 0.1;
 	double dy = -y/10;
-	selectFont(i18n("Single Click Right Button on Axis : Auto-scale").toUtf8().data(), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+	selectFont(i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
 	
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Left Button on Plot : Manual Scale").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Left Button on Plot : Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Right Button along Axis: Manual Scale").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Right Button along Axis: Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button on Axis : Auto-scale").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button on Axis : Auto-scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button elsewhere : Auto-scale all").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button elsewhere : Auto-scale all"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Middle Button : Tilt plots").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Middle Button : Tilt plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Middle Button : Reset tilting").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Middle Button : Reset tilting"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel around Center : (Un)Zoom all Plots").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel around Center : (Un)Zoom all Plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel at Side : Tilt by 30deg.").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel at Side : Tilt by 30deg."));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Left Button : Show Dialog").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Left Button : Show Dialog"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help").toUtf8().data());
+	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help"));
 }
 
 Snapshot
@@ -619,6 +619,7 @@ XQGraphPainter::startDrawing() {
 		if(tr.commit())
 			return tr;
 	}
+	return Snapshot();
 }
 void
 XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {

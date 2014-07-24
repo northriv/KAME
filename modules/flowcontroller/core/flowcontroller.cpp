@@ -53,12 +53,13 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 
 	m_conFlow = xqcon_create<XQLCDNumberConnector>(m_flow->value(), m_form->m_lcdFlow);
 	m_conValve = xqcon_create<XQLCDNumberConnector>(m_valve, m_form->m_lcdValve);
-	m_conTarget = xqcon_create<XKDoubleNumInputConnector>(m_target, m_form->m_dblTarget);
-	m_form->m_dblTarget->setRange(0.0, 1000.0, 1, true);
+	m_conTarget = xqcon_create<XQDoubleSpinBoxConnector>(m_target, m_form->m_dblTarget, m_form->m_slTarget);
+	m_form->m_dblTarget->setRange(0.0, 1000.0);
+	m_form->m_dblTarget->setSingleStep(0.1);
 	m_conRampTime = xqcon_create<XQLineEditConnector>(m_rampTime, m_form->m_edRampTime);
 	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
-	m_conAlarm = xqcon_create<XKLedConnector>(m_alarm, m_form->m_ledAlarm);
-	m_conWarning = xqcon_create<XKLedConnector>(m_warning, m_form->m_ledWarning);
+	m_conAlarm = xqcon_create<XQLedConnector>(m_alarm, m_form->m_ledAlarm);
+	m_conWarning = xqcon_create<XQLedConnector>(m_warning, m_form->m_ledWarning);
 	m_conOpenValve = xqcon_create<XQButtonConnector>(m_openValve, m_form->m_btnOpenValve);
 	m_conCloseValve = xqcon_create<XQButtonConnector>(m_closeValve, m_form->m_btnCloseValve);
 }

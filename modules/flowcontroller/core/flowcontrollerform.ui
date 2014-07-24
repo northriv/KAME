@@ -117,7 +117,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
-           <widget class="KLed" name="m_ledAlarm" native="true"/>
+           <widget class="QPushButton" name="m_ledAlarm" native="true"/>
           </item>
           <item>
            <widget class="QLabel" name="textLabel2_10">
@@ -140,7 +140,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_4">
           <item>
-           <widget class="KLed" name="m_ledWarning" native="true"/>
+           <widget class="QPushButton" name="m_ledWarning" native="true"/>
           </item>
           <item>
            <widget class="QLabel" name="textLabel2_11">
@@ -225,34 +225,26 @@
         </property>
        </widget>
       </item>
-      <item>
-       <widget class="KDoubleNumInput" name="m_dblTarget" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="acceptDrops">
-         <bool>false</bool>
-        </property>
-        <property name="value" stdset="0">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="suffix" stdset="0">
-         <string/>
-        </property>
-        <property name="minValue" stdset="0">
-         <number>0</number>
-        </property>
-        <property name="maxValue" stdset="0">
-         <number>0</number>
-        </property>
-        <property name="precision" stdset="0">
-         <number>2</number>
-        </property>
-       </widget>
-      </item>
+         <item>
+          <widget class="QSlider" name="m_slTarget">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="m_dblTarget">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="maxValue" stdset="0">
+            <number>2</number>
+           </property>
+           <property name="precision" stdset="0">
+            <number>2</number>
+           </property>
+          </widget>
+         </item>
      </layout>
     </item>
     <item>
@@ -300,16 +292,6 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <customwidgets>
-  <customwidget>
-   <class>KLed</class>
-   <extends>QWidget</extends>
-   <header>kled.h</header>
-  </customwidget>
-  <customwidget>
-   <class>KDoubleNumInput</class>
-   <extends>QWidget</extends>
-   <header>knuminput.h</header>
-  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>m_ckbControl</tabstop>
@@ -318,7 +300,6 @@
   <tabstop>m_edRampTime</tabstop>
  </tabstops>
  <includes>
-  <include location="local">kled.h</include>
  </includes>
  <resources/>
  <connections/>

@@ -118,7 +118,7 @@ private:
  void redrawOffScreen();
  
  //! Draws plots, axes.
- Snapshot startDrawing();
+Snapshot startDrawing();
  void drawOffScreenGrids(const Snapshot &shot);
  void drawOffScreenPlanes(const Snapshot &shot);
  void drawOffScreenPoints(const Snapshot &shot);
