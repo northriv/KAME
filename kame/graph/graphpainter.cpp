@@ -619,7 +619,7 @@ XQGraphPainter::startDrawing() {
 		if(tr.commit())
 			return tr;
 	}
-	return Snapshot( *this);
+	return Snapshot( *m_graph);
 }
 void
 XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
