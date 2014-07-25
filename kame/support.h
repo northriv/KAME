@@ -28,11 +28,15 @@
 #endif
 
 #if defined __WIN32__ || defined WINDOWS
+    #define USE_QTHREAD
+    #define USE_STD_THREAD
+    #include <QThread>
 #else
-#include <pthread.h>
+    #include <pthread.h>
+    #define USE_PTHREAD
 #endif
 
-#include<cassert>
+#include <cassert>
 #ifdef NDEBUG
 #define DEBUG_XTHREAD 0
 #else

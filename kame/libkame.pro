@@ -84,7 +84,6 @@ HEADERS += \
     xsignal.h \
     icons/icon.h \
     measure.h \
-    pthreadlock.h \
     support.h \
     thermometer/caltable.h \
     thermometer/thermometer.h \
@@ -108,7 +107,6 @@ SOURCES += \
     kame.cpp \
     main.cpp \
     support.cpp \
-    threadlocal.cpp \
     xthread.cpp \
     xtime.cpp \
     allocator.cpp \

@@ -9,6 +9,9 @@
 #include "allocator.h"
 
 #include <stdint.h>
+#include <pthread.h>
+#include <sys/time.h>
+
 
 //#define HAVE_CAS_2
 // fake cas2

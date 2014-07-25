@@ -13,6 +13,9 @@
 #include "xthread.cpp"
 #include <deque>
 
+#include <pthread.h>
+#include <sys/time.h>
+
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
 

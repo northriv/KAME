@@ -9,6 +9,9 @@
 #include "allocator.h"
 
 #include <stdint.h>
+#include <pthread.h>
+#include <sys/time.h>
+
 
 #include "atomic_smart_ptr.h"
 #include "xthread.cpp"

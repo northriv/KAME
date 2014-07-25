@@ -16,10 +16,12 @@
 
 #include "support.h"
 #include <math.h>
-#include <chrono>
-//#include <thread>
-using namespace std::chrono;
-//using namespace std::this_thread;
+#if !defined USE_QTHREAD
+    #include <chrono>
+    //#include <thread>
+    using namespace std::chrono;
+    //using namespace std::this_thread;
+#endif
 
 //! Sleeps in ms
 void msecsleep(unsigned int ms); //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}

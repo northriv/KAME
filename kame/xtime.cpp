@@ -12,13 +12,20 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xtime.h"
-#include <sys/time.h>
-#include <errno.h>
 #include <string.h>
 #include <stdint.h>
 
+#ifdef USE_QTHREAD
+    #include <QDateTime>
+#endif
+#include <sys/time.h>
+#include <errno.h>
+
 void msecsleep(unsigned int ms) {
-	XTime t0(XTime::now());
+#ifdef USE_QTHREAD
+    QThread::msleep(ms);
+#else //USE_QTHREAD
+    XTime t0(XTime::now());
 	XTime t1 =  t0;
 	t0 += ms * 1e-3;
 	while(t1 < t0) {
@@ -35,6 +42,7 @@ void msecsleep(unsigned int ms) {
 			abort();
 		}
 	}
+#endif //USE_QTHREAD
 }
 
 unsigned int timeStamp() {
@@ -64,9 +72,15 @@ unsigned int timeStamp() {
 
 XTime
 XTime::now() {
+#ifdef USE_QTHREAD
+    qint64 x = QDateTime::currentMSecsSinceEpoch();
+    usec = x % 1000000LL;
+    sec = x / 1000000LL;
+#else //USE_QTHREAD
     timeval tv;
     gettimeofday(&tv, NULL);
     return XTime(tv.tv_sec, tv.tv_usec);
+#endif //USE_QTHREAD
 };
 
 XString

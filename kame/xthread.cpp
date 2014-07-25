@@ -14,14 +14,46 @@
 //---------------------------------------------------------------------------
 
 #include "xthread.h"
+
+//---------------------------------------------------------------------------
+
+#ifdef USE_QTHREAD
+
+XMutex::XMutex() {}
+XMutex::~XMutex() {}
+
+void XMutex::lock() {m_mutex.lock();}
+
+void XMutex::unlock() {m_mutex.unlock();}
+
+bool XMutex::trylock() {return m_mutex.tryLock();}
+
+int XCondition::wait(int usec) {
+    if(usec)
+        m_cond.wait( &m_mutex, usec / 1000);
+    else
+        m_cond.wait( &m_mutex);
+}
+
+void XCondition::signal() {
+    m_cond.wakeOne();
+}
+
+void XCondition::broadcast() {
+    m_cond.wakeAll();
+}
+
+
+#endif // USE_QTHREAD
+
+#ifdef USE_PTHREAD
+
 #include <assert.h>
 #include <errno.h>
 #include <algorithm>
 #include <sys/time.h>
 
-//---------------------------------------------------------------------------
-
-XPthreadMutex::XPthreadMutex() {
+XMutex::XMutex() {
 	pthread_mutexattr_t attr;
 	int ret;
 	ret = pthread_mutexattr_init( &attr);
@@ -34,37 +66,37 @@ XPthreadMutex::XPthreadMutex() {
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 
-XPthreadMutex::~XPthreadMutex() {
+XMutex::~XMutex() {
 	int ret = pthread_mutex_destroy( &m_mutex);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 void
-XPthreadMutex::lock() {
+XMutex::lock() {
 	int ret = pthread_mutex_lock( &m_mutex);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 bool
-XPthreadMutex::trylock() {
+XMutex::trylock() {
 	int ret = pthread_mutex_trylock(&m_mutex);
 	if(DEBUG_XTHREAD) assert(ret != EINVAL);
 	return (ret == 0);
 }
 void
-XPthreadMutex::unlock() {
+XMutex::unlock() {
 	int ret = pthread_mutex_unlock( &m_mutex);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 
-XPthreadCondition::XPthreadCondition() : XPthreadMutex() {
+XCondition::XCondition() : XMutex() {
 	int ret = pthread_cond_init( &m_cond, NULL);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
-XPthreadCondition::~XPthreadCondition() {
+XCondition::~XCondition() {
 	int ret = pthread_cond_destroy( &m_cond);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 int
-XPthreadCondition::wait(int usec) {
+XCondition::wait(int usec) {
 	int ret;
 	if(usec > 0) {
 		struct timespec abstime;
@@ -85,12 +117,13 @@ XPthreadCondition::wait(int usec) {
 	return ret;
 }
 void 
-XPthreadCondition::signal() {
+XCondition::signal() {
 	int ret = pthread_cond_signal( &m_cond);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
 void 
-XPthreadCondition::broadcast() {
+XCondition::broadcast() {
 	int ret = pthread_cond_broadcast( &m_cond);
 	if(DEBUG_XTHREAD) assert( !ret);
 }
+#endif // USE_PTHREAD

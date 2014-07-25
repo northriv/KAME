@@ -21,7 +21,15 @@
 #include <config.h>
 #endif
 
-#include <pthread.h>
+#if defined __WIN32__ || defined WINDOWS || 1
+    #define USE_QTHREAD
+    #define USE_STD_THREAD
+    #include <QThread>
+    #include <thread>
+#else
+    #include <pthread.h>
+    #define USE_PTHREAD
+#endif
 
 #include <cassert>
 #ifdef NDEBUG

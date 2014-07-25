@@ -17,15 +17,23 @@
 #include "support.h"
 #include "atomic.h"
 
-#if defined __WIN32__ || defined WINDOWS
-#define threadID() GetCurrentThreadId()
+#ifdef USE_QTHREAD
+    #define threadID() QThread::currentThreadId()
+    #define threadid_t Qt::HANDLE
+    #define is_thread_equal(x,y) ((x) == (y))
+    #include <QMutex>
+    #include <QWaitCondition>
+    #include <QThread>
+#elif defined USE_PTHREAD
+    #define threadid_t pthread_t
+    #define threadID() pthread_self()
+    #define is_thread_equal(x,y) (pthread_equal(x,y))
+    #include <sys/mman.h>
+#else
+    #error
 #endif
 
-#define threadid_t pthread_t
-#define threadID() pthread_self()
-
 #include "threadlocal.h"
-#include <sys/mman.h>
 
 //! Lock mutex during its life time.
 template <class Mutex>
@@ -60,10 +68,51 @@ private:
     bool m_bLocking;
 };
 
-#include "pthreadlock.h"
+/*! non-recursive mutex.
+ * double lock is inhibited.
+ * \sa XRecursiveMutex.
+ */
+class XMutex {
+public:
+    XMutex();
+    ~XMutex();
 
-typedef XPthreadMutex XMutex;
-typedef XPthreadCondition XCondition;
+    void lock();
+    void unlock();
+    //! \return true if locked.
+    bool trylock();
+protected:
+#ifdef USE_QTHREAD
+    QMutex m_mutex;
+#elif defined USE_PTHREAD
+    pthread_mutex_t m_mutex;
+#endif
+};
+
+//! condition class.
+class XCondition : public XMutex
+{
+public:
+    XCondition();
+    ~XCondition();
+    //! Lock me before calling me.
+    //! go asleep until signal is emitted.
+    //! \param usec if non-zero, timeout occurs after \a usec.
+    //! \return zero if locked thread is waked up.
+    int wait(int usec = 0);
+    //! wake-up at most one thread.
+    //! \sa broadcast()
+    void signal();
+    //! wake-up all waiting threads.
+    //! \sa signal()
+    void broadcast();
+private:
+#ifdef USE_QTHREAD
+    QWaitCondition m_cond;
+#elif defined USE_PTHREAD
+    pthread_cond_t m_cond;
+#endif
+};
 
 //! recursive mutex.
 class XRecursiveMutex {
@@ -74,7 +123,7 @@ public:
 	~XRecursiveMutex() {}
 
 	void lock() {
-		if(!pthread_equal(m_lockingthread, threadID())) {
+        if(!is_thread_equal(m_lockingthread, threadID())) {
 			m_mutex.lock();
 			m_lockcount = 1;
 			m_lockingthread = threadID();
@@ -92,7 +141,7 @@ public:
 	}
 	//! \return true if locked.
 	bool trylock() {
-		if(!pthread_equal(m_lockingthread, threadID())) {
+        if(!is_thread_equal(m_lockingthread, threadID())) {
 			if(m_mutex.trylock()) {
 				m_lockcount = 1;
 				m_lockingthread = threadID();
@@ -106,13 +155,14 @@ public:
 	}
 	//! \return true if the current thread is locking mutex.
 	bool isLockedByCurrentThread() const {
-	    return pthread_equal(m_lockingthread, threadID());
+        return is_thread_equal(m_lockingthread, threadID());
 	}
 private:
 	XMutex m_mutex;
 	threadid_t m_lockingthread;
 	int m_lockcount;
 };
+
 
 //! create a new thread.
 template <class T>
@@ -136,7 +186,6 @@ public:
 	//! fetch termination flag.
 	bool isTerminated() const {return m_startarg->is_terminated;}
 private:
-	pthread_t m_threadid;
 	struct targ{
 		shared_ptr<targ> this_ptr;
 		shared_ptr<T> obj;
@@ -145,6 +194,13 @@ private:
 	};
 	shared_ptr<targ> m_startarg;
 	static void * xthread_start_routine(void *);
+#ifdef USE_PTHREAD
+    pthread_t m_threadid;
+#elif defined USE_STD_THREAD
+    std::thread m_thread;
+#else
+    #error
+#endif
 };
 
 template <class T>
@@ -161,15 +217,21 @@ template <class T>
 void
 XThread<T>::resume() {
 	m_startarg->this_ptr = m_startarg;
-	int ret =
+#ifdef USE_PTHREAD
+    int ret =
 		pthread_create((pthread_t*)&m_threadid, NULL,
 					   &XThread<T>::xthread_start_routine , m_startarg.get());
 	assert( !ret);
+#elif defined USE_STD_THREAD
+    std::thread th(&XThread<T>::xthread_start_routine , m_startarg.get());
+    m_thread.swap(th);
+#endif
 }
 template <class T>
 void *
 XThread<T>::xthread_start_routine(void *x) {
 	shared_ptr<targ> arg = ((targ *)x)->this_ptr;
+#ifdef USE_PTHREAD
 	if(g_bMLockAlways) {
 		if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
 			dbgPrint("MLOCKALL succeeded.");
@@ -180,6 +242,7 @@ XThread<T>::xthread_start_routine(void *x) {
 	}
 	if(g_bUseMLock)
 		mlock(&arg, 8192uL); //reserve stack.
+#endif
 
 	arg->this_ptr.reset();
 	void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
@@ -190,8 +253,12 @@ XThread<T>::xthread_start_routine(void *x) {
 template <class T>
 void 
 XThread<T>::waitFor(void **retval) {
+#ifdef USE_PTHREAD
 	pthread_join(m_threadid, retval);
 //  assert(!ret);
+#elif defined USE_STD_THREAD
+    m_thread.join();
+#endif
 }
 template <class T>
 void 
