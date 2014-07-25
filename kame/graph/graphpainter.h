@@ -93,7 +93,8 @@ private:
  //! \ret zero for success
  int windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr);
  int screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z);
- 
+ //for retina support.
+ double m_pixel_ratio;
  
  //! Selections  
  //! \param x,y center of clipping area

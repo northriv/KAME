@@ -65,7 +65,8 @@ XQGraphPainter::~XQGraphPainter() {
 int
 XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr) {
 	GLdouble nx, ny, nz;
- 	int ret = gluUnProject((double)x, (double)m_viewport[3] - y, z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
+    int ret = gluUnProject(x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio, z * m_pixel_ratio,
+            m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	scr->x = nx;
 	scr->y = ny;
 	scr->z = nz;
@@ -75,9 +76,9 @@ int
 XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y, double *z) {
 	GLdouble nx, ny, nz;
 	int ret = gluProject(scr.x, scr.y, scr.z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
-	*x = nx;
-	*y = m_viewport[3] - ny;
-	*z = nz;
+    *x = nx / m_pixel_ratio;
+    *y = (m_viewport[3] - ny) / m_pixel_ratio;
+    *z = nz / m_pixel_ratio;
 	return (ret != GL_TRUE);
 }
 
@@ -138,7 +139,7 @@ XQGraphPainter::selectFont(const XString &str,
 	d.normalize();
 	XGraph::ScrPoint s1 = start;
 	double x, y, z;
-	if(screenToWindow(s1, &x, &y, &z)) return -1;
+    if(screenToWindow(s1, &x, &y, &z)) return -1;
 	XGraph::ScrPoint s2 = s1;
 	d *= 0.001;
 	s2 += d;
@@ -189,7 +190,8 @@ XQGraphPainter::selectFont(const XString &str,
     QFont font(m_pItem->font());
     for(;;) {
         font.setPointSize(m_curFontSize);
-        QRect bb = m_pItem->fontMetrics().boundingRect(str);
+        QFontMetrics fm(font);
+        QRect bb = fm.boundingRect(str);
 		if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
         if((bb.width() < w ) && (bb.height() < h)) break;
 		m_curFontSize--;
@@ -204,13 +206,13 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
     screenToWindow(p, &x, &y, &z);
     QFont font(m_pItem->font());
     font.setPointSize(m_curFontSize);
-    QRect bb = m_pItem->fontMetrics().boundingRect(str);
-    int w = bb.width();
-    int h = bb.height();
-    if( (m_curAlign & Qt::AlignVCenter) ) y += h / 2;
-    if( (m_curAlign & Qt::AlignTop) ) y += h;
-	if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
-	if( (m_curAlign & Qt::AlignRight) ) x -= w;
+    QFontMetrics fm(font);
+    QRect bb = fm.boundingRect(str);
+    if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
+    if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
+    if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
+    if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
+    if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
     m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
 }
 
@@ -276,7 +278,8 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 	glPushMatrix();
 	//pick up small region
 	glLoadIdentity();
-	gluPickMatrix((double)x, (double)m_viewport[3] - y, (double)dx, (double)dy, m_viewport);
+    gluPickMatrix((double)x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio,
+            dx * m_pixel_ratio, dy * m_pixel_ratio, m_viewport);
 	glMultMatrixd(m_proj);
       
 	glEnable(GL_DEPTH_TEST);
@@ -360,7 +363,9 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
 
     // setup viewport, projection etc.:
     glMatrixMode(GL_PROJECTION);
-    glViewport( 0, 0, (GLint)width, (GLint)height ); 
+    // be aware of retina display.
+    glViewport( 0, 0, (GLint)(width * m_pixel_ratio),
+                (GLint)(height * m_pixel_ratio));
     m_bIsRedrawNeeded = true;
 //  drawLists();
 }
@@ -370,7 +375,9 @@ XQGraphPainter::paintGL () {
     glGetError(); // flush error
     
     glMatrixMode(GL_PROJECTION);
-    glViewport( 0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height() );
+    // be aware of retina display.
+    glViewport( 0, 0, (GLint)(m_pItem->width() * m_pixel_ratio),
+                (GLint)(m_pItem->height() * m_pixel_ratio));
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
 	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
     glGetIntegerv(GL_VIEWPORT, m_viewport);

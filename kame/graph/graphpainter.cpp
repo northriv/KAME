@@ -16,6 +16,7 @@
 #include "graphwidget.h"
 #include <QFont>
 #include <QFontMetrics>
+#include <QWindow>
 
 #define SELECT_WIDTH 0.08
 #define SELECT_DEPTH 0.05
@@ -44,6 +45,7 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 		if(tr.commit())
 			break;
 	}
+    m_pixel_ratio = m_pItem->windowHandle()->devicePixelRatio();
 }
 float
 XQGraphPainter::resScreen() {
