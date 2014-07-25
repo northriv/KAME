@@ -18,9 +18,7 @@ else {
 
 VERSTR = '\\"4.0\\"'
 DEFINES += VERSION=\"$${VERSTR}\"
-KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
-
+DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/kame/modules\"\'
 greaterThan(QT_MAJOR_VERSION, 4) {
 }
 else {
@@ -36,10 +34,10 @@ INCLUDEPATH += \
 #    $${_PRO_FILE_PWD_}/../../kame/graph\
 
 HEADERS += \
-    testdriver.h
+    userlevelmeter.h
 
 SOURCES += \
-    testdriver.cpp
+    userlevelmeter.cpp
 
 #FORMS +=
 
@@ -47,9 +45,16 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 
-modulefiles.files = $${TARGET}.$${QMAKE_EXTENSION_SHLIB}
-unix {
-    modulefiles.path = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
-    INSTALLS += modulefiles
-}
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/../charinterface/release/ -lcharinterface
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/../charinterface/debug/ -lcharinterface
+else:unix: LIBS += -L$$OUT_PWD/../charinterface/ -lcharinterface
 
+INCLUDEPATH += $$PWD/../charinterface
+DEPENDPATH += $$PWD/../charinterface
+
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/core/release/ -llevelmetercore
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/core/debug/ -llevelmetercore
+else:unix: LIBS += -L$$OUT_PWD/core/ -llevelmetercore
+
+INCLUDEPATH += $$PWD/core
+DEPENDPATH += $$PWD/core

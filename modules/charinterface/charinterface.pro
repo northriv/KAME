@@ -1,10 +1,10 @@
 TEMPLATE = lib
 
-CONFIG += plugin
+CONFIG += static
 CONFIG += qt exceptions
 CONFIG += sse2 rtti
 
-QT       += core gui
+QT       += core gui network
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 greaterThan(QT_MAJOR_VERSION, 4) {
@@ -18,9 +18,7 @@ else {
 
 VERSTR = '\\"4.0\\"'
 DEFINES += VERSION=\"$${VERSTR}\"
-KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
-
+DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/kame/modules\"\'
 greaterThan(QT_MAJOR_VERSION, 4) {
 }
 else {
@@ -36,20 +34,24 @@ INCLUDEPATH += \
 #    $${_PRO_FILE_PWD_}/../../kame/graph\
 
 HEADERS += \
-    testdriver.h
+    chardevicedriver.h \
+    charinterface.h \
+    dummyport.h \
+    gpib.h \
+    oxforddriver.h \
+    serial.h \
+    tcp.h
 
 SOURCES += \
-    testdriver.cpp
+    charinterface.cpp \
+    dummyport.cpp \
+    gpib.cpp \
+    oxforddriver.cpp \
+    serial.cpp \
+    tcp.cpp
 
 #FORMS +=
 
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
-
-modulefiles.files = $${TARGET}.$${QMAKE_EXTENSION_SHLIB}
-unix {
-    modulefiles.path = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
-    INSTALLS += modulefiles
-}
-

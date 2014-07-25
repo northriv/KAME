@@ -4,7 +4,7 @@ CONFIG += plugin
 CONFIG += qt exceptions
 CONFIG += sse2 rtti
 
-QT       += core gui
+QT       += core gui opengl
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 greaterThan(QT_MAJOR_VERSION, 4) {
@@ -18,9 +18,7 @@ else {
 
 VERSTR = '\\"4.0\\"'
 DEFINES += VERSION=\"$${VERSTR}\"
-KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
-
+DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/kame/modules\"\'
 greaterThan(QT_MAJOR_VERSION, 4) {
 }
 else {
@@ -33,23 +31,24 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../kame/driver\
     $${_PRO_FILE_PWD_}/../../kame/math\
 #    $${_PRO_FILE_PWD_}/../../kame/thermometer\
-#    $${_PRO_FILE_PWD_}/../../kame/graph\
+    $${_PRO_FILE_PWD_}/../../kame/graph\
 
 HEADERS += \
-    testdriver.h
+    kamemontecarlo.h \
+    montecarlo.h
 
 SOURCES += \
-    testdriver.cpp
+    interaction.cpp \
+    kamemontecarlo.cpp \
+    montecarlo.cpp
 
-#FORMS +=
+FORMS += \
+    montecarloform.ui
 
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
-
-modulefiles.files = $${TARGET}.$${QMAKE_EXTENSION_SHLIB}
-unix {
-    modulefiles.path = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
-    INSTALLS += modulefiles
+macx {
+    INCLUDEPATH += /opt/local/include
+    DEPENDPATH += /opt/local/include
 }
-

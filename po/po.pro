@@ -1,4 +1,0 @@
-TEMPLATE = subdir
-
-SUBDIRS = ja
-

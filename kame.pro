@@ -5,11 +5,12 @@ CONFIG += ordered
 
 #
 SUBDIRS = tests\
-        kame\
+        libkame\
         modules\
+        kame\
 
-modules.depends = kame
-kame.depends = tests
-
-#        po\
+libkame.file = kame/libkame.pro
+libkame.depends = tests
+modules.depends = libkame
+kame.depends = modules libkame
 

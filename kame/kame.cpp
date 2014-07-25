@@ -445,12 +445,23 @@ void FrmKameMain::scriptRunAction_activated() {
 	}
 }
 
+#define RUBYLINESHELL_FILE "rubylineshell.rb"
+
 void FrmKameMain::scriptLineShellAction_activated() {
 	QString filename =
 #ifdef WITH_KDE
-		KStandardDirs::locate("appdata", "rubylineshell.rb");
+        KStandardDirs::locate("appdata", RUBYLINESHELL_FILE);
 #else
-		QStandardPaths::locate(QStandardPaths::DataLocation, "rubylineshell.rb");
+        QStandardPaths::locate(QStandardPaths::DataLocation, RUBYLINESHELL_FILE);
+    if(filename.isEmpty()) {
+        //For macosx application bundle.
+        QDir dir(QApplication::applicationDirPath());
+        dir.cdUp();
+        QString path = "Resources/" RUBYLINESHELL_FILE;
+        dir.filePath(path);
+        if(dir.exists())
+            filename = dir.absoluteFilePath(path);
+    }
 #endif
     if(filename.isEmpty()) {
         g_statusPrinter->printError("No KAME ruby support file installed.");
