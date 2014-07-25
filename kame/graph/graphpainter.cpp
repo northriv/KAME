@@ -16,7 +16,7 @@
 #include "graphwidget.h"
 #include <QFont>
 #include <QFontMetrics>
-#ifdef QT_VERSION >= 0x50000
+#if QT_VERSION >= 0x50000
     #include <QWindow>
 #endif
 
@@ -48,7 +48,7 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 			break;
 	}
     m_pixel_ratio =
-#ifdef QT_VERSION >= 0x50000
+#if QT_VERSION >= 0x50000
         m_pItem->windowHandle()->devicePixelRatio();
 #else
         1.0;
