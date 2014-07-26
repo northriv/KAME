@@ -316,7 +316,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
 		QMessageBox::warning( this, "KAME", i18n("Stop running first.") );
 		ce->ignore();
 	}
-	else {
+    else {
 		ce->accept();
 		printf("quit\n");
 		m_conMeasRubyThread.reset();

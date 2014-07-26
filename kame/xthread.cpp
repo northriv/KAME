@@ -28,11 +28,18 @@ void XMutex::unlock() {m_mutex.unlock();}
 
 bool XMutex::trylock() {return m_mutex.tryLock();}
 
+XCondition::XCondition() : XMutex() {
+}
+XCondition::~XCondition() {
+}
+
 int XCondition::wait(int usec) {
+    bool ret;
     if(usec)
-        m_cond.wait( &m_mutex, usec / 1000);
+        ret = m_cond.wait( &m_mutex, usec / 1000);
     else
-        m_cond.wait( &m_mutex);
+        ret = m_cond.wait( &m_mutex);
+    return ret ? 0 : 1;
 }
 
 void XCondition::signal() {

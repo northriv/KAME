@@ -58,6 +58,17 @@ win32 {
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
 }
 
+
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame
+else:unix: LIBS += -L$$OUT_PWD/ -llibkame
+
+win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/liblibkame.a
+else:win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/debug/liblibkame.a
+else:win32:!win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/libkame.lib
+else:win32:!win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/debug/libkame.lib
+else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
+
 macx {
  LIBS += -framework Ruby
 }
@@ -72,7 +83,7 @@ macx {
     LIBS += -L/opt/local/lib/ #MacPorts
 }
 win32 {
-    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
+    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/" -lgsl -lgslcblas -lltdl -lz
 }
 
 macx {
@@ -85,16 +96,6 @@ unix: PKGCONFIG += gsl
 unix: PKGCONFIG += zlib
 unix: LIBS += -lltdl
 unix: LIBS += -lclapack -lcblas -latlas
-
-win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame
-else:unix: LIBS += -L$$OUT_PWD/ -llibkame
-
-win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/liblibkame.a
-else:win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/debug/liblibkame.a
-else:win32:!win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/libkame.lib
-else:win32:!win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/debug/libkame.lib
-else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 DEPENDPATH += $$PWD/../modules/testdriver
 
