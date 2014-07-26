@@ -106,7 +106,8 @@ HEADERS += \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
-    script/xrubywrapper.h
+
+#    script/xrubywrapper.h
 
 unix: SOURCES += allocator.cpp
 
@@ -160,7 +161,8 @@ SOURCES += \
     analyzer/recordreader.cpp\
     kame.cpp \
     main.cpp \
-    script/xrubywrapper.cpp
+
+#    script/xrubywrapper.cpp
 
 FORMS += \
     forms/caltableform.ui \

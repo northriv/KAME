@@ -62,11 +62,11 @@ public:
 
 typedef qshared_ptr<XQConnectorHolder_> xqcon_ptr;
 
-#include <xnodeconnector_prv.h>
+#include "xnodeconnector_prv.h"
 
-#include <xnode.h>
-#include <xlistnode.h>
-#include <xitemnode.h>
+#include "xnode.h"
+#include "xlistnode.h"
+#include "xitemnode.h"
 
 #include <fstream>
 

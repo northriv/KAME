@@ -16,7 +16,16 @@
 #ifndef xrubywrapperH
 #define xrubywrapperH
 
+class Ruby {
+public:
+	void exec();
 
+	static inline VALUE string2RSTRING(const XString &str) {
+	    if(str.empty()) return rb_str_new2("");
+	    return rb_str_new2(str.c_str());
+	}
+
+};
 
 
 struct rnode_ptr {

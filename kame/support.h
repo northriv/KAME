@@ -33,6 +33,13 @@
     #define M_PI 3.1415926535897932385
 #endif
 
+#include <cassert>
+#ifdef NDEBUG
+#define DEBUG_XTHREAD 0
+#else
+#define DEBUG_XTHREAD 1
+#endif
+
 #if defined __WIN32__ || defined WINDOWS
     #define USE_QTHREAD
     #define USE_STD_THREAD
@@ -41,13 +48,6 @@
 #else
     #include <pthread.h>
     #define USE_PTHREAD
-#endif
-
-#include <cassert>
-#ifdef NDEBUG
-#define DEBUG_XTHREAD 0
-#else
-#define DEBUG_XTHREAD 1
 #endif
 
 #include <memory>
@@ -66,10 +66,10 @@ using std::reference_wrapper;
 #include <QString>
 
 #if defined(WITH_KDE)
-	#include <klocale.h>
+    #include <klocale.h>
 #else
-	QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);
-	#define I18N_NOOP(txt) QT_TR_NOOP(txt)
+    QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);
+    #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
 
 class XString : public std::string {
@@ -77,10 +77,10 @@ typedef std::string base_type;
 public:
 	XString() : base_type() {}
 	XString(const char *str) : base_type(str) {}
-	XString(const QString &str) : base_type(str.toUtf8().data()) {}
-	XString(const base_type &str) : base_type(str) {}
-	operator QString() const {return QString::fromUtf8(c_str());}
-	XString operator+(const char *s) {return *this + base_type(s);}
+    XString(const QString &str) : base_type(str.toUtf8().data()) {}
+    XString(const base_type &str) : base_type(str) {}
+    operator QString() const {return QString::fromUtf8(c_str());}
+    XString operator+(const char *s) {return *this + base_type(s);}
 };
 
 //! Debug printing.
