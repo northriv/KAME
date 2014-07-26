@@ -16,8 +16,6 @@
 //---------------------------------------------------------------------------
 #include "xnode.h"
 
-#include <ruby.h>
-
 #define RUBY_THREAD_ACTION_KILL "kill"
 #define RUBY_THREAD_ACTION_WAKEUP "wakeup"
 #define RUBY_THREAD_ACTION_FAILURE "failure"

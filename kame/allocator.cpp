@@ -25,7 +25,6 @@
 #include <type_traits>
 
 #include <sys/types.h>
-#include <sys/mman.h>
 
 //! Bit count / population count for 32bit.
 //! Referred to H. S. Warren, Jr., "Beautiful Code", O'Reilly.

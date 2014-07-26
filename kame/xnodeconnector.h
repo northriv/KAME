@@ -16,10 +16,10 @@
 #ifndef xnodeconnectorH
 #define xnodeconnectorH
 
-#include <support.h>
+#include "support.h"
 #include <QObject>
 
-#include <xsignal.h>
+#include "xsignal.h"
 
 class QWidget;
 

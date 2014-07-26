@@ -13,47 +13,16 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 
-#ifndef xrubysupportH
-#define xrubysupportH
+#ifndef xrubywrapperH
+#define xrubywrapperH
 
-#include "xrubythread.h"
-#include "xnode.h"
-#include "xlistnode.h"
-#include <ruby.h>
 
-class XMeasure;
 
-//! Ruby scripting support, containing a thread running Ruby monitor program.
-//! The monitor program synchronize Ruby threads and XRubyThread objects.
-//! \sa XRubyThread
-class XRuby : public XAliasListNode<XRubyThread> {
-public:
-	XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
-	virtual ~XRuby();
-  
-	void resume() {m_thread.resume();}
-	void terminate() {m_thread.terminate();}
 
-	struct Payload : public XAliasListNode<XRubyThread>::Payload {
-		struct tCreateChild {
-			XString type;
-			XString name;
-			shared_ptr<XListNodeBase> lnode;
-			XCondition cond;
-			shared_ptr<XNode> child;
-		};
-		Talker<shared_ptr<tCreateChild> > &onChildCreated() {return m_tlkOnChildCreated;}
-		const Talker<shared_ptr<tCreateChild> > &onChildCreated() const {return m_tlkOnChildCreated;}
-	private:
-		Talker<shared_ptr<tCreateChild> > m_tlkOnChildCreated;
-	};
-protected:
-	virtual void *execute(const atomic<bool> &);
-private:
-	struct rnode_ptr {
-		weak_ptr<XNode> ptr;
-		XRuby *xruby;
-	};
+struct rnode_ptr {
+    weak_ptr<XNode> ptr;
+    XRuby *xruby;
+};
 	//! Ruby Objects
 	VALUE rbClassNode, rbClassValueNode, rbClassListNode;
 	//! delete Wrapper struct
@@ -80,11 +49,6 @@ private:
 	static VALUE rlistnode_create_child(VALUE, VALUE, VALUE);
 	static VALUE rlistnode_release_child(VALUE, VALUE);
 
-	shared_ptr<XListener> m_lsnChildCreated;
-	void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
-  
-	const weak_ptr<XMeasure> m_measure;
-	XThread<XRuby> m_thread;
 
 };
 

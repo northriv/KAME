@@ -74,8 +74,7 @@ XTime
 XTime::now() {
 #ifdef USE_QTHREAD
     qint64 x = QDateTime::currentMSecsSinceEpoch();
-    usec = x % 1000000LL;
-    sec = x / 1000000LL;
+    return XTime(x / 1000000LL, x % 1000000LL);
 #else //USE_QTHREAD
     timeval tv;
     gettimeofday(&tv, NULL);

@@ -18,7 +18,7 @@
 threadid_t g_main_thread_id = threadID();
 
 bool isMainThread() {
-    return pthread_equal(threadID(), g_main_thread_id);
+    return is_thread_equal(threadID(), g_main_thread_id);
 }
 
 XListener::XListener(FLAGS flags) :

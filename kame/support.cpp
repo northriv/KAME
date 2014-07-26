@@ -80,8 +80,12 @@ XKameError::print(const XString &msg, const char *file, int line, int errno_) {
 	#ifdef __linux__
 		char *s = strerror_r(errno_, buf, sizeof(buf));
 		gErrPrint_redirected(msg + " " + s, file, line);
-	#else
-		strerror_r(errno_, buf, sizeof(buf));
+    #else
+        #if defined __WIN32__ || defined WINDOWS
+            strerror_s(buf, sizeof(buf), errno_);
+        #else
+            strerror_r(errno_, buf, sizeof(buf));
+        #endif
 		if( !errno_)
 			gErrPrint_redirected(msg + " " + buf, file, line);
 		else
@@ -148,7 +152,9 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
 							 .arg(line)
 							 .arg(str)).toUtf8().data()
 			<< std::endl;
-		sync(); //ensures disk writing.
+#if !defined __WIN32__ && !defined WINDOWS
+        sync(); //ensures disk writing.
+#endif
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
 	if(statusprinter) statusprinter->printError(str);

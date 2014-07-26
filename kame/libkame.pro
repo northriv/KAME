@@ -39,6 +39,12 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/script\
     $${_PRO_FILE_PWD_}/icons
 
+unix {
+    HEADERS += \
+        allocator_prv.h \
+        allocator.h
+}
+
 HEADERS += \
     kame.h \
     threadlocal.h \
@@ -47,8 +53,6 @@ HEADERS += \
     transaction.h \
     xthread.h \
     xtime.h \
-    allocator_prv.h \
-    allocator.h \
     atomic_list.h \
     atomic_prv_x86.h \
     atomic_queue.h \
@@ -101,17 +105,17 @@ HEADERS += \
     forms/graphlistconnector.h \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
-    forms/recordreaderconnector.h
+    forms/recordreaderconnector.h \
+    script/xrubywrapper.h
+
+unix: SOURCES += allocator.cpp
 
 SOURCES += \
-    kame.cpp \
-    main.cpp \
-    support.cpp \
-    xthread.cpp \
-    xtime.cpp \
-    allocator.cpp \
     icons/icon.cpp \
     icons/kame-24x24-png.c \
+    xthread.cpp \
+    xtime.cpp \
+    support.cpp \
     graph/graphdialogconnector.cpp \
     graph/graphpainter.cpp \
     graph/graphpaintergl.cpp \
@@ -153,7 +157,10 @@ SOURCES += \
     forms/recordreaderconnector.cpp \
     analyzer/analyzer.cpp \
     analyzer/recorder.cpp \
-    analyzer/recordreader.cpp
+    analyzer/recordreader.cpp\
+    kame.cpp \
+    main.cpp \
+    script/xrubywrapper.cpp
 
 FORMS += \
     forms/caltableform.ui \
@@ -172,12 +179,23 @@ FORMS += \
 macx {
     INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/1.8/Headers
 }
-else {
+else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
 }
+win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../usr/local/include/ruby-2.1.0/
+    INCLUDEPATH += "C:/Users/northriv/Desktop/qt/usr/local/include/ruby-2.1.0/"
+    INCLUDEPATH += "C:/Users/northriv/Desktop/qt/usr/local/include/ruby-2.1.0/i386-mingw32"
+}
+
 
 macx {
     INCLUDEPATH += /opt/local/include
-    DEPENDPATH += /opt/local/include
+}
+win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../boost
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../fftw3
+    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
+#    INCLUDEPATH += "C:\cygwin\usr\include"
 }
 

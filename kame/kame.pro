@@ -58,6 +58,9 @@ else {
 macx {
     LIBS += -L/opt/local/lib/ #MacPorts
 }
+win32 {
+    LIBS += -L"C:\cygwin\lib"
+}
 
 macx {
   QMAKE_LFLAGS += -all_load -dynamic

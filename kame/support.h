@@ -27,10 +27,17 @@
 #endif
 #endif
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+#if !defined M_PI
+    #define M_PI 3.1415926535897932385
+#endif
+
 #if defined __WIN32__ || defined WINDOWS
     #define USE_QTHREAD
     #define USE_STD_THREAD
     #include <QThread>
+    #include <thread>
 #else
     #include <pthread.h>
     #define USE_PTHREAD
@@ -55,7 +62,6 @@ using std::reference_wrapper;
 
 #include <stdio.h>
 #include <algorithm>
-#include <math.h>
 #include <string>
 #include <QString>
 
