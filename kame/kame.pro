@@ -52,6 +52,13 @@ else {
 macx: ICON = kame.icns
 
 macx {
+    INCLUDEPATH += /opt/local/include
+}
+win32 {
+    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
+}
+
+macx {
  LIBS += -framework Ruby
 }
 else {
