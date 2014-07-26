@@ -27,6 +27,9 @@ else {
 	DEFINES += DATA_INSTALL_DIR=\'\"/usr/share/kame\"\'
 }
 
+SOURCES += main.cpp \
+
+
 RESOURCES += \
     kame.qrc
 
@@ -52,14 +55,17 @@ macx {
  LIBS += -framework Ruby
 }
 else {
-	LIBS += -lruby
+    win32 {
+        LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static
+    }
+    unix: LIBS += -lruby
 }
 
 macx {
     LIBS += -L/opt/local/lib/ #MacPorts
 }
 win32 {
-    LIBS += -L"C:\cygwin\lib"
+    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
 }
 
 macx {
@@ -70,8 +76,8 @@ unix: CONFIG += link_pkgconfig
 unix: PKGCONFIG += fftw3
 unix: PKGCONFIG += gsl
 unix: PKGCONFIG += zlib
-LIBS += -lltdl
-LIBS += -lclapack -lcblas -latlas
+unix: LIBS += -lltdl
+unix: LIBS += -lclapack -lcblas -latlas
 
 win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame

@@ -12,12 +12,12 @@
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 //---------------------------------------------------------------------------
-#include "xrubysupport.h"
 #include "measure.h"
 #include <QFile>
 #include <QDataStream>
 #include <math.h>
-#include <ruby.h>
+#include "xrubysupport.h"
+
 
 #define XRUBYSUPPORT_RB ":/script/xrubysupport.rb" //in the qrc.
 

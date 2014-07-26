@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
         makeIcons();
 		{
 
+#if !defined __WIN32__ && !defined WINDOWS
 			if(g_bMLockAlways) {
 				if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
 					dbgPrint("MLOCKALL succeeded.");
@@ -150,7 +151,8 @@ int main(int argc, char *argv[]) {
 
 			if(g_bUseMLock)
                 mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
-        
+#endif
+
 			QGLFormat f;
             f.setDirectRendering( usedirectrender);
 			QGLFormat::setDefaultFormat( f );

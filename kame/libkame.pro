@@ -106,7 +106,8 @@ HEADERS += \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
-    script/xrubywrapper.h
+
+#    script/xrubywrapper.h
 
 unix: SOURCES += allocator.cpp
 
@@ -159,8 +160,8 @@ SOURCES += \
     analyzer/recorder.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
-    main.cpp \
-    script/xrubywrapper.cpp
+
+#    script/xrubywrapper.cpp
 
 FORMS += \
     forms/caltableform.ui \
@@ -183,9 +184,7 @@ else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
 }
 win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../usr/local/include/ruby-2.1.0/
-    INCLUDEPATH += "C:/Users/northriv/Desktop/qt/usr/local/include/ruby-2.1.0/"
-    INCLUDEPATH += "C:/Users/northriv/Desktop/qt/usr/local/include/ruby-2.1.0/i386-mingw32"
+    INCLUDEPATH += "C:/Ruby187/lib/ruby/1.8/i386-mingw32/"
 }
 
 
@@ -196,6 +195,5 @@ win32 {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/../../boost
     INCLUDEPATH += $${_PRO_FILE_PWD_}/../../fftw3
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
-#    INCLUDEPATH += "C:\cygwin\usr\include"
 }
 

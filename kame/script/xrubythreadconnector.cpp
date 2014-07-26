@@ -12,7 +12,6 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "xrubythreadconnector.h"
-#include "xrubysupport.h"
 #include "xrubythread.h"
 #include <QPushButton>
 #include <QLabel>
@@ -20,6 +19,7 @@
 #include <QLineEdit>
 #include "ui_rubythreadtool.h"
 #include "icons/icon.h"
+#include "xrubysupport.h"
 
 XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,

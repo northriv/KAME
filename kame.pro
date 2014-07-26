@@ -7,11 +7,11 @@ unix: SUBDIRS = tests
 
 SUBDIRS += \
         libkame\
-        modules\
+#        modules\
         kame\
 
 libkame.file = kame/libkame.pro
 unix: libkame.depends = tests
 modules.depends = libkame
-kame.depends = modules libkame
+#kame.depends = modules libkame
 

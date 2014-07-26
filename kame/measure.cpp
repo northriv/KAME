@@ -14,8 +14,6 @@
 #include "measure.h"
 #include "kame.h"
 
-#include "xrubysupport.h"
-
 #include "primarydriver.h"
 #include "interface.h"
 #include "analyzer.h"
@@ -44,6 +42,9 @@
 #include "ui_scalarentrytool.h"
 
 #include <QTextBrowser>
+
+#include "xrubysupport.h"
+
 shared_ptr<XStatusPrinter> g_statusPrinter;
 
 XMeasure::XMeasure(const char *name, bool runtime) :
@@ -175,19 +176,19 @@ void XMeasure::onReleaseDriver(const Snapshot &shot, const XListNodeBase::Payloa
 		scalarEntries()->release(entry);
 	}
 	for(;;) {
-		shared_ptr<XInterface> interface;
+        shared_ptr<XInterface> intf_release;
 		Snapshot shot( *interfaces());
 		if(shot.size()) {
 			const XNode::NodeList &list( *shot.list());
 			for(auto it = list.begin(); it != list.end(); it++) {
 				auto intf = dynamic_pointer_cast<XInterface> ( *it);
 				if(intf->driver() == driver) {
-					interface = intf;
+                    intf_release = intf;
 				}
 			}
 		}
-		if( !interface)
+        if( !intf_release)
 			break;
-		interfaces()->release(interface);
+        interfaces()->release(intf_release);
 	}
 }
