@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#if defined __WIN32__ || defined WINDOWS || 1
+#if defined __WIN32__ || defined WINDOWS
     #define USE_QTHREAD
     #define USE_STD_THREAD
     #include <QThread>

@@ -23,7 +23,7 @@
 
 #include <string.h>
 #include <type_traits>
-
+#include <sys/mman.h>
 #include <sys/types.h>
 
 //! Bit count / population count for 32bit.

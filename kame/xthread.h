@@ -19,14 +19,14 @@
 
 #ifdef USE_QTHREAD
     #define threadid_t Qt::HANDLE
-    threadid_t threadID() {return QThread::currentThreadId();}
+    inline threadid_t threadID() {return QThread::currentThreadId();}
     #define is_thread_equal(x,y) ((x) == (y))
     #include <QMutex>
     #include <QWaitCondition>
     #include <QThread>
 #elif defined USE_PTHREAD
     #define threadid_t pthread_t
-    threadid_t threadID() {return pthread_self();}
+    inline threadid_t threadID() {return pthread_self();}
     #define is_thread_equal(x,y) (pthread_equal(x,y))
     #include <sys/mman.h>
 #else

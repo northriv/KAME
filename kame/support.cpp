@@ -24,7 +24,12 @@ bool g_bUseMLock;
 #include <fstream>
 
 #include "xthread.h"
-#define KAME_LOG_FILENAME "/tmp/kame.log"
+
+#if defined __WIN32__ || defined WINDOWS
+	#define KAME_LOG_FILENAME "kame.log"
+#else
+	#define KAME_LOG_FILENAME "/tmp/kame.log"
+#endif
 
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;

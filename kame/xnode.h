@@ -114,7 +114,7 @@ private:
 	XNode(); //inhibited.
 	const XString m_name;
 
-	static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
+    static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
 
 class XTouchableNode : public XNode {
