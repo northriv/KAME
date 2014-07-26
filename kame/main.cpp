@@ -22,7 +22,7 @@
 	#include <QCommandLineParser>
 	#include <QCommandLineOption>
 	#include <QApplication>
-	#include <QMainWindow>
+    #include <QMainWindow>
 #endif
 
 #include "kame.h"
