@@ -230,6 +230,8 @@ XString formatDouble(const char *fmt, double var) {
 	}
 
 	if(!strncmp(fmt, "TIME:", 5)) {
+        if(isnan(var))
+            return "nan";
 		XTime time;
 		time += var;
 		if(fmt[5])

@@ -1,7 +1,35 @@
 TEMPLATE = subdirs
 
 SUBDIRS += testdriver\
-
+    charinterface\
+    counter\
+    dcsourcecore\
+    dcsource\
+    dmmcore\
+    dmm\
+    dsocore\
+    dso\
+    flowcontrollercore\
+    flowcontroller\
+    fourres\
+    funcsynth\
+    levelmetercore\
+    levelmeter\
+    lia\
+    magnetpscore\
+    magnetps\
+    montecarlo\
+    motorcore\
+    motor\
+    networkanalyzercore\
+    networkanalyzer\
+    nidaq\
+    nmrpulsercore\
+    nmrpulser\
+    nmr\
+    sgcore\
+    sg\
+    tempcontrol
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore

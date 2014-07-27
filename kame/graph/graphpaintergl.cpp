@@ -196,7 +196,6 @@ XQGraphPainter::selectFont(const XString &str,
         if((bb.width() < w ) && (bb.height() < h)) break;
 		m_curFontSize--;
 	}
-    checkGLError();
     
 	return 0;
 }
@@ -278,8 +277,8 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 	glPushMatrix();
 	//pick up small region
 	glLoadIdentity();
-    gluPickMatrix((double)x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio,
-            dx * m_pixel_ratio, dy * m_pixel_ratio, m_viewport);
+    gluPickMatrix((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
+            2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, m_viewport);
 	glMultMatrixd(m_proj);
       
 	glEnable(GL_DEPTH_TEST);
@@ -321,8 +320,8 @@ XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
 }
 double
 XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
-						   XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-	return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
+                           XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
+    return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
@@ -427,7 +426,7 @@ XQGraphPainter::paintGL () {
         
         checkGLError(); 
 
-//      glDisable(GL_DEPTH_TEST);       
+//        glDisable(GL_DEPTH_TEST);
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
         drawOffScreenAxes(shot);
         glEndList();
@@ -445,7 +444,7 @@ XQGraphPainter::paintGL () {
         
         glCallList(m_listgrids);
         glCallList(m_listpoints);
-// //       glDisable(GL_DEPTH_TEST);
+//        glDisable(GL_DEPTH_TEST);
 #ifdef __APPLE__
         if(1) { //On mac, fonts have to be drawn every time.
 #else

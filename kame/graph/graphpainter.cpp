@@ -20,8 +20,8 @@
     #include <QWindow>
 #endif
 
-#define SELECT_WIDTH 0.08
-#define SELECT_DEPTH 0.05
+#define SELECT_WIDTH 0.05
+#define SELECT_DEPTH 0.1
 
 using std::min;
 using std::max;
@@ -174,9 +174,9 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		switch(mode) {
 		case SelPlane:
 			m_foundPlane.reset();
-			z = selectPlane(x, y, 
-							(int)(SELECT_WIDTH * m_pItem->width()), 
-							(int)(SELECT_WIDTH * m_pItem->height()),
+            z = selectPlane(x, y,
+                            (int)(SELECT_WIDTH * m_pItem->width()),
+                            (int)(SELECT_WIDTH * m_pItem->height()),
 							&m_startScrPos, &m_startScrDX, &m_startScrDY);
 			if(z < 1.0)
 				m_foundPlane = findPlane(Snapshot( *m_graph), m_startScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
@@ -184,9 +184,9 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			break;
 		case SelAxis:
 			m_foundAxis.reset();
-			z = selectAxis(x, y, 
-						   (int)(SELECT_WIDTH * m_pItem->width()),
-						   (int)(SELECT_WIDTH * m_pItem->height()),
+            z = selectAxis(x, y,
+                           (int)(SELECT_WIDTH * m_pItem->width()),
+                           (int)(SELECT_WIDTH * m_pItem->height()),
 						   &m_startScrPos, &m_startScrDX, &m_startScrDY);
 			if(z < 1.0) m_foundAxis = findAxis(Snapshot( *m_graph), m_startScrPos);
 			m_finishScrPos = m_startScrPos;
@@ -208,24 +208,24 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 	switch(mode) {
 	case SelNone:
 		m_foundPlane.reset();
-		z = selectPlane(x, y, 
-						(int)(SELECT_WIDTH * m_pItem->width()),
-						(int)(SELECT_WIDTH * m_pItem->height()),
-						&m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
+        z = selectPlane(x, y,
+                        (int)(SELECT_WIDTH * m_pItem->width()),
+                        (int)(SELECT_WIDTH * m_pItem->height()),
+                        &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		if(z < 1.0)
             m_foundPlane = findPlane(Snapshot( *m_graph), m_finishScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
 		break;
 	case SelPlane:
-		selectPlane(x, y, 
-					(int)(SELECT_WIDTH * m_pItem->width()),
-					(int)(SELECT_WIDTH * m_pItem->height()),
-					&m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
+        selectPlane(x, y,
+                    (int)(SELECT_WIDTH * m_pItem->width()),
+                    (int)(SELECT_WIDTH * m_pItem->height()),
+                    &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		break;
 	case SelAxis:
-		selectAxis(x, y, 
-				   (int)(SELECT_WIDTH * m_pItem->width()),
-				   (int)(SELECT_WIDTH * m_pItem->height()),
-				   &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
+        selectAxis(x, y,
+                   (int)(SELECT_WIDTH * m_pItem->width()),
+                   (int)(SELECT_WIDTH * m_pItem->height()),
+                   &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		break;
 	case TiltTracking:
 	{
