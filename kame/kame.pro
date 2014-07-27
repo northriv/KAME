@@ -3,6 +3,10 @@ TEMPLATE = app
 
 include(../kame.pri)
 
+macx: SCRIPT_DIR = Resources
+win32: SCRIPT_DIR = resources
+DEFINES += RUBYLINESHELL_DIR=\'\"$${SCRIPT_DIR}/\"\'
+
 QT       += opengl
 
 win32: QMAKE_CXXFLAGS += -pie
@@ -86,8 +90,6 @@ unix {
 }
 
 SOURCES += \
-    icons/icon.cpp \
-    icons/kame-24x24-png.c \
     xthread.cpp \
     xtime.cpp \
     support.cpp \
@@ -141,6 +143,17 @@ unix {
     math/matrix.cpp \
 
 }
+
+FORMS += \
+    forms/caltableform.ui \
+    forms/drivercreate.ui \
+    forms/drivertool.ui \
+    forms/graphtool.ui \
+    forms/interfacetool.ui \
+    forms/nodebrowserform.ui \
+    forms/recordreaderform.ui \
+    forms/rubythreadtool.ui \
+    forms/scalarentrytool.ui \
 
 RESOURCES += \
     kame.qrc
