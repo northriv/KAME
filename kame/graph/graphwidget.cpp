@@ -113,14 +113,14 @@ XQGraph::showEvent ( QShowEvent * ) {
 		// m_painter will be re-set in the constructor.
 		new XQGraphPainter(graph, this);
 		glInit();
-		setMouseTracking(true);
-	}
+        setMouseTracking(true);
+    }
 }
 void
 XQGraph::hideEvent ( QHideEvent * ) {
 	m_conDialog.reset();
 	m_painter.reset();
-	setMouseTracking(false);
+    setMouseTracking(false);
 }
 //! openGL stuff
 void

@@ -1,5 +1,3 @@
-TEMPLATE = lib
-
 CONFIG += qt exceptions
 CONFIG += sse2 rtti
 

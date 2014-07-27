@@ -135,6 +135,13 @@ int main(int argc, char *argv[]) {
     args.clear();
 #endif
 
+//#if defined __WIN32__ || defined WINDOWS
+//    if(AllocConsole()) {
+//        freopen("CONOUT$", "w", stdout);
+//        freopen("CONOUT$", "w", stderr);
+//    }
+//#endif
+
 	{
         makeIcons();
 		{
@@ -219,6 +226,10 @@ int main(int argc, char *argv[]) {
 	}
 
     int ret = app.exec();
+
+//#if defined __WIN32__ || defined WINDOWS
+//    FreeConsole();
+//#endif
 
 	return ret;
 }  

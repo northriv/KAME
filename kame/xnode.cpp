@@ -34,7 +34,7 @@ XNode::Payload::disable() {
 XNode::XNode(const char *name, bool runtime)
 	: Transactional::Node<XNode>(), m_name(name ? name : "") {
 	// temporaly shared_ptr to be able to use shared_from_this() in constructors
-	XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
+    XNode::stl_thisCreating->push_back(shared_ptr<XNode>(this));
 	assert(shared_from_this());
 
 	trans( *this).setRuntime(runtime);

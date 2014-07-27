@@ -79,7 +79,7 @@ XValChart::XValChart(const char *name, bool runtime,
 		tr[ *axisx->length()] = 0.95 - tr[ *axisx->x()];
 		tr[ *axisy->length()] = 0.90 - tr[ *axisy->y()];
 		tr[ *axisx->label()] = "Time";
-		tr[ *axisx->ticLabelFormat()] = "TIME:%T";
+        tr[ *axisx->ticLabelFormat()] = "TIME:%H:%M:%S";
 		tr[ *axisy->label()] = entry->getLabel();
 		tr[ *axisy->ticLabelFormat()] = entry->value()->format();
 		tr[ *axisx->minValue()].setUIEnabled(false);
