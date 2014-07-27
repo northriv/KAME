@@ -31,6 +31,9 @@
 #include <QGLFormat>
 #include <QFile>
 #include <QTextCodec>
+#include <QTranslator>
+#include <QLibraryInfo>
+#include <QStandardPaths>
 #include <errno.h>
 
 #include <ltdl.h>
@@ -133,6 +136,17 @@ int main(int argc, char *argv[]) {
 
     XString mesfile = args.count() ? args.at(0) : "";
     args.clear();
+
+
+    QTranslator qtTranslator;
+    qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
+    app.installTranslator(&qtTranslator);
+
+    QTranslator appTranslator;
+    if( !appTranslator.load("kame_" + QLocale::system().name())) {
+        appTranslator.load("kame_" + QLocale::system().name(), app.applicationDirPath());
+    }
+    app.installTranslator(&appTranslator);
 #endif
 
 //#if defined __WIN32__ || defined WINDOWS

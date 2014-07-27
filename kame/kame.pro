@@ -159,7 +159,7 @@ FORMS += \
 RESOURCES += \
     kame.qrc
 
-TRANSLATIONS = ../po/ja/kame.po.ts
+TRANSLATIONS = ../po/ja/kame_ja.ts
 
 DESTDIR=$$OUT_PWD/../
 
@@ -242,6 +242,9 @@ macx {
 
     message(Modules to be bundled: $${modulefiles.files}.)
 
+    tsfiles.files += ../po/ja/kame_ja.qm
+    tsfiles.path = Contents/MacOS/
+    QMAKE_BUNDLE_DATA += tsfiles
 }
 
 

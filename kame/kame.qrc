@@ -8,5 +8,7 @@
         <file>icons/kame.png</file>
         <file>script/xrubysupport.rb</file>
     </qresource>
-    <qresource prefix="/scripts"/>
+    <qresource prefix="/tr">
+        <file>../po/ja/kame_ja.qm</file>
+    </qresource>
 </RCC>
