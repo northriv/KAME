@@ -1,4 +1,6 @@
-include(../kame.pri)
+TEMPLATE = lib
+
+CONFIG += plugin
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/$${PRI_DIR}../kame\
@@ -12,6 +14,7 @@ macx {
 win32 {
   QMAKE_LFLAGS += -Wl,--export-all-symbols
 # -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
+
     LIBS += $${PRI_DIR}../kame/kame.a
     DESTDIR=$$OUT_PWD/$${PRI_DIR}
 }
@@ -21,3 +24,9 @@ unix {
     modulefiles.path = $$[QT_INSTALL_LIBS]/$${KAME_MODULES}
     INSTALLS += modulefiles
 }
+
+LIBS += -L$${PRI_DIR}../coremodules/
+
+PRI_DIR = $${PRI_DIR}../
+include(../kame.pri)
+

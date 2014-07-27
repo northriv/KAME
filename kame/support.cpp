@@ -230,8 +230,10 @@ XString formatDouble(const char *fmt, double var) {
 	}
 
 	if(!strncmp(fmt, "TIME:", 5)) {
+#if !defined __WIN32__ && !defined WINDOWS
         if(isnan(var))
             return "nan";
+#endif
 		XTime time;
 		time += var;
 		if(fmt[5])

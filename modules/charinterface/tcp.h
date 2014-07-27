@@ -16,6 +16,19 @@
 
 #include "charinterface.h"
 
+#if  defined __linux__ || defined __APPLE__
+#define TCP_POSIX
+#endif //__linux__ || LINUX
+
+#if defined WINDOWS || defined __WIN32__
+#define TCP_QT
+#endif // WINDOWS || __WIN32__
+
+#if defined TCP_QT || defined TCP_POSIX
+#define USE_TCP_PORT
+#endif
+
+#ifdef TCP_POSIX
 class XPosixTCPPort : public XPort {
 public:
 	XPosixTCPPort(XCharInterface *interface);
@@ -31,5 +44,7 @@ private:
 };
 
 typedef XPosixTCPPort XTCPPort;
+
+#endif // TCP_POSIX
 
 #endif /*TCP_H_*/

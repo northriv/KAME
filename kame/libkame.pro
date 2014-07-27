@@ -3,6 +3,7 @@ TEMPLATE = lib
 
 CONFIG += static
 
+PRI_DIR = ../
 include(../kame.pri)
 
 FORMS += \

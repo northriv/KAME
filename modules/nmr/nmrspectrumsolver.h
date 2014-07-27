@@ -18,6 +18,10 @@
 #include "spectrumsolver.h"
 #include "xitemnode.h"
 
+#if !defined __WIN32__ && !defined WINDOWS
+    #define USE_FREQ_ESTM
+#endif
+
 class SpectrumSolverWrapper : public XNode {
 public:
 	SpectrumSolverWrapper(const char *name, bool runtime,
@@ -56,17 +60,19 @@ public:
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT[];
-	static const char SPECTRUM_SOLVER_MEM_STRICT_EV[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT_BURG[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_AICc[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_MDL[];
 	static const char SPECTRUM_SOLVER_AR_YW_AICc[];
 	static const char SPECTRUM_SOLVER_AR_YW_MDL[];
-	static const char SPECTRUM_SOLVER_MUSIC_AIC[];
+#ifdef USE_FREQ_ESTM
+    static const char SPECTRUM_SOLVER_MEM_STRICT_EV[];
+    static const char SPECTRUM_SOLVER_MUSIC_AIC[];
 	static const char SPECTRUM_SOLVER_MUSIC_MDL[];
 	static const char SPECTRUM_SOLVER_EV_AIC[];
 	static const char SPECTRUM_SOLVER_EV_MDL[];
 	static const char SPECTRUM_SOLVER_MVDL[];
+#endif
 	static const char SPECTRUM_SOLVER_LS_HQ[];
 	static const char SPECTRUM_SOLVER_LS_AICc[];
 	static const char SPECTRUM_SOLVER_LS_MDL[];

@@ -12,6 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "tcp.h"
+
+#ifdef TCP_POSIX
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -133,3 +136,5 @@ XPosixTCPPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 		len += rlen;
 	}
 }    
+
+#endif //TCP_POSIX

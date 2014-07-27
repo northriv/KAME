@@ -253,7 +253,7 @@ XTDS::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 		}
 		if( !strncasecmp(cp, "CURV", 4)) {
 			for(;;) {
-				cp = index(cp, '#');
+                cp = strchr(cp, '#');
 				if( !cp) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 				int x;
 				if(sscanf(cp, "#%1d", &x) != 1) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -269,9 +269,9 @@ XTDS::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 				if( *cp != ',') break;
 			}
 		}
-		char *ncp = index(cp, ';');
+        char *ncp = strchr(cp, ';');
 		if( !ncp)
-			cp = index(cp, ':');
+            cp = strchr(cp, ':');
 		else
 			cp = ncp;
 		if( !cp) break;
@@ -287,7 +287,7 @@ XTDS::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	cp = buf;
 	for(int j = 0; j < ch_cnt; j++) {
 		double *wave = tr[ *this].waveDisp(j);
-		cp = index(cp, '#');
+        cp = strchr(cp, '#');
 		if( !cp) break;
 		int x;
 		if(sscanf(cp, "#%1d", &x) != 1) break;

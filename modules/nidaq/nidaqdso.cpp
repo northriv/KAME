@@ -54,12 +54,14 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-	if(g_bUseMLock) {
+#if !defined __WIN32__ && !defined WINDOWS
+    if(g_bUseMLock) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
 		const void *LAST_OF_MLOCK_MEMBER = &m_task;
 		//Suppress swapping.
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
 	}
+#endif
 
 	vOffset1()->disable();
 	vOffset2()->disable();
@@ -357,14 +359,18 @@ XNIDAQmxDSO::setupTiming() {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
 		rec.record.resize(len * num_ch * (rec.isComplex ? 2 : 1));
 		assert(rec.numCh == num_ch);
-		if(g_bUseMLock) {
+#if !defined __WIN32__ && !defined WINDOWS
+        if(g_bUseMLock) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
+#endif
 	}
 	m_recordBuf.resize(len * num_ch);
-	if(g_bUseMLock) {
+#if !defined __WIN32__ && !defined WINDOWS
+    if(g_bUseMLock) {
 		mlock( &m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
 	}
+#endif
 
 	uInt32 onbrd_size;
 	CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &onbrd_size));

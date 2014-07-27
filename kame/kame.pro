@@ -1,6 +1,7 @@
 TARGET = kame
 TEMPLATE = app
 
+PRI_DIR = ../
 include(../kame.pri)
 
 macx: SCRIPT_DIR = Resources
@@ -205,24 +206,6 @@ win32 {
     LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static -lWS2_32
 }
 
-
-macx {
-    INCLUDEPATH += /opt/local/include
-    LIBS += -L/opt/local/lib/ #MacPorts
-}
-win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../boost
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/../../fftw3
-    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
-    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/" -lgsl -lgslcblas -lltdl -lz
-    LIBS += -L$${_PRO_FILE_PWD_}/../../fftw3 -lfftw3-3
-}
-
-unix: CONFIG += link_pkgconfig
-unix: PKGCONFIG += fftw3
-unix: PKGCONFIG += gsl
-unix: PKGCONFIG += zlib
-unix: LIBS += -lltdl
 unix: LIBS += -lclapack -lcblas -latlas
 
 #exports symbols from the executable for plugins.

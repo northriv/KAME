@@ -15,6 +15,10 @@ else {
 
 VERSTR = '\\"4.0\\"'
 DEFINES += VERSION=\"$${VERSTR}\"
+win32 {
+    KAME_COREMODULES = coremodules
+    DEFINES += KAME_COREMODULE_DIR_SURFIX=\'\"/$${KAME_COREMODULES}/\"\'
+}
 KAME_MODULES = modules
 DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
 
@@ -23,3 +27,22 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 else {
     DEFINES += DATA_INSTALL_DIR=\'\"/usr/share/kame\"\'
 }
+
+macx {
+    INCLUDEPATH += /opt/local/include
+    LIBS += -L/opt/local/lib/ #MacPorts
+}
+
+win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
+    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/" -lgsl -lgslcblas -lltdl -lz
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
+}
+
+unix: CONFIG += link_pkgconfig
+unix: PKGCONFIG += fftw3
+unix: PKGCONFIG += gsl
+unix: PKGCONFIG += zlib
+unix: LIBS += -lltdl

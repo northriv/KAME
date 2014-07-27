@@ -13,9 +13,8 @@
 ***************************************************************************/
 #include "serial.h"
 
-#if defined WINDOWS || defined __WIN32__
-#include <windows.h>
-#endif // WINDOWS || __WIN32__
+#define TTY_WAIT 1 //ms
+#define MIN_BUFFER_SIZE 256
 
 #ifdef SERIAL_POSIX
 #include <termios.h>
@@ -23,9 +22,6 @@
 #include <fcntl.h>
 #include <errno.h>
  
-#define MIN_BUFFER_SIZE 256
-#define TTY_WAIT 1 //ms
-
 XPosixSerialPort::XPosixSerialPort(XCharInterface *interface)
 	: XPort(interface), m_scifd(-1) {
 
@@ -241,3 +237,164 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) 
 
 
 #endif /*SERIAL_POSIX*/
+
+
+#ifdef SERIAL_QT
+
+#include <QtSerialPort/QtSerialPort>
+
+XQtSerialPort::XQtSerialPort(XCharInterface *interface)
+    : XPort(interface), m_qport() {
+
+}
+XQtSerialPort::~XQtSerialPort() {
+    if(m_qport)
+        m_qport->close();
+    }
+void
+XQtSerialPort::open() throw (XInterface::XCommError &) {
+    Snapshot shot( *m_pInterface);
+
+    try {
+        m_qport.reset(new QSerialPort(QString(shot[ *m_pInterface->port()].to_str()).toLocal8Bit().data()));
+        if( !m_qport->open(QIODevice::ReadWrite))
+            throw m_qport->error();
+
+        if( !m_qport->setBaudRate(static_cast<int>(m_pInterface->serialBaudRate())))
+            throw m_qport->error();
+
+        QSerialPort::Parity parity;
+        switch((int)m_pInterface->serialParity()) {
+        case XCharInterface::PARITY_EVEN:
+            parity = QSerialPort::Parity::EvenParity; break;
+        case XCharInterface::PARITY_ODD:
+            parity = QSerialPort::Parity::OddParity; break;
+        case XCharInterface::PARITY_NONE:
+            parity = QSerialPort::Parity::NoParity; break;
+        }
+        if( !m_qport->setParity(parity))
+            throw m_qport->error();
+
+        if( !m_qport->setDataBits(m_pInterface->serial7Bits() ? QSerialPort::Data7 : QSerialPort::Data8))
+            throw m_qport->error();
+
+        if( !m_qport->setStopBits((m_pInterface->serialStopBits() == 2) ? QSerialPort::TwoStop : QSerialPort::OneStop))
+            throw m_qport->error();
+
+
+        if( !m_qport->setBreakEnabled(false))
+            throw m_qport->error();
+
+        if( !m_qport->flush())
+            throw m_qport->error();
+    }
+    catch (QSerialPort::SerialPortError &e) {
+        throw XInterface::XCommError(i18n("tty open failed") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+    }
+}
+void
+XQtSerialPort::send(const char *str) throw (XInterface::XCommError &) {
+    XString buf(str);
+    if(m_pInterface->eos().length())
+        buf += m_pInterface->eos();
+    else
+        buf += m_pInterface->serialEOS();
+    if(m_pInterface->serialHasEchoBack()) {
+        this->write(str, strlen(str));	//every char should wait for echo back.
+        this->write(buf.c_str() + strlen(str), buf.length() - strlen(str)); //EOS
+        this->receive(); //wait for EOS.
+    }
+    else {
+        this->write(buf.c_str(), buf.length());
+    }
+}
+void
+XQtSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+    assert(m_pInterface->isOpened());
+
+    if(m_pInterface->serialHasEchoBack() && (size >= 2) && isprint(sendbuf[0])) {
+        for(int cnt = 0; cnt < size; ++cnt) {
+        //sends 1 char.
+            write(sendbuf + cnt, 1);
+        //waits for echo back.
+            for(;;) {
+                receive(1);
+                if(buffer()[0] == sendbuf[cnt])
+                    break;
+                if(isspace(buffer()[0]))
+                    continue; //ignores spaces.
+                throw XInterface::XCommError(
+                        formatString("inconsistent echo back %c against %c", buffer()[0], sendbuf[cnt]).c_str(),
+                        __FILE__, __LINE__);
+            }
+        }
+        return;
+    }
+
+    if(m_pInterface->serialFlushBeforeWrite()) {
+        throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+    }
+
+    msecsleep(TTY_WAIT);
+
+    int wlen = 0;
+    do {
+        int ret = m_qport->write(sendbuf, size - wlen);
+        if(ret < 0)
+            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        wlen += ret;
+        sendbuf += ret;
+    } while (wlen < size);
+}
+void
+XQtSerialPort::receive() throw (XInterface::XCommError &) {
+    assert(m_pInterface->isOpened());
+
+    msecsleep(TTY_WAIT);
+
+    buffer().resize(MIN_BUFFER_SIZE);
+
+    const char *eos = m_pInterface->eos().c_str();
+    unsigned int eos_len = m_pInterface->eos().length();
+    unsigned int len = 0;
+    for(;;) {
+        if(buffer().size() <= len + 1)
+            buffer().resize(len + MIN_BUFFER_SIZE);
+        if( !m_qport->waitForReadyRead(3000)) //3sec to timeout.
+            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        int rlen = m_qport->read( &buffer().at(len), 1);
+        if(rlen < 0) {
+            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        }
+        len += rlen;
+        if(len >= eos_len) {
+            if( !strncmp(&buffer().at(len - eos_len), eos, eos_len)) {
+                break;
+            }
+        }
+    }
+
+    buffer().resize(len + 1);
+    buffer().at(len) = '\0';
+}
+void
+XQtSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+    assert(m_pInterface->isOpened());
+
+    msecsleep(TTY_WAIT);
+
+    buffer().resize(length);
+    unsigned int len = 0;
+
+    while(len < length) {
+        if( !m_qport->waitForReadyRead(3000)) //3sec to timeout.
+            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        int rlen = m_qport->read( &buffer().at(len), 1);
+        if(rlen < 0) {
+            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        }
+        len += rlen;
+    }
+}
+
+#endif /*SERIAL_QT*/

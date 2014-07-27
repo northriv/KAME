@@ -25,7 +25,7 @@
 #endif
 
 #if defined WINDOWS || defined __WIN32__
-#define GPIB_WIN32_IF_4304
+//#define GPIB_WIN32_IF_4304
 #endif // WINDOWS || __WIN32__
 
 #if defined GPIB_WIN32_IF_4304 || defined GPIB_NI

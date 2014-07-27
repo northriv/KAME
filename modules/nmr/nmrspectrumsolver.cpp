@@ -13,22 +13,26 @@
 ***************************************************************************/
 #include "nmrspectrumsolver.h"
 #include "ar.h"
-#include "freqest.h"
+#ifdef USE_FREQ_ESTM
+    #include "freqest.h"
+#endif
 #include "freqestleastsquare.h"
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_EV[] = "EV+Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_BURG[] = "Burg+Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_MDL[] = "Burg's MEM MDL";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_AICc[] = "Yule-Walker AR AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_AR_YW_MDL[] = "Yule-Walker AR MDL";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_AIC[] = "MUSIC AIC";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
-const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Capon's MVDL(MLM)";
+#ifdef USE_FREQ_ESTM
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_EV[] = "EV+Strict MEM";
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_AIC[] = "MUSIC AIC";
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MUSIC_MDL[] = "MUSIC MDL";
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_AIC[] = "Eigenvector AIC";
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_EV_MDL[] = "Eigenvector MDL";
+    const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MVDL[] = "Capon's MVDL(MLM)";
+#endif
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_HQ[] = "LeastSquare HQ";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_AICc[] = "LeastSquare AICc";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL[] = "LeastSquare MDL";
@@ -68,9 +72,11 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 				tr[ *selector].add(SPECTRUM_SOLVER_ZF_FFT);
 				tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT);
 		//		tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT_EV);
-				tr[ *selector].add(SPECTRUM_SOLVER_MVDL);
+#ifdef USE_FREQ_ESTM
+                tr[ *selector].add(SPECTRUM_SOLVER_MVDL);
 				tr[ *selector].add(SPECTRUM_SOLVER_EV_MDL);
 				tr[ *selector].add(SPECTRUM_SOLVER_MUSIC_MDL);
+#endif
 				tr[ *selector].add(SPECTRUM_SOLVER_MEM_BURG_AICc);
 				tr[ *selector].add(SPECTRUM_SOLVER_MEM_BURG_MDL);
 				tr[ *selector].add(SPECTRUM_SOLVER_AR_YW_AICc);
@@ -145,7 +151,8 @@ SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_AR_YW_MDL) {
 			wrapper.reset(new Payload::Wrapper<YuleWalkerAR>(new YuleWalkerAR( &SpectrumSolver::icMDL)));
 		}
-		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MUSIC_AIC) {
+#ifdef USE_FREQ_ESTM
+        if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MUSIC_AIC) {
 			wrapper.reset(new Payload::Wrapper<MUSIC>(new MUSIC( &SpectrumSolver::icAIC)));
 		}
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MUSIC_MDL) {
@@ -160,12 +167,13 @@ SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MVDL) {
 			wrapper.reset(new Payload::Wrapper<MVDL>(new MVDL));
 		}
+        if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
+            wrapper.reset(new Payload::Wrapper<CompositeSpectrumSolver<MEMStrict, EigenVectorMethod> >(
+                new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>()));
+        }
+#endif
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			wrapper.reset(new Payload::Wrapper<MEMStrict>(new MEMStrict));
-		}
-		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_EV) {
-			wrapper.reset(new Payload::Wrapper<CompositeSpectrumSolver<MEMStrict, EigenVectorMethod> >(
-				new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>()));
 		}
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {
 			wrapper.reset(new Payload::Wrapper<CompositeSpectrumSolver<MEMStrict, MEMBurg> >(

@@ -50,9 +50,13 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 	#ifdef USE_GPIB
 		tr[ *device()].add("GPIB");
 	#endif
-		tr[ *device()].add("SERIAL");
-		tr[ *device()].add("TCP/IP");
-		tr[ *device()].add("DUMMY");
+    #ifdef USE_SERIAL
+        tr[ *device()].add("SERIAL");
+    #endif
+    #ifdef USE_TCP
+        tr[ *device()].add("TCP/IP");
+    #endif
+        tr[ *device()].add("DUMMY");
   
 		m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onSendRequested);
@@ -78,13 +82,17 @@ XCharInterface::open() throw (XInterfaceError &) {
 			port.reset(new XGPIBPort(this));
 		}
 	#endif
-		if(shot[ *device()].to_str() == "SERIAL") {
+    #ifdef USE_SERIAL
+        if(shot[ *device()].to_str() == "SERIAL") {
 			port.reset(new XSerialPort(this));
 		}
-		if(shot[ *device()].to_str() == "TCP/IP") {
+    #endif
+    #ifdef USE_TCP
+        if(shot[ *device()].to_str() == "TCP/IP") {
 			port.reset(new XTCPPort(this));
 		}
-		if(shot[ *device()].to_str() == "DUMMY") {
+    #endif
+        if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));
 		}
           

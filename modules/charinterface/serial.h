@@ -21,10 +21,10 @@
 #endif //__linux__ || LINUX
 
 #if defined WINDOWS || defined __WIN32__
-#define SERIAL_WIN32
+#define SERIAL_QT
 #endif // WINDOWS || __WIN32__
 
-#if defined SERIAL_WIN32 || defined SERIAL_POSIX
+#if defined SERIAL_QT || defined SERIAL_POSIX
 #define USE_SERIAL
 #endif
 
@@ -48,5 +48,27 @@ private:
 typedef XPosixSerialPort XSerialPort;
 
 #endif /*SERIAL_POSIX*/
+
+#ifdef SERIAL_QT
+
+class QSerialPort;
+
+class XQtSerialPort : public XPort {
+public:
+    XQtSerialPort(XCharInterface *interface);
+    virtual ~XQtSerialPort();
+
+    virtual void open() throw (XInterface::XCommError &);
+    virtual void send(const char *str) throw (XInterface::XCommError &);
+    virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
+    virtual void receive() throw (XInterface::XCommError &);
+    virtual void receive(unsigned int length) throw (XInterface::XCommError &);
+private:
+    shared_ptr<QSerialPort> m_qport;
+};
+
+typedef XQtSerialPort XSerialPort;
+
+#endif /*SERIAL_QT*/
 
 #endif /*SERIAL_H_*/

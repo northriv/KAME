@@ -12,7 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "nidaqmxdriver.h"
-#include <sys/errno.h>
+#if !defined __WIN32__ && !defined WINDOWS
+    #include <sys/errno.h>
+#endif
 #include <boost/math/common_factor.hpp>
 using boost::math::lcm;
 using boost::math::gcd;
