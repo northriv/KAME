@@ -3,20 +3,7 @@ TEMPLATE = lib
 
 CONFIG += static
 
-CONFIG += qt exceptions
-CONFIG += sse2 rtti
-
-greaterThan(QT_MAJOR_VERSION, 4) {
-	CONFIG += c++11
-}
-else {
-# for g++ with C++0x spec.
-	QMAKE_CXXFLAGS += -std=c++0x -Wall
-#	 -stdlib=libc++
-}
-
-QT       += core gui
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+include(../kame.pri)
 
 FORMS += \
     forms/caltableform.ui \

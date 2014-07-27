@@ -1,33 +1,11 @@
 TARGET = kame
 TEMPLATE = app
 
-CONFIG += qt exceptions
-CONFIG += sse2 rtti
+include(../kame.pri)
 
-greaterThan(QT_MAJOR_VERSION, 4) {
-	CONFIG += c++11
-}
-else {
-# for g++ with C++0x spec.
-	QMAKE_CXXFLAGS += -std=c++0x -Wall
-#	 -stdlib=libc++
-}
-
-QT       += core gui opengl
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT       += opengl
 
 win32: QMAKE_CXXFLAGS += -pie
-
-VERSTR = '\\"4.0\\"'
-DEFINES += VERSION=\"$${VERSTR}\"
-KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
-
-greaterThan(QT_MAJOR_VERSION, 4) {
-}
-else {
-	DEFINES += DATA_INSTALL_DIR=\'\"/usr/share/kame\"\'
-}
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/math\
@@ -169,6 +147,8 @@ RESOURCES += \
 
 TRANSLATIONS = ../po/ja/kame.po.ts
 
+DESTDIR=$$OUT_PWD/../
+
 scriptfile.files = script/rubylineshell.rb
 macx {
     scriptfile.path = Contents/Resources
@@ -182,6 +162,8 @@ else {
         DISTFILES += script/rubylineshell.rb
     }
 }
+
+#win32: QMAKE_POST_LINK += $$quote(cmd /c copy /y $${_PRO_FILE_PWD_}$${scriptfile.files} $${DESTDIR}$${SCRIPT_DIR}$$escape_expand(\\n\\t))
 
 macx: ICON = kame.icns
 
@@ -230,38 +212,40 @@ unix: PKGCONFIG += zlib
 unix: LIBS += -lltdl
 unix: LIBS += -lclapack -lcblas -latlas
 
+#exports symbols from the executable for plugins.
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
 }
-
-DESTDIR=$$OUT_PWD/../
-modulefiles.files += ../modules/testdriver/libtestdriver.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/counter/libcounter.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/dcsource/libdcsource.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/dmm/libdmm.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/dso/libdso.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/flowcontroller/libflowcontroller.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/fourres/libfourres.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/funcsynth/libfuncsynth.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/levelmeter/liblevelmeter.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/lia/liblia.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/magnetps/libmagnetps.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/montecarlo/libmontecarlo.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/motor/libmotor.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/networkanalyzer/libnetworkanalyzer.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/nidaq/libnidaq.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/nmr/libnmr.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/nmr/libnmrpulser.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/sg/libsg.$${QMAKE_EXTENSION_SHLIB}
-modulefiles.files += ../modules/tempcontrol/libtempcontrol.$${QMAKE_EXTENSION_SHLIB}
+win32 {
+  QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
+}
 
 macx {
+    modulefiles.files += ../modules/testdriver/libtestdriver.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/counter/libcounter.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/dcsource/libdcsource.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/dmm/libdmm.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/dso/libdso.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/flowcontroller/libflowcontroller.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/fourres/libfourres.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/funcsynth/libfuncsynth.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/levelmeter/liblevelmeter.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/lia/liblia.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/magnetps/libmagnetps.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/montecarlo/libmontecarlo.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/motor/libmotor.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/networkanalyzer/libnetworkanalyzer.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/nidaq/libnidaq.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/nmr/libnmr.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/nmr/libnmrpulser.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/sg/libsg.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/tempcontrol/libtempcontrol.$${QMAKE_EXTENSION_SHLIB}
+
     modulefiles.path = Contents/MacOS/$${KAME_MODULES}
     QMAKE_BUNDLE_DATA += modulefiles
-}
-win32 {
-    DISTFILES += modulefiles.files
+
+    message(Modules to be bundled: $${modulefiles.files}.)
+
 }
 
-message(Modules to be bundled: $${modulefiles.files}.)
 

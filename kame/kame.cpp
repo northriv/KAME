@@ -457,7 +457,7 @@ void FrmKameMain::scriptLineShellAction_activated() {
         //For macosx application bundle.
         QDir dir(QApplication::applicationDirPath());
         dir.cdUp();
-        QString path = "Resources/" RUBYLINESHELL_FILE;
+        QString path = RUBYLINESHELL_DIR RUBYLINESHELL_FILE;
         dir.filePath(path);
         if(dir.exists())
             filename = dir.absoluteFilePath(path);

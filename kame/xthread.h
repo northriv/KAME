@@ -173,7 +173,7 @@ public:
 	 */
 	template <class X>
 	XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &));
-	~XThread() {terminate();}
+    ~XThread();
 	//! resume a new thread.
 	void resume();
 	/*! join a running thread.
@@ -211,6 +211,14 @@ XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> 
 	assert(m_startarg->obj);
 	m_startarg->func = func;
 	m_startarg->is_terminated = false;
+}
+
+template <class T>
+XThread<T>::~XThread() {
+    terminate();
+#if defined USE_STD_THREAD
+    m_thread.detach();
+#endif
 }
 
 template <class T>

@@ -1,17 +1,17 @@
 TEMPLATE = subdirs
 
 CONFIG += kame
-CONFIG += ordered
 
 unix: SUBDIRS = tests
 
 SUBDIRS += \
         libkame\
-#        modules\
         kame\
+        modules\
 
 libkame.file = kame/libkame.pro
 unix: libkame.depends = tests
 modules.depends = libkame
-#kame.depends = modules libkame
-
+kame.depends = libkame
+macx: kame.depends = modules
+else: modules.depends += kame
