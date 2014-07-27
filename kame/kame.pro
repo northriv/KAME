@@ -39,12 +39,6 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/script\
     $${_PRO_FILE_PWD_}/icons
 
-unix {
-    HEADERS += \
-        allocator_prv.h \
-        allocator.h
-}
-
 HEADERS += \
     kame.h \
     threadlocal.h \
@@ -95,9 +89,7 @@ HEADERS += \
     math/cspline.h \
     math/fft.h \
     math/fir.h \
-    math/freqest.h \
     math/freqestleastsquare.h \
-    math/matrix.h \
     math/rand.h \
     math/spectrumsolver.h \
     forms/driverlistconnector.h \
@@ -107,7 +99,13 @@ HEADERS += \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
 
-unix: SOURCES += allocator.cpp
+unix {
+    HEADERS += \
+        allocator_prv.h \
+        allocator.h \
+        math/matrix.h \
+        math/freqest.h \
+}
 
 SOURCES += \
     icons/icon.cpp \
@@ -131,9 +129,7 @@ SOURCES += \
     math/cspline.cpp \
     math/fft.cpp \
     math/fir.cpp \
-    math/freqest.cpp \
     math/freqestleastsquare.cpp \
-    math/matrix.cpp \
     math/rand.cpp \
     math/spectrumsolver.cpp \
     script/xdotwriter.cpp \
@@ -159,6 +155,14 @@ SOURCES += \
     analyzer/recordreader.cpp\
     kame.cpp \
     main.cpp
+
+
+unix {
+ SOURCES += allocator.cpp\
+    math/freqest.cpp \
+    math/matrix.cpp \
+
+}
 
 RESOURCES += \
     kame.qrc
@@ -203,7 +207,7 @@ else:unix {
 }
 win32 {
     INCLUDEPATH += "C:/Ruby187/lib/ruby/1.8/i386-mingw32/"
-    LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static
+    LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static -lWS2_32
 }
 
 
