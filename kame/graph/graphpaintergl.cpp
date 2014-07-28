@@ -65,7 +65,7 @@ XQGraphPainter::~XQGraphPainter() {
 int
 XQGraphPainter::windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr) {
 	GLdouble nx, ny, nz;
-    int ret = gluUnProject(x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio, z * m_pixel_ratio,
+    int ret = gluUnProject(x * m_pixel_ratio, (double)m_viewport[3] - y * m_pixel_ratio, z,
             m_model, m_proj, m_viewport, &nx, &ny, &nz);
 	scr->x = nx;
 	scr->y = ny;
@@ -78,7 +78,7 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 	int ret = gluProject(scr.x, scr.y, scr.z, m_model, m_proj, m_viewport, &nx, &ny, &nz);
     *x = nx / m_pixel_ratio;
     *y = (m_viewport[3] - ny) / m_pixel_ratio;
-    *z = nz / m_pixel_ratio;
+    *z = nz;
 	return (ret != GL_TRUE);
 }
 
@@ -305,9 +305,9 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
     	}
 	}
 	if((zmin < 1.0) && (zmax > 0.0) ) {
-        windowToScreen(x, y, zmin, scr);
-        windowToScreen(x + 1, y, zmin, dsdx);
-        windowToScreen(x, y + 1, zmin, dsdy);
+        windowToScreen(x, y, zmax, scr);
+        windowToScreen(x + 1, y, zmax, dsdx);
+        windowToScreen(x, y + 1, zmax, dsdy);
     }
     checkGLError();
     return zmin;

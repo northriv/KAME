@@ -433,9 +433,9 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			m_foundPlaneAxis2->valToScreen(shot, src2, &ss2);
 			ss1 -= ss2;
 			ss1 += m_startScrPos;
-		
+
 			beginQuad(true);
-			setColor(clBlue, 0.2);
+            setColor(clBlue, 0.2);
 			setVertex(m_startScrPos);
 			setVertex(sd1);
 			setVertex(m_finishScrPos);
