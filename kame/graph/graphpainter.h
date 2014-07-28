@@ -121,9 +121,10 @@ private:
  //! Draws plots, axes.
 Snapshot startDrawing();
  void drawOffScreenGrids(const Snapshot &shot);
- void drawOffScreenPlanes(const Snapshot &shot);
+ void drawOffScreenPlaneMarkers(const Snapshot &shot); //!< for \a selectGL()
  void drawOffScreenPoints(const Snapshot &shot);
  void drawOffScreenAxes(const Snapshot &shot);
+ void drawOffScreenAxisMarkers(const Snapshot &shot); //!< for \a selectGL()
  //! depends on viewpoint
  void drawOnScreenObj(const Snapshot &shot);
  //! independent of viewpoint. For coordinate, legend, hints. title,...
@@ -153,7 +154,8 @@ Snapshot startDrawing();
 				 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
  void setInitView();
  
- GLint m_listpoints, m_listaxes, m_listgrids, m_listplanes;
+ GLint m_listpoints, m_listaxes,
+    m_listaxismarkers, m_listgrids, m_listplanemarkers;
  
  bool m_bIsRedrawNeeded;
  bool m_bIsAxisRedrawNeeded;

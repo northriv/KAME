@@ -56,7 +56,8 @@ using std::max;
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
     
-    if(m_listplanes) glDeleteLists(m_listplanes, 1);
+    if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
+    if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
@@ -316,12 +317,12 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 double
 XQGraphPainter::selectPlane(int x, int y, int dx, int dy,
 							XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-	return selectGL(x, y, dx, dy, m_listplanes, scr, dsdx, dsdy);
+    return selectGL(x, y, dx, dy, m_listplanemarkers, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectAxis(int x, int y, int dx, int dy,
                            XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-    return selectGL(x, y, dx, dy, m_listaxes, scr, dsdx, dsdy);
+    return selectGL(x, y, dx, dy, m_listaxismarkers, scr, dsdx, dsdy);
 }
 double
 XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
@@ -343,11 +344,13 @@ XQGraphPainter::initializeGL () {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    if(m_listplanes) glDeleteLists(m_listplanes, 1);
+    if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
+    if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
-    m_listplanes = glGenLists(1);
+    m_listplanemarkers = glGenLists(1);
+    m_listaxismarkers = glGenLists(1);
     m_listgrids = glGenLists(1);
     m_listaxes = glGenLists(1);
     m_listpoints = glGenLists(1);
@@ -408,12 +411,6 @@ XQGraphPainter::paintGL () {
         
         checkGLError(); 
 
-        glNewList(m_listplanes, GL_COMPILE);
-        drawOffScreenPlanes(shot);
-        glEndList();
-        
-        checkGLError(); 
-
         glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
         drawOffScreenGrids(shot);
         glEndList();
@@ -431,7 +428,19 @@ XQGraphPainter::paintGL () {
         drawOffScreenAxes(shot);
         glEndList();
         
-        checkGLError(); 
+        checkGLError();
+
+        glNewList(m_listaxismarkers, GL_COMPILE);
+        drawOffScreenAxisMarkers(shot);
+        glEndList();
+
+        checkGLError();
+
+        glNewList(m_listplanemarkers, GL_COMPILE);
+        drawOffScreenPlaneMarkers(shot);
+        glEndList();
+
+        checkGLError();
 
         m_bIsRedrawNeeded = false;
         m_bIsAxisRedrawNeeded = false;
@@ -445,11 +454,8 @@ XQGraphPainter::paintGL () {
         glCallList(m_listgrids);
         glCallList(m_listpoints);
 //        glDisable(GL_DEPTH_TEST);
-#ifdef __APPLE__
-        if(1) { //On mac, fonts have to be drawn every time.
-#else
-        if(m_bIsAxisRedrawNeeded) {
-#endif // __APPLE__
+        if(1) { //renderText() have to be called every time.
+//        if(m_bIsAxisRedrawNeeded) {
             glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
             drawOffScreenAxes(shot);
             glEndList();

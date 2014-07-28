@@ -20,7 +20,7 @@
     #include <QWindow>
 #endif
 
-#define SELECT_WIDTH 0.05
+#define SELECT_WIDTH 0.02
 #define SELECT_DEPTH 0.1
 
 using std::min;
@@ -34,8 +34,9 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_listpoints(0),
 	m_listaxes(0),
 	m_listgrids(0),
-	m_listplanes(0),
-	m_bIsRedrawNeeded(true),
+    m_listplanemarkers(0),
+    m_listaxismarkers(0),
+    m_bIsRedrawNeeded(true),
 	m_bIsAxisRedrawNeeded(false),
 	m_bTilted(false),
 	m_bReqHelp(false) {
@@ -336,6 +337,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 void
 XQGraphPainter::wheel(int x, int y, double deg)
 {
+    if(fabs(deg) < 1.0) return;
 	double a = ((double)x / m_pItem->width() - 0.5);
 	double b = ((double)y / m_pItem->height() - 0.5);
 	if( max(fabs(a), fabs(b)) < 0.35) {
@@ -631,7 +633,7 @@ XQGraphPainter::startDrawing() {
 	return Snapshot( *m_graph);
 }
 void
-XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
+XQGraphPainter::drawOffScreenPlaneMarkers(const Snapshot &shot) {
 	setColor((QRgb)shot[ *m_graph->backGround()], 0.3);
 	if(shot.size(m_graph->plots())) {
 		const auto &plots_list( *shot.list(m_graph->plots()));
@@ -655,7 +657,6 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 			plot->graphToScreen(shot, g7, &s7);
 			plot->graphToScreen(shot, g8, &s8);
 			beginQuad(true);
-			setColor( shot[ *m_graph->backGround()], 0.2);
 			setVertex(s1);
 			setVertex(s2);
 			setVertex(s4);
@@ -674,6 +675,36 @@ XQGraphPainter::drawOffScreenPlanes(const Snapshot &shot) {
 			endQuad();
 		}
 	}
+}
+void
+XQGraphPainter::drawOffScreenAxisMarkers(const Snapshot &shot) {
+    const double axistomarker = 0.05;
+    if(shot.size(m_graph->axes())) {
+        const auto &axes_list( *shot.list(m_graph->axes()));
+        for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
+            auto axis = static_pointer_cast<XAxis>( *it);
+            setColor(shot[ *axis->ticColor()]);
+            if((axis->direction() != XAxis::DirAxisZ) || m_bTilted) {
+                XGraph::ScrPoint s10,s11,s20,s21,vdir;
+                axis->axisToScreen(shot, 0.0, &s10);
+                axis->axisToScreen(shot, 1.0, &s20);
+                s11 = s10;
+                s21 = s20;
+                vdir = s20;
+                vdir -= s10;
+                posOffAxis(vdir, &s10, axistomarker);
+                posOffAxis(vdir, &s11, -axistomarker);
+                posOffAxis(vdir, &s20, axistomarker);
+                posOffAxis(vdir, &s21, -axistomarker);
+                beginQuad(true);
+                setVertex(s10);
+                setVertex(s11);
+                setVertex(s21);
+                setVertex(s20);
+                endQuad();
+            }
+        }
+    }
 }
 void
 XQGraphPainter::drawOffScreenGrids(const Snapshot &shot) {
