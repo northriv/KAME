@@ -18,6 +18,7 @@
 #include <new>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <limits>
 
 #ifdef __linux__
