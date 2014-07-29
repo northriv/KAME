@@ -33,7 +33,9 @@
 #include <QTextCodec>
 #include <QTranslator>
 #include <QLibraryInfo>
-#include <QStandardPaths>
+#ifndef WITH_KDE
+    #include <QStandardPaths>
+#endif
 #include <errno.h>
 
 #include <ltdl.h>
