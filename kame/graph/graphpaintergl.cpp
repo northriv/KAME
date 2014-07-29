@@ -423,7 +423,7 @@ XQGraphPainter::paintGL () {
         
         checkGLError(); 
 
-//        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_DEPTH_TEST);
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
         drawOffScreenAxes(shot);
         glEndList();
@@ -453,7 +453,7 @@ XQGraphPainter::paintGL () {
         
         glCallList(m_listgrids);
         glCallList(m_listpoints);
-//        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_DEPTH_TEST);
         if(1) { //renderText() have to be called every time.
 //        if(m_bIsAxisRedrawNeeded) {
             glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
