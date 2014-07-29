@@ -11,8 +11,11 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "matrix.h"
 #include "freqest.h"
+
+#ifdef HAVE_LAPACK
+
+#include "matrix.h"
 #include <numeric>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
@@ -141,3 +144,4 @@ FreqEstimation::genSpectrum(const std::vector<std::complex<double> >& memin,
 		}
 	}
 }
+#endif// HAVE_LAPACK

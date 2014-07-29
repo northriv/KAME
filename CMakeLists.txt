@@ -67,8 +67,7 @@ else(1)
 endif(ZHEEVR_FOUND_IN_CLAPACK)
 
 if( LAPACK_LIBRARIES )
-else(1)
-    message(FATAL_ERROR "LAPACK not found: ${LAPACK_LIBRARIES}")
+    add_definitions(-DHAVE_LAPACK)
 endif( LAPACK_LIBRARIES )
 
 find_path( LTDL_INCLUDE_DIR

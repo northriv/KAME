@@ -12,6 +12,9 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "matrix.h"
+
+#ifdef HAVE_LAPACK
+
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 
@@ -110,4 +113,5 @@ void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a_org,
 	v.resize(n, ldz);
 	lpk2cmat(z, v);
 }
+#endif //HAVE_LAPACK
 

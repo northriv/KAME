@@ -18,7 +18,7 @@
 #include "spectrumsolver.h"
 #include "xitemnode.h"
 
-#if !defined __WIN32__ && !defined WINDOWS
+#ifdef HAVE_LAPACK
     #define USE_FREQ_ESTM
 #endif
 

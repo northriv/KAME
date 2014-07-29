@@ -16,6 +16,8 @@
 
 #include "spectrumsolver.h"
 
+#ifdef HAVE_LAPACK
+
 //! Frequency estimation. Base class for MUSIC and EIG.
 //! \sa MUSIC, EigenVectorMethod
 class FreqEstimation : public SpectrumSolver {
@@ -52,5 +54,7 @@ public:
 	MVDL() : FreqEstimation(&SpectrumSolver::icAIC, true, true) {}
 protected:
 };
+
+#endif// HAVE_LAPACK
 
 #endif /*FREQEST_H_*/

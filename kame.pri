@@ -47,3 +47,5 @@ unix: PKGCONFIG += fftw3
 unix: PKGCONFIG += gsl
 unix: PKGCONFIG += zlib
 unix: LIBS += -lltdl
+
+macx: DEFINES += HAVE_LAPACK

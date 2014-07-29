@@ -15,13 +15,15 @@
 #define MATRIX_H_
 //---------------------------------------------------------------------------
 
+#include "support.h"
+
+#ifdef HAVE_LAPACK
+
 #include <vector>
 #include <complex>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include <boost/numeric/ublas/symmetric.hpp>
-
-#include "support.h"
 
 using namespace boost::numeric;
 
@@ -29,5 +31,7 @@ using namespace boost::numeric;
 void eigHermiteRRR(const ublas::matrix<std::complex<double> > &a,
 	ublas::vector<double> &lambda, ublas::matrix<std::complex<double> > &v,
 	double tol);
+
+#endif// HAVE_LAPACK
 
 #endif /*MATRIX_H_*/
