@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>642</width>
+    <width>753</width>
     <height>437</height>
    </rect>
   </property>
@@ -468,17 +468,17 @@ Analyzer</string>
      <layout class="QVBoxLayout" name="verticalLayout_3">
       <item>
        <layout class="QHBoxLayout">
-     <item>
-      <widget class="QLineEdit" name="m_edDump"/>
-     </item>
-     <item>
-      <widget class="QToolButton" name="m_tbDump">
-       <property name="text">
-        <string>...</string>
-       </property>
-      </widget>
-     </item>
-       <item>
+        <item>
+         <widget class="QLineEdit" name="m_edDump"/>
+        </item>
+        <item>
+         <widget class="QToolButton" name="m_tbDump">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="m_btnDump">
           <property name="text">
            <string>&amp;DUMP</string>
@@ -565,13 +565,14 @@ Analyzer</string>
                </property>
               </widget>
              </item>
-          <item>
-          <widget class="QSlider" name="m_slPhase">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>             <item>
+             <item>
+              <widget class="QSlider" name="m_slPhase">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QDoubleSpinBox" name="m_dblPhase">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -640,13 +641,13 @@ Analyzer</string>
                </property>
               </widget>
              </item>
-          <item>
-          <widget class="QSlider" name="m_slWindowWidth">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>             
+             <item>
+              <widget class="QSlider" name="m_slWindowWidth">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
              <item>
               <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
                <property name="sizePolicy">
@@ -749,16 +750,19 @@ Analyzer</string>
   <tabstop>m_edFieldFactor</tabstop>
   <tabstop>m_edResidual</tabstop>
   <tabstop>m_cmbPulse</tabstop>
-  <tabstop>m_urlDump</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
   <tabstop>m_cmbSolver</tabstop>
   <tabstop>m_ckbAutoPhase</tabstop>
+  <tabstop>m_slPhase</tabstop>
+  <tabstop>m_dblPhase</tabstop>
   <tabstop>m_cmbWindowFunc</tabstop>
+  <tabstop>m_slWindowWidth</tabstop>
+  <tabstop>m_dblWindowWidth</tabstop>
   <tabstop>m_btnClear</tabstop>
   <tabstop>m_cmbBWList</tabstop>
  </tabstops>
- <includes>
- </includes>
  <resources/>
  <connections/>
 </ui>

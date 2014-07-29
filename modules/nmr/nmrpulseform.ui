@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>546</width>
+    <width>709</width>
     <height>502</height>
    </rect>
   </property>
@@ -183,7 +183,16 @@
          <string>Background Subtraction</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -355,7 +364,16 @@
          <string>Multiple Echo</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item row="1" column="0">
@@ -474,7 +492,16 @@
          <string>Phase Inversion Cycling</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item row="0" column="0" colspan="2">
@@ -606,16 +633,17 @@
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
        <layout class="QHBoxLayout">
-     <item>
-      <widget class="QLineEdit" name="m_edDump"/>
-     </item>
-     <item>
-      <widget class="QToolButton" name="m_tbDump">
-       <property name="text">
-        <string>...</string>
-       </property>
-      </widget>
-     </item>        <item>
+        <item>
+         <widget class="QLineEdit" name="m_edDump"/>
+        </item>
+        <item>
+         <widget class="QToolButton" name="m_tbDump">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="m_btnDump">
           <property name="text">
            <string>D&amp;UMP</string>
@@ -717,13 +745,13 @@
            </widget>
           </item>
           <item>
-          <widget class="QSlider" name="m_slPhaseAdv">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>
-                   <item>
+           <widget class="QSlider" name="m_slPhaseAdv">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QDoubleSpinBox" name="m_dblPhaseAdv">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -775,13 +803,13 @@
            </widget>
           </item>
           <item>
-          <widget class="QSlider" name="m_slWindowWIdth">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>
-                   <item>
+           <widget class="QSlider" name="m_slWindowWIdth">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -953,7 +981,16 @@
          <string>Incremental/Sequential Average</string>
         </property>
         <layout class="QHBoxLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item>
@@ -1018,19 +1055,22 @@
   <tabstop>m_ckbPICEnabled</tabstop>
   <tabstop>m_cmbPulser</tabstop>
   <tabstop>m_edDIFFreq</tabstop>
-  <tabstop>m_urlDump</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
   <tabstop>m_btnSpectrum</tabstop>
   <tabstop>m_cmbSolver</tabstop>
   <tabstop>m_cmbWindowFunc</tabstop>
+  <tabstop>m_slPhaseAdv</tabstop>
+  <tabstop>m_dblPhaseAdv</tabstop>
+  <tabstop>m_slWindowWIdth</tabstop>
+  <tabstop>m_dblWindowWidth</tabstop>
   <tabstop>m_edFFTPos</tabstop>
   <tabstop>m_edFFTLen</tabstop>
   <tabstop>m_ckbIncrAvg</tabstop>
   <tabstop>m_numExtraAvg</tabstop>
   <tabstop>m_btnAvgClear</tabstop>
  </tabstops>
- <includes>
- </includes>
  <resources/>
  <connections/>
 </ui>

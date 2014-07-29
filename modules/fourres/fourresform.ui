@@ -50,7 +50,7 @@
         <property name="smallDecimalPoint">
          <bool>true</bool>
         </property>
-        <property name="numDigits">
+        <property name="digitCount">
          <number>8</number>
         </property>
         <property name="mode">
@@ -184,6 +184,11 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
+ <tabstops>
+  <tabstop>m_ckbControl</tabstop>
+  <tabstop>m_cmbDMM</tabstop>
+  <tabstop>m_cmbDCSource</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

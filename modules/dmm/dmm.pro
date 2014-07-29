@@ -7,12 +7,12 @@ HEADERS += \
 SOURCES += \
     userdmm.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -ldmmcore
+win32:LIBS += -ldmmcore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core

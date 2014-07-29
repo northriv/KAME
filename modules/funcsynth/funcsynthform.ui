@@ -15,7 +15,16 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QGridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
      <number>2</number>
     </property>
     <item row="0" column="0">
@@ -296,6 +305,16 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
+ <tabstops>
+  <tabstop>m_ckbOutput</tabstop>
+  <tabstop>m_cmbMode</tabstop>
+  <tabstop>m_cmbFunc</tabstop>
+  <tabstop>m_edFreq</tabstop>
+  <tabstop>m_edAmp</tabstop>
+  <tabstop>m_edPhase</tabstop>
+  <tabstop>m_edOffset</tabstop>
+  <tabstop>m_btnTrig</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

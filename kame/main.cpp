@@ -222,17 +222,20 @@ int main(int argc, char *argv[]) {
         module_dir = app.libraryPaths();
     std::deque<XString> modules;
 	for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
-		QString path;
+        QStringList paths;
 #if defined KAME_COREMODULE_DIR_SURFIX
-        path = *it + KAME_COREMODULE_DIR_SURFIX;
-		lt_dladdsearchdir(path.toLocal8Bit().data());
-        fprintf(stderr, "Searching for core modules in %s\n", (const char*)path.toLocal8Bit().data());
-		lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules);
+        paths += *it + KAME_COREMODULE_DIR_SURFIX;
 #endif
-        path = *it + KAME_MODULE_DIR_SURFIX;
-        lt_dladdsearchdir(path.toLocal8Bit().data());
-        fprintf(stderr, "Searching for modules in %s\n", (const char*)path.toLocal8Bit().data());
-        lt_dlforeachfile(path.toLocal8Bit().data(), &load_module, &modules);
+#if defined KAME_COREMODULE2_DIR_SURFIX
+        paths += *it + KAME_COREMODULE2_DIR_SURFIX;
+#endif
+        paths += *it + KAME_MODULE_DIR_SURFIX;
+
+        for(auto sit = paths.begin(); sit != paths.end(); sit++) {
+            lt_dladdsearchdir(sit->toLocal8Bit().data());
+            fprintf(stderr, "Searching for modules in %s\n", (const char*)sit->toLocal8Bit().data());
+            lt_dlforeachfile(sit->toLocal8Bit().data(), &load_module, &modules);
+        }
     }
 
 	for(auto it = modules.begin(); it != modules.end(); it++) {

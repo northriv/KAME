@@ -16,11 +16,17 @@ win32 {
     LIBS += $${PRI_DIR}../kame/kame.a
 }
 else {
-    CONFIG += static
+    CONFIG += shared
 }
 
-LIBS += -L$${PRI_DIR}../coremodules/
-DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules
+macx {
+  QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
+}
+
+win32 {
+    DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules
+    LIBS += -L$${PRI_DIR}../coremodules/
+}
 
 PRI_DIR = $${PRI_DIR}../
 include(../kame.pri)

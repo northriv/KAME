@@ -178,7 +178,7 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
-  <tabstop>m_plblFilename</tabstop>
+  <tabstop>m_ptxtDefout</tabstop>
   <tabstop>m_edLineinput</tabstop>
   <tabstop>m_pbtnResume</tabstop>
   <tabstop>m_pbtnKill</tabstop>

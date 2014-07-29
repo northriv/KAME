@@ -62,6 +62,7 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_txtDesc</tabstop>
   <tabstop>m_edValue</tabstop>
  </tabstops>
  <resources/>

@@ -15,7 +15,11 @@ SOURCES += \
 FORMS += \
     dsoform.ui
 
-LIBS += -lsgcore
+win32:LIBS += -lsgcore
 
 INCLUDEPATH += $$PWD/../../sg/core
 DEPENDPATH += $$PWD/../../sg/core
+
+win32 {
+    DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules2
+}

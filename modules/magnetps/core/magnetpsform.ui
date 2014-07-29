@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>347</width>
-    <height>246</height>
+    <width>369</width>
+    <height>244</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,16 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QGridLayout" name="gridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
      <number>4</number>
     </property>
     <item row="0" column="0" rowspan="2" colspan="3">
@@ -58,7 +67,7 @@
           <property name="smallDecimalPoint">
            <bool>false</bool>
           </property>
-          <property name="numDigits">
+          <property name="digitCount">
            <number>8</number>
           </property>
           <property name="mode">
@@ -125,7 +134,7 @@
           <property name="smallDecimalPoint">
            <bool>false</bool>
           </property>
-          <property name="numDigits">
+          <property name="digitCount">
            <number>8</number>
           </property>
           <property name="mode">
@@ -192,7 +201,7 @@
           <property name="smallDecimalPoint">
            <bool>false</bool>
           </property>
-          <property name="numDigits">
+          <property name="digitCount">
            <number>8</number>
           </property>
           <property name="mode">
@@ -259,7 +268,7 @@
           <property name="smallDecimalPoint">
            <bool>false</bool>
           </property>
-          <property name="numDigits">
+          <property name="digitCount">
            <number>7</number>
           </property>
           <property name="mode">
@@ -301,7 +310,14 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="QPushButton" name="m_ledSwitchHeater" native="true"/>
+         <widget class="QPushButton" name="m_ledSwitchHeater">
+          <property name="maximumSize">
+           <size>
+            <width>40</width>
+            <height>16777215</height>
+           </size>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15">
@@ -324,7 +340,14 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
-         <widget class="QPushButton" name="m_ledPersistent" native="true"/>
+         <widget class="QPushButton" name="m_ledPersistent">
+          <property name="maximumSize">
+           <size>
+            <width>40</width>
+            <height>16777215</height>
+           </size>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15_2">
@@ -347,7 +370,14 @@
       <item>
        <layout class="QHBoxLayout" name="_2">
         <item>
-         <widget class="QPushButton" name="m_ledAborting" native="true"/>
+         <widget class="QPushButton" name="m_ledAborting">
+          <property name="maximumSize">
+           <size>
+            <width>40</width>
+            <height>16777215</height>
+           </size>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLabel" name="textLabel15_3">
@@ -552,15 +582,16 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
- </customwidgets>
  <tabstops>
+  <tabstop>m_ledSwitchHeater</tabstop>
+  <tabstop>m_ledPersistent</tabstop>
+  <tabstop>m_ledAborting</tabstop>
   <tabstop>m_edTargetField</tabstop>
   <tabstop>m_edSweepRate</tabstop>
   <tabstop>m_ckbAllowPersistent</tabstop>
+  <tabstop>m_cmbApproach</tabstop>
+  <tabstop>m_btnConfig</tabstop>
  </tabstops>
- <includes>
- </includes>
  <resources/>
  <connections/>
 </ui>

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>282</width>
-    <height>479</height>
+    <width>288</width>
+    <height>513</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -82,9 +82,9 @@
     </layout>
    </item>
    <item row="0" column="0">
-    <widget class="QTabWidget" name="tab1">
+    <widget class="QTabWidget" name="tab_2">
      <property name="currentIndex">
-      <number>0</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -420,7 +420,7 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab">
+     <widget class="QWidget" name="tab2">
       <attribute name="title">
        <string>Axes</string>
       </attribute>
@@ -609,7 +609,7 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab">
+     <widget class="QWidget" name="tab3">
       <attribute name="title">
        <string>Graph</string>
       </attribute>
@@ -663,14 +663,14 @@
            </property>
           </widget>
          </item>
-	     <item>
+         <item>
           <widget class="QSlider" name="m_slPersistence">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
           </widget>
          </item>
-         <item> 
+         <item>
           <widget class="QDoubleSpinBox" name="m_dblPersistence">
            <property name="enabled">
             <bool>false</bool>
@@ -744,7 +744,7 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <tabstops>
-  <tabstop>tab1</tabstop>
+  <tabstop>tab_2</tabstop>
   <tabstop>lbPlots</tabstop>
   <tabstop>edMaxCount</tabstop>
   <tabstop>btnClearPoints</tabstop>
@@ -758,9 +758,13 @@
   <tabstop>clrMajorGridColor</tabstop>
   <tabstop>ckbDisplayMinorGrids</tabstop>
   <tabstop>clrMinorGridColor</tabstop>
+  <tabstop>m_slIntensity</tabstop>
+  <tabstop>m_dblIntensity</tabstop>
   <tabstop>ckbColorPlot</tabstop>
   <tabstop>clrColorPlotLow</tabstop>
   <tabstop>clrColorPlotHigh</tabstop>
+  <tabstop>buttonHelp</tabstop>
+  <tabstop>buttonOk</tabstop>
   <tabstop>lbAxes</tabstop>
   <tabstop>ckbAutoScale</tabstop>
   <tabstop>edAxisMax</tabstop>
@@ -772,9 +776,8 @@
   <tabstop>edTicLabelFormat</tabstop>
   <tabstop>m_clrBackGroundColor</tabstop>
   <tabstop>m_ckbDrawLegends</tabstop>
+  <tabstop>m_slPersistence</tabstop>
   <tabstop>m_dblPersistence</tabstop>
-  <tabstop>buttonHelp</tabstop>
-  <tabstop>buttonOk</tabstop>
  </tabstops>
  <resources/>
  <connections>

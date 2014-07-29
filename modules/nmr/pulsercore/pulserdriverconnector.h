@@ -31,8 +31,8 @@ public:
 	virtual ~XQPulserDriverConnector();
 
 protected slots:
-void clicked ( int row, int col, int button, const QPoint & mousePos );
-	void selectionChanged ();
+    void cellClicked ( int row, int col);
+    void selectionChanged ();
 private:
 
 	void updateGraph(const Snapshot &shot, bool checkselection);

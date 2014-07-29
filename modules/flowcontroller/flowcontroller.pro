@@ -9,12 +9,12 @@ SOURCES += \
     fujikininterface.cpp \
     userflowcontroller.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -lflowcontrollercore
+win32:LIBS += -lflowcontrollercore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core

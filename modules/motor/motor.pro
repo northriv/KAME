@@ -9,12 +9,12 @@ SOURCES += \
     modbusrtuinterface.cpp \
     usermotor.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -lmotorcore
+win32:LIBS += -lmotorcore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core

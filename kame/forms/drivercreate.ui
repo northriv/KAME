@@ -23,7 +23,16 @@
    <bool>true</bool>
   </property>
   <layout class="QGridLayout">
-   <property name="margin">
+   <property name="leftMargin">
+    <number>4</number>
+   </property>
+   <property name="topMargin">
+    <number>4</number>
+   </property>
+   <property name="rightMargin">
+    <number>4</number>
+   </property>
+   <property name="bottomMargin">
     <number>4</number>
    </property>
    <item row="2" column="0">
@@ -76,8 +85,7 @@
     </layout>
    </item>
    <item row="0" column="0">
-    <widget class="QListWidget" name="m_lstType">
-    </widget>
+    <widget class="QListWidget" name="m_lstType"/>
    </item>
    <item row="1" column="0">
     <layout class="QHBoxLayout">
@@ -100,8 +108,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
- </customwidgets>
  <tabstops>
   <tabstop>m_lstType</tabstop>
   <tabstop>m_edName</tabstop>

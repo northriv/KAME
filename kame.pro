@@ -15,3 +15,5 @@ modules.depends = libkame
 kame.depends = libkame
 macx: kame.depends = modules
 else: modules.depends += kame
+
+TRANSLATIONS = kame_ja.ts

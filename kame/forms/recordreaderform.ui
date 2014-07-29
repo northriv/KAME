@@ -304,6 +304,8 @@
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
  <tabstops>
+  <tabstop>m_edPath</tabstop>
+  <tabstop>m_btnPath</tabstop>
   <tabstop>btnRW</tabstop>
   <tabstop>btnStop</tabstop>
   <tabstop>btnFF</tabstop>

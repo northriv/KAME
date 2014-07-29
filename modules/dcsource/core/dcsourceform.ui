@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>131</width>
-    <height>257</height>
+    <width>115</width>
+    <height>288</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,16 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QGridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
      <number>2</number>
     </property>
     <item row="0" column="0" colspan="2">
@@ -168,6 +177,13 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
+ <tabstops>
+  <tabstop>m_cmbChannel</tabstop>
+  <tabstop>m_ckbOutput</tabstop>
+  <tabstop>m_cmbFunction</tabstop>
+  <tabstop>m_edValue</tabstop>
+  <tabstop>m_cmbRange</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

@@ -159,8 +159,6 @@ FORMS += \
 RESOURCES += \
     kame.qrc
 
-TRANSLATIONS = ../po/ja/kame_ja.ts
-
 DESTDIR=$$OUT_PWD/../
 
 scriptfile.files = script/rubylineshell.rb
@@ -217,6 +215,17 @@ win32 {
 }
 
 macx {
+    coremodulefiles.files += ../modules/charinterface/libcharinterface.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/dcsource/core/libdcsourcecore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/dmm/core/libdmmcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/flowcontroller/core/libflowcontrollercore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/levelmeter/core/liblevelmetercore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/magnetps/core/libmagnetpscore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/motor/core/libmotorcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/networkanalyzer/core/libnetworkanalyzercore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/nmr/pulsercore/libnmrpulsercore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/sg/core/libsgcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodule2files.files += ../modules/dso/core/libdsocore.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/testdriver/libtestdriver.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/counter/libcounter.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/dcsource/libdcsource.$${QMAKE_EXTENSION_SHLIB}
@@ -237,12 +246,14 @@ macx {
     modulefiles.files += ../modules/sg/libsg.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/tempcontrol/libtempcontrol.$${QMAKE_EXTENSION_SHLIB}
 
+    coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}
+    QMAKE_BUNDLE_DATA += coremodulefiles
+    coremodule2files.path = Contents/MacOS/$${KAME_COREMODULES2}
+    QMAKE_BUNDLE_DATA += coremodule2files
     modulefiles.path = Contents/MacOS/$${KAME_MODULES}
     QMAKE_BUNDLE_DATA += modulefiles
 
-    message(Modules to be bundled: $${modulefiles.files}.)
-
-    tsfiles.files += ../po/ja/kame_ja.qm
+    tsfiles.files += ../kame_ja.qm
     tsfiles.path = Contents/MacOS/
     QMAKE_BUNDLE_DATA += tsfiles
 }

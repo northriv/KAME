@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>697</width>
+    <width>701</width>
     <height>439</height>
    </rect>
   </property>
@@ -35,7 +35,16 @@
       </item>
       <item>
        <layout class="QHBoxLayout">
-        <property name="margin">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
          <number>2</number>
         </property>
         <item>
@@ -93,7 +102,16 @@
       </item>
       <item>
        <layout class="QHBoxLayout">
-        <property name="margin">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
          <number>2</number>
         </property>
         <item>
@@ -151,7 +169,16 @@
       </item>
       <item>
        <layout class="QHBoxLayout">
-        <property name="margin">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
          <number>2</number>
         </property>
         <item>
@@ -209,7 +236,16 @@
       </item>
       <item>
        <layout class="QHBoxLayout">
-        <property name="margin">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
          <number>2</number>
         </property>
         <item>
@@ -297,7 +333,16 @@
          <string>Signal Generator</string>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item>
@@ -367,12 +412,30 @@
          <string>Auto LC Tuning</string>
         </property>
         <layout class="QGridLayout" name="gridLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item row="0" column="0">
           <layout class="QHBoxLayout" name="_2">
-           <property name="margin">
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
             <number>2</number>
            </property>
            <item>
@@ -456,16 +519,16 @@
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <item>
        <layout class="QHBoxLayout">
-       <item>
-        <widget class="QLineEdit" name="m_edDump"/>
-       </item>
-       <item>
-        <widget class="QToolButton" name="m_tbDump">
-         <property name="text">
-          <string>...</string>
-         </property>
-        </widget>
-       </item>
+        <item>
+         <widget class="QLineEdit" name="m_edDump"/>
+        </item>
+        <item>
+         <widget class="QToolButton" name="m_tbDump">
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QPushButton" name="m_btnDump">
           <property name="text">
@@ -494,7 +557,16 @@
          <string>Post Processing</string>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_3">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>2</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>2</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item>
@@ -548,22 +620,22 @@
              </property>
             </widget>
            </item>
-          <item>
-          <widget class="QSlider" name="m_slPhase">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>
-                    <item>
-            <widget class="QDoubleSpinBox" name="m_dblPhase" native="true">
+           <item>
+            <widget class="QSlider" name="m_slPhase">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="m_dblPhase">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                <horstretch>0</horstretch>
                <verstretch>0</verstretch>
               </sizepolicy>
              </property>
-             <property name="suffix" stdset="0">
+             <property name="suffix">
               <string>deg.</string>
              </property>
              <property name="minValue" stdset="0">
@@ -629,14 +701,14 @@
               </widget>
              </item>
              <item>
-             <widget class="QSlider" name="m_slWindowWidth">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-             </widget>
-            </item>
+              <widget class="QSlider" name="m_slWindowWidth">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
              <item>
-              <widget class="QDoubleSpinBox" name="m_dblWindowWidth" native="true">
+              <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -649,7 +721,7 @@
                  <height>0</height>
                 </size>
                </property>
-               <property name="suffix" stdset="0">
+               <property name="suffix">
                 <string>%</string>
                </property>
                <property name="referencePoint" stdset="0">
@@ -750,16 +822,20 @@
   <tabstop>m_cmbSG1</tabstop>
   <tabstop>m_edAutoTuneStep</tabstop>
   <tabstop>m_cmbAutoTuner</tabstop>
-  <tabstop>m_urlDump</tabstop>
+  <tabstop>m_cmbPulser</tabstop>
+  <tabstop>m_edDump</tabstop>
+  <tabstop>m_tbDump</tabstop>
   <tabstop>m_btnDump</tabstop>
   <tabstop>m_cmbSolver</tabstop>
   <tabstop>m_ckbAutoPhase</tabstop>
+  <tabstop>m_slPhase</tabstop>
+  <tabstop>m_dblPhase</tabstop>
   <tabstop>m_cmbWindowFunc</tabstop>
+  <tabstop>m_slWindowWidth</tabstop>
+  <tabstop>m_dblWindowWidth</tabstop>
   <tabstop>m_btnClear</tabstop>
   <tabstop>m_cmbBWList</tabstop>
  </tabstops>
- <includes>
- </includes>
  <resources/>
  <connections/>
 </ui>

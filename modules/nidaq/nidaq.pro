@@ -18,12 +18,12 @@ SOURCES += \
     pulserdrivernidaq.cpp \
     pulserdrivernidaqmx.cpp
 
-LIBS += -lnmrpulsercore
+win32:LIBS += -lnmrpulsercore
 
 INCLUDEPATH += $$PWD/../nmr/pulsercore
 DEPENDPATH += $$PWD/../nmr/pulsercore
 
-LIBS += -ldsocore
+win32:LIBS += -ldsocore
 
 INCLUDEPATH += $$PWD/../dso/core
 DEPENDPATH += $$PWD/../dso/core

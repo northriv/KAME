@@ -12,12 +12,12 @@ SOURCES += \
     pulserdriverh8.cpp \
     pulserdriversh.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -lnmrpulsercore
+win32:LIBS += -lnmrpulsercore
 
 INCLUDEPATH += $$PWD/pulsercore
 DEPENDPATH += $$PWD/pulsercore

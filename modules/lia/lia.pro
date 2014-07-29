@@ -12,7 +12,7 @@ SOURCES += \
 FORMS += \
     lockinampform.ui
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface

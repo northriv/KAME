@@ -124,8 +124,14 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <includes>
- </includes>
+ <tabstops>
+  <tabstop>m_edRec</tabstop>
+  <tabstop>m_btnRec</tabstop>
+  <tabstop>m_ckbBinRecWrite</tabstop>
+  <tabstop>m_tblDrivers</tabstop>
+  <tabstop>m_btnNew</tabstop>
+  <tabstop>m_btnDelete</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

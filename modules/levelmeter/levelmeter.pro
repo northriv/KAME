@@ -13,12 +13,12 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -llevelmetercore
+win32:LIBS += -llevelmetercore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core

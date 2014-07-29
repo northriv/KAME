@@ -15,17 +15,17 @@ SOURCES += \
 FORMS +=\
     tempcontrolform.ui
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -ldcsourcecore
+win32:LIBS += -ldcsourcecore
 
 INCLUDEPATH += $$PWD/../dcsource/core
 DEPENDPATH += $$PWD/../dcsource/core
 
-LIBS += -lflowcontrollercore
+win32:LIBS += -lflowcontrollercore
 
 INCLUDEPATH += $$PWD/../flowcontroller/core
 DEPENDPATH += $$PWD/../flowcontroller/core

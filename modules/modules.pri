@@ -25,7 +25,8 @@ unix {
     INSTALLS += modulefiles
 }
 
-LIBS += -L$${PRI_DIR}../coremodules/
+win32: LIBS += -L$${PRI_DIR}../coremodules/
+win32: LIBS += -L$${PRI_DIR}../coremodules2/
 
 PRI_DIR = $${PRI_DIR}../
 include(../kame.pri)

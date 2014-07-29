@@ -13,6 +13,12 @@
 ***************************************************************************/
 #include "dummyport.h"
 
+#if defined __WIN32__ || defined WINDOWS
+	#define DUMMYPORT_FILENAME "kamedummyport.log"
+#else
+	#define DUMMYPORT_FILENAME "/tmp/kamedummyport.log"
+#endif
+
 XDummyPort::XDummyPort(XCharInterface *interface) :
     XPort(interface),
     m_stream()
@@ -25,7 +31,7 @@ XDummyPort::~XDummyPort()
 void
 XDummyPort::open() throw (XInterface::XCommError &)
 {
-    m_stream.open("/tmp/kamedummyport.log", std::ios::out);
+    m_stream.open(DUMMYPORT_FILENAME, std::ios::out);
 }
 void
 XDummyPort::send(const char *str) throw (XInterface::XCommError &)

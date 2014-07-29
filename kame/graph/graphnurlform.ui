@@ -15,31 +15,40 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QGridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
      <number>2</number>
     </property>
     <item row="1" column="0">
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <property name="spacing">
-      <number>0</number>
-     </property>
-     <item>
-      <widget class="QLineEdit" name="m_edUrl"/>
-     </item>
-     <item>
-      <widget class="QToolButton" name="m_btnUrl">
-       <property name="text">
-        <string>...</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="m_btnDump">
-       <property name="text">
-        <string>DUMP</string>
-       </property>
-      </widget>
-     </item>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QLineEdit" name="m_edUrl"/>
+      </item>
+      <item>
+       <widget class="QToolButton" name="m_btnUrl">
+        <property name="text">
+         <string>...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="m_btnDump">
+        <property name="text">
+         <string>DUMP</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item row="0" column="0">
@@ -63,8 +72,11 @@
    <header>graphwidget.h</header>
   </customwidget>
  </customwidgets>
- <includes>
- </includes>
+ <tabstops>
+  <tabstop>m_edUrl</tabstop>
+  <tabstop>m_btnUrl</tabstop>
+  <tabstop>m_btnDump</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>204</width>
+    <width>207</width>
     <height>236</height>
    </rect>
   </property>
@@ -15,7 +15,16 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QGridLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>2</number>
+    </property>
+    <property name="topMargin">
+     <number>2</number>
+    </property>
+    <property name="rightMargin">
+     <number>2</number>
+    </property>
+    <property name="bottomMargin">
      <number>2</number>
     </property>
     <item row="6" column="0">
@@ -196,6 +205,15 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
+ <tabstops>
+  <tabstop>m_edOutput</tabstop>
+  <tabstop>m_edFreq</tabstop>
+  <tabstop>m_cmbSens</tabstop>
+  <tabstop>m_cmbTimeConst</tabstop>
+  <tabstop>m_edFetchFreq</tabstop>
+  <tabstop>m_ckbAutoScaleX</tabstop>
+  <tabstop>m_ckbAutoScaleY</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

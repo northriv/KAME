@@ -53,9 +53,9 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 #else
     header->setResizeMode(QHeaderView::Fixed);
 #endif
-	connect(m_pTable, SIGNAL( selectionChanged()), this, SLOT(selectionChanged()) );
-	connect(m_pTable, SIGNAL( clicked( int, int, int, const QPoint& )), this,
-			SLOT( clicked( int, int, int, const QPoint& )));
+    connect(m_pTable, SIGNAL( cellClicked( int, int)),
+            this, SLOT(cellClicked( int, int)) );
+    connect(m_pTable, SIGNAL( itemSelectionChanged()), this, SLOT(selectionChanged()) );
 
     qgraph->setGraph(m_graph);
     
@@ -121,7 +121,7 @@ XQPulserDriverConnector::~XQPulserDriverConnector() {
 }
 
 void
-XQPulserDriverConnector::clicked( int , int , int, const QPoint & ) {
+XQPulserDriverConnector::cellClicked( int , int ) {
 }
 
 void

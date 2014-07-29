@@ -42,42 +42,42 @@ FORMS += \
 unix: PKGCONFIG += fftw3
 unix: PKGCONFIG += gsl
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS +=  -lnmrpulsercore
+win32:LIBS +=  -lnmrpulsercore
 
 INCLUDEPATH += $$PWD/pulsercore
 DEPENDPATH += $$PWD/pulsercore
 
-LIBS += -lsgcore
+win32:LIBS += -lsgcore
 
 INCLUDEPATH += $$PWD/../sg/core
 DEPENDPATH += $$PWD/../sg/core
 
-LIBS += -ldsocore
+win32:LIBS += -ldsocore
 
 INCLUDEPATH += $$PWD/../dso/core
 DEPENDPATH += $$PWD/../dso/core
 
-LIBS += -lmotorcore
+win32:LIBS += -lmotorcore
 
 INCLUDEPATH += $$PWD/../motor/core
 DEPENDPATH += $$PWD/../motor/core
 
-LIBS += -lnetworkanalyzercore
+win32:LIBS += -lnetworkanalyzercore
 
 INCLUDEPATH += $$PWD/../networkanalyzer/core
 DEPENDPATH += $$PWD/../networkanalyzer/core
 
-LIBS += -ldmmcore
+win32:LIBS += -ldmmcore
 
 INCLUDEPATH += $$PWD/../dmm/core
 DEPENDPATH += $$PWD/../dmm/core
 
-LIBS += -lmagnetpscore
+win32:LIBS += -lmagnetpscore
 
 INCLUDEPATH += $$PWD/../magnetps/core
 DEPENDPATH += $$PWD/../magnetps/core

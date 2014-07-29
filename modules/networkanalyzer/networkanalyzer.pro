@@ -7,12 +7,12 @@ HEADERS += \
 SOURCES += \
     usernetworkanalyzer.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -lnetworkanalyzercore
+win32:LIBS += -lnetworkanalyzercore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core

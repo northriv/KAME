@@ -315,9 +315,11 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onChangeTMPL(X val) {
         double min = m_pItem->minimum();
         var = lrint((val + min) / (max - min) * 100);
     }
-    m_pSlider->blockSignals(true);
-    m_pSlider->setValue(var);
-    m_pSlider->blockSignals(false);
+    if(m_pSlider) {
+        m_pSlider->blockSignals(true);
+        m_pSlider->setValue(var);
+        m_pSlider->blockSignals(false);
+    }
     for(Transaction tr( *m_node);; ++tr) {
         tr[ *m_node] = val;
         tr.unmark(m_lsnValueChanged);

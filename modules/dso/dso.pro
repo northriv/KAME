@@ -12,17 +12,17 @@ SOURCES += \
     lecroy.cpp \
     tds.cpp
 
-LIBS += -lcharinterface
+win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-LIBS += -ldsocore
+win32:LIBS += -ldsocore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core
 
-LIBS += -lsgcore
+win32:LIBS += -lsgcore
 
 INCLUDEPATH += $$PWD/../sg/core
 DEPENDPATH += $$PWD/../sg/core
