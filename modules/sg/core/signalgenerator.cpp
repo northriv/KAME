@@ -42,7 +42,7 @@ XSG::XSG(const char *name, bool runtime,
 }
 void
 XSG::showForms() {
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 

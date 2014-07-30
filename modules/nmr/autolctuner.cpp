@@ -81,7 +81,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 XAutoLCTuner::~XAutoLCTuner() {
 }
 void XAutoLCTuner::showForms() {
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {

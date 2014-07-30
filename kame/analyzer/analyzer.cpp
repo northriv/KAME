@@ -113,7 +113,7 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
 void
 XValChart::showChart(void) {
 	m_graphForm->setWindowTitle(i18n("Chart - ") + getLabel() );
-	m_graphForm->show();
+    m_graphForm->showNormal();
 }
 
 XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
@@ -316,7 +316,7 @@ void
 XValGraph::showGraph() {
 	if(m_graphForm) {
 		m_graphForm->setWindowTitle(i18n("Graph - ") + getLabel() );
-		m_graphForm->show();
+        m_graphForm->showNormal();
 	}
 }
 

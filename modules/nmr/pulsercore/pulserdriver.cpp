@@ -291,12 +291,12 @@ XPulser::XPulser(const char *name, bool runtime,
 void
 XPulser::showForms() {
 	// impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 void
 XPulser::onMoreConfigShow(const Snapshot &shot, XTouchableNode *)  {
-	m_formMore->show();
+    m_formMore->showNormal();
 	m_formMore->raise();
 }
 

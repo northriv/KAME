@@ -144,6 +144,6 @@ XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 		if(tr.commit())
 			break;
 	}
-	m_waveform->show();
+    m_waveform->showNormal();
 	m_waveform->raise();  
 }

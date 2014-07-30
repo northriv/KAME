@@ -52,7 +52,7 @@ XFourRes::~XFourRes () {
 }
 void
 XFourRes::showForms() {
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 bool

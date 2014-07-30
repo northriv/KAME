@@ -110,7 +110,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 void
 XMotorDriver::showForms() {
 //! impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 

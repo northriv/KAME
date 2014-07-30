@@ -60,7 +60,7 @@ XQGraphDialogConnector::XQGraphDialogConnector
 			break;
 	}
 
-    m_pItem->show();
+    m_pItem->showNormal();
 }   
 XQGraphDialogConnector::~XQGraphDialogConnector() {
     if(isItemAlive()) m_pItem->close();

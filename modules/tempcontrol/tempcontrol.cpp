@@ -402,7 +402,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
 void XTempControl::showForms() {
 	//! impliment form->show() here
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 

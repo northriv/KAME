@@ -2,30 +2,33 @@
 <ui version="4.0">
  <class>FrmDMM</class>
  <widget class="QMainWindow" name="FrmDMM">
+  <property name="windowModality">
+   <enum>Qt::NonModal</enum>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
     <width>143</width>
-    <height>133</height>
+    <height>137</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>DMM Settings</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QGridLayout">
+   <layout class="QGridLayout" name="gridLayout">
     <property name="leftMargin">
-     <number>2</number>
+     <number>4</number>
     </property>
     <property name="topMargin">
-     <number>2</number>
+     <number>4</number>
     </property>
     <property name="rightMargin">
-     <number>2</number>
+     <number>4</number>
     </property>
     <property name="bottomMargin">
-     <number>2</number>
+     <number>4</number>
     </property>
     <item row="0" column="0" colspan="2">
      <layout class="QVBoxLayout">

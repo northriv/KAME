@@ -103,10 +103,10 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
-	m_form->m_dockTrace1->show();
+    m_form->m_dockTrace1->showNormal();
 	m_form->m_dockTrace1->raise();
 	m_form->tabifyDockWidget(m_form->m_dockTrigger, m_form->m_dockRF);
-	m_form->m_dockTrigger->show();
+    m_form->m_dockTrigger->showNormal();
 	m_form->m_dockTrigger->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
 
@@ -175,7 +175,7 @@ XDSO::XDSO(const char *name, bool runtime,
 void
 XDSO::showForms() {
 //! impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 

@@ -248,7 +248,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 }
 void
 XNMRT1::showForms() {
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 

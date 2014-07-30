@@ -201,7 +201,7 @@ XMonteCarloDriver::~XMonteCarloDriver() {
 void
 XMonteCarloDriver::showForms() {
 //! impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 void

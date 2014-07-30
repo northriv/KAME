@@ -121,7 +121,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 void
 XNetworkAnalyzer::showForms() {
 // impliment form->show() here
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 

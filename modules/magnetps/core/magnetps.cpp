@@ -178,12 +178,12 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 }
 void
 XMagnetPS::showForms() {
-    m_form->show();
+    m_form->showNormal();
     m_form->raise();
 }
 void
 XMagnetPS::onConfigShow(const Snapshot &shot, XTouchableNode *) {
-    m_formConfig->show();
+    m_formConfig->showNormal();
     m_formConfig->raise();
 }
 void

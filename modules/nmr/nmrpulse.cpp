@@ -242,11 +242,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
 void XNMRPulseAnalyzer::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
-	m_spectrumForm->show();
+    m_spectrumForm->showNormal();
 	m_spectrumForm->raise();
 }
 void XNMRPulseAnalyzer::showForms() {
-	m_form->show();
+    m_form->showNormal();
 	m_form->raise();
 }
 
