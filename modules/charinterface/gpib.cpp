@@ -19,16 +19,20 @@
 
 #include "support.h"
 
-#ifdef GPIB_WIN32_NI
-#include "Decl-32.h"
-#endif
-
 #ifdef HAVE_LINUX_GPIB
 #define __inline__  __inline
 #include <gpib/ib.h>
 #endif
 
 #ifdef HAVE_NI488
+typedef void *PVOID;
+typedef char *PCHAR;
+typedef wchar_t WCHAR, *PWCHAR;
+typedef const char *LPCSTR;
+typedef const wchar_t *LPCWSTR;
+typedef int *PINT;
+typedef short *PSHORT;
+inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
 #include <ni488.h>
 #endif
 

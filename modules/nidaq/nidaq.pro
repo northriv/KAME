@@ -29,8 +29,7 @@ INCLUDEPATH += $$PWD/../dso/core
 DEPENDPATH += $$PWD/../dso/core
 
 win32 {
-#    INCLUDEPATH +="C:\Program Files (x86)\National Instruments\NI-DAQ\DAQmx ANSI C Dev\include"
     INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    LIBS += -lnidaqmx
+    LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
     DEFINES += HAVE_NI_DAQMX
 }

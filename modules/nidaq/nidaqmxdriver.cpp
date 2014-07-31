@@ -55,7 +55,7 @@ static XString g_pciClockMaster; //Device exporting clock to RTSI7.
 static float64 g_pciClockMasterRate = 0.0;
 static XString g_pciClockExtRefTerm; //External Reference Clock
 static float64 g_pciClockExtRefRate;
-static TaskHandle g_pciClockMasterTask = -1;
+static TaskHandle g_pciClockMasterTask = (TaskHandle)-1;
 static int g_daqmx_open_cnt;
 static XMutex g_daqmx_mutex;
 static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_routes;
@@ -563,10 +563,10 @@ XNIDAQmxInterface::close() throw (XInterfaceError &) {
 		XScopedLock<XMutex> lock(g_daqmx_mutex);
 		g_daqmx_open_cnt--;
 		if(g_daqmx_open_cnt == 0) {
-			if(g_pciClockMasterTask != -1) {
+            if(g_pciClockMasterTask != (TaskHandle)-1) {
 				CHECK_DAQMX_RET(DAQmxClearTask(g_pciClockMasterTask));
 			}
-			g_pciClockMasterTask = -1;
+            g_pciClockMasterTask = (TaskHandle)-1;
 			g_daqmx_sync_routes.clear();
 		}
 	}

@@ -22,6 +22,7 @@ SOURCES += \
 
 win32 {
     INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    LIBS += -lni4882
+#    LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lgpib-32
+    LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc\gpib-32.obj"
     DEFINES += HAVE_NI488
 }
