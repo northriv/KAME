@@ -15,8 +15,7 @@
 #define GRAPH_PAINTER_H
 
 #include "graph.h"
-
-class XQGraph;
+#include "graphwidget.h"
 
 #include <Qt>
 #include <qgl.h>
@@ -50,15 +49,23 @@ public:
  //! drawings
  
  void setColor(float r, float g, float b, float a = 1.0f) {
- glColor4f(r, g, b, a );
-	 }
+    glColor4f(r, g, b, a );
+#ifdef USE_OVERPAINT
+    m_curTextColor =
+        QColor(lrintf(r * 256.0), lrintf(g * 256.0), lrintf(b * 256.0), a).rgba();
+#endif
+}
  void setColor(unsigned int rgb, float a = 1.0f) {
- QColor qc = QRgb(rgb);
-	 glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
-		 }
+    QColor qc = QRgb(rgb);
+    glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
+#ifdef USE_OVERPAINT
+    qc.setAlpha(a);
+    m_curTextColor = qc.rgba();
+#endif
+}
  void setVertex(const XGraph::ScrPoint &p) {
- glVertex3f(p.x, p.y, p.z);
-	 }
+    glVertex3f(p.x, p.y, p.z);
+ }
  
  void beginLine(double size = 1.0);
  void endLine();
@@ -129,8 +136,12 @@ Snapshot startDrawing();
  void drawOnScreenObj(const Snapshot &shot);
  //! independent of viewpoint. For coordinate, legend, hints. title,...
  void drawOnScreenViewObj(const Snapshot &shot);
- void drawOnScreenHelp(const Snapshot &shot);
- 
+ void drawOnScreenHelp(const Snapshot &shot
+#ifdef USE_OVERPAINT
+    , QPainter &qpainter
+#endif
+    );
+
  const shared_ptr<XGraph> m_graph;
  XQGraph *const m_pItem;
  
@@ -174,6 +185,19 @@ Snapshot startDrawing();
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
 	int m_curFontSize;
 	int m_curAlign;
+
+#ifdef USE_OVERPAINT
+    struct Text {
+        QString text;
+        int x; int y;
+        int align;
+        int fontsize;
+        QRgb rgba;
+    };
+    std::deque<Text> m_textOverpaint;
+    QRgb m_curTextColor;
+    void drawTextOverpaint(QPainter &qpainter);
+#endif
 };
 
 #endif

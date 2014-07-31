@@ -378,7 +378,7 @@ XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
 }
 void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
-	QString msg = "";
+    QString msg = "";
 //   if(SelectionStateNow != Selecting) return;
 	switch ( m_selectionModeNow ) {
 	case SelNone:
@@ -510,7 +510,7 @@ XQGraphPainter::showHelp() {
 }
 void
 XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
-	//Draw Title
+    //Draw Title
 	setColor(shot[ *m_graph->titleColor()]);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
@@ -570,21 +570,32 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			}
 		}
 	}
-	
-	if(m_bReqHelp) drawOnScreenHelp(shot);
 }
 void
-XQGraphPainter::drawOnScreenHelp(const Snapshot &shot) {
-	float z = 0.99;
-	setColor(shot[ *m_graph->backGround()], 0.3);
-	beginQuad(true);
-	setVertex(XGraph::ScrPoint(0.0, 0.0, z));
-	setVertex(XGraph::ScrPoint(1.0, 0.0, z));
-	setVertex(XGraph::ScrPoint(1.0, 1.0, z));
-	setVertex(XGraph::ScrPoint(0.0, 1.0, z));
-	endQuad();
+XQGraphPainter::drawOnScreenHelp(const Snapshot &shot
+#ifdef USE_OVERPAINT
+ , QPainter &qpainter
+#endif
+) {
+    double y = 1.0;
+    float z = 0.99;
+#ifdef USE_OVERPAINT
+    QColor cl(QRgb((unsigned int)shot[ *m_graph->backGround()]));
+    cl.setAlpha(0.3);
+    qpainter.fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
+    cl = QColor(QRgb((unsigned int)shot[ *m_graph->titleColor()]));
+    cl.setAlpha(0.55);
+    qpainter.fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
+    m_curTextColor = QRgb(shot[ *m_graph->backGround()]);
+#else
+    setColor(shot[ *m_graph->backGround()], 0.3);
+    beginQuad(true);
+    setVertex(XGraph::ScrPoint(0.0, 0.0, z));
+    setVertex(XGraph::ScrPoint(1.0, 0.0, z));
+    setVertex(XGraph::ScrPoint(1.0, 1.0, z));
+    setVertex(XGraph::ScrPoint(0.0, 1.0, z));
+    endQuad();
 	setColor(shot[ *m_graph->titleColor()], 0.55);
-	double y = 1.0;
 	beginQuad(true);
 	setVertex(XGraph::ScrPoint(1.0 - y, 1.0 - y, z));
 	setVertex(XGraph::ScrPoint(1.0 - y, y, z));
@@ -593,7 +604,8 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot) {
 	endQuad();
 	y -= 0.02;
 	setColor(shot[ *m_graph->backGround()], 1.0);
-	defaultFont();
+#endif
+    defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
 	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));
 	m_curAlign = Qt::AlignVCenter | Qt::AlignLeft;
@@ -733,7 +745,7 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 		for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
 			auto axis = static_pointer_cast<XAxis>( *it);
 			if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
-				axis->drawAxis(shot, this);
+                axis->drawAxis(shot, this);
 		}
 	}
 }

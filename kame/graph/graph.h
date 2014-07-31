@@ -284,7 +284,7 @@ public:
 
 	virtual XString getLabel() const {return ( **label())->to_str();}
   
-	int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
+    int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
 	//! obtains axis pos from value
 	XGraph::GFloat valToAxis(XGraph::VFloat value);
 	//! obtains value from position on axis

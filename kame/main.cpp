@@ -196,7 +196,7 @@ int main(int argc, char *argv[]) {
             
             if(mesfile.length()) {
                 form->openMes(mesfile);
-			}
+            }
 		}
 	}
 

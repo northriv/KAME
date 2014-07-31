@@ -27,12 +27,18 @@
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
-    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba | QGL::DepthBuffer | QGL::AccumBuffer )
-			   , parent, 0, fl) {
+    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
+                         QGL::DepthBuffer | QGL::AccumBuffer |
+                         QGL::SampleBuffers | QGL::StencilBuffer )
+               , parent, 0, Qt::WindowFlags(fl | Qt::WA_PaintOnScreen)) {
     if( !format().directRendering()) dbgPrint("direct rendering disabled");
-//      if(!layout() ) new QHBoxLayout(this);
-//      layout()->setAutoAdd(true);
+//    if( !parent->layout() ) {
+//        parent->setLayout(new QHBoxLayout(this));
+//        parent->layout()->addWidget(this);
+//    }
     setMouseTracking(true);
+    setAutoFillBackground(false);
+
 }
 XQGraph::~XQGraph() {
     m_painter.reset();
@@ -107,13 +113,14 @@ XQGraph::wheelEvent ( QWheelEvent *e) {
 		m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
 }
 void
-XQGraph::showEvent ( QShowEvent * ) {
-	shared_ptr<XGraph> graph = m_graph;
+XQGraph::showEvent ( QShowEvent *e) {
+//    Q_UNUSED(e);
+    shared_ptr<XGraph> graph = m_graph;
 	if(graph) { 
 		m_painter.reset();
 		// m_painter will be re-set in the constructor.
 		new XQGraphPainter(graph, this);
-		glInit();
+        glInit();
 //        setMouseTracking(true);
     }
 }
@@ -126,21 +133,39 @@ XQGraph::hideEvent ( QHideEvent * ) {
 //! openGL stuff
 void
 XQGraph::initializeGL () {
-    glClearColor( 1.0, 1.0, 1.0, 1.0 );
-    glClearDepth( 1.0 );
+    // Set up the rendering context,
+    glHint(GL_POINT_SMOOTH_HINT,GL_FASTEST);
+    glHint(GL_LINE_SMOOTH_HINT,GL_FASTEST);
+    glDisable(GL_LINE_SMOOTH);
+    glDisable(GL_POINT_SMOOTH);
+    glDepthFunc(GL_LEQUAL);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_MULTISAMPLE);
+
     if(m_painter )
         m_painter->initializeGL();
 }
 void
 XQGraph::resizeGL ( int width, int height ) {
-    glMatrixMode(GL_PROJECTION);
-    glViewport( 0, 0, (GLint)width, (GLint)height ); 
+    // be aware of retina display.
+    glViewport( 0, 0, (GLint)(width * devicePixelRatio()),
+                (GLint)(height * devicePixelRatio()));
     if(m_painter )
         m_painter->resizeGL(width, height);
 }
+
+#ifdef USE_OVERPAINT
+void XQGraph::paintEvent(QPaintEvent *event) {
+    makeCurrent();
+    if(m_painter )
+        m_painter->paintGL();
+}
+#else
 void
 XQGraph::paintGL () {
     if(m_painter )
         m_painter->paintGL();
-    glEnd();
+//    glEnd();
 }
+#endif

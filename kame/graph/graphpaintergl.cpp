@@ -204,6 +204,17 @@ void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
     double x,y,z;
     screenToWindow(p, &x, &y, &z);
+#ifdef USE_OVERPAINT
+    //draws texts later.
+    Text txt;
+    txt.text = str;
+    txt.x = lrint(x);
+    txt.x = lrint(y);
+    txt.fontsize = m_curFontSize;
+    txt.align = m_curAlign;
+    txt.rgba = m_curTextColor;
+    m_textOverpaint.push_back(txt);
+#else
     QFont font(m_pItem->font());
     font.setPointSize(m_curFontSize);
     QFontMetrics fm(font);
@@ -214,6 +225,7 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
     if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
     if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
     m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
+#endif
 }
 
 #define VIEW_NEAR -1.5
@@ -252,8 +264,6 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 	if(ov != m_bTilted) m_bIsRedrawNeeded = true;
 	
 	m_bIsAxisRedrawNeeded = true;
-// 	if(m_viewport[3] != height() ) return; //firsttime
-	//save projection matrix
 }
 
 
@@ -331,19 +341,7 @@ XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
 }
 void
 XQGraphPainter::initializeGL () {
-//	m_pItem->makeCurrent();
-	
-//    glClearColor( 1.0, 1.0, 1.0, 1.0 );
-//    glClearDepth( 1.0 );
-    // Set up the rendering context, define display lists etc.:
-    glHint(GL_POINT_SMOOTH_HINT,GL_FASTEST);
-    glHint(GL_LINE_SMOOTH_HINT,GL_FASTEST);
-    glDisable(GL_LINE_SMOOTH);
-    glDisable(GL_POINT_SMOOTH);
-    glEnable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
@@ -361,21 +359,21 @@ XQGraphPainter::initializeGL () {
 }
 void
 XQGraphPainter::resizeGL ( int width  , int height ) {
-//	m_pItem->makeCurrent();
-
     // setup viewport, projection etc.:
     glMatrixMode(GL_PROJECTION);
-    // be aware of retina display.
-    glViewport( 0, 0, (GLint)(width * m_pixel_ratio),
-                (GLint)(height * m_pixel_ratio));
     m_bIsRedrawNeeded = true;
 //  drawLists();
 }
 void
 XQGraphPainter::paintGL () {
-//	m_pItem->makeCurrent();
+#ifdef USE_OVERPAINT
+    //stores states
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    m_textOverpaint.clear();
+#endif
     glGetError(); // flush error
-    
+
     glMatrixMode(GL_PROJECTION);
     // be aware of retina display.
     glViewport( 0, 0, (GLint)(m_pItem->width() * m_pixel_ratio),
@@ -383,6 +381,9 @@ XQGraphPainter::paintGL () {
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
 	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
     glGetIntegerv(GL_VIEWPORT, m_viewport);
+
+    // Set up the rendering context,
+    glEnable(GL_BLEND);
 
     checkGLError(); 
 
@@ -395,15 +396,15 @@ XQGraphPainter::paintGL () {
 		else
 			m_updatedTime = XTime();
     }
-        
+
     Snapshot shot( *m_graph);
 
     if(m_bIsRedrawNeeded) {
         shot = startDrawing();
-        
+
         QColor bgc = (QRgb)shot[ *m_graph->backGround()];
-        glClearColor( bgc.red() /255.0f, bgc.green() /255.0f, bgc.blue() /255.0f, 1.0 );
-        
+        m_pItem->qglClearColor(bgc);
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         glMatrixMode(GL_MODELVIEW);
@@ -467,7 +468,7 @@ XQGraphPainter::paintGL () {
     }
 
     drawOnScreenObj(shot);
-    
+
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     setInitView();
@@ -531,7 +532,45 @@ XQGraphPainter::paintGL () {
     }
 
     drawOnScreenViewObj(shot);
+
+#if !defined USE_OVERPAINT
+    if(m_bReqHelp) drawOnScreenHelp(shot);
+#endif
+    glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
-//    glFlush();
+    //    glFlush();
+
+#ifdef USE_OVERPAINT
+    //restores states
+    glShadeModel(GL_FLAT);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+
+    QPainter qpainter(m_pItem);
+    qpainter.setRenderHint(QPainter::TextAntialiasing);
+    drawTextOverpaint(qpainter);
+    if(m_bReqHelp) {
+        drawOnScreenHelp(shot, qpainter);
+        drawTextOverpaint(qpainter);
+    }
+    qpainter.end();
+#endif
 }
+
+#ifdef USE_OVERPAINT
+void
+XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
+    for(auto it = m_textOverpaint.begin(); it != m_textOverpaint.end(); ++it) {
+        qpainter.setPen(QColor(it->rgba));
+        qpainter.drawText(it->x, it->y,
+            m_pItem->width() - it->x, m_pItem->height() - it->y,
+            it->align, it->text);
+    }
+    m_textOverpaint.clear();
+}
+#endif

@@ -63,7 +63,7 @@ XValChart::XValChart(const char *name, bool runtime,
 	  m_graph(create<XGraph>(name, false)),
 	  m_graphForm(new FrmGraph(g_pFrmMain)) {
 
-	m_graphForm->m_graphwidget->setGraph(m_graph);
+    m_graphForm->m_graphwidget->setGraph(m_graph);
     
 	for(Transaction tr( *m_graph);; ++tr) {
 		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, ref(tr), m_graph);
@@ -232,7 +232,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 		if(tr.commit()) {
 			m_graphForm.reset(new FrmGraph(g_pFrmMain));
-			m_graphForm->m_graphwidget->setGraph(graph);
+            m_graphForm->m_graphwidget->setGraph(graph);
 			break;
 		}
 	}
