@@ -48,7 +48,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 
 	for(Transaction tr( *this);; ++tr) {
 	#ifdef USE_GPIB
-		tr[ *device()].add("GPIB");
+        tr[ *device()].add("GPIB");
 	#endif
     #ifdef USE_SERIAL
         tr[ *device()].add("SERIAL");
