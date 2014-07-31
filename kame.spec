@@ -13,12 +13,12 @@ License: GPL
 Group: Applications/Engineering
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: qt >= %{qtver}, kdelibs >= %{kdever}
-Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl
-Requires: libgfortran, atlas-sse2
+Requires: libart_lgpl, gsl, zlib, ruby, libtool-ltdl, fftw
+Requires: libgfortran, atlas-sse2, ftgl >= %{ftglver}
 Requires: oxygen-icon-theme
 BuildRequires: ruby, ruby-devel, gsl-devel, boost-devel, libtool, libtool-ltdl-devel, fftw-devel
 BuildRequires: gcc-gfortran, atlas-sse2-devel
-BuildRequires: libidn-devel
+BuildRequires: libidn-devel, ftgl-devel >= %{ftglver}
 BuildRequires: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
 BuildRequires: zlib-devel, libpng-devel, libjpeg-devel
 BuildRequires: gcc-c++ >= 4.0

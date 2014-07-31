@@ -8,6 +8,7 @@ add_subdirectory(graph)
 add_subdirectory(thermometer)
 add_subdirectory(analyzer)
 add_subdirectory(icons)
+add_subdirectory(mikachanfont)
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/kame/forms
@@ -49,6 +50,7 @@ kde4_add_executable(kame ${kame_SRCS} ${kame_RESOURCES_RCC})
 target_link_libraries(kame forms thermometer kamemath script analyzer driver icons graph 
     pthread m
     ${GLU_LIBRARY} 
+    ${FTGL_LIBRARY} ${FREETYPE_LIBRARIES}
     ${RUBY_LIBRARY} ${GSL_LIBRARY} ${FFTW3_LIBRARY}
     ${LAPACK_LIBRARIES}
     ${ZLIB_LIBRARIES}

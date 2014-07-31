@@ -16,9 +16,7 @@
 #include "graphwidget.h"
 #include <QFont>
 #include <QFontMetrics>
-#if QT_VERSION >= 0x50000
-    #include <QWindow>
-#endif
+
 
 #define SELECT_WIDTH 0.02
 #define SELECT_DEPTH 0.1
@@ -26,35 +24,6 @@
 using std::min;
 using std::max;
 
-XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
-	m_graph(graph),
-	m_pItem(item),
-	m_selectionStateNow(Selecting),
-	m_selectionModeNow(SelNone),
-	m_listpoints(0),
-	m_listaxes(0),
-	m_listgrids(0),
-    m_listplanemarkers(0),
-    m_listaxismarkers(0),
-    m_bIsRedrawNeeded(true),
-	m_bIsAxisRedrawNeeded(false),
-	m_bTilted(false),
-	m_bReqHelp(false) {
-	item->m_painter.reset(this);
-	for(Transaction tr( *graph);; ++tr) {
-		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(
-	        shared_from_this(), &XQGraphPainter::onRedraw,
-	        XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-		if(tr.commit())
-			break;
-	}
-    m_pixel_ratio =
-#if QT_VERSION >= 0x50000
-        m_pItem->windowHandle()->devicePixelRatio();
-#else
-        1.0;
-#endif
-}
 float
 XQGraphPainter::resScreen() {
     return 1.0f / max(m_pItem->width(), m_pItem->height());

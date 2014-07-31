@@ -132,6 +132,30 @@ set(GPIB_INCLUDE_DIR "${NI488_INCLUDE_DIR}${LINUXGPIB_INCLUDE_DIR}")
 set(GPIB_LIBRARY "${NI488_LIBRARY}${LINUXGPIB_LIBRARY}")
 #TEST_BIG_ENDIAN(__BIGENDIAN__)
 
+find_path( FTGL_INCLUDE_DIR
+	NAMES FTGL/ftgl.h FTGL/FTGL.h PATHS /usr/include /usr/local/include /sw/include /opt/local/include)
+find_library( FTGL_LIBRARY ftgl /usr/lib /usr/local/lib /sw/lib /opt/local/lib)
+if( FTGL_INCLUDE_DIR AND FTGL_LIBRARY )
+    add_definitions(-DHAVE_FTGL)
+    message(STATUS "FTGL found: ${FTGL_INCLUDE_DIR} ${FTGL_LIBRARY}")
+else(1)
+    message(STATUS  "FTGL not found: ${FTGL_INCLUDE_DIR} ${FTGL_LIBRARY}")
+endif( FTGL_INCLUDE_DIR AND FTGL_LIBRARY )
+
+#find_package(freetype REQUIRED)
+find_program(FREETYPE_FOUND freetype-config)
+if( FREETYPE_FOUND )
+    execute_process(COMMAND freetype-config --prefix OUTPUT_VARIABLE FREETYPE_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    find_path( FREETYPE_INCLUDE_DIR
+    	freetype/freetype.h "${FREETYPE_PREFIX}/include/freetype2" "${FREETYPE_PREFIX}/include")
+    execute_process(COMMAND freetype-config --libs OUTPUT_VARIABLE FREETYPE_LIBRARY OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message(STATUS "FREETYPE found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARY}")
+else(1)
+    message(STATUS  "FREETYPE not found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARY}")
+endif( FREETYPE_FOUND )
+set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
+#message(STATUS "Freetype found: ${FREETYPE_INCLUDE_DIR} ${FREETYPE_LIBRARIES}")
+
 include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} 
  ${Boost_INCLUDE_DIR})
 
