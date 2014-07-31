@@ -20,3 +20,8 @@ SOURCES += \
     serial.cpp \
     tcp.cpp
 
+win32 {
+    INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
+    LIBS += -lni4882
+    DEFINES += HAVE_NI488
+}
