@@ -295,7 +295,6 @@ XQGraphPainter::selectFont(const XString &str,
 }
 void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-    double x,y,z;
 #ifdef HAVE_FTGL
 	float llx, lly, llz, urx, ury, urz;
 	std::wstring wstr = string2wstring(str);
@@ -324,7 +323,8 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 
 #else
 
-		screenToWindow(p, &x, &y, &z);
+    double x,y,z;
+	screenToWindow(p, &x, &y, &z);
 
 	#ifdef USE_OVERPAINT
 		//draws texts later.
