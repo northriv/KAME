@@ -21,5 +21,5 @@ INCLUDEPATH += $$PWD/../../sg/core
 DEPENDPATH += $$PWD/../../sg/core
 
 win32 {
-    DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules2
+    DESTDIR=$$OUT_PWD/../../../coremodules2
 }
