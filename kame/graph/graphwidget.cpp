@@ -149,8 +149,14 @@ XQGraph::initializeGL () {
 void
 XQGraph::resizeGL ( int width, int height ) {
     // be aware of retina display.
-    glViewport( 0, 0, (GLint)(width * devicePixelRatio()),
-                (GLint)(height * devicePixelRatio()));
+    double pixel_ratio =
+#if QT_VERSION >= 0x50000
+        devicePixelRatio();
+#else
+        1.0;
+#endif
+    glViewport( 0, 0, (GLint)(width * pixel_ratio),
+                (GLint)(height * pixel_ratio));
     if(m_painter )
         m_painter->resizeGL(width, height);
 }
