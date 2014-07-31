@@ -271,6 +271,8 @@ XQGraphPainter::selectFont(const XString &str,
 	m_curAlign = align;
     
 #ifdef HAVE_FTGL
+	float llx, lly, llz, urx, ury, urz;
+	std::wstring wstr = string2wstring(str);
 	for(;;) {
  		s_pFont->FaceSize(m_curFontSize);
 		s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
