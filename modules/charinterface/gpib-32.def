@@ -1,0 +1,14 @@
+LIBRARY gpib-32
+EXPORTS
+ ibonl @8
+ ThreadIbsta @0
+ ThreadIberr @0
+ ThreadIbcntl @0
+ ibrsp @8
+ ibrd @12
+ ibwrt @12
+ ibdev @24
+ ibclr @4
+ ibeos @8
+ SendIFC @4
+ EnableRemote @8
