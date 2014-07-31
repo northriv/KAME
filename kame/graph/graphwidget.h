@@ -14,7 +14,7 @@
 #ifndef GRAPHWIDGET_H
 #define GRAPHWIDGET_H
 
-#define USE_OVERPAINT
+//#define USE_OVERPAINT
 
 class XGraph;
 class XQGraphPainter;
