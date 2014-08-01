@@ -312,7 +312,7 @@ protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
     QAbstractButton *const m_pBtn;
     bool m_saving;
-    XString filter;
+    XString m_filter;
 };
 
 class QTableWidget;
