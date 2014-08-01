@@ -382,16 +382,16 @@ void
 XFilePathConnector::onClick() {
     XString str = 
     m_saving ? QFileDialog::
-        getSaveFileName(btn, QString(), m_pItem->text(), m_filter)
+        getSaveFileName(m_pItem, QString(), m_pItem->text(), m_filter)
      : QFileDialog::
-        getOpenFileName(btn, QString(), m_pItem->text(), m_filter);
+        getOpenFileName(m_pItem, QString(), m_pItem->text(), m_filter);
     if(str.length()) {
 	    m_pItem->blockSignals(true);
-	    m_pItem->setText(var);
+        m_pItem->setText(str);
 	    m_pItem->blockSignals(false);
 	    try {
 			for(Transaction tr( *m_node);; ++tr) {
-		    tr[ *m_node].str(var);
+            tr[ *m_node].str(str);
 				tr.unmark(m_lsnValueChanged);
 				if(tr.commit())
 					break;
