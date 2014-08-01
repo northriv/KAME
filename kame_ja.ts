@@ -3059,27 +3059,27 @@
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="40"/>
         <source>1</source>
-        <translation type="unfinished">4x {1?}</translation>
+        <translation type="unfinished">1</translation>
     </message>
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="56"/>
         <source>2</source>
-        <translation type="unfinished">4x {2?}</translation>
+        <translation type="unfinished">2</translation>
     </message>
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="72"/>
         <source>3</source>
-        <translation type="unfinished">4x {3?}</translation>
+        <translation type="unfinished">3</translation>
     </message>
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="88"/>
         <source>4</source>
-        <translation type="unfinished">4x {4?}</translation>
+        <translation type="unfinished">4</translation>
     </message>
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="104"/>
         <source>5</source>
-        <translation type="unfinished">4x {5?}</translation>
+        <translation type="unfinished">5</translation>
     </message>
     <message>
         <location filename="modules/magnetps/core/magnetpsconfigform.ui" line="208"/>

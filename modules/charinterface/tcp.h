@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2013 Kentaro Kitagawa
+		Copyright (C) 2002-2014 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,22 +17,22 @@
 #include "charinterface.h"
 
 #if  defined __linux__ || defined __APPLE__
-#define TCP_POSIX
+    #define TCP_SOCKET
 #endif //__linux__ || LINUX
 
 #if defined WINDOWS || defined __WIN32__
-#define TCP_QT
+    #define TCP_SOCKET
 #endif // WINDOWS || __WIN32__
 
-#if defined TCP_QT || defined TCP_POSIX
-#define USE_TCP_PORT
+#if defined TCP_SOCKET
+    #define USE_TCP
 #endif
 
-#ifdef TCP_POSIX
-class XPosixTCPPort : public XPort {
+#ifdef TCP_SOCKET
+class XTCPSocketPort : public XPort {
 public:
-	XPosixTCPPort(XCharInterface *interface);
-	virtual ~XPosixTCPPort();
+    XTCPSocketPort(XCharInterface *interface);
+    virtual ~XTCPSocketPort();
  
 	virtual void open() throw (XInterface::XCommError &);
 	virtual void send(const char *str) throw (XInterface::XCommError &);
@@ -43,8 +43,8 @@ private:
 	int m_socket;
 };
 
-typedef XPosixTCPPort XTCPPort;
+typedef XTCPSocketPort XTCPPort;
 
-#endif // TCP_POSIX
+#endif // TCP_SOCKET
 
 #endif /*TCP_H_*/

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2013 Kentaro Kitagawa
+		Copyright (C) 2002-2014 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -13,26 +13,42 @@
 ***************************************************************************/
 #include "tcp.h"
 
-#ifdef TCP_POSIX
+#ifdef TCP_SOCKET
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <errno.h>
+#if defined WINDOWS || defined __WIN32__
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+
+    static class WSockInit {
+        WSockInit() {
+            WSADATA data;
+            WSAStartup(MAKEWORD(2,0), &data);
+        }
+        ~WSockInit() {
+            WSACleanup();
+        }
+    } s_wsockinit;
+
+#else
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <errno.h>
+#endif
  
 #define MIN_BUFFER_SIZE 256
 
-XPosixTCPPort::XPosixTCPPort(XCharInterface *interface)
+XTCPSocketPort::XTCPSocketPort(XCharInterface *interface)
 	: XPort(interface), m_socket(-1) {
 
 }
-XPosixTCPPort::~XPosixTCPPort() {
+XTCPSocketPort::~XTCPSocketPort() {
     if(m_socket >= 0) close(m_socket);
 }
 void
-XPosixTCPPort::open() throw (XInterface::XCommError &) {
+XTCPSocketPort::open() throw (XInterface::XCommError &) {
 	Snapshot shot( *m_pInterface);
 
 	struct sockaddr_in dstaddr;
@@ -69,13 +85,13 @@ XPosixTCPPort::open() throw (XInterface::XCommError &) {
 	}
 }
 void
-XPosixTCPPort::send(const char *str) throw (XInterface::XCommError &) {
+XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
     XString buf(str);
     buf += m_pInterface->eos();
     this->write(buf.c_str(), buf.length());
 }
 void
-XPosixTCPPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
 
 	int wlen = 0;
@@ -89,7 +105,7 @@ XPosixTCPPort::write(const char *sendbuf, int size) throw (XInterface::XCommErro
 	} while (wlen < size);
 }
 void
-XPosixTCPPort::receive() throw (XInterface::XCommError &) {
+XTCPSocketPort::receive() throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
     
 	buffer().resize(MIN_BUFFER_SIZE);
@@ -120,7 +136,7 @@ XPosixTCPPort::receive() throw (XInterface::XCommError &) {
 	buffer().at(len) = '\0';
 }
 void
-XPosixTCPPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 	assert(m_pInterface->isOpened());
    
 	buffer().resize(length);
@@ -138,3 +154,4 @@ XPosixTCPPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 }    
 
 #endif //TCP_POSIX
+

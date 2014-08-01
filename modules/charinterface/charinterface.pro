@@ -1,7 +1,7 @@
 PRI_DIR = ../
 include($${PRI_DIR}/modules-shared.pri)
 
-QT       += network serialport
+QT       += serialport
 
 HEADERS += \
     chardevicedriver.h \

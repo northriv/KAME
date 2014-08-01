@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2013 Kentaro Kitagawa
+		Copyright (C) 2002-2014 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -269,17 +269,18 @@ protected:
 };
 
 class QIcon;
+class QPushButton;
 class XQLedConnector : public XValueQConnector {
     Q_OBJECT
 public:
     XQLedConnector(const shared_ptr<XBoolNode> &node,
-        QAbstractButton *item);
+        QPushButton *item);
     virtual ~XQLedConnector() {}
 protected slots:
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
     const shared_ptr<XBoolNode> m_node;
-    QAbstractButton *const m_pItem;
+    QPushButton *const m_pItem;
     QIcon *m_pIconOn;
     QIcon *m_pIconOff;
 };

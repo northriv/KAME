@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2013 Kentaro Kitagawa
+		Copyright (C) 2002-2014 Kentaro Kitagawa
 		                   kitag@kochi-u.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -250,7 +250,7 @@ XQtSerialPort::XQtSerialPort(XCharInterface *interface)
 XQtSerialPort::~XQtSerialPort() {
     if(m_qport)
         m_qport->close();
-    }
+}
 void
 XQtSerialPort::open() throw (XInterface::XCommError &) {
     Snapshot shot( *m_pInterface);
