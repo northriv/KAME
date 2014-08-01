@@ -375,35 +375,34 @@ template class XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double>;
 XFilePathConnector::XFilePathConnector(const shared_ptr<XStringNode> &node,
     QLineEdit *edit, QAbstractButton *btn, const char *filter, bool saving)
     : XQLineEditConnector(node, edit),
-      m_pBtn(btn), m_dialog(new QFileDialog(btn)) {
+      m_pBtn(btn), m_filter(filter), m_saving(saving) {
     connect(btn, SIGNAL( clicked ( ) ), this, SLOT( onClick( ) ) );
-    connect( &*m_dialog, SIGNAL( accepted ( ) ), this, SLOT( onAccept( ) ) );
-    m_dialog->setNameFilter(filter);
-    m_dialog->setAcceptMode(saving ? QFileDialog::AcceptSave : QFileDialog::AcceptOpen);
-    m_dialog->setFileMode( saving ? QFileDialog::AnyFile : QFileDialog::ExistingFile);
-////    onValueChanged(Snapshot( *node), node.get());
 }
 void
 XFilePathConnector::onClick() {
-    m_dialog->open();
-}
-void
-XFilePathConnector::onAccept() {
-    QString var = m_dialog->selectedFiles().at(0);
-    m_pItem->blockSignals(true);
-    m_pItem->setText(var);
-    m_pItem->blockSignals(false);
-    try {
-		for(Transaction tr( *m_node);; ++tr) {
-            tr[ *m_node].str(var);
-			tr.unmark(m_lsnValueChanged);
-			if(tr.commit())
-				break;
-		}
-    }
-    catch (XKameError &e) {
-        e.print();
-    }
+    XString str = 
+    m_saving ?
+	m_dialog->
+	    getSaveFileName(QApplication::app(), QString(), m_pItem->text(), m_filter)
+     :
+	m_dialog->
+	    getOpenFileName(QApplication::app(), QString(), m_pItem->text(), m_filter);
+    if(str.length()) {
+	    m_pItem->blockSignals(true);
+	    m_pItem->setText(var);
+	    m_pItem->blockSignals(false);
+	    try {
+			for(Transaction tr( *m_node);; ++tr) {
+		    tr[ *m_node].str(var);
+				tr.unmark(m_lsnValueChanged);
+				if(tr.commit())
+					break;
+			}
+	    }
+	    catch (XKameError &e) {
+		e.print();
+	    }
+     }
 }
 
 void

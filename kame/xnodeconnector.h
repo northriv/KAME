@@ -300,7 +300,6 @@ protected:
 };
 
 class QToolButton;
-class QFileDialog;
 class XFilePathConnector : public XQLineEditConnector {
     Q_OBJECT
 public:
@@ -309,11 +308,11 @@ public:
     virtual ~XFilePathConnector() {}
 protected slots:
 void onClick();
-void onAccept();
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
     QAbstractButton *const m_pBtn;
-    qshared_ptr<QFileDialog> m_dialog;
+    bool m_saving;
+    XString filter;
 };
 
 class QTableWidget;
