@@ -7,12 +7,6 @@ HEADERS += \
 SOURCES += \
     userdcsource.cpp
 
-#FORMS +=
-
-macx {
-  QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
-}
-
 win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface

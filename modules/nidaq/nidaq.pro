@@ -30,6 +30,8 @@ DEPENDPATH += $$PWD/../dso/core
 
 win32 {
     INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
-    DEFINES += HAVE_NI_DAQMX
+    exists("C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc\libnidaqmx.lib") {
+        LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+        DEFINES += HAVE_NI_DAQMX
+    }
 }

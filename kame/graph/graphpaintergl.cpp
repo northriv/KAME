@@ -28,6 +28,9 @@ using std::max;
 #include <errno.h>
 
 #ifdef HAVE_FTGL
+
+    #define DEFAULT_FONT_SIZE 12
+
 	#include <kstandarddirs.h>
 	#include <kapplication.h>
 	#include <kconfig.h>
@@ -68,6 +71,8 @@ using std::max;
 	    qstr.toWCharArray(&buf[0]);
 	    return &buf[0];
 	}
+#else
+    #define DEFAULT_FONT_SIZE 11
 #endif //HAVE_FTGL
 
 #define checkGLError() \
@@ -97,8 +102,6 @@ using std::max;
 		} \
 	} \
 } 
-
-#define DEFAULT_FONT_SIZE 12
 
 XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_graph(graph),
