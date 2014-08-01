@@ -25,16 +25,40 @@
 #endif
 
 #ifdef HAVE_NI488
-typedef void *PVOID;
-typedef char *PCHAR;
-typedef wchar_t WCHAR, *PWCHAR;
-typedef const char *LPCSTR;
-typedef const wchar_t *LPCWSTR;
-typedef int *PINT;
-typedef short *PSHORT;
-inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
-#include <ni488.h>
-#endif
+    #if defined WINDOWS || defined __WIN32__
+        #define DIRECT_ENTRY_NI488
+        static int load_ni4882dll();
+        static int free_ni4882dll();
+    #endif // WINDOWS || __WIN32__
+    inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
+    #include <ni4882.h>
+    extern "C" {
+    static void (__stdcall *pEnableRemote)(int, const Addr4882_t*);
+    #define EnableRemote (*pEnableRemote)
+    static void (__stdcall *pSendIFC)(int);
+    #define SendIFC (*pSendIFC)
+    static unsigned long(__stdcall *pThreadIbsta)(void);
+    #define ThreadIbsta() (pThreadIbsta())
+    static unsigned long(__stdcall *pThreadIberr)(void);
+    #define ThreadIberr() (pThreadIberr())
+    static unsigned long(__stdcall *pThreadIbcnt)(void);
+    #define ThreadIbcnt() (pThreadIbcnt())
+    unsigned long (__stdcall *pibclr)(int);
+    #define ibclr (*pibclr)
+    unsigned long (__stdcall *pibconfig)(int, int, int );
+    #define ibconfig (*pibconfig)
+    static int(__stdcall *pibdev)(int, int, int, int, int, int);
+    #define ibdev (*pibdev)
+    static int(__stdcall *pibonl)(int, int);
+    #define ibonl (*pibonl)
+    unsigned long (__stdcall *pibrd)(int, void *, size_t);
+    #define ibrd (*pibrd)
+    unsigned long (__stdcall *pibrsp)(int, char *);
+    #define ibrsp (*pibrsp)
+    unsigned long (__stdcall *pibwrt)(int, const void *, size_t);
+    #define ibwrt (*pibwrt)
+    }
+#endif //HAVE_NI488
 
 #define MIN_BUF_SIZE 1024
 
@@ -83,7 +107,7 @@ XNIGPIBPort::gpibStatus(const XString &msg) {
 	case ESTB: err = "ESTB"; break;
 	case ESRQ: err = "ESRQ"; break;
 	case ETAB: err = "ETAB"; break;
-	default: err = formatString("%u",ThreadIberr()); break;
+    default: err = formatString("%u",(unsigned int)ThreadIberr()); break;
 	}
 	if((ThreadIberr() == EDVR) || (ThreadIberr() == EFSO)) {
         char buf[256];
@@ -129,7 +153,12 @@ XNIGPIBPort::open() throw (XInterface::XCommError &) {
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		if(s_cntOpened == 0) {
-			dbgPrint(i18n("GPIB: Sending IFC"));
+#ifdef DIRECT_ENTRY_NI488
+            if(load_ni4882dll())
+                throw XInterface::XCommError(
+                    gpibStatus(i18n("Loading NI4882.DLL failed.")), __FILE__, __LINE__);
+#endif
+            dbgPrint(i18n("GPIB: Sending IFC"));
 			SendIFC (port);
 			msecsleep(100);
 		}
@@ -160,6 +189,10 @@ XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		s_cntOpened--;
+#ifdef DIRECT_ENTRY_NI488
+        if(s_cntOpened == 0)
+            free_ni4882dll();
+#endif
 	}
 }
 void
@@ -360,6 +393,54 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
 		}
 	}
 }
+
+#if defined DIRECT_ENTRY_NI488
+#include <windows.h>
+
+static HINSTANCE ni4882dll = NULL;
+
+static int load_ni4882dll() {
+    ni4882dll=LoadLibrary(L"NI4882.DLL");
+    if(ni4882dll == NULL) {
+        return -1;
+    }
+
+    pEnableRemote = (void (__stdcall *)
+        (int, const Addr4882_t*))GetProcAddress(ni4882dll, "EnableRemote");
+    pSendIFC = (void (__stdcall *)(int))GetProcAddress(ni4882dll, "SendIFC");
+    pThreadIbsta = (unsigned long (__stdcall *)(void))GetProcAddress(ni4882dll, "ThreadIbsta");
+    pThreadIberr = (unsigned long (__stdcall *)(void))GetProcAddress(ni4882dll, "ThreadIberr");
+    pThreadIbcnt = (unsigned long (__stdcall *)(void))GetProcAddress(ni4882dll, "ThreadIbcnt");
+    pibclr = (unsigned long (__stdcall *)(int)) GetProcAddress(ni4882dll, "ibclr");
+    pibconfig = (unsigned long (__stdcall *)
+        (int, int, int)) GetProcAddress(ni4882dll, "ibconfig");
+    pibdev = (int (__stdcall *)
+        (int, int, int, int, int, int)) GetProcAddress(ni4882dll, "ibdev");
+    pibonl = (int (__stdcall *)(int, int)) GetProcAddress(ni4882dll, "ibonl");
+    pibrd = (unsigned long (__stdcall *)
+        (int, void *, size_t)) GetProcAddress(ni4882dll, "ibrd");
+    pibrsp = (unsigned long (__stdcall *)
+        (int, char*)) GetProcAddress(ni4882dll, "ibrsp");
+    pibwrt = (unsigned long (__stdcall *)
+        (int, const void *, size_t)) GetProcAddress(ni4882dll, "ibwrt");
+
+    if((pEnableRemote == NULL) || (pSendIFC == NULL) ||
+       (pThreadIbsta == NULL) || (pThreadIberr == NULL) || (pThreadIbcnt == NULL) ||
+       (pibclr == NULL) || (pibconfig == NULL) || (pibdev == NULL) || (pibonl == NULL) ||
+       (pibrd == NULL) || (pibrsp == NULL) || (pibwrt == NULL)) {
+        free_ni4882dll();
+        ni4882dll = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+static int free_ni4882dll() {
+    if(ni4882dll != NULL)
+        FreeLibrary(ni4882dll);
+    return 0;
+}
+#endif // DIRECT_ENTRY_NI488
 
 
 #endif /*GPIB_NI*/
