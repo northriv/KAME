@@ -381,12 +381,10 @@ XFilePathConnector::XFilePathConnector(const shared_ptr<XStringNode> &node,
 void
 XFilePathConnector::onClick() {
     XString str = 
-    m_saving ?
-	m_dialog->
-	    getSaveFileName(QApplication::app(), QString(), m_pItem->text(), m_filter)
-     :
-	m_dialog->
-	    getOpenFileName(QApplication::app(), QString(), m_pItem->text(), m_filter);
+    m_saving ? QFileDialog::
+        getSaveFileName(btn, QString(), m_pItem->text(), m_filter)
+     : QFileDialog::
+        getOpenFileName(btn, QString(), m_pItem->text(), m_filter);
     if(str.length()) {
 	    m_pItem->blockSignals(true);
 	    m_pItem->setText(var);
@@ -407,7 +405,6 @@ XFilePathConnector::onClick() {
 
 void
 XFilePathConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-    m_dialog->selectFile(shot[ *node].to_str());
     XQLineEditConnector::onValueChanged(shot, node);
 }
 
