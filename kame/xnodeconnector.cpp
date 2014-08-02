@@ -855,5 +855,5 @@ XStatusPrinter::print(const tstatus &status) {
         icon = g_pIconError;
         break;
     }
-    XMessageBox::post(str, QIcon( *icon), status.ms, popup);
+    XMessageBox::post(str, QIcon( *icon), popup, status.ms);
 }

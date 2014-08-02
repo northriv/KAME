@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>185</width>
-    <height>212</height>
+    <width>301</width>
+    <height>126</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -38,19 +38,51 @@
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QListWidget" name="m_list"/>
+      <widget class="QListWidget" name="m_list">
+       <property name="font">
+        <font>
+         <pointsize>11</pointsize>
+        </font>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Sunken</enum>
+       </property>
+       <property name="alternatingRowColors">
+        <bool>false</bool>
+       </property>
+       <property name="isWrapping" stdset="0">
+        <bool>false</bool>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
       <widget class="QPushButton" name="m_btn">
        <property name="enabled">
         <bool>true</bool>
+       </property>
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>12</pointsize>
+        </font>
        </property>
        <property name="text">
         <string/>
        </property>
        <property name="autoDefault">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="default">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="flat">
         <bool>true</bool>

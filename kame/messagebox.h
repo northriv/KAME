@@ -26,7 +26,10 @@ class XMessageBox : public QObject {
 public:
     XMessageBox(QWidget *parent);
     static QWidget *form();
-    static void post(XString msg, const QIcon &icon, int duration_ms = 0, bool popup = true);
+    static void post(XString msg, const QIcon &icon, bool popup = false, int duration_ms = 0);
+protected slots:
+    void hide();
+private:
 };
 
 #endif // MESSAGEBOX_H
