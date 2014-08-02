@@ -28,6 +28,7 @@ set(kame_SRCS
     allocator.cpp
     measure.cpp
     kame.cpp
+    messagebox.cpp
     xnodeconnector.cpp
     xsignal.cpp
     xscheduler.cpp

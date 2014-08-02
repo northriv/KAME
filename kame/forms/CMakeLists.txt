@@ -24,7 +24,8 @@ kde4_add_ui_files(forms_SRCS
     drivercreate.ui 
     rubythreadtool.ui 
     nodebrowserform.ui
-    caltableform.ui)
+    caltableform.ui
+    messageform.ui)
 
 kde4_add_library(forms STATIC ${forms_SRCS})
 
