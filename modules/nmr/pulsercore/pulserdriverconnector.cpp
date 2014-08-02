@@ -153,7 +153,8 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
 		for(XPulser::Payload::RelPatList::const_iterator it = relpatlist.begin();
 			it != relpatlist.end(); it++) {
 			double time = it->time * pulser->resolution();
-			if(m_pTable->itemAt(1, i)->isSelected()) {
+            auto tableitem = m_pTable->item(i + 1, 0);
+            if(tableitem && tableitem->isSelected()) {
 				if(firsttime < 0) firsttime = time;
 				lasttime = time;
 			}

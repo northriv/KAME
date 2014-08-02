@@ -348,12 +348,23 @@ void FrmKameMain::fileOpenAction_activated() {
 
 
 void FrmKameMain::fileSaveAction_activated() {
+    QString filter = "KAME2 Measurement files (*.kam)";
+#if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     QString filename = QFileDialog::getSaveFileName (
-        this, i18n("Save Measurement File"), "",
-        "KAME2 Measurement files (*.kam);;"
-        "KAME1 Measurement files (*.mes);;"
-        "All files (*.*);;"
-        );
+        this, i18n("Save Measurement File"), "", filter);
+#else
+    //old qt cannot make native dialog in this mode.
+    QFileDialog dialog(this);
+    dialog.setWindowTitle(i18n("Save Measurement File"));
+    dialog.setViewMode(QFileDialog::Detail);
+    dialog.setNameFilter(filter);
+    dialog.setConfirmOverwrite(true);
+    dialog.setDefaultSuffix("kam");
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    if( !dialog.exec())
+        return;
+    QString filename = dialog.selectedFiles().at(0);
+#endif
     if( !filename.isEmpty()) {
 		std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>715</width>
-    <height>452</height>
+    <width>729</width>
+    <height>429</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,17 +15,47 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <property name="spacing">
+     <number>4</number>
+    </property>
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>4</number>
+    </property>
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
+        <property name="spacing">
+         <number>4</number>
+        </property>
         <item>
          <layout class="QVBoxLayout">
           <property name="spacing">
            <number>2</number>
           </property>
-          <property name="margin">
-           <number>4</number>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
           </property>
           <item>
            <widget class="QCheckBox" name="m_ckbOutput">
@@ -209,7 +239,16 @@
              <string>Pi/2 Pulse</string>
             </property>
             <layout class="QGridLayout">
-             <property name="margin">
+             <property name="leftMargin">
+              <number>4</number>
+             </property>
+             <property name="topMargin">
+              <number>4</number>
+             </property>
+             <property name="rightMargin">
+              <number>4</number>
+             </property>
+             <property name="bottomMargin">
               <number>4</number>
              </property>
              <property name="spacing">
@@ -333,11 +372,11 @@
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
-                 </property>
                  <property name="suffix">
                   <string> dB</string>
+                 </property>
+                 <property name="value">
+                  <double>0.000000000000000</double>
                  </property>
                  <property name="minValue" stdset="0">
                   <number>0</number>
@@ -361,7 +400,16 @@
              <string>Pi Pulse</string>
             </property>
             <layout class="QGridLayout">
-             <property name="margin">
+             <property name="leftMargin">
+              <number>4</number>
+             </property>
+             <property name="topMargin">
+              <number>4</number>
+             </property>
+             <property name="rightMargin">
+              <number>4</number>
+             </property>
+             <property name="bottomMargin">
               <number>4</number>
              </property>
              <property name="spacing">
@@ -452,11 +500,11 @@
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
-                 </property>
                  <property name="suffix">
                   <string> dB</string>
+                 </property>
+                 <property name="value">
+                  <double>0.000000000000000</double>
                  </property>
                  <property name="minValue" stdset="0">
                   <number>0</number>
@@ -531,12 +579,12 @@
            </widget>
           </item>
           <item>
-          <widget class="QSlider" name="m_slMasterLevel">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-          </widget>
-         </item>
+           <widget class="QSlider" name="m_slMasterLevel">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
           <item>
            <widget class="QDoubleSpinBox" name="m_dblMasterLevel">
             <property name="sizePolicy">
@@ -548,11 +596,11 @@
             <property name="acceptDrops">
              <bool>false</bool>
             </property>
-            <property name="value">
-             <double>0.000000000000000</double>
-            </property>
             <property name="suffix">
              <string> dB</string>
+            </property>
+            <property name="value">
+             <double>0.000000000000000</double>
             </property>
             <property name="minValue" stdset="0">
              <number>0</number>
@@ -600,7 +648,16 @@
              <string>Comb Pulse</string>
             </property>
             <layout class="QGridLayout">
-             <property name="margin">
+             <property name="leftMargin">
+              <number>2</number>
+             </property>
+             <property name="topMargin">
+              <number>2</number>
+             </property>
+             <property name="rightMargin">
+              <number>2</number>
+             </property>
+             <property name="bottomMargin">
               <number>2</number>
              </property>
              <property name="spacing">
@@ -875,11 +932,11 @@
                  <property name="acceptDrops">
                   <bool>false</bool>
                  </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
-                 </property>
                  <property name="suffix">
                   <string> dB</string>
+                 </property>
+                 <property name="value">
+                  <double>0.000000000000000</double>
                  </property>
                  <property name="minValue" stdset="0">
                   <number>0</number>
@@ -1062,7 +1119,16 @@
         <string>Pulse Table (Select Region to Visualize)</string>
        </property>
        <layout class="QGridLayout">
-        <property name="margin">
+        <property name="leftMargin">
+         <number>4</number>
+        </property>
+        <property name="topMargin">
+         <number>4</number>
+        </property>
+        <property name="rightMargin">
+         <number>4</number>
+        </property>
+        <property name="bottomMargin">
          <number>4</number>
         </property>
         <property name="spacing">

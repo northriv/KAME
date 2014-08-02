@@ -380,6 +380,14 @@ XFilePathConnector::XFilePathConnector(const shared_ptr<XStringNode> &node,
 }
 void
 XFilePathConnector::onClick() {
+#if QT_VERSION < QT_VERSION_CHECK(5,0,0)
+    XString str =
+    m_saving ? QFileDialog::
+        getSaveFileName(m_pItem, QString(), m_pItem->text(), m_filter)
+     : QFileDialog::
+        getOpenFileName(m_pItem, QString(), m_pItem->text(), m_filter);
+#else
+    //old qt cannot make native dialog in this mode.
     QFileDialog dialog(m_pItem);
     dialog.setViewMode(QFileDialog::Detail);
     dialog.setNameFilter(m_filter);
@@ -393,6 +401,7 @@ XFilePathConnector::onClick() {
     if( !dialog.exec())
         return;
     QString str = dialog.selectedFiles().at(0);
+#endif
     if(str.length()) {
 	    m_pItem->blockSignals(true);
         m_pItem->setText(str);
@@ -401,7 +410,7 @@ XFilePathConnector::onClick() {
 			for(Transaction tr( *m_node);; ++tr) {
             tr[ *m_node].str(str);
 				tr.unmark(m_lsnValueChanged);
-				if(tr.commit())
+                if(tr.commit())
 					break;
 			}
 	    }
@@ -513,7 +522,7 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 #endif
     connect(header, SIGNAL( sectionMoved(int, int, int)),
             this, SLOT( OnSectionMoved(int, int, int)));
-    header->setToolTip(i18n("Use drag-n-drop with ctrl pressed to reorder."));
+    header->setToolTip(i18n("Use drag-n-drop to reorder."));
 }
 XListQConnector::~XListQConnector() {
     if(isItemAlive()) {
@@ -526,9 +535,8 @@ void
 XListQConnector::OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex) {
     int fromIndex = oldVisualIndex;
     int toIndex = newVisualIndex;
-	if(toIndex > fromIndex)
-		toIndex--;
-//	fprintf(stderr, "IndexChange %d to %d\n", fromIndex, toIndex);
+    if(toIndex == fromIndex)
+        toIndex++;
     for(Transaction tr( *m_list);; ++tr) {
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
@@ -536,7 +544,11 @@ XListQConnector::OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVis
 //			gErrPrint(i18n("Invalid range of selections."));
 			return;
 		}
-		m_list->swap(tr, tr.list()->at(src), tr.list()->at(dst));
+        for(int i = src; i != dst;) {
+            int next = i + ((src < dst) ? 1: -1);
+            m_list->swap(tr, tr.list()->at(i), tr.list()->at(next));
+            i = next;
+        }
 		tr.unmark(m_lsnMove);
 		if(tr.commit())
 			break;
