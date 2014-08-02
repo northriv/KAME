@@ -767,9 +767,6 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window) {
 	m_lsn = m_tlkTalker.connectWeak(
         shared_from_this(), &XStatusPrinter::print,
         XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-#ifdef WITH_KDE
-    m_pPopup  = (new KPassivePopup( window ));
-#endif
 }
 XStatusPrinter::~XStatusPrinter() {
 }
@@ -826,22 +823,6 @@ XStatusPrinter::print(const tstatus &status) {
 	else {
 		m_pBar->hide();
 		m_pBar->clearMessage();
-	}
-	if(status.ms && popup) {
-#ifdef WITH_KDE
-		m_pPopup->hide();
-		m_pPopup->setTimeout(status.ms);
-#endif
-
-#ifdef WITH_KDE
-		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
-		m_pPopup->show();
-#endif
-	}
-	else {
-#ifdef WITH_KDE
-		m_pPopup->hide();
-#endif
 	}
     QPixmap *icon;
     switch(status.type) {
