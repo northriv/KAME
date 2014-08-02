@@ -405,9 +405,6 @@ protected:
 //! Show status
 class QMainWindow;
 class QStatusBar;
-#ifdef WITH_KDE
-	class KPassivePopup;
-#endif
 class XStatusPrinter : public enable_shared_from_this<XStatusPrinter> {
 protected:
 	explicit XStatusPrinter(QMainWindow *window = NULL);
@@ -424,9 +421,6 @@ private:
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;
 	QStatusBar *m_pBar;
-#ifdef WITH_KDE
-	KPassivePopup *m_pPopup;
-#endif
 	void print(const tstatus &status);
 };
 

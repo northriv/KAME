@@ -48,8 +48,10 @@
 #include "ui_drivertool.h"
 #include "ui_scalarentrytool.h"
 #include "icon.h"
+#include "messagebox.h"
 
 QWidget *g_pFrmMain = 0L;
+static XMessageBox *s_pMessageBox = 0L;
 
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
@@ -160,6 +162,8 @@ FrmKameMain::FrmKameMain()
 	m_pTimer->start(0);
 
 	scriptLineShellAction_activated();
+
+    s_pMessageBox = new XMessageBox(this);
 }
 
 struct MySubWindow : public QMdiSubWindow {
@@ -193,6 +197,7 @@ FrmKameMain::~FrmKameMain() {
 //	while( !g_signalBuffer->synchronize()) {}
 	m_measure.reset();
 	g_signalBuffer.reset();
+    delete s_pMessageBox; s_pMessageBox = 0L;
 }
 
 void

@@ -32,15 +32,12 @@
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QPainter>
-#ifdef WITH_KDE
-	#include <kpassivepopup.h>
-#endif
-
 #include <QMainWindow>
 
 #include <map>
 #include "measure.h"
 #include "icons/icon.h"
+#include "messagebox.h"
 #include <type_traits>
 
 //ms
@@ -835,18 +832,7 @@ XStatusPrinter::print(const tstatus &status) {
 		m_pPopup->hide();
 		m_pPopup->setTimeout(status.ms);
 #endif
-		QPixmap *icon;
-		switch(status.type) {
-		case tstatus::Normal:
-			icon = g_pIconInfo;
-			break;
-		case tstatus::Warning:
-			icon = g_pIconWarn;
-			break;
-		case tstatus::Error:
-			icon = g_pIconError;
-			break;
-		}
+
 #ifdef WITH_KDE
 		m_pPopup->setView(m_pWindow->windowTitle(), str, *icon );
 		m_pPopup->show();
@@ -857,4 +843,17 @@ XStatusPrinter::print(const tstatus &status) {
 		m_pPopup->hide();
 #endif
 	}
+    QPixmap *icon;
+    switch(status.type) {
+    case tstatus::Normal:
+        icon = g_pIconInfo;
+        break;
+    case tstatus::Warning:
+        icon = g_pIconWarn;
+        break;
+    case tstatus::Error:
+        icon = g_pIconError;
+        break;
+    }
+    XMessageBox::post(str, QIcon( *icon), status.ms, popup);
 }

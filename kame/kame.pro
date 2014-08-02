@@ -81,6 +81,7 @@ HEADERS += \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
+    messagebox.h
 
 unix {
     HEADERS += \
@@ -135,7 +136,8 @@ SOURCES += \
     analyzer/recorder.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
-    main.cpp
+    main.cpp \
+    messagebox.cpp
 
 
 unix {
@@ -155,6 +157,7 @@ FORMS += \
     forms/recordreaderform.ui \
     forms/rubythreadtool.ui \
     forms/scalarentrytool.ui \
+    forms/messageform.ui
 
 RESOURCES += \
     kame.qrc
