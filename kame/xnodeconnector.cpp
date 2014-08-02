@@ -380,11 +380,19 @@ XFilePathConnector::XFilePathConnector(const shared_ptr<XStringNode> &node,
 }
 void
 XFilePathConnector::onClick() {
-    XString str = 
-    m_saving ? QFileDialog::
-        getSaveFileName(m_pItem, QString(), m_pItem->text(), m_filter)
-     : QFileDialog::
-        getOpenFileName(m_pItem, QString(), m_pItem->text(), m_filter);
+    QFileDialog dialog(m_pItem);
+    dialog.setViewMode(QFileDialog::Detail);
+    dialog.setNameFilter(m_filter);
+//    dialog.setConfirmOverwrite(false);
+    int perpos = m_filter.find_first_of('.');
+    assert(perpos != std::string::npos);
+    XString suf = m_filter.substr(perpos + 1, 3);
+    dialog.setDefaultSuffix(suf);
+    dialog.setDirectory(m_pItem->text());
+    dialog.setAcceptMode(m_saving ? QFileDialog::AcceptSave: QFileDialog::AcceptOpen);
+    if( !dialog.exec())
+        return;
+    QString str = dialog.selectedFiles().at(0);
     if(str.length()) {
 	    m_pItem->blockSignals(true);
         m_pItem->setText(str);
