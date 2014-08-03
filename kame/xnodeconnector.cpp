@@ -830,6 +830,7 @@ XStatusPrinter::print(const tstatus &status) {
     QPixmap *icon;
     switch(status.type) {
     case tstatus::Normal:
+    default:
         icon = g_pIconInfo;
         break;
     case tstatus::Warning:
