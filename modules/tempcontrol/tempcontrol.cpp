@@ -155,7 +155,7 @@ XTempControl::Loop::update(double temp) {
 	if( !tempctrl) return;
 	Snapshot shot( *tempctrl);
 
-	//calicurate std. deviations in some periods
+    //calculates std. deviations in some periods
 	double tau = shot[ *m_int] * 4.0;
 	if(tau <= 1)
 		tau = 4.0;
@@ -165,7 +165,7 @@ XTempControl::Loop::update(double temp) {
 	double terr = temp - shot[ *m_targetTemp];
 	m_tempAvg = (m_tempAvg - temp) * exp( -dt / tau) + temp;
 	m_tempErrAvg = (m_tempErrAvg - terr * terr) * exp( -dt / tau) + terr * terr;
-	m_tempErrAvg = std::min(m_tempErrAvg, temp * temp);
+    m_tempErrAvg = std::min(m_tempErrAvg, temp * temp * 0.04);
 
 	double power = 0.0;
 	shared_ptr<XDCSource> dcsrc = shot[ *m_extDevice];
