@@ -34,13 +34,13 @@ XMessageBox::XMessageBox(QWidget *parent) {
     QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
     int y = rect.bottom() - s_pFrmMessage->height();
 #if defined __WIN32__ || defined WINDOWS
-    y -= 48; //for taskbar, due to a bug of availableGeometry.
+    y -= 50; //for taskbar, due to a bug of availableGeometry.
 #endif
     s_pFrmMessage->move(0, y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 
     QFont font(s_pFrmMessage->m_list->font());
-    font.setPointSize(10);
+    font.setPixelSize(16);
     s_pFrmMessage->m_list->setFont(font);
 
     s_timer = new QTimer(this);
