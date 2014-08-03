@@ -414,7 +414,7 @@ protected:
 class XFuncPlot : public XPlot {
 public:
 	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-	void clearAllPoints(Transaction &tr) {}
+    void clearAllPoints(Transaction &) {}
 	virtual int validateAutoScale(const Snapshot &) {return 0;}
   
 	virtual double func(double x) const = 0;

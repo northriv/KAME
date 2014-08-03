@@ -113,8 +113,7 @@ XQGraph::wheelEvent ( QWheelEvent *e) {
 		m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
 }
 void
-XQGraph::showEvent ( QShowEvent *e) {
-//    Q_UNUSED(e);
+XQGraph::showEvent ( QShowEvent *) {
     shared_ptr<XGraph> graph = m_graph;
 	if(graph) { 
 		m_painter.reset();
@@ -150,7 +149,7 @@ void
 XQGraph::resizeGL ( int width, int height ) {
     // be aware of retina display.
     double pixel_ratio =
-#if QT_VERSION >= 0x50000
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
         devicePixelRatio();
 #else
         1.0;

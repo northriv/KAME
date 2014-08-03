@@ -126,7 +126,7 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 			break;
 	}
 	m_pixel_ratio =
-#if QT_VERSION >= 0x50000
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
 		m_pItem->windowHandle()->devicePixelRatio();
 #else
 		1.0;
