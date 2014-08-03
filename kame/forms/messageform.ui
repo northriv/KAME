@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>284</width>
-    <height>175</height>
+    <width>305</width>
+    <height>186</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,6 +34,12 @@
    </property>
    <item>
     <widget class="QListWidget" name="m_list">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="font">
       <font>
        <pointsize>9</pointsize>
@@ -50,6 +56,9 @@
      </property>
      <property name="alternatingRowColors">
       <bool>false</bool>
+     </property>
+     <property name="textElideMode">
+      <enum>Qt::ElideNone</enum>
      </property>
      <property name="isWrapping" stdset="0">
       <bool>false</bool>
@@ -131,7 +140,7 @@
          <string/>
         </property>
         <property name="scaledContents">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
         <property name="alignment">
          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
