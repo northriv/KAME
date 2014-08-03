@@ -39,8 +39,8 @@ XMessageBox::XMessageBox(QWidget *parent) {
     s_pFrmMessage->move(0, y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 
-    QFont font(s_pFrmMessage->m_list->font());
-    font.setPixelSize(16);
+    QFont font(s_pFrmMessage->font());
+    font.setPointSize(font.pointSize() * 4 / 5);
     s_pFrmMessage->m_list->setFont(font);
 
     s_timer = new QTimer(this);
