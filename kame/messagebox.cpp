@@ -39,6 +39,10 @@ XMessageBox::XMessageBox(QWidget *parent) {
     s_pFrmMessage->move(0, y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 
+    QFont font(s_pFrmMessage->m_list->font());
+    font.setPointSize(10);
+    s_pFrmMessage->m_list->setFont(font);
+
     s_timer = new QTimer(this);
     connect(s_timer, SIGNAL(timeout()), this, SLOT(hide()));
     s_timer->setSingleShot(true);
@@ -54,6 +58,10 @@ XMessageBox::hide() {
 }
 void
 XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms, XString tooltip) {
+    if( !msg.length()) {
+        s_pFrmMessage->m_widget->hide();
+        return;
+    }
     if(popup) {
         s_pFrmMessage->m_label->setText(msg);
         s_pFrmMessage->m_label->repaint();
