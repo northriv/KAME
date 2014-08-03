@@ -78,7 +78,7 @@ public:
 
 class Ui_FrmGraph;
 class QMainWindow;
-typedef QForm<QMainWindow, Ui_FrmGraph> FrmGraph;
+typedef QForm<QWidget, Ui_FrmGraph> FrmGraph;
 class XGraph;
 class XXYPlot;
 

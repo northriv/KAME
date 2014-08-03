@@ -32,7 +32,7 @@ XConCalTable::XConCalTable
 	   m_temp(XNode::createOrphan<XDoubleNode>("temp") ),
 	   m_value(XNode::createOrphan<XDoubleNode>("value") ),
 	   m_pForm(form),
-	   m_waveform(new FrmGraphNURL(g_pFrmMain)),
+	   m_waveform(new FrmGraphNURL(g_pFrmMain, Qt::Window)),
 	   m_wave(XNode::createOrphan<XWaveNGraph>("Waveform", true, m_waveform.get())) {
 
 	for(Transaction tr( *list);; ++tr) {

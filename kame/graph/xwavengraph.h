@@ -29,7 +29,7 @@ class QPushButton;
 class XAxis;
 class XXYPlot;
 class Ui_FrmGraphNURL;
-typedef QForm<QMainWindow, Ui_FrmGraphNURL> FrmGraphNURL;
+typedef QForm<QWidget, Ui_FrmGraphNURL> FrmGraphNURL;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph

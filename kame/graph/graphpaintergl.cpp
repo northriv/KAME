@@ -16,7 +16,7 @@
 #include <QTimer>
 #include <GL/glu.h>
 
-#if QT_VERSION >= 0x50000
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
     #include <QWindow>
 #endif
 

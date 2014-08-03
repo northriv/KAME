@@ -21,7 +21,7 @@
 
 #include "ui_messageform.h"
 
-typedef QForm<QMainWindow, Ui_FrmMessage> FrmMessage;
+typedef QForm<QWidget, Ui_FrmMessage> FrmMessage;
 static FrmMessage *s_pFrmMessage = 0L;
 static QTimer *s_timer = 0L;
 
@@ -32,7 +32,12 @@ XMessageBox::XMessageBox(QWidget *parent) {
     s_pFrmMessage->m_widget->hide();
 
     QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
-    s_pFrmMessage->move(0, rect.bottom() - s_pFrmMessage->height());
+    int y = rect.bottom() - s_pFrmMessage->height();
+#if defined __WIN32__ || defined WINDOWS
+    y -= 48; //for taskbar, due to a bug of availableGeometry.
+#endif
+    s_pFrmMessage->move(0, y);
+//    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 
     s_timer = new QTimer(this);
     connect(s_timer, SIGNAL(timeout()), this, SLOT(hide()));
@@ -48,30 +53,31 @@ XMessageBox::hide() {
     s_pFrmMessage->m_widget->hide();
 }
 void
-XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms) {
+XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms, XString tooltip) {
     if(popup) {
         s_pFrmMessage->m_label->setText(msg);
         s_pFrmMessage->m_label->repaint();
         s_pFrmMessage->m_btn->setIcon(icon);
-        s_pFrmMessage->m_widget->show();
-        s_pFrmMessage->showNormal();
-        s_pFrmMessage->raise();
-        s_timer->stop();
         if(duration_ms) {
+            s_pFrmMessage->m_widget->show();
+            s_pFrmMessage->showNormal();
+            s_pFrmMessage->raise();
+        }
+        else {
+            s_pFrmMessage->m_widget->hide();
+        }
+        s_timer->stop();
+        if(duration_ms > 0) {
             s_timer->setInterval(duration_ms);
             s_timer->start();
         }
 
     }
-//    else {
-//        s_pFrmMessage->m_label->hide();
-//    }
 
     msg = XTime::now().getTimeFmtStr("%H:%M:%S ", false) + msg;
-    if( !icon.isNull())
-       new QListWidgetItem(icon, msg, s_pFrmMessage->m_list);
-    else
-       s_pFrmMessage->m_list->addItem(msg);
+    QListWidgetItem *item;
+    item = new QListWidgetItem(icon, msg, s_pFrmMessage->m_list);
+    item->setToolTip(tooltip);
     if(s_pFrmMessage->m_list->count() > 100)
         s_pFrmMessage->m_list->takeItem(0);
     s_pFrmMessage->m_list->scrollToBottom();

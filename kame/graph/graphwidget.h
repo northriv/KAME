@@ -57,6 +57,6 @@ private:
 };
 
 class Ui_FrmGraph;
-typedef QForm<QMainWindow, Ui_FrmGraph> FrmGraph;
+typedef QForm<QWidget, Ui_FrmGraph> FrmGraph;
 
 #endif // GRAPHWIDGET_H

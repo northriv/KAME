@@ -162,7 +162,7 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
 #endif
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
-	if(statusprinter) statusprinter->printError(str);
+    if(statusprinter) statusprinter->printError(str, true, file, line);
 }
 void
 gWarnPrint_redirected(const XString &str, const char *file, int line) {
@@ -179,7 +179,7 @@ gWarnPrint_redirected(const XString &str, const char *file, int line) {
 			<< std::endl;
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
-	if(statusprinter) statusprinter->printWarning(str);
+    if(statusprinter) statusprinter->printWarning(str, false, file, line);
 }
 
 #define SNPRINT_BUF_SIZE 128

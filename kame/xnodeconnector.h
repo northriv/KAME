@@ -80,13 +80,13 @@ extern QWidget *g_pFrmMain;
 //! Providing an easy access to make a new form with UIs designed by Qt designer.
 template <class FRM, class UI>
 struct QForm : public FRM, public UI {
-	QForm() : FRM(), UI() {this->setupUi(this);}
+    QForm() : FRM(), UI() {this->setupUi(this);}
 	template <typename A>
-	explicit QForm(A a) : FRM(a), UI() {this->setupUi(this);}
+    explicit QForm(A a) : FRM(a), UI() {this->setupUi(this);}
 	template <typename A, typename B>
-	QForm(A a, B b) : FRM(a, b), UI() {this->setupUi(this);}
+    QForm(A a, B b) : FRM(a, b), UI() {this->setupUi(this);}
 	template <typename A, typename B, typename C>
-	QForm(A a, B b, C c) : FRM(a, b, c), UI() {this->setupUi(this);}
+    QForm(A a, B b, C c) : FRM(a, b, c), UI() {this->setupUi(this);}
 };
 
 //! Associate QWidget to XNode.
@@ -411,12 +411,12 @@ protected:
 public:
 	static shared_ptr<XStatusPrinter> create(QMainWindow *window = NULL);
 	~XStatusPrinter();
-	void printMessage(const XString &str, bool popup = true);
-	void printWarning(const XString &str, bool popup = false);
-	void printError(const XString &str, bool popup = true);
+    void printMessage(const XString &str, bool popup = true, const char *file = 0L, int line = 0);
+    void printWarning(const XString &str, bool popup = false, const char *file = 0L, int line = 0);
+    void printError(const XString &str, bool popup = true, const char *file = 0L, int line = 0);
 	void clear();
 private:
-	struct tstatus {XString str; int ms; bool popup; enum {Normal, Warning, Error} type;};
+    struct tstatus {XString str; XString tooltip; int ms; bool popup; enum {Normal, Warning, Error} type;};
 	XTalker<tstatus> m_tlkTalker;
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;

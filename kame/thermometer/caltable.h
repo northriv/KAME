@@ -23,7 +23,7 @@
 class Ui_FrmCalTable;
 typedef QForm<QWidget, Ui_FrmCalTable> FrmCalTable;
 class Ui_FrmGraphNURL;
-typedef QForm<QMainWindow, Ui_FrmGraphNURL> FrmGraphNURL;
+typedef QForm<QWidget, Ui_FrmGraphNURL> FrmGraphNURL;
 class XWaveNGraph;
 
 class XConCalTable : public XQConnector {

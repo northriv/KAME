@@ -61,7 +61,7 @@ XValChart::XValChart(const char *name, bool runtime,
 	: XNode(name, runtime),
 	  m_entry(entry),
 	  m_graph(create<XGraph>(name, false)),
-	  m_graphForm(new FrmGraph(g_pFrmMain)) {
+      m_graphForm(new FrmGraph(g_pFrmMain, Qt::Window)) {
 
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
@@ -231,7 +231,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *graph->label()] = getLabel();
 
 		if(tr.commit()) {
-			m_graphForm.reset(new FrmGraph(g_pFrmMain));
+            m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
             m_graphForm->m_graphwidget->setGraph(graph);
 			break;
 		}
