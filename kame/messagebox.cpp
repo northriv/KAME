@@ -29,7 +29,7 @@ XMessageBox::XMessageBox(QWidget *parent) {
     s_pFrmMessage = new FrmMessage(parent, Qt::Tool | Qt::WindowStaysOnBottomHint);
     s_pFrmMessage->show();
 
-    s_pFrmMessage->m_btn->hide();
+    s_pFrmMessage->m_widget->hide();
 
     QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
     s_pFrmMessage->move(0, rect.bottom() - s_pFrmMessage->height());
@@ -45,14 +45,17 @@ XMessageBox::form() {
 }
 void
 XMessageBox::hide() {
-    s_pFrmMessage->m_btn->hide();
+    s_pFrmMessage->m_widget->hide();
 }
 void
 XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms) {
     if(popup) {
-        s_pFrmMessage->m_btn->setText(msg);
+        s_pFrmMessage->m_label->setText(msg);
+        s_pFrmMessage->m_label->repaint();
         s_pFrmMessage->m_btn->setIcon(icon);
-        s_pFrmMessage->m_btn->show();
+        s_pFrmMessage->m_widget->show();
+        s_pFrmMessage->showNormal();
+        s_pFrmMessage->raise();
         s_timer->stop();
         if(duration_ms) {
             s_timer->setInterval(duration_ms);
@@ -61,7 +64,7 @@ XMessageBox::post(XString msg, const QIcon &icon, bool popup, int duration_ms) {
 
     }
 //    else {
-//        s_pFrmMessage->m_btn->hide();
+//        s_pFrmMessage->m_label->hide();
 //    }
 
     msg = XTime::now().getTimeFmtStr("%H:%M:%S ", false) + msg;

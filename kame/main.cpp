@@ -28,6 +28,7 @@
 #include "kame.h"
 #include "xsignal.h"
 #include "icons/icon.h"
+#include "messagebox.h"
 #include <QGLFormat>
 #include <QFile>
 #include <QTextCodec>
@@ -235,7 +236,7 @@ int main(int argc, char *argv[]) {
 
         for(auto sit = paths.begin(); sit != paths.end(); sit++) {
             lt_dladdsearchdir(sit->toLocal8Bit().data());
-            fprintf(stderr, "Searching for modules in %s\n", (const char*)sit->toLocal8Bit().data());
+            XMessageBox::post("Searching for modules in " + *sit, *g_pIconInfo);
             lt_dlforeachfile(sit->toLocal8Bit().data(), &load_module, &modules);
         }
     }
@@ -243,10 +244,10 @@ int main(int argc, char *argv[]) {
 	for(auto it = modules.begin(); it != modules.end(); it++) {
 		lt_dlhandle handle = lt_dlopenext(it->c_str());
 		if(handle) {
-			fprintf(stderr, "Module %s loaded\n", it->c_str());
+            XMessageBox::post("Module \"" + *it + "\" loaded", *g_pIconKame);
 		}
 		else {
-			fprintf(stderr, "Failed during loading module %s.\n", it->c_str());
+            XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
 		}
 	}
 

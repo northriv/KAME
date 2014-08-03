@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>301</width>
-    <height>126</height>
+    <width>252</width>
+    <height>176</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,77 +17,129 @@
    <double>0.800000000000000</double>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QGridLayout" name="gridLayout">
+   <layout class="QVBoxLayout" name="verticalLayout">
     <property name="leftMargin">
-     <number>4</number>
+     <number>2</number>
     </property>
     <property name="topMargin">
-     <number>4</number>
+     <number>2</number>
     </property>
     <property name="rightMargin">
-     <number>4</number>
+     <number>2</number>
     </property>
     <property name="bottomMargin">
-     <number>4</number>
+     <number>2</number>
     </property>
-    <property name="horizontalSpacing">
-     <number>4</number>
-    </property>
-    <item row="0" column="0">
-     <widget class="QSplitter" name="splitter">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
+    <item>
+     <widget class="QListWidget" name="m_list">
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
       </property>
-      <widget class="QListWidget" name="m_list">
-       <property name="font">
-        <font>
-         <pointsize>11</pointsize>
-        </font>
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Sunken</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="alternatingRowColors">
+       <bool>false</bool>
+      </property>
+      <property name="isWrapping" stdset="0">
+       <bool>false</bool>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="m_widget" native="true">
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <property name="spacing">
+        <number>2</number>
        </property>
-       <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+       <property name="leftMargin">
+        <number>2</number>
        </property>
-       <property name="frameShadow">
-        <enum>QFrame::Sunken</enum>
+       <property name="topMargin">
+        <number>2</number>
        </property>
-       <property name="alternatingRowColors">
-        <bool>false</bool>
+       <property name="rightMargin">
+        <number>2</number>
        </property>
-       <property name="isWrapping" stdset="0">
-        <bool>false</bool>
+       <property name="bottomMargin">
+        <number>2</number>
        </property>
-       <property name="wordWrap">
-        <bool>true</bool>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="m_btn">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>12</pointsize>
-        </font>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="autoDefault">
-        <bool>false</bool>
-       </property>
-       <property name="default">
-        <bool>false</bool>
-       </property>
-       <property name="flat">
-        <bool>true</bool>
-       </property>
-      </widget>
+       <item>
+        <widget class="QPushButton" name="m_btn">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>16</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>32</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>24</width>
+           <height>24</height>
+          </size>
+         </property>
+         <property name="flat">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="m_label">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="scaledContents">
+          <bool>true</bool>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
    </layout>
@@ -100,16 +152,32 @@
   <connection>
    <sender>m_btn</sender>
    <signal>clicked()</signal>
-   <receiver>m_btn</receiver>
+   <receiver>m_widget</receiver>
    <slot>hide()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>92</x>
-     <y>191</y>
+     <x>19</x>
+     <y>155</y>
     </hint>
     <hint type="destinationlabel">
-     <x>92</x>
-     <y>191</y>
+     <x>156</x>
+     <y>138</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>m_list</sender>
+   <signal>itemSelectionChanged()</signal>
+   <receiver>m_widget</receiver>
+   <slot>hide()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>125</x>
+     <y>64</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>125</x>
+     <y>155</y>
     </hint>
    </hints>
   </connection>

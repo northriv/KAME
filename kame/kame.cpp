@@ -134,6 +134,12 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
 
+    s_pMessageBox = new XMessageBox(this);
+    m_pViewMenu->addSeparator();
+    QAction *act = new QAction( *g_pIconInfo, XMessageBox::form()->windowTitle(), this);
+    connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
+    m_pViewMenu->addAction(act);
+
 	resize(QSize(std::min(1280, width()), 560));
    
     // The root for all nodes.
@@ -162,8 +168,6 @@ FrmKameMain::FrmKameMain()
 	m_pTimer->start(0);
 
 	scriptLineShellAction_activated();
-
-    s_pMessageBox = new XMessageBox(this);
 }
 
 struct MySubWindow : public QMdiSubWindow {
