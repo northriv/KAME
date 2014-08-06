@@ -1,3 +1,19 @@
+* Wed Aug 6 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.2-1)
+- Fix for sliders.
+- GUI looks better.
+
+* Sun Aug 3 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.1-1)
+- Fix for XTime(Win).
+- Tcp/IP for win.
+- Message window.
+
+* Fri Aug 1 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.0-1)
+- Beta 1
+- Windows/MacOSX builds without Qt nor FTGL.
+
 * Sat Jul 28 2013 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (3.3.7-1)
 - autotuner: Improved.
