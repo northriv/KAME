@@ -310,7 +310,7 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onChangeTMPL(X val) {
     if( !std::is_integral<X>::value) {
         double max = m_pItem->maximum();
         double min = m_pItem->minimum();
-        var = lrint((val + min) / (max - min) * 100);
+        var = lrint((val - min) / (max - min) * 100);
     }
     if(m_pSlider) {
         m_pSlider->blockSignals(true);
@@ -357,7 +357,7 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onValueChangedTMPL(const Snapshot &shot, XValue
         if( !std::is_integral<X>::value) {
             double max = m_pItem->maximum();
             double min = m_pItem->minimum();
-            svar = lrint((var + min) / (max - min) * 100);
+            svar = lrint((var - min) / (max - min) * 100);
         }
 		m_pSlider->blockSignals(true);
         m_pSlider->setValue(svar);
