@@ -463,6 +463,8 @@ XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *i
     item->setCheckable(false);
     item->setAutoDefault(false);
     item->setFlat(true);
+    item->setFocusPolicy(Qt::NoFocus);
+    item->setIconSize(QSize(16, 16));
     onValueChanged(Snapshot( *node), node.get());
 }
 
@@ -510,12 +512,12 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 			break;
 	}
     QHeaderView *header = m_pItem->verticalHeader();
-#if QT_VERSION  < 0x050000
+#if QT_VERSION  < QT_VERSION_CHECK(5,0,0)
     header->setMovable(true);
-    header->setResizeMode(QHeaderView::Fixed);
+    header->setResizeMode(QHeaderView::ResizeToContents); //QHeaderView::Fixed
 #else
     header->setSectionsMovable(true);
-    header->setSectionResizeMode(QHeaderView::Fixed);
+    header->setSectionResizeMode(QHeaderView::ResizeToContents);
 #endif
     connect(header, SIGNAL( sectionMoved(int, int, int)),
             this, SLOT( OnSectionMoved(int, int, int)));

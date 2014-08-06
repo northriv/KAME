@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>729</width>
-    <height>429</height>
+    <width>728</width>
+    <height>389</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -60,7 +60,7 @@
           <item>
            <widget class="QCheckBox" name="m_ckbOutput">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
@@ -143,7 +143,7 @@
                 <property name="maximumSize">
                  <size>
                   <width>80</width>
-                  <height>32767</height>
+                  <height>32</height>
                  </size>
                 </property>
                </widget>
@@ -208,7 +208,7 @@
                 <property name="maximumSize">
                  <size>
                   <width>80</width>
-                  <height>32767</height>
+                  <height>32</height>
                  </size>
                 </property>
                </widget>
@@ -288,7 +288,7 @@
                    <property name="maximumSize">
                     <size>
                      <width>80</width>
-                     <height>32767</height>
+                     <height>32</height>
                     </size>
                    </property>
                   </widget>
@@ -449,7 +449,7 @@
                    <property name="maximumSize">
                     <size>
                      <width>80</width>
-                     <height>32767</height>
+                     <height>32</height>
                     </size>
                    </property>
                   </widget>
@@ -579,39 +579,49 @@
            </widget>
           </item>
           <item>
-           <widget class="QSlider" name="m_slMasterLevel">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QDoubleSpinBox" name="m_dblMasterLevel">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="acceptDrops">
-             <bool>false</bool>
-            </property>
-            <property name="suffix">
-             <string> dB</string>
-            </property>
-            <property name="value">
-             <double>0.000000000000000</double>
-            </property>
-            <property name="minValue" stdset="0">
-             <number>0</number>
-            </property>
-            <property name="maxValue" stdset="0">
-             <number>0</number>
-            </property>
-            <property name="precision" stdset="0">
-             <number>1</number>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="hLayout">
+            <item>
+             <widget class="QSlider" name="m_slMasterLevel">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="m_dblMasterLevel">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="acceptDrops">
+               <bool>false</bool>
+              </property>
+              <property name="suffix">
+               <string> dB</string>
+              </property>
+              <property name="value">
+               <double>0.000000000000000</double>
+              </property>
+              <property name="minValue" stdset="0">
+               <number>0</number>
+              </property>
+              <property name="maxValue" stdset="0">
+               <number>0</number>
+              </property>
+              <property name="precision" stdset="0">
+               <number>1</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
            <widget class="QLabel" name="textLabel2_3">
@@ -644,6 +654,12 @@
           </item>
           <item>
            <widget class="QGroupBox" name="groupBox4">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="title">
              <string>Comb Pulse</string>
             </property>
@@ -697,7 +713,7 @@
                    <property name="maximumSize">
                     <size>
                      <width>80</width>
-                     <height>32767</height>
+                     <height>32</height>
                     </size>
                    </property>
                   </widget>
@@ -789,7 +805,7 @@
                    <property name="maximumSize">
                     <size>
                      <width>80</width>
-                     <height>32767</height>
+                     <height>32</height>
                     </size>
                    </property>
                   </widget>
@@ -848,7 +864,7 @@
                    <property name="maximumSize">
                     <size>
                      <width>80</width>
-                     <height>32767</height>
+                     <height>32</height>
                     </size>
                    </property>
                   </widget>
@@ -989,7 +1005,7 @@
                  <property name="maximumSize">
                   <size>
                    <width>80</width>
-                   <height>32767</height>
+                   <height>32</height>
                   </size>
                  </property>
                 </widget>
@@ -1050,7 +1066,7 @@
                  <property name="maximumSize">
                   <size>
                    <width>80</width>
-                   <height>32767</height>
+                   <height>32</height>
                   </size>
                  </property>
                 </widget>
@@ -1083,7 +1099,7 @@
       <item>
        <widget class="QPushButton" name="m_btnMoreConfig">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -1115,6 +1131,12 @@
        </property>
       </widget>
       <widget class="QGroupBox" name="groupBox3_2">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="title">
         <string>Pulse Table (Select Region to Visualize)</string>
        </property>
