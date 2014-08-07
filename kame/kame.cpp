@@ -83,7 +83,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
     m_pMdiLeft->setTabPosition(QTabWidget::West);
-   dock->setWidget(m_pMdiLeft);
+    dock->setWidget(m_pMdiLeft);
     addDockWidget(Qt::LeftDockWidgetArea, dock);
 
     //Right MDI area.
@@ -94,7 +94,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiRight->setViewMode(QMdiArea::TabbedView);
     m_pMdiRight->setTabPosition(QTabWidget::East);
-   dock->setWidget(m_pMdiRight);
+    dock->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dock);
 
     g_signalBuffer.reset(new XSignalBuffer());
@@ -171,9 +171,9 @@ FrmKameMain::FrmKameMain()
 }
 
 struct MySubWindow : public QMdiSubWindow {
-	void closeEvent(QCloseEvent *e) {
-		e->ignore();
-	}
+    void closeEvent(QCloseEvent *e) {
+        e->ignore();
+    }
 };
 QMdiSubWindow *
 FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
@@ -185,7 +185,7 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 	else {
 		 wnd = new MySubWindow(); //delegated class, which ignores closing events.
 		 QAction *act = new QAction(widget->windowIcon(), widget->windowTitle(), this);
-	     connect(act, SIGNAL(triggered()), wnd, SLOT(showMaximized()));
+         connect(act, SIGNAL(triggered()), wnd, SLOT(showMaximized()));
 	     m_pViewMenu->addAction(act);
 	}
 	wnd->setWidget(widget);
