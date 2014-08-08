@@ -1,3 +1,7 @@
+* Fri Aug 8 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.3-1)
+- Fix for daqmxpulser.
+
 * Wed Aug 6 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.2-1)
 - Fix for sliders.
