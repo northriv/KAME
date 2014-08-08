@@ -19,6 +19,15 @@
 using boost::math::lcm;
 using boost::math::gcd;
 
+//struct ProductInfo {
+//    const char *type;
+//    const char *series;
+//    int flags;
+//    unsigned long ai_max_rate; //!< [kHz]
+//    unsigned long ao_max_rate; //!< [kHz]
+//    unsigned long di_max_rate; //!< [kHz]
+//    unsigned long do_max_rate; //!< [kHz]
+//};
 const XNIDAQmxInterface::ProductInfo
 XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PCI-6110", "S", 0, 5000uL, 1000uL, 0, 0},
@@ -47,7 +56,10 @@ XNIDAQmxInterface::sc_productInfoList[] = {
 	{"PCI-6255", "M", 0, 1000uL, 1000uL, 5000uL, 5000uL},
 	{"PCIe-6255", "M", 0, 1000uL, 1000uL, 5000uL, 5000uL},
 	{"PXI-6255", "M", 0, 1000uL, 1000uL, 5000uL, 5000uL},
-	{0, 0, 0, 0, 0, 0, 0},
+    {"PCIe-6351", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
+    {"PCIe-6353", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
+    {"PCIe-6363", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
+    {0, 0, 0, 0, 0, 0, 0},
 };
 
 //for synchronization.
@@ -269,7 +281,7 @@ XNIDAQmxInterface::synchronizeClock(TaskHandle task) {
 			return;
 	}
 	
-	if(productSeries() == XString("M")) {
+    if((productSeries() == XString("M")) || (productSeries() == XString("X"))) {
 		if(busArchType() == XString("PCI")) {
 			CHECK_DAQMX_RET(DAQmxSetRefClkSrc(task, src.c_str()));
 			CHECK_DAQMX_RET(DAQmxSetRefClkRate(task, rate));
@@ -425,7 +437,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == XString("M"))) {
+                    if((pit->type == type) && ((pit->series == XString("M")) || (pit->series == XString("X")) )) {
 						XString inp_term = formatString("/%s/PFI0", it->c_str());
 						//Detects external clock source.
 						if(routeExternalClockSource(it->c_str(),  inp_term.c_str())) {
@@ -469,8 +481,8 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;
 				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
-					if((pit->type == type) && (pit->series == XString("M"))) {
-						//Detects external clock source.
+                    if((pit->type == type) && ((pit->series == XString("M")) || (pit->series == XString("X")) )) {
+                        //Detects external clock source.
 						fprintf(stderr, "20MHz Reference Clock exported from %s\n", it->c_str());
 						//M series device cannot export 20MHzTimebase freely.
 						XString ctrdev = formatString("%s/ctr1", it->c_str());
