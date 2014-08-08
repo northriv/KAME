@@ -537,10 +537,14 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Commit));
 
 	//Waits for buffer filling.
+	XTime wait_since(XTime::now());
 	while( !m_isThreadWriterReady) {
 		if(m_threadWriter->isTerminated())
 			return;
 		usleep(1000);
+		if(XTime::now() - wait_since > 1.0)
+			throw XInterface::XInterfaceError(
+				i18n("Buffer filling encountered time out."), __FILE__, __LINE__);
 	}
 	{
 		//Recovers from open state.
@@ -963,30 +967,35 @@ XNIDAQmxPulser::fillBuffer() {
 void *
 XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 	m_queueTimeGenCnt.clear();
-	while( !terminating) {
-		bool buffer_not_full;
-		if(m_taskAO != TASK_UNDEF) {
-			buffer_not_full = fillBuffer<true>();
+	try {
+		while( !terminating) {
+			bool buffer_not_full;
+			if(m_taskAO != TASK_UNDEF) {
+				buffer_not_full = fillBuffer<true>();
+			}
+			else {
+				buffer_not_full = fillBuffer<false>();
+			}
+			if( !m_queueTimeGenCnt.size() ||
+				(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(20.0 / resolution()))) {
+				m_queueTimeGenCnt.push_back(std::pair<uint64_t, uint64_t>(
+					m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 20ms.
+			}
+			while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first > lrint(20000.0 / resolution())) {
+				m_queueTimeGenCnt.pop_front(); //limits only within last 20s.
+			}
+			if( !buffer_not_full) {
+				//Waiting until previous data have been sent.
+				double dma_do_period = resolution();
+				usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));
+			}
 		}
-		else {
-			buffer_not_full = fillBuffer<false>();
-		}
-		if( !m_queueTimeGenCnt.size() ||
-			(m_genTotalCount - m_genRestCount - m_queueTimeGenCnt.back().first > lrint(20.0 / resolution()))) {
-			m_queueTimeGenCnt.push_back(std::pair<uint64_t, uint64_t>(
-				m_genTotalCount - m_genRestCount, m_genTotalSamps)); //preserves every 20ms.
-		}
-		while(m_genTotalCount -  m_genRestCount - m_queueTimeGenCnt.front().first > lrint(20000.0 / resolution())) {
-			m_queueTimeGenCnt.pop_front(); //limits only within last 20s.
-		}
-		if( !buffer_not_full) {
-			//Waiting until previous data have been sent.
-		 	double dma_do_period = resolution();
-			usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));
-		}
+		m_genTotalCount -= m_genRestCount;
+		m_genRestCount = 0;
 	}
-	m_genTotalCount -= m_genRestCount;
-	m_genRestCount = 0;
+	catch (XInterface::XInterfaceError &e) {
+		e.print(getLabel() + ": ", __FILE__, __LINE__, 0);
+	}
 	return NULL;
 }
 void
