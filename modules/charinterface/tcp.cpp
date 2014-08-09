@@ -49,6 +49,12 @@ XTCPSocketPort::~XTCPSocketPort() {
     if(m_socket >= 0) close(m_socket);
 }
 void
+XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
+    if(m_socket >= 0) close(m_socket);
+    open();
+}
+
+void
 XTCPSocketPort::open() throw (XInterface::XCommError &) {
     Snapshot shot( *m_pInterface);
 
@@ -69,12 +75,16 @@ XTCPSocketPort::open() throw (XInterface::XCommError &) {
 	}
 
 	struct timeval timeout;
-	timeout.tv_sec  = 10; //10sec. timeout.
+    timeout.tv_sec  = 3; //3sec. timeout.
 	timeout.tv_usec = 0;
 	if(setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO,  (char*)&timeout, sizeof(timeout)) ||
 		setsockopt(m_socket, SOL_SOCKET, SO_SNDTIMEO,  (char*)&timeout, sizeof(timeout))){
-        throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
+        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 	}
+
+    int opt = 1;
+    if(setsockopt(m_socket, SOL_SOCKET, SO_KEEPALIVE, (void*)&opt, sizeof(opt)))
+        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
 	memset( &dstaddr, 0, sizeof(dstaddr));
 	dstaddr.sin_port = htons(port);
@@ -99,7 +109,13 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 	do {
         int ret = ::write(m_socket, sendbuf, size - wlen);
         if(ret <= 0) {
-            throw XInterface::XCommError(i18n("write error"), __FILE__, __LINE__);
+            if((errno == EINTR) || (errno == EAGAIN)) {
+                dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
+                continue;
+            }
+            gErrPrint(i18n("write error, trying to reopen the socket"));
+            reopen_socket();
+            throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
         }
         wlen += ret;
         sendbuf += ret;
@@ -123,8 +139,14 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
 		}
 		if(rlen < 0) {
-            throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
-		}
+            if((errno == EINTR) || (errno == EAGAIN)) {
+                dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
+                continue;
+            }
+            gErrPrint(i18n("read error, trying to reopen the socket"));
+            reopen_socket();
+            throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+        }
 		len += rlen;
 		if(len >= eos_len) {
 			if( !strncmp(&buffer().at(len - eos_len), eos, eos_len)) {
@@ -148,8 +170,14 @@ XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 		if(rlen == 0)
             throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
 		if(rlen < 0) {
-            throw XInterface::XCommError(i18n("read error"), __FILE__, __LINE__);
-		}
+            if((errno == EINTR) || (errno == EAGAIN)) {
+                dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
+                continue;
+            }
+            gErrPrint(i18n("read error, trying to reopen the socket"));
+            reopen_socket();
+            throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+        }
 		len += rlen;
 	}
 }    

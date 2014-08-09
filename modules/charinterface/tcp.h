@@ -40,6 +40,7 @@ public:
 	virtual void receive() throw (XInterface::XCommError &);
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
 private:
+    void reopen_socket() throw (XInterface::XCommError &);
 	int m_socket;
 };
 
