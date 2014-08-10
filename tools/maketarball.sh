@@ -26,5 +26,6 @@ rsync --exclude "linux686" \
 (cd $dir/$file/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)
 (cd $dir; tar jcvf $file.tar.bz2 $file)
+(cd $dir; zip -9 -r $file.zip $file)
 rm -fR $dir/$file
 

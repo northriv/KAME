@@ -1,45 +1,5 @@
 KAME instllation notes on Mac OS X.
 
-See INSTALL for general information.
-
-###################################################################
-For MacPorts users:
-(Using tarball build),
-cd workingdir
-cmake ../sourcedir (Needs XCode 4.1, or otherwise specify CXX="g++-4.5" to use gcc of MacPorts)
-make
-make install DESTDIR="installdir"
-
-Set DYLD_LIBRARY_PATH="installdir/lib" to launch the binary if the libraries were not installed in the standard directory. 
-
-(Using the port system),
-Make your own port tree, see http://guide.macports.org/#development.local-repositories
-Put kame's Portfile in (your port tree)/kde/kame/.
-And,
-	sudo port -v install kame 
-
-Note that i386 binary is recommended because the current NI-488.2 driver lacks x86_64 libraries.
-
-	open /Applications/MacPorts/KDE4/kame.app
-(Specify LSArchitecturePriority=i386 or arch -i386 (binary file) for a univeral binary.)
-
-See ./tools/mkport.sh for example.
-###################################################################
-For Fink users:
-
-At the moment (Nov. 2009.), kdelibs4 cannot be built in Snow Leopard.
-
-First, install the required packages (kde4-buildenv, kdelibs4-mac, boost, ftgl, fftw3, gsl) with fink. XCode is of course necessary.
-Unpack the source tar ball, make a directory for building, and there run the script attached below.
-If everything goes well, do something like this:
-	make VERBOSE=1; make install DESTDIR=(path_to_install_dir).
-
-#!/bin/sh -e
-p=/sw
-export KDE4_PREFIX=$p KDE4_TYPE=mac
-. $p/sbin/kde4-buildenv.sh
-export CXX="g++ -m32"
-export CC="gcc -m32"
-cmake -DCMAKE_BUILD_TYPE=Debug $KDE4_CMAKE_ARGS (path_to_source_dir)
-
-
+Use Qt Creator and open kame.pro.
+MacPorts (placed under /opt/local) versions of gsl, fftw3, libtool-ltdl, and boost are necessary for building.
+Do *NOT* install QT from MacPorts. Employ the genuine QT.

@@ -13,8 +13,8 @@ else {
 #	 -stdlib=libc++
 }
 
-VERSTR = '\\"4.0\\"'
-DEFINES += VERSION=\"$${VERSTR}\"
+VERSTR = 4.0
+DEFINES += VERSION=\'\"$${VERSTR}\"\'
 
 KAME_COREMODULES = coremodules
 DEFINES += KAME_COREMODULE_DIR_SURFIX=\'\"/$${KAME_COREMODULES}/\"\'
