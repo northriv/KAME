@@ -474,9 +474,12 @@ void FrmKameMain::scriptLineShellAction_activated() {
 #else
         QStandardPaths::locate(QStandardPaths::DataLocation, RUBYLINESHELL_FILE);
     if(filename.isEmpty()) {
-        //For macosx application bundle.
+        //for macosx/win
         QDir dir(QApplication::applicationDirPath());
+#if defined __MACOSX__ || defined __APPLE__
+        //For macosx application bundle.
         dir.cdUp();
+#endif
         QString path = RUBYLINESHELL_DIR RUBYLINESHELL_FILE;
         dir.filePath(path);
         if(dir.exists())
