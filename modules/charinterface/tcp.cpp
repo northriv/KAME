@@ -83,7 +83,7 @@ XTCPSocketPort::open() throw (XInterface::XCommError &) {
 	}
 
     int opt = 1;
-    if(setsockopt(m_socket, SOL_SOCKET, SO_KEEPALIVE, (void*)&opt, sizeof(opt)))
+    if(setsockopt(m_socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&opt, sizeof(opt)))
         throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
 	memset( &dstaddr, 0, sizeof(dstaddr));
