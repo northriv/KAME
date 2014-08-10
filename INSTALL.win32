@@ -1,0 +1,25 @@
+KAME instllation notes on Windows systems.
+
+Qt 5.3 with mignw32 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
+
+To build kame:
+
+Use Qt Creator and open kame.pro.
+
+Before building kame, perform the following:
+
+Place boost (http://sourceforge.net/projects/boost/files/boost/1.55.0/) on the upper directory over the kame source, in the name of "boost".
+Place fftw3 (http://www.fftw.org/download.html) on the upper directory over the kame source, in the name of "fftw3".
+
+Install "Ruby Installer for Windows (ver. 1.8.7)" available at http://rubyinstaller.org/downloads/
+Install GNU libtool, gsl, and zlib 
+(http://gnuwin32.sourceforge.net/packages/libtool.htm http://gnuwin32.sourceforge.net/packages/gsl.htm http://gnuwin32.sourceforge.net/packages/zlib.htm).
+
+National Instruments 488.2 or DAQmx drivers are optionally required.
+
+Before executing kame,
+
+Copy libgsl.dll, libgslcblas.dll, libltdl3.dll, zlib1.dll (would be found in C:\Program Files (x86)\GnuWin32\bin), libfttw3-3.dll (and in ../ffw3) beside the kame executable.
+
+Copy kame/script/rubylineshell.rb to ./Resources
+
