@@ -21,6 +21,7 @@ REGISTER_TYPE(XDriverList, HP8643, "HP/Agilent 8643/8644 signal generator");
 REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
 REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
 REGISTER_TYPE(XDriverList, DPL32XGF, "DSTech. DPL-3.2XGF signal generator");
+REGISTER_TYPE(XDriverList, RhodeSchwartzSMLSMV, "Rhode-Schwartz SML01/02/03/SMV03 signal generator");
 
 XSG7200::XSG7200(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -137,7 +138,8 @@ XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(1);
 	interface()->setSerialFlushBeforeWrite(true);
-
+    amON()->disable();
+    fmON()->disable();
 }
 void
 XDPL32XGF::changeFreq(double mhz) {
@@ -158,4 +160,36 @@ XDPL32XGF::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XDPL32XGF::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
+}
+
+XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
+	interface()->setEOS("\r\n");
+	interface()->setSerialBaudRate(9600);
+	interface()->setSerialStopBits(1);
+	interface()->setSerialFlushBeforeWrite(true);
+
+}
+void
+XRhodeSchwartzSMLSMV::changeFreq(double mhz) {
+	XScopedLock<XInterface> lock( *interface());
+	interface()->sendf("FREQ %f MHz", mhz);
+	msecsleep(50); //wait stabilization of PLL
+}
+void
+XRhodeSchwartzSMLSMV::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("OUTP:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
+XRhodeSchwartzSMLSMV::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("POW %.1f", (double)shot[ *oLevel()]);
+}
+void
+XRhodeSchwartzSMLSMV::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("FM:STAT %s", shot[ *fmON()] ? "ON" : "OFF");
+}
+void
+XRhodeSchwartzSMLSMV::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
+	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
 }

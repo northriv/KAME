@@ -98,4 +98,18 @@ protected:
 private:
 };
 
+//! Rhode-Schwartz SML01/02/03 SMV03
+class XRhodeSchwartzSMLSMV : public XCharDeviceDriver<XSG> {
+public:
+	XRhodeSchwartzSMLSMV(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+	virtual ~XRhodeSchwartzSMLSMV() {}
+protected:
+	virtual void changeFreq(double mhz);
+	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
+	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+private:
+};
 #endif
