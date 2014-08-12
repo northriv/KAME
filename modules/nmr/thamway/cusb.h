@@ -1,5 +1,5 @@
 //2002.1.14 Ver1.0 by optimize
-//#include "c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h"
+#include "c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h"
 
 typedef unsigned char u8;
 typedef signed char s8;

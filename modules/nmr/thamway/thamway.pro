@@ -7,7 +7,7 @@ HEADERS += \
 SOURCES += \
     thamwayprot.cpp \
 
-win32 {
+win32: exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     QT += opengl
 
     INCLUDEPATH += \
