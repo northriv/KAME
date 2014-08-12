@@ -52,5 +52,3 @@
 #define CMD_OUTE    0x0e    //output port
 #define CMD_WAIT    0x0f	//wait (byte0)ms
 #define CMD_NOP     0x10	//wait (byte0)cycles
-
-unsigned char gpif_dat[];

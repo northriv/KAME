@@ -81,7 +81,7 @@ protected:
     uint8_t readDIPSW();
     void setWave(const uint8_t *wave);
 private:
-    HANDLE m_handle;
+    void* m_handle;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;
 };

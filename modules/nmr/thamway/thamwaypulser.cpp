@@ -14,6 +14,8 @@
 #include "thamwaypulser.h"
 #include "charinterface.h"
 #include <QFile>
+#include <QDir>
+#include <QApplication>
 
 REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway PG32U40(USB)");
 
@@ -148,34 +150,52 @@ extern "C" {
 
 void
 XWinCUSBInterface::open() throw (XInterfaceError &) {
+    Snapshot shot( *this);
     try {
         QDir dir(QApplication::applicationDirPath());
-        QString path = THAMWAY_USB_FIRMWARE_FILE;
-        dir.filePath(path);
-        if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n("USB firmware file not found"), __FILE__, __LINE__);
-        QFile file(dir.absoluteFilePath(path));
-        if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
         char firmware[CUSB_DWLSIZE];
-        int size = file.read(firmware, CUSB_DWLSIZE);
-        if(size != CUSB_DWLSIZE)
-            throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
+        {
+            QString path = THAMWAY_USB_FIRMWARE_FILE;
+            dir.filePath(path);
+            if( !dir.exists())
+                throw XInterface::XInterfaceError(i18n("USB firmware file not found"), __FILE__, __LINE__);
+            QFile file(dir.absoluteFilePath(path));
+            if( !file.open(QIODevice::ReadOnly))
+                throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
+            int size = file.read(firmware, CUSB_DWLSIZE);
+            if(size != CUSB_DWLSIZE)
+                throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
+        }
+        char gpifwave[THAMWAY_USB_GPIFWAVE_SIZE];
+        {
+            QString path = THAMWAY_USB_GPIFWAVE_FILE;
+            dir.filePath(path);
+            if( !dir.exists())
+                throw XInterface::XInterfaceError(i18n("USB GPIF wave file not found"), __FILE__, __LINE__);
+            QFile file(dir.absoluteFilePath(path));
+            if( !file.open(QIODevice::ReadOnly))
+                throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+            int size = file.read(firmware, THAMWAY_USB_GPIFWAVE_SIZE);
+            if(size != THAMWAY_USB_GPIFWAVE_SIZE)
+                throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+        }
 
         for(int cnt = 0; cnt < 8; ++cnt) {
             //finds out the first available device.
-            if(cusb_init(-1, &m_handle, (uint8_t *)firmware, "F2FW", "20070613")) {
+            if(cusb_init(-1, &m_handle, (uint8_t *)firmware,
+                (signed char*)"F2FW", (signed char*)"20070613")) {
                 //no device, or incompatible firmware.
-                usb_close(m_handle);
+                usb_close( &m_handle);
                 m_handle = 0;
                 continue; //go to the next device.
             }
             uint8_t sw = readDIPSW() % 8;
-            if(sw != shot[ *interface()->address()]) {
+            if(sw != shot[ *address()]) {
               close();
               continue; //go to the next device.
             }
-            setWave(gpifwave);
+            setWave((const uint8_t*)gpifwave);
+
             for(int i = 0; i < 3; ++i) {
                 //blinks LED
                 setLED(0x00u);
@@ -189,7 +209,7 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
     }
     catch (XInterface::XInterfaceError &e) {
         if(m_handle) {
-            usb_close(m_handle);
+            usb_close( &m_handle);
             m_handle = 0;
         }
         throw e;
@@ -200,7 +220,7 @@ void
 XWinCUSBInterface::close() throw (XInterfaceError &) {
     if(m_handle) {
         setLED(0);
-        usb_close(m_handle);
+        usb_close( &m_handle);
     }
     m_handle = 0;
 }
@@ -227,21 +247,21 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     }
     else {
         uint16_t len = m_buffer.size();
-        const uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
-        if(usb_bulk_write(m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
+        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
-        const uint8_t cmds2[] = {addr % 0x100u, data};
-        if(usb_bulk_write(m_handle, TFIFO, cmds2, sizeof(cmds2)) < 0)
+        uint8_t cmds2[] = {addr % 0x100u, data};
+        if(usb_bulk_write( &m_handle, TFIFO, cmds2, sizeof(cmds2)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
 }
 void
 XWinCUSBInterface::bulkWriteStored() {
     uint16_t len = m_buffer.size();
-    const uint8_t cmds[] = {CMD_BWRITE, len % 0x100u, len / 0x100u};
-    if(usb_bulk_write(m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    uint8_t cmds[] = {CMD_BWRITE, len % 0x100u, len / 0x100u};
+    if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
-    if(usb_bulk_write(m_handle, TFIFO, (char*) &m_buffer[0], len) < 0)
+    if(usb_bulk_write( &m_handle, TFIFO, (uint8_t*) &m_buffer[0], len) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
 
     resetBulkWrite();
@@ -249,54 +269,39 @@ XWinCUSBInterface::bulkWriteStored() {
 
 void
 XWinCUSBInterface::setLED(uint8_t data) {
-    const uint8_t cmds[] = {CMD_LED, data};
-    if(usb_bulk_write(m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    uint8_t cmds[] = {CMD_LED, data};
+    if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
 }
 
 uint8_t
 XWinCUSBInterface::readDIPSW() {
-    XScopedLock<XInterface> lock( *this->interface());
-    const uint8_t cmds[] = {CMD_DIPSW};
-    if(usb_bulk_write(m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    uint8_t cmds[] = {CMD_DIPSW};
+    if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     uint8_t buf[10];
-    if(usb_bulk_read(m_handle, RFIFO, buf, 1) != 1)
+    if(usb_bulk_read( &m_handle, RFIFO, buf, 1) != 1)
         throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
     return buf[0];
 }
 
 void
-XWinCUSBInterface::setWave(const char *wave) {
-    QDir dir(QApplication::applicationDirPath());
-    QString path = THAMWAY_USB_GPIFWAVE_FILE;
-    dir.filePath(path);
-    if( !dir.exists())
-        throw XInterface::XInterfaceError(i18n("USB GPIF wave file not found"), __FILE__, __LINE__);
-    QFile file(dir.absoluteFilePath(path));
-    if( !file.open(QIODevice::ReadOnly))
-        throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
-    char wave[THAMWAY_USB_GPIFWAVE_SIZE];
-    int size = file.read(firmware, THAMWAY_USB_GPIFWAVE_SIZE);
-    if(size != THAMWAY_USB_GPIFWAVE_SIZE)
-        throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
-
-    XScopedLock<XInterface> lock( *this->interface());
+XWinCUSBInterface::setWave(const uint8_t *wave) {
     const uint8_t cmd[] = {CMD_MODE, MODE_GPIF | MODE_8BIT | MODE_ADDR | MODE_NOFLOW | MODE_DEBG, CMD_GPIF};
     std::vector<uint8_t> buf;
     buf.insert(buf.end(), cmd, cmd + sizeof(cmd));
-    buf.insert(buf.end(), wave, 8);
+    buf.insert(buf.end(), wave, wave + 8);
     const uint8_t cmd2[] = {MODE_FLOW};
     buf.insert(buf.end(), cmd2, cmd2 + sizeof(cmd2));
-    buf.insert(buf.end(), wave + 8 + 32*4, 36);
-    if(usb_bulk_write(m_handle, CPIPE, &buf[0], buf.size()) < 0)
+    buf.insert(buf.end(), wave + 8 + 32*4, wave + 8 + 32*4 + 36);
+    if(usb_bulk_write( &m_handle, CPIPE, &buf[0], buf.size()) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     const uint8_t cmdwaves[] = {CMD_WAVE0 /*SingleRead*/, CMD_WAVE1/*SingleWrite*/, CMD_WAVE2/*BurstRead*/, CMD_WAVE3/*BurstWrite*/};
     for(int i = 0; i < sizeof(cmdwaves); ++i) {
         buf.clear();
-        buf.insert(buf.end(), cmdwaves + i, 1);
-        buf.insert(buf.end(), wave + 8 + 32*i, 32);
-        if(usb_bulk_write(m_handle, CPIPE, &buf[0], buf.size()) < 0)
+        buf.insert(buf.end(), cmdwaves + i, cmdwaves + i + 1);
+        buf.insert(buf.end(), wave + 8 + 32*i, wave + 8 + 32*(i + 1));
+        if(usb_bulk_write( &m_handle, CPIPE, &buf[0], buf.size()) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
 }
