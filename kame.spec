@@ -133,6 +133,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/libkame_sgcore*
 %{_libdir}/kame/modules/libnmr*
 %{_libdir}/kame/modules/libsg*
+%{_libdir}/kame/modules/libthamway*
 
 %if 0%{build_nidaqmx}
 %files modules-nidaq

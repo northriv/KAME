@@ -106,32 +106,4 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
 };
-
-//! Thamway Impedance Analyzer T300-1049A
-class XThamwayT300ImpedanceAnalyzer : public XCharDeviceDriver<XNetworkAnalyzer> {
-public:
-    XThamwayT300ImpedanceAnalyzer(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XThamwayT300ImpedanceAnalyzer() {}
-protected:
-    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
-
-    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *);
-    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *);
-    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *);
-    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
-
-    virtual void getMarkerPos(unsigned int num, double &x, double &y);
-    virtual void oneSweep();
-    virtual void startContSweep();
-    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
-    //! Converts raw to dispaly-able
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
-
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
-};
 #endif

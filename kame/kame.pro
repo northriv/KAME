@@ -248,6 +248,7 @@ macx {
     modulefiles.files += ../modules/nmr/libnmrpulser.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/sg/libsg.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/tempcontrol/libtempcontrol.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/nmr/thamway/libthamway.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}
     QMAKE_BUNDLE_DATA += coremodulefiles

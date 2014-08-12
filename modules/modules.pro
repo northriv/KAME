@@ -29,7 +29,8 @@ SUBDIRS += testdriver\
     nmr\
     sgcore\
     sg\
-    tempcontrol
+    tempcontrol\
+    thamway
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
@@ -57,4 +58,6 @@ nmr.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore motorcore netwo
 fourres.depends += dmmcore dcsourcecore
 nidaq.depends += nmrpulsercore dsocore
 tempcontrol.depends += dcsourcecore flowcontrollercore
+thamway.file = nmr/thamway/thamway.pro
+thamway.depends += nmrpulsercore sgcore networkanalyzercore
 
