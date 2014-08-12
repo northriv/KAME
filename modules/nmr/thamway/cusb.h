@@ -1,4 +1,4 @@
-//2002.1.14 Ver1.0 by optimize
+/*** FX2FW Ver1.00 by OPTIMIZE ***/
 #include "c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h"
 
 typedef unsigned char u8;
@@ -9,7 +9,7 @@ typedef unsigned int u32;
 typedef signed int s32;
 
 #define CUSB_DEBUG   0
-#define	CUSB_DWLSIZE 0x2000 //for thamway
+#define	CUSB_DWLSIZE 0x2000
 
 s32 usb_open(s32 n,HANDLE *h);
 s32 usb_close(HANDLE *h);

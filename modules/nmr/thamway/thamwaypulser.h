@@ -36,6 +36,7 @@ public:
 	//! time resolution [ms]
     virtual double resolution() const;
 protected:
+    virtual void open() throw (XKameError &);
     //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
     //! Converts RelPatList to native patterns
@@ -76,10 +77,13 @@ public:
     }
     void bulkWriteStored();
     void resetBulkWrite();
+
+    XString getIDN();
 protected:
     void setLED(uint8_t data);
     uint8_t readDIPSW();
     void setWave(const uint8_t *wave);
+    uint8_t singleRead(unsigned int addr);
 private:
     void* m_handle;
     bool m_bBulkWrite;

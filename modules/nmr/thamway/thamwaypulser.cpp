@@ -71,6 +71,15 @@ XThamwayPulser<tInterface>::XThamwayPulser(const char *name, bool runtime,
 	}
 }
 
+
+template<class tInterface>
+void
+XThamwayPulser<tInterface>::open() throw (XKameError &) {
+    this->start();
+    XString idn = this->interface()->getIDN();
+    gWarnPrint("Pulser IDN=" + idn);
+}
+
 template<class tInterface>
 void
 XThamwayPulser<tInterface>::createNativePatterns(Transaction &tr) {
@@ -112,8 +121,11 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
 		throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
 	}
     this->interface()->resetBulkWrite();
-    this->interface()->writeToRegister8(ADDR_REG_MODE, 0);
     this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
+    this->interface()->writeToRegister8(ADDR_REG_MODE, 2); //direct output on.
+    this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
+    this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
+    this->interface()->writeToRegister8(ADDR_REG_MODE, 0); //direct output off.
     this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
     this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
 	if(output) {
@@ -131,6 +143,7 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
         this->interface()->writeToRegister8(ADDR_REG_REP_N, 0); //infinite loops
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+//        this->interface()->writeToRegister8(ADDR_REG_MODE, 8); //
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
     }
 }
@@ -283,6 +296,48 @@ XWinCUSBInterface::readDIPSW() {
     if(usb_bulk_read( &m_handle, RFIFO, buf, 1) != 1)
         throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
     return buf[0];
+}
+
+XString
+XWinCUSBInterface::getIDN() {
+    assert(isLocked());
+    //ignores till \0
+    for(int i = 0; ; ++i) {
+        if( !singleRead(0x1f))
+            break;
+        if(i > 256) {
+            throw XInterface::XInterfaceError(i18n("USB getting IDN has failed."), __FILE__, __LINE__);
+        }
+    }
+    XString idn;
+    for(int i = 0; ; ++i) {
+        char c = singleRead(0x1f);
+        idn += c;
+        if( !c)
+            break;
+        if(i > 256) {
+            throw XInterface::XInterfaceError(i18n("USB getting IDN has failed."), __FILE__, __LINE__);
+        }
+    }
+    return idn;
+}
+uint8_t
+XWinCUSBInterface::singleRead(unsigned int addr) {
+    assert(isLocked());
+    {
+        uint8_t cmds[] = {CMD_SWRITE, addr % 0x100};
+        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+            throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+    }
+    {
+        uint8_t cmds[] = {CMD_SREAD};
+        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+            throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+        uint8_t buf[10];
+        if(usb_bulk_read( &m_handle, RFIFO, buf, 1) != 1)
+            throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
+        return buf[0];
+    }
 }
 
 void
