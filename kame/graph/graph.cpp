@@ -413,9 +413,9 @@ XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::S
 			painter->beginLine(1.0);
 			XGraph::ScrPoint s1, s2;
 			s1 = spt;
-			s1 += XGraph::ScrPoint(0, dy/2, 0);
+            s1 += XGraph::ScrPoint(0, dy/2, 0);
 			s2 = spt;
-			s2 -= XGraph::ScrPoint(0, dy/2, 0);
+            s2 -= XGraph::ScrPoint(0, dy/2, 0);
 			painter->setColor(shot[ *barColor()], alpha1*alpha);
 			if(colorplot) painter->setColor(colorhigh, alpha1*alpha); 
 			painter->setVertex(s1);
@@ -429,9 +429,9 @@ XPlot::drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::S
 			painter->beginLine(1.0);
 			XGraph::ScrPoint s1, s2;
 			s1 = spt;
-			s1 += XGraph::ScrPoint(dx/2, 0, 0);
+            s1 += XGraph::ScrPoint(dx/2, 0, 0);
 			s2 = spt;
-			s2 -= XGraph::ScrPoint(dx/2, 0, 0);
+            s2 -= XGraph::ScrPoint(dx/2, 0, 0);
 			painter->setColor(shot[ *lineColor()], alpha1*alpha);
 			if(colorplot) painter->setColor(colorhigh, alpha1*alpha); 
 			painter->setVertex(s1);

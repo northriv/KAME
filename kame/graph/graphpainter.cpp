@@ -534,7 +534,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 				setColor(shot[ *m_graph->titleColor()], 1.0);
 				auto plot = static_pointer_cast<XPlot>( *it);
 				drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
-				plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z), (x3 - x1)/1.5f, dy/1.2f);
+                plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z + 0.01),
+                                 (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
 			}
 		}

@@ -528,7 +528,7 @@ XQGraphPainter::paintGL () {
     // Set up the rendering context,
     glEnable(GL_BLEND);
 
-    checkGLError(); 
+    checkGLError();
 
 	// Ghost stuff.
 	XTime time_started = XTime::now();
@@ -687,7 +687,6 @@ XQGraphPainter::paintGL () {
     if(g_bUseOverpaint) {
         //restores states
         glShadeModel(GL_FLAT);
-        glDisable(GL_BLEND);
         glDisable(GL_CULL_FACE);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_LIGHTING);
@@ -695,8 +694,8 @@ XQGraphPainter::paintGL () {
         glPopMatrix();
 
         QPainter qpainter(m_pItem);
-        qpainter.setRenderHint(QPainter::TextAntialiasing);
-        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        qpainter.setRenderHint(QPainter::Antialiasing);
+//        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         drawTextOverpaint(qpainter);
         if(m_bReqHelp) {
             drawOnScreenHelp(shot, &qpainter);
