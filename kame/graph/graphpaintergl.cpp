@@ -132,7 +132,9 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 		1.0;
 #endif
 #ifdef HAVE_FTGL
-    openFont();
+    if( !g_bUseOverpaint) {
+        openFont();
+    }
 #endif
 }
 XQGraphPainter::~XQGraphPainter() {
@@ -144,7 +146,9 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
 #ifdef HAVE_FTGL
-    closeFont();
+    if( !g_bUseOverpaint) {
+        closeFont();
+    }
 #endif
 }
 
@@ -274,63 +278,40 @@ XQGraphPainter::selectFont(const XString &str,
 	m_curAlign = align;
     
 #ifdef HAVE_FTGL
-	float llx, lly, llz, urx, ury, urz;
-	std::wstring wstr = string2wstring(str);
-	for(;;) {
- 		s_pFont->FaceSize(m_curFontSize);
-		s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-		if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
-		if((urx < w ) && (ury < h)) break;
-		m_curFontSize--;
-	}
+    if( !g_bUseOverpaint) {
+        float llx, lly, llz, urx, ury, urz;
+        std::wstring wstr = string2wstring(str);
+        for(;;) {
+            s_pFont->FaceSize(m_curFontSize);
+            s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
+            if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+            if((urx < w ) && (ury < h)) break;
+            m_curFontSize--;
+        }
+    }
+    else {
 #else
-    QFont font(m_pItem->font());
-    for(;;) {
-        font.setPointSize(m_curFontSize);
-        QFontMetrics fm(font);
-        QRect bb = fm.boundingRect(str);
-		if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
-        if((bb.width() < w ) && (bb.height() < h)) break;
-		m_curFontSize--;
-	}
+    {
 #endif
+        QFont font(m_pItem->font());
+        for(;;) {
+            font.setPointSize(m_curFontSize);
+            QFontMetrics fm(font);
+            QRect bb = fm.boundingRect(str);
+            if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+            if((bb.width() < w ) && (bb.height() < h)) break;
+            m_curFontSize--;
+        }
+    }
 	return 0;
 }
 void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-#ifdef HAVE_FTGL
-	float llx, lly, llz, urx, ury, urz;
-	std::wstring wstr = string2wstring(str);
+    if(g_bUseOverpaint) {
+        double x,y,z;
+        screenToWindow(p, &x, &y, &z);
 
-	glRasterPos3f(p.x, p.y, p.z);
-    checkGLError();
-
- 	s_pFont->FaceSize(m_curFontSize);
-	s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-	int w = lrintf(urx);
-	int h = lrintf(ury);
-
-	float x = 0.0f, y = 0.0f;
-	if( (m_curAlign & Qt::AlignVCenter) ) y -= h / 2;
-	if( (m_curAlign & Qt::AlignTop) ) y -= h;
-	if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
-	if( (m_curAlign & Qt::AlignRight) ) x -= w;
-    // Move raster position
-    if((x != 0.0f) || (y != 0.0f))
-    	glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
-
- 	s_pFont->Render(wstr.c_str());
-	checkGLError();
-	if(s_pFont->Error())
-		gWarnPrint(i18n("GL Font Error."));
-
-#else
-
-    double x,y,z;
-	screenToWindow(p, &x, &y, &z);
-
-	#ifdef USE_OVERPAINT
-		//draws texts later.
+        //draws texts later.
 		Text txt;
 		txt.text = str;
 		txt.x = lrint(x);
@@ -339,8 +320,39 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 		txt.align = m_curAlign;
 		txt.rgba = m_curTextColor;
 		m_textOverpaint.push_back(txt);
-	#else
-		QFont font(m_pItem->font());
+    }
+    else {
+    #ifdef HAVE_FTGL
+        float llx, lly, llz, urx, ury, urz;
+        std::wstring wstr = string2wstring(str);
+
+        glRasterPos3f(p.x, p.y, p.z);
+        checkGLError();
+
+        s_pFont->FaceSize(m_curFontSize);
+        s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
+        int w = lrintf(urx);
+        int h = lrintf(ury);
+
+        float x = 0.0f, y = 0.0f;
+        if( (m_curAlign & Qt::AlignVCenter) ) y -= h / 2;
+        if( (m_curAlign & Qt::AlignTop) ) y -= h;
+        if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
+        if( (m_curAlign & Qt::AlignRight) ) x -= w;
+        // Move raster position
+        if((x != 0.0f) || (y != 0.0f))
+            glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
+
+        s_pFont->Render(wstr.c_str());
+        checkGLError();
+        if(s_pFont->Error())
+            gWarnPrint(i18n("GL Font Error."));
+
+    #else
+        double x,y,z;
+        screenToWindow(p, &x, &y, &z);
+
+        QFont font(m_pItem->font());
 		font.setPointSize(m_curFontSize);
 		QFontMetrics fm(font);
 		QRect bb = fm.boundingRect(str);
@@ -350,8 +362,8 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 		if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
 		if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
 		m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
-	#endif
-#endif //HAVE_FTGL
+    #endif //HAVE_FTGL
+    }
 }
 
 #define VIEW_NEAR -1.5
@@ -492,12 +504,12 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
 }
 void
 XQGraphPainter::paintGL () {
-#ifdef USE_OVERPAINT
-    //stores states
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    m_textOverpaint.clear();
-#endif
+    if(g_bUseOverpaint) {
+        //stores states
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        m_textOverpaint.clear();
+    }
     glGetError(); // flush error
 
     glMatrixMode(GL_PROJECTION);
@@ -659,36 +671,35 @@ XQGraphPainter::paintGL () {
 
     drawOnScreenViewObj(shot);
 
-#if !defined USE_OVERPAINT
-    if(m_bReqHelp) drawOnScreenHelp(shot);
-#endif
+    if( !g_bUseOverpaint) {
+        if(m_bReqHelp) drawOnScreenHelp(shot, 0);
+    }
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     //    glFlush();
 
-#ifdef USE_OVERPAINT
-    //restores states
-    glShadeModel(GL_FLAT);
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_LIGHTING);
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
+    if(g_bUseOverpaint) {
+        //restores states
+        glShadeModel(GL_FLAT);
+        glDisable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_LIGHTING);
+        glMatrixMode(GL_MODELVIEW);
+        glPopMatrix();
 
-    QPainter qpainter(m_pItem);
-    qpainter.setRenderHint(QPainter::TextAntialiasing);
-    drawTextOverpaint(qpainter);
-    if(m_bReqHelp) {
-        drawOnScreenHelp(shot, qpainter);
+        QPainter qpainter(m_pItem);
+        qpainter.setRenderHint(QPainter::TextAntialiasing);
         drawTextOverpaint(qpainter);
+        if(m_bReqHelp) {
+            drawOnScreenHelp(shot, &qpainter);
+            drawTextOverpaint(qpainter);
+        }
+        qpainter.end();
     }
-    qpainter.end();
-#endif
 }
 
-#ifdef USE_OVERPAINT
 void
 XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
     for(auto it = m_textOverpaint.begin(); it != m_textOverpaint.end(); ++it) {
@@ -699,4 +710,3 @@ XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
     }
     m_textOverpaint.clear();
 }
-#endif

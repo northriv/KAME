@@ -14,8 +14,6 @@
 #ifndef GRAPHWIDGET_H
 #define GRAPHWIDGET_H
 
-//#define USE_OVERPAINT
-
 class XGraph;
 class XQGraphPainter;
 
@@ -41,11 +39,8 @@ protected:
 	virtual void wheelEvent ( QWheelEvent *);
 	virtual void showEvent ( QShowEvent * );
 	virtual void hideEvent ( QHideEvent * );  
-#ifdef USE_OVERPAINT
     virtual void paintEvent(QPaintEvent *event);
-#else
     virtual void paintGL ();
-#endif
     //! openGL stuff
 	virtual void initializeGL ();
 	virtual void resizeGL ( int width, int height );

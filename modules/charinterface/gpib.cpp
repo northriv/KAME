@@ -155,11 +155,10 @@ XNIGPIBPort::open() throw (XInterface::XCommError &) {
 		if(s_cntOpened == 0) {
 #ifdef DIRECT_ENTRY_NI488
             if(load_ni4882dll())
-                throw XInterface::XCommError(
-                    gpibStatus(i18n("Loading NI4882.DLL failed.")), __FILE__, __LINE__);
+                throw XInterface::XCommError(i18n("Loading NI4882.DLL failed."), __FILE__, __LINE__);
 #endif
             dbgPrint(i18n("GPIB: Sending IFC"));
-			SendIFC (port);
+            SendIFC(port);
 			msecsleep(100);
 		}
 		s_cntOpened++;

@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 bool g_bLogDbgPrint;
+bool g_bUseOverpaint;
 bool g_bMLockAlways;
 bool g_bUseMLock;
 

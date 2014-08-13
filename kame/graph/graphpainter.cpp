@@ -541,39 +541,37 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	}
 }
 void
-XQGraphPainter::drawOnScreenHelp(const Snapshot &shot
-#ifdef USE_OVERPAINT
- , QPainter &qpainter
-#endif
-) {
+XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
     double y = 1.0;
     float z = 0.99;
-#ifdef USE_OVERPAINT
-    QColor cl(QRgb((unsigned int)shot[ *m_graph->backGround()]));
-    cl.setAlpha(0.3);
-    qpainter.fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
-    cl = QColor(QRgb((unsigned int)shot[ *m_graph->titleColor()]));
-    cl.setAlpha(0.55);
-    qpainter.fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
-    m_curTextColor = QRgb(shot[ *m_graph->backGround()]);
-#else
-    setColor(shot[ *m_graph->backGround()], 0.3);
-    beginQuad(true);
-    setVertex(XGraph::ScrPoint(0.0, 0.0, z));
-    setVertex(XGraph::ScrPoint(1.0, 0.0, z));
-    setVertex(XGraph::ScrPoint(1.0, 1.0, z));
-    setVertex(XGraph::ScrPoint(0.0, 1.0, z));
-    endQuad();
-	setColor(shot[ *m_graph->titleColor()], 0.55);
-	beginQuad(true);
-	setVertex(XGraph::ScrPoint(1.0 - y, 1.0 - y, z));
-	setVertex(XGraph::ScrPoint(1.0 - y, y, z));
-	setVertex(XGraph::ScrPoint(y, y, z));
-	setVertex(XGraph::ScrPoint(y, 1.0 - y, z));
-	endQuad();
-	y -= 0.02;
-	setColor(shot[ *m_graph->backGround()], 1.0);
-#endif
+
+    if(g_bUseOverpaint) {
+        QColor cl(QRgb((unsigned int)shot[ *m_graph->backGround()]));
+        cl.setAlpha(0.3);
+        qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
+        cl = QColor(QRgb((unsigned int)shot[ *m_graph->titleColor()]));
+        cl.setAlpha(0.55);
+        qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
+        m_curTextColor = QRgb(shot[ *m_graph->backGround()]);
+    }
+    else {
+        setColor(shot[ *m_graph->backGround()], 0.3);
+        beginQuad(true);
+        setVertex(XGraph::ScrPoint(0.0, 0.0, z));
+        setVertex(XGraph::ScrPoint(1.0, 0.0, z));
+        setVertex(XGraph::ScrPoint(1.0, 1.0, z));
+        setVertex(XGraph::ScrPoint(0.0, 1.0, z));
+        endQuad();
+        setColor(shot[ *m_graph->titleColor()], 0.55);
+        beginQuad(true);
+        setVertex(XGraph::ScrPoint(1.0 - y, 1.0 - y, z));
+        setVertex(XGraph::ScrPoint(1.0 - y, y, z));
+        setVertex(XGraph::ScrPoint(y, y, z));
+        setVertex(XGraph::ScrPoint(y, 1.0 - y, z));
+        endQuad();
+        y -= 0.02;
+        setColor(shot[ *m_graph->backGround()], 1.0);
+    }
     defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
 	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));

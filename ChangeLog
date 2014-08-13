@@ -1,7 +1,8 @@
 * Wed Aug 13 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.6-1)
 - Thamway NMR PROT built-in signal generator
-- Thamway NMR pulser (USB version) 
+- Thamway NMR pulser (USB/GPIB/TCP: experimental) 
+- Overpaint option for OpenGL.
 
 * Mon Aug 11 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.5-1)

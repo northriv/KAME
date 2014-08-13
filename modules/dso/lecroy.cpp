@@ -45,9 +45,9 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 			break;
 	}
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
-//	interface()->setGPIBWaitBeforeSPoll(10); //10msec
-    interface()->setGPIBUseSerialPollOnRead(false);
-    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBWaitBeforeSPoll(10); //10msec
+//    interface()->setGPIBUseSerialPollOnRead(false);
+//    interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setEOS("\n");
 
 	trans( *recordLength()) = 10000;

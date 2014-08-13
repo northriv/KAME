@@ -54,13 +54,4 @@ private:
 	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
 };
 
-class XThamwayGPIBInterface : public XCharInterface {
-public:
-    XThamwayGPIBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XCharInterface(name, runtime, driver) {}
-    virtual ~XThamwayGPIBInterface() {}
-    XString getIDN();
-protected:
-private:
-};
 

@@ -17,12 +17,8 @@
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
 class XWinCUSBInterface : public XInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XInterface(name, runtime, driver), m_handle(0)
-    {}
-    virtual ~XWinCUSBInterface() {
-        if(isOpened()) close();
-    }
+    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    virtual ~XWinCUSBInterface();
 
     virtual void open() throw (XInterfaceError &);
     //! This can be called even if has already closed.
@@ -39,15 +35,21 @@ public:
     void bulkWriteStored();
     void resetBulkWrite();
 
-    uint8_t singleRead(unsigned int addr);
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
 
-    XString getIDN();
+    XString getIDN() {return getIDN(m_handle);}
 protected:
     void setLED(uint8_t data);
     uint8_t readDIPSW();
-    void setWave(const uint8_t *wave);
 private:
+    static uint8_t singleRead(void *handle, unsigned int addr);
+    static XMutex s_mutex;
+    static std::deque<void *> s_handles;
+    static int s_refcnt;
+    static void openAllEZUSBdevices();
+    static void setWave(void *handle, const uint8_t *wave);
+    static void closeAllEZUSBdevices();
+    static XString getIDN(void *handle);
     void* m_handle;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;

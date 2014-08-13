@@ -20,8 +20,10 @@
 #if defined USE_EZUSB
     #include "ezusbthamway.h"
     typedef XThamwayPulser<XWinCUSBInterface> XThamwayUSBPulser;
-    REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway PG32U40(USB)");
+    REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
 #endif
+typedef XThamwayPulser<XCharInterface> XThamwayCharPulser;
+REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026 PG(GPIB/TCP)");
 
 #define MAX_PATTERN_SIZE 256*1024u
 //[ms]
@@ -74,30 +76,27 @@ XThamwayPulser<tInterface>::XThamwayPulser(const char *name, bool runtime,
 	}
 }
 
-
-template<class tInterface>
-void
-XThamwayPulser<tInterface>::open() throw (XKameError &) {
-    this->start();
-    XString idn = this->interface()->getIDN();
-    gWarnPrint("Pulser IDN=" + idn);
-}
-
 template<class tInterface>
 void
 XThamwayPulser<tInterface>::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
 	tr[ *this].m_patterns.clear();
     uint16_t pat = (uint16_t)(shot[ *this].relPatList().back().pattern & XPulser::PAT_DO_MASK);
+    pulseAdd(tr, 10, pat); //leading blanks
+    pulseAdd(tr, 10, pat);
+    unsigned int startaddr = 2;
     for(typename Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {
 		pulseAdd(tr, it->toappear, pat);
         pat = (uint16_t)(it->pattern & XPulser::PAT_DO_MASK);
 	}
     typename Payload::Pulse p;
-	p.term_n_cmd = CMD_JP * 0x10000uL;
+    p.term_n_cmd = CMD_JP * 0x10000uL + startaddr;
 	p.data = 0;
 	tr[ *this].m_patterns.push_back(p);
+    p.term_n_cmd = CMD_STOP * 0x10000uL;
+    p.data = 0;
+    tr[ *this].m_patterns.push_back(p);
 }
 template<class tInterface>
 int
@@ -120,9 +119,6 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
     if( !this->interface()->isOpened())
         return;
 
-	if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
-		throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
-	}
     this->interface()->resetBulkWrite();
     this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
     this->interface()->writeToRegister8(ADDR_REG_MODE, 2); //direct output on.
@@ -132,6 +128,9 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
     this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
     this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
 	if(output) {
+        if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
+            throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+        }
         this->interface()->deferWritings();
         for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
             this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, it->term_n_cmd % 0x10000uL);
@@ -153,22 +152,45 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
 
 template<>
 void
-XThamwayPulser<XThamwayGPIBInterface>::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
+XThamwayPulser<XCharInterface>::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
     XScopedLock<XInterface> lock( *this->interface());
     if( !this->interface()->isOpened())
         return;
 
-    if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
-        throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+    this->interface()->send("STOP");
+    this->interface()->send("SAVER 0"); //not needed for TCP/IP version.
+    this->interface()->send("SETMODE 1"); //extended mode
+    this->interface()->send("MEMCLR 0");
+    if(output) {
+        if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
+            throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+        }
+
+        unsigned int addr = 0;
+        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
+            this->interface()->sendf("POKE 0x%x,0x%x,0x%x", addr, it->term_n_cmd, it->data);
+            addr++;
+        }
+        this->interface()->send("START 0"); //infinite loops
     }
 }
 
-XString
-XThamwayGPIBInterface::getIDN() {
-    return XString();
+template<class tInterface>
+void
+XThamwayPulser<tInterface>::open() throw (XKameError &) {
+    XString idn = this->interface()->getIDN();
+    gWarnPrint("Pulser IDN=" + idn);
+    this->start();
+}
+
+template<>
+void
+XThamwayPulser<XCharInterface>::open() throw (XKameError &) {
+    this->interface()->setEOS("\r\n");
+    this->start();
 }
 
 #if defined USE_EZUSB
     template class XThamwayPulser<class XWinCUSBInterface>;
 #endif
-template class XThamwayPulser<class XThamwayGPIBInterface>;
+template class XThamwayPulser<class XCharInterface>;

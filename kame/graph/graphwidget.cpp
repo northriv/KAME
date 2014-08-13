@@ -160,17 +160,24 @@ XQGraph::resizeGL ( int width, int height ) {
         m_painter->resizeGL(width, height);
 }
 
-#ifdef USE_OVERPAINT
 void XQGraph::paintEvent(QPaintEvent *event) {
-    makeCurrent();
-    if(m_painter )
-        m_painter->paintGL();
+    if(g_bUseOverpaint) {
+        makeCurrent();
+        if(m_painter )
+            m_painter->paintGL();
+    }
+    else {
+        QGLWidget::paintEvent(event);
+    }
 }
-#else
 void
 XQGraph::paintGL () {
-    if(m_painter )
-        m_painter->paintGL();
-//    glEnd();
+    if( !g_bUseOverpaint) {
+        if(m_painter )
+            m_painter->paintGL();
+    //    glEnd();
+    }
+    else {
+
+    }
 }
-#endif
