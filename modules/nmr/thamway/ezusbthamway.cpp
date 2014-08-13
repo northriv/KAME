@@ -44,26 +44,26 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         QString path = THAMWAY_USB_FIRMWARE_FILE;
         dir.filePath(path);
         if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n("USB firmware file not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
         int size = file.read(firmware, CUSB_DWLSIZE);
         if(size != CUSB_DWLSIZE)
-            throw XInterface::XInterfaceError(i18n("USB firmware file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
     }
     char gpifwave[THAMWAY_USB_GPIFWAVE_SIZE];
     {
         QString path = THAMWAY_USB_GPIFWAVE_FILE;
         dir.filePath(path);
         if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n("USB GPIF wave file not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
         int size = file.read(firmware, THAMWAY_USB_GPIFWAVE_SIZE);
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
-            throw XInterface::XInterfaceError(i18n("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
     for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
         void *handle = 0;
@@ -105,7 +105,7 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
     for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
-        usb_close( *it);
+        usb_close( &*it);
     }
     s_handles.clear();
 }
@@ -245,7 +245,6 @@ XWinCUSBInterface::readDIPSW() {
 
 XString
 XWinCUSBInterface::getIDN(void *handle) {
-    assert(isLocked());
     //ignores till \0
     for(int i = 0; ; ++i) {
         if( !singleRead(handle, 0x1f))
