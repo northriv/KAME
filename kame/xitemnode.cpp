@@ -37,7 +37,7 @@ XItemNodeBase::onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent
 
 void
 xpointeritemnode_throwConversionError_() {
-	throw XKameError(i18n("No item."), __FILE__, __LINE__);
+    throw XKameError(i18n_noncontext("No item."), __FILE__, __LINE__);
 }
 
 XComboNode::XComboNode(const char *name, bool runtime, bool auto_set_any)

@@ -67,8 +67,12 @@ using std::reference_wrapper;
 
 #if defined(WITH_KDE)
     #include <klocale.h>
+    #define i18n_noncontext(src) i18n(src)
 #else
-    QString	i18n(const char *src, const char *disambiguos = 0, int n = -1);
+    #include <QCoreApplication>
+    #define i18n_noncontext(src) QCoreApplication::translate("static", src)
+    #define i18n(src) ((dynamic_cast<const QObject*>(this)) ?\
+        QObject::tr(src) : i18n_noncontext(src))
     #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
 

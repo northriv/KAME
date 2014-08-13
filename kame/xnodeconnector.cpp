@@ -784,7 +784,7 @@ XStatusPrinter::printMessage(const XString &str, bool popup, const char *file, i
 	tstatus status;
 	status.ms = 3000;
 	status.str = str;
-    if(file) status.tooltip = i18n("Message emitted at %1:%2").arg(file).arg(line);
+    if(file) status.tooltip = i18n_noncontext("Message emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
 	status.type = tstatus::Normal;
 	m_tlkTalker.talk(status);
@@ -793,8 +793,8 @@ void
 XStatusPrinter::printWarning(const XString &str, bool popup, const char *file, int line) {
 	tstatus status;
 	status.ms = 3000;
-	status.str = XString(i18n("Warning: ")) + str;
-    if(file) status.tooltip = i18n("Warning emitted at %1:%2").arg(file).arg(line);
+    status.str = XString(i18n_noncontext("Warning: ")) + str;
+    if(file) status.tooltip = i18n_noncontext("Warning emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
 	status.type = tstatus::Warning;
     m_tlkTalker.talk(status);
@@ -803,8 +803,8 @@ void
 XStatusPrinter::printError(const XString &str, bool popup, const char *file, int line) {
 	tstatus status;
 	status.ms = 5000;
-	status.str = XString(i18n("Error: ")) + str;
-    if(file) status.tooltip = i18n("Error emitted at %1:%2").arg(file).arg(line);
+    status.str = XString(i18n_noncontext("Error: ")) + str;
+    if(file) status.tooltip = i18n_noncontext("Error emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
 	status.type = tstatus::Error;
     m_tlkTalker.talk(status);

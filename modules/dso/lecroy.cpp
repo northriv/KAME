@@ -281,6 +281,7 @@ XLecroyDSO::acqCount(bool *seq_busy) {
 	avg = std::max(1, avg);
     interface()->query("INR?");
     if(interface()->toInt() & 1) {
+        //new signal has acquired.
         m_totalCount++;
     }
     n = m_totalCount;

@@ -160,7 +160,7 @@ XNIDAQmxInterface::SoftwareTrigger::connect(uint32_t rising_edge_mask,
 	clear_();
 	if(m_risingEdgeMask || m_fallingEdgeMask)
 		throw XInterface::XInterfaceError(
-			i18n("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
+            i18n_noncontext("Duplicated connection to virtual trigger is not supported."), __FILE__, __LINE__);
 	m_risingEdgeMask = rising_edge_mask;
 	m_fallingEdgeMask = falling_edge_mask;
 }

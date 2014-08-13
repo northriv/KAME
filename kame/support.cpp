@@ -53,14 +53,6 @@ static void __attribute__ ((constructor)) trapfpe (void)
 #endif
 #endif // __linux__
 
-#include <QObject>
-
-#if !defined(WITH_KDE)
-	QString	i18n(const char *src, const char *disambiguos, int n) {
-		return QObject::tr(src, disambiguos, n);
-	}
-#endif
-
 XKameError::XKameError() : std::runtime_error(""), m_msg(""), m_file(0), m_line(0), m_errno(0) {
 
 }
@@ -197,7 +189,7 @@ v_formatString(const char *fmt, va_list ap) {
 
 		ret = vsnprintf(&buf[0], buf_size, fmt, ap);
 
-		if(ret < 0) throw XKameError(i18n("Mal-format conversion."), __FILE__, __LINE__);
+        if(ret < 0) throw XKameError(i18n_noncontext("Mal-format conversion."), __FILE__, __LINE__);
 		if(ret < buf_size) break;
 
 		buf_size *= 2;
@@ -209,7 +201,7 @@ XString
 formatString_tr(const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
-	XString str = v_formatString(i18n(fmt).toUtf8().data(), ap);
+    XString str = v_formatString(i18n_noncontext(fmt).toUtf8().data(), ap);
 	va_end(ap);
 	return str;
 }
@@ -262,20 +254,20 @@ void formatDoubleValidator(XString &fmt) {
 		}
 		arg_cnt++;
 		if(arg_cnt > 1) {
-			throw XKameError(i18n("Illegal Format, too many %s."), __FILE__, __LINE__);
+            throw XKameError(i18n_noncontext("Illegal Format, too many %s."), __FILE__, __LINE__);
 		}
 		char conv;
 		if((sscanf(buf.c_str() + pos, "%*[+-'0# ]%*f%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%*[+-'0# ]%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%*f%c", &conv) != 1) &&
 		   (sscanf(buf.c_str() + pos, "%c", &conv) != 1)) {
-			throw XKameError(i18n("Illegal Format."), __FILE__, __LINE__);
+            throw XKameError(i18n_noncontext("Illegal Format."), __FILE__, __LINE__);
 		}
 		if(std::string("eEgGf").find(conv) == std::string::npos)
-			throw XKameError(i18n("Illegal Format, no float conversion."), __FILE__, __LINE__);
+            throw XKameError(i18n_noncontext("Illegal Format, no float conversion."), __FILE__, __LINE__);
 	}
 	if(arg_cnt == 0)
-		throw XKameError(i18n("Illegal Format, no %."), __FILE__, __LINE__);
+        throw XKameError(i18n_noncontext("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
 XString dumpCString(const char *cstr)

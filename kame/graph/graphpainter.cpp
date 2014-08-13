@@ -496,7 +496,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			(m_selectionModeNow == SelNone)) {
 		if(shot.size(m_graph->plots())) {
 			const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
-			float z = 0.98;
+            float z = 0.97;
 			float dy = 0.04;
 			float x1 = 0.75;
 			float y1 = 0.81;
@@ -522,7 +522,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
 			endQuad();
 			setColor(shot[ *m_graph->titleColor()], 0.05);
-			beginQuad(true);
+            z = 0.98;
+            beginQuad(true);
 			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
@@ -530,11 +531,12 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			endQuad();
 			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y = y1;
-			for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
+            z = 0.99;
+            for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
 				setColor(shot[ *m_graph->titleColor()], 1.0);
 				auto plot = static_pointer_cast<XPlot>( *it);
 				drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
-                plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z + 0.01),
+                plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z),
                                  (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
 			}
