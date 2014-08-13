@@ -79,7 +79,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         s_handles.push_back(handle);
     }
     if(s_handles.empty())
-        throw XInterface::XInterfaceError(i18n("USB-device open has failed."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n_noncontext("USB-device open has failed."), __FILE__, __LINE__);
 }
 
 void
@@ -92,14 +92,14 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
     buf.insert(buf.end(), cmd2, cmd2 + sizeof(cmd2));
     buf.insert(buf.end(), wave + 8 + 32*4, wave + 8 + 32*4 + 36);
     if(usb_bulk_write( &handle, CPIPE, &buf[0], buf.size()) < 0)
-        throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     const uint8_t cmdwaves[] = {CMD_WAVE0 /*SingleRead*/, CMD_WAVE1/*SingleWrite*/, CMD_WAVE2/*BurstRead*/, CMD_WAVE3/*BurstWrite*/};
     for(int i = 0; i < sizeof(cmdwaves); ++i) {
         buf.clear();
         buf.insert(buf.end(), cmdwaves + i, cmdwaves + i + 1);
         buf.insert(buf.end(), wave + 8 + 32*i, wave + 8 + 32*(i + 1));
         if(usb_bulk_write( &handle, CPIPE, &buf[0], buf.size()) < 0)
-            throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     }
 }
 void
@@ -250,7 +250,7 @@ XWinCUSBInterface::getIDN(void *handle) {
         if( !singleRead(handle, 0x1f))
             break;
         if(i > 256) {
-            throw XInterface::XInterfaceError(i18n("USB getting IDN has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
     }
     XString idn;
@@ -260,7 +260,7 @@ XWinCUSBInterface::getIDN(void *handle) {
         if( !c)
             break;
         if(i > 256) {
-            throw XInterface::XInterfaceError(i18n("USB getting IDN has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
     }
     return idn;
@@ -270,15 +270,15 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr) {
     {
         uint8_t cmds[] = {CMD_SWRITE, addr % 0x100};
         if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
-            throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     }
     {
         uint8_t cmds[] = {CMD_SREAD};
         if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
-            throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
         uint8_t buf[10];
         if(usb_bulk_read( &handle, RFIFO, buf, 1) != 1)
-            throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB bulk reading has failed."), __FILE__, __LINE__);
         return buf[0];
     }
 }
