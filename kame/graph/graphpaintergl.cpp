@@ -175,7 +175,10 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 void
 XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2) {
 	if((x1 != x2) || (y1 != y2)) {
-		m_pItem->updateGL();
+        if(g_bUseOverpaint)
+            m_pItem->update();
+        else
+            m_pItem->updateGL();
 	}
 }
 void

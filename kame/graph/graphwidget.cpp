@@ -178,6 +178,5 @@ XQGraph::paintGL () {
     //    glEnd();
     }
     else {
-
     }
 }
