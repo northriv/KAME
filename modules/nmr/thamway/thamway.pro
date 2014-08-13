@@ -1,31 +1,32 @@
 PRI_DIR = ../../
 include($${PRI_DIR}/modules.pri)
 
+QT += opengl
+
+INCLUDEPATH += \
+    $${_PRO_FILE_PWD_}/../../kame/graph\
+
+
 HEADERS += \
     thamwayprot.h \
+    thamwaypulser.h
+
 
 SOURCES += \
     thamwayprot.cpp \
+    thamwaypulser.cpp
 
 win32: exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
-    QT += opengl
-
-    INCLUDEPATH += \
-        $${_PRO_FILE_PWD_}/../../kame/graph\
-
     HEADERS += \
         fx2fw.h\
         cusb.h\
-        thamwaypulser.h
+        ezusbthamway.h\
 
     SOURCES += \
         cusb.c\
-        thamwaypulser.cpp
+        ezusbthamway.cpp\
 
-    win32:LIBS += -lnmrpulsercore
-
-    INCLUDEPATH += $$PWD/../pulsercore
-    DEPENDPATH += $$PWD/../pulsercore
+    DEFINES += USE_EZUSB
 }
 
 win32:LIBS += -lcharinterface
@@ -42,3 +43,8 @@ win32:LIBS += -lnetworkanalyzercore
 
 INCLUDEPATH += $$PWD/../../networkanalyzer/core
 DEPENDPATH += $$PWD/../../networkanalyzer/core
+
+win32:LIBS += -lnmrpulsercore
+
+INCLUDEPATH += $$PWD/../pulsercore
+DEPENDPATH += $$PWD/../pulsercore

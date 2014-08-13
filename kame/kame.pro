@@ -9,6 +9,7 @@ win32: SCRIPT_DIR = resources
 DEFINES += RUBYLINESHELL_DIR=\'\"$${SCRIPT_DIR}/\"\'
 
 QT       += opengl
+CONFIG += CONSOLE
 
 win32: QMAKE_CXXFLAGS += -pie
 

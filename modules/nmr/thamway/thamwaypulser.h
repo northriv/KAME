@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "pulserdriver.h"
 #include "chardevicedriver.h"
+#include "charinterface.h"
 #include <vector>
 
 //! pulser driver
@@ -53,41 +54,13 @@ private:
 	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
 };
 
-//! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
-class XWinCUSBInterface : public XInterface {
+class XThamwayGPIBInterface : public XCharInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XInterface(name, runtime, driver), m_handle(0)
-    {}
-    virtual ~XWinCUSBInterface() {
-        if(isOpened()) close();
-    }
-
-    virtual void open() throw (XInterfaceError &);
-    //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &);
-
-    virtual bool isOpened() const {return m_handle != 0;}
-
-    void deferWritings();
-    void writeToRegister8(unsigned int addr, uint8_t data);
-    void writeToRegister16(unsigned int addr, uint16_t data) {
-        writeToRegister8(addr, data % 0x100u);
-        writeToRegister8(addr + 1, data / 0x100u);
-    }
-    void bulkWriteStored();
-    void resetBulkWrite();
-
+    XThamwayGPIBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XCharInterface(name, runtime, driver) {}
+    virtual ~XThamwayGPIBInterface() {}
     XString getIDN();
 protected:
-    void setLED(uint8_t data);
-    uint8_t readDIPSW();
-    void setWave(const uint8_t *wave);
-    uint8_t singleRead(unsigned int addr);
 private:
-    void* m_handle;
-    bool m_bBulkWrite;
-    std::deque<uint8_t> m_buffer;
 };
 
-typedef XThamwayPulser<XWinCUSBInterface> XThamwayUSBPulser;
