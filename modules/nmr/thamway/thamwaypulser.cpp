@@ -163,6 +163,11 @@ XThamwayPulser<XThamwayGPIBInterface>::changeOutput(const Snapshot &shot, bool o
     }
 }
 
+XString
+XThamwayGPIBInterface::getIDN() {
+    return XString();
+}
+
 #if defined USE_EZUSB
     template class XThamwayPulser<class XWinCUSBInterface>;
 #endif
