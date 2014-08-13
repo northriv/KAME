@@ -267,36 +267,35 @@ XLecroyDSO::startSequence() {
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
-	interface()->send("CLEAR_SWEEPS");
+    interface()->query("CLEAR_SWEEPS;*OPC?");
+    m_totalCount = 0;
 }
 
 int
 XLecroyDSO::acqCount(bool *seq_busy) {
+    XScopedLock<XInterface> lock( *interface());
     Snapshot shot_this( *this);
 	bool sseq = shot_this[ *singleSequence()];
 	unsigned int n = 0;
 	int avg = shot_this[ *average()];
 	avg = std::max(1, avg);
-	if( !shot_this[ *trace1()].to_str().empty()) {
-		interface()->queryf("%s:TRACE?", shot_this[ *trace1()].to_str().c_str());
-		if( !strncmp( &interface()->buffer()[0], "ON", 2)) {
-			//trace1 is displayed.
-			XString ch = (avg > 1) ? XString("TA") : shot_this[ *trace1()].to_str();
-			n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
-		}
-	}
-	if( !sseq || (avg < 2)) {
-		interface()->query("INR?");
-		if(interface()->toInt() & 1) {
-			if( !sseq)
-				m_totalCount++;
-			else
-				n = 1;
-		}
-		if( !sseq)
-			n = m_totalCount;
-	}
-	*seq_busy = (n < avg);
+    interface()->query("INR?");
+    if(interface()->toInt() & 1) {
+        m_totalCount++;
+    }
+    n = m_totalCount;
+
+//    if(sseq && m_totalCount) {
+//        if( !shot_this[ *trace1()].to_str().empty()) {
+//            interface()->queryf("%s:TRACE?", shot_this[ *trace1()].to_str().c_str());
+//            if( !strncmp( &interface()->buffer()[0], "ON", 2)) {
+//                //trace1 is displayed.
+//                XString ch = (avg > 1) ? XString("TA") : shot_this[ *trace1()].to_str();
+//                n = lrint(inspectDouble("SWEEPS_PER_ACQ", ch));
+//            }
+//        }
+//    }
+    *seq_busy = (n < (sseq ? 1 : avg));
 	return n;
 }
 
