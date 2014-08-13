@@ -547,10 +547,10 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
 
     if(g_bUseOverpaint) {
         QColor cl(QRgb((unsigned int)shot[ *m_graph->backGround()]));
-        cl.setAlpha(0.3);
+        cl.setAlpha(lrint(0.3 * 255));
         qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
         cl = QColor(QRgb((unsigned int)shot[ *m_graph->titleColor()]));
-        cl.setAlpha(0.55);
+        cl.setAlpha(lrint(0.55 * 255));
         qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
         m_curTextColor = QRgb(shot[ *m_graph->backGround()]);
     }

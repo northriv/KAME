@@ -57,7 +57,7 @@ public:
     QColor qc = QRgb(rgb);
     glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
     if(g_bUseOverpaint) {
-        qc.setAlpha(a);
+        qc.setAlpha(lrintf(a * 255));
         m_curTextColor = qc.rgba();
     }
 }
@@ -183,7 +183,6 @@ Snapshot startDrawing();
     struct Text {
         QString text;
         int x; int y;
-        int align;
         int fontsize;
         QRgb rgba;
     };

@@ -310,22 +310,8 @@ XQGraphPainter::selectFont(const XString &str,
 }
 void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-    if(g_bUseOverpaint) {
-        double x,y,z;
-        screenToWindow(p, &x, &y, &z);
-
-        //draws texts later.
-		Text txt;
-		txt.text = str;
-		txt.x = lrint(x);
-		txt.x = lrint(y);
-		txt.fontsize = m_curFontSize;
-		txt.align = m_curAlign;
-		txt.rgba = m_curTextColor;
-		m_textOverpaint.push_back(txt);
-    }
-    else {
-    #ifdef HAVE_FTGL
+#ifdef HAVE_FTGL
+    if( !g_bUseOverpaint) {
         float llx, lly, llz, urx, ury, urz;
         std::wstring wstr = string2wstring(str);
 
@@ -351,7 +337,11 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
         if(s_pFont->Error())
             gWarnPrint(i18n("GL Font Error."));
 
-    #else
+    }
+    else {
+#else
+    {
+#endif //HAVE_FTGL
         double x,y,z;
         screenToWindow(p, &x, &y, &z);
 
@@ -364,8 +354,20 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 		if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
 		if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
 		if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
-		m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
-    #endif //HAVE_FTGL
+
+        if(g_bUseOverpaint) {
+            //draws texts later.
+            Text txt;
+            txt.text = str;
+            txt.x = lrint(x);
+            txt.y = lrint(y);
+            txt.fontsize = m_curFontSize;
+            txt.rgba = m_curTextColor;
+            m_textOverpaint.push_back(txt);
+        }
+        else {
+            m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
+        }
     }
 }
 
@@ -680,7 +682,7 @@ XQGraphPainter::paintGL () {
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
-    //    glFlush();
+//    glFlush();
 
     if(g_bUseOverpaint) {
         //restores states
@@ -694,6 +696,7 @@ XQGraphPainter::paintGL () {
 
         QPainter qpainter(m_pItem);
         qpainter.setRenderHint(QPainter::TextAntialiasing);
+        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         drawTextOverpaint(qpainter);
         if(m_bReqHelp) {
             drawOnScreenHelp(shot, &qpainter);
@@ -705,11 +708,12 @@ XQGraphPainter::paintGL () {
 
 void
 XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
+    QFont font(qpainter.font());
     for(auto it = m_textOverpaint.begin(); it != m_textOverpaint.end(); ++it) {
         qpainter.setPen(QColor(it->rgba));
-        qpainter.drawText(it->x, it->y,
-            m_pItem->width() - it->x, m_pItem->height() - it->y,
-            it->align, it->text);
+        font.setPointSize(it->fontsize);
+        qpainter.setFont(font);
+        qpainter.drawText(it->x, it->y, it->text);
     }
     m_textOverpaint.clear();
 }
