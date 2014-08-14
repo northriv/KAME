@@ -72,7 +72,7 @@ using std::max;
 	    return &buf[0];
 	}
 #else
-    #define DEFAULT_FONT_SIZE 11
+    #define DEFAULT_FONT_SIZE 12
 #endif //HAVE_FTGL
 
 #define checkGLError() \
@@ -223,7 +223,8 @@ XQGraphPainter::endQuad() {
 void
 XQGraphPainter::defaultFont() {
 	m_curAlign = 0;
-	m_curFontSize = DEFAULT_FONT_SIZE;
+    m_curFontSize = std::min(14L, std::max(9L,
+        lrint(DEFAULT_FONT_SIZE * m_pItem->height() / m_pItem->logicalDpiY() / 3.5)));
 }
 int
 XQGraphPainter::selectFont(const XString &str,
@@ -277,7 +278,9 @@ XQGraphPainter::selectFont(const XString &str,
 			h = y;
 		}
 	}
-	m_curFontSize = DEFAULT_FONT_SIZE + sizehint;
+    defaultFont();
+    m_curFontSize += sizehint;
+    int fontsize_org = m_curFontSize;
 	m_curAlign = align;
     
 #ifdef HAVE_FTGL
@@ -287,7 +290,7 @@ XQGraphPainter::selectFont(const XString &str,
         for(;;) {
             s_pFont->FaceSize(m_curFontSize);
             s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-            if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+            if(m_curFontSize < fontsize_org - 4) return -1;
             if((urx < w ) && (ury < h)) break;
             m_curFontSize--;
         }
@@ -301,7 +304,7 @@ XQGraphPainter::selectFont(const XString &str,
             font.setPointSize(m_curFontSize);
             QFontMetrics fm(font);
             QRect bb = fm.boundingRect(str);
-            if(m_curFontSize < DEFAULT_FONT_SIZE + sizehint - 4) return -1;
+            if(m_curFontSize < fontsize_org - 4) return -1;
             if((bb.width() < w ) && (bb.height() < h)) break;
             m_curFontSize--;
         }
