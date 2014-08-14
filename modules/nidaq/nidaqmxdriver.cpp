@@ -15,9 +15,16 @@
 #if !defined __WIN32__ && !defined WINDOWS
     #include <sys/errno.h>
 #endif
-#include <boost/math/common_factor.hpp>
-using boost::math::lcm;
-using boost::math::gcd;
+//#include <boost/math/common_factor.hpp>
+//using boost::math::lcm;
+
+inline int unsigned gcd(unsigned int a, unsigned int b){
+    if( !b) return a;
+    return gcd(b, a % b);
+}
+inline unsigned int lcm(unsigned int a, unsigned int b){
+    return a * b / gcd(a,b);
+}
 
 //struct ProductInfo {
 //    const char *type;

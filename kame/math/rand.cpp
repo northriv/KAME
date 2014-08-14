@@ -13,17 +13,23 @@
 ***************************************************************************/
 #include "rand.h"
 
-//!\todo C++11
-//#include <random>
-//static std::mt19937 s_rng_mt19937;
-//static std::uniform_real<> s_un01(0.0, 1.0);
-//static std::variate_generator<std::mt19937&, std::uniform_real<>> s_rng_un01_mt19937(s_rng_mt19937, s_un01);
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_01.hpp>
+#ifdef USE_STD_RANDOM
+//C++11
+    #include <random>
+    static std::random_device seed_gen;
+    static std::mt19937 s_rng_mt19937(seed_gen());
+    static std::uniform_real_distribution<> s_un01(0.0, 1.0);
+    double randMT19937() {
+        return s_un01(s_rng_mt19937);
+    }
+#else
+    #include <boost/random/mersenne_twister.hpp>
+    #include <boost/random/uniform_01.hpp>
 
-static boost::mt19937 s_rng_mt19937;
-static boost::uniform_01<boost::mt19937> s_rng_un01_mt19937(s_rng_mt19937);
+    static boost::mt19937 s_rng_mt19937;
+    static boost::uniform_01<boost::mt19937> s_rng_un01_mt19937(s_rng_mt19937);
+    double randMT19937() {
+        return s_rng_un01_mt19937();
+    }
+#endif
 
-double randMT19937() {
-	return s_rng_un01_mt19937();
-}

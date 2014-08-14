@@ -8,7 +8,6 @@ Use Qt Creator and open kame.pro.
 
 Before building kame, perform the following:
 
-Place boost (http://sourceforge.net/projects/boost/files/boost/1.55.0/) on the upper directory over the kame source, in the name of "boost".
 Place fftw3 (http://www.fftw.org/download.html) on the upper directory over the kame source, in the name of "fftw3".
 
 Install "Ruby Installer for Windows (ver. 1.8.7)" available at http://rubyinstaller.org/downloads/

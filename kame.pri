@@ -35,7 +35,7 @@ macx {
 }
 
 win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/" -lgsl -lgslcblas -lltdl -lz
