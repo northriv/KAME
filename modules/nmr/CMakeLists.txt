@@ -1,4 +1,5 @@
 add_subdirectory(pulsercore)
+add_subdirectory(thamway)
 
 ########### next target ###############
 include_directories(

@@ -9,6 +9,7 @@ include_directories(
 ########### next target ###############
 set(thamway_SRCS
 	thamwayprot.cpp 
+	thamwaypulser.cpp
  )
 
 add_library(thamway MODULE ${thamway_SRCS})
