@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
 	g_bLogDbgPrint = args->isSet("logging");
-    g_bOverpaint = args->isSet("overpaint");
+    g_bUseOverpaint = args->isSet("overpaint");
     g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
