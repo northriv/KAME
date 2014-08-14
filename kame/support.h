@@ -71,7 +71,8 @@ using std::reference_wrapper;
 #else
     #include <QCoreApplication>
     #define i18n_noncontext(src) QCoreApplication::translate("static", src)
-    #define i18n(src) ((dynamic_cast<const QObject*>(this)) ?\
+    #include <type_traits>
+    #define i18n(src) ((std::is_base_of<QObject, decltype( *this)>::value) ?\
         QObject::tr(src) : i18n_noncontext(src))
     #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
