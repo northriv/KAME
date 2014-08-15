@@ -29,7 +29,9 @@ s32 usb_open(s32 n,HANDLE *h){
                 0,
                 0);
             if(*h == INVALID_HANDLE_VALUE) {
-                fprintf(stderr, "cusb: INVALID HANDLE %d\n", (int)GetLastError());
+                int e = (int)GetLastError();
+                if(e != ERROR_FILE_NOT_FOUND)
+                    fprintf(stderr, "cusb: INVALID HANDLE %d\n", e);
                 continue;
             }
             else{
