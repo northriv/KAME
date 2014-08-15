@@ -291,7 +291,7 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr) {
 }
 uint16_t
 XWinCUSBInterface::readRegister16(unsigned int addr) {
-    return singleRead(addr) + singleRead(addr + 1) * 0x100u;
+    return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 
 void

@@ -4,7 +4,7 @@ include($${PRI_DIR}/modules.pri)
 QT += opengl
 
 INCLUDEPATH += \
-    $${_PRO_FILE_PWD_}/../../kame/graph\
+    $${_PRO_FILE_PWD_}/../../../kame/graph\
 
 
 HEADERS += \
