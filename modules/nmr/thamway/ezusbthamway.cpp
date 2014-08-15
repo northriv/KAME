@@ -67,14 +67,14 @@ XWinCUSBInterface::openAllEZUSBdevices() {
     }
     for(int i = 0; i < 8; ++i) {
         void *handle = 0;
-        dbgPrint("cusb_init");
+        fprintf(stderr, "cusb_init #%d\n", i);
         //finds out the first available device.
         if(cusb_init(-1, &handle, (uint8_t *)firmware,
-            (signed char*)"F2FW", (signed char*)"20070613")) {
+            (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
         }
-        dbgPrint("Setting GPIF waves");
+        fprintf(stderr, "Setting GPIF waves for handle 0x%x\n", (unsigned long)handle);
         setWave(handle, (const uint8_t*)gpifwave);
         s_handles.push_back(handle);
     }

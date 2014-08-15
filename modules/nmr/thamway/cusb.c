@@ -245,15 +245,23 @@ s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
     s8 s1[128],s2[128];
 
     if(usb_open(n,h)) return(-1);
+    fprintf(stderr, "Ez-USB: cusb: successfully opened\n");
     if(usb_get_string(h,1,s1)) return(-1);
     if(usb_get_string(h,2,s2)) return(-1);
-    if(strcmp((const char *)str1,(const char *)s1)||strcmp((const char *)str2,(const char *)s2)){
+    fprintf(stderr, "cusb: Device: %s %s\n", s1, s2);
+    unsigned int version = atoi(s2);
+    if( !version) {
+        fprintf(stderr, "cusb: Not Thamway's device\n");
+        return -1;
+    }
+    if(strcmp((const char *)str1,(const char *)s1)|| (version < atoi(str2)) ){
         if(usb_halt(h)) return(-1);
         if(usb_dwnload(h,fw,CUSB_DWLSIZE)) return(-1);
         if(usb_run(h)) return(-1);
         usb_close(h);
         for(;;){
             s32 err=0;
+            fprintf(stderr, "cusb: Downloading the firmware to the device %s %s. This process takes a few seconds....\n", s1, s2);
             Sleep(2500); //for thamway
             if(usb_open(n,h)) err=1;
             if(err==0){
