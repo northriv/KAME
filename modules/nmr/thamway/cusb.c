@@ -11,17 +11,17 @@ HANDLE mh=NULL;
 s32 usb_open(s32 n,HANDLE *h){
     HANDLE th;
     s32 i;
-    s8 name[256],muname[32];
+    char name[256],muname[32];
     if(n==-1){
         for(i=0;i<8;i++){
-            sprintf((char *)muname,"Ezusb-%d",i);
-            if((th=OpenMutex(MUTEX_ALL_ACCESS,TRUE,(const char *)muname))!=NULL){
+            sprintf(muname,"Ezusb-%d",i);
+            if((th=OpenMutex(MUTEX_ALL_ACCESS,TRUE,muname))!=NULL){
                 CloseHandle(th);
                 continue;
             }
-            sprintf((char *)name,(char *)"\\\\.\\Ezusb-%d",i);
-            fprintf(stderr, "cusb: opening device: %s\n", (char*)name);
-            *h = CreateFile((char *)name,
+            sprintf(name,"\\\\.\\Ezusb-%d",i);
+            fprintf(stderr, "cusb: opening device: %s\n", name);
+            *h = CreateFile(name,
                 GENERIC_READ | GENERIC_WRITE, //according to thamway
                 FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
                 0,
@@ -29,20 +29,32 @@ s32 usb_open(s32 n,HANDLE *h){
                 0,
                 0);
             if(*h == INVALID_HANDLE_VALUE) {
-                fprintf(stderr, "cusb: INVALID HANDLE\n");
+                LPVOID lpMsgBuf;
+                FormatMessage(
+                    FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                    FORMAT_MESSAGE_FROM_SYSTEM |
+                    FORMAT_MESSAGE_IGNORE_INSERTS,
+                    NULL,
+                    GetLastError(),
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    (LPTSTR) &lpMsgBuf,
+                    0,
+                    NULL
+                );
+                fprintf(stderr, "cusb: INVALID HANDLE %s\n", lpMsgBuf);
                 continue;
             }
             else{
-                mh=CreateMutex(NULL,FALSE,(const char *)muname);
+                mh=CreateMutex(NULL,FALSE,muname);
                 break;
             }
         }
         if(i==8) return(-1);
     }
     else{
-        sprintf((char *)name,(char *)"\\\\.\\Ezusb-%d",n);
-        fprintf(stderr, "cusb: opening device: %s\n", (char*)name);
-        *h = CreateFile((char *)name,
+        sprintf(name,"\\\\.\\Ezusb-%d",n);
+        fprintf(stderr, "cusb: opening device: %s\n", name);
+        *h = CreateFile(name,
             GENERIC_READ | GENERIC_WRITE, //according to thamway
             FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
             0,
