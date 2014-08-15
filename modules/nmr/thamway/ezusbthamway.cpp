@@ -35,7 +35,7 @@ extern "C" {
 
 XMutex XWinCUSBInterface::s_mutex;
 int XWinCUSBInterface::s_refcnt = 0;
-std::deque<void *> XWinCUSBInterface::s_handles;
+std::deque<void *> XWinCUSBInterface::s_handles, XWinCUSBInterface::s_mutex_handles;
 
 void
 XWinCUSBInterface::openAllEZUSBdevices() {
@@ -67,17 +67,18 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
     for(int i = 0; i < 8; ++i) {
-        void *handle = 0;
+        void *handle = 0, mutex_handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
         //finds out the first available device.
-        if(cusb_init(-1, &handle, (uint8_t *)firmware,
+        if(cusb_init(-1, &handle, &mutex_handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
         }
+        s_handles.push_back(handle);
+        s_mutex_handles.push_back(mutex_handle);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x\n", (unsigned int)handle);
         setWave(handle, (const uint8_t*)gpifwave);
-        s_handles.push_back(handle);
     }
     if(s_handles.empty())
         throw XInterface::XInterfaceError(i18n_noncontext("USB-device open has failed."), __FILE__, __LINE__);
@@ -85,9 +86,8 @@ XWinCUSBInterface::openAllEZUSBdevices() {
 
 void
 XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
-    const uint8_t cmd[] = {CMD_MODE, MODE_GPIF | MODE_8BIT | MODE_ADDR | MODE_NOFLOW | MODE_DEBG, CMD_GPIF};
     std::vector<uint8_t> buf;
-    buf.insert(buf.end(), cmd, cmd + sizeof(cmd));
+    buf.insert(buf.end(), {CMD_MODE, MODE_GPIF | MODE_8BIT | MODE_ADDR | MODE_NOFLOW | MODE_DEBG, CMD_GPIF});
     buf.insert(buf.end(), wave, wave + 8);
     const uint8_t cmd2[] = {MODE_FLOW};
     buf.insert(buf.end(), cmd2, cmd2 + sizeof(cmd2));
@@ -105,11 +105,16 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 }
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
-    for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
+    auto it = s_handles.begin();
+    auto mit = s_mutex_handles.begin();
+    for(; it != s_handles.end();) {
         fprintf(stderr, "cusb_close\n");
-        usb_close( &*it);
+        usb_close( &*it, &*mit);
+        ++it;
+        ++mit;
     }
     s_handles.clear();
+    s_mutex_handles.clear();
 }
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)

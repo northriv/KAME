@@ -45,7 +45,7 @@ protected:
 private:
     static uint8_t singleRead(void *handle, unsigned int addr);
     static XMutex s_mutex;
-    static std::deque<void *> s_handles;
+    static std::deque<void *> s_handles, s_mutex_handles;
     static int s_refcnt;
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);
