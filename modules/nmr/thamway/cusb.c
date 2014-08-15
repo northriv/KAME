@@ -19,15 +19,15 @@ s32 usb_open(s32 n,HANDLE *h){
                 CloseHandle(th);
                 continue;
             }
-            sprintf((char *)name,(char *)"\\\\.\\ezusb-%d",i);
+            sprintf((char *)name,(char *)"\\\\.\\Ezusb-%d",i);
             fprintf(stderr, "cusb: opening device: %s\n", (char*)name);
             *h = CreateFile((char *)name,
                 GENERIC_READ | GENERIC_WRITE, //according to thamway
                 FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
-                NULL,
+                0,
                 OPEN_EXISTING,
                 0,
-                NULL);
+                0);
             if(*h == INVALID_HANDLE_VALUE) {
                 fprintf(stderr, "cusb: INVALID HANDLE\n");
                 continue;
@@ -40,15 +40,15 @@ s32 usb_open(s32 n,HANDLE *h){
         if(i==8) return(-1);
     }
     else{
-        sprintf((char *)name,(char *)"\\\\.\\ezusb-%d",n);
+        sprintf((char *)name,(char *)"\\\\.\\Ezusb-%d",n);
         fprintf(stderr, "cusb: opening device: %s\n", (char*)name);
         *h = CreateFile((char *)name,
             GENERIC_READ | GENERIC_WRITE, //according to thamway
             FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
-            NULL,
+            0,
             OPEN_EXISTING,
             0,
-            NULL);
+            0);
         if(*h == INVALID_HANDLE_VALUE) {
             fprintf(stderr, "cusb: INVALID HANDLE\n");
             return(-1);
