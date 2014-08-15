@@ -21,9 +21,9 @@
 //! Thamway DV14U25 A/D conversion board
 class XThamwayDVUSBDSO : public XCharDeviceDriver<XDSO, XWinCUSBInterface> {
 public:
-    XThamwayDVUSB(const char *name, bool runtime,
+    XThamwayDVUSBDSO(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XThamwayDVUSB();
+    virtual ~XThamwayDVUSBDSO();
     //! Converts raw to record
     virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 protected:

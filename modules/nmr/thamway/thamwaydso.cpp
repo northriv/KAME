@@ -232,10 +232,10 @@ XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
     int div = std::max(1L, lrint(INTERNAL_CLOCK * interval));
     int pres = std::min(7, std::max(0, (int)floor(log(div / 256.0) / log(2.0)) + 1));
 
-    uin8_t cfg = interface()->readRegister8(ADDR_CFG);
+    uint8_t cfg = interface()->readRegister8(ADDR_CFG);
     interface()->writeToRegister8(ADDR_CFG, cfg | pres);
 
-    div = std::min(255, lrint(div / pow(2.0, pres)));
+    div = std::min(255L, lrint(div / pow(2.0, pres)));
     interface()->writeToRegister8(ADDR_DIVISOR, div);
 
     interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
