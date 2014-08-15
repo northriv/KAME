@@ -14,7 +14,7 @@ s32 usb_open(s32 n,HANDLE *h){
     char name[256],muname[32];
     if(n==-1){
         for(i=0;i<8;i++){
-            sprintf(muname,"Ezusb-%d",i);
+//            sprintf(muname,"Ezusb-%d",i);
             if((th=OpenMutexA(MUTEX_ALL_ACCESS,TRUE,muname))!=NULL){
                 CloseHandle(th);
                 continue;
