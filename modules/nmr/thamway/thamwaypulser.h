@@ -52,6 +52,8 @@ private:
 	//! \param term a period of the pattern to appear
 	//! \param pattern a pattern for digital, to appear
 	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
+
+    void getStatus(bool *running = 0L, bool *extclk_det = 0L);
 };
 
 

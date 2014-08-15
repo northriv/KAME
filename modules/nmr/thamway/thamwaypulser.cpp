@@ -23,7 +23,7 @@
     REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
 #endif
 typedef XThamwayPulser<XCharInterface> XThamwayCharPulser;
-REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026 PG(GPIB/TCP)");
+REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
 #define MAX_PATTERN_SIZE 256*1024u
 //[ms]
@@ -145,7 +145,9 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
         this->interface()->writeToRegister8(ADDR_REG_REP_N, 0); //infinite loops
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-//        this->interface()->writeToRegister8(ADDR_REG_MODE, 8); //
+        bool ext_clock;
+        getStatus(0, &ext_clock);
+        this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
     }
 }
@@ -189,6 +191,28 @@ XThamwayPulser<XCharInterface>::open() throw (XKameError &) {
     this->interface()->setEOS("\r\n");
     this->start();
 }
+
+template<class tInterface>
+void
+XThamwayPulser<tInterface>::getStatus(bool *running, bool *extclk_det) {
+    uint8_t sta = this->interface()->singleRead(ADDR_REG_STS);
+    if(running)
+        *running = sta & 0x2;
+    if(extclk_det)
+        *extclk_det = sta & 0x20;
+    this->interface()->writeToRegister8(ADDR_REG_STS, 0);
+}
+template<>
+void
+XThamwayPulser<XCharInterface>::getStatus(bool *running, bool *extclk_det) {
+    if(running) {
+        this->interface()->query("ISRUN?");
+        *running = (this->interface()->toStrSimplified() == "RUN");
+    }
+    if(extclk_det)
+        *extclk_det = true; //uncertain
+}
+
 
 #if defined USE_EZUSB
     template class XThamwayPulser<class XWinCUSBInterface>;

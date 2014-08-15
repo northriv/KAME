@@ -65,14 +65,14 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
-    for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
+    for(int i = 0; i < 8; ++i) {
         void *handle = 0;
         dbgPrint("cusb_init");
         //finds out the first available device.
         if(cusb_init(-1, &handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070613")) {
             //no device, or incompatible firmware.
-            break;
+            continue;
         }
         dbgPrint("Setting GPIF waves");
         setWave(handle, (const uint8_t*)gpifwave);

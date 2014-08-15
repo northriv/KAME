@@ -36,6 +36,7 @@ public:
     void resetBulkWrite();
 
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
+    static uint8_t singleRead(unsigned int addr) {return singleRead(m_handle, addr);}
 
     XString getIDN() {return getIDN(m_handle);}
 protected:
