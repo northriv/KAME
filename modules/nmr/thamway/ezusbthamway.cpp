@@ -70,7 +70,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         void *handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
         //finds out the first available device.
-        if(cusb_init(i, &handle, (uint8_t *)firmware,
+        if(cusb_init(-1, &handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
@@ -251,7 +251,6 @@ XString
 XWinCUSBInterface::getIDN(void *handle) {
     //ignores till \0
     for(int i = 0; ; ++i) {
-        msecsleep(1);
         if( !singleRead(handle, ADDR_IDN))
             break;
         if(i > 256) {
@@ -260,7 +259,6 @@ XWinCUSBInterface::getIDN(void *handle) {
     }
     XString idn;
     for(int i = 0; ; ++i) {
-        msecsleep(1);
         char c = singleRead(handle, ADDR_IDN);
         if( !c)
             break;
