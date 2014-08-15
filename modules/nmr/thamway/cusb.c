@@ -190,6 +190,8 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
     BULK_TRANSFER_CONTROL bulk_control;
 
     bulk_control.pipeNum = pipe;
+
+    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
     for(i=0;len>0;){
         if(len>0x8000){
             l=0x8000;
@@ -250,32 +252,32 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
 s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
     s8 s1[128],s2[128];
-
+    s1[0] = '\0'; s2[0] = '\0';
     if(usb_open(n,h)) return(-1);
     fprintf(stderr, "Ez-USB: cusb: successfully opened\n");
     if(usb_get_string(h,1,s1)) {}// return(-1);
     else fprintf(stderr, "cusb: Device: %s\n", s1);
     if(usb_get_string(h,2,s2)) {}// return(-1);
-    else fprintf(stderr, "cusb: Ver: %s\n", s2);
+    else {
+        fprintf(stderr, "cusb: Ver: %s\n", s2);
+        if(s2[0] != '2') {
+            fprintf(stderr, "cusb: Not Thamway's device\n");
+            return -1;
+        }
+    }
     unsigned int version = atoi(s2);
-//    if( !version) {
-//        fprintf(stderr, "cusb: Not Thamway's device\n");
-//        return -1;
-//    }
     if(strcmp((const char *)str1,(const char *)s1)|| (version < atoi(str2)) ){
         if(usb_halt(h)) return(-1);
+        fprintf(stderr, "cusb: Downloading the firmware to the device. This process takes a few seconds....\n");
         if(usb_dwnload(h,fw,CUSB_DWLSIZE)) return(-1);
         if(usb_run(h)) return(-1);
         usb_close(h);
         for(;;){
-            s32 err=0;
-            fprintf(stderr, "cusb: Downloading the firmware to the device %s %s. This process takes a few seconds....\n", s1, s2);
             Sleep(2500); //for thamway
-            if(usb_open(n,h)) err=1;
-            if(err==0){
+            if(usb_open(n,h) == 0)
                 break;
-            }
         }
+        fprintf(stderr, "Ez-USB: cusb: successfully downloaded\n");
     }
     return(0);
 }
