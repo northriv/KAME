@@ -121,8 +121,10 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         s_refcnt++;
 
         for(Transaction tr( *this);; ++tr) {
+            int i = 0;
             for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
-                tr[ *device()].add(getIDN( *it).substr(0,7));
+                tr[ *device()].add(formatString("%d:", i, getIDN( *it).substr(0,7).c_str()));
+                ++i;
             }
             if(tr.commit())
                 break;
@@ -249,6 +251,7 @@ XString
 XWinCUSBInterface::getIDN(void *handle) {
     //ignores till \0
     for(int i = 0; ; ++i) {
+        msecsleep(1);
         if( !singleRead(handle, ADDR_IDN))
             break;
         if(i > 256) {
@@ -257,10 +260,11 @@ XWinCUSBInterface::getIDN(void *handle) {
     }
     XString idn;
     for(int i = 0; ; ++i) {
+        msecsleep(1);
         char c = singleRead(handle, ADDR_IDN);
-        idn += c;
         if( !c)
             break;
+        idn += c;
         if(i > 256) {
             throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
