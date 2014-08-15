@@ -70,7 +70,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         void *handle = 0, *mutex_handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
         //finds out the first available device.
-        if(cusb_init(-1, &handle, &mutex_handle, (uint8_t *)firmware,
+        if(cusb_init(i, &handle, &mutex_handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
@@ -289,6 +289,11 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr) {
         return buf[0];
     }
 }
+uint16_t
+XWinCUSBInterface::readRegister16(unsigned int addr) {
+    return singleRead(addr) + singleRead(addr + 1) * 0x100u;
+}
+
 void
 XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
     assert(isLocked());

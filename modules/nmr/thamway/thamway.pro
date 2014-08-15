@@ -9,22 +9,23 @@ INCLUDEPATH += \
 
 HEADERS += \
     thamwayprot.h \
-    thamwaypulser.h
-
+    thamwaypulser.h\
 
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp
+    thamwaypulser.cpp \
 
 win32: { #exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     HEADERS += \
         fx2fw.h\
         cusb.h\
         ezusbthamway.h\
+        thamwaydso.h
 
     SOURCES += \
         cusb.c\
         ezusbthamway.cpp\
+        thamwaydso.cpp
 
     DEFINES += USE_EZUSB
 }
@@ -48,3 +49,8 @@ win32:LIBS += -lnmrpulsercore
 
 INCLUDEPATH += $$PWD/../pulsercore
 DEPENDPATH += $$PWD/../pulsercore
+
+win32:LIBS += -ldsocore
+
+INCLUDEPATH += $$PWD/../../dso/core
+DEPENDPATH += $$PWD/../../dso/core

@@ -37,6 +37,8 @@ public:
 
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
     uint8_t singleRead(unsigned int addr) {return singleRead(m_handle, addr);}
+    uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
+    uint16_t readRegister16(unsigned int addr);
 
     XString getIDN() {return getIDN(m_handle);}
 protected:

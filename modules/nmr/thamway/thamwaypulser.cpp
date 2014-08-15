@@ -13,9 +13,6 @@
 ***************************************************************************/
 #include "thamwaypulser.h"
 #include "charinterface.h"
-#include <QFile>
-#include <QDir>
-#include <QApplication>
 
 #if defined USE_EZUSB
     #include "ezusbthamway.h"
