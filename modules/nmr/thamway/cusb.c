@@ -50,7 +50,7 @@ s32 usb_open(s32 n,HANDLE *h){
             0,
             0);
         if(*h == INVALID_HANDLE_VALUE) {
-            fprintf(stderr, "cusb: INVALID HANDLE\n");
+            fprintf(stderr, "cusb: INVALID HANDLE %d\n", (int)GetLastError());
             return(-1);
         }
     }
@@ -173,6 +173,7 @@ s32 usb_get_string(HANDLE *h,s32 idx,s8 *s){
                             &nbyte,
                             NULL);
     if(ret==FALSE){
+        fprintf(stderr, "cusb: ioctl failed %d\n", (int)GetLastError());
         return(-1);
     }
     for(i=0;i<pvbuf[0]/2-1;i++){
@@ -205,6 +206,7 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
                             &nbyte,
                             NULL);
         if(ret==FALSE){
+            fprintf(stderr, "cusb: ioctl failed %d\n", (int)GetLastError());
             return(-1);
         }
         i+=l;
@@ -236,6 +238,7 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
                             &nbyte,
                             NULL);
         if(ret==FALSE){
+            fprintf(stderr, "cusb: ioctl failed %d\n", (int)GetLastError());
             return(-1);
         }
         i+=l;
@@ -250,14 +253,15 @@ s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
 
     if(usb_open(n,h)) return(-1);
     fprintf(stderr, "Ez-USB: cusb: successfully opened\n");
-    if(usb_get_string(h,1,s1)) return(-1);
-    if(usb_get_string(h,2,s2)) return(-1);
-    fprintf(stderr, "cusb: Device: %s %s\n", s1, s2);
+    if(usb_get_string(h,1,s1)) {}// return(-1);
+    else fprintf(stderr, "cusb: Device: %s\n", s1);
+    if(usb_get_string(h,2,s2)) {}// return(-1);
+    else fprintf(stderr, "cusb: Ver: %s\n", s2);
     unsigned int version = atoi(s2);
-    if( !version) {
-        fprintf(stderr, "cusb: Not Thamway's device\n");
-        return -1;
-    }
+//    if( !version) {
+//        fprintf(stderr, "cusb: Not Thamway's device\n");
+//        return -1;
+//    }
     if(strcmp((const char *)str1,(const char *)s1)|| (version < atoi(str2)) ){
         if(usb_halt(h)) return(-1);
         if(usb_dwnload(h,fw,CUSB_DWLSIZE)) return(-1);
