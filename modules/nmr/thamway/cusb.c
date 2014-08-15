@@ -15,7 +15,7 @@ s32 usb_open(s32 n,HANDLE *h){
     if(n==-1){
         for(i=0;i<8;i++){
             sprintf(muname,"Ezusb-%d",i);
-            if((th=OpenMutex(MUTEX_ALL_ACCESS,TRUE,muname))!=NULL){
+            if((th=OpenMutexA(MUTEX_ALL_ACCESS,TRUE,muname))!=NULL){
                 CloseHandle(th);
                 continue;
             }
@@ -33,7 +33,7 @@ s32 usb_open(s32 n,HANDLE *h){
                 continue;
             }
             else{
-                mh=CreateMutex(NULL,FALSE,muname);
+                mh=CreateMutexA(NULL,FALSE,muname);
                 break;
             }
         }
@@ -191,7 +191,7 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
+//    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
     for(i=0;len>0;){
         if(len>0x8000){
             l=0x8000;
@@ -260,7 +260,7 @@ s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
     if(usb_get_string(h,2,s2)) {}// return(-1);
     else {
         fprintf(stderr, "cusb: Ver: %s\n", s2);
-        if(s2[0] != '2') {
+        if(s2[0] != str2[0]) {
             fprintf(stderr, "cusb: Not Thamway's device\n");
             return -1;
         }
@@ -274,8 +274,14 @@ s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
         usb_close(h);
         for(;;){
             Sleep(2500); //for thamway
-            if(usb_open(n,h) == 0)
+            if(usb_open(n,h) == 0) {
+                Sleep(20);
+                if(usb_get_string(h,1,s1)) {}// return(-1);
+                else fprintf(stderr, "cusb: Device: %s\n", s1);
+                if(usb_get_string(h,2,s2)) {}// return(-1);
+                else fprintf(stderr, "cusb: Ver: %s\n", s2);
                 break;
+            }
         }
         fprintf(stderr, "Ez-USB: cusb: successfully downloaded\n");
     }

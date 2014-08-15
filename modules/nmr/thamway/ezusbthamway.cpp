@@ -27,6 +27,7 @@ extern "C" {
 
 #define CMD_DIPSW 0x11
 #define CMD_LED 0x12
+#define ADDR_IDN 0x1f
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
@@ -248,7 +249,7 @@ XString
 XWinCUSBInterface::getIDN(void *handle) {
     //ignores till \0
     for(int i = 0; ; ++i) {
-        if( !singleRead(handle, 0x1f))
+        if( !singleRead(handle, ADDR_IDN))
             break;
         if(i > 256) {
             throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
@@ -256,7 +257,7 @@ XWinCUSBInterface::getIDN(void *handle) {
     }
     XString idn;
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, 0x1f);
+        char c = singleRead(handle, ADDR_IDN);
         idn += c;
         if( !c)
             break;

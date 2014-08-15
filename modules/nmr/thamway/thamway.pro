@@ -16,7 +16,7 @@ SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp
 
-win32: exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
+win32: { #exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     HEADERS += \
         fx2fw.h\
         cusb.h\
