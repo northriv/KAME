@@ -141,7 +141,7 @@ void
 gErrPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
-		fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)str.c_str());
+        fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)QString(str).toLocal8Bit().data());
 		g_debugofs
 			<< (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
 							 .arg((uintptr_t)threadID(), 0, 16)
@@ -161,7 +161,7 @@ void
 gWarnPrint_redirected(const XString &str, const char *file, int line) {
 	{
 		XScopedLock<XMutex> lock(g_debug_mutex);
-		fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)str.c_str());
+        fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)QString(str).toLocal8Bit().data());
 		g_debugofs
 			<< (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
 							 .arg((uintptr_t)threadID(), 0, 16)
