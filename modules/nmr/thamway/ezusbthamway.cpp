@@ -114,11 +114,11 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
     : XInterface(name, runtime, driver), m_handle(0) {
     XScopedLock<XMutex> slock(s_mutex);
-    if( !s_refcnt)
-        openAllEZUSBdevices();
-    s_refcnt++;
-
     try {
+        if( !s_refcnt)
+            openAllEZUSBdevices();
+        s_refcnt++;
+
         for(Transaction tr( *this);; ++tr) {
             for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
                 tr[ *device()].add(getIDN( *it).substr(0,7));
