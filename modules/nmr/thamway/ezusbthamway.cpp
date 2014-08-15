@@ -74,7 +74,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             //no device, or incompatible firmware.
             continue;
         }
-        fprintf(stderr, "Setting GPIF waves for handle 0x%x\n", (unsigned long)handle);
+        fprintf(stderr, "Setting GPIF waves for handle 0x%x\n", (unsigned int)handle);
         setWave(handle, (const uint8_t*)gpifwave);
         s_handles.push_back(handle);
     }
@@ -105,6 +105,7 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
     for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
+        fprintf(stderr, "cusb_close\n");
         usb_close( &*it);
     }
     s_handles.clear();
