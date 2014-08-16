@@ -22,12 +22,13 @@
     static class WSockInit {
     public:
         WSockInit() {
-            WSADATA data;
             WSAStartup(MAKEWORD(2,0), &data);
         }
         ~WSockInit() {
             WSACleanup();
         }
+    private:
+        WSADATA data;
     } s_wsockinit;
 
 #else
