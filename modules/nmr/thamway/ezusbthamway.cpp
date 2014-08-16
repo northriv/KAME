@@ -69,7 +69,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
     for(int i = 0; i < 8; ++i) {
         void *handle = 0, *mutex_handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
-        if(cusb_init(i, &handle, &mutex_handle, (uint8_t *)firmware,
+        if(cusb_init(-1, &handle, &mutex_handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
@@ -269,6 +269,7 @@ XWinCUSBInterface::getIDN(void *handle) {
             throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
     }
+    fprintf(stderr, "getIDN:%s\n", idx.c_str());
     return idn;
 }
 uint8_t

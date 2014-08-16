@@ -190,7 +190,7 @@ XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
 	interface()->setEOS("\n");
     trans( *interface()->device()) = "TCP/IP";
-    trans( *interface()->port()) = "localhost:12333";
+    trans( *interface()->port()) = "127.0.0.1:12333";
 
 	average()->disable();
 	points()->disable();

@@ -15,7 +15,7 @@
 #include "charinterface.h"
 #include "xwavengraph.h"
 
-REGISTER_TYPE(XDriverList, LecroyDSO, "Lecroy/Iwatsu DSO");
+REGISTER_TYPE(XDriverList, LecroyDSO, "Lecroy/Teledyne/Iwatsu DSO");
 
 //---------------------------------------------------------------------------
 XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
@@ -69,7 +69,7 @@ XLecroyDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace1())->to_str();
     if( !ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
+        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
     }
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
@@ -79,7 +79,7 @@ XLecroyDSO::onTrace2Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace2())->to_str();
     if( !ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
+        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
     }
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
@@ -89,7 +89,7 @@ XLecroyDSO::onTrace3Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace3())->to_str();
     if( !ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
+        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
     }
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
@@ -99,7 +99,7 @@ XLecroyDSO::onTrace4Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace4())->to_str();
     if( !ch.empty()) {
-		interface()->sendf("%s:TRACE ON", ch.c_str());
+        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
     }
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());

@@ -54,7 +54,7 @@ XThamwayPROT::XThamwayPROT(const char *name, bool runtime,
     rxLPFBW()->setUIEnabled(false);
 
     interface()->setEOS("\n");
-    trans( *interface()->port()) = "localhost:5025";
+    trans( *interface()->port()) = "127.0.0.1:5025";
     trans( *interface()->device()) = "TCP/IP";
 }
 void

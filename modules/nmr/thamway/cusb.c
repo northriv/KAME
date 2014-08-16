@@ -255,9 +255,9 @@ s32 cusb_init(s32 n,HANDLE *h,HANDLE *hmutex,u8 *fw,s8 *str1,s8 *str2){
     s1[0] = '\0'; s2[0] = '\0';
     if(usb_open(n,h,hmutex)) return(-1);
     fprintf(stderr, "Ez-USB: cusb: successfully opened\n");
-    if(usb_get_string(h,1,s1)) return(-1);
+    if(usb_get_string(h,1,s1)) {}// return(-1);
     fprintf(stderr, "cusb: Device: %s\n", s1);
-    if(usb_get_string(h,2,s2)) return(-1);
+    if(usb_get_string(h,2,s2)) {} //return(-1);
     {
         fprintf(stderr, "cusb: Ver: %s\n", s2);
         if(s2[0] != str2[0]) {
