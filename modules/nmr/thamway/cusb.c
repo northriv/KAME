@@ -77,6 +77,8 @@ s32 usb_halt(HANDLE *h){
     vreq.wLength = 0x01;
     vreq.bData = 1;
     vreq.direction = 0x00;
+
+    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_VENDOR_REQUEST,
                             &vreq,
@@ -103,6 +105,8 @@ s32 usb_run(HANDLE *h){
     vreq.wLength = 0x01;
     vreq.bData = 0;
     vreq.direction = 0x00;
+
+    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_VENDOR_REQUEST,
                             &vreq,
@@ -122,6 +126,7 @@ s32 usb_dwnload(HANDLE *h,u8 *image,s32 len){
     unsigned long nbyte;
     BOOLEAN ret = FALSE;
 
+    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_ANCHOR_DOWNLOAD,
                             image,
@@ -141,6 +146,7 @@ s32 usb_resetpipe(HANDLE *h,ULONG p){
     unsigned long nbyte;
     BOOLEAN ret = FALSE;
 
+    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_RESETPIPE,
                             &p,
@@ -164,6 +170,8 @@ s32 usb_get_string(HANDLE *h,s32 idx,s8 *s){
 
     sin.Index=idx;
     sin.LanguageId=27;
+
+    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_GET_STRING_DESCRIPTOR,
                             &sin,
@@ -191,7 +199,8 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-//    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
+    Sleep(2);
+    //    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
     for(i=0;len>0;){
         if(len>0x8000){
             l=0x8000;
@@ -224,6 +233,8 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
     BULK_TRANSFER_CONTROL bulk_control;
 
     bulk_control.pipeNum = pipe;
+
+    Sleep(2);
     for(i=cnt=0;len>0;){
         if(len>0x8000){
             l=0x8000;

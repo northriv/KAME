@@ -46,8 +46,8 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 	}
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
     interface()->setGPIBWaitBeforeSPoll(10); //10msec
-//    interface()->setGPIBUseSerialPollOnRead(false);
-//    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBUseSerialPollOnRead(false);
+    interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setEOS("\n");
 
 	trans( *recordLength()) = 10000;
@@ -64,45 +64,48 @@ XLecroyDSO::open() throw (XKameError &) {
 
 	start();
 }
+void
+XLecroyDSO::activateTrace(const char *name) {
+    interface()->queryf("%s:TRACE?", name);
+    if( !strncmp( &interface()->buffer()[0], "OFF", 2)) {
+        interface()->queryf("%s:TRACE ON;*OPC?", name);
+        msecsleep(500);
+        Snapshot shot_this( *this);
+        onAverageChanged(shot_this, average().get());
+    }
+}
+
 void 
 XLecroyDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace1())->to_str();
     if( !ch.empty()) {
-        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
+        activateTrace(ch.c_str());
     }
-    Snapshot shot_this( *this);
-    onAverageChanged(shot_this, average().get());
 }
 void 
 XLecroyDSO::onTrace2Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace2())->to_str();
     if( !ch.empty()) {
-        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
+        activateTrace(ch.c_str());
     }
-    Snapshot shot_this( *this);
-    onAverageChanged(shot_this, average().get());
 }
 void
 XLecroyDSO::onTrace3Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace3())->to_str();
     if( !ch.empty()) {
-        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
+        activateTrace(ch.c_str());
     }
-    Snapshot shot_this( *this);
-    onAverageChanged(shot_this, average().get());
 }
 void
 XLecroyDSO::onTrace4Changed(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XInterface> lock( *interface());
     XString ch = ( **trace4())->to_str();
     if( !ch.empty()) {
-        interface()->queryf("%s:TRACE ON;*OPC?", ch.c_str());
+        activateTrace(ch.c_str());
     }
-    Snapshot shot_this( *this);
-    onAverageChanged(shot_this, average().get());
 }
 void
 XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -155,6 +158,7 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 	    }
 		interface()->send("TRIG_MODE NORM");
 	}
+    startSequence();
 }
 
 void
