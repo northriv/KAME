@@ -67,7 +67,7 @@ public:
         : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG") {}
     virtual ~XThamwayPGCUSBInterface() {}
 
-    virtual XString getIDN(int maxlen = 255) {
+    virtual XString getIDN(int maxlen) {
         XString str = getIDN(m_handle, maxlen, ADDR_IDN_PG);
         if(str.empty() || (str.substr(0,2) != "PG") )
              return XString();
@@ -81,7 +81,7 @@ public:
         : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DA") {}
     virtual ~XThamwayDACUSBInterface() {}
 
-    virtual XString getIDN(int maxlen = 255) {
+    virtual XString getIDN(int maxlen) {
         XString str = getIDN(m_handle, maxlen, ADDR_IDN_DA);
         if(str.empty() || (str.substr(0,2) != "DA") )
             return XString();
