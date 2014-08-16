@@ -67,7 +67,7 @@ private:
 };
 
 #define ADDR_IDN_PG 0x1f
-#define ADDR_IDN_DA 0x3f
+#define ADDR_IDN_DV 0x3f
 
 class XThamwayPGCUSBInterface : public XWinCUSBInterface {
 public:
@@ -76,9 +76,9 @@ public:
     virtual ~XThamwayPGCUSBInterface() {}
 };
 
-class XThamwayDACUSBInterface : public XWinCUSBInterface {
+class XThamwayDVCUSBInterface : public XWinCUSBInterface {
 public:
-    XThamwayDACUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DV14") {}
-    virtual ~XThamwayDACUSBInterface() {}
+    XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DV, "DV14") {}
+    virtual ~XThamwayDVCUSBInterface() {}
 };
