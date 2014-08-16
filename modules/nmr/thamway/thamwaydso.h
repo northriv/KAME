@@ -19,7 +19,7 @@
 #include "ezusbthamway.h"
 
 //! Thamway DV14U25 A/D conversion board
-class XThamwayDVUSBDSO : public XCharDeviceDriver<XDSO, XWinCUSBInterface> {
+class XThamwayDVUSBDSO : public XCharDeviceDriver<XDSO, XThamwayDACUSBInterface> {
 public:
     XThamwayDVUSBDSO(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
