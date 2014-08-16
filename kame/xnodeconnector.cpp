@@ -94,7 +94,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     	if(tr.commit())
     		break;
     }
-    onUIFlagsChanged(Snapshot(*node), node.get());
+    XQConnector::onUIFlagsChanged(Snapshot(*node), node.get());
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
 			 .arg(node->getLabel())
 			 .arg((uintptr_t)this, 0, 16)
