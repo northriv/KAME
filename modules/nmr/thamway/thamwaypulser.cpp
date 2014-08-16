@@ -212,6 +212,6 @@ XThamwayPulser<XCharInterface>::getStatus(bool *running, bool *extclk_det) {
 
 
 #if defined USE_EZUSB
-    template class XThamwayPulser<class XWinCUSBInterface>;
+    template class XThamwayPulser<class XThamwayPGCUSBInterface>;
 #endif
 template class XThamwayPulser<class XCharInterface>;
