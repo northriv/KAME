@@ -22,10 +22,14 @@
     static class WSockInit {
     public:
         WSockInit() {
-            WSAStartup(MAKEWORD(2,0), &data);
+            int ret = WSAStartup(MAKEWORD(2,0), &data);
+            if(ret)
+                fprintf(stderr, "WSAStartup() has failed %d\n", ret);
         }
         ~WSockInit() {
-            WSACleanup();
+            int ret = WSACleanup();
+            if(ret)
+                fprintf(stderr, "WSACleanup() has failed %d\n", ret);
         }
     private:
         WSADATA data;
