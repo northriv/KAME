@@ -40,11 +40,15 @@ public:
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
-    virtual XString getIDN(int maxlen) = 0;
+    XString getIDN(int maxlen = 255) {return getIDN(m_handle, maxlen); }
 protected:
-    static XString getIDN(void *handle, int maxlen, int addr);
-    void* m_handle;
 private:
+    XString getIDN(void *handle, int maxlen = 255) {
+        XString str = getIDN(handle, maxlen, m_addrIDN);
+        if(str.empty() || (str.substr(0,m_idString.length()) != m_idString) )
+             return XString();
+        return str;
+    }
     static void setLED(void *handle, uint8_t data);
     static uint8_t readDIPSW(void *handle);
     static uint8_t singleRead(void *handle, unsigned int addr);
@@ -54,6 +58,10 @@ private:
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);
     static void closeAllEZUSBdevices();
+    static XString getIDN(void *handle, int maxlen, int addr);
+    void* m_handle;
+    XString m_idString;
+    uint8_t m_addrIDN;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;
 };
@@ -66,13 +74,6 @@ public:
     XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
         : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG32") {}
     virtual ~XThamwayPGCUSBInterface() {}
-
-    virtual XString getIDN(int maxlen) {
-        XString str = XWinCUSBInterface::getIDN(m_handle, maxlen, ADDR_IDN_PG);
-        if(str.empty() || (str.substr(0,4) != "PG32") )
-             return XString();
-        return str;
-    }
 };
 
 class XThamwayDACUSBInterface : public XWinCUSBInterface {
@@ -80,11 +81,4 @@ public:
     XThamwayDACUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
         : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DV14") {}
     virtual ~XThamwayDACUSBInterface() {}
-
-    virtual XString getIDN(int maxlen) {
-        XString str = XWinCUSBInterface::getIDN(m_handle, maxlen, ADDR_IDN_DA);
-        if(str.empty() || (str.substr(0,4) != "DV14") )
-            return XString();
-        return str;
-    }
 };

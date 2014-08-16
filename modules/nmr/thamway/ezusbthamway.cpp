@@ -126,7 +126,7 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
 }
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id)
-    : XInterface(name, runtime, driver), m_handle(0) {
+    : XInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrIDN(addr_idn) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !s_refcnt)
@@ -136,8 +136,8 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         for(Transaction tr( *this);; ++tr) {
             int i = 0;
             for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
-                XString idn = getIDN( *it, 7, addr_idn);
-                if(idn.empty() || (idn.substr(0, strlen(id)) != id)) continue;
+                XString idn = getIDN( *it, 7);
+                if(idn.empty()) continue;
                 tr[ *device()].add(idn);
                 ++i;
             }
