@@ -79,6 +79,14 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         uint8_t sw = readDIPSW(handle);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
+
+        for(int i = 0; i < 3; ++i) {
+            //blinks LED
+            setLED(handle, 0x00u);
+            msecsleep(70);
+            setLED(handle, 0xf0u);
+            msecsleep(60);
+        }
     }
     if(s_handles.empty())
         throw XInterface::XInterfaceError(i18n_noncontext("USB-device open has failed."), __FILE__, __LINE__);
@@ -100,14 +108,6 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
         buf.insert(buf.end(), wave + 8 + 32*i, wave + 8 + 32*(i + 1));
         if(usb_bulk_write( &handle, CPIPE, &buf[0], buf.size()) < 0)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
-
-        for(int i = 0; i < 3; ++i) {
-            //blinks LED
-            setLED(handle, 0x00u);
-            msecsleep(70);
-            setLED(handle, 0xf0u);
-            msecsleep(60);
-        }
     }
 }
 void
@@ -115,6 +115,8 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     auto it = s_handles.begin();
     auto mit = s_mutex_handles.begin();
     for(; it != s_handles.end();) {
+        setLED( *it, 0);
+
         fprintf(stderr, "cusb_close\n");
         usb_close( &*it, &*mit);
         ++it;
@@ -180,14 +182,6 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
 
 void
 XWinCUSBInterface::close() throw (XInterfaceError &) {
-    if(m_handle) {
-        try {
-            setLED(0);
-        }
-        catch (XInterface::XInterfaceError &e) {
-            e.print();
-        }
-    }
     m_handle = 0;
 }
 
