@@ -236,17 +236,17 @@ void
 XWinCUSBInterface::setLED(void *handle, uint8_t data) {
     uint8_t cmds[] = {CMD_LED, data};
     if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
-        throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
 }
 
 uint8_t
 XWinCUSBInterface::readDIPSW(void *handle) {
     uint8_t cmds[] = {CMD_DIPSW};
     if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
-        throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     uint8_t buf[10];
     if(usb_bulk_read( &handle, RFIFO, buf, 1) != 1)
-        throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n_noncontext("USB bulk reading has failed."), __FILE__, __LINE__);
     return buf[0];
 }
 
