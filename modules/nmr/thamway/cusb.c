@@ -199,7 +199,7 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-    Sleep(2);
+    Sleep(5);
     //    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
     for(i=0;len>0;){
         if(len>0x8000){
@@ -234,7 +234,7 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-    Sleep(2);
+    Sleep(5);
     for(i=cnt=0;len>0;){
         if(len>0x8000){
             l=0x8000;

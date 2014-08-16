@@ -18,7 +18,7 @@
 #include <QStatusBar>
 
 REGISTER_TYPE(XDriverList, ThamwayT300ImpedanceAnalyzer, "Thamway T300-1049A Impedance Analyzer");
-REGISTER_TYPE(XDriverList, ThamwayPROT, "Thamway NMR PROT TCP/IP Control");
+REGISTER_TYPE(XDriverList, ThamwayPROT, "Thamway PROT NMR.EXE TCP/IP Control");
 
 XThamwayPROT::XThamwayPROT(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)

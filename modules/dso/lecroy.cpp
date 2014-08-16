@@ -267,11 +267,11 @@ void
 XLecroyDSO::startSequence() {
 	XScopedLock<XInterface> lock( *interface());
     Snapshot shot_this( *this);
-	if((shot_this[ *average()] <= 1) && shot_this[ *singleSequence()])
+    interface()->send("STOP;CLEAR_SWEEPS");
+    if((shot_this[ *average()] <= 1) && shot_this[ *singleSequence()])
 		interface()->send("ARM");
 	else
 		interface()->send("TRIG_MODE NORM");
-    interface()->query("CLEAR_SWEEPS;*OPC?");
     m_totalCount = 0;
 }
 
@@ -364,11 +364,11 @@ XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) 
 			if(blks != 0)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->receive(); //For LF.
-			interface()->setGPIBUseSerialPollOnRead(true);
+//			interface()->setGPIBUseSerialPollOnRead(true);
 		}
 	}
 	catch (XInterface::XInterfaceError &e) {
-		interface()->setGPIBUseSerialPollOnRead(true);
+//		interface()->setGPIBUseSerialPollOnRead(true);
 		throw e;
 	}
 //	if(!*singleSequence())
