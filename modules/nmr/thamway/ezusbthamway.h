@@ -42,9 +42,9 @@ public:
 
     XString getIDN() {return getIDN(m_handle);}
 protected:
-    void setLED(uint8_t data);
-    uint8_t readDIPSW();
+    void setLED(void *handle, uint8_t data);
 private:
+    uint8_t readDIPSW(void *handle);
     static uint8_t singleRead(void *handle, unsigned int addr);
     static XMutex s_mutex;
     static std::deque<void *> s_handles, s_mutex_handles;
