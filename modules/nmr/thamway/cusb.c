@@ -6,63 +6,30 @@
 
 #include "cusb.h"
 
-s32 usb_open(s32 n,HANDLE *h,HANDLE *hmutex){
+s32 usb_open(s32 n,HANDLE *h){
     HANDLE th;
     s32 i;
     char name[256],muname[32];
-    if(n==-1){
-        for(i=0;i<8;i++){
-//            sprintf(muname,"Ezusb-%d",i);
-            if((th=OpenMutexA(MUTEX_ALL_ACCESS,TRUE,muname))!=NULL){
-                CloseHandle(th);
-                continue;
-            }
-            sprintf(name,"\\\\.\\Ezusb-%d",i);
-            *h = CreateFileA(name,
-                GENERIC_READ | GENERIC_WRITE, //according to thamway
-                FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
-                0,
-                OPEN_EXISTING,
-                0,
-                0);
-            if(*h == INVALID_HANDLE_VALUE) {
-                int e = (int)GetLastError();
-                if(e != 2)
-                    fprintf(stderr, "cusb: INVALID HANDLE %d for %s\n", e, name);
-                continue;
-            }
-            else{
-                *hmutex=CreateMutexA(NULL,FALSE,muname);
-                break;
-            }
-        }
-        if(i==8) return(-1);
-    }
-    else{
-        sprintf(name,"\\\\.\\Ezusb-%d",n);
-        fprintf(stderr, "cusb: opening device: %s\n", name);
-        *h = CreateFileA(name,
-            GENERIC_READ | GENERIC_WRITE, //according to thamway
-            FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
-            0,
-            OPEN_EXISTING,
-            0,
-            0);
-        if(*h == INVALID_HANDLE_VALUE) {
-            int e = (int)GetLastError();
-            if(e != ERROR_FILE_NOT_FOUND)
-                fprintf(stderr, "cusb: INVALID HANDLE %d for %s\n", e, name);
-            return(-1);
-        }
+    sprintf(name,"\\\\.\\Ezusb-%d",n);
+    fprintf(stderr, "cusb: opening device: %s\n", name);
+    *h = CreateFileA(name,
+        GENERIC_READ | GENERIC_WRITE, //according to thamway
+        FILE_SHARE_READ | FILE_SHARE_WRITE, //according to thamway
+        0,
+        OPEN_EXISTING,
+        0,
+        0);
+    if(*h == INVALID_HANDLE_VALUE) {
+        int e = (int)GetLastError();
+        if(e != ERROR_FILE_NOT_FOUND)
+            fprintf(stderr, "cusb: INVALID HANDLE %d for %s\n", e, name);
+        return(-1);
     }
     return(0);
 }
 
-s32 usb_close(HANDLE *h,HANDLE *hmutex){
+s32 usb_close(HANDLE *h){
    CloseHandle(*h);
-   if( *hmutex){
-       CloseHandle( *hmutex);
-   }
    return(0);
 }
 
@@ -77,8 +44,6 @@ s32 usb_halt(HANDLE *h){
     vreq.wLength = 0x01;
     vreq.bData = 1;
     vreq.direction = 0x00;
-
-    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_VENDOR_REQUEST,
                             &vreq,
@@ -106,7 +71,6 @@ s32 usb_run(HANDLE *h){
     vreq.bData = 0;
     vreq.direction = 0x00;
 
-    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_VENDOR_REQUEST,
                             &vreq,
@@ -126,7 +90,6 @@ s32 usb_dwnload(HANDLE *h,u8 *image,s32 len){
     unsigned long nbyte;
     BOOLEAN ret = FALSE;
 
-    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_ANCHOR_DOWNLOAD,
                             image,
@@ -146,7 +109,6 @@ s32 usb_resetpipe(HANDLE *h,ULONG p){
     unsigned long nbyte;
     BOOLEAN ret = FALSE;
 
-    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_RESETPIPE,
                             &p,
@@ -171,7 +133,6 @@ s32 usb_get_string(HANDLE *h,s32 idx,s8 *s){
     sin.Index=idx;
     sin.LanguageId=27;
 
-    Sleep(20);
     ret = DeviceIoControl (*h,
                             IOCTL_Ezusb_GET_STRING_DESCRIPTOR,
                             &sin,
@@ -199,7 +160,6 @@ s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-    Sleep(5);
     //    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
     for(i=0;len>0;){
         if(len>0x8000){
@@ -234,7 +194,6 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
 
     bulk_control.pipeNum = pipe;
 
-    Sleep(5);
     for(i=cnt=0;len>0;){
         if(len>0x8000){
             l=0x8000;
@@ -261,10 +220,10 @@ s32 usb_bulk_read(HANDLE *h,s32 pipe,u8 *buf,s32 len){
     return(cnt);
 }
 
-s32 cusb_init(s32 n,HANDLE *h,HANDLE *hmutex,u8 *fw,s8 *str1,s8 *str2){
+s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
     s8 s1[128],s2[128];
     s1[0] = '\0'; s2[0] = '\0';
-    if(usb_open(n,h,hmutex)) return(-1);
+    if(usb_open(n,h)) return(-1);
     fprintf(stderr, "Ez-USB: cusb: successfully opened\n");
     usb_get_string(h,1,s1);
     fprintf(stderr, "cusb: Device: %s\n", s1);
@@ -281,11 +240,10 @@ s32 cusb_init(s32 n,HANDLE *h,HANDLE *hmutex,u8 *fw,s8 *str1,s8 *str2){
         fprintf(stderr, "cusb: Downloading the firmware to the device. This process takes a few seconds....\n");
         if(usb_dwnload(h,fw,CUSB_DWLSIZE)) return(-1);
         if(usb_run(h)) return(-1);
-        usb_close(h,hmutex);
+        usb_close(h);
         for(;;){
             Sleep(2500); //for thamway
             if(usb_open(n,h,hmutex) == 0) {
-                Sleep(20);
                 break;
             }
         }

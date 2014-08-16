@@ -34,7 +34,7 @@ extern "C" {
 
 XMutex XWinCUSBInterface::s_mutex;
 int XWinCUSBInterface::s_refcnt = 0;
-std::deque<void *> XWinCUSBInterface::s_handles, XWinCUSBInterface::s_mutex_handles;
+std::deque<void *> XWinCUSBInterface::s_handles;
 
 void
 XWinCUSBInterface::openAllEZUSBdevices() {
@@ -66,15 +66,14 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
     for(int i = 0; i < 8; ++i) {
-        void *handle = 0, *mutex_handle = 0;
+        void *handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
-        if(cusb_init(i, &handle, &mutex_handle, (uint8_t *)firmware,
+        if(cusb_init(i, &handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
         }
         s_handles.push_back(handle);
-        s_mutex_handles.push_back(mutex_handle);
         uint8_t sw = readDIPSW(handle);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
@@ -111,15 +110,12 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 }
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
-    auto it = s_handles.begin();
-    auto mit = s_mutex_handles.begin();
-    for(; it != s_handles.end();) {
+    for(auto it = s_handles.begin(); it != s_handles.end();) {
         setLED( *it, 0);
 
         fprintf(stderr, "cusb_close\n");
-        usb_close( &*it, &*mit);
+        usb_close( &*it);
         ++it;
-        ++mit;
     }
     s_handles.clear();
     s_mutex_handles.clear();
