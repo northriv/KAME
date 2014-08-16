@@ -69,7 +69,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
     for(int i = 0; i < 8; ++i) {
         void *handle = 0, *mutex_handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
-        if(cusb_init(-1, &handle, &mutex_handle, (uint8_t *)firmware,
+        if(cusb_init(i, &handle, &mutex_handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
             continue;
@@ -252,13 +252,6 @@ XWinCUSBInterface::readDIPSW() {
 XString
 XWinCUSBInterface::getIDN(void *handle) {
     //ignores till \0
-    for(int i = 0; ; ++i) {
-        if( !singleRead(handle, ADDR_IDN))
-            break;
-        if(i > 256) {
-            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
-        }
-    }
     XString idn;
     for(int i = 0; ; ++i) {
         char c = singleRead(handle, ADDR_IDN);
@@ -266,6 +259,18 @@ XWinCUSBInterface::getIDN(void *handle) {
             break;
         idn += c;
         if(i > 256) {
+            fprintf(stderr, "getIDN(ignored):%s\n", idn.c_str());
+            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
+        }
+    }
+    idn.clear();
+    for(int i = 0; ; ++i) {
+        char c = singleRead(handle, ADDR_IDN);
+        if( !c)
+            break;
+        idn += c;
+        if(i > 256) {
+            fprintf(stderr, "getIDN:%s\n", idn.c_str());
             throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
     }

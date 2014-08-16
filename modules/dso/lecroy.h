@@ -60,6 +60,7 @@ protected:
 	//! Loads waveforms and settings from the instrument.
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
 private:
+    void activateTrace(const char *name);
 	double inspectDouble(const char *req, const XString &trace);
 	int m_totalCount;
 };
