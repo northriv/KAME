@@ -47,7 +47,7 @@ REGISTER_TYPE(XDriverList, ThamwayDVUSBDSO, "Thamway DV14U25 A/D conversion boar
 
 XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XCharDeviceDriver<XDSO, XWinCUSBInterface>(name, runtime, ref(tr_meas), meas) {
+    XCharDeviceDriver<XDSO, XThamwayDVCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
     const char* sc[] = {"5", 0L};
     for(Transaction tr( *this);; ++tr) {
