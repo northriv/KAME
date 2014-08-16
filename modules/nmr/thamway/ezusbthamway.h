@@ -64,12 +64,12 @@ private:
 class XThamwayPGCUSBInterface : public XWinCUSBInterface {
 public:
     XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG") {}
+        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG32") {}
     virtual ~XThamwayPGCUSBInterface() {}
 
     virtual XString getIDN(int maxlen) {
-        XString str = getIDN(m_handle, maxlen, ADDR_IDN_PG);
-        if(str.empty() || (str.substr(0,2) != "PG") )
+        XString str = XWinCUSBInterface::getIDN(m_handle, maxlen, ADDR_IDN_PG);
+        if(str.empty() || (str.substr(0,4) != "PG32") )
              return XString();
         return str;
     }
@@ -78,12 +78,12 @@ public:
 class XThamwayDACUSBInterface : public XWinCUSBInterface {
 public:
     XThamwayDACUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DA") {}
+        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DV14") {}
     virtual ~XThamwayDACUSBInterface() {}
 
     virtual XString getIDN(int maxlen) {
-        XString str = getIDN(m_handle, maxlen, ADDR_IDN_DA);
-        if(str.empty() || (str.substr(0,2) != "DA") )
+        XString str = XWinCUSBInterface::getIDN(m_handle, maxlen, ADDR_IDN_DA);
+        if(str.empty() || (str.substr(0,4) != "DV14") )
             return XString();
         return str;
     }
