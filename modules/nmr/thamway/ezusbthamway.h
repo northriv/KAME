@@ -40,7 +40,7 @@ public:
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
-    XString getIDN() {return getIDN(m_handle);}
+    XString getIDN(int maxlen = 255) {return getIDN(m_handle, maxlen);}
 protected:
 private:
     static void setLED(void *handle, uint8_t data);
@@ -52,7 +52,8 @@ private:
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);
     static void closeAllEZUSBdevices();
-    static XString getIDN(void *handle);
+    static XString getIDN(void *handle, int maxlen);
+    static XString getIDN(void *handle, int maxlen, int addr);
     void* m_handle;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;

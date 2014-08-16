@@ -27,7 +27,8 @@ extern "C" {
 
 #define CMD_DIPSW 0x11
 #define CMD_LED 0x12
-#define ADDR_IDN 0x1f
+#define ADDR_IDN_PG 0x1f
+#define ADDR_IDN_DA 0x3f
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
@@ -137,7 +138,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         for(Transaction tr( *this);; ++tr) {
             int i = 0;
             for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
-                tr[ *device()].add(formatString("%d:%s", i, getIDN( *it).substr(0,7).c_str()));
+                tr[ *device()].add(getIDN( *it, 7));
                 ++i;
             }
             if(tr.commit())
@@ -245,28 +246,34 @@ XWinCUSBInterface::readDIPSW(void *handle) {
 }
 
 XString
-XWinCUSBInterface::getIDN(void *handle) {
+XWinCUSBInterface::getIDN(void *handle, int maxlen) {
+    XString str = getIDN(handle, maxlen, ADDR_IDN_DA);
+    if(str.empty())
+        str = getIDN(handle, maxlen, ADDR_IDN_PG);
+    if(str.empty())
+        throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
+    return str;
+}
+
+XString
+XWinCUSBInterface::getIDN(void *handle, int maxlen, int addr) {
     //ignores till \0
-    XString idn;
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, ADDR_IDN);
+        char c = singleRead(handle, addr);
         if( !c)
             break;
-        idn += c;
-        if(i > 256) {
-            fprintf(stderr, "getIDN(ignored),h=0x%x:%s\n", (unsigned int)handle, idn.c_str());
-            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
+        if(i > 255) {
+            return XString(); //failed
         }
     }
-    idn.clear();
+    XString idn;
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, ADDR_IDN);
+        char c = singleRead(handle, addr);
         if( !c)
             break;
         idn += c;
-        if(i > 256) {
-            fprintf(stderr, "getIDN,h=0x%x:%s\n", (unsigned int)handle, idn.c_str());
-            throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
+        if(i >= maxlen) {
+            break;
         }
     }
     fprintf(stderr, "getIDN:%s\n", idn.c_str());
