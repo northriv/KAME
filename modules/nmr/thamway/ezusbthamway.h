@@ -40,7 +40,7 @@ public:
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
-    virtual XString getIDN(int maxlen = 255) = 0;
+    virtual XString getIDN(int maxlen) = 0;
 protected:
     static XString getIDN(void *handle, int maxlen, int addr);
     void* m_handle;
@@ -79,7 +79,7 @@ class XThamwayDACUSBInterface : public XWinCUSBInterface {
 public:
     XThamwayDACUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
         : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DA") {}
-    virtual ~XThamwayPGCUSBInterface() {}
+    virtual ~XThamwayDACUSBInterface() {}
 
     virtual XString getIDN(int maxlen = 255) {
         XString str = getIDN(m_handle, maxlen, ADDR_IDN_DA);
