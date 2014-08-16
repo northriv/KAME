@@ -17,6 +17,7 @@
 #include "networkanalyzer.h"
 #include "signalgenerator.h"
 #include "chardevicedriver.h"
+#include "xnodeconnector.h"
 
 //! Thamway Impedance Analyzer T300-1049A
 class XThamwayT300ImpedanceAnalyzer : public XCharDeviceDriver<XNetworkAnalyzer> {
@@ -46,19 +47,48 @@ protected:
     virtual void open() throw (XKameError &);
 };
 
+class Ui_FrmThamwayPROT;
+typedef QForm<QMainWindow, Ui_FrmThamwayPROT> FrmThamwayPROT;
 
 //! Thamway NMR PROT series
-class XThamwayPROTSG : public XCharDeviceDriver<XSG> {
+class XThamwayPROT : public XCharDeviceDriver<XSG> {
 public:
-    XThamwayPROTSG(const char *name, bool runtime,
+    XThamwayPROT(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XThamwayPROTSG() {}
+    virtual ~XThamwayPROT() {}
+
+    //! show all forms belonging to driver
+    virtual void showForms(); //!< overrides XSG::showForms()
+
+    const shared_ptr<XDoubleNode> &rxGain() const {return m_rxGain;} //!< Receiver Gain [dB] (0 -- 95)
+    const shared_ptr<XDoubleNode> &rxPhase() const {return m_rxPhase;} //!< Receiver phase [deg.]
+    const shared_ptr<XDoubleNode> &rxLPFBW() const {return m_rxLPFBW;} //!< Receiver BW of LPF [kHz] (0 -- 200)
 protected:
+    //! Starts up your threads, connects GUI, and activates signals.
+    virtual void start();
+    //! Shuts down your threads, unconnects GUI, and deactivates signals
+    //! This function may be called even if driver has already stopped.
+    virtual void stop();
+
     virtual void changeFreq(double mhz);
+    virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *node) {XSG::onFreqChanged(shot, node);}
     virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) {}
+    //! PROT features below
+    virtual void onRXGainChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *);
 private:
+    const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW;
+
+    xqcon_ptr m_conRFON, m_conFreq, m_conOLevel;
+    shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;
+
+    xqcon_ptr m_conRXGain, m_conRXPhase, m_conRXLPFBW;
+    shared_ptr<XListener> m_lsnRXGain, m_lsnRXPhase, m_lsnRXLPFBW;
+
+    const qshared_ptr<FrmThamwayPROT> m_form;
 };
 #endif

@@ -14,38 +14,158 @@
 #include "analyzer.h"
 #include "charinterface.h"
 #include "thamwayprot.h"
+#include "ui_thamwayprotform.h"
+#include <QStatusBar>
 
 REGISTER_TYPE(XDriverList, ThamwayT300ImpedanceAnalyzer, "Thamway T300-1049A Impedance Analyzer");
-REGISTER_TYPE(XDriverList, ThamwayPROTSG, "Thamway PROT built-in signal generator");
+REGISTER_TYPE(XDriverList, ThamwayPROT, "Thamway NMR PROT TCP/IP Control");
 
-XThamwayPROTSG::XThamwayPROTSG(const char *name, bool runtime,
+XThamwayPROT::XThamwayPROT(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
-    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
-    interface()->setEOS("\n");
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas),
+    m_rxGain(create<XDoubleNode>("RXGain", true, "%.0f")),
+    m_rxPhase(create<XDoubleNode>("RXPhase", true, "%.1f")),
+    m_rxLPFBW(create<XDoubleNode>("RXLPFBW", true, "%.4g")),
+    m_form(new FrmThamwayPROT(g_pFrmMain)) {
+
+    m_form->statusBar()->hide();
+    m_form->setWindowTitle(i18n("Thamway PROT Control - ") + getLabel() );
+
+    m_conRFON = xqcon_create<XQToggleButtonConnector>(rfON(), m_form->m_ckbRFON);
+    m_form->m_dblOutput->setRange(-40, 0);
+    m_form->m_dblOutput->setSingleStep(1.0);
+    m_conOLevel = xqcon_create<XQDoubleSpinBoxConnector>(oLevel(), m_form->m_dblOutput, m_form->m_slOutput);
+    m_conFreq = xqcon_create<XQLineEditConnector>(freq(), m_form->m_edFreq);
+    m_form->m_dblRXGain->setRange(0, 95);
+    m_form->m_dblRXGain->setSingleStep(2.0);
+    m_conRXGain = xqcon_create<XQDoubleSpinBoxConnector>(m_rxGain, m_form->m_dblRXGain, m_form->m_slRXGain);
+    m_form->m_dblRXPhase->setRange(0, 360);
+    m_form->m_dblRXPhase->setSingleStep(1.0);
+    m_conRXPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_rxPhase, m_form->m_dblRXPhase, m_form->m_slRXPhase);
+    m_conRXLPFBW = xqcon_create<XQLineEditConnector>(m_rxLPFBW, m_form->m_edRXLPFBW);
+
+    rfON()->setUIEnabled(false);
+    oLevel()->setUIEnabled(false);
+    freq()->setUIEnabled(false);
     amON()->disable();
     fmON()->disable();
+    rxGain()->setUIEnabled(false);
+    rxPhase()->setUIEnabled(false);
+    rxLPFBW()->setUIEnabled(false);
+
+    interface()->setEOS("\n");
     trans( *interface()->port()) = "localhost:5025";
     trans( *interface()->device()) = "TCP/IP";
 }
 void
-XThamwayPROTSG::changeFreq(double mhz) {
+XThamwayPROT::showForms() {
+    m_form->showNormal();
+    m_form->raise();
+}
+void
+XThamwayPROT::start() {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->query("FREQR");
+    double f;
+    if(interface()->scanf("FREQR%lf", &f) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->query("ATT1R");
+    double olevel;
+    if(interface()->scanf("ATT1R%lf", &olevel) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    olevel = log10(olevel / 1023.0);
+    interface()->query("GAINR");
+    double gain;
+    if(interface()->scanf("GAINR%lf", &gain) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->query("PHASR");
+    double phase;
+    if(interface()->scanf("PHASR%lf", &phase) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->query("LPF1R");
+    double bw;
+    if(interface()->scanf("LPF1R%lf", &bw) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *freq()] = f;
+        tr[ *oLevel()] = olevel;
+        tr[ *rxGain()] = gain;
+        tr[ *rxPhase()] = phase;
+        tr[ *rxLPFBW()] = bw;
+        if(tr.commit())
+            break;
+    }
+
+    XSG::start();
+
+    rxGain()->setUIEnabled(true);
+    rxPhase()->setUIEnabled(true);
+    rxLPFBW()->setUIEnabled(true);
+
+    for(Transaction tr( *this);; ++tr) {
+        m_lsnRFON = tr[ *rfON()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onRFONChanged);
+        m_lsnOLevel = tr[ *oLevel()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onOLevelChanged);
+        m_lsnFreq = tr[ *freq()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onFreqChanged);
+        m_lsnRXGain = tr[ *rxGain()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onRXGainChanged);
+        m_lsnRXPhase = tr[ *rxPhase()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onRXPhaseChanged);
+        m_lsnRXLPFBW = tr[ *rxLPFBW()].onValueChanged().connectWeakly(
+            shared_from_this(), &XThamwayPROT::onRXLPFBWChanged);
+        if(tr.commit())
+            break;
+    }
+}
+void
+XThamwayPROT::stop() {
+    rxGain()->setUIEnabled(false);
+    rxPhase()->setUIEnabled(false);
+    rxLPFBW()->setUIEnabled(false);
+
+    m_lsnRFON.reset();
+    m_lsnOLevel.reset();
+    m_lsnFreq.reset();
+    m_lsnRXGain.reset();
+    m_lsnRXPhase.reset();
+    m_lsnRXLPFBW.reset();
+
+    XSG::stop();
+}
+
+void
+XThamwayPROT::changeFreq(double mhz) {
     XScopedLock<XInterface> lock( *interface());
     interface()->sendf("FREQW%010.6f", mhz);
     msecsleep(50); //wait stabilization of PLL
 }
 void
-XThamwayPROTSG::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+XThamwayPROT::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->sendf("RFSWW%s", shot[ *rfON()] ? "1" : "0");
 }
 void
-XThamwayPROTSG::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf("ATT1W%04.0f", (double)pow(10, shot[ *oLevel()] / 10.0) * 1024.0);
+XThamwayPROT::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("ATT1W%04.0f", (double)pow(10, shot[ *oLevel()] / 10.0) * 1023.0);
 }
 void
-XThamwayPROTSG::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
+XThamwayPROT::onRXGainChanged(const Snapshot &shot, XValueNodeBase *) {
+    double gain = shot[ *rxGain()];
+    gain = std::min(95.0, std::max(0.0, gain));
+    interface()->sendf("GAINW%02.0f", gain);
 }
 void
-XThamwayPROTSG::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
+XThamwayPROT::onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *) {
+    double phase = shot[ *rxPhase()];
+    phase -= floor(phase / 360.0) * 360.0;
+    interface()->sendf("PHASW%05.1f", phase);
+}
+void
+XThamwayPROT::onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *) {
+    double bw = shot[ *rxLPFBW()];
+    bw = std::min(200.0, std::max(0.0, bw));
+    interface()->sendf("LPF1W%07.0f", bw);
 }
 
 

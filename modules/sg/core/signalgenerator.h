@@ -62,8 +62,8 @@ protected:
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
 private:
-	void onFreqChanged(const Snapshot &shot, XValueNodeBase *);  
 
 	const shared_ptr<XBoolNode> m_rfON;
 	const shared_ptr<XDoubleNode> m_freq;

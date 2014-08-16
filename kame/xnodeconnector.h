@@ -111,7 +111,7 @@ protected:
 	friend class XQConnectorHolder_;
 	bool isItemAlive() const {return m_pWidget;}
 	shared_ptr<XListener> m_lsnUIEnabled;
-	void onUIFlagsChanged(const Snapshot &shot, XNode *node);
+    virtual void onUIFlagsChanged(const Snapshot &shot, XNode *node);
 	QWidget *m_pWidget;
 };
 
@@ -187,6 +187,7 @@ public:
         QN *item, QSlider *slider);
     virtual ~XQSpinBoxConnectorTMPL() {}
 protected:
+    virtual void onUIFlagsChanged(const Snapshot &shot, XNode *node);
     void onChangeTMPL(X val);
     void onSliderChangeTMPL(int val);
     void onValueChangedTMPL(const Snapshot &shot, XValueNodeBase *node);

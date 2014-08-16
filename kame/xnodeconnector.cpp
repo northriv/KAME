@@ -305,6 +305,14 @@ XQDoubleSpinBoxConnector::XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode>
 }
 template <class QN, class XN, class X>
 void
+XQSpinBoxConnectorTMPL<QN,XN,X>::onUIFlagsChanged(const Snapshot &shot, XNode *node) {
+    if(m_pSlider)
+        m_pSlider->setEnabled(shot[ *node].isUIEnabled());
+    XQConnector::onUIFlagsChanged(shot, node);
+}
+
+template <class QN, class XN, class X>
+void
 XQSpinBoxConnectorTMPL<QN,XN,X>::onChangeTMPL(X val) {
     int var = val;
     if( !std::is_integral<X>::value) {
