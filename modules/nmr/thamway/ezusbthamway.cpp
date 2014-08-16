@@ -269,7 +269,7 @@ XWinCUSBInterface::getIDN(void *handle) {
             throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
         }
     }
-    fprintf(stderr, "getIDN:%s\n", idx.c_str());
+    fprintf(stderr, "getIDN:%s\n", idn.c_str());
     return idn;
 }
 uint8_t
