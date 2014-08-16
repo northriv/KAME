@@ -17,7 +17,7 @@
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
 class XWinCUSBInterface : public XInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id);
     virtual ~XWinCUSBInterface();
 
     virtual void open() throw (XInterfaceError &);
@@ -40,8 +40,10 @@ public:
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
-    XString getIDN(int maxlen = 255) {return getIDN(m_handle, maxlen);}
+    virtual XString getIDN(int maxlen = 255) = 0;
 protected:
+    static XString getIDN(void *handle, int maxlen, int addr);
+    void* m_handle;
 private:
     static void setLED(void *handle, uint8_t data);
     static uint8_t readDIPSW(void *handle);
@@ -52,9 +54,37 @@ private:
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);
     static void closeAllEZUSBdevices();
-    static XString getIDN(void *handle, int maxlen);
-    static XString getIDN(void *handle, int maxlen, int addr);
-    void* m_handle;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;
+};
+
+#define ADDR_IDN_PG 0x1f
+#define ADDR_IDN_DA 0x3f
+
+class XThamwayPGCUSBInterface : public XWinCUSBInterface {
+public:
+    XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG") {}
+    virtual ~XThamwayPGCUSBInterface() {}
+
+    virtual XString getIDN(int maxlen = 255) {
+        XString str = getIDN(m_handle, maxlen, ADDR_IDN_PG);
+        if(str.empty() || (str.substr(0,2) != "PG") )
+             return XString();
+        return str;
+    }
+};
+
+class XThamwayDACUSBInterface : public XWinCUSBInterface {
+public:
+    XThamwayDACUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DA, "DA") {}
+    virtual ~XThamwayPGCUSBInterface() {}
+
+    virtual XString getIDN(int maxlen = 255) {
+        XString str = getIDN(m_handle, maxlen, ADDR_IDN_DA);
+        if(str.empty() || (str.substr(0,2) != "DA") )
+            return XString();
+        return str;
+    }
 };

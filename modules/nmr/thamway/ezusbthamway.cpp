@@ -27,8 +27,6 @@ extern "C" {
 
 #define CMD_DIPSW 0x11
 #define CMD_LED 0x12
-#define ADDR_IDN_PG 0x1f
-#define ADDR_IDN_DA 0x3f
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
@@ -127,7 +125,7 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     s_mutex_handles.clear();
 }
 
-XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id)
     : XInterface(name, runtime, driver), m_handle(0) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
@@ -138,7 +136,9 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         for(Transaction tr( *this);; ++tr) {
             int i = 0;
             for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
-                tr[ *device()].add(getIDN( *it, 7));
+                XString idn = getIDN( *it, 7, addr_idn);
+                if(idn.empty() || (idn.substr(0, strlen(id)) != id)) continue;
+                tr[ *device()].add(idn);
                 ++i;
             }
             if(tr.commit())
@@ -243,16 +243,6 @@ XWinCUSBInterface::readDIPSW(void *handle) {
     if(usb_bulk_read( &handle, RFIFO, buf, 1) != 1)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk reading has failed."), __FILE__, __LINE__);
     return buf[0];
-}
-
-XString
-XWinCUSBInterface::getIDN(void *handle, int maxlen) {
-    XString str = getIDN(handle, maxlen, ADDR_IDN_DA);
-    if(str.empty())
-        str = getIDN(handle, maxlen, ADDR_IDN_PG);
-    if(str.empty())
-        throw XInterface::XInterfaceError(i18n_noncontext("USB getting IDN has failed."), __FILE__, __LINE__);
-    return str;
 }
 
 XString

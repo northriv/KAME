@@ -16,7 +16,7 @@
 
 #if defined USE_EZUSB
     #include "ezusbthamway.h"
-    typedef XThamwayPulser<XWinCUSBInterface> XThamwayUSBPulser;
+    typedef XThamwayPulser<XThamwayPGCUSBInterface> XThamwayUSBPulser;
     REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
 #endif
 typedef XThamwayPulser<XCharInterface> XThamwayCharPulser;
