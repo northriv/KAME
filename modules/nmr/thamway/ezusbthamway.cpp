@@ -76,7 +76,8 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         }
         s_handles.push_back(handle);
         s_mutex_handles.push_back(mutex_handle);
-        fprintf(stderr, "Setting GPIF waves for handle 0x%x\n", (unsigned int)handle);
+        uint8_t sw = readDIPSW();
+        fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
     }
     if(s_handles.empty())
