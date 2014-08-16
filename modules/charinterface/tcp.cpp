@@ -112,9 +112,14 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 
 	int wlen = 0;
 	do {
-        int ret = ::write(m_socket, sendbuf, size - wlen);
+        int ret = ::send(m_socket, sendbuf, size - wlen, 0);
         if(ret <= 0) {
+#if defined WINDOWS || defined __WIN32__
+            errno = WSAGetLastError();
+            if((errno == WSAEINTR)) {
+#else
             if((errno == EINTR) || (errno == EAGAIN)) {
+#endif
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
@@ -138,13 +143,18 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
 	for(;;) {
 		if(buffer().size() <= len + 1) 
 			buffer().resize(len + MIN_BUFFER_SIZE);
-		int rlen = ::read(m_socket, &buffer().at(len), 1);
+        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
 		if(rlen == 0) {
 			buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
 		}
 		if(rlen < 0) {
+#if defined WINDOWS || defined __WIN32__
+            errno = WSAGetLastError();
+            if((errno == WSAEINTR)) {
+#else
             if((errno == EINTR) || (errno == EAGAIN)) {
+#endif
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
@@ -171,11 +181,16 @@ XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 	unsigned int len = 0;
    
 	while(len < length) {
-		int rlen = ::read(m_socket, &buffer().at(len), 1);
+        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
 		if(rlen == 0)
             throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
 		if(rlen < 0) {
+#if defined WINDOWS || defined __WIN32__
+            errno = WSAGetLastError();
+            if((errno == WSAEINTR)) {
+#else
             if((errno == EINTR) || (errno == EAGAIN)) {
+#endif
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
