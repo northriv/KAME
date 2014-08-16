@@ -21,6 +21,7 @@ SOURCES += \
     tcp.cpp
 
 win32 {
+    INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
     INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
     DEFINES += HAVE_NI488
 
