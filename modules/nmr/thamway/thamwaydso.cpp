@@ -83,22 +83,42 @@ void
 XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
-    gWarnPrint("DA IDN=" + idn);
+    fprintf(stderr, "DA IDN=%s\n", idn.c_str());
 
-    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-    int avg = acqCount(0);
-    double intv = getTimeInterval();
     for(Transaction tr( *this);; ++tr) {
-        tr[ *recordLength()] = smps;
-        tr[ *timeWidth()] = smps * intv;
-        tr[ *average()] = avg;
+        tr[ *trace1()].add("CH1");
+        tr[ *trace2()].add("CH2");
+        tr[ *trace1()] = 0;
+        tr[ *trace2()] = 0;
         if(tr.commit())
             break;
     }
+
+//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+//    int avg = acqCount(0);
+//    double intv = getTimeInterval();
+//    for(Transaction tr( *this);; ++tr) {
+//        tr[ *recordLength()] = smps;
+//        tr[ *timeWidth()] = smps * intv;
+//        tr[ *average()] = avg;
+//        if(tr.commit())
+//            break;
+//    }
     interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
 
+    m_pending = true;
     this->start();
+
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *recordLength()].touch();
+        tr[ *timeWidth()].touch();
+        tr[ *average()].touch();
+        if(tr.commit())
+            break;
+    }
+    m_pending = false;
+    startSequence();
 }
 void
 XThamwayDVUSBDSO::close() throw (XKameError &) {
@@ -202,7 +222,8 @@ XThamwayDVUSBDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->writeToRegister16(ADDR_AVGM1_LSW, avg % 0x10000uL);
     interface()->writeToRegister16(ADDR_AVGM1_MSW, avg / 0x10000uL);
 
-    interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    if( !m_pending)
+        interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
 }
 
 void
@@ -235,10 +256,11 @@ XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
     uint8_t cfg = interface()->readRegister8(ADDR_CFG);
     interface()->writeToRegister8(ADDR_CFG, cfg | pres);
 
-    div = std::min(255L, lrint(div / pow(2.0, pres)));
+    div = std::max(1L, std::min(255L, lrint(div / pow(2.0, pres))));
     interface()->writeToRegister8(ADDR_DIVISOR, div);
 
-    interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    if( !m_pending)
+        interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
 }
 void
 XThamwayDVUSBDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -249,7 +271,8 @@ XThamwayDVUSBDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) 
     interface()->writeToRegister16(ADDR_SAMPLES_LSW, smps % 0x10000uL);
     interface()->writeToRegister16(ADDR_SAMPLES_MSW, smps / 0x10000uL);
 
-    interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    if( !m_pending)
+        interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
 }
 void
 XThamwayDVUSBDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {

@@ -64,7 +64,6 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const {return false;}
 private:
-
     void acquire(const atomic<bool> &terminated);
-
+    bool m_pending;
 };
