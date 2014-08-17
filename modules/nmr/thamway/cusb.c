@@ -154,34 +154,23 @@ s32 usb_get_string(HANDLE *h,s32 idx,s8 *s){
 
 s32 usb_bulk_write(HANDLE *h,s32 pipe,u8 *buf,s32 len){
     unsigned long nbyte;
-    s32 i,l;
     BOOLEAN ret = FALSE;
     BULK_TRANSFER_CONTROL bulk_control;
 
     bulk_control.pipeNum = pipe;
 
     //    fprintf(stderr, "cusb: bulkwrite %d len=%d\n", (int)pipe, (int)len);
-    for(i=0;len>0;){
-        if(len>0x8000){
-            l=0x8000;
-        }
-        else{
-            l=len;
-        }
-        ret = DeviceIoControl (*h,
-                            IOCTL_EZUSB_BULK_WRITE,
-                            &bulk_control,
-                            sizeof(BULK_TRANSFER_CONTROL),
-                            buf+i,
-                            l,
-                            &nbyte,
-                            NULL);
-        if(ret==FALSE){
-            fprintf(stderr, "cusb: ioctl failed %d\n", (int)GetLastError());
-            return(-1);
-        }
-        i+=l;
-        len-=l;
+    ret = DeviceIoControl (*h,
+                        IOCTL_EZUSB_BULK_WRITE,
+                        &bulk_control,
+                        sizeof(BULK_TRANSFER_CONTROL),
+                        buf,
+                        len,
+                        &nbyte,
+                        NULL);
+    if(ret==FALSE){
+        fprintf(stderr, "cusb: ioctl failed %d\n", (int)GetLastError());
+        return(-1);
     }
     return(0);
 }
