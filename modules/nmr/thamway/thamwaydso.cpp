@@ -96,30 +96,28 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
             break;
     }
 
-    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-    int avg = acqCount(0);
-    double intv = getTimeInterval();
-    for(Transaction tr( *this);; ++tr) {
-        tr[ *recordLength()] = smps;
-        tr[ *timeWidth()] = smps * intv;
-        tr[ *average()] = avg;
-        if(tr.commit())
-            break;
-    }
-    interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
-
-    m_pending = true;
-    this->start();
-
+//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+//    int avg = acqCount(0);
+//    double intv = getTimeInterval();
 //    for(Transaction tr( *this);; ++tr) {
-//        tr[ *recordLength()];
-//        tr[ *timeWidth()];
-//        tr[ *average()];
+//        tr[ *recordLength()] = smps;
+//        tr[ *timeWidth()] = smps * intv;
+//        tr[ *average()] = avg;
 //        if(tr.commit())
 //            break;
 //    }
+    interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
+
+    m_pending = true;
+    Snapshot shot( *this);
+    onRecordLengthChanged(shot, 0);
+    onTimeWidthChanged(shot, 0);
+    onAverageChanged(shot, 0);
     m_pending = false;
+
+    this->start();
+
     startSequence();
 }
 void
@@ -138,8 +136,14 @@ void
 XThamwayDVUSBDSO::startSequence() {
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
-    if( !m_pending)
+    if( !m_pending) {
+        interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_LSW, 0);
+        interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_MSW, 0);
+        interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_LSW, 0);
+        interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_MSW, 0);
+
         interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    }
 }
 
 int
@@ -149,8 +153,10 @@ XThamwayDVUSBDSO::acqCount(bool *seq_busy) {
         if(seq_busy) *seq_busy = true;
         return 0;
     }
-    if(seq_busy)
-        *seq_busy = interface()->singleRead(ADDR_STS) & 4;
+    if(seq_busy) {
+        uint8_t sts = interface()->singleRead(ADDR_STS);
+        *seq_busy = sts & 6; //AD_END | BUSY
+    }
     int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
     acq = acq * 0x10000L + interface()->readRegister16(ADDR_ACQCNTM1_LSW);
     acq++;
@@ -177,23 +183,25 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     interface()->writeToRegister16(ADDR_CH2_GET_MEM_ADDR_MSW, 0);
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L * smps + interface()->readRegister16(ADDR_SAMPLES_LSW);
-
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    fprintf(stderr, "samps%d\n", smps);
+    Snapshot shot( *this);
+    smps = shot[ *recordLength()];
     writer->push((uint16_t)2); //channels
     writer->push((uint32_t)0); //reserve
     writer->push((uint32_t)0); //reserve
     writer->push((uint32_t)acqCount(0));
     writer->push((uint32_t)smps);
     writer->push((double)getTimeInterval());
-    std::vector<uint8_t> buf(smps);
+    std::vector<uint8_t> buf(smps * sizeof(uint32_t));
     //Ch1
-    interface()->burstRead(ADDR_BURST_CH1, &buf[0], smps);
+    interface()->burstRead(ADDR_BURST_CH1, &buf[0], buf.size());
     writer->push((double)1.0/3276.8); //[V/bit]
     writer->push((double)-2.5); //offset[V]
     writer->insert(writer->end(), buf.begin(), buf.end());
     //Ch2
     buf.clear();
-    interface()->burstRead(ADDR_BURST_CH2, &buf[0], smps);
+    interface()->burstRead(ADDR_BURST_CH2, &buf[0], buf.size());
     writer->push((double)1.0/3276.8); //[V/bit]
     writer->push((double)-2.5); //offset[V]
     writer->insert(writer->end(), buf.begin(), buf.end());

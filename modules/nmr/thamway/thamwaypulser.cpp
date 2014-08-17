@@ -177,7 +177,7 @@ XThamwayPulser<XCharInterface>::changeOutput(const Snapshot &shot, bool output, 
 template<class tInterface>
 void
 XThamwayPulser<tInterface>::open() throw (XKameError &) {
-    XString idn = interface()->getIDN();
+    XString idn = this->interface()->getIDN();
     fprintf(stderr, "PG IDN=%s\n", idn.c_str());
     this->start();
 }
