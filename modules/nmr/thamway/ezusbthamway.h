@@ -45,7 +45,7 @@ protected:
 private:
     XString getIDN(void *handle, int maxlen = 255) {
         XString str = getIDN(handle, maxlen, m_addrIDN);
-        if(str.substr(0,m_idString.length()) != m_idString)
+        if(str.find(m_idString,0) != 0)
              return XString();
         return str;
     }
