@@ -78,7 +78,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         dev.handle = handle;
         dev.addr = sw;
 //        dev.id = getIDN(handle); //will be set later.
-        s_handles.push_back(dev);
+        s_devices.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
 
@@ -90,7 +90,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             msecsleep(60);
         }
     }
-    if(s_handles.empty())
+    if(s_devices.empty())
         throw XInterface::XInterfaceError(i18n_noncontext("USB-device open has failed."), __FILE__, __LINE__);
 }
 
@@ -135,7 +135,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         for(Transaction tr( *this);; ++tr) {
             int i = 0;
             for(auto it = s_devices.begin(); it != s_devices.end();) {
-                XString idn = getIDN( *it, 7);
+                XString idn = getIDN(it->handle, 7);
                 if(idn.empty()) continue;
                 it->id = idn; //stores for open() to distinguish devices.
                 tr[ *device()].add(idn);
