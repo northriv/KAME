@@ -53,7 +53,12 @@ private:
     static uint8_t readDIPSW(void *handle);
     static uint8_t singleRead(void *handle, unsigned int addr);
     static XMutex s_mutex;
-    static std::deque<void *> s_handles;
+    struct USBDevice {
+        void *handle;
+        XString id;
+        int addr;
+    };
+    static std::deque<USBDevice> s_devices;
     static int s_refcnt;
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);

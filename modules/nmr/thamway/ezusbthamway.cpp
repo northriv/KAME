@@ -34,7 +34,7 @@ extern "C" {
 
 XMutex XWinCUSBInterface::s_mutex;
 int XWinCUSBInterface::s_refcnt = 0;
-std::deque<void *> XWinCUSBInterface::s_handles;
+std::deque<XWinCUSBInterface::USBDevice> XWinCUSBInterface::s_devices;
 
 void
 XWinCUSBInterface::openAllEZUSBdevices() {
@@ -73,8 +73,12 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             //no device, or incompatible firmware.
             continue;
         }
-        s_handles.push_back(handle);
         uint8_t sw = readDIPSW(handle);
+        USBDevice dev;
+        dev.handle = handle;
+        dev.addr = sw;
+//        dev.id = getIDN(handle); //will be set later.
+        s_handles.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
 
@@ -110,14 +114,14 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 }
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
-    for(auto it = s_handles.begin(); it != s_handles.end();) {
-        setLED( *it, 0);
+    for(auto it = s_devices.begin(); it != s_devices.end();) {
+        setLED(it->handle, 0);
 
         fprintf(stderr, "cusb_close\n");
-        usb_close( &*it);
+        usb_close( &it->handle);
         ++it;
     }
-    s_handles.clear();
+    s_devices.clear();
 }
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id)
@@ -130,9 +134,10 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
 
         for(Transaction tr( *this);; ++tr) {
             int i = 0;
-            for(auto it = s_handles.begin(); it != s_handles.end(); ++it) {
+            for(auto it = s_devices.begin(); it != s_devices.end();) {
                 XString idn = getIDN( *it, 7);
                 if(idn.empty()) continue;
+                it->id = idn; //stores for open() to distinguish devices.
                 tr[ *device()].add(idn);
                 ++i;
             }
@@ -158,11 +163,12 @@ void
 XWinCUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
-        int dev = shot[ *device()];
-        if((dev < 0) || (dev >= s_handles.size()))
+        for(auto it = s_devices.begin(); it != s_devices.end();) {
+            if(it->id == shot[ *device()]->toStr())
+                m_handle = it->handle;
+        }
+        if( !m_handle)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
-
-        m_handle = s_handles.at(dev);
 
 //        uint8_t sw = readDIPSW() % 8;
 //        if(sw != shot[ *address()]) {
