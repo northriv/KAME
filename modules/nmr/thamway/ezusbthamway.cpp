@@ -141,7 +141,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn = getIDN(it->handle, 7);
                 if( !idn.length()) continue;
-//                idn = formatString("%d:%s", it->addr, idn.c_str());
+                idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
             }
             if(tr.commit())
@@ -252,7 +252,7 @@ XString
 XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     //ignores till \0
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, addroffset + ADDR_IDN);
+        char c = singleRead(handle, ADDR_IDN, addroffset);
         if( !c)
             break;
         if(i > 255) {
@@ -261,7 +261,7 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     }
     XString idn;
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, addroffset + ADDR_IDN);
+        char c = singleRead(handle, ADDR_IDN, addroffset);
         if( !c)
             break;
         idn += c;
