@@ -28,6 +28,8 @@ extern "C" {
 #define CMD_DIPSW 0x11
 #define CMD_LED 0x12
 
+#define ADDR_IDN 0x1f
+
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
 #define THAMWAY_USB_GPIFWAVE_SIZE 172
@@ -77,16 +79,15 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         USBDevice dev;
         dev.handle = handle;
         dev.addr = sw;
-//        dev.id = getIDN(handle); //will be set later.
         s_devices.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
 
         for(int i = 0; i < 3; ++i) {
             //blinks LED
-            setLED(handle, 0x00u);
+            setLED(m_handle, 0x00u);
             msecsleep(70);
-            setLED(handle, 0xf0u);
+            setLED(m_handle, 0xf0u);
             msecsleep(60);
         }
     }
@@ -115,7 +116,12 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
     for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
-        setLED(it->handle, 0);
+        try {
+            setLED(it->handle, 0);
+        }
+        catch (XInterface::XInterfaceError &e) {
+            e.print();
+        }
 
         fprintf(stderr, "cusb_close\n");
         usb_close( &it->handle);
@@ -123,8 +129,8 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id)
-    : XInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrIDN(addr_idn) {
+XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
+    : XInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !s_refcnt)
@@ -135,7 +141,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn = getIDN(it->handle, 7);
                 if( !idn.length()) continue;
-                idn = formatString("%s:%d", idn.c_str(), it->addr);
+                idn = formatString("%d:%s", it->addr, idn.c_str());
                 it->id = idn; //stores id string for open() to distinguish devices.
                 tr[ *device()].add(idn);
             }
@@ -162,17 +168,14 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
         for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
-            if(it->id == shot[ *device()].to_str())
+            int addr;
+            if(sscanf(shot[ *device()].to_str().c_str(), "%d:", &addr) != 1)
+                throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+            if(addr == it->addr)
                 m_handle = it->handle;
         }
         if( !m_handle)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
-
-//        uint8_t sw = readDIPSW() % 8;
-//        if(sw != shot[ *address()]) {
-//          close();
-//          continue; //go to the next device.
-//        }
     }
     catch (XInterface::XInterfaceError &e) {
         m_handle = 0;
@@ -197,6 +200,8 @@ XWinCUSBInterface::deferWritings() {
 }
 void
 XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
+    addr += m_addrOffset;
+
     if(m_bBulkWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
             bulkWriteStored();
@@ -245,10 +250,10 @@ XWinCUSBInterface::readDIPSW(void *handle) {
 }
 
 XString
-XWinCUSBInterface::getIDN(void *handle, int maxlen, int addr) {
+XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     //ignores till \0
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, addr);
+        char c = singleRead(handle, addroffset + ADDR_IDN);
         if( !c)
             break;
         if(i > 255) {
@@ -257,7 +262,7 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addr) {
     }
     XString idn;
     for(int i = 0; ; ++i) {
-        char c = singleRead(handle, addr);
+        char c = singleRead(handle, addroffset + ADDR_IDN);
         if( !c)
             break;
         idn += c;
@@ -269,7 +274,8 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addr) {
     return idn;
 }
 uint8_t
-XWinCUSBInterface::singleRead(void *handle, unsigned int addr) {
+XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
+    addr += addroffset;
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr % 0x100u)};
         if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
@@ -287,12 +293,14 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr) {
 }
 uint16_t
 XWinCUSBInterface::readRegister16(unsigned int addr) {
+    addr += m_addrOffset;
     return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 
 void
 XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
     assert(isLocked());
+    addr += m_addrOffset;
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr % 0x100u)};
         if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
