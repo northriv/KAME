@@ -85,9 +85,9 @@ XWinCUSBInterface::openAllEZUSBdevices() {
 
         for(int i = 0; i < 3; ++i) {
             //blinks LED
-            setLED(m_handle, 0x00u);
+            setLED(handle, 0x00u);
             msecsleep(70);
-            setLED(m_handle, 0xf0u);
+            setLED(handle, 0xf0u);
             msecsleep(60);
         }
     }
@@ -141,8 +141,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn = getIDN(it->handle, 7);
                 if( !idn.length()) continue;
-                idn = formatString("%d:%s", it->addr, idn.c_str());
-                it->id = idn; //stores id string for open() to distinguish devices.
+//                idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
             }
             if(tr.commit())
