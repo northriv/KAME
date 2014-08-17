@@ -93,7 +93,7 @@ XThamwayPulser<tInterface>::createNativePatterns(Transaction &tr) {
     uint16_t pat = (uint16_t)(shot[ *this].relPatList().back().pattern & XPulser::PAT_DO_MASK);
     pulseAdd(tr, 10, pat); //leading blanks
     pulseAdd(tr, 10, pat);
-    unsigned int startaddr = 2;
+    uint32_t startaddr = 2;
     for(typename Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {
 		pulseAdd(tr, it->toappear, pat);
@@ -112,7 +112,7 @@ int
 XThamwayPulser<tInterface>::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
 	for(; term;) {
-        uint32_t t = std::min((unsigned long)term, 0xfe000000uL);
+        uint64_t t = std::min((uint64_t)term, (uint64_t)0xfe000000uL);
 		term -= t;
         typename Payload::Pulse p;
 		p.term_n_cmd = t;
