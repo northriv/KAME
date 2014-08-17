@@ -28,11 +28,7 @@ public:
 
     void deferWritings();
     void writeToRegister8(unsigned int addr, uint8_t data);
-    void writeToRegister16(unsigned int addr, uint16_t data) {
-        XScopedLock<XWinCUSBInterface> lock( *this);
-        writeToRegister8(addr, data % 0x100u);
-        writeToRegister8(addr + 1, data / 0x100u);
-    }
+    void writeToRegister16(unsigned int addr, uint16_t data);
     void bulkWriteStored();
     void resetBulkWrite();
 
