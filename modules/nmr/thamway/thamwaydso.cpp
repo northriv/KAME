@@ -83,10 +83,10 @@ void
 XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
-    gWarnPrint("Pulser IDN=" + idn);
+    gWarnPrint("DA IDN=" + idn);
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L * smps + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     int avg = acqCount(0);
     double intv = getTimeInterval();
     for(Transaction tr( *this);; ++tr) {

@@ -243,7 +243,7 @@ s32 cusb_init(s32 n,HANDLE *h,u8 *fw,s8 *str1,s8 *str2){
         usb_close(h);
         for(;;){
             Sleep(2500); //for thamway
-            if(usb_open(n,h,hmutex) == 0) {
+            if(usb_open(n,h) == 0) {
                 break;
             }
         }

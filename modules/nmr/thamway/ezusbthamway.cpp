@@ -118,7 +118,6 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
         ++it;
     }
     s_handles.clear();
-    s_mutex_handles.clear();
 }
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id)
