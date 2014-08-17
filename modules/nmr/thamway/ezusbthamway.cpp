@@ -164,7 +164,7 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
         for(auto it = s_devices.begin(); it != s_devices.end();) {
-            if(it->id == shot[ *device()]->toStr())
+            if(it->id == shot[ *device()].toStr())
                 m_handle = it->handle;
         }
         if( !m_handle)
