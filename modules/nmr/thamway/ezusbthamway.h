@@ -17,7 +17,7 @@
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
 class XWinCUSBInterface : public XInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_idn, const char* id);
+    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
     virtual ~XWinCUSBInterface();
 
     virtual void open() throw (XInterfaceError &);
@@ -36,7 +36,7 @@ public:
     void resetBulkWrite();
 
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
-    uint8_t singleRead(unsigned int addr) {return singleRead(m_handle, addr);}
+    uint8_t singleRead(unsigned int addr) {return singleRead(m_handle, addr, m_addrOffset);}
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
@@ -44,18 +44,17 @@ public:
 protected:
 private:
     XString getIDN(void *handle, int maxlen = 255) {
-        XString str = getIDN(handle, maxlen, m_addrIDN);
-        if(str.substr(0,m_idString.length()) != m_idString)
+        XString str = getIDN(handle, maxlen, m_addrOffset);
+        if(str.find(m_idString,0) != 0)
              return XString();
         return str;
     }
     static void setLED(void *handle, uint8_t data);
     static uint8_t readDIPSW(void *handle);
-    static uint8_t singleRead(void *handle, unsigned int addr);
+    static uint8_t singleRead(void *handle, unsigned int addr, unsigned int addroffset);
     static XMutex s_mutex;
     struct USBDevice {
         void *handle;
-        XString id;
         int addr;
     };
     static std::deque<USBDevice> s_devices;
@@ -63,27 +62,26 @@ private:
     static void openAllEZUSBdevices();
     static void setWave(void *handle, const uint8_t *wave);
     static void closeAllEZUSBdevices();
-    static XString getIDN(void *handle, int maxlen, int addr);
+    static XString getIDN(void *handle, int maxlen, int offsetaddr);
     void* m_handle;
     XString m_idString;
-    uint8_t m_addrIDN;
+    uint8_t m_addrOffset;
     bool m_bBulkWrite;
     std::deque<uint8_t> m_buffer;
 };
 
-#define ADDR_IDN_PG 0x1f
-#define ADDR_IDN_DV 0x3f
+#define ADDR_OFFSET_DV 0x20
 
 class XThamwayPGCUSBInterface : public XWinCUSBInterface {
 public:
     XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_PG, "PG32") {}
+        : XWinCUSBInterface(name, runtime, driver, 0, "PG32") {}
     virtual ~XThamwayPGCUSBInterface() {}
 };
 
 class XThamwayDVCUSBInterface : public XWinCUSBInterface {
 public:
     XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_IDN_DV, "DV14") {}
+        : XWinCUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
     virtual ~XThamwayDVCUSBInterface() {}
 };

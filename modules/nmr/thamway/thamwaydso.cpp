@@ -96,29 +96,29 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
             break;
     }
 
-//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-//    int avg = acqCount(0);
-//    double intv = getTimeInterval();
-//    for(Transaction tr( *this);; ++tr) {
-//        tr[ *recordLength()] = smps;
-//        tr[ *timeWidth()] = smps * intv;
-//        tr[ *average()] = avg;
-//        if(tr.commit())
-//            break;
-//    }
+    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    int avg = acqCount(0);
+    double intv = getTimeInterval();
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *recordLength()] = smps;
+        tr[ *timeWidth()] = smps * intv;
+        tr[ *average()] = avg;
+        if(tr.commit())
+            break;
+    }
     interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
 
     m_pending = true;
     this->start();
 
-    for(Transaction tr( *this);; ++tr) {
-        tr[ *recordLength()];
-        tr[ *timeWidth()];
-        tr[ *average()];
-        if(tr.commit())
-            break;
-    }
+//    for(Transaction tr( *this);; ++tr) {
+//        tr[ *recordLength()];
+//        tr[ *timeWidth()];
+//        tr[ *average()];
+//        if(tr.commit())
+//            break;
+//    }
     m_pending = false;
     startSequence();
 }
