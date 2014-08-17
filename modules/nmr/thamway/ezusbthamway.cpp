@@ -133,8 +133,9 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
 
         for(Transaction tr( *this);; ++tr) {
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
-                XString idn = formatString("%s:%d", getIDN(it->handle, 7).c_str(), it->addr);
+                XString idn = getIDN(it->handle, 7);
                 if( !idn.length()) continue;
+                idn = formatString("%s:%d", idn.c_str(), it->addr);
                 it->id = idn; //stores id string for open() to distinguish devices.
                 tr[ *device()].add(idn);
             }
