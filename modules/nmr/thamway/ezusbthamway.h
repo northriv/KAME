@@ -71,7 +71,7 @@ private:
     XString m_idString;
     uint8_t m_addrOffset;
     bool m_bBulkWrite;
-    std::deque<uint8_t> m_buffer;
+    std::vector<uint8_t> m_buffer;
 };
 
 #define ADDR_OFFSET_DV 0x20
