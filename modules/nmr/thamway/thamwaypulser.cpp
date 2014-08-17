@@ -16,10 +16,22 @@
 
 #if defined USE_EZUSB
     #include "ezusbthamway.h"
-    typedef XThamwayPulser<XThamwayPGCUSBInterface> XThamwayUSBPulser;
+    class XThamwayUSBPulser : public XThamwayPulser<XThamwayPGCUSBInterface> {
+    public:
+        XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime,
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+            XThamwayPulser<XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
+        virtual ~XThamwayUSBPulser() {}
+    };
     REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
 #endif
-typedef XThamwayPulser<XCharInterface> XThamwayCharPulser;
+class XThamwayCharPulser : public XThamwayPulser<XCharInterface>  {
+public:
+    XThamwayCharPulser::XThamwayCharPulser(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+        XThamwayPulser<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
+    virtual ~XThamwayCharPulser() {}
+};
 REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
 #define MAX_PATTERN_SIZE 256*1024u
