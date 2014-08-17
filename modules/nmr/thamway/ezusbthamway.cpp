@@ -114,12 +114,11 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 }
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
-    for(auto it = s_devices.begin(); it != s_devices.end();) {
+    for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
         setLED(it->handle, 0);
 
         fprintf(stderr, "cusb_close\n");
         usb_close( &it->handle);
-        ++it;
     }
     s_devices.clear();
 }
@@ -161,7 +160,7 @@ void
 XWinCUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
-        for(auto it = s_devices.begin(); it != s_devices.end();) {
+        for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
             if(it->id == shot[ *device()].to_str())
                 m_handle = it->handle;
         }
