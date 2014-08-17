@@ -83,13 +83,15 @@ void
 XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
-    fprintf(stderr, "DA IDN=%s\n", idn.c_str());
+    fprintf(stderr, "DV IDN=%s\n", idn.c_str());
 
     for(Transaction tr( *this);; ++tr) {
         tr[ *trace1()].add("CH1");
+        tr[ *trace1()].add("CH2");
+        tr[ *trace2()].add("CH1");
         tr[ *trace2()].add("CH2");
         tr[ *trace1()] = 0;
-        tr[ *trace2()] = 0;
+        tr[ *trace2()] = 1;
         if(tr.commit())
             break;
     }
@@ -111,9 +113,9 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     this->start();
 
     for(Transaction tr( *this);; ++tr) {
-        tr[ *recordLength()].touch();
-        tr[ *timeWidth()].touch();
-        tr[ *average()].touch();
+        tr[ *recordLength()];
+        tr[ *timeWidth()];
+        tr[ *average()];
         if(tr.commit())
             break;
     }
@@ -136,12 +138,17 @@ void
 XThamwayDVUSBDSO::startSequence() {
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
-    interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    if( !m_pending)
+        interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
 }
 
 int
 XThamwayDVUSBDSO::acqCount(bool *seq_busy) {
     XScopedLock<XInterface> lock( *interface());
+    if(m_pending) {
+        if(seq_busy) *seq_busy = true;
+        return 0;
+    }
     if(seq_busy)
         *seq_busy = interface()->singleRead(ADDR_STS) & 4;
     int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
