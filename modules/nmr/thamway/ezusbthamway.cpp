@@ -114,12 +114,11 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
 }
 void
 XWinCUSBInterface::closeAllEZUSBdevices() {
-    for(auto it = s_devices.begin(); it != s_devices.end();) {
+    for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
         setLED(it->handle, 0);
 
         fprintf(stderr, "cusb_close\n");
         usb_close( &it->handle);
-        ++it;
     }
     s_devices.clear();
 }
@@ -133,13 +132,11 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         s_refcnt++;
 
         for(Transaction tr( *this);; ++tr) {
-            int i = 0;
-            for(auto it = s_devices.begin(); it != s_devices.end();) {
+            for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn = getIDN(it->handle, 7);
                 if(idn.empty()) continue;
                 it->id = idn; //stores for open() to distinguish devices.
                 tr[ *device()].add(idn);
-                ++i;
             }
             if(tr.commit())
                 break;
@@ -163,8 +160,8 @@ void
 XWinCUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
-        for(auto it = s_devices.begin(); it != s_devices.end();) {
-            if(it->id == shot[ *device()].toStr())
+        for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
+            if(it->id == shot[ *device()].to_str())
                 m_handle = it->handle;
         }
         if( !m_handle)
