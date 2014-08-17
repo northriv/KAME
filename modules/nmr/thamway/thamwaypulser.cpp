@@ -18,7 +18,7 @@
     #include "ezusbthamway.h"
     class XThamwayUSBPulser : public XThamwayPulser<XThamwayPGCUSBInterface> {
     public:
-        XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime,
+        XThamwayUSBPulser(const char *name, bool runtime,
             Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
             XThamwayPulser<XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
         virtual ~XThamwayUSBPulser() {}
@@ -27,7 +27,7 @@
 #endif
 class XThamwayCharPulser : public XThamwayPulser<XCharInterface>  {
 public:
-    XThamwayCharPulser::XThamwayCharPulser(const char *name, bool runtime,
+    XThamwayCharPulser(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
         XThamwayPulser<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
     virtual ~XThamwayCharPulser() {}
@@ -151,7 +151,7 @@ XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsi
         this->interface()->bulkWriteStored();
 
         this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
-        this->interface()->writeToRegister8(ADDR_REG_REP_N, 0); //infinite loops
+        this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
         bool ext_clock;

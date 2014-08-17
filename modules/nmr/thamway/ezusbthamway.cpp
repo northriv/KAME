@@ -203,6 +203,18 @@ XWinCUSBInterface::deferWritings() {
     m_bBulkWrite = true;
 }
 void
+XWinCUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
+    if(m_bBulkWrite) {
+        writeToRegister8(addr, data % 0x100u);
+        writeToRegister8(addr + 1, data / 0x100u);
+    }
+    else {
+        XScopedLock<XWinCUSBInterface> lock( *this);
+        writeToRegister8(addr, data % 0x100u);
+        writeToRegister8(addr + 1, data / 0x100u);
+    }
+}
+void
 XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     addr += m_addrOffset;
 
