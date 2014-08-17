@@ -83,13 +83,15 @@ void
 XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
-    fprintf(stderr, "DA IDN=%s\n", idn.c_str());
+    fprintf(stderr, "DV IDN=%s\n", idn.c_str());
 
     for(Transaction tr( *this);; ++tr) {
         tr[ *trace1()].add("CH1");
+        tr[ *trace1()].add("CH2");
+        tr[ *trace2()].add("CH1");
         tr[ *trace2()].add("CH2");
         tr[ *trace1()] = 0;
-        tr[ *trace2()] = 0;
+        tr[ *trace2()] = 1;
         if(tr.commit())
             break;
     }
