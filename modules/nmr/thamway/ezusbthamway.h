@@ -29,6 +29,7 @@ public:
     void deferWritings();
     void writeToRegister8(unsigned int addr, uint8_t data);
     void writeToRegister16(unsigned int addr, uint16_t data) {
+        XScopedLock<XWinCUSBInterface> lock( *this);
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
@@ -36,16 +37,21 @@ public:
     void resetBulkWrite();
 
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
-    uint8_t singleRead(unsigned int addr) {return singleRead(m_handle, addr, m_addrOffset);}
+    uint8_t singleRead(unsigned int addr);
     uint16_t readRegister8(unsigned int addr) {return singleRead(addr);}
     uint16_t readRegister16(unsigned int addr);
 
     XString getIDN(int maxlen = 255) {return getIDN(m_handle, maxlen); }
+
+    void lock() {m_mutex->lock();} //!<overrides XInterface::lock().
+    void unlock() {m_mutex->unlock();}
+    bool isLocked() const {return m_mutex->isLockedByCurrentThread();}
+
 protected:
 private:
     XString getIDN(void *handle, int maxlen = 255) {
         XString str = getIDN(handle, maxlen, m_addrOffset);
-        if(str.find(m_idString,0) != 0)
+        if(str.empty() || (str.find(m_idString,0) != 0))
              return XString();
         return str;
     }
@@ -54,6 +60,7 @@ private:
     static uint8_t singleRead(void *handle, unsigned int addr, unsigned int addroffset);
     static XMutex s_mutex;
     struct USBDevice {
+        shared_ptr<XRecursiveMutex> mutex;
         void *handle;
         int addr;
     };
@@ -64,6 +71,7 @@ private:
     static void closeAllEZUSBdevices();
     static XString getIDN(void *handle, int maxlen, int offsetaddr);
     void* m_handle;
+    shared_ptr<XRecursiveMutex> m_mutex;
     XString m_idString;
     uint8_t m_addrOffset;
     bool m_bBulkWrite;

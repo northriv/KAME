@@ -79,6 +79,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         USBDevice dev;
         dev.handle = handle;
         dev.addr = sw;
+        dev.mutex.reset(new XRecursiveMutex);
         s_devices.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         setWave(handle, (const uint8_t*)gpifwave);
@@ -170,14 +171,17 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
             int addr;
             if(sscanf(shot[ *device()].to_str().c_str(), "%d:", &addr) != 1)
                 throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
-            if(addr == it->addr)
+            if(addr == it->addr) {
                 m_handle = it->handle;
+                m_mutex = it->mutex;
+            }
         }
         if( !m_handle)
             throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     }
     catch (XInterface::XInterfaceError &e) {
         m_handle = 0;
+        m_mutex.reset();
         throw e;
     }
 }
@@ -185,6 +189,7 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
 void
 XWinCUSBInterface::close() throw (XInterfaceError &) {
     m_handle = 0;
+    m_mutex.reset();
 }
 
 void
@@ -203,6 +208,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
 
     if(m_bBulkWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
+            XScopedLock<XWinCUSBInterface> lock( *this);
             bulkWriteStored();
             deferWritings();
         }
@@ -210,6 +216,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
         m_buffer.push_back(data);
     }
     else {
+        XScopedLock<XWinCUSBInterface> lock( *this);
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
@@ -220,6 +227,8 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
 }
 void
 XWinCUSBInterface::bulkWriteStored() {
+    XScopedLock<XWinCUSBInterface> lock( *this);
+
     uint16_t len = m_buffer.size();
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
     if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
@@ -273,6 +282,12 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     return idn;
 }
 uint8_t
+XWinCUSBInterface::singleRead(unsigned int addr) {
+    XScopedLock<XWinCUSBInterface> lock( *this);
+    return singleRead(m_handle, addr, m_addrOffset);
+}
+
+uint8_t
 XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
     addr += addroffset;
     {
@@ -292,13 +307,14 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addr
 }
 uint16_t
 XWinCUSBInterface::readRegister16(unsigned int addr) {
+    XScopedLock<XWinCUSBInterface> lock( *this);
     addr += m_addrOffset;
     return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 
 void
 XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
-    assert(isLocked());
+    XScopedLock<XWinCUSBInterface> lock( *this);
     addr += m_addrOffset;
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr % 0x100u)};
