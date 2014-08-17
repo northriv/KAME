@@ -133,13 +133,11 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
         s_refcnt++;
 
         for(Transaction tr( *this);; ++tr) {
-            int i = 0;
-            for(auto it = s_devices.begin(); it != s_devices.end();) {
+            for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn = getIDN(it->handle, 7);
                 if(idn.empty()) continue;
                 it->id = idn; //stores for open() to distinguish devices.
                 tr[ *device()].add(idn);
-                ++i;
             }
             if(tr.commit())
                 break;
