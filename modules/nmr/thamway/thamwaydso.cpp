@@ -100,21 +100,21 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     int avg = acqCount(0);
     double intv = getTimeInterval();
-    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
-//    for(Transaction tr( *this);; ++tr) {
-//        tr[ *recordLength()] = smps;
-//        tr[ *timeWidth()] = smps * intv;
-//        tr[ *average()] = avg;
-//        if(tr.commit())
-//            break;
-//    }
+//    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *recordLength()] = smps;
+        tr[ *timeWidth()] = smps * intv;
+        tr[ *average()] = avg;
+        if(tr.commit())
+            break;
+    }
 
     m_pending = true;
     Snapshot shot( *this);
-    onTimeWidthChanged(shot, 0);
-    onRecordLengthChanged(shot, 0);
-    onAverageChanged(shot, 0);
-    interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
+//    onTimeWidthChanged(shot, 0);
+//    onRecordLengthChanged(shot, 0);
+//    onAverageChanged(shot, 0);
+//    interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
     m_pending = false;
 
     this->start();
@@ -130,7 +130,7 @@ XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) 
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
+    interface()->writeToRegister8(ADDR_CTRL, 0x80); //soft trigger? undocumented.
 
     startSequence();
 }
@@ -182,10 +182,10 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     XScopedLock<XInterface> lock( *interface());
 
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
-    interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_LSW, 0);
-    interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_MSW, 0);
-    interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_LSW, 0);
-    interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_MSW, 0);
+    interface()->writeToRegister16(ADDR_CH1_GET_MEM_ADDR_LSW, 0);
+    interface()->writeToRegister16(ADDR_CH1_GET_MEM_ADDR_MSW, 0);
+    interface()->writeToRegister16(ADDR_CH2_GET_MEM_ADDR_LSW, 0);
+    interface()->writeToRegister16(ADDR_CH2_GET_MEM_ADDR_MSW, 0);
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
@@ -291,10 +291,11 @@ XThamwayDVUSBDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) 
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
     unsigned int smps = shot[ *recordLength()];
+    smps--;
     interface()->writeToRegister16(ADDR_SAMPLES_LSW, smps % 0x10000uL);
     interface()->writeToRegister16(ADDR_SAMPLES_MSW, smps / 0x10000uL);
 
-    startSequence();
+    onTimeWidthChanged(Snapshot( *this), 0);
 }
 void
 XThamwayDVUSBDSO::onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {
