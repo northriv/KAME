@@ -15,23 +15,8 @@
 #include "charinterface.h"
 
 #if defined USE_EZUSB
-    #include "ezusbthamway.h"
-    class XThamwayUSBPulser : public XThamwayPulser<XThamwayPGCUSBInterface> {
-    public:
-        XThamwayUSBPulser(const char *name, bool runtime,
-            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-            XThamwayPulser<XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
-        virtual ~XThamwayUSBPulser() {}
-    };
     REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
 #endif
-class XThamwayCharPulser : public XThamwayPulser<XCharInterface>  {
-public:
-    XThamwayCharPulser(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-        XThamwayPulser<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
-    virtual ~XThamwayCharPulser() {}
-};
 REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
 #define MAX_PATTERN_SIZE 256*1024u
@@ -56,19 +41,19 @@ REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (
 #define CMD_JP 0xff20uL
 #define CMD_INT 0xff10uL
 
-template<class tInterface>
-double XThamwayPulser<tInterface>::resolution() const {
+
+double XThamwayPulser::resolution() const {
 	return TIMER_PERIOD;
 }
-template<class tInterface>
-double XThamwayPulser<tInterface>::minPulseWidth() const {
+
+double XThamwayPulser::minPulseWidth() const {
 	return MIN_PULSE_WIDTH;
 }
 
-template<class tInterface>
-XThamwayPulser<tInterface>::XThamwayPulser(const char *name, bool runtime,
+
+XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XCharDeviceDriver<XPulser, tInterface>(name, runtime, ref(tr_meas), meas) {
+    XPulser(name, runtime, ref(tr_meas), meas) {
 
     const int ports[] = {
         XPulser::PORTSEL_GATE, XPulser::PORTSEL_PREGATE, XPulser::PORTSEL_TRIG1, XPulser::PORTSEL_TRIG2,
@@ -85,9 +70,9 @@ XThamwayPulser<tInterface>::XThamwayPulser(const char *name, bool runtime,
 	}
 }
 
-template<class tInterface>
+
 void
-XThamwayPulser<tInterface>::createNativePatterns(Transaction &tr) {
+XThamwayPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
 	tr[ *this].m_patterns.clear();
     uint16_t pat = (uint16_t)(shot[ *this].relPatList().back().pattern & XPulser::PAT_DO_MASK);
@@ -107,9 +92,9 @@ XThamwayPulser<tInterface>::createNativePatterns(Transaction &tr) {
     p.data = 0;
     tr[ *this].m_patterns.push_back(p);
 }
-template<class tInterface>
+
 int
-XThamwayPulser<tInterface>::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
+XThamwayPulser::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
 	term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / TIMER_PERIOD));
 	for(; term;) {
         uint64_t t = std::min((uint64_t)term, (uint64_t)0xfe000000uL);
@@ -121,49 +106,9 @@ XThamwayPulser<tInterface>::pulseAdd(Transaction &tr, uint64_t term, uint16_t pa
 	}
 	return 0;
 }
-template<class tInterface>
+
 void
-XThamwayPulser<tInterface>::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
-    XScopedLock<XInterface> lock( *this->interface());
-    if( !this->interface()->isOpened())
-        return;
-
-    this->interface()->resetBulkWrite();
-    this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
-    this->interface()->writeToRegister8(ADDR_REG_MODE, 2); //direct output on.
-    this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
-    this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
-    this->interface()->writeToRegister8(ADDR_REG_MODE, 0); //direct output off.
-    this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
-    this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-	if(output) {
-        if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
-            throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
-        }
-        this->interface()->deferWritings();
-        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
-            this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, it->term_n_cmd % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, it->term_n_cmd / 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, it->data % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, it->data / 0x10000uL);
-            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
-		}
-        this->interface()->bulkWriteStored();
-
-        this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
-        this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
-        this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
-        this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-        bool ext_clock;
-        getStatus(0, &ext_clock);
-        this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
-        this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
-    }
-}
-
-template<>
-void
-XThamwayPulser<XCharInterface>::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
+XThamwayCharPulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
     XScopedLock<XInterface> lock( *this->interface());
     if( !this->interface()->isOpened())
         return;
@@ -186,34 +131,8 @@ XThamwayPulser<XCharInterface>::changeOutput(const Snapshot &shot, bool output, 
     }
 }
 
-template<class tInterface>
 void
-XThamwayPulser<tInterface>::open() throw (XKameError &) {
-    XString idn = this->interface()->getIDN();
-    fprintf(stderr, "PG IDN=%s\n", idn.c_str());
-    this->start();
-}
-
-template<>
-void
-XThamwayPulser<XCharInterface>::open() throw (XKameError &) {
-    this->interface()->setEOS("\r\n");
-    this->start();
-}
-
-template<class tInterface>
-void
-XThamwayPulser<tInterface>::getStatus(bool *running, bool *extclk_det) {
-    uint8_t sta = this->interface()->singleRead(ADDR_REG_STS);
-    if(running)
-        *running = sta & 0x2;
-    if(extclk_det)
-        *extclk_det = sta & 0x20;
-    this->interface()->writeToRegister8(ADDR_REG_STS, 0);
-}
-template<>
-void
-XThamwayPulser<XCharInterface>::getStatus(bool *running, bool *extclk_det) {
+XThamwayCharPulser::getStatus(bool *running, bool *extclk_det) {
     if(running) {
         this->interface()->query("ISRUN?");
         *running = (this->interface()->toStrSimplified() == "RUN");
@@ -222,8 +141,69 @@ XThamwayPulser<XCharInterface>::getStatus(bool *running, bool *extclk_det) {
         *extclk_det = true; //uncertain
 }
 
+void
+XThamwayCharPulser::open() throw (XKameError &) {
+    this->interface()->setEOS("\r\n");
+    this->start();
+}
 
 #if defined USE_EZUSB
-    template class XThamwayPulser<class XThamwayPGCUSBInterface>;
-#endif
-template class XThamwayPulser<class XCharInterface>;
+
+void
+XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
+    XScopedLock<XInterface> lock( *this->interface());
+    if( !this->interface()->isOpened())
+        return;
+
+    this->interface()->resetBulkWrite();
+    this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
+    this->interface()->writeToRegister8(ADDR_REG_MODE, 2); //direct output on.
+    this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
+    this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
+    this->interface()->writeToRegister8(ADDR_REG_MODE, 0); //direct output off.
+    this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
+    this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+    if(output) {
+        if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
+            throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+        }
+        this->interface()->deferWritings();
+        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
+            this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, it->term_n_cmd % 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, it->term_n_cmd / 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, it->data % 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, it->data / 0x10000uL);
+            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
+        }
+        this->interface()->bulkWriteStored();
+
+        this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
+        this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
+        this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
+        this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+        bool ext_clock;
+        getStatus(0, &ext_clock);
+        this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
+        this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
+    }
+}
+
+
+void
+XThamwayUSBPulser::getStatus(bool *running, bool *extclk_det) {
+    uint8_t sta = this->interface()->singleRead(ADDR_REG_STS);
+    if(running)
+        *running = sta & 0x2;
+    if(extclk_det)
+        *extclk_det = sta & 0x20;
+    this->interface()->writeToRegister8(ADDR_REG_STS, 0);
+}
+
+void
+XThamwayUSBPulser::open() throw (XKameError &) {
+    XString idn = this->interface()->getIDN();
+    fprintf(stderr, "PG IDN=%s\n", idn.c_str());
+    this->start();
+}
+
+#endif //USE_EZUSB
