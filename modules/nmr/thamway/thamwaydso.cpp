@@ -76,6 +76,7 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     trigSource()->disable();
     trigLevel()->disable();
     trigFalling()->disable();
+    forceTrigger()->disable();
 }
 XThamwayDVUSBDSO::~XThamwayDVUSBDSO() {
 }
@@ -126,12 +127,12 @@ XThamwayDVUSBDSO::close() throw (XKameError &) {
 }
 void
 XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
-    XScopedLock<XInterface> lock( *interface());
-    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
+//    XScopedLock<XInterface> lock( *interface());
+//    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
+//    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
 
-    startSequence();
+//    startSequence();
 }
 
 void
@@ -189,7 +190,7 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     smps--;
-    fprintf(stderr, "samps%d\n", smps);
+//    fprintf(stderr, "samps%d\n", smps);
 //    Snapshot shot( *this);
 //    smps = shot[ *recordLength()];
     if(smps > MAX_SMPL)
