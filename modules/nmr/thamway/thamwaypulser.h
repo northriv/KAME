@@ -16,18 +16,22 @@
 #include "charinterface.h"
 #include <vector>
 
+class XThamwayUSBPulser;
+class XThamwayCharPulser;
+
 //! pulser driver
-template<class tInterface>
-class XThamwayPulser : public XCharDeviceDriver<XPulser, tInterface> {
+class XThamwayPulser : public XPulser {
 public:
 	XThamwayPulser(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XThamwayPulser() {}
 
 	struct Payload : public XPulser::Payload {
-	private:
+    private:
 		friend class XThamwayPulser;
-		struct Pulse {
+        friend class XThamwayUSBPulser;
+        friend class XThamwayCharPulser;
+        struct Pulse {
 			uint32_t term_n_cmd;
 			uint32_t data;
 		};
@@ -37,9 +41,12 @@ public:
 	//! time resolution [ms]
     virtual double resolution() const;
 protected:
-    virtual void open() throw (XKameError &);
+    virtual void open() throw (XKameError &) = 0;
     //! Sends patterns to pulser or turns off.
-    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) = 0;
+
+    virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) = 0;
+
     //! Converts RelPatList to native patterns
     virtual void createNativePatterns(Transaction &tr);
     virtual double resolutionQAM() const {return 0.0;}
@@ -52,8 +59,34 @@ private:
 	//! \param term a period of the pattern to appear
 	//! \param pattern a pattern for digital, to appear
 	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
-
-    void getStatus(bool *running = 0L, bool *extclk_det = 0L);
 };
 
+#if defined USE_EZUSB
+    #include "ezusbthamway.h"
+    class XThamwayUSBPulser : public XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface> {
+    public:
+        XThamwayUSBPulser(const char *name, bool runtime,
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+            XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
+        virtual ~XThamwayUSBPulser() {}
+    protected:
+        virtual void open() throw (XKameError &);
+        //! Sends patterns to pulser or turns off.
+        virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
 
+        virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L);
+    };
+#endif
+class XThamwayCharPulser : public XCharDeviceDriver<XThamwayPulser>  {
+public:
+    XThamwayCharPulser(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+        XCharDeviceDriver<XThamwayPulser>(name, runtime, ref(tr_meas), meas) {}
+    virtual ~XThamwayCharPulser() {}
+protected:
+    virtual void open() throw (XKameError &);
+    //! Sends patterns to pulser or turns off.
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+
+    virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L);
+};
