@@ -130,7 +130,7 @@ XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) 
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-    interface()->writeToRegister8(ADDR_STS, 7); //soft trigger? undocumented.
+    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
 
     startSequence();
 }
@@ -173,7 +173,7 @@ XThamwayDVUSBDSO::getTimeInterval() {
     XScopedLock<XInterface> lock( *interface());
     int div = interface()->singleRead(ADDR_DIVISOR);
     int pres = interface()->singleRead(ADDR_CFG) % 0x8;
-    double clk = INTERNAL_CLOCK / pow(2.0, pres) / div;
+    double clk = INTERNAL_CLOCK / pow(2.0, pres) / std::max(div, 1);
     return 1.0/clk;
 }
 

@@ -64,7 +64,13 @@ XLecroyDSO::open() throw (XKameError &) {
     trans( *timeWidth()) = interface()->toDouble() * 10.0;
 
     interface()->query("MEMORY_SIZE?");
-    trans( *recordLength()) = interface()->toUInt();
+    XString str = interface()->toStrSimplified();
+    double x = interface()->toDouble();
+    if(str.find("MA") != std::string::npos)
+        x *= 1e6;
+    if(str.find("K") != std::string::npos)
+        x *= 1e3;
+    trans( *recordLength()) = lrint(x);
 
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
@@ -254,8 +260,7 @@ XLecroyDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XLecroyDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("MEMORY_SIZE %s",
-					  ( **recordLength())->to_str().c_str());
+    interface()->sendf("MEMORY_SIZE %.2g", (double)(unsigned int)shot[ *recordLength()]);
 }
 void
 XLecroyDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
@@ -344,13 +349,13 @@ XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) 
 			if(interface()->buffer().size() != 4)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
-			interface()->receive(2); //For "#9"
+            interface()->receive(2); //For "#9" or "#A"
 			if(interface()->buffer().size() != 2)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			writer->insert(writer->end(),
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
-			interface()->scanf("#%1u", &n);
+            interface()->scanf("#%1x", &n);
 			interface()->receive(n);
 			if(interface()->buffer().size() != n)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
