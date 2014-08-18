@@ -49,7 +49,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file not found"), __FILE__, __LINE__);
         int size = file.read(firmware, CUSB_DWLSIZE);
         if(size != CUSB_DWLSIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
@@ -62,7 +62,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
         int size = file.read(gpifwave, THAMWAY_USB_GPIFWAVE_SIZE);
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
@@ -320,7 +320,6 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addr
 uint16_t
 XWinCUSBInterface::readRegister16(unsigned int addr) {
     XScopedLock<XWinCUSBInterface> lock( *this);
-    addr += m_addrOffset;
     return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 

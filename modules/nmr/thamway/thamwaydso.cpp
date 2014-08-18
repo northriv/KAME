@@ -265,7 +265,7 @@ XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L * smps + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
 
     double interval = shot[ *timeWidth()] / smps;
     int div = std::max(1L, lrint(INTERNAL_CLOCK * interval));
