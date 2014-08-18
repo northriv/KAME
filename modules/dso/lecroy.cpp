@@ -144,8 +144,8 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
         XString chs[] = {shot_this[ *trace1()].to_str(), shot_this[ *trace2()].to_str(),
                          shot_this[ *trace3()].to_str(), shot_this[ *trace4()].to_str()};
         const char *tchs[] = {"TA", "TB", "TC", "TD"};
-        const char **tch = tchs;
-        for(XString *it = chs; it != chs + sizeof(chs); ++it) {
+        auto tch = tchs;
+        for(auto it = chs; it != chs + 4; ++it) {
             if( !it->empty()) {
                 interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
                     *tch, it->c_str(), atype, avg);
