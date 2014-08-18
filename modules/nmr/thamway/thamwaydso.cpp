@@ -38,10 +38,10 @@ REGISTER_TYPE(XDriverList, ThamwayDVUSBDSO, "Thamway DV14U25 A/D conversion boar
 #define ADDR_CH1_SET_MEM_ADDR_MSW 0x12
 #define ADDR_CH2_SET_MEM_ADDR_LSW 0x14
 #define ADDR_CH2_SET_MEM_ADDR_MSW 0x16
-#define ADDR_CH1_GET_MEM_ADDR_LSW 0x4
-#define ADDR_CH1_GET_MEM_ADDR_MSW 0x6
-#define ADDR_CH2_GET_MEM_ADDR_LSW 0x10
-#define ADDR_CH2_GET_MEM_ADDR_MSW 0x12
+//#define ADDR_CH1_GET_MEM_ADDR_LSW 0x4
+//#define ADDR_CH1_GET_MEM_ADDR_MSW 0x6
+//#define ADDR_CH2_GET_MEM_ADDR_LSW 0x10
+//#define ADDR_CH2_GET_MEM_ADDR_MSW 0x12
 
 #define MAX_SMPL 0x80000u //512kwords
 
@@ -159,12 +159,12 @@ XThamwayDVUSBDSO::acqCount(bool *seq_busy) {
     uint8_t sts = interface()->singleRead(ADDR_STS);
     bool is_started = sts & 2;
     bool is_ad_finished = sts & 4;
+    int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
+    acq = acq * 0x10000L + interface()->readRegister16(ADDR_ACQCNTM1_LSW);
+    acq++;
     if(seq_busy) {
         *seq_busy = !is_started || !is_ad_finished;
     }
-    int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
-    acq = acq * 0x10000L + interface()->readRegister16(ADDR_ACQCNTM1_LSW);
-    if(is_started || is_ad_finished) acq++;
     return acq;
 }
 
@@ -182,10 +182,10 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     XScopedLock<XInterface> lock( *interface());
 
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
-    interface()->writeToRegister16(ADDR_CH1_GET_MEM_ADDR_LSW, 0);
-    interface()->writeToRegister16(ADDR_CH1_GET_MEM_ADDR_MSW, 0);
-    interface()->writeToRegister16(ADDR_CH2_GET_MEM_ADDR_LSW, 0);
-    interface()->writeToRegister16(ADDR_CH2_GET_MEM_ADDR_MSW, 0);
+    interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_LSW, 0);
+    interface()->writeToRegister16(ADDR_CH1_SET_MEM_ADDR_MSW, 0);
+    interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_LSW, 0);
+    interface()->writeToRegister16(ADDR_CH2_SET_MEM_ADDR_MSW, 0);
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
@@ -197,7 +197,10 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     writer->push((uint16_t)2); //channels
     writer->push((uint32_t)0); //reserve
     writer->push((uint32_t)0); //reserve
-    writer->push((uint32_t)acqCount(0));
+    int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
+    acq = acq * 0x10000L + interface()->readRegister16(ADDR_ACQCNTM1_LSW);
+    acq++;
+    writer->push((uint32_t)acq);
     writer->push((uint32_t)smps);
     writer->push((double)getTimeInterval());
     std::vector<uint8_t> buf(smps * sizeof(uint32_t));
