@@ -98,6 +98,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    smps--;
     double intv = getTimeInterval();
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
     for(Transaction tr( *this);; ++tr) {
@@ -187,9 +188,10 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    smps--;
     fprintf(stderr, "samps%d\n", smps);
-    Snapshot shot( *this);
-    smps = shot[ *recordLength()];
+//    Snapshot shot( *this);
+//    smps = shot[ *recordLength()];
     if(smps > MAX_SMPL)
         throw XInterface::XInterfaceError(i18n("# of samples exceeded the limit."), __FILE__, __LINE__);
     writer->push((uint16_t)2); //channels
@@ -267,6 +269,7 @@ void
 XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
 //    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
 //    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+//    smps--;
     int smps = Snapshot( *this)[ *recordLength()];
 
     double interval = shot[ *timeWidth()] / smps;
