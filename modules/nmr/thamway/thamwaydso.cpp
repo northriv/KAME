@@ -130,7 +130,7 @@ XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) 
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-    interface()->writeToRegister8(ADDR_CTRL, 0x80); //soft trigger? undocumented.
+    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
 
     startSequence();
 }

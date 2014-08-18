@@ -184,6 +184,7 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
         m_mutex.reset();
         throw e;
     }
+    resetBulkWrite();
 }
 
 void
