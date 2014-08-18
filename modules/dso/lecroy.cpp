@@ -44,8 +44,8 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-	interface()->setGPIBWaitBeforeWrite(20); //20msec
-    interface()->setGPIBWaitBeforeSPoll(10); //10msec
+//	interface()->setGPIBWaitBeforeWrite(20); //20msec
+//    interface()->setGPIBWaitBeforeSPoll(10); //10msec
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setEOS("\n");
@@ -59,6 +59,19 @@ XLecroyDSO::open() throw (XKameError &) {
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
 	interface()->send("COMM_ORDER LO");
+
+    interface()->query("TIME_DIV?");
+    trans( *timeWidth()) = interface()->toDouble() * 10.0;
+
+    interface()->query("MEMORY_SIZE?");
+    XString str = interface()->toStrSimplified();
+    double x = interface()->toDouble();
+    if(str.find("MA") != std::string::npos)
+        x *= 1e6;
+    if(str.find("K") != std::string::npos)
+        x *= 1e3;
+    trans( *recordLength()) = lrint(x);
+
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
 
@@ -126,36 +139,22 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 		}
 	}
 	else {
-//		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
-		const char *atype = sseq ? "AVGS" : "AVGC";
-	    XString ch = shot_this[ *trace1()].to_str();
-	    if( !ch.empty()) {
-//			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-//				ch.c_str(), atype, avg);
-			interface()->sendf("TA:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TA:TRACE ON");
-	    }
-	    ch = shot_this[ *trace2()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
-		interface()->send("TRIG_MODE NORM");
-	    ch = shot_this[ *trace3()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
-		interface()->send("TRIG_MODE NORM");
-	    ch = shot_this[ *trace4()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
+        const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
+//		const char *atype = sseq ? "AVGS" : "AVGC";//for old lecroy?
+        XString chs[] = {shot_this[ *trace1()].to_str(), shot_this[ *trace2()].to_str(),
+                         shot_this[ *trace3()].to_str(), shot_this[ *trace4()].to_str()};
+        const char *tchs[] = {"TA", "TB", "TC", "TD"};
+        auto tch = tchs;
+        for(auto it = chs; it != chs + 4; ++it) {
+            if( !it->empty()) {
+                interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+                    *tch, it->c_str(), atype, avg);
+//                interface()->sendf("%s:DEFINE EQN,'%s(%s)',SWEEPS,%d", //for old lecroy?
+//                    tch, atype, it->c_str(), avg);
+                interface()->sendf("%s:TRACE ON", *tch);
+                tch++;
+            }
+        }
 		interface()->send("TRIG_MODE NORM");
 	}
     startSequence();
@@ -247,8 +246,7 @@ XLecroyDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XLecroyDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("MEMORY_SIZE %s",
-					  ( **recordLength())->to_str().c_str());
+    interface()->sendf("MEMORY_SIZE %.2g", (double)(unsigned int)shot[ *recordLength()]);
 }
 void
 XLecroyDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
@@ -337,13 +335,13 @@ XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) 
 			if(interface()->buffer().size() != 4)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			interface()->setGPIBUseSerialPollOnRead(false);
-			interface()->receive(2); //For "#9"
+            interface()->receive(2); //For "#9" or "#A"
 			if(interface()->buffer().size() != 2)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);
 			writer->insert(writer->end(),
 							 interface()->buffer().begin(), interface()->buffer().end());
 			unsigned int n;
-			interface()->scanf("#%1u", &n);
+            interface()->scanf("#%1x", &n);
 			interface()->receive(n);
 			if(interface()->buffer().size() != n)
 				throw XInterface::XCommError(i18n("Invalid waveform"), __FILE__, __LINE__);

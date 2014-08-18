@@ -182,9 +182,11 @@ int main(int argc, char *argv[]) {
                 mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
 #endif
 
-			QGLFormat f;
-            f.setDirectRendering( usedirectrender);
-			QGLFormat::setDefaultFormat( f );
+            if( !usedirectrender) {
+                QGLFormat f;
+                f.setDirectRendering( false);
+                QGLFormat::setDefaultFormat( f );
+            }
             
             // Use UTF8 conversion from std::string to QString.
 //            QTextCodec::setCodecForLocale(QTextCodec::codecForName("utf8") );
