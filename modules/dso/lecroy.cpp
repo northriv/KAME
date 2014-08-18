@@ -143,13 +143,14 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 //		const char *atype = sseq ? "AVGS" : "AVGC";//for old lecroy?
         XString chs[] = {shot_this[ *trace1()].to_str(), shot_this[ *trace2()].to_str(),
                          shot_this[ *trace3()].to_str(), shot_this[ *trace4()].to_str()};
-        const char *tch[] = {"TA", "TB", "TC", "TD"};
+        const char *tchs[] = {"TA", "TB", "TC", "TD"};
+        auto tch = tchs;
         for(auto it = chs; it != chs + sizeof(chs); ++it) {
             if( !it->empty()) {
                 interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-                    tch, ch.c_str(), atype, avg);
+                    tch, it->c_str(), atype, avg);
 //                interface()->sendf("%s:DEFINE EQN,'%s(%s)',SWEEPS,%d", //for old lecroy?
-//                    tch, atype, ch->c_str(), avg);
+//                    tch, atype, it->c_str(), avg);
                 interface()->sendf("%s:TRACE ON", tch);
                 tch++;
             }
