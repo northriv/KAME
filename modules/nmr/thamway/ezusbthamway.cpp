@@ -345,8 +345,8 @@ XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) 
         int i = usb_bulk_read( &m_handle, RFIFO, bbuf, blocksize);
         if(i <= 0)
             throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
-        unsigned int n = std::min(cnt, i);
-        std::copy(bbuf, bbuf + i, buf);
+        unsigned int n = std::min(cnt, (unsigned int)i);
+        std::copy(bbuf, bbuf + n, buf);
         buf += n;
         cnt -= n;
     }
