@@ -130,7 +130,7 @@ XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) 
     XScopedLock<XInterface> lock( *interface());
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-    interface()->writeToRegister8(ADDR_STS, 0x80); //soft trigger? undocumented.
+    interface()->writeToRegister8(ADDR_CTRL, 0x80); //soft trigger? undocumented.
 
     startSequence();
 }
@@ -172,7 +172,7 @@ double
 XThamwayDVUSBDSO::getTimeInterval() {
     XScopedLock<XInterface> lock( *interface());
     int div = interface()->singleRead(ADDR_DIVISOR);
-    int pres = interface()->singleRead(ADDR_CFG) % 0x8;
+    int pres = interface()->singleRead(ADDR_CFG) % 0x8u;
     double clk = INTERNAL_CLOCK / pow(2.0, pres) / std::max(div, 1);
     return 1.0/clk;
 }
@@ -264,22 +264,23 @@ XThamwayDVUSBDSO::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
-    XScopedLock<XInterface> lock( *interface());
-    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
-
-    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    int smps = Snapshot( *this)[ *recordLength()];
 
     double interval = shot[ *timeWidth()] / smps;
     int div = std::max(1L, lrint(INTERNAL_CLOCK * interval));
     int pres = std::min(7, std::max(0, (int)floor(log(div / 256.0) / log(2.0)) + 1));
 
-    uint8_t cfg = 0x20; //8:ext_clock 0x40:flip
-    interface()->writeToRegister8(ADDR_CFG, cfg | pres);
-
     div = std::max(1L, lrint(div / pow(2.0, pres)));
     if(div > 255)
         throw XInterface::XInterfaceError(i18n("Too long time intervals."), __FILE__, __LINE__);
+
+    XScopedLock<XInterface> lock( *interface());
+    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
+
+    uint8_t cfg = 0x20; //8:ext_clock 0x40:flip
+    interface()->writeToRegister8(ADDR_CFG, cfg | pres);
     interface()->writeToRegister8(ADDR_DIVISOR, div);
 
     startSequence();
