@@ -27,9 +27,7 @@
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
-    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
-                         QGL::DepthBuffer | QGL::AccumBuffer |
-                         QGL::SampleBuffers | QGL::StencilBuffer )
+    QGLWidget( QGLFormat(QGL::SampleBuffers) //QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |QGL::DepthBuffer | QGL::AccumBuffer |
                , parent, 0, Qt::WindowFlags(fl | Qt::WA_PaintOnScreen)) {
     if( !format().directRendering()) dbgPrint("direct rendering disabled");
 //    if( !parent->layout() ) {
