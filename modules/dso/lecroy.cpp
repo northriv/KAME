@@ -139,36 +139,21 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 		}
 	}
 	else {
-//		const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
-		const char *atype = sseq ? "AVGS" : "AVGC";
-	    XString ch = shot_this[ *trace1()].to_str();
-	    if( !ch.empty()) {
-//			interface()->sendf("TA:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-//				ch.c_str(), atype, avg);
-			interface()->sendf("TA:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TA:TRACE ON");
-	    }
-	    ch = shot_this[ *trace2()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
-		interface()->send("TRIG_MODE NORM");
-	    ch = shot_this[ *trace3()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
-		interface()->send("TRIG_MODE NORM");
-	    ch = shot_this[ *trace4()].to_str();
-	    if( !ch.empty()) {
-			interface()->sendf("TB:DEFINE EQN,'%s(%s)',SWEEPS,%d",
-				atype, ch.c_str(), avg);
-			interface()->send("TB:TRACE ON");
-	    }
+        const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
+//		const char *atype = sseq ? "AVGS" : "AVGC";//for old lecroy?
+        XString chs[] = {shot_this[ *trace1()].to_str(), shot_this[ *trace2()].to_str(),
+                         shot_this[ *trace3()].to_str(), shot_this[ *trace4()].to_str()};
+        const char *tch[] = {"TA", "TB", "TC", "TD"};
+        for(auto it = chs; it != chs + sizeof(chs); ++it) {
+            if( !it->empty()) {
+                interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+                    tch, ch.c_str(), atype, avg);
+//                interface()->sendf("%s:DEFINE EQN,'%s(%s)',SWEEPS,%d", //for old lecroy?
+//                    tch, atype, ch->c_str(), avg);
+                interface()->sendf("%s:TRACE ON", tch);
+                tch++;
+            }
+        }
 		interface()->send("TRIG_MODE NORM");
 	}
     startSequence();
