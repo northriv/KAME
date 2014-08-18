@@ -210,7 +210,6 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     writer->push((double)-2.5); //offset[V]
     writer->insert(writer->end(), buf.begin(), buf.end());
     //Ch2
-    buf.clear();
     interface()->burstRead(ADDR_BURST_CH2, &buf[0], buf.size());
     writer->push((double)1.0/3276.8); //[V/bit]
     writer->push((double)-2.5); //offset[V]
