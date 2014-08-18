@@ -44,8 +44,8 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-	interface()->setGPIBWaitBeforeWrite(20); //20msec
-    interface()->setGPIBWaitBeforeSPoll(10); //10msec
+//	interface()->setGPIBWaitBeforeWrite(20); //20msec
+//    interface()->setGPIBWaitBeforeSPoll(10); //10msec
     interface()->setGPIBUseSerialPollOnRead(false);
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setEOS("\n");
@@ -59,6 +59,13 @@ XLecroyDSO::open() throw (XKameError &) {
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
 	interface()->send("COMM_ORDER LO");
+
+    interface()->query("TIME_DIV?");
+    trans( *timeWidth()) = interface()->toDouble() * 10.0;
+
+    interface()->query("MEMORY_SIZE?");
+    trans( *recordLength()) = interface()->toUInt();
+
     Snapshot shot_this( *this);
     onAverageChanged(shot_this, average().get());
 

@@ -96,10 +96,11 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
             break;
     }
 
-//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-//    int avg = acqCount(0);
-//    double intv = getTimeInterval();
+    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    int avg = acqCount(0);
+    double intv = getTimeInterval();
+    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
 //    for(Transaction tr( *this);; ++tr) {
 //        tr[ *recordLength()] = smps;
 //        tr[ *timeWidth()] = smps * intv;
@@ -126,10 +127,12 @@ XThamwayDVUSBDSO::close() throw (XKameError &) {
 }
 void
 XThamwayDVUSBDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
-//    XScopedLock<XInterface> lock( *interface());
-//    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
+    XScopedLock<XInterface> lock( *interface());
+    interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
-//    interface()->writeToRegister8(ADDR_CTRL, 1); //starts.
+    interface()->writeToRegister8(ADDR_STS, 7); //soft trigger? undocumented.
+
+    startSequence();
 }
 
 void
@@ -153,15 +156,15 @@ XThamwayDVUSBDSO::acqCount(bool *seq_busy) {
         if(seq_busy) *seq_busy = true;
         return 0;
     }
+    uint8_t sts = interface()->singleRead(ADDR_STS);
+    bool is_started = sts & 2;
+    bool is_ad_finished = sts & 4;
     if(seq_busy) {
-        uint8_t sts = interface()->singleRead(ADDR_STS);
-        bool is_started = sts & 2;
-        bool is_ad_finished = sts & 4;
         *seq_busy = !is_started || !is_ad_finished;
     }
     int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
     acq = acq * 0x10000L + interface()->readRegister16(ADDR_ACQCNTM1_LSW);
-    acq++;
+    if(is_started || is_ad_finished) acq++;
     return acq;
 }
 
@@ -187,8 +190,8 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     fprintf(stderr, "samps%d\n", smps);
-    Snapshot shot( *this);
-    smps = shot[ *recordLength()];
+//    Snapshot shot( *this);
+//    smps = shot[ *recordLength()];
     if(smps > MAX_SMPL)
         throw XInterface::XInterfaceError(i18n("# of samples exceeded the limit."), __FILE__, __LINE__);
     writer->push((uint16_t)2); //channels

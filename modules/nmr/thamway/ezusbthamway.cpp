@@ -217,6 +217,7 @@ XWinCUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
 void
 XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     addr += m_addrOffset;
+    assert(addr < 0x100u);
 
     if(m_bBulkWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
@@ -224,7 +225,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
             bulkWriteStored();
             deferWritings();
         }
-        m_buffer.push_back(addr % 0x100u);
+        m_buffer.push_back(addr);
         m_buffer.push_back(data);
     }
     else {
@@ -232,7 +233,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
-        uint8_t cmds2[] = {(uint8_t)(addr % 0x100u), data};
+        uint8_t cmds2[] = {(uint8_t)(addr), data};
         if(usb_bulk_write( &m_handle, TFIFO, cmds2, sizeof(cmds2)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
@@ -302,8 +303,9 @@ XWinCUSBInterface::singleRead(unsigned int addr) {
 uint8_t
 XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
     addr += addroffset;
+    assert(addr < 0x100u);
     {
-        uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr % 0x100u)};
+        uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
         if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     }
@@ -327,8 +329,9 @@ void
 XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
     XScopedLock<XWinCUSBInterface> lock( *this);
     addr += m_addrOffset;
+    assert(addr < 0x100u);
     {
-        uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr % 0x100u)};
+        uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
         if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
