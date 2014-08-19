@@ -97,7 +97,7 @@ private:
 class XThamwayCharPROT : public XThamwayPROT<XCharInterface> {
 public:
     XThamwayCharPROT(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XCharInterface>(namr, runtime, tr_meas, meas) {}
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
     virtual ~XThamwayCharPROT() {}
 };
 
@@ -106,7 +106,7 @@ public:
     class XThamwayMODCUSBInterface : public XWinCUSBInterface {
     public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XWinCUSBInterface(name, runtime, driver, 0x600, "") {}
+            : XWinCUSBInterface(name, runtime, driver, 0x600, "") {} //DIP-SW address should be 6
         virtual ~XThamwayMODCUSBInterface() {}
     };
 
@@ -114,8 +114,10 @@ public:
     class XThamwayUSBPROT : public XThamwayPROT<XThamwayMODCUSBInterface> {
     public:
         XThamwayUSBPROT(const char *name, bool runtime,
-            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(namr, runtime, tr_meas, meas) {}
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
         virtual ~XThamwayUSBPROT() {}
     };
+
+#endif
 
 #endif
