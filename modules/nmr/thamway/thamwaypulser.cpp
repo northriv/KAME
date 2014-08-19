@@ -23,7 +23,7 @@ REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (
 //[ms]
 #define TIMER_PERIOD (1.0/(40.0e3))
 //[ms]
-#define MIN_PULSE_WIDTH 0.0002
+#define MIN_PULSE_WIDTH 0.0001 //100ns, perhaps 50ns is enough?
 
 
 #define ADDR_REG_ADDR_L 0x00
@@ -84,6 +84,9 @@ XThamwayPulser::createNativePatterns(Transaction &tr) {
 		pulseAdd(tr, it->toappear, pat);
         pat = (uint16_t)(it->pattern & XPulser::PAT_DO_MASK);
 	}
+//    if(tr[ *this].m_patterns.back().term_n_cmd < 2) {
+//        pulseAdd(tr, lrint(2 * minPulseWidth() / resolution()), pat);
+//    }
     typename Payload::Pulse p;
     p.term_n_cmd = CMD_JP * 0x10000uL + startaddr;
 	p.data = 0;
