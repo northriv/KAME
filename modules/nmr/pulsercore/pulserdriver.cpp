@@ -156,7 +156,11 @@ XPulser::XPulser(const char *name, bool runtime,
 			}
 			tr[ *portSel(0)] = PORTSEL_GATE;
 			tr[ *portSel(1)] = PORTSEL_PREGATE;
-		}
+            tr[ *portSel(3)] = PORTSEL_QPSK_A;
+            tr[ *portSel(4)] = PORTSEL_QPSK_B;
+            tr[ *portSel(6)] = PORTSEL_TRIG1;
+            tr[ *portSel(9)] = PORTSEL_ASW;
+        }
 
 	    tr[ *rtime()] = 100.0;
 	    tr[ *tau()] = 100.0;
