@@ -48,7 +48,7 @@ public:
     void setEOS(const char *str);
     const XString &eos() const {return m_eos;}
 
-    virtual void query(const XString &str) throw (XCommError &);
+    void query(const XString &str) throw (XCommError &);
     virtual void query(const char *str) throw (XCommError &);
     virtual void send(const char *str) throw (XCommError &) = 0;
     virtual void receive() throw (XCommError &) = 0;
