@@ -15,7 +15,7 @@
 #include <vector>
 
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
-class XWinCUSBInterface : public XInterface {
+class XWinCUSBInterface : public XCustomCharInterface {
 public:
     XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
     virtual ~XWinCUSBInterface();
@@ -23,8 +23,6 @@ public:
     virtual void open() throw (XInterfaceError &);
     //! This can be called even if has already closed.
     virtual void close() throw (XInterfaceError &);
-
-    virtual bool isOpened() const {return m_handle != 0;}
 
     void deferWritings();
     void writeToRegister8(unsigned int addr, uint8_t data);
@@ -43,6 +41,12 @@ public:
     void unlock() {m_mutex->unlock();}
     bool isLocked() const {return m_mutex->isLockedByCurrentThread();}
 
+    virtual void send(const char *str) throw (XCommError &);
+    virtual void write(const char *sendbuf, int size) throw (XCommError &);
+    virtual void receive() throw (XCommError &);
+    virtual void receive(unsigned int length) throw (XCommError &);
+
+    virtual bool isOpened() const {return m_handle != 0;}
 protected:
 private:
     XString getIDN(void *handle, int maxlen = 255) {
@@ -72,20 +76,4 @@ private:
     uint8_t m_addrOffset;
     bool m_bBulkWrite;
     std::vector<uint8_t> m_buffer; //writing buffer for a bulk write.
-};
-
-#define ADDR_OFFSET_DV 0x20
-
-class XThamwayPGCUSBInterface : public XWinCUSBInterface {
-public:
-    XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, 0, "PG32") {}
-    virtual ~XThamwayPGCUSBInterface() {}
-};
-
-class XThamwayDVCUSBInterface : public XWinCUSBInterface {
-public:
-    XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
-    virtual ~XThamwayDVCUSBInterface() {}
 };

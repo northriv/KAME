@@ -51,7 +51,8 @@ class Ui_FrmThamwayPROT;
 typedef QForm<QMainWindow, Ui_FrmThamwayPROT> FrmThamwayPROT;
 
 //! Thamway NMR PROT series
-class XThamwayPROT : public XCharDeviceDriver<XSG> {
+template <class tInterface>
+class XThamwayPROT : public XCharDeviceDriver<XSG, tInterface> {
 public:
     XThamwayPROT(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -91,4 +92,30 @@ private:
 
     const qshared_ptr<FrmThamwayPROT> m_form;
 };
+
+//! Thamway NMR PROT series for GPIB, etc..
+class XThamwayCharPROT : public XThamwayPROT<XCharInterface> {
+public:
+    XThamwayCharPROT(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XCharInterface>(namr, runtime, tr_meas, meas) {}
+    virtual ~XThamwayCharPROT() {}
+};
+
+#ifdef USE_EZUSB
+    #include "ezusbthamway.h"
+    class XThamwayMODCUSBInterface : public XWinCUSBInterface {
+    public:
+        XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+            : XWinCUSBInterface(name, runtime, driver, 0x600, "") {}
+        virtual ~XThamwayMODCUSBInterface() {}
+    };
+
+    //! Thamway NMR PROT series for USB
+    class XThamwayUSBPROT : public XThamwayPROT<XThamwayMODCUSBInterface> {
+    public:
+        XThamwayUSBPROT(const char *name, bool runtime,
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(namr, runtime, tr_meas, meas) {}
+        virtual ~XThamwayUSBPROT() {}
+    };
+
 #endif

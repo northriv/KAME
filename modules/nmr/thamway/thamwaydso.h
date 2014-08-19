@@ -18,6 +18,15 @@
 
 #include "ezusbthamway.h"
 
+#define ADDR_OFFSET_DV 0x20
+
+class XThamwayDVCUSBInterface : public XWinCUSBInterface {
+public:
+    XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XWinCUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
+    virtual ~XThamwayDVCUSBInterface() {}
+};
+
 //! Thamway DV14U25 A/D conversion board
 class XThamwayDVUSBDSO : public XCharDeviceDriver<XDSO, XThamwayDVCUSBInterface> {
 public:
