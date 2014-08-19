@@ -380,6 +380,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
 void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
+    buffer_receive().clear();
     try {
         dbgPrint(driver()->getLabel() + " Receiving...");
         for(int i = 0; ; ++i) {
@@ -390,7 +391,6 @@ XWinCUSBInterface::receive() throw (XCommError &) {
                 throw XInterface::XCommError(i18n("USB string length exceeded the limit."), __FILE__, __LINE__);
             buffer_receive().push_back(c);
         }
-        assert(buffer().size());
         buffer_receive().push_back('\0');
         dbgPrint(driver()->getLabel() + " Received;\"" +
                  dumpCString((const char*)&buffer()[0]) + "\"");
