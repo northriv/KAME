@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "chardevicedriver.h"
+#include "charinterface.h"
 #include <vector>
 
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb

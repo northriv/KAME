@@ -71,7 +71,7 @@ XCharDeviceDriver<tDriver, tInterface>::onOpen(const Snapshot &shot, XInterface 
 }
 template<class tDriver, class tInterface>
 void
-XCharDeviceDriver<tDriver, tInterface>::onClose(const Snapshot &shot, XInterface *) {
+XCharDeviceDriver<tDriver, tInterface>::onClose(const Snapshot &, XInterface *) {
 	try {
 		this->stop();
 	}
