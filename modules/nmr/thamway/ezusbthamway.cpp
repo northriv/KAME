@@ -368,8 +368,8 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
-        for(auto c = buf.begin(); c != buf.end(); ++c) {
-            writeToRegister8(ADDR_CHARINTF, (uint8_t)*c);
+        for(int i = 0; i < buf.length(); ++i) {
+            writeToRegister8(ADDR_CHARINTF, (uint8_t)buf[i]);
         }
     }
     catch (XCommError &e) {
