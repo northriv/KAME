@@ -389,7 +389,7 @@ XWinCUSBInterface::receive() throw (XCommError &) {
     try {
         dbgPrint(driver()->getLabel() + " Receiving...");
         for(;;) {
-            char c = singleRead(ADDR_CHARINTF);
+            uint8_t c = singleRead(ADDR_CHARINTF);
             if( !c || (c == 0xffu))
                 break;
             buffer_receive().push_back(c);
