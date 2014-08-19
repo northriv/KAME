@@ -77,6 +77,12 @@ XLecroyDSO::open() throw (XKameError &) {
 
 	start();
 }
+bool
+XLecroyDSO::isWaveMaster() {
+    interface()->query("*IDN?");
+    return (interface()->toStr().find("WAVEMASTER") != std::string::npos);
+}
+
 void
 XLecroyDSO::activateTrace(const char *name) {
     interface()->queryf("%s:TRACE?", name);
@@ -139,18 +145,26 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
 		}
 	}
 	else {
+        bool wavemaster = isWaveMaster();
         const char *atype = sseq ? "SUMMED" : "CONTINUOUS";
-//		const char *atype = sseq ? "AVGS" : "AVGC";//for old lecroy?
+        if( !wavemaster)
+            atype = sseq ? "AVGS" : "AVGC";
         XString chs[] = {shot_this[ *trace1()].to_str(), shot_this[ *trace2()].to_str(),
                          shot_this[ *trace3()].to_str(), shot_this[ *trace4()].to_str()};
         const char *tchs[] = {"TA", "TB", "TC", "TD"};
+//        if(wavemaster)
+//            tcshs = {"F1", "F2", "F3", "F4"}; //not nescessary at the moment
         auto tch = tchs;
         for(auto it = chs; it != chs + 4; ++it) {
             if( !it->empty()) {
-                interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
-                    *tch, it->c_str(), atype, avg);
-//                interface()->sendf("%s:DEFINE EQN,'%s(%s)',SWEEPS,%d", //for old lecroy?
-//                    tch, atype, it->c_str(), avg);
+                if(xstream) {
+                    interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
+                        *tch, it->c_str(), atype, avg);
+                }
+                else {
+                    interface()->sendf("%s:DEFINE EQN,'%s(%s)',SWEEPS,%d",
+                        *tch, atype, it->c_str(), avg);
+                }
                 interface()->sendf("%s:TRACE ON", *tch);
                 tch++;
             }
