@@ -25,14 +25,15 @@ extern "C" {
     #include "fx2fw.h"
 }
 
-#define CMD_DIPSW 0x11
-#define CMD_LED 0x12
+#define CMD_DIPSW 0x11u
+#define CMD_LED 0x12u
 
-#define ADDR_IDN 0x1f
-#define ADDR_CHARINTF 0xa0
+#define ADDR_IDN 0x1fu
+#define ADDR_CHARINTF 0xa0u
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
-#define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
+#define THAMWAY_USB_GPIFWAVE1_FILE "slow_dat.bin"
+#define THAMWAY_USB_GPIFWAVE2_FILE "fullspec_dat.bin"
 #define THAMWAY_USB_GPIFWAVE_SIZE 172
 
 XMutex XWinCUSBInterface::s_mutex;
@@ -55,19 +56,38 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         if(size != CUSB_DWLSIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
     }
-    char gpifwave[THAMWAY_USB_GPIFWAVE_SIZE];
+    char gpifwave1[THAMWAY_USB_GPIFWAVE_SIZE];
     {
-        QString path = THAMWAY_USB_GPIFWAVE_FILE;
+        QString path = THAMWAY_USB_GPIFWAVE1_FILE;
         dir.filePath(path);
         if( !dir.exists())
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
-        int size = file.read(gpifwave, THAMWAY_USB_GPIFWAVE_SIZE);
+        int size = file.read(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE);
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
+    char gpifwave2[THAMWAY_USB_GPIFWAVE_SIZE];
+    try {
+        QString path = THAMWAY_USB_GPIFWAVE2_FILE;
+        dir.filePath(path);
+        if( !dir.exists())
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
+        QFile file(dir.absoluteFilePath(path));
+        if( !file.open(QIODevice::ReadOnly))
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file not found"), __FILE__, __LINE__);
+        int size = file.read(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE);
+        if(size != THAMWAY_USB_GPIFWAVE_SIZE)
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+    }
+    catch (XInterface::XInterfaceError& e) {
+        e.print();
+        gMessagePrint(i18n_noncontext("Continues with slower USB speed."));
+        gpifwave2 = 0;
+    }
+
     for(int i = 0; i < 8; ++i) {
         void *handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
@@ -83,6 +103,9 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         dev.mutex.reset(new XRecursiveMutex);
         s_devices.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
+        char *gpifwave = gpifwave2;
+        if( !gpifwave2 || (dev.addr == DEV_ADDR_PROT))
+            gpifwave = gpifwave1;
         setWave(handle, (const uint8_t*)gpifwave);
 
         for(int i = 0; i < 3; ++i) {
@@ -380,6 +403,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
 void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
+    msecsleep(20);
     buffer_receive().clear();
     try {
         dbgPrint(driver()->getLabel() + " Receiving...");

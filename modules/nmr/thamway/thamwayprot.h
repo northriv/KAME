@@ -106,7 +106,7 @@ public:
     class XThamwayMODCUSBInterface : public XWinCUSBInterface {
     public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XWinCUSBInterface(name, runtime, driver, 0x600u, "") {} //DIP-SW address should be 6
+            : XWinCUSBInterface(name, runtime, driver, DEV_ADDR_PROT * 0x100u, "") {} //DIP-SW address should be 6
         virtual ~XThamwayMODCUSBInterface() {}
     };
 
@@ -116,6 +116,9 @@ public:
         XThamwayUSBPROT(const char *name, bool runtime,
             Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
         virtual ~XThamwayUSBPROT() {}
+    protected:
+        //! Starts up your threads, connects GUI, and activates signals.
+        virtual void start();
     };
 
 #endif
