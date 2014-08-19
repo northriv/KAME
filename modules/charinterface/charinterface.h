@@ -40,7 +40,6 @@ public:
     //! \sa printf()
     void sendf(const char *format, ...) throw (XInterfaceError &)
         __attribute__ ((format(printf,2,3)));
-    virtual void query(const char *str) throw (XCommError &);
     //! format version of query()
     //! \sa printf()
     void queryf(const char *format, ...) throw (XInterfaceError &)
@@ -49,13 +48,10 @@ public:
     void setEOS(const char *str);
     const XString &eos() const {return m_eos;}
 
-    virtual void send(const XString &str) throw (XCommError &);
     virtual void query(const XString &str) throw (XCommError &);
-
+    virtual void query(const char *str) throw (XCommError &);
     virtual void send(const char *str) throw (XCommError &) = 0;
-    virtual void write(const char *sendbuf, int size) throw (XCommError &) = 0;
     virtual void receive() throw (XCommError &) = 0;
-    virtual void receive(unsigned int length) throw (XCommError &) = 0;
 
     virtual bool isOpened() const = 0;
 
@@ -111,8 +107,6 @@ public:
 	bool serialHasEchoBack() const {return m_serialHasEchoBack;}
 
     virtual void send(const XString &str) throw (XCommError &);
-    virtual void query(const XString &str) throw (XCommError &);
-
     virtual void send(const char *str) throw (XCommError &);
     virtual void write(const char *sendbuf, int size) throw (XCommError &);
     virtual void receive() throw (XCommError &);

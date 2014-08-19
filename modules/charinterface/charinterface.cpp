@@ -93,11 +93,6 @@ XString
 XCustomCharInterface::toStrSimplified() const {
     return QString( &buffer()[0]).simplified();
 }
-
-void
-XCustomCharInterface::send(const XString &str) throw (XCommError &) {
-    this->send(str.c_str());
-}
 void
 XCustomCharInterface::query(const XString &str) throw (XCommError &) {
     query(str.c_str());
@@ -238,10 +233,6 @@ XCharInterface::close() throw (XInterfaceError &) {
 void
 XCharInterface::send(const XString &str) throw (XCommError &) {
     this->send(str.c_str());
-}
-void
-XCharInterface::query(const XString &str) throw (XCommError &) {
-    query(str.c_str());
 }
 
 void

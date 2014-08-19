@@ -43,9 +43,7 @@ public:
     bool isLocked() const {return m_mutex->isLockedByCurrentThread();}
 
     virtual void send(const char *str) throw (XCommError &);
-    virtual void write(const char *sendbuf, int size) throw (XCommError &);
     virtual void receive() throw (XCommError &);
-    virtual void receive(unsigned int length) throw (XCommError &);
 
     virtual bool isOpened() const {return m_handle != 0;}
 protected:
