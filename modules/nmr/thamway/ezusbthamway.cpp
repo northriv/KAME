@@ -150,7 +150,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
                 else {
                     //for PROT
                     if(it->addr != addr_offset / 0x100u) continue;
-                    idn = "PROT"
+                    idn = "PROT";
                 }
                 idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
