@@ -223,10 +223,6 @@ int main(int argc, char *argv[]) {
 
     app.processEvents();
 
-    const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
-    fprintf(stderr, "%s\n", greeting);
-    gMessagePrint(greeting);
-
 	fprintf(stderr, "Initializing LTDL.\n");
 	lt_dlinit();
 #ifdef __linux__
@@ -261,6 +257,10 @@ int main(int argc, char *argv[]) {
             XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
 		}
 	}
+
+    const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
+    fprintf(stderr, "%s\n", greeting);
+    gMessagePrint(greeting);
 
     int ret = app.exec();
 
