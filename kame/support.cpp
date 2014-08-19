@@ -125,8 +125,8 @@ double setprec(double val, double prec) {
 
 
 void
-dbgPrint_redirected(const XString &str, const char *file, int line) {
-	if( !g_bLogDbgPrint) return;
+dbgPrint_redirected(const XString &str, const char *file, int line, bool force_dump) {
+    if( !force_dump && !g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
 		<< (QString("0x%1:%2:%3:%4 %5")
@@ -136,6 +136,10 @@ dbgPrint_redirected(const XString &str, const char *file, int line) {
 						 .arg(line)
 						 .arg(str)).toUtf8().data()
 		<< std::endl;
+    if(force_dump) {
+        shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
+        if(statusprinter) statusprinter->printMessage(str, true, file, line);
+    }
 }
 void
 gErrPrint_redirected(const XString &str, const char *file, int line) {

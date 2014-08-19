@@ -89,9 +89,10 @@ public:
 };
 
 //! Debug printing.
-#define dbgPrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__)
+#define dbgPrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__, false)
+#define gMessagePrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__, true)
 void
-dbgPrint_redirected(const XString &str, const char *file, int line);
+dbgPrint_redirected(const XString &str, const char *file, int line, bool force_dump);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
 #define gWarnPrint(msg) gWarnPrint_redirected(msg, __FILE__, __LINE__)
