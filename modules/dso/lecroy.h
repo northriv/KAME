@@ -62,6 +62,7 @@ protected:
 private:
     void activateTrace(const char *name);
 	double inspectDouble(const char *req, const XString &trace);
+    bool isWaveMaster();
 	int m_totalCount;
 };
 
