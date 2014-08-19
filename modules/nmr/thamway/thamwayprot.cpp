@@ -67,8 +67,13 @@ XThamwayPROT::start() {
     XScopedLock<XInterface> lock( *interface());
     interface()->query("FREQR");
     double f;
-    if(interface()->scanf("FREQR%lf", &f) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    for(int i = 0; ; ++i) {
+        if(interface()->scanf("FREQR%lf", &f) == 1)
+            break;
+        if(i > 2)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        interface()->receive(); //flushing not-welcome message if any, although this is TCP connection.
+    }
     interface()->query("ATT1R");
     double olevel;
     if(interface()->scanf("ATT1R%lf", &olevel) != 1)
