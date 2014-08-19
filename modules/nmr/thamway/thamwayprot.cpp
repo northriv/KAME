@@ -21,6 +21,10 @@ REGISTER_TYPE(XDriverList, ThamwayT300ImpedanceAnalyzer, "Thamway T300-1049A Imp
 REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control");
 #ifdef USE_EZUSB
     REGISTER_TYPE(XDriverList, ThamwayUSBPROT, "Thamway PROT NMR USB Control");
+    XThamwayUSBPROT::XThamwayUSBPROT(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(name, runtime, ref(tr_meas), meas) {
+        interface()->setEOS("\r\n");
+    }
 #endif
 
 XThamwayCharPROT::XThamwayCharPROT(const char *name, bool runtime,
@@ -28,6 +32,7 @@ XThamwayCharPROT::XThamwayCharPROT(const char *name, bool runtime,
     XThamwayPROT<XCharInterface>(name, runtime, ref(tr_meas), meas) {
     trans( *this->interface()->port()) = "127.0.0.1:5025";
     trans( *this->interface()->device()) = "TCP/IP";
+    this->interface()->setEOS("\n");
 }
 
 template <class tInterface>
@@ -63,8 +68,6 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     rxGain()->setUIEnabled(false);
     rxPhase()->setUIEnabled(false);
     rxLPFBW()->setUIEnabled(false);
-
-    this->interface()->setEOS("\n");
 }
 template <class tInterface>
 void

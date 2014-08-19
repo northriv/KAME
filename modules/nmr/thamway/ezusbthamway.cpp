@@ -133,8 +133,6 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint16_t addr_offset, const char* id)
     : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset % 0x100u) {
-
-    setEOS("\r\n");
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !s_refcnt)
