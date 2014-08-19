@@ -16,45 +16,68 @@
 
 #include "interface.h"
 
-class XPort;
 //#include <stdarg.h>
 
-//! Standard interface for character devices. e.g. GPIB, serial port, ....
-class XCharInterface : public XInterface {
+class XCustomCharInterface : public XInterface {
+public:
+    XCustomCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    virtual ~XCustomCharInterface() {}
+
+    //! Buffer is Thread-Local-Strage.
+    //! Therefore, be careful when you access multi-interfaces in one thread.
+    //! \sa XThreadLocal
+    const std::vector<char> &buffer() const {return *s_tlBuffer;}
+    //! error-check is user's responsibility.
+    int scanf(const char *format, ...) const
+        __attribute__ ((format(scanf,2,3)));
+    double toDouble() const throw (XConvError &);
+    int toInt() const throw (XConvError &);
+    unsigned int toUInt() const throw (XConvError &);
+    XString toStr() const;
+    XString toStrSimplified() const; //!< returns string white-spaces stripped.
+
+    //! format version of send()
+    //! \sa printf()
+    void sendf(const char *format, ...) throw (XInterfaceError &)
+        __attribute__ ((format(printf,2,3)));
+    virtual void query(const char *str) throw (XCommError &);
+    //! format version of query()
+    //! \sa printf()
+    void queryf(const char *format, ...) throw (XInterfaceError &)
+        __attribute__ ((format(printf,2,3)));
+
+    void setEOS(const char *str);
+    const XString &eos() const {return m_eos;}
+
+    virtual void send(const XString &str) throw (XCommError &);
+    virtual void query(const XString &str) throw (XCommError &);
+
+    virtual void send(const char *str) throw (XCommError &) = 0;
+    virtual void write(const char *sendbuf, int size) throw (XCommError &) = 0;
+    virtual void receive() throw (XCommError &) = 0;
+    virtual void receive(unsigned int length) throw (XCommError &) = 0;
+
+    virtual bool isOpened() const = 0;
+
+    //! only for XPort and internal use.
+    std::vector<char> &buffer_receive() const {return *s_tlBuffer;}
+protected:
+    virtual void open() throw (XInterfaceError &) = 0;
+    //! This can be called even if has already closed.
+    virtual void close() throw (XInterfaceError &) = 0;
+
+private:
+    static XThreadLocal<std::vector<char> > s_tlBuffer;
+    XString m_eos;
+};
+
+class XPort;
+//! Standard interface for character devices. e.g. GPIB, serial port, TCP/IP...
+class XCharInterface : public XCustomCharInterface {
 public:
 	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XCharInterface() {}
 
-	//! Buffer is Thread-Local-Strage.
-	//! Therefore, be careful when you access multi-interfaces in one thread.
-	//! \sa XThreadLocal
-	const std::vector<char> &buffer() const;
-	//! error-check is user's responsibility.
-	int scanf(const char *format, ...) const
-		__attribute__ ((format(scanf,2,3)));
-	double toDouble() const throw (XConvError &);
-	int toInt() const throw (XConvError &);
-	unsigned int toUInt() const throw (XConvError &);
-	XString toStr() const;
-	XString toStrSimplified() const; //!< returns string white-spaces stripped.
-  
-	void send(const XString &str) throw (XCommError &);
-	virtual void send(const char *str) throw (XCommError &);
-	//! format version of send()
-	//! \sa printf()
-	void sendf(const char *format, ...) throw (XInterfaceError &)
-		__attribute__ ((format(printf,2,3)));
-	virtual void write(const char *sendbuf, int size) throw (XCommError &);
-	virtual void receive() throw (XCommError &);
-	virtual void receive(unsigned int length) throw (XCommError &);
-	void query(const XString &str) throw (XCommError &);
-	virtual void query(const char *str) throw (XCommError &);
-	//! format version of query()
-	//! \sa printf()
-	void queryf(const char *format, ...) throw (XInterfaceError &)
-		__attribute__ ((format(printf,2,3)));
-  
-	void setEOS(const char *str);
 	void setGPIBUseSerialPollOnWrite(bool x) {m_bGPIBUseSerialPollOnWrite = x;}
 	void setGPIBUseSerialPollOnRead(bool x) {m_bGPIBUseSerialPollOnRead = x;}
 	void setGPIBWaitBeforeWrite(int msec) {m_gpibWaitBeforeWrite = msec;}
@@ -62,7 +85,6 @@ public:
 	void setGPIBWaitBeforeSPoll(int msec) {m_gpibWaitBeforeSPoll = msec;}
 	void setGPIBMAVbit(unsigned char x) {m_gpibMAVbit = x;}
   
-	const XString &eos() const {return m_eos;}
 	bool gpibUseSerialPollOnWrite() const {return m_bGPIBUseSerialPollOnWrite;}
 	bool gpibUseSerialPollOnRead() const {return m_bGPIBUseSerialPollOnRead;}
 	int gpibWaitBeforeWrite() const {return m_gpibWaitBeforeWrite;}
@@ -88,13 +110,20 @@ public:
 	const XString &serialEOS() const {return m_serialEOS;}
 	bool serialHasEchoBack() const {return m_serialHasEchoBack;}
 
+    virtual void send(const XString &str) throw (XCommError &);
+    virtual void query(const XString &str) throw (XCommError &);
+
+    virtual void send(const char *str) throw (XCommError &);
+    virtual void write(const char *sendbuf, int size) throw (XCommError &);
+    virtual void receive() throw (XCommError &);
+    virtual void receive(unsigned int length) throw (XCommError &);
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 private:
-	XString m_eos, m_serialEOS;
+    XString m_serialEOS;
 	bool m_bGPIBUseSerialPollOnWrite;
 	bool m_bGPIBUseSerialPollOnRead;
 	int m_gpibWaitBeforeWrite;
@@ -122,8 +151,8 @@ private:
 
 class XPort {
 public:
-	XPort(XCharInterface *interface);
-	virtual ~XPort();
+    XPort(XCharInterface *interface): m_pInterface(interface) {}
+    virtual ~XPort() {}
 	virtual void open() throw (XInterface::XCommError &) = 0;
 	virtual void send(const char *str) throw (XInterface::XCommError &) = 0;
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &) = 0;
@@ -131,9 +160,8 @@ public:
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &) = 0;
 	//! Thread-Local-Storage Buffer.
 	//! \sa XThreadLocal
-	std::vector<char>& buffer() {return *s_tlBuffer;}
+    std::vector<char>& buffer() {return m_pInterface->buffer_receive();}
 protected:
-	static XThreadLocal<std::vector<char> > s_tlBuffer;
 	XCharInterface *const m_pInterface;
 };
 

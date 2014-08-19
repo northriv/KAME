@@ -29,6 +29,7 @@ extern "C" {
 #define CMD_LED 0x12
 
 #define ADDR_IDN 0x1f
+#define ADDR_CHARINTF 0xa0
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
@@ -131,7 +132,9 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
 }
 
 XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
-    : XInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
+    : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset % 0x100u) {
+
+    setEOS("\r\n");
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !s_refcnt)
@@ -140,8 +143,17 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
 
         for(Transaction tr( *this);; ++tr) {
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
-                XString idn = getIDN(it->handle, 7);
-                if( !idn.length()) continue;
+                XString idn;
+                if(strlen(id)) {
+                    //for PG and DV series.
+                    idn = getIDN(it->handle, 7);
+                    if( !idn.length()) continue;
+                }
+                else {
+                    //for PROT
+                    if(it->addr != addr_offset / 0x100u) continue;
+                    idn = query("*IDN?");
+                }
                 idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
             }
@@ -352,3 +364,45 @@ XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) 
     }
 }
 
+void
+XWinCUSBInterface::send(const char *str) throw (XCommError &) {
+    XScopedLock<XInterface> lock(*this);
+    try {
+        dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
+        XString buf = str + eos();
+        for(auto c = buf.begin(); c != buf.end(); ++buf) {
+            writeToRegister8(ADDR_CHARINTF, (uint8_t)*c);
+        }
+    }
+    catch (XCommError &e) {
+        e.print(driver()->getLabel() + i18n(" SendError, because "));
+        throw e;
+    }
+}
+void
+XWinCUSBInterface::write(const char *sendbuf, int size) throw (XCommError &) {
+}
+void
+XWinCUSBInterface::receive() throw (XCommError &) {
+    XScopedLock<XInterface> lock(*this);
+    try {
+        dbgPrint(driver()->getLabel() + " Receiving...");
+        for(;;) {
+            char c = singleRead(ADDR_CHARINTF);
+            if( !c || (c == 0xffu))
+                break;
+            buffer_receive().push_back(c);
+        }
+        assert(buffer().size());
+        buffer_receive().push_back('\0');
+        dbgPrint(driver()->getLabel() + " Received;\"" +
+                 dumpCString((const char*)&buffer()[0]) + "\"");
+    }
+    catch (XCommError &e) {
+        e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
+        throw e;
+    }
+}
+void
+XWinCUSBInterface::receive(unsigned int length) throw (XCommError &) {
+}
