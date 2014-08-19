@@ -15,6 +15,8 @@
 #include "charinterface.h"
 #include <vector>
 
+#define DEV_ADDR_PROT 0x6
+
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
 class XWinCUSBInterface : public XCustomCharInterface {
 public:

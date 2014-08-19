@@ -28,7 +28,7 @@ REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control
     void XThamwayUSBPROT::start() {
         interface()->query("*IDN?");
         fprintf(stderr, "PROT:%s\n", interface()->toStr().c_str());
-        XThamwayPROT::start();
+        XThamwayPROT<XThamwayMODCUSBInterface>::start();
     }
 #endif
 
@@ -110,6 +110,7 @@ XThamwayPROT<tInterface>::start() {
     double bw;
     if(this->interface()->scanf("LPF1R%lf", &bw) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
+    bw *= 1e-3;
     for(Transaction tr( *this);; ++tr) {
         tr[ *this->freq()] = f;
         tr[ *this->oLevel()] = olevel;
@@ -195,8 +196,8 @@ template <class tInterface>
 void
 XThamwayPROT<tInterface>::onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *) {
     double bw = shot[ *rxLPFBW()];
-    bw = std::min(200.0, std::max(0.0, bw));
-    this->interface()->sendf("LPF1W%07.0f", bw);
+//    bw = std::min(200.0, std::max(0.0, bw));
+    this->interface()->sendf("LPF1W%07.0f", bw * 1e3);
 }
 
 template class XThamwayPROT<class XCharInterface>;
