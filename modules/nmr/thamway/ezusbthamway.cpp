@@ -131,7 +131,7 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
+XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint16_t addr_offset, const char* id)
     : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset % 0x100u) {
 
     setEOS("\r\n");
@@ -152,7 +152,8 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
                 else {
                     //for PROT
                     if(it->addr != addr_offset / 0x100u) continue;
-                    idn = query("*IDN?");
+                    query("*IDN?");
+                    idn = toStrSimplified();
                 }
                 idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
@@ -370,7 +371,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
-        for(auto c = buf.begin(); c != buf.end(); ++buf) {
+        for(auto c = buf.begin(); c != buf.end(); ++c) {
             writeToRegister8(ADDR_CHARINTF, (uint8_t)*c);
         }
     }
