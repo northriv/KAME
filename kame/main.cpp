@@ -223,8 +223,8 @@ int main(int argc, char *argv[]) {
 
     app.processEvents();
 
-    const char *greeting[] = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__ " \n";
-    fprintf(stderr, greeting);
+    const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
+    fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
 	fprintf(stderr, "Initializing LTDL.\n");
