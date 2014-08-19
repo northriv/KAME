@@ -959,11 +959,11 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		}
 	}
     
-	//insert low priority (cheap) pulses into pattern set
+    //insert low-priority (cheap) pulses into pattern set
 	for(tpatset_it it = patterns_cheap.begin(); it != patterns_cheap.end(); it++) {
 		uint64_t npos = it->pos;
 		for(tpatset_it kit = patterns.begin(); kit != patterns.end(); kit++) {
-			//Avoid overrapping within 1 us
+            //Avoid overrapping within minPulseWidth(), which is typ. 1 us
 			uint64_t diff = llabs(kit->pos - npos);
 			diff -= pos * (diff / pos);
 			if(diff < rintSampsMilliSec(minPulseWidth())) {
@@ -1005,6 +1005,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		}
 	}
     
+    //Prepares analog pulse waves for QAM
     if(hasQAMPorts()) {
     	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
     		tr[ *this].m_qamWaveForm[i].clear();

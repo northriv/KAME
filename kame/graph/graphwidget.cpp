@@ -28,13 +28,9 @@ typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     QGLWidget( QGLFormat(QGL::SampleBuffers) //QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |QGL::DepthBuffer | QGL::AccumBuffer |
-               , parent, 0, Qt::WindowFlags(fl | Qt::WA_PaintOnScreen)) {
+               , parent, 0, Qt::WindowFlags(fl)) { // | Qt::WA_PaintOnScreen
     if( !format().directRendering()) dbgPrint("direct rendering disabled");
-//    if( !parent->layout() ) {
-//        parent->setLayout(new QHBoxLayout(this));
-//        parent->layout()->addWidget(this);
-//    }
-    setMouseTracking(true);
+//    setMouseTracking(true);
     setAutoFillBackground(false);
 
 }
@@ -118,14 +114,14 @@ XQGraph::showEvent ( QShowEvent *) {
 		// m_painter will be re-set in the constructor.
 		new XQGraphPainter(graph, this);
         glInit();
-//        setMouseTracking(true);
+        setMouseTracking(true);
     }
 }
 void
 XQGraph::hideEvent ( QHideEvent * ) {
 	m_conDialog.reset();
 	m_painter.reset();
-//    setMouseTracking(false);
+    setMouseTracking(false);
 }
 //! openGL stuff
 void
