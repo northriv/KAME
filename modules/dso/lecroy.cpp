@@ -83,8 +83,11 @@ XLecroyDSO::isWaveMaster() {
     if(interface()->toStr().find("WAVEMASTER") != std::string::npos) return true;
     char buf[256];
     if(interface()->scanf("LECROY,LT%s", buf) == 1) return false;
-    if(interface()->toStr().find("MXI") != std::string::npos) return true;
-    return false;
+    if(interface()->scanf("LECROY,LC%s", buf) == 1) return false;
+    int num;
+    if(interface()->scanf("LECROY,9%d", &num) == 1) return false;
+//    if(interface()->toStr().find("MXI") != std::string::npos) return true;
+    return true;
 }
 
 void
