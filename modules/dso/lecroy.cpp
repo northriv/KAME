@@ -157,7 +157,7 @@ XLecroyDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
         auto tch = tchs;
         for(auto it = chs; it != chs + 4; ++it) {
             if( !it->empty()) {
-                if(xstream) {
+                if(wavemaster) {
                     interface()->sendf("%s:DEFINE EQN,'AVG(%s)',AVGTYPE,%s,SWEEPS,%d",
                         *tch, it->c_str(), atype, avg);
                 }
