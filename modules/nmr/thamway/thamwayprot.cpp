@@ -23,6 +23,13 @@ REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control
     REGISTER_TYPE(XDriverList, ThamwayUSBPROT, "Thamway PROT NMR USB Control");
 #endif
 
+XThamwayCharPROT::XThamwayCharPROT(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XThamwayPROT<XCharInterface>(name, runtime, ref(tr_meas), meas) {
+    trans( *this->interface()->port()) = "127.0.0.1:5025";
+    trans( *this->interface()->device()) = "TCP/IP";
+}
+
 template <class tInterface>
 XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -58,8 +65,6 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     rxLPFBW()->setUIEnabled(false);
 
     this->interface()->setEOS("\n");
-    trans( *this->interface()->port()) = "127.0.0.1:5025";
-    trans( *this->interface()->device()) = "TCP/IP";
 }
 template <class tInterface>
 void

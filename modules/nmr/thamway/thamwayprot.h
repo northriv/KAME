@@ -97,7 +97,7 @@ private:
 class XThamwayCharPROT : public XThamwayPROT<XCharInterface> {
 public:
     XThamwayCharPROT(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XThamwayCharPROT() {}
 };
 
