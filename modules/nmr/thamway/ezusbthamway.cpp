@@ -70,6 +70,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
     }
     char gpifwave2[THAMWAY_USB_GPIFWAVE_SIZE];
+    bool always_slow_usb = false;
     try {
         QString path = THAMWAY_USB_GPIFWAVE2_FILE;
         dir.filePath(path);
@@ -85,7 +86,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
     catch (XInterface::XInterfaceError& e) {
         e.print();
         gMessagePrint(i18n_noncontext("Continues with slower USB speed."));
-        gpifwave2 = 0;
+        always_slow_usb = true;
     }
 
     for(int i = 0; i < 8; ++i) {
@@ -104,7 +105,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         s_devices.push_back(dev);
         fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
         char *gpifwave = gpifwave2;
-        if( !gpifwave2 || (dev.addr == DEV_ADDR_PROT))
+        if(always_slow_usb || (dev.addr == DEV_ADDR_PROT))
             gpifwave = gpifwave1;
         setWave(handle, (const uint8_t*)gpifwave);
 
