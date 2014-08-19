@@ -25,11 +25,11 @@ extern "C" {
     #include "fx2fw.h"
 }
 
-#define CMD_DIPSW 0x11
-#define CMD_LED 0x12
+#define CMD_DIPSW 0x11u
+#define CMD_LED 0x12u
 
-#define ADDR_IDN 0x1f
-#define ADDR_CHARINTF 0xa0
+#define ADDR_IDN 0x1fu
+#define ADDR_CHARINTF 0xa0u
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
 #define THAMWAY_USB_GPIFWAVE_FILE "fullspec_dat.bin"
