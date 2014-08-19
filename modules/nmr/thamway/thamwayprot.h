@@ -108,6 +108,9 @@ public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
             : XWinCUSBInterface(name, runtime, driver, 0x600u, "") {} //DIP-SW address should be 6
         virtual ~XThamwayMODCUSBInterface() {}
+    protected:
+        //! Starts up your threads, connects GUI, and activates signals.
+        virtual void start();
     };
 
     //! Thamway NMR PROT series for USB

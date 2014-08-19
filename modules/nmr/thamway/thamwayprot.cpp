@@ -25,6 +25,11 @@ REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(name, runtime, ref(tr_meas), meas) {
         interface()->setEOS("\r\n");
     }
+    void XThamwayUSBPROT::start() {
+        interface()->query("*IDN?");
+        fprintf(stderr, "PROT:%s\n", interface()->toStr().c_str());
+        XThamwayPROT::start();
+    }
 #endif
 
 XThamwayCharPROT::XThamwayCharPROT(const char *name, bool runtime,

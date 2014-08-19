@@ -380,6 +380,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
 void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
+    msecsleep(20);
     buffer_receive().clear();
     try {
         dbgPrint(driver()->getLabel() + " Receiving...");
