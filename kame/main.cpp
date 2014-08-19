@@ -223,6 +223,10 @@ int main(int argc, char *argv[]) {
 
     app.processEvents();
 
+    const char *greeting[] = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__ " \n";
+    fprintf(stderr, greeting);
+    gMessagePrint(greeting);
+
 	fprintf(stderr, "Initializing LTDL.\n");
 	lt_dlinit();
 #ifdef __linux__
