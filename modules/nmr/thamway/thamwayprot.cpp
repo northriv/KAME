@@ -23,9 +23,6 @@ REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control
     REGISTER_TYPE(XDriverList, ThamwayUSBPROT, "Thamway PROT NMR USB Control");
 #endif
 
-XThamwayCharPROT::XThamwayCharPROT(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XCharInterface>(name, runtime, ref(tr_meas), meas) {}
-
 template <class tInterface>
 XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
