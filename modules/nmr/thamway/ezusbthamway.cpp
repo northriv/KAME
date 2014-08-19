@@ -379,9 +379,6 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     }
 }
 void
-XWinCUSBInterface::write(const char *sendbuf, int size) throw (XCommError &) {
-}
-void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
     try {
@@ -401,7 +398,4 @@ XWinCUSBInterface::receive() throw (XCommError &) {
         e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
         throw e;
     }
-}
-void
-XWinCUSBInterface::receive(unsigned int length) throw (XCommError &) {
 }
