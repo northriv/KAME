@@ -20,7 +20,7 @@
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
 class XWinCUSBInterface : public XCustomCharInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint16_t addr_offset, const char* id);
+    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
     virtual ~XWinCUSBInterface();
 
     virtual void open() throw (XInterfaceError &);

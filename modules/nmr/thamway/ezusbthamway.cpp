@@ -155,8 +155,8 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint16_t addr_offset, const char* id)
-    : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset % 0x100u) {
+XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
+    : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !s_refcnt)
@@ -173,7 +173,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
                 }
                 else {
                     //for PROT
-                    if(it->addr != addr_offset / 0x100u) continue;
+                    if(it->addr != DEV_ADDR_PROT) continue;
                     idn = "PROT";
                 }
                 idn = formatString("%d:%s", it->addr, idn.c_str());
@@ -389,6 +389,7 @@ XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) 
 void
 XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
+    XScopedLock<XWinCUSBInterface> lock( *this);
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
@@ -404,6 +405,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
 void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
+    XScopedLock<XWinCUSBInterface> lock( *this);
     msecsleep(20);
     buffer_receive().clear();
     try {

@@ -11,8 +11,11 @@ set(thamway_SRCS
 	thamwayprot.cpp 
 	thamwaypulser.cpp
  )
+ 
+ kde4_add_ui_files(thamway_SRCS
+  thamwayprotform.ui  )
 
-add_library(thamway MODULE ${thamway_SRCS})
+kde4_add_library(thamway MODULE ${thamway_SRCS})
 target_link_libraries(thamway kame_charinterface kame_networkanalyzercore kame_sgcore kame_nmrpulsercore ${MODULE_LINKER_FLAGS})
 ########### install files ###############
 install(TARGETS thamway LIBRARY  DESTINATION ${KAME_MODULE_INSTALL_DIR})
