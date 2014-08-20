@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
 	options.add("logging", ki18n("log debugging info."));
 	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
-    options.add("overpaint", ki18n("draws text over OpenGL rendered scenes"));
+    options.add("nooverpaint", ki18n("draws text with QGLWidget::drawText/FTGL"));
     options.add("nodr");
 	options.add("nodirectrender", ki18n("do not use direct rendering"));
 	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
@@ -116,8 +116,8 @@ int main(int argc, char *argv[]) {
 
     QCommandLineOption logOption(QStringList() << "l" << "logging", "Log debugging info.");
     parser.addOption(logOption);
-    QCommandLineOption overpaintOption(QStringList() << "o" << "overpaint", "Draws text over OpenGL rendered scenes.");
-    parser.addOption(overpaintOption);
+    QCommandLineOption noOverpaintOption(QStringList() << "o" << "nooverpaint", "draws text with QGLWidget::drawText");
+    parser.addOption(noOverpaintOption);
     QCommandLineOption mlockAllOption(QStringList() << "m" << "mlockall",
           "Never cause swapping, perhaps you need 'ulimit -l <MB>'");
     parser.addOption(mlockAllOption);
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
     QStringList args = parser.positionalArguments();
 
     g_bLogDbgPrint = parser.isSet(logOption);
-    g_bUseOverpaint = parser.isSet(overpaintOption);
+    g_bUseOverpaint = !parser.isSet(noOverpaintOption);
     g_bMLockAlways = parser.isSet(mlockAllOption);
     g_bUseMLock = !parser.isSet(noMLockOption);
 	QStringList  module_dir = parser.values(moduleDirectoryOption);

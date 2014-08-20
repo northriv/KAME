@@ -512,13 +512,25 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
 }
 void
 XQGraphPainter::paintGL () {
+    glGetError(); // flush error
+
+    GLint depth_func_org;
     if(g_bUseOverpaint) {
         //stores states
+        glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         m_textOverpaint.clear();
     }
-    glGetError(); // flush error
+    else {
+        // Set up the rendering context,
+        glHint(GL_POINT_SMOOTH_HINT,GL_FASTEST);
+        glHint(GL_LINE_SMOOTH_HINT,GL_FASTEST);
+        glDisable(GL_LINE_SMOOTH);
+        glDisable(GL_POINT_SMOOTH);
+    }
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glDepthFunc(GL_LEQUAL);
 
     glMatrixMode(GL_PROJECTION);
     // be aware of retina display.
@@ -693,6 +705,7 @@ XQGraphPainter::paintGL () {
         glDisable(GL_CULL_FACE);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_LIGHTING);
+        glDepthFunc(depth_func_org);
         glMatrixMode(GL_MODELVIEW);
         glPopMatrix();
 
