@@ -32,8 +32,8 @@ extern "C" {
 #define ADDR_CHARINTF 0xa0u
 
 #define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
-#define THAMWAY_USB_GPIFWAVE1_FILE "slow_dat.bin"
-#define THAMWAY_USB_GPIFWAVE2_FILE "fullspec_dat.bin"
+#define THAMWAY_USB_GPIFWAVE1_FILE "slow_dat.bin" //for USB1.1
+#define THAMWAY_USB_GPIFWAVE2_FILE "fullspec_dat.bin" //for USB2.0 burst-transfer enabled
 #define THAMWAY_USB_GPIFWAVE_SIZE 172
 
 XMutex XWinCUSBInterface::s_mutex;
@@ -229,17 +229,17 @@ XWinCUSBInterface::close() throw (XInterfaceError &) {
 
 void
 XWinCUSBInterface::resetBulkWrite() {
-    m_bBulkWrite = false;
+    m_bBurstWrite = false;
     m_buffer.clear();
 }
 void
 XWinCUSBInterface::deferWritings() {
     assert(m_buffer.size() == 0);
-    m_bBulkWrite = true;
+    m_bBurstWrite = true;
 }
 void
 XWinCUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
-    if(m_bBulkWrite) {
+    if(m_bBurstWrite) {
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
@@ -254,7 +254,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     addr += m_addrOffset;
     assert(addr < 0x100u);
 
-    if(m_bBulkWrite) {
+    if(m_bBurstWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
             XScopedLock<XWinCUSBInterface> lock( *this);
             bulkWriteStored();
@@ -389,7 +389,7 @@ XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) 
 void
 XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XWinCUSBInterface> lock( *this);
+    XScopedLock<XWinCUSBInterface> lock2( *this);
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
@@ -405,7 +405,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
 void
 XWinCUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XWinCUSBInterface> lock( *this);
+    XScopedLock<XWinCUSBInterface> lock2( *this);
     msecsleep(20);
     buffer_receive().clear();
     try {

@@ -75,6 +75,6 @@ private:
     shared_ptr<XRecursiveMutex> m_mutex;
     XString m_idString;
     uint8_t m_addrOffset;
-    bool m_bBulkWrite;
-    std::vector<uint8_t> m_buffer; //writing buffer for a bulk write.
+    bool m_bBurstWrite;
+    std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
 };
