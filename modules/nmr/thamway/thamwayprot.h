@@ -106,7 +106,7 @@ public:
     class XThamwayMODCUSBInterface : public XWinCUSBInterface {
     public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XWinCUSBInterface(name, runtime, driver, DEV_ADDR_PROT * 0x100u, "") {} //DIP-SW address should be 6
+            : XWinCUSBInterface(name, runtime, driver, 0u, "") {} //DIP-SW address should be 6 (=DEV_ADDR_PROT)
         virtual ~XThamwayMODCUSBInterface() {}
     };
 
