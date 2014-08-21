@@ -61,10 +61,12 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         QString path = THAMWAY_USB_GPIFWAVE1_FILE;
         dir.filePath(path);
         if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") + THAMWAY_USB_GPIFWAVE1_FILE i18n(" not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
+            THAMWAY_USB_GPIFWAVE1_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") + THAMWAY_USB_GPIFWAVE1_FILE i18n(" not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
+            THAMWAY_USB_GPIFWAVE1_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
         int size = file.read(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE);
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
@@ -75,10 +77,12 @@ XWinCUSBInterface::openAllEZUSBdevices() {
         QString path = THAMWAY_USB_GPIFWAVE2_FILE;
         dir.filePath(path);
         if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") + THAMWAY_USB_GPIFWAVE2_FILE i18n(" not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
+            THAMWAY_USB_GPIFWAVE2_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
         QFile file(dir.absoluteFilePath(path));
         if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") + THAMWAY_USB_GPIFWAVE2_FILE i18n(" not found"), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
+            THAMWAY_USB_GPIFWAVE2_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
         int size = file.read(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE);
         if(size != THAMWAY_USB_GPIFWAVE_SIZE)
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
