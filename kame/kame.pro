@@ -207,6 +207,8 @@ else:unix {
 win32 {
     INCLUDEPATH += "C:/Ruby187/lib/ruby/1.8/i386-mingw32/"
     LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static -lWS2_32
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
+    LIBS += -lgsl #-lgslcblas
 }
 
 unix: LIBS += -lclapack -lcblas -latlas
