@@ -27,53 +27,7 @@ using std::max;
 #include <QString>
 #include <errno.h>
 
-#ifdef HAVE_FTGL
-
-    #define DEFAULT_FONT_SIZE 12
-
-	#include <kstandarddirs.h>
-	#include <kapplication.h>
-	#include <kconfig.h>
-	#include <kconfigbase.h>
-	#include "FTGL/FTGLPixmapFont.h"
-	#define FONT_FILE "mikachan/mikachan.ttf"
-	static int s_fontRefCount = 0;
-	static FTFont *s_pFont = NULL;
-
-	static void
-	openFont() {
-		if(s_fontRefCount == 0) {
-			QString filename = KStandardDirs::locate("appdata", FONT_FILE);
-			if(filename.isEmpty())
-			{
-				gErrPrint(i18n("No Fontfile!!"));
-			}
-			s_pFont = new FTGLPixmapFont(filename.toLocal8Bit().data() );
-			assert(s_pFont->Error() == 0);
-			s_pFont->CharMap(ft_encoding_unicode);
-		}
-
-		s_fontRefCount++;
-	}
-
-	static void
-	closeFont() {
-		s_fontRefCount--;
-		if(s_fontRefCount == 0) {
-			delete s_pFont;
-			s_pFont = NULL;
-		}
-	}
-	static std::wstring
-	string2wstring(const XString &str) {
-		QString qstr(str);
-	    std::vector<wchar_t> buf(qstr.length() + 1);
-	    qstr.toWCharArray(&buf[0]);
-	    return &buf[0];
-	}
-#else
-    #define DEFAULT_FONT_SIZE 12
-#endif //HAVE_FTGL
+#define DEFAULT_FONT_SIZE 12
 
 #define checkGLError() \
 {	 \
@@ -131,11 +85,6 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 #else
 		1.0;
 #endif
-#ifdef HAVE_FTGL
-    if( !g_bUseOverpaint) {
-        openFont();
-    }
-#endif
 }
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
@@ -145,11 +94,6 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
-#ifdef HAVE_FTGL
-    if( !g_bUseOverpaint) {
-        closeFont();
-    }
-#endif
 }
 
 int
@@ -283,22 +227,7 @@ XQGraphPainter::selectFont(const XString &str,
     int fontsize_org = m_curFontSize;
 	m_curAlign = align;
     
-#ifdef HAVE_FTGL
-    if( !g_bUseOverpaint) {
-        float llx, lly, llz, urx, ury, urz;
-        std::wstring wstr = string2wstring(str);
-        for(;;) {
-            s_pFont->FaceSize(m_curFontSize);
-            s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-            if(m_curFontSize < fontsize_org - 4) return -1;
-            if((urx < w ) && (ury < h)) break;
-            m_curFontSize--;
-        }
-    }
-    else {
-#else
     {
-#endif
         QFont font(m_pItem->font());
         for(;;) {
             font.setPointSize(m_curFontSize);
@@ -313,38 +242,7 @@ XQGraphPainter::selectFont(const XString &str,
 }
 void
 XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-#ifdef HAVE_FTGL
-    if( !g_bUseOverpaint) {
-        float llx, lly, llz, urx, ury, urz;
-        std::wstring wstr = string2wstring(str);
-
-        glRasterPos3f(p.x, p.y, p.z);
-        checkGLError();
-
-        s_pFont->FaceSize(m_curFontSize);
-        s_pFont->BBox(wstr.c_str(), llx, lly, llz, urx, ury, urz);
-        int w = lrintf(urx);
-        int h = lrintf(ury);
-
-        float x = 0.0f, y = 0.0f;
-        if( (m_curAlign & Qt::AlignVCenter) ) y -= h / 2;
-        if( (m_curAlign & Qt::AlignTop) ) y -= h;
-        if( (m_curAlign & Qt::AlignHCenter) ) x -= w / 2;
-        if( (m_curAlign & Qt::AlignRight) ) x -= w;
-        // Move raster position
-        if((x != 0.0f) || (y != 0.0f))
-            glBitmap( 0, 0, 0.0f, 0.0f, x, y, (const GLubyte*)0);
-
-        s_pFont->Render(wstr.c_str());
-        checkGLError();
-        if(s_pFont->Error())
-            gWarnPrint(i18n("GL Font Error."));
-
-    }
-    else {
-#else
     {
-#endif //HAVE_FTGL
         double x,y,z;
         screenToWindow(p, &x, &y, &z);
 

@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
 	options.add("logging", ki18n("log debugging info."));
 	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
-    options.add("nooverpaint", ki18n("draws text with QGLWidget::drawText/FTGL"));
+    options.add("nooverpaint", ki18n("draws text with QGLWidget::drawText"));
     options.add("nodr");
 	options.add("nodirectrender", ki18n("do not use direct rendering"));
 	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
