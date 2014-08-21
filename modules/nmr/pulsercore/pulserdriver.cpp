@@ -443,6 +443,7 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
     tr[ *this].m_pulserMode = pulser_mode;
     switch(pulser_mode) {
     case N_MODE_NMR_PULSER:
+    default:
         tr[ *this].m_rtime = reader.pop<double>();
         tr[ *this].m_tau = reader.pop<double>();
         tr[ *this].m_pw1 = reader.pop<double>();
@@ -537,8 +538,6 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
         tr[ *this].m_paPulseOrigin = tr[ *this].m_pw1 / 2;
         createRelPatListPulseAnalyzer(tr);
     	break;
-    default:
-    	throw XRecordError("Undefined mode.", __FILE__, __LINE__);
     }
 	createNativePatterns(tr); //calling driver specific virtual funciton.
 }

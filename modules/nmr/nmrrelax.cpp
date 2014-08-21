@@ -183,7 +183,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *autoPhase()] = true;
 		tr[ *autoWindow()] = true;
 		tr[ *mInftyFit()] = true;
-		tr[ *smoothSamples()] = 256;
+        tr[ *smoothSamples()] = 30;
 
 		if(tr.commit())
 			break;
