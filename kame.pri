@@ -43,6 +43,7 @@ win32 {
     LIBS += -L"C:/Program Files/GnuWin32/lib/"
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
     LIBS += -lgsl -lgslcblas -lltdl -lz
+    DEFINES += GSL_DLL
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
 }
 
