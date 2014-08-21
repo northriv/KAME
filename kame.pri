@@ -45,7 +45,7 @@ win32 {
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
     LIBS += -lltdl -lz
 #    DEFINES += GSL_DLL
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/include
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -lgsl
     #work around for GSL SIGSEGV
