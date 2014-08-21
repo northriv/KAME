@@ -47,7 +47,7 @@ win32 {
     DEFINES += GSL_DLL
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
-    LIBS += -lgsl -lgslcblas
+    LIBS += -lgsl #-lgslcblas
 }
 
 unix: CONFIG += link_pkgconfig
