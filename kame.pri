@@ -46,10 +46,6 @@ win32 {
     LIBS += -lltdl -lz
 #    DEFINES += GSL_DLL
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
-    LIBS += -lgsl #-lgslcblas
-    #work around for GSL SIGSEGV
-    QMAKE_LFLAGS += -Wl,--stack,10485760
 }
 
 unix: CONFIG += link_pkgconfig
