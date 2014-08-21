@@ -18,7 +18,7 @@
 #include "graphwidget.h"
 
 #include <Qt>
-#include <qgl.h>
+#include <QtOpenGL>
 
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
