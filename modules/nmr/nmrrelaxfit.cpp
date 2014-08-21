@@ -471,15 +471,18 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 	for(i = 0; i < p; i++)
 		param[i] = gsl_vector_get (s->x, i);
 
-	gsl_matrix *covar = gsl_matrix_alloc (p, p);
-	gsl_multifit_covar (s->J, 0.0, covar);
-	for(i = 0; i < p; i++) {
-		c = gsl_matrix_get(covar,i,i);
+    if( !status) {
+        gsl_matrix *covar = gsl_matrix_alloc (p, p);
+        if(gsl_multifit_covar (s->J, 0.0, covar) == 0) {
+            for(i = 0; i < p; i++) {
+                c = gsl_matrix_get(covar,i,i);
 
-		err[i] = (c > 0) ? sqrt(c) : -1.0;
+                err[i] = (c > 0) ? sqrt(c) : -1.0;
+            }
+        }
+        gsl_matrix_free(covar);
     }
-    gsl_matrix_free(covar);
-    gsl_multifit_fdfsolver_free (s);
+	gsl_multifit_fdfsolver_free (s);
 
 	return status;
 }
