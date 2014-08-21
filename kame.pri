@@ -36,15 +36,18 @@ macx {
 }
 
 win32 {
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     INCLUDEPATH += "C:/Program Files/GnuWin32/include"
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
     LIBS += -L"C:/Program Files/GnuWin32/lib/"
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
-    LIBS += -lgsl -lgslcblas -lltdl -lz
-    DEFINES += GSL_DLL
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
+    LIBS += -lltdl -lz
+#    DEFINES += GSL_DLL
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    LIBS += -lgsl
     #work around for GSL SIGSEGV
     QMAKE_LFLAGS += -Wl,--stack,10485760
 }
