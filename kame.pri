@@ -45,9 +45,9 @@ win32 {
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
     LIBS += -lltdl -lz
 #    DEFINES += GSL_DLL
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/include
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/lib
-    LIBS += -lgsl -lgslcblas
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    LIBS += -lgsl #-lgslcblas
     #work around for GSL SIGSEGV
     QMAKE_LFLAGS += -Wl,--stack,10485760
 }
