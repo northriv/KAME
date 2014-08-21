@@ -478,8 +478,8 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 
 		err[i] = (c > 0) ? sqrt(c) : -1.0;
     }
-	gsl_matrix_free(covar);
-	gsl_multifit_fdfsolver_free (s);
+    gsl_matrix_free(covar);
+    gsl_multifit_fdfsolver_free (s);
 
 	return status;
 }
