@@ -433,9 +433,6 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
 int
 do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f  *ef, exp_df *edf, exp_fdf *efdf
 		, int itercnt) {
-    char dummy[256];
-    memset(dummy, 0, sizeof(dummy));
-
 	const gsl_multifit_fdfsolver_type *T;
 	T = gsl_multifit_fdfsolver_lmsder;
 	gsl_multifit_fdfsolver *s;
