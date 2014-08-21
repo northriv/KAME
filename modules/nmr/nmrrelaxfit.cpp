@@ -442,9 +442,9 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 	double c;
 	gsl_multifit_function_fdf f;
 
-	gsl_ieee_env_setup ();
+    gsl_ieee_env_setup ();
 
-	f.f = ef;
+    f.f = ef;
 	f.df = edf;
 	f.fdf = efdf;
 	f.n = n;
