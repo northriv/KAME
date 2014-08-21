@@ -89,7 +89,7 @@ XThamwayPROT<tInterface>::start() {
     for(int i = 0; ; ++i) {
         if(this->interface()->scanf("FREQR%lf", &f) == 1)
             break;
-        if(i > 2)
+        if(i > 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         this->interface()->receive(); //flushing not-welcome message if any, although this is TCP connection.
     }
