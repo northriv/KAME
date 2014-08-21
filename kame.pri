@@ -45,6 +45,8 @@ win32 {
     LIBS += -lgsl -lgslcblas -lltdl -lz
     DEFINES += GSL_DLL
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
+    #work around for GSL SIGSEGV
+    LIBS += -Wl,--stack,10485760
 }
 
 unix: CONFIG += link_pkgconfig
