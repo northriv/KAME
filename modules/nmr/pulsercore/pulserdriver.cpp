@@ -539,7 +539,12 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&
         createRelPatListPulseAnalyzer(tr);
     	break;
     }
-	createNativePatterns(tr); //calling driver specific virtual funciton.
+    try {
+        createNativePatterns(tr); //calling driver specific virtual funciton.
+    }
+    catch (XInterface::XInterfaceError &e) {
+        e.print();
+    }
 }
 
 void
