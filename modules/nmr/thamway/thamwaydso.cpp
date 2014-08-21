@@ -64,8 +64,6 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
             break;
     }
 
-    trace1()->disable();
-    trace2()->disable();
     vFullScale3()->disable();
     vFullScale4()->disable();
     vOffset1()->disable();
@@ -191,11 +189,16 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     smps--;
 //    fprintf(stderr, "samps%d\n", smps);
-//    Snapshot shot( *this);
+    Snapshot shot( *this);
 //    smps = shot[ *recordLength()];
     if(smps > MAX_SMPL)
         throw XInterface::XInterfaceError(i18n("# of samples exceeded the limit."), __FILE__, __LINE__);
-    writer->push((uint16_t)2); //channels
+
+    std::deque<uint8_t> adds;
+    if(shot[ *trace1()] >= 0) adds.push_back( (shot[ *trace1()] == 0) ? ADDR_BURST_CH1 : ADDR_BURST_CH2 );
+    if(shot[ *trace2()] >= 0) adds.push_back( (shot[ *trace2()] == 0) ? ADDR_BURST_CH1 : ADDR_BURST_CH2 );
+
+    writer->push((uint16_t)adds.size()); //channels
     writer->push((uint32_t)0); //reserve
     writer->push((uint32_t)0); //reserve
     int acq = interface()->readRegister16(ADDR_ACQCNTM1_MSW);
@@ -205,16 +208,12 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     writer->push((uint32_t)smps);
     writer->push((double)getTimeInterval());
     std::vector<uint8_t> buf(smps * sizeof(uint32_t));
-    //Ch1
-    interface()->burstRead(ADDR_BURST_CH1, &buf[0], buf.size());
-    writer->push((double)1.0/3276.8); //[V/bit]
-    writer->push((double)-2.5); //offset[V]
-    writer->insert(writer->end(), buf.begin(), buf.end());
-    //Ch2
-    interface()->burstRead(ADDR_BURST_CH2, &buf[0], buf.size());
-    writer->push((double)1.0/3276.8); //[V/bit]
-    writer->push((double)-2.5); //offset[V]
-    writer->insert(writer->end(), buf.begin(), buf.end());
+    for(auto it = adds.begin(); it != adds.end(); ++it) {
+        interface()->burstRead( *it, &buf[0], buf.size());
+        writer->push((double)1.0/3276.8); //[V/bit]
+        writer->push((double)-2.5); //offset[V]
+        writer->insert(writer->end(), buf.begin(), buf.end());
+    }
 }
 void
 XThamwayDVUSBDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
