@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
 
 	KAboutData aboutData( "kame", "", ki18n("KAME"),
 						  VERSION, ki18n(description), KAboutData::License_GPL,
-						  ki18n("(c) 2003-2009"), ki18n(""), "", "kitag@kochi-u.ac.jp");
+                          ki18n("(c) 2003-2014"), ki18n(""), "", "kitag@kochi-u.ac.jp");
 	KCmdLineArgs::init( argc, argv, &aboutData );
 
 	KCmdLineOptions options;
@@ -177,10 +177,9 @@ int main(int argc, char *argv[]) {
 					dbgPrint(formatString("MLOCKALL failed errno=%d.", errno));
 				}
 			}
-
+#endif
 			if(g_bUseMLock)
                 mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
-#endif
 
             if( !usedirectrender) {
                 QGLFormat f;

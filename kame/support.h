@@ -45,6 +45,7 @@
     #define USE_STD_THREAD
     #include <QThread>
     #include <thread>
+    int mlock(const void *addr, size_t len);
 #else
     #include <pthread.h>
     #define USE_PTHREAD

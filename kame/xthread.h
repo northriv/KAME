@@ -248,9 +248,9 @@ XThread<T>::xthread_start_routine(void *x) {
 			dbgPrint("MLOCKALL failed.");
 		}
 	}
-	if(g_bUseMLock)
-		mlock(&arg, 8192uL); //reserve stack.
 #endif
+    if(g_bUseMLock)
+		mlock(&arg, 8192uL); //reserve stack.
 
 	arg->this_ptr.reset();
 	void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
