@@ -262,6 +262,10 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
+    if( !QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_2_1) {
+        gErrPrint(i18n_noncontext("KAME requires OpenGL 2.1 or later for graph drawing."));
+    }
+
     int ret = app.exec();
 
 //#if defined __WIN32__ || defined WINDOWS
