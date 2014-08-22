@@ -294,7 +294,7 @@ XString dumpCString(const char *cstr)
     int mlock(const void *addr, size_t len) {
         return (VirtualLock(addr, len) != 0) ? 0 : -1;
     }
-#else
+#endif
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 X86CPUSpec::X86CPUSpec() {
