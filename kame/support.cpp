@@ -292,7 +292,7 @@ XString dumpCString(const char *cstr)
 #if defined __WIN32__ || defined WINDOWS
     #include <windows.h>
     int mlock(const void *addr, size_t len) {
-        return (VirtualLock(addr, len) != 0) ? 0 : -1;
+        return (VirtualLock((LPVOID)addr, len) != 0) ? 0 : -1;
     }
 #endif
 
