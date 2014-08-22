@@ -239,16 +239,6 @@ template <class T>
 void *
 XThread<T>::xthread_start_routine(void *x) {
 	shared_ptr<targ> arg = ((targ *)x)->this_ptr;
-#ifdef USE_PTHREAD
-	if(g_bMLockAlways) {
-		if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
-			dbgPrint("MLOCKALL succeeded.");
-		}
-		else{
-			dbgPrint("MLOCKALL failed.");
-		}
-	}
-#endif
     if(g_bUseMLock)
 		mlock(&arg, 8192uL); //reserve stack.
 
