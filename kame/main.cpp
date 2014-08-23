@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
     app.installTranslator(&appTranslator);
 #endif
 
-//#if defined __WIN32__ || defined WINDOWS
+//#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 //    if(AllocConsole()) {
 //        freopen("CONOUT$", "w", stdout);
 //        freopen("CONOUT$", "w", stderr);
@@ -168,9 +168,9 @@ int main(int argc, char *argv[]) {
         makeIcons();
 		{
 
-#if !defined __WIN32__ && !defined WINDOWS
+#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
 			if(g_bMLockAlways) {
-				if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
+                if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
 					dbgPrint("MLOCKALL succeeded.");
 				}
 				else{
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
 
     int ret = app.exec();
 
-//#if defined __WIN32__ || defined WINDOWS
+//#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 //    FreeConsole();
 //#endif
 

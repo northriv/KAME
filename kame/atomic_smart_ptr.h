@@ -14,18 +14,18 @@
 #ifndef ATOMIC_SMART_PTR_H_
 #define ATOMIC_SMART_PTR_H_
 
-#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
-#include "atomic_prv_x86.h"
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
+    || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+    #include "atomic_prv_x86.h"
 #else
-#if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
-#include "atomic_prv_ppc.h"
-#else
-#error Unsupported processor
-#endif // __ppc__
+    #if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
+        #include "atomic_prv_ppc.h"
+    #else
+        #error Unsupported processor
+    #endif // __ppc__
 #endif // __i386__
 
 #include <type_traits>
-#include <unistd.h>
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
@@ -411,7 +411,7 @@ atomic_shared_ptr<T>::reserve_scan_(Refcnt *rcnt) const {
 		*/
 		if(rcnt_new >= this->ATOMIC_SHARED_REF_ALIGNMENT) {
 			// This would never happen.
-			usleep(1);
+            memoryBarrier();
 			continue;
 		}
 		// trying to increase local reference counter w/ same serial.

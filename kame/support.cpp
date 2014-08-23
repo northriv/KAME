@@ -26,7 +26,7 @@ bool g_bUseMLock;
 
 #include "xthread.h"
 
-#if defined __WIN32__ || defined WINDOWS
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 	#define KAME_LOG_FILENAME "kame.log"
 #else
 	#define KAME_LOG_FILENAME "/tmp/kame.log"
@@ -79,7 +79,7 @@ XKameError::print(const XString &msg, const char *file, int line, int errno_) {
 		char *s = strerror_r(errno_, buf, sizeof(buf));
 		gErrPrint_redirected(msg + " " + s, file, line);
     #else
-        #if defined __WIN32__ || defined WINDOWS
+        #if defined __WIN32__ || defined WINDOWS || defined _WIN32
             strerror_s(buf, sizeof(buf), errno_);
         #else
             strerror_r(errno_, buf, sizeof(buf));
@@ -154,7 +154,7 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
 							 .arg(line)
 							 .arg(str)).toUtf8().data()
 			<< std::endl;
-#if !defined __WIN32__ && !defined WINDOWS
+#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
         sync(); //ensures disk writing.
 #endif
 	}
@@ -227,7 +227,7 @@ XString formatDouble(const char *fmt, double var) {
 	}
 
 	if(!strncmp(fmt, "TIME:", 5)) {
-#if !defined __WIN32__ && !defined WINDOWS
+#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
         if(isnan(var))
             return "nan";
 #endif
@@ -289,7 +289,7 @@ XString dumpCString(const char *cstr)
 	return buf;
 }
 
-#if defined __WIN32__ || defined WINDOWS
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
     #include <windows.h>
     int mlock(const void *addr, size_t len) {
         return (VirtualLock((LPVOID)addr, len) != 0) ? 0 : -1;

@@ -13,7 +13,7 @@
 ***************************************************************************/
 #include "dummyport.h"
 
-#if defined __WIN32__ || defined WINDOWS
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 	#define DUMMYPORT_FILENAME "kamedummyport.log"
 #else
 	#define DUMMYPORT_FILENAME "/tmp/kamedummyport.log"

@@ -20,9 +20,9 @@
     #define TCP_SOCKET
 #endif //__linux__ || LINUX
 
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
     #define TCP_SOCKET
-#endif // WINDOWS || __WIN32__
+#endif // WINDOWS || __WIN32__ || defined _WIN32
 
 #if defined TCP_SOCKET
     #define USE_TCP

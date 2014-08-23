@@ -25,11 +25,11 @@
 #endif
 
 #ifdef HAVE_NI488
-    #if defined WINDOWS || defined __WIN32__
+    #if defined WINDOWS || defined __WIN32__ || defined _WIN32
         #define DIRECT_ENTRY_NI488
         static int load_ni4882dll();
         static int free_ni4882dll();
-    #endif // WINDOWS || __WIN32__
+    #endif // WINDOWS || __WIN32__ || defined _WIN32
     inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
     #include <ni4882.h>
     extern "C" {

@@ -15,7 +15,7 @@
 
 #ifdef TCP_SOCKET
 
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
 
@@ -114,7 +114,7 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 	do {
         int ret = ::send(m_socket, sendbuf, size - wlen, 0);
         if(ret <= 0) {
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
             if((errno == WSAEINTR)) {
 #else
@@ -149,7 +149,7 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
 		}
 		if(rlen < 0) {
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
             if((errno == WSAEINTR)) {
 #else
@@ -185,7 +185,7 @@ XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 		if(rlen == 0)
             throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
 		if(rlen < 0) {
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
             if((errno == WSAEINTR)) {
 #else

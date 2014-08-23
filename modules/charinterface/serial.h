@@ -20,9 +20,9 @@
 #define SERIAL_POSIX
 #endif //__linux__ || LINUX
 
-#if defined WINDOWS || defined __WIN32__
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
 #define SERIAL_QT
-#endif // WINDOWS || __WIN32__
+#endif // WINDOWS || __WIN32__ || defined _WIN32
 
 #if defined SERIAL_QT || defined SERIAL_POSIX
 #define USE_SERIAL

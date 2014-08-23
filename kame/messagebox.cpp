@@ -33,7 +33,7 @@ XMessageBox::XMessageBox(QWidget *parent) {
 
     QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
     int y = rect.bottom() - s_pFrmMessage->height();
-#if defined __WIN32__ || defined WINDOWS
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
     y -= 50; //for taskbar, due to a bug of availableGeometry.
 #endif
     s_pFrmMessage->move(0, y);

@@ -16,6 +16,8 @@
 #ifndef xrubysupportH
 #define xrubysupportH
 
+//#include <ruby.h>
+//undef truncate
 #include "xrubythread.h"
 #include "xnode.h"
 #include "xlistnode.h"

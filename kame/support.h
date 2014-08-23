@@ -40,7 +40,7 @@
 #define DEBUG_XTHREAD 1
 #endif
 
-#if defined __WIN32__ || defined WINDOWS
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
     #define USE_QTHREAD
     #define USE_STD_THREAD
     #include <QThread>
@@ -141,10 +141,15 @@ XString dumpCString(const char *cstr);
 
 //! \sa printf()
 XString formatString(const char *format, ...)
-__attribute__ ((format(printf,1,2)));
+#if defined __GNUC__ || defined __clang__
+    __attribute__ ((format(printf,1,2)));
+#endif
+;
 XString formatString_tr(const char *format_i18n_noop, ...)
-__attribute__ ((format(printf,1,2)));
-
+#if defined __GNUC__ || defined __clang__
+    __attribute__ ((format(printf,1,2)));
+#endif
+;
 XString formatDouble(const char *fmt, double val);
 //! validator
 //! throw XKameError
