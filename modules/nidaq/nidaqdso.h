@@ -86,7 +86,7 @@ private:
 		std::vector<int32_t> record;
 		atomic<int> locked;
 		bool tryLock() {
-			bool ret = locked.compareAndSet(false, true);
+            bool ret = locked.compare_exchange_strong(false, true);
 			readBarrier();
 			return ret;
 		}

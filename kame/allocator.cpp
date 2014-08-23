@@ -20,6 +20,7 @@
 #include "support.h"
 
 #include "atomic.h"
+#include "atomic_prv_x86.h"
 
 #include <string.h>
 #include <type_traits>
@@ -251,7 +252,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 //			assert( !(one & oldv));
 			if(oldv == 0) {
 				*pflag = one;
-				atomicInc( &this->m_flags_nonzero_cnt);
+                atomicInc( &this->m_flags_nonzero_cnt);
 				writeBarrier(); //for the counter.
 				break;
 			}
@@ -259,7 +260,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				FUINT newv = oldv | one; //set a flag.
 				if(atomicCompareAndSet(oldv, newv, pflag)) {
 					if(newv == ~(FUINT)0u) {
-						atomicInc( &this->m_flags_filled_cnt);
+                        atomicInc( &this->m_flags_filled_cnt);
 						writeBarrier(); //for the counter.
 					}
 					break;

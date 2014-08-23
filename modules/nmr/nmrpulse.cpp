@@ -674,7 +674,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			return;
 	}
 
-	if(m_isPulseInversionRequested.compareAndSet((int)true, (int)false)) {
+    if(m_isPulseInversionRequested.compare_exchange_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
 		if(pulse__) {
 			for(Transaction tr( *pulse__);; ++tr) {

@@ -34,7 +34,7 @@ XListener::~XListener() {}
 
 unsigned int
 XListener::delay_ms() const {
-	unsigned int delay = std::min(20u, g_adaptiveDelay);
+    unsigned int delay = std::min(20u, (unsigned int)g_adaptiveDelay);
 	if(m_flags & FLAG_DELAY_ADAPTIVE)
 		delay = g_adaptiveDelay;
 	if(m_flags & FLAG_DELAY_SHORT)

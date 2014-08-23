@@ -57,3 +57,5 @@ unix: PKGCONFIG += zlib
 unix: LIBS += -lltdl
 
 macx: DEFINES += HAVE_LAPACK
+
+DEFINES += USE_STD_ATOMIC

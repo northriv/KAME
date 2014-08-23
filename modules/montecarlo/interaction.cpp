@@ -622,7 +622,7 @@ MonteCarlo::execute()
 			m_thread_pool_cond.wait();
 			continue;
 		}
-		if(!m_hint_site2_left.compareAndSet(left, left - 1))
+        if(!m_hint_site2_left.compare_exchange_strong(left, left - 1))
 			continue;
     
 		int site2 = m_hint_sec_cache_miss[left - 1];
@@ -632,7 +632,7 @@ MonteCarlo::execute()
 		m_hint_fields[site2] = iterate_interactions(
 			m_hint_spin1_site, m_hint_spin1_lattice_index, site2);
 		memoryBarrier();
-		if(m_hint_site2_not_done.decAndTest()) {
+        if(m_hint_site2_not_done.decAndTest()) {
 			XScopedLock<XCondition> lock(m_hint_site2_last_cond);
 			m_hint_site2_last_cond.signal();
 		}
@@ -666,14 +666,14 @@ MonteCarlo::hinteraction_miscache(int sec_cache_miss_cnt, int site1, int lidx)
 			}
 			break;
 		}
-		if(!m_hint_site2_left.compareAndSet(left, left - 1))
+        if(!m_hint_site2_left.compare_exchange_strong(left, left - 1))
 			continue;
         
 		int site2 = m_hint_sec_cache_miss[left - 1];
 		assert(site2 < 16);
         
 		m_hint_fields[site2] = iterate_interactions(site1, lidx, site2);
-		if(m_hint_site2_not_done.decAndTest()) {            
+        if(m_hint_site2_not_done.decAndTest()) {
 			readBarrier();
 			break;
 		}

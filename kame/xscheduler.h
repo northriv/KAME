@@ -35,7 +35,7 @@ private:
 	atomic<unsigned long> m_oldest_timestamp;
 };
 
-extern unsigned int g_adaptiveDelay; //!< ms.
+extern atomic<unsigned int> g_adaptiveDelay; //!< ms.
 extern shared_ptr<XSignalBuffer> g_signalBuffer;
 
 #endif /*XSCHEDULER_H_*/

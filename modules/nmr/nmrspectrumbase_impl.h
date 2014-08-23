@@ -289,7 +289,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		return;
 	}
 
-	if(m_isInstrumControlRequested.compareAndSet((int)true, (int)false))
+    if(m_isInstrumControlRequested.compare_exchange_strong((int)true, (int)false))
 		rearrangeInstrum(shot);
 
 	int length = shot[ *this].wave().size();

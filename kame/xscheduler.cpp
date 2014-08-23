@@ -18,7 +18,7 @@ shared_ptr<XSignalBuffer> g_signalBuffer;
 #define ADAPTIVE_DELAY_MIN 10
 #define ADAPTIVE_DELAY_MAX 100
 
-unsigned int g_adaptiveDelay = ADAPTIVE_DELAY_MIN;
+atomic<unsigned int> g_adaptiveDelay = ADAPTIVE_DELAY_MIN;
 
 void 
 registerTransactionList(XTransaction_ *transaction) {
@@ -85,7 +85,7 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
 				for(;;) {
 					unsigned int delay = g_adaptiveDelay;
 					if(delay <= ADAPTIVE_DELAY_MIN) break;
-					if(atomicCompareAndSet(delay, delay - 1, &g_adaptiveDelay)) {
+                    if(g_adaptiveDelay.compare_exchange_strong(delay, delay - 1)) {
 						break;
 					}
 				}
@@ -93,7 +93,7 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
 			}
 			if(cost > 100000uL) {
 				if(g_adaptiveDelay < ADAPTIVE_DELAY_MAX) {
-					atomicInc( &g_adaptiveDelay);
+                    ++g_adaptiveDelay;
 				}
 			}
 			msecsleep(std::min(cost / 1000000uL, 10uL));

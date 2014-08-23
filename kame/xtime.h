@@ -33,12 +33,6 @@ class XTime {
 public:
     XTime() : tv_sec(0), tv_usec(0) {}
     XTime(long sec, long usec) : tv_sec(sec), tv_usec(usec) {}
-    XTime(const XTime &x) :
-        tv_sec(x.tv_sec), tv_usec(x.tv_usec) {}
-    XTime &operator=(const XTime &x) {
-        tv_sec = x.tv_sec; tv_usec = x.tv_usec;
-        return *this;
-    }
     double operator-(const XTime &x) const {
         return (tv_sec - x.tv_sec) + (tv_usec - x.tv_usec) * 1e-6;
     }

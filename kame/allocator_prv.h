@@ -94,11 +94,11 @@ protected:
 	//! Every bit indicates occupancy in m_mempool.
 	FUINT * const m_flags;
 	//! A hint for searching in a chunk.
-	int m_idx;
+    int m_idx;
 	const int m_count;
 	//! # of flags that having non-zero values.
-	int m_flags_nonzero_cnt;
-	//! # of flags that having fully filled values.
+    int m_flags_nonzero_cnt;
+    //! # of flags that having fully filled values.
 	int m_flags_filled_cnt;
 	int m_idx_of_type;
 

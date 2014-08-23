@@ -17,23 +17,7 @@
 #include <type_traits>
 #include <inttypes.h>
 
-//! memory barriers.
-inline void readBarrier() {
-	asm volatile( "lfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-}
-inline void writeBarrier() {
-	asm volatile( "sfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-}
-inline void memoryBarrier() {
-	asm volatile( "mfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-}
-
-inline void pause4spin() {
-	asm volatile( "pause" ::: "memory" );
-}
+#include "atomic_prv_mfence_x86.h"
 
 #define HAVE_CAS_2
 typedef intptr_t int_cas2;

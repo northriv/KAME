@@ -729,7 +729,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 	}
 
 	//set new P1s
-	if(shot[ *active()] && m_isPulserControlRequested.compareAndSet((int)true, (int)false)) {
+    if(shot[ *active()] && m_isPulserControlRequested.compare_exchange_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulser__ = shot[ *pulser()];
 		if(pulser__) {
 			for(Transaction tr( *pulser__);; ++tr) {

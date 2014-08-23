@@ -38,23 +38,20 @@ public:
     void pop() {
         assert(*m_pFirst);
         *m_pFirst = 0;
-        atomicDec(&m_count);
         writeBarrier();
+        readBarrier();
+        --m_count;
     }
     //! This is not reentrant.
     T front() {
-        T *first = m_pFirst;
-        readBarrier();
+        atomic<T> *first = m_pFirst;
         while(*first == 0) {
             first++;
             if(first == &m_ptrs[SIZE]) {
             	first = m_ptrs;
-		        readBarrier();
             }
         }
         m_pFirst = first;
-        writeBarrier();
-		readBarrier();
         return *first;
     }
     //! This is not reentrant.
@@ -71,34 +68,40 @@ public:
 	//! \param item to be added.
 	//! \return true if succeeded.
     bool atomicPush(T t) {
-        assert(t);
+        assert(t);//has to be nonzero.
+        //m_count++ atomically, and the room is reserved.
+        for(;;) {
+            unsigned int x = m_count;
+            if(x == SIZE) {
+                readBarrier();
+                if(m_count == SIZE)
+                    return false;
+                continue;
+            }
+            if(m_count.compare_exchange_strong(x, x + 1)) {
+                break;
+            }
+        }
         writeBarrier();
         for(;;) {
-        	if(m_count == SIZE) {
-        		readBarrier();
-	        	if(m_count == SIZE)
-    	            return false;
-        	}
-            T *last = m_pLast;
-            T *first = m_pFirst;
-            readBarrier();
+            atomic<T> *last = m_pLast;
+            atomic<T> *last_org = last;
+            //finds zero.
             while( *last != 0) {
                 last++;
                 if(last == &m_ptrs[SIZE]) {
-                	readBarrier();
-                	last = m_ptrs;
-                }
-                if(last == first) {
-                	break;
+                    last = m_ptrs;
                 }
             }
-            if(atomicCompareAndSet((T)0, t, last)) {
-				m_pLast = last;
-				break;
+            //tags the end of the queue.
+            if(m_pLast.compare_exchange_strong(last_org, last)) {
+                //CAS from zero to the item.
+                if(last->compare_exchange_strong((T)0, t)) {
+                    break;
+                }
             }
+            readBarrier();
         }
-		atomicInc(&m_count);
-		writeBarrier();
 		return true;
     }
     //! Tries to pop the front item.
@@ -106,44 +109,51 @@ public:
 	//! \return true if succeeded.
     bool atomicPop(const_ref item) {
     	assert(item);
-        if(atomicCompareAndSet((T)item, (T)0, m_pFirst)) {
-			atomicDec(&m_count);
-			writeBarrier();
-        	return true;
+        atomic<T> *first = m_pFirst;
+        if(first->compare_exchange_strong((T)item, (T)0)) {
+            writeBarrier();
+            --m_count;
+            return true;
         }
         return false;
     }
     //! Tries to obtain the front item.
     const_ref atomicFront() {
-        if(empty())
-        	return 0L;
-        T *first = m_pFirst;
-        readBarrier();
-        while( *first == 0) {
-            first++;
-            if(first == &m_ptrs[SIZE]) {
-            	first = m_ptrs;
-	            if(empty())
-	            	return 0L;
+        for(;;) {
+            if(empty())
+                return 0L;
+            atomic<T> *first = m_pFirst;
+            atomic<T> *first_org = first;
+            for(;;) {
+                const_ref t = *first;
+                if(t) {
+                    if(m_pFirst.compare_exchange_strong(first_org, first))
+                        return t;
+                    break;
+                }
+                first++;
+                if(first == &m_ptrs[SIZE]) {
+                    first = m_ptrs;
+                    readBarrier();
+                    if(empty())
+                        return 0L;
+                }
             }
         }
-        m_pFirst = first;
-		readBarrier();
-        return *first;
     }
     T atomicPopAny() {
         if(empty())
         	return 0L;
-    	T *first = m_pFirst;
+        atomic<T> *first = m_pFirst;
     	readBarrier();
     	for(;;) {
     		if( *first) {
-				T obj = atomicSwap((T)0, first);
+                T obj = first->exchange((T)0);
 				if(obj) {
 		            m_pFirst = first;
-			        atomicDec(&m_count);
-					writeBarrier();
-					readBarrier();
+                    writeBarrier();
+                    readBarrier();
+                    --m_count;
 					return obj;
 				}
     		}
@@ -156,10 +166,10 @@ public:
     	}
     }
 private:
-    T m_ptrs[SIZE];
-    T *m_pFirst;
-    T *m_pLast;
-    unsigned int m_count;
+    atomic<T> m_ptrs[SIZE];
+    atomic<atomic<T> *> m_pFirst;
+    atomic<atomic<T> *> m_pLast;
+    atomic<unsigned int> m_count;
 };
 
 //! Atomic FIFO with a pre-defined size for pointers.

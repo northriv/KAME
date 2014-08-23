@@ -151,7 +151,7 @@ private:
 			if(write_reserve_end > m_data.size()) {
 				if(readpos == 0)
 					return NULL;
-				m_end = m_endOfWritten;
+                m_end = (ssize_t)m_endOfWritten;
 				m_endOfWritten = 0;
 				write_reserve_end = m_endOfWritten + chunkSize();
 			}
@@ -166,8 +166,8 @@ private:
 			m_endOfWritten = pos;
 		}
 	private:
-		atomic<ssize_t> m_curReadPos, m_endOfWritten;
-		atomic<ssize_t> m_end;
+        atomic<ssize_t> m_curReadPos, m_endOfWritten;
+        atomic<ssize_t> m_end;
 		std::vector<T> m_data;
 	};
 

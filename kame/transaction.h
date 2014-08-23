@@ -232,7 +232,7 @@ private:
 				oldserial = s_serial;
 				newserial = oldserial + 1;
 				if(newserial == SERIAL_NULL) newserial++;
-				if(s_serial.compareAndSet(oldserial, newserial))
+                if(s_serial.compare_exchange_strong(oldserial, newserial))
 					return newserial;
 			}
 		}

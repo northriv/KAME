@@ -34,6 +34,9 @@ HEADERS += \
     xthread.h \
     xtime.h \
     atomic_list.h \
+    atomic_prv_std.h \
+    atomic_prv_basic.h \
+    atomic_prv_mfence_x86.h \
     atomic_prv_x86.h \
     atomic_queue.h \
     atomic_smart_ptr.h \
@@ -86,14 +89,6 @@ HEADERS += \
     forms/recordreaderconnector.h \
     messagebox.h
 
-unix {
-    HEADERS += \
-        allocator_prv.h \
-        allocator.h \
-        math/matrix.h \
-        math/freqest.h \
-}
-
 SOURCES += \
     xthread.cpp \
     xtime.cpp \
@@ -142,12 +137,16 @@ SOURCES += \
     main.cpp \
     messagebox.cpp
 
-
 unix {
- SOURCES += allocator.cpp\
-    math/freqest.cpp \
-    math/matrix.cpp \
-
+    HEADERS += \
+        allocator_prv.h \
+        allocator.h \
+        math/matrix.h \
+        math/freqest.h \
+    SOURCES += \
+        allocator.cpp\
+        math/freqest.cpp \
+        math/matrix.cpp \
 }
 
 FORMS += \

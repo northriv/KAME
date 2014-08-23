@@ -52,11 +52,23 @@ XTCPSocketPort::XTCPSocketPort(XCharInterface *intf)
 
 }
 XTCPSocketPort::~XTCPSocketPort() {
-    if(m_socket >= 0) close(m_socket);
+    if(m_socket >= 0) {
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+        closesocket(m_socket);
+#else
+        close(m_socket);
+#endif
+    }
 }
 void
 XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
-    if(m_socket >= 0) close(m_socket);
+    if(m_socket >= 0) {
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+        closesocket(m_socket);
+#else
+        close(m_socket);
+#endif
+    }
     open();
 }
 
