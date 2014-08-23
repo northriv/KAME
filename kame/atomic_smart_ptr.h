@@ -42,19 +42,19 @@ public:
 	//! Nevertheless, this object is not atomically replaced.
 	//! That is, the object pointed by "this" must not be shared among threads.
 	void swap(atomic_unique_ptr &x) {
-		if(m_ptr) writeBarrier(); //for the contents of this.
+        if((t_ptr)m_ptr) writeBarrier(); //for the contents of this.
         m_ptr = x.m_ptr.exchange(m_ptr);
-		if(m_ptr) readBarrier(); //for the contents.
+        if((t_ptr)m_ptr) readBarrier(); //for the contents.
 	}
 
     bool operator!() const {readBarrier(); return !(t_ptr)m_ptr;}
     operator bool() const {readBarrier(); return (t_ptr)m_ptr;}
 
 	//! This function lacks thread-safety.
-    T &operator*() const { assert(m_ptr); return (T &) *(t_ptr)m_ptr;}
+    T &operator*() const { assert((t_ptr)m_ptr); return (T &) *(t_ptr)m_ptr;}
 
 	//! This function lacks thread-safety.
-	t_ptr operator->() const { assert(m_ptr); return (t_ptr)m_ptr;}
+    t_ptr operator->() const { assert((t_ptr)m_ptr); return (t_ptr)m_ptr;}
 
 	//! This function lacks thread-safety.
 	t_ptr get() const { return (t_ptr )m_ptr;}

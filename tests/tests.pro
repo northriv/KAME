@@ -2,7 +2,11 @@ TEMPLATE = subdirs
 
 CONFIG += testcase
 
-SUBDIRS = allocator_test\
+unix: {
+    SUBDIRS = allocator_test
+    allocator_test.file = allocator_test.pro
+}
+SUBDIRS += \
     atomic_shared_ptr_test\
     atomic_scoped_ptr_test\
     atomic_queue_test\
@@ -11,7 +15,6 @@ SUBDIRS = allocator_test\
     transaction_dynamic_node_test\
     transaction_negotiation_test
 
-allocator_test.file = allocator_test.pro
 atomic_shared_ptr_test.file = atomic_shared_ptr_test.pro
 atomic_scoped_ptr_test.file = atomic_scoped_ptr_test.pro
 atomic_queue_test.file = atomic_queue_test.pro

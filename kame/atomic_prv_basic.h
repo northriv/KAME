@@ -14,6 +14,12 @@
 #ifndef ATOMIC_PRV_BASIC_H_
 #define ATOMIC_PRV_BASIC_H_
 
+#ifndef USE_STD_ATOMIC
+    #ifdef _MSC_VER
+        #define USE_STD_ATOMIC
+    #endif
+#endif
+
 #include <stdint.h>
 
 template <typename T, class Enable = void > class atomic;

@@ -36,7 +36,6 @@ public:
 
     //! This is not reentrant.
     void pop() {
-        assert(*m_pFirst);
         *m_pFirst = 0;
         writeBarrier();
         readBarrier();
@@ -45,7 +44,7 @@ public:
     //! This is not reentrant.
     T front() {
         atomic<T> *first = m_pFirst;
-        while(*first == 0) {
+        while((T)*first == 0) {
             first++;
             if(first == &m_ptrs[SIZE]) {
             	first = m_ptrs;
@@ -87,7 +86,7 @@ public:
             atomic<T> *last = m_pLast;
             atomic<T> *last_org = last;
             //finds zero.
-            while( *last != 0) {
+            while((T)*last != 0) {
                 last++;
                 if(last == &m_ptrs[SIZE]) {
                     last = m_ptrs;

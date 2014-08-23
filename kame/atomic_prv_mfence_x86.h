@@ -14,41 +14,32 @@
 #ifndef ATOMIC_PRV_MFENCE_X86_H_
 #define ATOMIC_PRV_MFENCE_X86_H_
 
-#include <type_traits>
-#include <inttypes.h>
+#ifdef _MSC_VER
+    #include <intrin.h>
+#else
+    #include <x86intrin.h>
+#endif
 
 //! memory barriers.
 inline void readBarrier() {
-#ifdef _MSC_VER
-    __asm lfence
-#else
-	asm volatile( "lfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-#endif
+    _mm_lfence();
+//	asm volatile( "lfence" ::: "memory" );
+//	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 inline void writeBarrier() {
-#ifdef _MSC_VER
-    __asm sfence
-#else
-    asm volatile( "sfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-#endif
+    _mm_sfence();
+//    asm volatile( "sfence" ::: "memory" );
+//	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 inline void memoryBarrier() {
-#ifdef _MSC_VER
-    __asm mfence
-#else
-    asm volatile( "mfence" ::: "memory" );
-	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
-#endif
+    _mm_mfence();
+//    asm volatile( "mfence" ::: "memory" );
+//	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 
 inline void pause4spin() {
-#ifdef _MSC_VER
-    __asm pause
-#else
-	asm volatile( "pause" ::: "memory" );
-#endif
+    _mm_pause();
+//	asm volatile( "pause" ::: "memory" );
 }
 
 #endif /*ATOMIC_PRV_MFENCE_X86_H_*/

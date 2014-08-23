@@ -33,7 +33,7 @@
 
 
 #define SIZE 100000
-#define NUM_THREADS 2
+#define NUM_THREADS 4
 
 atomic_queue<int, (SIZE + 100) * NUM_THREADS> queue1;
 atomic_pointer_queue<int, NUM_THREADS - 1> queue2;
@@ -160,12 +160,12 @@ std::thread threads[NUM_THREADS];
         threads[i].swap(th);
     }
 
-//    for(int i =0; i < SIZE * NUM_THREADS; i++) {
-//         if(queue1.empty()) continue;
-//        int x = queue1.front();
-//        g_queue1_total -= x;
-//        queue1.pop();
-//    }
+    for(int i =0; i < SIZE * NUM_THREADS; i++) {
+         if(queue1.empty()) continue;
+        int x = queue1.front();
+        g_queue1_total -= x;
+        queue1.pop();
+    }
 
     for(int i = 0; i < NUM_THREADS; i++) {
         threads[i].join();

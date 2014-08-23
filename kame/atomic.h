@@ -14,12 +14,6 @@
 #ifndef ATOMIC_H_
 #define ATOMIC_H_
 
-#ifndef USE_STD_ATOMIC
-    #ifdef _MSC_VER
-        #define USE_STD_ATOMIC
-    #endif
-#endif
-
 #include "atomic_prv_basic.h"
 #include "atomic_smart_ptr.h"
 

@@ -94,14 +94,19 @@ XTime::now() {
 XString
 XTime::getTimeStr(bool subsecond) const {
     if( *this) {
-#ifdef _MSC_VER
-        char *str = ctime( &tv_sec);
-#else
         char str[100];
+#ifdef _MSC_VER
+        __time32_t t32 = tv_sec;
+        __time64_t t64 = tv_sec;
+        if(sizeof(tv_sec) == 4)
+            _ctime32_s(str, sizeof(str - 1), &t32);
+        else
+            _ctime64_s(str, sizeof(str - 1), &t64);
+#else
         ctime_r( &tv_sec, str);
-        str[strlen(str) - 1] = '\0';
 #endif
-		if(subsecond)
+        str[strlen(str) - 1] = '\0';
+        if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
 		return str;
     }
@@ -112,10 +117,15 @@ XTime::getTimeStr(bool subsecond) const {
 XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
     if( *this) {
-#ifdef _MSC_VER
-        struct tm *time = localtime( &tv_sec);
-#else
         struct tm time;
+#ifdef _MSC_VER
+        __time32_t t32 = tv_sec;
+        __time64_t t64 = tv_sec;
+        if(sizeof(tv_sec) == 4)
+            _localtime32_s( &time, &t32);
+        else
+            _localtime64_s( &time, &t64);
+#else
 		localtime_r( &tv_sec, &time);
 #endif
         char str[100];

@@ -136,6 +136,10 @@ double roundlog10(double val);
 //! ex. 38.32, 40 to 30, 0.4234, 0.01 to 0.42
 double setprec(double val, double prec);
 
+#ifdef _MSC_VER
+    #define snprintf(fmt, len, ...) (void)_snprintf_s(fmt, len, len - 1, __VA_ARGS__)
+#endif
+
 //! convert control characters to visible (ex. \xx).
 XString dumpCString(const char *cstr);
 

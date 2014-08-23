@@ -9,8 +9,6 @@
 #include "allocator.h"
 
 #include <stdint.h>
-#include <pthread.h>
-#include <sys/time.h>
 
 //
 //#ifndef HAVE_CAS_2
@@ -62,8 +60,8 @@ public:
 
 atomic_unique_ptr<A> gp1, gp2, gp3;
 
-void *
-start_routine(void *) {
+void
+start_routine(void) {
 	for(int i = 0; i < 1000000; i++) {
     	atomic_unique_ptr<A> p1(new A(1));
     	atomic_unique_ptr<A> p2(new B(2));
@@ -80,7 +78,6 @@ start_routine(void *) {
     	p2.reset();
     	p2.swap(gp1);
 	}
-    return 0;
 }
 
 #define NUM_THREADS 4
@@ -88,18 +85,16 @@ start_routine(void *) {
 int
 main(int argc, char **argv)
 {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
+std::thread threads[NUM_THREADS];
 
-pthread_t threads[NUM_THREADS];
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_create(&threads[i], NULL, start_routine, NULL);
-	}
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_join(threads[i], NULL);
-	}
-	gp1.reset();
+    for(int i = 0; i < NUM_THREADS; i++) {
+        std::thread th( &start_routine);
+        threads[i].swap(th);
+    }
+    for(int i = 0; i < NUM_THREADS; i++) {
+        threads[i].join();
+    }
+    gp1.reset();
 	gp2.reset();
 	gp3.reset();
     if(objcnt != 0) {

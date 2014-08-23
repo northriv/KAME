@@ -50,11 +50,13 @@ public:
 		Payload &operator=(const long &x) {
 			total += x - m_x;
 			m_x = x;
-		}
+            return *this;
+        }
 		Payload &operator+=(const long &x) {
 			total += x;
 			m_x += x;
-		}
+            return *this;
+        }
 	private:
 		long m_x;
 //		double load[10000];

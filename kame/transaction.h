@@ -368,7 +368,7 @@ private:
 template <class XN>
 template <class T, typename... Args>
 T *Node<XN>::create(Args... args) {
-	*T::stl_funcPayloadCreator = &PayloadWrapper<T>::funcPayloadCreator;
+    *T::stl_funcPayloadCreator = (FuncPayloadCreator)&PayloadWrapper<T>::funcPayloadCreator;
 	return new T(args...);
 }
 

@@ -54,7 +54,7 @@ public:
 	template<typename Y> allocator(const allocator<Y> &) throw () {}
 	~allocator() throw () {}
 
-    pointer allocate(size_type num, const void */*hint*/ = 0) {
+    pointer allocate(size_type num, const void * /*hint*/ = 0) {
 		return (pointer) (operator new(num * sizeof(T)));
 	}
 	void construct(pointer p, const T& value) {
