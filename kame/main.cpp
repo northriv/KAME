@@ -54,7 +54,7 @@ int load_module(const char *filename, lt_ptr data) {
 }
 
 int main(int argc, char *argv[]) {
-    char dummy_for_mlock[2048];
+    char dummy_for_mlock[8192];
 #ifdef HAVE_LIBGCCPP
 	//initialize GC
 	GC_INIT();
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
 
 #if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
 			if(g_bMLockAlways) {
-                if(( mlockall(MCL_CURRENT | MCL_FUTURE ) == 0)) {
+                if(( mlockall(MCL_CURRENT) == 0)) {
 					dbgPrint("MLOCKALL succeeded.");
 				}
 				else{
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 			}
 #endif
 			if(g_bUseMLock)
-                mlock(dummy_for_mlock, 4096uL); //reserve stack of main thread.
+                mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 
             if( !usedirectrender) {
                 QGLFormat f;

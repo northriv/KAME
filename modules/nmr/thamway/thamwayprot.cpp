@@ -97,7 +97,7 @@ XThamwayPROT<tInterface>::start() {
     double olevel;
     if(this->interface()->scanf("ATT1R%lf", &olevel) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
-    olevel = log10(olevel / 1023.0);
+    olevel = log10(olevel / 1023.0) * 20.0;
     this->interface()->query("GAINR");
     double gain;
     if(this->interface()->scanf("GAINR%lf", &gain) != 1)
@@ -176,7 +176,7 @@ XThamwayPROT<tInterface>::onRFONChanged(const Snapshot &shot, XValueNodeBase *) 
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    this->interface()->sendf("ATT1W%04.0f", (double)pow(10, shot[ *this->oLevel()] / 10.0) * 1023.0);
+    this->interface()->sendf("ATT1W%04.0f", (double)pow(10, shot[ *this->oLevel()] / 20.0) * 1023.0);
 }
 template <class tInterface>
 void
