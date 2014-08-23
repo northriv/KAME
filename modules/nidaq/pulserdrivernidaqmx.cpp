@@ -539,7 +539,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	while( !m_isThreadWriterReady) {
 		if(m_threadWriter->isTerminated())
 			return;
-		usleep(1000);
+        msecsleep(1);
 		if(XTime::now() - wait_since > 1.0)
 			throw XInterface::XInterfaceError(
 				i18n("Buffer filling encountered time out."), __FILE__, __LINE__);
@@ -785,8 +785,8 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			samps_ao = m_patBufAO.writtenSize();
 		}
 		if( !samps_do && !samps_ao) {
-			usleep(lrint(std::min(1e3 * m_transferSizeHintDO * dma_do_period,
-				1e3 * m_transferSizeHintAO * dma_ao_period) / 2));
+            msecsleep(lrint(std::min(m_transferSizeHintDO * dma_do_period,
+                m_transferSizeHintAO * dma_ao_period) / 2));
 			continue;
 		}
 		try {
@@ -985,7 +985,7 @@ XNIDAQmxPulser::executeFillBuffer(const atomic<bool> &terminating) {
 			if( !buffer_not_full) {
 				//Waiting until previous data have been sent.
 				double dma_do_period = resolution();
-				usleep(lrint(1e3 * m_transferSizeHintDO * dma_do_period / 2));
+                msecsleep(lrint(m_transferSizeHintDO * dma_do_period / 2));
 			}
 		}
 		m_genTotalCount -= m_genRestCount;

@@ -9,9 +9,7 @@
 #include "allocator.h"
 
 #include <stdint.h>
-#include <pthread.h>
-#include <sys/time.h>
-
+#include <thread>
 
 #include "atomic_smart_ptr.h"
 #include "xthread.cpp"
@@ -59,8 +57,8 @@ public:
 
 atomic_shared_ptr<A> gp1, gp2, gp3;
 
-void *
-start_routine(void *) {
+void
+start_routine() {
 	printf("start\n");
 	for(int i = 0; i < 400000; i++) {
     	local_shared_ptr<A> p1(new A(4));
@@ -99,7 +97,7 @@ start_routine(void *) {
     	}
 	}
 	printf("finish\n");
-    return 0;
+    return;
 }
 
 #define NUM_THREADS 4
@@ -107,17 +105,15 @@ start_routine(void *) {
 int
 main(int argc, char **argv)
 {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
+    std::thread threads[NUM_THREADS];
 
-pthread_t threads[NUM_THREADS];
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_create(&threads[i], NULL, start_routine, NULL);
-	}
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_join(threads[i], NULL);
-	}
+    for(int i = 0; i < NUM_THREADS; i++) {
+        std::thread th( &start_routine);
+        threads[i].swap(th);
+    }
+    for(int i = 0; i < NUM_THREADS; i++) {
+        threads[i].join();
+    }
 	printf("join\n");
 	gp1.reset();
 	gp2.reset();

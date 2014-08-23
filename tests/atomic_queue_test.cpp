@@ -9,8 +9,7 @@
 #include "allocator.h"
 
 #include <stdint.h>
-#include <pthread.h>
-#include <sys/time.h>
+#include <thread>
 
 
 //#define HAVE_CAS_2
@@ -44,9 +43,9 @@ typedef atomic_queue_reserved<int, NUM_THREADS-  1>::key atomic_queue_reserved_k
 atomic<int> g_queue1_total = 0, g_queue2_total = 0, g_queue3_total = 0;
 atomic<int> g_cnt = 0;
 
-void *
-start_routine(void *) {
-    usleep(100);
+void
+start_routine(void) {
+    msecsleep(1);
     for(int j = 0; j < SIZE; j++) {
     	int i;
     	for(;;) {
@@ -106,10 +105,6 @@ start_routine(void *) {
 int
 main(int argc, char **argv)
 {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
-
     for(int i = 0; i < NUM_THREADS; i++) {
         try {
 	        queue3.push(i);
@@ -159,13 +154,15 @@ main(int argc, char **argv)
 		   queue3.size(), (int)g_queue3_total);
     }
 
-pthread_t threads[NUM_THREADS];
+std::thread threads[NUM_THREADS];
+
 	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_create(&threads[i], NULL, start_routine, NULL);
+        std::thread th( &start_routine);
+        threads[i].swap(th);
 	}
 
     for(int i =0; i < SIZE * NUM_THREADS; i++) {
-    	 if(queue1.empty()) usleep(1);
+         if(queue1.empty()) msecsleep(0);
     	 if(queue1.empty()) continue;
         int x = queue1.front();
         g_queue1_total -= x;
@@ -173,7 +170,7 @@ pthread_t threads[NUM_THREADS];
     }
 
 	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_join(threads[i], NULL);
+        threads[i].join();
 	}
 
     for(;;) {

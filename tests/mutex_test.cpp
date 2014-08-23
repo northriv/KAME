@@ -9,8 +9,7 @@
 #include "allocator.h"
 
 #include <stdint.h>
-#include <pthread.h>
-#include <sys/time.h>
+#include <thread>
 
 #include "xthread.h"
 #include "xthread.cpp"
@@ -23,8 +22,8 @@ XRecursiveMutex g_rec_mutex;
 int g_cnt1 = 0;
 int g_cnt2 = 0;
 
-void *
-start_routine(void *) {
+void
+start_routine(void) {
 	printf("start\n");
 	for(int i = 0; i < 100000; i++) {
 		XScopedLock<XMutex> lock(g_mutex);
@@ -44,7 +43,7 @@ start_routine(void *) {
 		g_cnt1--;
 	}
 	printf("finish\n");
-    return 0;
+    return;
 }
 
 #define NUM_THREADS 8
@@ -52,18 +51,16 @@ start_routine(void *) {
 int
 main(int argc, char **argv)
 {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
+    std::thread threads[NUM_THREADS];
 
-pthread_t threads[NUM_THREADS];
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_create(&threads[i], NULL, start_routine, NULL);
-	}
-	for(int i = 0; i < NUM_THREADS; i++) {
-		pthread_join(threads[i], NULL);
-	}
-	printf("join\n");
+    for(int i = 0; i < NUM_THREADS; i++) {
+        std::thread th( &start_routine);
+        threads[i].swap(th);
+    }
+    for(int i = 0; i < NUM_THREADS; i++) {
+        threads[i].join();
+    }
+    printf("join\n");
     if(g_cnt1 != 0) {
     	printf("failed\n");
     	return -1;

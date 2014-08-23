@@ -594,7 +594,7 @@ inline bool
 XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 	if(m_suspendRead) {
 		m_readMutex.unlock();
-		while(m_suspendRead && !terminated) usleep(30000);
+        while(m_suspendRead && !terminated) msecsleep(30);
 		m_readMutex.lock();
 		return true;
 	}
@@ -675,7 +675,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 					//					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
 					break;
 				}
-				usleep(lrint(1e6 * size * m_interval / 6));
+                msecsleep(lrint(1e3 * size * m_interval / 6));
 			}
 		}
 		else {
@@ -702,7 +702,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 				int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
 				if( !ret && (space >= (uInt32)samps))
 					break;
-				usleep(lrint(1e6 * (samps - space) * m_interval));
+                msecsleep(lrint(1e3 * (samps - space) * m_interval));
 			}
 			if(terminated)
 				return;

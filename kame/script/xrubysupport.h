@@ -23,6 +23,7 @@
 #include "xlistnode.h"
 
 #define MISSING_H //for buggy ruby in win32
+#include <unistd.h>
 #include <ruby.h>
 #ifdef connect
     #undef connect //for buggy ruby in win32

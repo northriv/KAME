@@ -13,8 +13,7 @@
 #include "xthread.cpp"
 #include <deque>
 
-#include <pthread.h>
-#include <sys/time.h>
+#include <thread>
 
 atomic<int> objcnt = 0;
 atomic<long> total = 0;
@@ -63,8 +62,8 @@ public:
     plong *arr;
 };
 
-void *
-start_routine(void *) {
+void
+start_routine(void) {
 	printf("start\n");
 	for(int i = 0; i < 100; i++) {
 		A *a = new A(2);
@@ -79,28 +78,25 @@ start_routine(void *) {
 		list.clear();
 	}
 	printf("finish\n");
-    return 0;
 }
 
 #define NUM_THREADS 4
 
 int
 main(int argc, char **argv) {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
-
 	A *a = new A(2);
 	A *b = new B(4);
 	delete a;
 	delete b;
     for(int k = 0; k < 1; k++) {
-	pthread_t threads[NUM_THREADS];
+    std::thread threads[NUM_THREADS];
+
+        for(int i = 0; i < NUM_THREADS; i++) {
+            std::thread th( &start_routine);
+            threads[i].swap(th);
+        }
 		for(int i = 0; i < NUM_THREADS; i++) {
-			pthread_create(&threads[i], NULL, start_routine, NULL);
-		}
-		for(int i = 0; i < NUM_THREADS; i++) {
-			pthread_join(threads[i], NULL);
+            threads[i].join();
 		}
 		printf("join\n");
 

@@ -42,6 +42,7 @@
     #include <arpa/inet.h>
     #include <netdb.h>
     #include <errno.h>
+    #include <unistd.h>
 #endif
  
 #define MIN_BUFFER_SIZE 256

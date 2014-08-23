@@ -11,8 +11,7 @@
 #include "allocator.h"
 
 #include <stdint.h>
-#include <pthread.h>
-#include <sys/time.h>
+#include <thread>
 
 #include "transaction.h"
 
@@ -76,8 +75,8 @@ template class Transactional::Node<LongNode>;
 //! Shared objects.
 shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
-void *
-start_routine(void *) {
+void
+start_routine(void) {
 	printf("start\n");
 	for(int i = 0; i < 2500; i++) {
 		//		gn1->print_();
@@ -117,17 +116,13 @@ start_routine(void *) {
 		trans(*gn3) += -1;
 	}
 	printf("finish\n");
-    return 0;
+    return;
 }
 
 #define NUM_THREADS 4
 
 int
 main(int argc, char **argv) {
-    timeval tv;
-    gettimeofday(&tv, 0);
-    srand(tv.tv_usec);
-
     for(int k = 0; k < 10; k++) {
 		gn1.reset(LongNode::create<LongNode>());
 		gn2.reset(LongNode::create<LongNode>());
@@ -261,14 +256,16 @@ main(int argc, char **argv) {
 		gn1->release(p1);
 		gn1->print_();
 
-	pthread_t threads[NUM_THREADS];
-		for(int i = 0; i < NUM_THREADS; i++) {
-			pthread_create(&threads[i], NULL, start_routine, NULL);
-		}
-		for(int i = 0; i < NUM_THREADS; i++) {
-			pthread_join(threads[i], NULL);
-		}
-		printf("join\n");
+        std::thread threads[NUM_THREADS];
+
+        for(int i = 0; i < NUM_THREADS; i++) {
+            std::thread th( &start_routine);
+            threads[i].swap(th);
+        }
+        for(int i = 0; i < NUM_THREADS; i++) {
+            threads[i].join();
+        }
+        printf("join\n");
 
 		if(***gn1 || ***gn2 || ***gn3 || ***gn4) {
 			printf("failed1\n");
