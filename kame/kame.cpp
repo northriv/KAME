@@ -298,7 +298,7 @@ void
 FrmKameMain::processSignals() {
 	bool idle = g_signalBuffer->synchronize();
 	if(idle) {
-		usleep(5000);
+        msecsleep(5);
 	#ifdef HAVE_LIBGCCPP
 		static XTime last = XTime::now();
 		if(XTime::now() - last > 3) {
@@ -307,7 +307,7 @@ FrmKameMain::processSignals() {
 		}
 	#endif
 	}
-	usleep(500);
+    msecsleep(0);
 }
 
 void
