@@ -147,8 +147,8 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
 			}
 			t0 += ms * 1e-3;
 			while(t0 > XTime::now()) {
-				usleep(1000);
-//				msecsleep(1);
+//				usleep(1000);
+                msecsleep(1);
 				if( !m_transaction_started_time || (((int64_t)started_time <= m_transaction_started_time)))
 					break;
 			}
