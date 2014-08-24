@@ -134,7 +134,7 @@ struct XTypeHolder {
 	template <class tChild>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-			tFunc create_typed = creator_<tChild>;
+            tFunc create_typed = (tFunc)creator_<tChild>;
 			if( !label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {

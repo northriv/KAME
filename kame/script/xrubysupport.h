@@ -22,33 +22,7 @@
 #include "xnode.h"
 #include "xlistnode.h"
 
-#define MISSING_H //for buggy ruby in win32
-#include <unistd.h>
 #include <ruby.h>
-#ifdef connect
-    #undef connect //for buggy ruby in win32
-#endif
-#ifdef write
-    #undef write //for buggy ruby in win32
-#endif
-#ifdef read
-    #undef read //for buggy ruby in win32
-#endif
-#ifdef select
-    #undef select //for buggy ruby in win32
-#endif
-#ifdef open
-    #undef open //for buggy ruby in win32
-#endif
-#ifdef close
-    #undef close //for buggy ruby in win32
-#endif
-#ifdef accept
-    #undef accept //for buggy ruby in win32
-#endif
-#ifdef rename
-    #undef rename //for buggy ruby in win32
-#endif
 
 class XMeasure;
 

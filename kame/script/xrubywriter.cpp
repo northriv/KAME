@@ -21,7 +21,7 @@ XRubyWriter::XRubyWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
 {
     assert(ofs.good());
     ofs << "# KAME2 measurement configuration file" << std::endl
-        << "# Automatically created. KAME version. " VERSION << std::endl
+        << "# Automatically created. KAME version. " << VERSION << std::endl
         << "# date: " << XTime::now().getTimeStr() << std::endl;
     ofs << "x = Array.new" << std::endl;
 }

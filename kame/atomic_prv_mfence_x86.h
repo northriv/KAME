@@ -17,6 +17,8 @@
 #ifdef _MSC_VER
     #include <intrin.h>
 #else
+    #include <emmintrin.h>
+    #include <xmmintrin.h>
     #include <x86intrin.h>
 #endif
 

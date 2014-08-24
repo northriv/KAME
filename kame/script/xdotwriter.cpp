@@ -20,7 +20,7 @@ XDotWriter::XDotWriter(const shared_ptr<XNode> &root, std::ofstream &ofs)
 	: m_root(root), m_ofs(ofs), m_unnamedcnt(0) {
     assert(ofs.good());
     ofs << "/* KAME2 measurement configuration file" << std::endl
-        << "* Automatically created. KAME version. " VERSION << std::endl
+        << "* Automatically created. KAME version. " << VERSION << std::endl
         << "* date: " << XTime::now().getTimeStr() << std::endl
         << "*/" << std::endl;
 }

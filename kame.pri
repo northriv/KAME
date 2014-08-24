@@ -1,5 +1,5 @@
 CONFIG += qt exceptions
-CONFIG += sse2 rtti
+CONFIG += sse sse2 rtti
 
 QT       += core gui
 
@@ -16,7 +16,7 @@ else {
 }
 
 VERSTR = 4.0
-DEFINES += VERSION=\'\"$${VERSTR}\"\'
+DEFINES += VERSION=\"$${VERSTR}\"
 
 KAME_COREMODULES = coremodules
 DEFINES += KAME_COREMODULE_DIR_SURFIX=\'\"/$${KAME_COREMODULES}/\"\'
@@ -60,3 +60,6 @@ unix: LIBS += -lltdl
 macx: DEFINES += HAVE_LAPACK
 
 DEFINES += USE_STD_ATOMIC
+
+QMAKE_CXXFLAGS += -msse -msse2
+

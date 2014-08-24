@@ -60,19 +60,19 @@ public:
 	explicit XNode(const char *name, bool runtime = false);
 	virtual ~XNode();  
 
-	template <class T>
-	shared_ptr<T> create(const char *name) {return create<T>(name, false);}
-	template <class T, typename... Args>
+    template <class T>
+    shared_ptr<T> create(const char *name) {return create<T>(name, false);}
+    template <class T, typename... Args>
 	shared_ptr<T> create(const char *name, bool runtime, Args... args);
 
-	template <class T>
-	shared_ptr<T> create(Transaction &tr, const char *name) {return create<T>(tr, name, false);}
-	template <class T, typename... Args>
+    template <class T>
+    shared_ptr<T> create(Transaction &tr, const char *name) {return create<T>(tr, name, false);}
+    template <class T, typename... Args>
 	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, Args... args);
 
-	template <class T__>
-	static shared_ptr<T__> createOrphan(const char *name) {return createOrphan<T__>(name, false);}
-	template <class T__, typename... Args_>
+    template <class T__>
+    static shared_ptr<T__> createOrphan(const char *name) {return createOrphan<T__>(name, false);}
+    template <class T__, typename... Args_>
 	static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args_... args);
 
 	//! \return internal/scripting name. Use latin1 chars.
@@ -259,7 +259,7 @@ XNode::create(Transaction &tr, const char *name, bool runtime, Args... args) {
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::create(const char *name, bool runtime, Args... args) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
+    shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
 	if(ptr) insert(ptr);
 	return ptr;
 }
