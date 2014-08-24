@@ -17,12 +17,13 @@
 
 #ifdef USE_QTHREAD
     #include <QDateTime>
-#else
-    #include <sys/time.h>
-    #include <errno.h>
 #endif
 #ifdef _MSC_VER
     #include <windows.h>
+    #include <time.h>
+#else
+    #include <sys/time.h>
+    #include <errno.h>
 #endif
 
 void msecsleep(unsigned int ms) {
