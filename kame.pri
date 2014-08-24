@@ -16,19 +16,19 @@ else {
 }
 
 VERSTR = 4.0
-DEFINES += VERSION=\'\"$${VERSTR}\"\'
+DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules
-DEFINES += KAME_COREMODULE_DIR_SURFIX=\'\"/$${KAME_COREMODULES}/\"\'
+DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES}/)\"
 KAME_COREMODULES2 = coremodules2
-DEFINES += KAME_COREMODULE2_DIR_SURFIX=\'\"/$${KAME_COREMODULES2}/\"\'
+DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
 KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\'\"/$${KAME_MODULES}/\"\'
+DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 }
 else {
-    DEFINES += DATA_INSTALL_DIR=\'\"/usr/share/kame\"\'
+    DEFINES += DATA_INSTALL_DIR=\"\"quotedefined(/usr/share/kame)\"
 }
 
 macx {

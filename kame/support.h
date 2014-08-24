@@ -17,6 +17,8 @@
 #ifndef supportH
 #define supportH
 
+#define quotedefined(str) #str
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif

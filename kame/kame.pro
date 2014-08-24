@@ -6,7 +6,7 @@ include(../kame.pri)
 
 macx: SCRIPT_DIR = Resources
 win32: SCRIPT_DIR = resources
-DEFINES += RUBYLINESHELL_DIR=\'\"$${SCRIPT_DIR}/\"\'
+DEFINES += RUBYLINESHELL_DIR=\"quotedefined($${SCRIPT_DIR}/)\"
 DEFINES += USE_STD_RANDOM
 
 QT       += opengl
