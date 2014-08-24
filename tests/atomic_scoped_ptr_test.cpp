@@ -9,6 +9,7 @@
 #include "allocator.h"
 
 #include <stdint.h>
+#include <thread>
 
 //
 //#ifndef HAVE_CAS_2

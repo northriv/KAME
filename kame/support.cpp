@@ -16,6 +16,7 @@
 #include <string.h>
 #ifndef _MSC_VER
     #include <unistd.h>
+    #include <cpuid.h>
 #endif
 
 bool g_bLogDbgPrint;
@@ -331,19 +332,19 @@ X86CPUSpec::X86CPUSpec() {
 	monitorSizeLargest = 0L;
 	if(hasMonitor) {
 		uint32_t monsize_s, monsize_l;
+        uint32_t cpuinfo[4];
 #ifdef _MSC_VER
-    uint32_t cpuinfo[4];
-    __cpuid(reinterpret_cast<int*>(cpuinfo), 0x5);
-    monsize_s = cpuinfo[0];
-    monsize_l = cpuinfo[2];
+        __cpuid(reinterpret_cast<int*>(cpuinfo), 0x5);
+        monsize_s = cpuinfo[0];
+        monsize_l = cpuinfo[2];
 #else
-    __cpuid(0x5, monsize_s, cpuinfo[1] , monsize_l, cpuinfo[2]);
-    //#if defined __LP64__ || defined __LLP64__
-    //		asm volatile("push %%rbx; cpuid; mov %%ebx, %%ecx; pop %%rbx"
-    //#else
-    //		asm volatile("push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"
-    //#endif
-    //		: "=a" (monsize_s), "=c" (monsize_l) : "a" (0x5) : "%edx");
+        __cpuid(0x5, monsize_s, cpuinfo[1] , monsize_l, cpuinfo[2]);
+        //#if defined __LP64__ || defined __LLP64__
+        //		asm volatile("push %%rbx; cpuid; mov %%ebx, %%ecx; pop %%rbx"
+        //#else
+        //		asm volatile("push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"
+        //#endif
+        //		: "=a" (monsize_s), "=c" (monsize_l) : "a" (0x5) : "%edx");
 #endif
 		monitorSizeSmallest = monsize_s;
 		monitorSizeLargest = monsize_l;
