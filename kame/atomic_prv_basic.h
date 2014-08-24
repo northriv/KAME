@@ -115,10 +115,12 @@ public:
         return ret;
     }
 protected:
-    union {
-        T m_var;
-        int64_t for_alignment;
-    };
+    T m_var
+#ifdef _MSC_VER
+    __declspec(align(8));
+#else
+    __attribute__((aligned(8)));
+#endif
 };
 
 //! atomic access to POD type capable of CAS2.

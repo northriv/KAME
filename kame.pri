@@ -59,7 +59,7 @@ unix: LIBS += -lltdl
 
 macx: DEFINES += HAVE_LAPACK
 
-DEFINES += USE_STD_ATOMIC
+#DEFINES += USE_STD_ATOMIC
 
 QMAKE_CXXFLAGS += -msse -msse2
 

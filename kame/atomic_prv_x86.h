@@ -168,7 +168,7 @@ inline
 typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
 atomicInc(T *target ) {
 	asm (
-		"lock; incw %0"
+        "lock; incl %0"
 		:
 		: "m" ( *target)
 		: "memory" );
@@ -199,7 +199,7 @@ inline
 typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
 atomicDec(T *target ) {
 	asm (
-		"lock; decw %0"
+        "lock; decl %0"
 		:
 		: "m" ( *target)
 		: "memory" );
@@ -234,7 +234,7 @@ typename std::enable_if<(4 == sizeof(T)), bool>::type //hack for buggy %z.
 atomicDecAndTest(T *target ) {
     unsigned char ret;
 	asm volatile (
-		"lock; decw %1;"
+        "lock; decl %1;"
 		" sete %0" // ret = zflag ? 1 : 0
 		: "=q" (ret)
 		: "m" ( *target)
