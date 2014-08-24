@@ -11,6 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "xrubysupport.h"
 #include "measure.h"
 #include "kame.h"
 
@@ -42,8 +43,6 @@
 #include "ui_scalarentrytool.h"
 
 #include <QTextBrowser>
-
-#include "xrubysupport.h"
 
 shared_ptr<XStatusPrinter> g_statusPrinter;
 

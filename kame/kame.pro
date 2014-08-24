@@ -205,14 +205,12 @@ else:unix {
     LIBS += -lruby
 }
 win32 {
-    INCLUDEPATH += "C:/Ruby187/lib/ruby/1.8/i386-mingw32/"
-    LIBS += -L"C:/Ruby187/lib/" -lmsvcrt-ruby18-static -lWS2_32
 #    INCLUDEPATH += "C:/Program Files (x86)/Ruby-2.1/include/ruby-2.1.0/"
 #    INCLUDEPATH += "C:/Program Files (x86)/Ruby-2.1/include/ruby-2.1.0/i386-mswin32_100/"
 #    LIBS += -L"C:/Program Files (x86)/Ruby-2.1/lib" -lmsvcr100-ruby210-static.lib -lWS2_32
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-#    LIBS += -L$${_PRO_FILE_PWD_}/../ruby -lmsvcr100-ruby210-static.lib -lWS2_32
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
 }
 
 unix: LIBS += -lclapack -lcblas -latlas

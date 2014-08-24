@@ -11,6 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "xrubysupport.h"
 #include "xrubythreadconnector.h"
 #include "xrubythread.h"
 #include <QPushButton>
@@ -19,7 +20,6 @@
 #include <QLineEdit>
 #include "ui_rubythreadtool.h"
 #include "icons/icon.h"
-#include "xrubysupport.h"
 
 XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,

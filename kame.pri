@@ -61,5 +61,10 @@ macx: DEFINES += HAVE_LAPACK
 
 #DEFINES += USE_STD_ATOMIC
 
-QMAKE_CXXFLAGS += -msse -msse2
 
+win32-msvc {
+    QMAKE_CXXFLAGS += /arch:SSE2
+}
+else {
+    QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+}

@@ -11,6 +11,7 @@
 		Public License and a list of authors along with this program;
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "xrubysupport.h"
 #include <QTimer>
 #include <QAction>
 #include <QMenu>
@@ -35,7 +36,6 @@
 #include "xscheduler.h"
 #include "measure.h"
 #include "interface.h"
-#include "xrubysupport.h"
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xrubythreadconnector.h"
