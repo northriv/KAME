@@ -21,8 +21,6 @@
 #ifdef _MSC_VER
     #include <windows.h>
     #include <time.h>
-    #define ctime_r ctime
-    #define localtime_r localtime
 #else
     #include <sys/time.h>
     #include <errno.h>
@@ -96,9 +94,13 @@ XTime::now() {
 XString
 XTime::getTimeStr(bool subsecond) const {
     if( *this) {
-		char str[100];
-		ctime_r( &tv_sec, str);
-		str[strlen(str) - 1] = '\0';
+#ifdef _MSC_VER
+        char *str = ctime( &tv_sec);
+#else
+        char str[100];
+        ctime_r( &tv_sec, str);
+        str[strlen(str) - 1] = '\0';
+#endif
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
 		return str;
@@ -110,10 +112,14 @@ XTime::getTimeStr(bool subsecond) const {
 XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
     if( *this) {
-		char str[100];
-		struct tm time;
+#ifdef _MSC_VER
+        struct tm *time = localtime( &tv_sec);
+#else
+        struct tm time;
 		localtime_r( &tv_sec, &time);
-		strftime(str, 100, fmt, &time);
+#endif
+        char str[100];
+        strftime(str, 100, fmt, &time);
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);
 		return str;
