@@ -14,7 +14,7 @@
 #include "support.h"
 #include "atomic.h"
 
-#ifndef USE_STD_ATOMIC
+#if !defined USE_STD_ATOMIC && !defined __WIN32 && !defined __WIN32__ && !defined __WINDOWS__
 	#include "allocator.cpp"
 #endif
 
