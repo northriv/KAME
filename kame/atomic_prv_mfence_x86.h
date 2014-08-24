@@ -19,16 +19,28 @@
 
 //! memory barriers.
 inline void readBarrier() {
+#ifdef _MSC_VER
+    __asm lfence
+#else
 	asm volatile( "lfence" ::: "memory" );
 	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+#endif
 }
 inline void writeBarrier() {
-	asm volatile( "sfence" ::: "memory" );
+#ifdef _MSC_VER
+    __asm sfence
+#else
+    asm volatile( "sfence" ::: "memory" );
 	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+#endif
 }
 inline void memoryBarrier() {
-	asm volatile( "mfence" ::: "memory" );
+#ifdef _MSC_VER
+    __asm mfence
+#else
+    asm volatile( "mfence" ::: "memory" );
 	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
+#endif
 }
 
 inline void pause4spin() {
