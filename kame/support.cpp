@@ -14,7 +14,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
-#include <unistd.h>
+#ifndef _MSC_VER
+    #include <unistd.h>
+#endif
 
 bool g_bLogDbgPrint;
 bool g_bUseOverpaint;

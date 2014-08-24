@@ -21,6 +21,8 @@
 #ifdef _MSC_VER
     #include <windows.h>
     #include <time.h>
+    #define ctime_r ctime
+    #define localtime_r localtime
 #else
     #include <sys/time.h>
     #include <errno.h>
