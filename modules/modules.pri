@@ -11,8 +11,8 @@ INCLUDEPATH += \
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
+win32-mingw*: QMAKE_LFLAGS += -Wl,--export-all-symbols
 win32 {
-  QMAKE_LFLAGS += -Wl,--export-all-symbols
 # -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
 
     LIBS += $${PRI_DIR}../kame/kame.a

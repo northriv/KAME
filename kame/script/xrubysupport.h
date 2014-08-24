@@ -16,9 +16,11 @@
 #ifndef xrubysupportH
 #define xrubysupportH
 
+#define NOMINMAX //for max/min of <windows.h>
 #include <ruby.h>
 #undef interface
 #undef truncate
+#undef inline
 
 #include "xrubythread.h"
 #include "xnode.h"

@@ -204,7 +204,7 @@ else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
     LIBS += -lruby
 }
-win32 {
+win32-ming* {
 #    INCLUDEPATH += "C:/Program Files (x86)/Ruby-2.1/include/ruby-2.1.0/"
 #    INCLUDEPATH += "C:/Program Files (x86)/Ruby-2.1/include/ruby-2.1.0/i386-mswin32_100/"
 #    LIBS += -L"C:/Program Files (x86)/Ruby-2.1/lib" -lmsvcr100-ruby210-static.lib -lWS2_32
@@ -212,14 +212,44 @@ win32 {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
 }
+win32-msvc* {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210
+}
 
-unix: LIBS += -lclapack -lcblas -latlas
+win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+}
+win32-mingw* {
+    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
+    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
+    LIBS += -L"C:/Program Files/GnuWin32/lib/"
+    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
+    LIBS += -lltdl -lz
+    LIBS += -lfftw3-3
+}
+win32-msvc* {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
+    LIBS += -lzdll
+    LIBS += -llibfftw3-3
+    QMAKE_PRE_LINK += lib /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def
+}
+
+unix {
+    LIBS += -lclapack -lcblas -latlas
+    PKGCONFIG += fftw3
+    PKGCONFIG += zlib
+    LIBS += -lltdl
+}
 
 #exports symbols from the executable for plugins.
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
 }
-win32 {
+win32-mingw* {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
 }
 

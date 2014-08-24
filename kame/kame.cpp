@@ -56,7 +56,7 @@ static XMessageBox *s_pMessageBox = 0L;
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
 	resize(QSize(
-			std::min(1280, QApplication::desktop()->width()),
+            std::min(1280, QApplication::desktop()->width()),
 			height()).expandedTo(sizeHint()) );
 
 	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);

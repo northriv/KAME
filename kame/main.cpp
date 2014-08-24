@@ -39,7 +39,10 @@
 #endif
 #include <errno.h>
 
-#include <ltdl.h>
+#ifndef _MSC_VER
+    #define USE_LIBTOOL
+    #include <ltdl.h>
+#endif
 
 #include <gsl/gsl_errno.h>
 
@@ -48,10 +51,12 @@ my_gsl_err_handler (const char *reason, const char *file, int line, int gsl_errn
 	gErrPrint_redirected(formatString("GSL emitted an error for a reason:%s; %s", reason, gsl_strerror(gsl_errno)), file, line);
 }
 
+#ifdef USE_LIBTOOL
 int load_module(const char *filename, lt_ptr data) {
 	static_cast<std::deque<std::string> *>(data)->push_back(filename);
 	return 0;
 }
+#endif
 
 int main(int argc, char *argv[]) {
     char dummy_for_mlock[8192];
@@ -222,10 +227,12 @@ int main(int argc, char *argv[]) {
 
     app.processEvents();
 
+#ifdef USE_LIBTOOL
 	fprintf(stderr, "Initializing LTDL.\n");
 	lt_dlinit();
-#ifdef __linux__
-	LTDL_SET_PRELOADED_SYMBOLS();
+    #ifdef __linux__
+        LTDL_SET_PRELOADED_SYMBOLS();
+    #endif
 #endif
 	if(module_dir.isEmpty())
         module_dir = app.libraryPaths();
@@ -241,27 +248,34 @@ int main(int argc, char *argv[]) {
         paths += *it + KAME_MODULE_DIR_SURFIX;
 
         for(auto sit = paths.begin(); sit != paths.end(); sit++) {
+#ifdef USE_LIBTOOL
             lt_dladdsearchdir(sit->toLocal8Bit().data());
+#endif
             XMessageBox::post("Searching for modules in " + *sit, *g_pIconInfo);
+#ifdef USE_LIBTOOL
             lt_dlforeachfile(sit->toLocal8Bit().data(), &load_module, &modules);
+#endif
         }
     }
 
 	for(auto it = modules.begin(); it != modules.end(); it++) {
-		lt_dlhandle handle = lt_dlopenext(it->c_str());
-		if(handle) {
+#ifdef USE_LIBTOOL
+        lt_dlhandle handle = lt_dlopenext(it->c_str());
+        if(handle) {
             XMessageBox::post("Module \"" + *it + "\" loaded", *g_pIconKame);
-		}
-		else {
+        }
+        else {
             XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
-		}
+        }
+
+#endif
 	}
 
     const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
-    if( !QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_2_1) {
+    if( !(QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_2_1)) {
         gErrPrint(i18n_noncontext("KAME requires OpenGL 2.1 or later for graph drawing."));
     }
 

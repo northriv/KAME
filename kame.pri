@@ -37,32 +37,27 @@ macx {
 }
 
 win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3 -lfftw3-3
 #    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
-    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
-    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
-    LIBS += -L"C:/Program Files/GnuWin32/lib/"
-    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
-    LIBS += -lltdl -lz
     DEFINES += GSL_DLL
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
+}
+win32-mingw* {
     LIBS += -lgsl #-lgslcblas
+}
+win32-msvc* {
+    LIBS += -llibgsl
 }
 
 unix: CONFIG += link_pkgconfig
-unix: PKGCONFIG += fftw3
 unix: PKGCONFIG += gsl
-unix: PKGCONFIG += zlib
-unix: LIBS += -lltdl
 
 macx: DEFINES += HAVE_LAPACK
 
 #DEFINES += USE_STD_ATOMIC
 
 
-win32-msvc {
+win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
 }
 else {
