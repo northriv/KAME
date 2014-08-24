@@ -1,5 +1,7 @@
 TEMPLATE = app
 
+DEFINES += USE_STD_ATOMIC
+
 CONFIG += exceptions
 CONFIG += sse2 rtti
 

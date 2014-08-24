@@ -13,7 +13,10 @@
 ***************************************************************************/
 #include "support.h"
 #include "atomic.h"
-#include "allocator.cpp"
+
+#ifndef USE_STD_ATOMIC
+	#include "allocator.cpp"
+#endif
 
 int my_assert(char const*s, int d) {
         fprintf(stderr, "Err:%s:%d\n", s, d);

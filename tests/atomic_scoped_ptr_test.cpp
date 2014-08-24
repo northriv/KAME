@@ -31,17 +31,17 @@
 #include "atomic_smart_ptr.h"
 #include "xthread.cpp"
 
-int objcnt = 0;
+atomic<int> objcnt = 0;
 
 class A {
 public:
 	A(int x) : m_x(x) {
 //		fprintf(stdout, "c", x);
-        atomicInc(&objcnt);
+        ++objcnt;
 	}
 	virtual ~A() {
 //		fprintf(stdout, "d", m_x);
-        atomicDec(&objcnt);
+        --objcnt;
 	}
     virtual int x() const {return m_x;}
 

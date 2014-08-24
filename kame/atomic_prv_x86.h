@@ -20,6 +20,7 @@
 #include "atomic_prv_mfence_x86.h"
 
 #define HAVE_CAS_2
+
 typedef intptr_t int_cas2;
 typedef uintptr_t uint_cas2;
 typedef int_cas2 int_cas_max;

@@ -5,8 +5,10 @@
 #include "support.h"
 
 //For inline expansion of lock-free custom new()/delete() operators.
-//Comment out this and '#include "allocator.cpp"' in support.cpp to use the original operators.
-#include "allocator.h"
+//Comment out this and 'ommit "allocator.cpp"' in support.cpp to use the original operators.
+#ifndef USE_STD_ATOMIC
+	#include "allocator.h"
+#endif
 
 #include <stdint.h>
 
