@@ -17,9 +17,13 @@
 
 #ifdef USE_QTHREAD
     #include <QDateTime>
+#else
+    #include <sys/time.h>
+    #include <errno.h>
 #endif
-#include <sys/time.h>
-#include <errno.h>
+#ifdef _MSC_VER
+    #include <windows.h>
+#endif
 
 void msecsleep(unsigned int ms) {
 #ifdef USE_QTHREAD
@@ -48,7 +52,11 @@ void msecsleep(unsigned int ms) {
 unsigned int timeStamp() {
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
     uint64_t r;
+#ifdef _MSC_VER
+    r =  __rdtsc();
+#else
     asm volatile("rdtsc" : "=A" (r));
+#endif
     return (unsigned long)(r / (uint64_t)256);
 #elif defined __powerpc__ || defined __POWERPC__ || defined __ppc__
     uint32_t rx, ry, rz;
