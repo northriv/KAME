@@ -44,7 +44,11 @@ inline void memoryBarrier() {
 }
 
 inline void pause4spin() {
+#ifdef _MSC_VER
+    __asm pause
+#else
 	asm volatile( "pause" ::: "memory" );
+#endif
 }
 
 #endif /*ATOMIC_PRV_MFENCE_X86_H_*/

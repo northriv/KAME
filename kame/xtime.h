@@ -86,7 +86,10 @@ public:
     static XTime now();
     XString getTimeStr(bool subsecond = true) const;
     XString getTimeFmtStr(const char *fmt, bool subsecond = true) const
-		__attribute__ ((format(strftime,2, 0)));
+#if defined __GNUC__ || defined __clang__
+        __attribute__ ((format(strftime,2, 0)))
+#endif
+    ;
 private:
     long tv_sec;
     long tv_usec;

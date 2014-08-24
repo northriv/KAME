@@ -289,7 +289,11 @@ private:
             for(int i = 0; i < 4; i++) x[i] *= v.x[i];
             return *this;
         }
-    } __attribute__((__aligned__(16)));
+    }
+#if defined __GNUC__ || defined __clang__
+    __attribute__((__aligned__(16)))
+#endif
+    ;
     struct FieldRealArray {std::vector<PackedSpin> align[4];};
 #else
     typedef std::vector<Spin> FieldRealArray;

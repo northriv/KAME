@@ -29,7 +29,10 @@ public:
     const std::vector<char> &buffer() const {return *s_tlBuffer;}
     //! error-check is user's responsibility.
     int scanf(const char *format, ...) const
-        __attribute__ ((format(scanf,2,3)));
+#if defined __GNUC__ || defined __clang__
+        __attribute__ ((format(scanf,2,3)))
+#endif
+    ;
     double toDouble() const throw (XConvError &);
     int toInt() const throw (XConvError &);
     unsigned int toUInt() const throw (XConvError &);
@@ -39,11 +42,17 @@ public:
     //! format version of send()
     //! \sa printf()
     void sendf(const char *format, ...) throw (XInterfaceError &)
-        __attribute__ ((format(printf,2,3)));
+#if defined __GNUC__ || defined __clang__
+        __attribute__ ((format(printf,2,3)))
+#endif
+    ;
     //! format version of query()
     //! \sa printf()
     void queryf(const char *format, ...) throw (XInterfaceError &)
-        __attribute__ ((format(printf,2,3)));
+#if defined __GNUC__ || defined __clang__
+        __attribute__ ((format(printf,2,3)))
+#endif
+    ;
 
     void setEOS(const char *str);
     const XString &eos() const {return m_eos;}
