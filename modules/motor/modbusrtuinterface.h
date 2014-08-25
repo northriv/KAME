@@ -67,7 +67,7 @@ private:
 	static uint32_t get_dword(unsigned char *ptr) {
 		return get_word(ptr + 2) + get_word(ptr) * 0x10000uL;
 	}
-	uint16_t crc16(const unsigned char *bytes, ssize_t count);
+    uint16_t crc16(const unsigned char *bytes, uint32_t count);
 
 	shared_ptr<XModbusRTUInterface> m_master;
 	static XMutex s_lock;

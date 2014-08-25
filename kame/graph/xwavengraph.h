@@ -47,7 +47,7 @@ public:
 	const shared_ptr<XTouchableNode> &dump() const { return m_dump;}
 	void drawGraph(Transaction &tr);
 
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		void clearPoints();
 		void clearPlots();
 		void insertPlot(const XString &label, int colx = 0, int coly1 = 1,

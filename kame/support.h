@@ -152,7 +152,7 @@ DECLSPEC_KAME double roundlog10(double val);
 DECLSPEC_KAME double setprec(double val, double prec);
 
 #ifdef _MSC_VER
-    #define snprintf(fmt, len, ...) (void)_snprintf_s(fmt, len, len - 1, __VA_ARGS__)
+    #define snprintf(fmt, len, ...) _snprintf_s(fmt, len, len - 1, __VA_ARGS__)
 #endif
 
 //! convert control characters to visible (ex. \xx).

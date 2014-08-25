@@ -57,9 +57,9 @@ XModbusRTUInterface::close() throw (XInterfaceError &) {
 }
 
 uint16_t
-XModbusRTUInterface::crc16(const unsigned char *bytes, ssize_t count) {
+XModbusRTUInterface::crc16(const unsigned char *bytes, uint32_t count) {
 	uint16_t z = 0xffffu;
-	for(ssize_t i = 0; i < count; ++i) {
+    for(uint32_t i = 0; i < count; ++i) {
 		uint16_t x = bytes[i];
 		z ^= x;
 		for(int shifts = 0; shifts < 8; ++shifts) {

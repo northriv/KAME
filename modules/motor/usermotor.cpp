@@ -74,8 +74,8 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	interface()->presetSingleResistor(0x236, 0); //common setting for acc/dec.
 	interface()->presetTwoResistors(0x224,  lrint(shot[ *timeAcc()] * 1e3));
 	interface()->presetTwoResistors(0x226,  lrint(shot[ *timeDec()] * 1e3));
-	interface()->presetTwoResistors(0x312,  lrint(shot[ *stepEncoder()]));
-	interface()->presetTwoResistors(0x314,  lrint(shot[ *stepMotor()]));
+    interface()->presetTwoResistors(0x312,  lrint((double)shot[ *stepEncoder()]));
+    interface()->presetTwoResistors(0x314,  lrint((double)shot[ *stepMotor()]));
 	interface()->presetTwoResistors(0x502,  lrint(shot[ *speed()]));
 	unsigned int microstep = shot[ *microStep()] ? 6 : 0;
 	if(interface()->readHoldingSingleResistor(0x311) != microstep) {
@@ -235,11 +235,11 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 		conf_needed = true;
 		interface()->presetTwoResistors(0x38e,  b_round);
 	}
-	int num_round = std::max(lrint(shot[ *roundBy()]), 1L);
+    int num_round = std::max(lrint((double)shot[ *roundBy()]), 1L);
 	if(interface()->readHoldingTwoResistors(0x390) != num_round) {
 		conf_needed = true;
 		interface()->presetTwoResistors(0x390,  num_round);
-		interface()->presetTwoResistors(0x20a,  lrint(shot[ *roundBy()]) / 2); //AREA1+
+        interface()->presetTwoResistors(0x20a,  lrint((double)shot[ *roundBy()]) / 2); //AREA1+
 		interface()->presetTwoResistors(0x20c,  0); //AREA1-
 	}
 

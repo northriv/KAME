@@ -249,7 +249,7 @@ XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int c
 void
 XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	const Snapshot &shot(tr);
-	ssize_t hsize = reader.pop<uint32_t>();
+    uint32_t hsize = reader.pop<uint32_t>();
 	int stype = reader.pop<int32_t>();
 	double start = reader.pop<double>() * 1e-6; //[MHz]
 	double stop = reader.pop<double>() * 1e-6; //[MHz]

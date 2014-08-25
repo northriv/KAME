@@ -19,7 +19,7 @@
 
 //!
 template <class T>
-class XSecondaryDriverInterface : public T {
+class DECLSPEC_KAME XSecondaryDriverInterface : public T {
 public:
 	XSecondaryDriverInterface(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XSecondaryDriverInterface();

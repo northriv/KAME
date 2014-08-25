@@ -13,4 +13,4 @@
 ***************************************************************************/
 #include "secondarydriverinterface.h"
 
-template class XSecondaryDriverInterface<class XDriver>;
+template DECLSPEC_KAME class XSecondaryDriverInterface<class XDriver>;

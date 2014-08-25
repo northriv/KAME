@@ -17,6 +17,10 @@
 
 REGISTER_TYPE(XDriverList, TDS, "Tektronix DSO");
 
+#ifdef _MSC_VER
+    #define strncasecmp strnicmp
+#endif
+
 //---------------------------------------------------------------------------
 XTDS::XTDS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

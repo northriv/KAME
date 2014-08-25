@@ -42,6 +42,9 @@ macx {
 }
 
 win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
+
 #    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     DEFINES += GSL_DLL
 }
@@ -49,11 +52,13 @@ win32-mingw* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
     LIBS += -lgsl #-lgslcblas
+    LIBS += -lfftw3-3
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/
     LIBS += -llibgsl
+    LIBS += -llibfftw3-3
 }
 
 unix: CONFIG += link_pkgconfig
