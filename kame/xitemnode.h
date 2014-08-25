@@ -18,7 +18,7 @@
 #include "xlistnode.h"
 
 //! Posses a pointer to a member of a list
-class XItemNodeBase : public XValueNodeBase {
+class DECLSPEC_KAME XItemNodeBase : public XValueNodeBase {
 public:
 	explicit XItemNodeBase(const char *name, bool runtime = false, bool auto_set_any = false);
 	virtual ~XItemNodeBase() {}
@@ -174,7 +174,7 @@ public:
 };
 
 //! Contains strings, value is one of strings
-class XComboNode : public XItemNodeBase {
+class DECLSPEC_KAME XComboNode : public XItemNodeBase {
 public:
 	explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
 	virtual ~XComboNode() {}

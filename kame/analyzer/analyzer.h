@@ -26,7 +26,7 @@
 class XJournal;
 class XDriver;
 
-class XScalarEntry : public XNode {
+class DECLSPEC_KAME XScalarEntry : public XNode {
 public:
 	XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
 				 const char *format = 0L);
@@ -71,7 +71,7 @@ private:
 
 class XDriverList;
 
-class XScalarEntryList : public XAliasListNode<XScalarEntry> {
+class DECLSPEC_KAME XScalarEntryList : public XAliasListNode<XScalarEntry> {
 public:
 	XScalarEntryList(const char *name, bool runtime) : XAliasListNode<XScalarEntry>(name, runtime) {}
 };

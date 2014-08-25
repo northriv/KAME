@@ -17,7 +17,7 @@
 #include "xnode.h"
 #include <functional>
 
-class XListNodeBase : public XNode {
+class DECLSPEC_KAME XListNodeBase : public XNode {
 public:
 	explicit XListNodeBase(const char *name, bool runtime = false);
 	virtual ~XListNodeBase() {}

@@ -46,7 +46,7 @@ public:
 
 class XQConnector;
 
-class XQConnectorHolder_ : public QObject {
+class DECLSPEC_KAME XQConnectorHolder_ : public QObject {
 	Q_OBJECT
 public:
 	XQConnectorHolder_(XQConnector *con);
@@ -93,7 +93,7 @@ struct QForm : public FRM, public UI {
 //! use connectWeak() to make XListener.
 //! use xqcon_create<T>() to make instances.
 //! \sa xqcon_create()
-class XQConnector : public QObject,
+class DECLSPEC_KAME XQConnector : public QObject,
 public enable_shared_from_this<XQConnector> {
 	//! Don't forget this macro for XQConnector objects.
 	Q_OBJECT
@@ -117,7 +117,7 @@ protected:
 
 class QAbstractButton;
 
-class XQButtonConnector : public XQConnector {
+class DECLSPEC_KAME XQButtonConnector : public XQConnector {
 	Q_OBJECT
 public:
 	XQButtonConnector(const shared_ptr<XTouchableNode> &node, QAbstractButton *item);
@@ -132,7 +132,7 @@ protected:
 	QAbstractButton *const m_pItem;
 };
 
-class XValueQConnector : public XQConnector {
+class DECLSPEC_KAME XValueQConnector : public XQConnector {
 	Q_OBJECT
 public:
 	XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item);
@@ -145,7 +145,7 @@ protected:
 
 class QLineEdit;
 
-class XQLineEditConnector : public XValueQConnector {
+class DECLSPEC_KAME XQLineEditConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQLineEditConnector(const shared_ptr<XValueNodeBase> &node,
@@ -165,7 +165,7 @@ protected:
 
 class QTextBrowser;
 
-class XQTextBrowserConnector : public XValueQConnector {
+class DECLSPEC_KAME XQTextBrowserConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
@@ -198,7 +198,7 @@ protected:
 
 class QSpinBox;
 
-class XQSpinBoxConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XIntNode, int> {
+class DECLSPEC_KAME XQSpinBoxConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XIntNode, int> {
     Q_OBJECT
 public:
     XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
@@ -211,7 +211,7 @@ protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
         onValueChangedTMPL(shot, node); }
 };
-class XQSpinBoxUnsignedConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int> {
+class DECLSPEC_KAME XQSpinBoxUnsignedConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int> {
     Q_OBJECT
 public:
     XQSpinBoxUnsignedConnector(const shared_ptr<XUIntNode> &node,
@@ -226,7 +226,7 @@ protected:
 };
 
 class QDoubleSpinBox;
-class XQDoubleSpinBoxConnector : public XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double> {
+class DECLSPEC_KAME XQDoubleSpinBoxConnector : public XQSpinBoxConnectorTMPL<QDoubleSpinBox, XDoubleNode, double> {
     Q_OBJECT
 public:
     XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
@@ -242,7 +242,7 @@ protected:
 
 class QLabel;
 
-class XQLabelConnector : public XValueQConnector {
+class DECLSPEC_KAME XQLabelConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQLabelConnector(const shared_ptr<XValueNodeBase> &node, 
@@ -257,7 +257,7 @@ protected:
 
 class QLCDNumber;
 
-class XQLCDNumberConnector : public XValueQConnector {
+class DECLSPEC_KAME XQLCDNumberConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node,
@@ -271,7 +271,7 @@ protected:
 
 class QIcon;
 class QPushButton;
-class XQLedConnector : public XValueQConnector {
+class DECLSPEC_KAME XQLedConnector : public XValueQConnector {
     Q_OBJECT
 public:
     XQLedConnector(const shared_ptr<XBoolNode> &node,
@@ -286,7 +286,7 @@ protected:
     QIcon *m_pIconOff;
 };
 
-class XQToggleButtonConnector : public XValueQConnector {
+class DECLSPEC_KAME XQToggleButtonConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XQToggleButtonConnector(const shared_ptr<XBoolNode> &node,
@@ -301,7 +301,7 @@ protected:
 };
 
 class QToolButton;
-class XFilePathConnector : public XQLineEditConnector {
+class DECLSPEC_KAME XFilePathConnector : public XQLineEditConnector {
     Q_OBJECT
 public:
     XFilePathConnector(const shared_ptr<XStringNode> &node,
@@ -317,7 +317,7 @@ protected:
 };
 
 class QTableWidget;
-class XListQConnector : public XQConnector {
+class DECLSPEC_KAME XListQConnector : public XQConnector {
 	Q_OBJECT
 public:
     XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWidget *item);
@@ -336,7 +336,7 @@ protected:
 	const shared_ptr<XListNodeBase> m_list;
 };
 
-class XItemQConnector : public XValueQConnector {
+class DECLSPEC_KAME XItemQConnector : public XValueQConnector {
 	Q_OBJECT
 public:
 	XItemQConnector(const shared_ptr<XItemNodeBase> &node,
@@ -352,7 +352,7 @@ protected:
 
 class QComboBox;
 
-class XQComboBoxConnector : public XItemQConnector {
+class DECLSPEC_KAME XQComboBoxConnector : public XItemQConnector {
 	Q_OBJECT
 public:
 	XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
@@ -371,7 +371,7 @@ protected:
 class QListWidget;
 class QListWidgetItem;
 
-class XQListWidgetConnector : public XItemQConnector {
+class DECLSPEC_KAME XQListWidgetConnector : public XItemQConnector {
 	Q_OBJECT
 public:
     XQListWidgetConnector(const shared_ptr<XItemNodeBase> &node,
@@ -388,7 +388,7 @@ protected:
 
 class QColorDialog;
 class QPushButton;
-class XColorConnector : public XValueQConnector {
+class DECLSPEC_KAME XColorConnector : public XValueQConnector {
 	Q_OBJECT
 public:
     XColorConnector(const shared_ptr<XHexNode> &node, QPushButton *item);
@@ -406,7 +406,7 @@ protected:
 //! Show status
 class QMainWindow;
 class QStatusBar;
-class XStatusPrinter : public enable_shared_from_this<XStatusPrinter> {
+class DECLSPEC_KAME XStatusPrinter : public enable_shared_from_this<XStatusPrinter> {
 protected:
 	explicit XStatusPrinter(QMainWindow *window = NULL);
 public:

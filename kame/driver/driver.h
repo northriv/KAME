@@ -27,7 +27,7 @@ class XThermometerList;
 class XDriverList;
 
 //! Base class for all instrument drivers
-class XDriver : public XNode {
+class DECLSPEC_KAME XDriver : public XNode {
 public:
 	XDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDriver() {}
@@ -89,7 +89,7 @@ protected:
 		const XTime &time_awared, const XTime &time_recorded);
 };
 
-class XDriverList : public XCustomTypeListNode<XDriver> {
+class DECLSPEC_KAME XDriverList : public XCustomTypeListNode<XDriver> {
 public:
 	XDriverList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
 

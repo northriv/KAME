@@ -19,6 +19,16 @@
 
 #define quotedefined(str) #str
 
+#ifndef DECLSPEC_KAME
+    #define DECLSPEC_KAME
+#endif
+#ifndef DECLSPEC_MODULE
+    #define DECLSPEC_MODULE
+#endif
+#ifndef DECLSPEC_SHARED
+    #define DECLSPEC_SHARED
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -80,7 +90,7 @@ using std::reference_wrapper;
     #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
 
-class XString : public std::string {
+class DECLSPEC_KAME XString : public std::string {
 typedef std::string base_type;
 public:
 	XString() : base_type() {}
@@ -99,14 +109,14 @@ dbgPrint_redirected(const XString &str, const char *file, int line, bool force_d
 //! Global Error Message/Printing.
 #define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
 #define gWarnPrint(msg) gWarnPrint_redirected(msg, __FILE__, __LINE__)
-void
+DECLSPEC_KAME void
 gErrPrint_redirected(const XString &str, const char *file, int line);
-void
+DECLSPEC_KAME void
 gWarnPrint_redirected(const XString &str, const char *file, int line);
 
 #include <stdexcept>
 //! Base of exception
-struct XKameError : public std::runtime_error {
+struct DECLSPEC_KAME XKameError : public std::runtime_error {
 	XKameError();
 	virtual ~XKameError() throw() {}
 
@@ -146,7 +156,7 @@ double setprec(double val, double prec);
 XString dumpCString(const char *cstr);
 
 //! \sa printf()
-XString formatString(const char *format, ...)
+DECLSPEC_KAME XString formatString(const char *format, ...)
 #if defined __GNUC__ || defined __clang__
     __attribute__ ((format(printf,1,2)));
 #endif

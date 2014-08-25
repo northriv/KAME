@@ -24,12 +24,12 @@
 #endif
 
 //! Sleeps in ms
-void msecsleep(unsigned int ms); //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
+DECLSPEC_KAME void msecsleep(unsigned int ms); //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 
 //! Fetches CPU counter.
-unsigned int timeStamp();
+DECLSPEC_KAME unsigned int timeStamp();
 
-class XTime {
+class DECLSPEC_KAME XTime {
 public:
     XTime() : tv_sec(0), tv_usec(0) {}
     XTime(long sec, long usec) : tv_sec(sec), tv_usec(usec) {}

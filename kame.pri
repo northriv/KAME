@@ -19,11 +19,16 @@ VERSTR = 4.0
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules
-DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES}/)\"
+win32-msvc*:DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(\\$${KAME_COREMODULES}\\)\"
+else:DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES}/)\"
+
 KAME_COREMODULES2 = coremodules2
-DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
+win32-msvc*:DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(\\$${KAME_COREMODULES2}\\)\"
+else:DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
+
 KAME_MODULES = modules
-DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
+win32-msvc*:DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(\\$${KAME_MODULES}\\)\"
+else:DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 }

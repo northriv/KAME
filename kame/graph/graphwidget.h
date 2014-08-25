@@ -23,7 +23,7 @@ class XQGraphPainter;
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
-class XQGraph : public QGLWidget {
+class DECLSPEC_KAME XQGraph : public QGLWidget {
 	Q_OBJECT
 public:
     XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = 0 );

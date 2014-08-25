@@ -55,7 +55,7 @@ extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
 //! in addition to the features of Transactional::Node.
 //! \sa Transactional::Node, create(), createOrphan().
-class XNode : public enable_shared_from_this<XNode>, public Transactional::Node<XNode> {
+class DECLSPEC_KAME XNode : public enable_shared_from_this<XNode>, public Transactional::Node<XNode> {
 public:
 	explicit XNode(const char *name, bool runtime = false);
 	virtual ~XNode();  
@@ -134,7 +134,7 @@ protected:
 };
 
 //! Interface class containing values
-class XValueNodeBase : public XNode {
+class DECLSPEC_KAME XValueNodeBase : public XNode {
 protected:
 	explicit XValueNodeBase(const char *name, bool runtime) : XNode(name, runtime), m_validator(0) {}
 public:
@@ -188,7 +188,7 @@ public:
 	};
 };
 
-class XDoubleNode : public XValueNodeBase {
+class DECLSPEC_KAME XDoubleNode : public XValueNodeBase {
 public:
 	explicit XDoubleNode(const char *name, bool runtime = false, const char *format = 0L);
 	virtual ~XDoubleNode() {}
@@ -212,7 +212,7 @@ public:
 	atomic_shared_ptr<XString> m_format;
 };
 
-class XStringNode : public XValueNodeBase {
+class DECLSPEC_KAME XStringNode : public XValueNodeBase {
 public:
 	explicit XStringNode(const char *name, bool runtime = false);
 	virtual ~XStringNode() {}

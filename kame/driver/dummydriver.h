@@ -17,7 +17,7 @@
 #include "driver.h"
 #include "interface.h"
 
-class XDummyInterface : public XInterface {
+class DECLSPEC_KAME XDummyInterface : public XInterface {
 public:
 	XDummyInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
 		: XInterface(name, runtime, driver), m_bOpened(false)

@@ -72,7 +72,7 @@ private:
  * double lock is inhibited.
  * \sa XRecursiveMutex.
  */
-class XMutex {
+class DECLSPEC_KAME XMutex {
 public:
     XMutex();
     ~XMutex();
@@ -90,7 +90,7 @@ protected:
 };
 
 //! condition class.
-class XCondition : public XMutex
+class DECLSPEC_KAME XCondition : public XMutex
 {
 public:
     XCondition();
@@ -115,7 +115,7 @@ private:
 };
 
 //! recursive mutex.
-class XRecursiveMutex {
+class DECLSPEC_KAME XRecursiveMutex {
 public:
 	XRecursiveMutex() {
 		m_lockingthread = (threadid_t)-1;

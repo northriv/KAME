@@ -28,7 +28,7 @@
 //! \p T must have constructor T()
 //! object \p T will be deleted only when the thread is finished.
 template <typename T>
-class XThreadLocal {
+class DECLSPEC_KAME XThreadLocal {
 public:
     XThreadLocal();
     ~XThreadLocal();

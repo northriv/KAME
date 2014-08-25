@@ -35,7 +35,7 @@ class XRuby;
 
 /*! The root object of KAME.
  */
-class XMeasure : public XNode {
+class DECLSPEC_KAME XMeasure : public XNode {
 public:
 	XMeasure(const char *name, bool runtime);
 	virtual ~XMeasure();

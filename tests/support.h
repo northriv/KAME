@@ -17,6 +17,16 @@
 #ifndef supportH
 #define supportH
 
+#ifndef DECLSPEC_KAME
+    #define DECLSPEC_KAME
+#endif
+#ifndef DECLSPEC_MODULE
+    #define DECLSPEC_MODULE
+#endif
+#ifndef DECLSPEC_SHARED
+    #define DECLSPEC_SHARED
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif

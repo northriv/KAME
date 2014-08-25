@@ -31,7 +31,7 @@ class Talker;}
 
 //! Base class of listener, which holds pointers to object and function.
 //! Hold instances by shared_ptr.
-class XListener {
+class DECLSPEC_KAME XListener {
 public:
 	virtual ~XListener();
 	//! \return an appropriate delay for delayed transactions.
@@ -54,7 +54,7 @@ protected:
 
 #include "xsignal_prv.h"
 
-class XTalkerBase_ {
+class DECLSPEC_KAME XTalkerBase_ {
 protected:
 	XTalkerBase_() {}
 public:

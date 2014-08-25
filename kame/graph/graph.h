@@ -98,7 +98,7 @@ typedef XAliasListNode<XPlot> XPlotList;
 
 //! XGraph object can have one or more plots and two or more axes.
 //! \sa XPlot, XAxis, XQGraphPainter
-class XGraph : public XNode {
+class DECLSPEC_KAME XGraph : public XNode {
 public:
 	XGraph(const char *name, bool runtime);
 	virtual XString getLabel() const {return ( **label())->to_str();}
@@ -155,7 +155,7 @@ private:
 	shared_ptr<XListener> m_lsnPropertyChanged;
 };
 
-class XPlot : public XNode {
+class DECLSPEC_KAME XPlot : public XNode {
 public:
 	XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
 	virtual XString getLabel() const {return ( **label())->to_str();}
@@ -273,7 +273,7 @@ private:
 	inline unsigned int blendColor(unsigned int c1, unsigned int c2, float t);
 };
 
-class XAxis : public XNode {
+class DECLSPEC_KAME XAxis : public XNode {
 public:
 	enum AxisDirection {DirAxisX, DirAxisY, DirAxisZ, AxisWeight};
 	enum Tic {MajorTic, MinorTic, NoTics};  
@@ -390,7 +390,7 @@ private:
 	bool m_bAutoscaleFixed;
 };
 
-class XXYPlot : public XPlot {
+class DECLSPEC_KAME XXYPlot : public XPlot {
 public:
 	XXYPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
 		XPlot(name, runtime, tr_graph, graph) {}
@@ -411,7 +411,7 @@ protected:
 	virtual void snapshot(const Snapshot &shot);
 };
 
-class XFuncPlot : public XPlot {
+class DECLSPEC_KAME XFuncPlot : public XPlot {
 public:
 	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
     void clearAllPoints(Transaction &) {}

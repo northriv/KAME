@@ -166,7 +166,8 @@ RESOURCES += \
 
 DESTDIR=$$OUT_PWD/../
 
-scriptfile.files = script/rubylineshell.rb
+win32-msvc*:scriptfile.files = script\\rubylineshell.rb
+else:scriptfile.files = script/rubylineshell.rb
 macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
@@ -250,6 +251,11 @@ macx {
 }
 win32-mingw* {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
+}
+win32-msvc* {
+    DEFINES += DECLSPEC_KAME=__declspec(dllexport)
+    DEFINES += DECLSPEC_MODULE=should_not_use
+    DEFINES += DECLSPEC_SHARED=should_not_use
 }
 
 macx {

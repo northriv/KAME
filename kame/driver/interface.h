@@ -22,7 +22,7 @@
 class XDriver;
 //! virtual class for communication devices.
 //! \sa XCharInterface
-class XInterface : public XNode {
+class DECLSPEC_KAME XInterface : public XNode {
 public:
 	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XInterface() {}
@@ -97,7 +97,7 @@ private:
 	XString m_label;
 };
 
-class XInterfaceList : public XAliasListNode<XInterface> {
+class DECLSPEC_KAME XInterfaceList : public XAliasListNode<XInterface> {
 public:
 	XInterfaceList(const char *name, bool runtime) : XAliasListNode<XInterface>(name, runtime) {}
 };

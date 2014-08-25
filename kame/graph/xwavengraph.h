@@ -34,7 +34,7 @@ typedef QForm<QWidget, Ui_FrmGraphNURL> FrmGraphNURL;
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
 
-class XWaveNGraph: public XNode {
+class DECLSPEC_KAME XWaveNGraph: public XNode {
 public:
 	XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
 	XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,

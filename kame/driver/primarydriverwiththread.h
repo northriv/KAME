@@ -16,7 +16,7 @@
 
 #include "primarydriver.h"
 
-class XPrimaryDriverWithThread : public XPrimaryDriver {
+class DECLSPEC_KAME XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
 	XPrimaryDriverWithThread(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XPrimaryDriver(name, runtime, ref(tr_meas), meas) {}

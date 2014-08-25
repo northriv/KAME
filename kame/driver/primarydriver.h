@@ -17,7 +17,7 @@
 #include "driver.h"
 #include "interface.h"
 
-class XPrimaryDriver : public XDriver {
+class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XPrimaryDriver() {}
