@@ -22,7 +22,11 @@ macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
 win32-mingw*: QMAKE_LFLAGS += -Wl,--export-all-symbols
-
+win32-msvc* {
+    DEFINES += DECLSPEC_KAME=__declspec(dllimport)
+    DEFINES += DECLSPEC_MODULE=should_not_use
+    DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
+}
 win32 {
     DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules
     LIBS += -L$${PRI_DIR}../coremodules/
