@@ -19,6 +19,7 @@
 #ifndef FIR_H
 #define FIR_H
 
+#include "support.h"
 #include <vector>
 #include <complex>
 #include <fftw3.h>

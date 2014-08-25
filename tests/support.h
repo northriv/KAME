@@ -110,5 +110,7 @@ extern bool g_bMLockAlways;
 //! If true, use mlock.
 extern bool g_bUseMLock;
 
+inline bool isMemLockAvailable() {return g_bUseMLock;}
+
 //---------------------------------------------------------------------------
 #endif

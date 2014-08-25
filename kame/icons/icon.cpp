@@ -11,6 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "support.h"
 #include "icon.h"
 #include <QApplication>
 #include <QPixmap>

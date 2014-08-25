@@ -14,6 +14,8 @@
 #include "support.h"
 #include "atomic.h"
 
+bool g_bUseMLock = false;
+
 #if !defined USE_STD_ATOMIC && !defined __WIN32 && !defined __WIN32__ && !defined __WINDOWS__
 	#include "allocator.cpp"
 #endif

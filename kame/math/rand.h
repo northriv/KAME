@@ -14,6 +14,7 @@
 #ifndef RAND_H_
 #define RAND_H_
 
+#include "support.h"
 //! Mersenne Twister 19937.
 DECLSPEC_KAME double randMT19937();
 
