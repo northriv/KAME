@@ -110,31 +110,24 @@ public:
         const XString &type, const XString &name) = 0;
 };  
 
-shared_ptr<XNode> empty_creator_(const char *, bool = false);
-template <typename... Args>
-shared_ptr<XNode> empty_creator_(const char *, bool, Args...) {
-    return shared_ptr<XNode>();
-}
-template <class T, typename... Args>
-shared_ptr<XNode> creator_(const char *name, bool runtime, Args&&... args) {
-    return XNode::createOrphan<T>(name, runtime, static_cast<Args&&>(args)...);
-}
-
+#include <functional>
 
 //! Register typename and constructor.
 //! make static member of TypeHolder<> in your class
 //! After def. of static TypeHolder<>, define Creator to register.
 //! call creator(type)(type, name, ...) to create children.
-template <class tFunc>
+template <class... ArgTypes>
 struct XTypeHolder {
-	XTypeHolder() {
+    typedef std::function<shared_ptr<XNode>(const char*, bool, ArgTypes...)> creator_t;
+
+    XTypeHolder() {
             fprintf(stderr, "New typeholder\n");
 	}
 		
-    template <class tChild, typename... Args>
+    template <class tChild>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-            tFunc create_typed = (tFunc)creator_<tChild, Args...>;
+            creator_t create_typed = creator_<tChild, ArgTypes...>;
 			if( !label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
@@ -146,48 +139,27 @@ struct XTypeHolder {
 			holder.labels.push_back(XString(label));
 			fprintf(stderr, "%s %s\n", name, label);
 		}
+        template <class T, typename... Args>
+        static shared_ptr<XNode> creator_(const char *name, bool runtime, Args&&... args) {
+            return XNode::createOrphan<T>(name, runtime, static_cast<Args&&>(args)...);
+        }
 	};
-	tFunc creator(const XString &tp) {
+    creator_t creator(const XString &tp) {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
-		return empty_creator_;
+        return [](const char*, bool, ArgTypes...){return shared_ptr<XNode>();}; //empty
 	}
-	std::deque<tFunc> creators;
+    std::deque<creator_t> creators;
 	std::deque<XString> names, labels;
 };
 
-#define DEFINE_TYPE_HOLDER_W_FUNC(tFunc_) \
-  typedef XTypeHolder<tFunc_> TypeHolder; \
-  static TypeHolder s_types; \
-  static tFunc_ creator(const XString &tp) {return s_types.creator(tp);} \
-  static std::deque<XString> &typenames() {return s_types.names;} \
-  static std::deque<XString> &typelabels() {return s_types.labels;}
-
-#define DEFINE_TYPE_HOLDER \
-  typedef shared_ptr<XNode>(*fpCreateFunc)(const char *, bool \
-	); \
-  DEFINE_TYPE_HOLDER_W_FUNC(fpCreateFunc);
-
-#define DEFINE_TYPE_HOLDER_EXTRA_PARAM(extra_param) \
-  typedef shared_ptr<XNode>(*fpCreateFunc)(const char *, bool \
-	, extra_param); \
-  DEFINE_TYPE_HOLDER_W_FUNC(fpCreateFunc);
-
-#define DEFINE_TYPE_HOLDER_EXTRA_PARAMS_2(par1, par2) \
-  typedef shared_ptr<XNode>(*fpCreateFunc)(const char *, bool \
-	, par1, par2); \
-  DEFINE_TYPE_HOLDER_W_FUNC(fpCreateFunc);
-
-#define DEFINE_TYPE_HOLDER_EXTRA_PARAMS_3(par1, par2, par3) \
-  typedef shared_ptr<XNode>(*fpCreateFunc)(const char *, bool \
-	, par1, par2, par3); \
-  DEFINE_TYPE_HOLDER_W_FUNC(fpCreateFunc);
-  
-#define DEFINE_TYPE_HOLDER_EXTRA_PARAMS_4(par1, par2, par3, par4) \
-  typedef shared_ptr<XNode>(*fpCreateFunc)(const char *, bool \
-	, par1, par2, par3, par4); \
-  DEFINE_TYPE_HOLDER_W_FUNC(fpCreateFunc);
+#define DEFINE_TYPE_HOLDER(...) \
+    typedef XTypeHolder<__VA_ARGS__> TypeHolder; \
+    static TypeHolder s_types; \
+    static TypeHolder::creator_t creator(const XString &tp) {return s_types.creator(tp);} \
+    static std::deque<XString> &typenames() {return s_types.names;} \
+    static std::deque<XString> &typelabels() {return s_types.labels;}
 
 #define DECLARE_TYPE_HOLDER(list) \
     list::TypeHolder list::s_types;

@@ -39,7 +39,7 @@ public:
 	XThermometerList(const char *name, bool runtime);
 	virtual ~XThermometerList() {}
 
-	DEFINE_TYPE_HOLDER
+    DEFINE_TYPE_HOLDER()
 protected:
 	virtual shared_ptr<XNode> createByTypename(
         const XString &type, const XString &name) {

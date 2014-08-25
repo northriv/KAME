@@ -93,7 +93,7 @@ class XDriverList : public XCustomTypeListNode<XDriver> {
 public:
 	XDriverList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
 
-	DEFINE_TYPE_HOLDER_EXTRA_PARAMS_2(
+    DEFINE_TYPE_HOLDER(
 		reference_wrapper<Transaction>,
 		const shared_ptr<XMeasure> &
 		)
