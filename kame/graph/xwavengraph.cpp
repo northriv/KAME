@@ -313,20 +313,11 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
 	}
 	tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
 }
-
-unsigned int
-XWaveNGraph::Payload::rowCount() const {
-	return m_colcnt ? m_cols.size() / m_colcnt : 0;
-}
-unsigned int
-XWaveNGraph::Payload::colCount() const {
-	return m_colcnt;
-}
 double *
 XWaveNGraph::Payload::cols(unsigned int n) {
-	return &(m_cols[rowCount() * n]);
+    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
 }
 const double *
 XWaveNGraph::Payload::cols(unsigned int n) const {
-	return &(m_cols[rowCount() * n]);
+    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
 }
