@@ -17,7 +17,7 @@
 #include "xnode.h"
 #include <typeinfo>
 
-XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
+DECLSPEC_KAME XThreadLocal<std::deque<shared_ptr<XNode> > > XNode::stl_thisCreating;
 
 void
 XNode::Payload::setUIEnabled(bool var) {

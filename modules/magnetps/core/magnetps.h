@@ -24,7 +24,7 @@ typedef QForm<QMainWindow, Ui_FrmMagnetPS> FrmMagnetPS;
 class Ui_FrmMagnetPSConfig;
 typedef QForm<QMainWindow, Ui_FrmMagnetPSConfig> FrmMagnetPSConfig;
 
-class XMagnetPS : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XMagnetPS : public XPrimaryDriverWithThread {
 public:
 	XMagnetPS(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

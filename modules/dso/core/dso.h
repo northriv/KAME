@@ -30,7 +30,7 @@ typedef QForm<QMainWindow, Ui_FrmDSO> FrmDSO;
 #include "xwavengraph.h"
 
 //! Base class for digital storage oscilloscope.
-class XDSO : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XDSO : public XPrimaryDriverWithThread {
 public:
 	XDSO(const char *name, bool runtime,
 		 Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

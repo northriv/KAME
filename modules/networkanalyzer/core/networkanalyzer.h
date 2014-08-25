@@ -30,7 +30,7 @@ class XWaveNGraph;
 class XXYPlot;
 
 //! Base class for digital storage oscilloscope.
-class XNetworkAnalyzer : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XNetworkAnalyzer : public XPrimaryDriverWithThread {
 public:
 	XNetworkAnalyzer(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

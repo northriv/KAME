@@ -91,7 +91,7 @@ public:
 
 	//! Data holder.
 	//! \sa Transactional::Node::Payload.
-	struct Payload : public Transactional::Node<XNode>::Payload {
+    struct DECLSPEC_KAME Payload : public Transactional::Node<XNode>::Payload {
 		Payload() : Transactional::Node<XNode>::Payload(), m_flags(NODE_UI_ENABLED) {}
 		//! If true, operations are allowed by UI and scripts.
 		bool isUIEnabled() const {return m_flags & NODE_UI_ENABLED;}
@@ -117,11 +117,11 @@ private:
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
 
-class XTouchableNode : public XNode {
+class DECLSPEC_KAME XTouchableNode : public XNode {
 public:
 	explicit XTouchableNode(const char *name, bool runtime) : XNode(name, runtime) {}
 
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
 		void touch();
 		//! \sa touch()
@@ -141,7 +141,7 @@ public:
 	typedef void (*Validator)(XString &);
 	void setValidator(Validator x) {m_validator = x;}
 
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
 		//! Gets value as a string, which is used for scripting.
 		virtual XString to_str() const = 0;
@@ -217,7 +217,7 @@ public:
 	explicit XStringNode(const char *name, bool runtime = false);
 	virtual ~XStringNode() {}
 
-	struct Payload : public XValueNodeBase::Payload {
+    struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}
 		virtual XString to_str() const {return this->m_var;}
 		operator const XString&() const {return m_var;}

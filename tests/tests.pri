@@ -20,4 +20,9 @@ CONFIG -= app_bundle #macosx
 
 INCLUDEPATH += $${_PRO_FILE_PWD_}/../kame
 
-QMAKE_CXXFLAGS += -msse -msse2
+win32-msvc* {
+    QMAKE_CXXFLAGS += /arch:SSE2
+}
+else {
+    QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+}

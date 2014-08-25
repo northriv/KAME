@@ -27,19 +27,19 @@ public:
 	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XInterface() {}
  
-	struct XInterfaceError : public XKameError {
+    struct DECLSPEC_KAME XInterfaceError : public XKameError {
 		XInterfaceError(const XString &msg, const char *file, int line);
         virtual ~XInterfaceError() throw() {}
 	};
-	struct XConvError : public XInterfaceError {
+    struct DECLSPEC_KAME XConvError : public XInterfaceError {
 		XConvError(const char *file, int line);
         virtual ~XConvError() throw() {}
 	};
-	struct XCommError : public XInterfaceError {
+    struct DECLSPEC_KAME XCommError : public XInterfaceError {
 		XCommError(const XString &, const char *file, int line);
         virtual ~XCommError() throw() {}
 	};
-	struct XOpenInterfaceError : public XInterfaceError {
+    struct DECLSPEC_KAME XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
         virtual ~XOpenInterfaceError() throw() {}
 	};
@@ -68,7 +68,7 @@ public:
 	void start();
 	void stop();
   
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		Talker<XInterface*, XInterface*> &onOpen() {return m_tlkOnOpen;}
 		const Talker<XInterface*, XInterface*> &onOpen() const {return m_tlkOnOpen;}
 		Talker<XInterface*, XInterface*> &onClose() {return m_tlkOnClose;}

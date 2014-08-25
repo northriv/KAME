@@ -21,7 +21,7 @@ class QMainWindow;
 class Ui_FrmDCSource;
 typedef QForm<QMainWindow, Ui_FrmDCSource> FrmDCSource;
 
-class XDCSource: public XPrimaryDriver {
+class DECLSPEC_SHARED XDCSource: public XPrimaryDriver {
 public:
 	XDCSource(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

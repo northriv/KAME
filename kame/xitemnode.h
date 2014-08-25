@@ -28,7 +28,7 @@ public:
 
 	bool autoSetAny() const {return !!m_lsnTryAutoSet;}
 
-	struct Payload : public XValueNodeBase::Payload {
+    struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {}
 		struct ListChangeEvent {
 			ListChangeEvent(const Snapshot &s, XItemNodeBase *e) : shot_of_list(s), emitter(e) {}

@@ -18,7 +18,7 @@
 #include "chardevicedriver.h"
 #include "primarydriver.h"
 
-class XOxfordInterface : public XCharInterface {
+class DECLSPEC_SHARED XOxfordInterface : public XCharInterface {
 public:
 	XOxfordInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 

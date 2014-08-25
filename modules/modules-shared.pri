@@ -11,8 +11,6 @@ win32 {
     CONFIG += plugin
 
 # -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
-
-    LIBS += $${PRI_DIR}../kame/kame.a
 }
 else {
     CONFIG += shared
@@ -21,11 +19,15 @@ else {
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
-win32-mingw*: QMAKE_LFLAGS += -Wl,--export-all-symbols
+win32-mingw* {
+    QMAKE_LFLAGS += -Wl,--export-all-symbols
+    LIBS += $${PRI_DIR}../kame/kame.a
+}
 win32-msvc* {
     DEFINES += DECLSPEC_KAME=__declspec(dllimport)
     DEFINES += DECLSPEC_MODULE=should_not_use
     DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
+    LIBS += $${PRI_DIR}../kame.lib
 }
 win32 {
     DESTDIR=$$OUT_PWD/$${PRI_DIR}../coremodules

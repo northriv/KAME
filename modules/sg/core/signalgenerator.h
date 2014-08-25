@@ -20,7 +20,7 @@
 class Ui_FrmSG;
 typedef QForm<QMainWindow, Ui_FrmSG> FrmSG;
 
-class XSG : public XPrimaryDriver {
+class DECLSPEC_SHARED XSG : public XPrimaryDriver {
 public:
 	XSG(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

@@ -18,7 +18,7 @@
 
 //#include <stdarg.h>
 
-class XCustomCharInterface : public XInterface {
+class DECLSPEC_SHARED XCustomCharInterface : public XInterface {
 public:
     XCustomCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
     virtual ~XCustomCharInterface() {}
@@ -78,7 +78,7 @@ private:
 
 class XPort;
 //! Standard interface for character devices. e.g. GPIB, serial port, TCP/IP...
-class XCharInterface : public XCustomCharInterface {
+class DECLSPEC_SHARED XCharInterface : public XCustomCharInterface {
 public:
 	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 	virtual ~XCharInterface() {}

@@ -22,7 +22,7 @@ class QMainWindow;
 class Ui_FrmMotorDriver;
 typedef QForm<QMainWindow, Ui_FrmMotorDriver> FrmMotorDriver;
 
-class XMotorDriver : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XMotorDriver : public XPrimaryDriverWithThread {
 public:
 	XMotorDriver(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

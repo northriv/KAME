@@ -30,7 +30,7 @@ typedef QForm<QMainWindow, Ui_FrmPulserMore> FrmPulserMore;
 class XQPulserDriverConnector;
 
 //! Base class of NMR Pulsers
-class XPulser : public XPrimaryDriver {
+class DECLSPEC_SHARED XPulser : public XPrimaryDriver {
 public:
 	XPulser(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

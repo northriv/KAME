@@ -29,7 +29,7 @@ public:
 
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
 		Talker<XListNodeBase*, XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
 		struct MoveEvent {

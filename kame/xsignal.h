@@ -21,7 +21,7 @@
 #include <deque>
 
 //! Detect whether the current thread is the main thread.
-bool isMainThread();
+DECLSPEC_KAME bool isMainThread();
 
 template <class tArg>
 class XTalker;
@@ -69,7 +69,7 @@ struct XTransaction_ {
 	virtual bool talkBuffered() = 0;
 };
 
-void registerTransactionList(XTransaction_ *);
+DECLSPEC_KAME void registerTransactionList(XTransaction_ *);
 
 //! M/M Listener and Talker model
 //! \sa XListener, XSignalStore

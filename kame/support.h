@@ -104,7 +104,7 @@ public:
 //! Debug printing.
 #define dbgPrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__, false)
 #define gMessagePrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__, true)
-void
+DECLSPEC_KAME void
 dbgPrint_redirected(const XString &str, const char *file, int line, bool force_dump);
 //! Global Error Message/Printing.
 #define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
@@ -143,17 +143,17 @@ extern bool g_bMLockAlways;
 //! If true, use mlock.
 extern bool g_bUseMLock;
 //! round value to the nearest 10s. ex. 42.3 to 10, 120 to 100
-double roundlog10(double val);
+DECLSPEC_KAME double roundlog10(double val);
 //! round value within demanded precision.
 //! ex. 38.32, 40 to 30, 0.4234, 0.01 to 0.42
-double setprec(double val, double prec);
+DECLSPEC_KAME double setprec(double val, double prec);
 
 #ifdef _MSC_VER
     #define snprintf(fmt, len, ...) (void)_snprintf_s(fmt, len, len - 1, __VA_ARGS__)
 #endif
 
 //! convert control characters to visible (ex. \xx).
-XString dumpCString(const char *cstr);
+DECLSPEC_KAME XString dumpCString(const char *cstr);
 
 //! \sa printf()
 DECLSPEC_KAME XString formatString(const char *format, ...)
@@ -166,11 +166,11 @@ XString formatString_tr(const char *format_i18n_noop, ...)
     __attribute__ ((format(printf,1,2)));
 #endif
 ;
-XString formatDouble(const char *fmt, double val);
+DECLSPEC_KAME XString formatDouble(const char *fmt, double val);
 //! validator
 //! throw XKameError
 //! \sa XValueNode
-void formatDoubleValidator(XString &fmt);
+DECLSPEC_KAME void formatDoubleValidator(XString &fmt);
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 struct X86CPUSpec {

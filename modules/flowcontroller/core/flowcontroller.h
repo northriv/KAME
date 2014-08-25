@@ -23,7 +23,7 @@ class Ui_FrmFlowController;
 typedef QForm<QMainWindow, Ui_FrmFlowController> FrmFlowController;
 
 //! Base class for mass flow monitors/controllers.
-class XFlowControllerDriver : public XPrimaryDriverWithThread {
+class DECLSPEC_KAME XFlowControllerDriver : public XPrimaryDriverWithThread {
 public:
 	XFlowControllerDriver(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);

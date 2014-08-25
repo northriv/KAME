@@ -22,7 +22,7 @@ class QMainWindow;
 class Ui_FrmDMM;
 typedef QForm<QMainWindow, Ui_FrmDMM> FrmDMM;
 
-class XDMM : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XDMM : public XPrimaryDriverWithThread {
 public:
 	XDMM(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
