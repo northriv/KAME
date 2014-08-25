@@ -63,17 +63,17 @@ public:
     template <class T>
     shared_ptr<T> create(const char *name) {return create<T>(name, false);}
     template <class T, typename... Args>
-	shared_ptr<T> create(const char *name, bool runtime, Args... args);
+    shared_ptr<T> create(const char *name, bool runtime, Args&&... args);
 
     template <class T>
     shared_ptr<T> create(Transaction &tr, const char *name) {return create<T>(tr, name, false);}
     template <class T, typename... Args>
-	shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, Args... args);
+    shared_ptr<T> create(Transaction &tr, const char *name, bool runtime, Args&&... args);
 
     template <class T__>
     static shared_ptr<T__> createOrphan(const char *name) {return createOrphan<T__>(name, false);}
     template <class T__, typename... Args_>
-	static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args_... args);
+    static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args_&&... args);
 
 	//! \return internal/scripting name. Use latin1 chars.
 	XString getName() const;
@@ -241,8 +241,8 @@ typedef XIntNodeBase<unsigned long, 16> XHexNode;
 
 template <class T, typename... Args>
 shared_ptr<T>
-XNode::createOrphan(const char *name, bool runtime, Args... args) {
-	Transactional::Node<XNode>::create<T>(name, runtime, args...);
+XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
+    Transactional::Node<XNode>::create<T>(name, runtime, static_cast<Args&&>(args)...);
 	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
 	XNode::stl_thisCreating->pop_back();
 	return ptr;
@@ -250,16 +250,16 @@ XNode::createOrphan(const char *name, bool runtime, Args... args) {
 
 template <class T, typename... Args>
 shared_ptr<T>
-XNode::create(Transaction &tr, const char *name, bool runtime, Args... args) {
-	shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
+XNode::create(Transaction &tr, const char *name, bool runtime, Args&&... args) {
+    shared_ptr<T> ptr(createOrphan<T>(name, runtime, static_cast<Args&&>(args)...));
 	if(ptr) insert(tr, ptr, true);
 	return ptr;
 }
 
 template <class T, typename... Args>
 shared_ptr<T>
-XNode::create(const char *name, bool runtime, Args... args) {
-    shared_ptr<T> ptr(createOrphan<T>(name, runtime, args...));
+XNode::create(const char *name, bool runtime, Args&&... args) {
+    shared_ptr<T> ptr(createOrphan<T>(name, runtime, static_cast<Args&&>(args)...));
 	if(ptr) insert(ptr);
 	return ptr;
 }

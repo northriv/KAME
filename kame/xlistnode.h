@@ -116,8 +116,8 @@ shared_ptr<XNode> empty_creator_(const char *, bool, Args...) {
     return shared_ptr<XNode>();
 }
 template <class T, typename... Args>
-shared_ptr<XNode> creator_(const char *name, bool runtime, Args... args) {
-    return XNode::createOrphan<T>(name, runtime, args...);
+shared_ptr<XNode> creator_(const char *name, bool runtime, Args&&... args) {
+    return XNode::createOrphan<T>(name, runtime, static_cast<Args&&>(args)...);
 }
 
 
@@ -131,10 +131,10 @@ struct XTypeHolder {
             fprintf(stderr, "New typeholder\n");
 	}
 		
-	template <class tChild>
+    template <class tChild, typename... Args>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-            tFunc create_typed = (tFunc)creator_<tChild>;
+            tFunc create_typed = (tFunc)creator_<tChild, Args...>;
 			if( !label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {

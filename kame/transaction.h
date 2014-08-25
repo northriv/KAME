@@ -86,7 +86,7 @@ template <class XN>
 class Node {
 public:
 	template <class T, typename... Args>
-	static T *create(Args... args);
+    static T *create(Args&&... args);
 
 	virtual ~Node();
 
@@ -367,9 +367,9 @@ private:
 
 template <class XN>
 template <class T, typename... Args>
-T *Node<XN>::create(Args... args) {
+T *Node<XN>::create(Args&&... args) {
     *T::stl_funcPayloadCreator = (FuncPayloadCreator)&PayloadWrapper<T>::funcPayloadCreator;
-	return new T(args...);
+    return new T(static_cast<Args&&>(args)...);
 }
 
 //! \brief This class takes a snapshot for a subtree.\n
