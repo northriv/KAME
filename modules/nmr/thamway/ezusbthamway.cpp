@@ -19,6 +19,7 @@
 
 #define CUSB_BULK_WRITE_SIZE 40000
 
+#define NOMINMAX
 #include <windows.h>
 extern "C" {
     #include "cusb.h"

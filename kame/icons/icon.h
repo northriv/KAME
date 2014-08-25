@@ -16,22 +16,22 @@
 
 class QPixmap;
 
-extern QPixmap *g_pIconKame24x24;
-extern QPixmap *g_pIconKame;
-extern QPixmap *g_pIconInfo;
-extern QPixmap *g_pIconWarn;
-extern QPixmap *g_pIconError;
-extern QPixmap *g_pIconStop;
-extern QPixmap *g_pIconClose;
-extern QPixmap *g_pIconInterface;
-extern QPixmap *g_pIconDriver;
-extern QPixmap *g_pIconReader;
-extern QPixmap *g_pIconScalar;
-extern QPixmap *g_pIconGraph;
-extern QPixmap *g_pIconScript;
-extern QPixmap *g_pIconRoverT;
-extern QPixmap *g_pIconLEDOn;
-extern QPixmap *g_pIconLEDOff;
+extern DECLSPEC_KAME QPixmap *g_pIconKame24x24;
+extern DECLSPEC_KAME QPixmap *g_pIconKame;
+extern DECLSPEC_KAME QPixmap *g_pIconInfo;
+extern DECLSPEC_KAME QPixmap *g_pIconWarn;
+extern DECLSPEC_KAME QPixmap *g_pIconError;
+extern DECLSPEC_KAME QPixmap *g_pIconStop;
+extern DECLSPEC_KAME QPixmap *g_pIconClose;
+extern DECLSPEC_KAME QPixmap *g_pIconInterface;
+extern DECLSPEC_KAME QPixmap *g_pIconDriver;
+extern DECLSPEC_KAME QPixmap *g_pIconReader;
+extern DECLSPEC_KAME QPixmap *g_pIconScalar;
+extern DECLSPEC_KAME QPixmap *g_pIconGraph;
+extern DECLSPEC_KAME QPixmap *g_pIconScript;
+extern DECLSPEC_KAME QPixmap *g_pIconRoverT;
+extern DECLSPEC_KAME QPixmap *g_pIconLEDOn;
+extern DECLSPEC_KAME QPixmap *g_pIconLEDOff;
 
 void makeIcons();
 

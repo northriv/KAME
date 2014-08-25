@@ -777,9 +777,9 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
-		ssize_t samps_do = m_patBufDO.writtenSize();
+        ssize_t samps_do = m_patBufDO.writtenSize();
 		const tRawAOSet *pAO = NULL;
-		ssize_t samps_ao = 0;
+        ssize_t samps_ao = 0;
 		if(m_taskAO != TASK_UNDEF) {
 			pAO = m_patBufAO.curReadPos();
 			samps_ao = m_patBufAO.writtenSize();
@@ -790,14 +790,14 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
 			continue;
 		}
 		try {
-			ssize_t written;
+            ssize_t written;
 			if(samps_ao > samps_do) {
-				written = writeToDAQmxAO(pAO, std::min(samps_ao, (ssize_t)m_transferSizeHintAO));
+                written = writeToDAQmxAO(pAO, std::min(samps_ao, (ssize_t)m_transferSizeHintAO));
 				if(written) m_patBufAO.finReading(written);
 				written_total_ao += written;
 			}
 			else {
-				written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
+                written = writeToDAQmxDO(pDO, std::min(samps_do, (ssize_t)m_transferSizeHintDO));
 				if(written) m_patBufDO.finReading(written);
 				written_total_do += written;
 			}
@@ -876,16 +876,16 @@ XNIDAQmxPulser::fillBuffer() {
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
 
 	tRawDO *pDO = m_patBufDO.curWritePos();
-	tRawDO *pDOorg = pDO;
+    tRawDO *pDOorg = pDO;
 	if( !pDO)
 		return false;
 	tRawAOSet *pAO = (UseAO) ? m_patBufAO.curWritePos() : NULL;
 	if( !pAO && UseAO)
 		return false;
 	tRawAOSet raw_zero = m_genAOZeroLevel;
-	ssize_t capacity = m_patBufDO.chunkSize();
+    ssize_t capacity = m_patBufDO.chunkSize();
 	if(UseAO)
-		capacity = std::min(capacity, m_patBufAO.chunkSize() / (ssize_t)oversamp_ao);
+        capacity = std::min(capacity, m_patBufAO.chunkSize() / (ssize_t)oversamp_ao);
 	for(unsigned int samps_rest = capacity; samps_rest;) {
 		unsigned int pidx = (pat & PAT_QAM_PULSE_IDX_MASK) / PAT_QAM_PULSE_IDX;
 		//Bits for digital lines.

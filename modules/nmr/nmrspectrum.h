@@ -14,7 +14,7 @@
 #ifndef nmrspectrumH
 #define nmrspectrumH
 //---------------------------------------------------------------------------
-#include <nmrspectrumbase.h>
+#include "nmrspectrumbase.h"
 
 class XMagnetPS;
 class XDMM;

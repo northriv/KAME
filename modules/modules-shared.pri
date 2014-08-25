@@ -25,7 +25,7 @@ win32-mingw* {
 }
 win32-msvc* {
     DEFINES += DECLSPEC_KAME=__declspec(dllimport)
-    DEFINES += DECLSPEC_MODULE=should_not_use
+    DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
     DEFINES += DECLSPEC_SHARED=__declspec(dllexport)
     LIBS += $${PRI_DIR}../kame.lib
 }

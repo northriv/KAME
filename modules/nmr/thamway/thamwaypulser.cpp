@@ -79,7 +79,7 @@ XThamwayPulser::createNativePatterns(Transaction &tr) {
     pulseAdd(tr, 10, pat); //leading blanks
     pulseAdd(tr, 10, pat);
     uint32_t startaddr = 2;
-    for(typename Payload::RelPatList::const_iterator it = shot[ *this].relPatList().begin();
+    for(auto it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {
 		pulseAdd(tr, it->toappear, pat);
         pat = (uint16_t)(it->pattern & XPulser::PAT_DO_MASK);
@@ -87,7 +87,7 @@ XThamwayPulser::createNativePatterns(Transaction &tr) {
 //    if(tr[ *this].m_patterns.back().term_n_cmd < 2) {
 //        pulseAdd(tr, lrint(2 * minPulseWidth() / resolution()), pat);
 //    }
-    typename Payload::Pulse p;
+    Payload::Pulse p;
     p.term_n_cmd = CMD_JP * 0x10000uL + startaddr;
 	p.data = 0;
 	tr[ *this].m_patterns.push_back(p);
@@ -102,7 +102,7 @@ XThamwayPulser::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
 	for(; term;) {
         uint64_t t = std::min((uint64_t)term, (uint64_t)0xfe000000uL);
 		term -= t;
-        typename Payload::Pulse p;
+        Payload::Pulse p;
 		p.term_n_cmd = t;
 		p.data = pattern;
 		tr[ *this].m_patterns.push_back(p);

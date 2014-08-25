@@ -20,6 +20,10 @@
 
 #include <vector>
 
+#ifdef _MSC_VER
+typedef ptrdiff_t ssize_t;
+#endif
+
 class XNIDAQmxPulser : public XNIDAQmxDriver<XPulser> {
 public:
 	XNIDAQmxPulser(const char *name, bool runtime,
@@ -123,26 +127,26 @@ private:
 	template <typename T>
 	struct RingBuffer {
 		enum {CHUNK_DIVISOR = 16};
-		void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
+        void reserve(ssize_t s) {m_data.resize(s); m_curReadPos = 0; m_endOfWritten = 0; m_end = s;}
 		const T*curReadPos() {
 			if((m_endOfWritten < m_curReadPos) && (m_curReadPos == m_end))
 				m_curReadPos = 0;
 			return &m_data[m_curReadPos];
 		}
-		ssize_t writtenSize() const {
-			ssize_t end_of_written = m_endOfWritten;
+        ssize_t writtenSize() const {
+            ssize_t end_of_written = m_endOfWritten;
 			if(m_curReadPos <= end_of_written) {
 				return end_of_written - m_curReadPos;
 			}
 			return m_end - m_curReadPos;
 		}
 		//! Tags as read.
-		void finReading(ssize_t size_read) {
-			ssize_t p = m_curReadPos + size_read;
+        void finReading(ssize_t size_read) {
+            ssize_t p = m_curReadPos + size_read;
 			m_curReadPos = p;
 		}
 		//! Size of reserved writing space beginning with \a curWritePos().
-		ssize_t chunkSize() const {
+        ssize_t chunkSize() const {
 			return m_data.size() / CHUNK_DIVISOR;
 		}
 		T *curWritePos() {
@@ -190,8 +194,8 @@ private:
 	inline bool fillBuffer();
 	void rewindBufPos(double ms_from_gen_pos);
 	//! \return Counts being sent.
-	ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
-	ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
+    ssize_t writeToDAQmxDO(const tRawDO *pDO, ssize_t samps);
+    ssize_t writeToDAQmxAO(const tRawAOSet *pAO, ssize_t samps);
 	void startBufWriter();
 	void stopBufWriter();
 	void *executeWriter(const atomic<bool> &);

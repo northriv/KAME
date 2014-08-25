@@ -14,7 +14,7 @@
 #ifndef nmrfspectrumH
 #define nmrfspectrumH
 
-#include <nmrspectrumbase.h>
+#include "nmrspectrumbase.h"
 
 class XSG;
 class XPulser;

@@ -86,7 +86,7 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XSG> > &dRFSG() const {return m_dRFSG;}
 	const shared_ptr<XDoubleNode> &dRFFreq() const {return m_dRFFreq;}
 
-	struct Payload : public XPrimaryDriver::Payload {
+    struct DECLSPEC_SHARED Payload : public XPrimaryDriver::Payload {
 		Payload() : m_rawDisplayOnly(false), m_numChannelsDisp(0) {}
 		double trigPos() const {return m_trigPos;} ///< unit is interval
 		unsigned int numChannels() const {return m_numChannels;}
