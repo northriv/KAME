@@ -11,17 +11,20 @@ INCLUDEPATH += \
 macx {
   QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
 }
-win32-mingw*: QMAKE_LFLAGS += -Wl,--export-all-symbols
-win32-msvc* {
-    DEFINES += DECLSPEC_KAME=__declspec(dllimport)
-    DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
-    DEFINES += DECLSPEC_SHARED=__declspec(dllimport)
-}
-win32 {
-# -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
 
-    LIBS += $${PRI_DIR}../kame/kame.a
+win32 {
     DESTDIR=$$OUT_PWD/$${PRI_DIR}
+    win32-msvc* {
+        DEFINES += DECLSPEC_KAME=__declspec(dllimport)
+        DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
+        DEFINES += DECLSPEC_SHARED=__declspec(dllimport)
+        LIBS += $${PRI_DIR}../kame/kame.lib
+    }
+    else {
+        QMAKE_LFLAGS += -Wl,--export-all-symbols
+    # -Wl,--whole-archive ${old_libs} -Wl,--no-whole-archive ${dependency_libs} -Wl,--enable-auto-import
+        LIBS += $${PRI_DIR}../kame/kame.a
+    }
 }
 
 unix {

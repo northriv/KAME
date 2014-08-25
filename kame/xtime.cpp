@@ -78,7 +78,6 @@ unsigned int timeStamp() {
 #endif
 }
 
-
 XTime
 XTime::now() {
 #ifdef USE_QTHREAD
@@ -99,9 +98,9 @@ XTime::getTimeStr(bool subsecond) const {
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
         if(sizeof(tv_sec) == 4)
-            _ctime32_s(str, sizeof(str - 1), &t32);
+            _ctime32_s(str, sizeof(str) - 1, &t32);
         else
-            _ctime64_s(str, sizeof(str - 1), &t64);
+            _ctime64_s(str, sizeof(str) - 1, &t64);
 #else
         ctime_r( &tv_sec, str);
 #endif
