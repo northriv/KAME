@@ -18,7 +18,7 @@
 #include <QIcon>
 
 //#include "kame-24x24-png.c"
-extern const unsigned char icon_kame_24x24_png[1065];
+extern "C" const unsigned char icon_kame_24x24_png[1065];
 
 QPixmap *g_pIconKame24x24;
 QPixmap *g_pIconKame;

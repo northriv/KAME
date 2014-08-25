@@ -39,14 +39,16 @@ macx {
 win32 {
 #    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     DEFINES += GSL_DLL
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
 }
 win32-mingw* {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
     LIBS += -lgsl #-lgslcblas
 }
 win32-msvc* {
-    LIBS += -llibgsl
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/include
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/lib
+    LIBS += -lgsl_d -lcblas_d
 }
 
 unix: CONFIG += link_pkgconfig

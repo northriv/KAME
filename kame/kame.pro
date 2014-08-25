@@ -221,21 +221,22 @@ win32-msvc* {
 win32 {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
-}
-win32-mingw* {
     INCLUDEPATH += "C:/Program Files/GnuWin32/include"
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
     LIBS += -L"C:/Program Files/GnuWin32/lib/"
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
+}
+win32-mingw* {
     LIBS += -lltdl -lz
     LIBS += -lfftw3-3
 }
 win32-msvc* {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
-    LIBS += -lzdll
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
+#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
+#    LIBS += -lzdll
+    LIBS += -llibltdl3 -lzlib
     LIBS += -llibfftw3-3
-    QMAKE_PRE_LINK += lib /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def
+    QMAKE_PRE_LINK += lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def
 }
 
 unix {
