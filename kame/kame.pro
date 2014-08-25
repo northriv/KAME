@@ -234,7 +234,6 @@ win32-msvc* {
 #    LIBS += -lltdl -lzlib
     LIBS += -llibfftw3-3
     QMAKE_PRE_LINK += lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def
-    QMAKE_PRE_LINK += & lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/libgsl.def
 }
 
 unix {

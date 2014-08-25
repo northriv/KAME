@@ -56,10 +56,9 @@ public:
 		void setLabel(unsigned int col, const char *label);
 		void setRowCount(unsigned int rowcnt);
 		void setColCount(unsigned int colcnt, const char **lables);
-        unsigned int rowCount() const {
-            return m_colcnt ? m_cols.size() / m_colcnt : 0;}
-        unsigned int colCount() const {return m_colcnt;}
-        unsigned int numPlots() const { return m_plots.size();}
+		unsigned int rowCount() const;
+		unsigned int colCount() const;
+		unsigned int numPlots() const { return m_plots.size();}
 
 		const double *cols(unsigned int n) const;
 		double *cols(unsigned int n);

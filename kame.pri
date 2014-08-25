@@ -46,9 +46,9 @@ win32-mingw* {
     LIBS += -lgsl #-lgslcblas
 }
 win32-msvc* {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/
-    LIBS += -llibgsl
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/include
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/lib
+    LIBS += -lgsl_d -lcblas_d
 }
 
 unix: CONFIG += link_pkgconfig
