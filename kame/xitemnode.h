@@ -45,7 +45,7 @@ private:
 	void onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent &e);
 };
 
-void
+DECLSPEC_KAME void
 xpointeritemnode_throwConversionError_();
 
 template <class TL>
@@ -183,7 +183,7 @@ public:
 		return shot[ *this].itemStrings();
 	}
 
-	struct Payload : public XItemNodeBase::Payload {
+    struct DECLSPEC_KAME Payload : public XItemNodeBase::Payload {
 		Payload() : XItemNodeBase::Payload(), m_strings(new std::deque<XString>),
 			m_var(std::pair<XString, int>("", -1)) {}
 		void add(const XString &str);

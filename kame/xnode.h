@@ -167,13 +167,13 @@ protected:
 
 //! Base class for integer node.
 template <typename T, int base = 10>
-class XIntNodeBase : public XValueNodeBase {
+class DECLSPEC_KAME XIntNodeBase : public XValueNodeBase {
 public:
 	explicit XIntNodeBase(const char *name, bool runtime = false)
 	: XValueNodeBase(name, runtime) {}
 	virtual ~XIntNodeBase() {}
 
-	struct Payload : public XValueNodeBase::Payload {
+    struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {this->m_var = 0;}
 		virtual XString to_str() const;
 		operator T() const {return m_var;}
@@ -196,7 +196,7 @@ public:
 	const char *format() const {return local_shared_ptr<XString>(m_format)->c_str();}
 	void setFormat(const char* format);
 
-	struct Payload : public XValueNodeBase::Payload {
+    struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {this->m_var = 0.0;}
 		virtual XString to_str() const;
 		operator double() const {return m_var;}

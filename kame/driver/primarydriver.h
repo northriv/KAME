@@ -42,7 +42,7 @@ protected:
 	virtual void closeInterface() = 0;
 
 	//! These are FIFO.
-	struct RawData : public std::vector<char> {
+    struct RawData : public std::vector<char> {
 		//! Pushes raw data to raw record
 		//! Use signed/unsigned char, int16_t(16bit), and int32_t for integers.
 		//! IEEE 754 float and double for floting point numbers.
@@ -57,7 +57,7 @@ protected:
 		inline void push_double(double);
 	};
 
-	struct RawDataReader {
+    struct DECLSPEC_KAME RawDataReader {
 		typedef std::vector<char>::const_iterator const_iterator;
 		//! reads raw record
 		//! \sa push(), rawData()
@@ -96,7 +96,7 @@ protected:
 	void finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		const XTime &time_awared, const XTime &time_recorded);
 public:
-	struct Payload : public XDriver::Payload {
+    struct DECLSPEC_KAME Payload : public XDriver::Payload {
 		const RawData &rawData() const {return *m_rawData;}
 	private:
 		friend class XPrimaryDriver;

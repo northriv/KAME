@@ -61,7 +61,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
 
 	//memory locks.
- 	if(g_bUseMLock) {
+    if(isMemLockAvailable()) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_genPatternList;
 		const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);

@@ -15,6 +15,6 @@
 #define RAND_H_
 
 //! Mersenne Twister 19937.
-double randMT19937();
+DECLSPEC_KAME double randMT19937();
 
 #endif /*RAND_H_*/

@@ -83,7 +83,7 @@ class Transaction;
 //! \sa Snapshot, Transaction.
 //! \sa XNode.
 template <class XN>
-class Node {
+class DECLSPEC_KAME Node {
 public:
 	template <class T, typename... Args>
     static T *create(Args&&... args);
@@ -362,7 +362,7 @@ protected:
 	Node();
 private:
 	typedef Payload *(*FuncPayloadCreator)(XN &);
-	static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
+    static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
 };
 
 template <class XN>

@@ -25,7 +25,7 @@
 
 //! FIR (Finite Impulse Response) Digital Filter.
 //! Accelerated by FFT.
-class FIR {
+class DECLSPEC_KAME FIR {
 public:
 	//! makes coeff. for BPF. Window func. method.
 	//! \param taps odd num. a number of taps

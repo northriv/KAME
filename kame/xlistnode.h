@@ -169,7 +169,7 @@ struct XTypeHolder {
     
 #define REGISTER_TYPE(list, type, label) REGISTER_TYPE_2__(list, X ## type, type, label)
 
-class XStringList : public  XListNode<XStringNode> {
+class DECLSPEC_KAME XStringList : public  XListNode<XStringNode> {
 public:
 	explicit XStringList(const char *name, bool runtime = false)
 		:  XListNode<XStringNode>(name, runtime) {}

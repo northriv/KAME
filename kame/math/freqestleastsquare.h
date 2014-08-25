@@ -18,7 +18,7 @@
 
 //! Frequency estimation by least square fit.
 //! Number of signals is determined by information criterion.
-class FreqEstLeastSquare : public SpectrumSolver {
+class DECLSPEC_KAME FreqEstLeastSquare : public SpectrumSolver {
 public:
 	FreqEstLeastSquare(tfuncIC ic) : 
 		SpectrumSolver(), m_funcIC(ic) {}

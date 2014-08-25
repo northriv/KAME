@@ -66,6 +66,7 @@ macx: DEFINES += HAVE_LAPACK
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
+    QMAKE_LFLAGS += /opt:noref
 }
 else {
     QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2

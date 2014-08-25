@@ -24,7 +24,7 @@
 
 //! Base class for spectrum solvers.
 //! \sa FFTSolver, MEMStrict, CompositeSpectrumSolver, FreqEstimation, MemBurg, YuleWalkerAR
-class SpectrumSolver {
+class DECLSPEC_KAME SpectrumSolver {
 public:
 	SpectrumSolver();
 	virtual ~SpectrumSolver();
@@ -94,7 +94,7 @@ protected:
 };
 
 //! Zero-filled FFT spectrum solver.
-class FFTSolver : public SpectrumSolver {
+class DECLSPEC_KAME FFTSolver : public SpectrumSolver {
 public:
 	FFTSolver() : SpectrumSolver()  {}
 	virtual ~FFTSolver() {}
@@ -107,7 +107,7 @@ protected:
 };
 
 //! Extra-polation of data using MEM (Maximum Entropy Method) by assuming gaussian distribution.
-class MEMStrict : public SpectrumSolver {
+class DECLSPEC_KAME MEMStrict : public SpectrumSolver {
 public:
 	virtual ~MEMStrict();
 protected:

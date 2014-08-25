@@ -57,7 +57,7 @@
     #define USE_STD_THREAD
     #include <QThread>
     #include <thread>
-    int mlock(const void *addr, size_t len);
+    DECLSPEC_KAME int mlock(const void *addr, size_t len);
 #else
     #include <pthread.h>
     #define USE_PTHREAD
@@ -90,7 +90,7 @@ using std::reference_wrapper;
     #define I18N_NOOP(txt) QT_TR_NOOP(txt)
 #endif
 
-class DECLSPEC_KAME XString : public std::string {
+class XString : public std::string {
 typedef std::string base_type;
 public:
 	XString() : base_type() {}
@@ -142,6 +142,9 @@ extern bool g_bUseOverpaint;
 extern bool g_bMLockAlways;
 //! If true, use mlock.
 extern bool g_bUseMLock;
+
+DECLSPEC_KAME bool isMemLockAvailable();
+
 //! round value to the nearest 10s. ex. 42.3 to 10, 120 to 100
 DECLSPEC_KAME double roundlog10(double val);
 //! round value within demanded precision.

@@ -54,7 +54,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 		if(tr.commit())
 			break;
 	}
-    if(g_bUseMLock) {
+    if(isMemLockAvailable()) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
 		const void *LAST_OF_MLOCK_MEMBER = &m_task;
 		//Suppress swapping.
@@ -357,12 +357,12 @@ XNIDAQmxDSO::setupTiming() {
 		DSORawRecord &rec = m_dsoRawRecordBanks[i];
 		rec.record.resize(len * num_ch * (rec.isComplex ? 2 : 1));
 		assert(rec.numCh == num_ch);
-        if(g_bUseMLock) {
+        if(isMemLockAvailable()) {
 			mlock(&rec.record[0], rec.record.size() * sizeof(int32_t));
 		}
 	}
 	m_recordBuf.resize(len * num_ch);
-    if(g_bUseMLock) {
+    if(isMemLockAvailable()) {
 		mlock( &m_recordBuf[0], m_recordBuf.size() * sizeof(tRawAI));
 	}
 

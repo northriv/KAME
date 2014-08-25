@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 #endif
-			if(g_bUseMLock)
+            if(isMemLockAvailable())
                 mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 
             if( !usedirectrender) {

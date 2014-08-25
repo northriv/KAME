@@ -83,7 +83,7 @@ private:
 
 //! use this to show a floating information at the front of the main window.
 //! \sa XStatusPrinter
-extern shared_ptr<XStatusPrinter> g_statusPrinter;
+extern DECLSPEC_KAME shared_ptr<XStatusPrinter> g_statusPrinter;
 
 //---------------------------------------------------------------------------
 #endif

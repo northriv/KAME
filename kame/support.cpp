@@ -19,10 +19,14 @@
     #include <cpuid.h>
 #endif
 
+#include "support.h"
+
 bool g_bLogDbgPrint;
 bool g_bUseOverpaint;
 bool g_bMLockAlways;
 bool g_bUseMLock;
+
+bool isMemLockAvailable() {return g_bUseMLock;}
 
 #include <iostream>
 #include <fstream>
@@ -38,7 +42,6 @@ bool g_bUseMLock;
 static std::ofstream g_debugofs(KAME_LOG_FILENAME, std::ios::out);
 static XMutex g_debug_mutex;
 
-#include "support.h"
 #include "xtime.h"
 #include "measure.h"
 #include "threadlocal.h"

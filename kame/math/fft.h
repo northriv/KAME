@@ -22,7 +22,7 @@
 #include <fftw3.h>
 
 //! Wrapper class for fast Fourier transformation by FFTW.
-class FFTBase {
+class DECLSPEC_KAME FFTBase {
 public:
 	FFTBase(int length);
 	virtual ~FFTBase();
@@ -52,7 +52,7 @@ protected:
 };
 
 //! Wrapper class for FFTW.
-class FFT : public FFTBase {
+class DECLSPEC_KAME FFT : public FFTBase {
 public:
 	//! Create FFT plan.
 	//! \param sign -1:FFT, 1:IFFT.
@@ -67,7 +67,7 @@ private:
 };
 
 //! Read Data FFT(DFT).
-class RFFT : public FFTBase {
+class DECLSPEC_KAME RFFT : public FFTBase {
 public:
 	//! Create real data FFT plan.
 	//! \param length FFT length.
@@ -82,7 +82,7 @@ private:
 };
 
 //! Read Data IFFT(IDFT).
-class RIFFT : public FFTBase {
+class DECLSPEC_KAME RIFFT : public FFTBase {
 public:
 	//! Create real data IFFT plan.
 	//! \param length FFT length.

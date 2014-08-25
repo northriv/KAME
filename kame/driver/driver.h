@@ -35,7 +35,7 @@ public:
 	//! Shows all forms belonging to the driver.
 	virtual void showForms() = 0;
  
-	struct Payload : public XNode::Payload {
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
 		//! Recorded time.
 		//! It is a time stamp when a phenomenon occurred and recorded.
 		//! Following analyses have to be based on this time.
@@ -63,18 +63,18 @@ public:
 protected:
 	//! Throwing this exception will cause a reset of record time.
 	//! And, prints error message.
-	struct XRecordError : public XKameError {
+    struct DECLSPEC_KAME XRecordError : public XKameError {
 		XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
         virtual ~XRecordError() throw() {}
 	};
 	//! Throwing this exception will skip signal emission, assuming record is kept valid.
-	struct XSkippedRecordError : public XRecordError {
+    struct DECLSPEC_KAME XSkippedRecordError : public XRecordError {
 		XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
 		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
         virtual ~XSkippedRecordError() throw() {}
 	};
 	//! The size of the raw record is not enough to continue analyzing.
-	struct XBufferUnderflowRecordError : public XRecordError {
+    struct DECLSPEC_KAME XBufferUnderflowRecordError : public XRecordError {
 		XBufferUnderflowRecordError(const char *file, int line);
         virtual ~XBufferUnderflowRecordError() throw() {}
 	};

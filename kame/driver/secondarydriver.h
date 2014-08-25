@@ -27,7 +27,7 @@ public:
 //!	 Shows all forms belonging to driver
 	virtual void showForms() = 0;
 
-	struct Payload : public T::Payload {
+    struct DECLSPEC_KAME Payload : public T::Payload {
 	private:
 		friend class XSecondaryDriverInterface<T>;
 		struct Connection {

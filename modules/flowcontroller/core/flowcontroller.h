@@ -23,7 +23,7 @@ class Ui_FrmFlowController;
 typedef QForm<QMainWindow, Ui_FrmFlowController> FrmFlowController;
 
 //! Base class for mass flow monitors/controllers.
-class DECLSPEC_KAME XFlowControllerDriver : public XPrimaryDriverWithThread {
+class DECLSPEC_SHARED XFlowControllerDriver : public XPrimaryDriverWithThread {
 public:
 	XFlowControllerDriver(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -53,7 +53,7 @@ public:
 	const shared_ptr<XBoolNode> &alarm() const {return m_alarm;}
 	const shared_ptr<XBoolNode> &control() const {return m_control;}
 
-	struct Payload : public XPrimaryDriver::Payload {
+    struct DECLSPEC_SHARED Payload : public XPrimaryDriver::Payload {
 		double fullScale() const {return m_fullScale;}
 		XString m_unit;
 		double m_fullScale;

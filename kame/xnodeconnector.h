@@ -23,7 +23,7 @@
 
 class QWidget;
 
-void sharedPtrQDeleter_(QObject *);
+DECLSPEC_KAME void sharedPtrQDeleter_(QObject *);
 
 template <class T>
 class qshared_ptr : public shared_ptr<T> {
@@ -75,7 +75,7 @@ typedef qshared_ptr<XQConnectorHolder_> xqcon_ptr;
 #include <QTimer>
 
 //! Needed for making new forms.
-extern QWidget *g_pFrmMain;
+extern DECLSPEC_KAME QWidget *g_pFrmMain;
 
 //! Providing an easy access to make a new form with UIs designed by Qt designer.
 template <class FRM, class UI>

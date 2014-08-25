@@ -239,7 +239,7 @@ template <class T>
 void *
 XThread<T>::xthread_start_routine(void *x) {
 	shared_ptr<targ> arg = ((targ *)x)->this_ptr;
-    if(g_bUseMLock)
+    if(isMemLockAvailable())
 		mlock(&arg, 8192uL); //reserve stack.
 
 	arg->this_ptr.reset();

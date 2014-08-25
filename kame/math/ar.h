@@ -42,7 +42,7 @@ private:
 	const tfuncIC m_funcARIC;
 };
 
-struct ARContext {
+struct DECLSPEC_KAME ARContext {
 	ARContext() {}
 	ARContext(const ARContext &c) : a(c.a), sigma2(c.sigma2), p(c.p), t(c.t) {}
 	std::vector<std::complex<double> > a;
@@ -50,7 +50,7 @@ struct ARContext {
 	unsigned int p;
 	unsigned int t;
 };
-struct MEMBurgContext : public ARContext {
+struct DECLSPEC_KAME MEMBurgContext : public ARContext {
 	MEMBurgContext() : ARContext() {}
 	MEMBurgContext(const MEMBurgContext &c) : ARContext(c), eta(c.eta), epsilon(c.epsilon) {}
 	std::vector<std::complex<double> > eta, epsilon;
@@ -58,7 +58,7 @@ struct MEMBurgContext : public ARContext {
 
 //! Burg's MEM (Maximum Entropy Method).
 //! \sa YuleWalkerAR
-class MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
+class DECLSPEC_KAME MEMBurg : public YuleWalkerCousin<MEMBurgContext> {
 public:
 	MEMBurg(tfuncIC ic = &icAICc) : YuleWalkerCousin<MEMBurgContext>(ic) {}
 	virtual ~MEMBurg() {}
@@ -72,7 +72,7 @@ private:
 
 //! Yule-Walker AR (Auto-Regressive model) by Levinson-Durbin algorithm.
 //! \sa MEMBurg
-class YuleWalkerAR : public YuleWalkerCousin<ARContext> {
+class DECLSPEC_KAME YuleWalkerAR : public YuleWalkerCousin<ARContext> {
 public:
 	YuleWalkerAR(tfuncIC ic = &icAICc) : YuleWalkerCousin<ARContext>(ic) {}
 	virtual ~YuleWalkerAR() {}
