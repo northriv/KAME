@@ -18,7 +18,6 @@ SUBDIRS += testdriver\
     lia\
     magnetpscore\
     magnetps\
-    montecarlo\
     motorcore\
     motor\
     networkanalyzercore\
@@ -31,6 +30,8 @@ SUBDIRS += testdriver\
     sg\
     tempcontrol\
     thamway
+
+unix: SUBDIRS +=    montecarlo\
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
