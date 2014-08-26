@@ -166,8 +166,7 @@ RESOURCES += \
 
 DESTDIR=$$OUT_PWD/../
 
-win32-msvc*:scriptfile.files = script\\rubylineshell.rb
-else:scriptfile.files = script/rubylineshell.rb
+scriptfile.files = script/rubylineshell.rb
 macx {
     scriptfile.path = Contents/Resources
     QMAKE_BUNDLE_DATA += scriptfile
@@ -205,20 +204,23 @@ else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
     LIBS += -lruby
 }
-win32-ming* {
+win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
 }
 win32-msvc* {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
+#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/include
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/.ext/include/i386-mswin32_120
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481 -lmsvcr120-ruby200 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi
 }
 
 win32 {
 }
-win32-mingw* {
+win32-g++ {
     INCLUDEPATH += "C:/Program Files/GnuWin32/include"
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
     LIBS += -L"C:/Program Files/GnuWin32/lib/"
@@ -245,7 +247,7 @@ unix {
 macx {
   QMAKE_LFLAGS += -all_load -dynamic
 }
-win32-mingw* {
+win32-g++ {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
 }
 win32-msvc* {

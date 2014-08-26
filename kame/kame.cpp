@@ -434,7 +434,7 @@ FrmKameMain::openMes(const XString &filename) {
 shared_ptr<XRubyThread>
 FrmKameMain::runNewScript(const XString &label, const XString &filename) {
 	shared_ptr<XRubyThread> rbthread = m_measure->ruby()->
-		create<XRubyThread>(label.c_str(), true, filename );
+        create<XRubyThread>(label.c_str(), true, filename );
 	FrmRubyThread* form = new FrmRubyThread(this);
 	m_conRubyThreadList.push_back(xqcon_create<XRubyThreadConnector>(
 									  rbthread, form, m_measure->ruby()));

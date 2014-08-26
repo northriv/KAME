@@ -118,7 +118,7 @@ public:
 //! call creator(type)(type, name, ...) to create children.
 template <class... ArgTypes>
 struct XTypeHolder {
-    typedef std::function<shared_ptr<XNode>(const char*, bool, ArgTypes...)> creator_t;
+    typedef std::function<shared_ptr<XNode>(const char*, bool, ArgTypes&&...)> creator_t;
 
     XTypeHolder() {
             fprintf(stderr, "New typeholder\n");
@@ -127,7 +127,10 @@ struct XTypeHolder {
     template <class tChild>
 	struct Creator {
 		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-            creator_t create_typed = creator_<tChild, ArgTypes...>;
+            creator_t create_typed =
+                    [](const char *name, bool runtime, ArgTypes&&... args)->shared_ptr<XNode>
+                    {return XNode::createOrphan<tChild>(name, runtime, static_cast<ArgTypes&&>(args)...);};
+            assert(create_typed);
 			if( !label)
 				label = name;
 			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
@@ -139,16 +142,12 @@ struct XTypeHolder {
 			holder.labels.push_back(XString(label));
 			fprintf(stderr, "%s %s\n", name, label);
 		}
-        template <class T, typename... Args>
-        static shared_ptr<XNode> creator_(const char *name, bool runtime, Args&&... args) {
-            return XNode::createOrphan<T>(name, runtime, static_cast<Args&&>(args)...);
-        }
 	};
     creator_t creator(const XString &tp) {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
-        return [](const char*, bool, ArgTypes...){return shared_ptr<XNode>();}; //empty
+        return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
 	}
     std::deque<creator_t> creators;
 	std::deque<XString> names, labels;

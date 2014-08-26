@@ -6,6 +6,9 @@ CONFIG += static
 PRI_DIR = ../
 include(../kame.pri)
 
+INCLUDEPATH += \
+    $${_PRO_FILE_PWD_}\
+
 FORMS += \
     graph/graphdialog.ui \
     graph/graphform.ui \

@@ -19,16 +19,13 @@ VERSTR = 4.0
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules
-win32-msvc*:DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(\\\\$${KAME_COREMODULES}\\\\)\"
-else:DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES}/)\"
+DEFINES += KAME_COREMODULE_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES}/)\"
 
 KAME_COREMODULES2 = coremodules2
-win32-msvc*:DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(\\\\$${KAME_COREMODULES2}\\\\)\"
-else:DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
+DEFINES += KAME_COREMODULE2_DIR_SURFIX=\"quotedefined(/$${KAME_COREMODULES2}/)\"
 
 KAME_MODULES = modules
-win32-msvc*:DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(\\\\$${KAME_MODULES}\\\\)\"
-else:DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
+DEFINES += KAME_MODULE_DIR_SURFIX=\"quotedefined(/$${KAME_MODULES}/)\"
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 }
@@ -48,7 +45,7 @@ win32 {
 #    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../boost
     DEFINES += GSL_DLL
 }
-win32-mingw* {
+win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
     LIBS += -lgsl #-lgslcblas
