@@ -131,7 +131,6 @@ struct XTypeHolder {
 //!\todo        return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
          return empty_creator_;
 	}
-private:
     template <class tChild>
     struct Creator {
         Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
