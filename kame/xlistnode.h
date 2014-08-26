@@ -157,6 +157,7 @@ private:
             return XNode::createOrphan<T>(name, runtime, static_cast<ArgTypes&&>(args)...);
         }
     };
+    template <class tChild> friend struct Creator;
     static shared_ptr<XNode> empty_creator_(const char *, bool, ArgTypes&&...) {
         return shared_ptr<XNode>();
     }
