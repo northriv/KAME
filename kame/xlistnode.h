@@ -124,31 +124,42 @@ struct XTypeHolder {
             fprintf(stderr, "New typeholder\n");
 	}
 		
-    template <class tChild>
-	struct Creator {
-		Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-            creator_t create_typed =
-                    [](const char *name, bool runtime, ArgTypes&&... args)->shared_ptr<XNode>
-                    {return XNode::createOrphan<tChild>(name, runtime, static_cast<ArgTypes&&>(args)...);};
-            assert(create_typed);
-			if( !label)
-				label = name;
-			if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
-				fprintf(stderr, "Duplicated name!\n");
-				return;
-			}
-			holder.creators.push_back(create_typed);
-			holder.names.push_back(XString(name));
-			holder.labels.push_back(XString(label));
-			fprintf(stderr, "%s %s\n", name, label);
-		}
-	};
     creator_t creator(const XString &tp) {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
-        return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
+//!\todo        return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
+         return empty_creator_;
 	}
+private:
+    template <class tChild>
+    struct Creator {
+        Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
+            creator_t create_typed = creator_<tChild>;
+//!/todo            creator_t create_typed =
+//                    [](const char *name, bool runtime, ArgTypes&&... args)->shared_ptr<XNode>
+//                    {return XNode::createOrphan<tChild>(name, runtime, static_cast<ArgTypes&&>(args)...);};
+            assert(create_typed);
+            if( !label)
+                label = name;
+            if(std::find(holder.names.begin(), holder.names.end(), XString(name)) != holder.names.end()) {
+                fprintf(stderr, "Duplicated name!\n");
+                return;
+            }
+            holder.creators.push_back(create_typed);
+            holder.names.push_back(XString(name));
+            holder.labels.push_back(XString(label));
+            fprintf(stderr, "%s %s\n", name, label);
+        }
+    private:
+        template <class T>
+        static shared_ptr<XNode> creator_(const char *name, bool runtime, ArgTypes&&... args) {
+            return XNode::createOrphan<T>(name, runtime, static_cast<ArgTypes&&>(args)...);
+        }
+    };
+    static shared_ptr<XNode> empty_creator_(const char *, bool, ArgTypes&&...) {
+        return shared_ptr<XNode>();
+    }
     std::deque<creator_t> creators;
 	std::deque<XString> names, labels;
 };
