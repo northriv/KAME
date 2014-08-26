@@ -552,12 +552,13 @@ XRuby::is_main_terminated(VALUE self) {
 }
 
 void *
-XRuby::execute(const atomic<bool> &terminated) {
-	while ( !terminated) {
+XRuby::execute(const atomic<bool> &) {
+    {
+        RUBY_INIT_STACK
 		ruby_init();
-		ruby_script("KAME");
+        ruby_script("KAME");
 
-		ruby_init_loadpath();
+        ruby_init_loadpath();
 
 		rbClassNode = rb_define_class("XNode", rb_cObject);
         rb_global_variable(&rbClassNode);
@@ -600,7 +601,7 @@ XRuby::execute(const atomic<bool> &terminated) {
             QFile scriptfile(XRUBYSUPPORT_RB);
             if( !scriptfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 gErrPrint("No KAME ruby support file installed.");
-                break;
+                return NULL;
             }
             fprintf(stderr, "Loading ruby scripting monitor.\n");
             char data[65536];
@@ -610,11 +611,9 @@ XRuby::execute(const atomic<bool> &terminated) {
                 fprintf(stderr, "Ruby, exception(s) occurred\n");
             }
 		}
-		ruby_finalize();
+        ruby_finalize();
 
 		fprintf(stderr, "ruby finished\n");
-
-        break;
 	}
 	return NULL;
 }
