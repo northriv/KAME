@@ -555,9 +555,9 @@ void *
 XRuby::execute(const atomic<bool> &terminated) {
 	while ( !terminated) {
 		ruby_init();
-		ruby_script("KAME");
+        ruby_script("KAME");
 
-		ruby_init_loadpath();
+        ruby_init_loadpath();
 
 		rbClassNode = rb_define_class("XNode", rb_cObject);
         rb_global_variable(&rbClassNode);
@@ -610,7 +610,7 @@ XRuby::execute(const atomic<bool> &terminated) {
                 fprintf(stderr, "Ruby, exception(s) occurred\n");
             }
 		}
-		ruby_finalize();
+        ruby_finalize();
 
 		fprintf(stderr, "ruby finished\n");
 
