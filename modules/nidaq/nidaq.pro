@@ -30,8 +30,18 @@ DEPENDPATH += $$PWD/../dso/core
 
 win32 {
     INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-    exists("C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc\libnidaqmx.lib") {
-        LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+    INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
+    exists(C:/Program Files/National Instruments/NI-DAQ/DAQmx ANSI C Dev/include/NIDAQmx.h) {
+        LIBS += -L"C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
         DEFINES += HAVE_NI_DAQMX
+    }
+    else {
+        exists(C:/Program Files (x86)/National Instruments/NI-DAQ/DAQmx ANSI C Dev/include/NIDAQmx.h) {
+            LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+            DEFINES += HAVE_NI_DAQMX
+        }
+        else {
+            message("Missing library for NI DAQmx")
+        }
     }
 }
