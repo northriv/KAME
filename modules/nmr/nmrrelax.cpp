@@ -361,7 +361,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 		}
 	}
 	tr[ *p1Next()] = distributeP1(shot, x_0_to_1);
-	tr[ *p1AltNext()] = distributeP1(shot, 1 - x_0_to_1);
+    tr[ *p1AltNext()] = distributeP1(shot, 1 - x_0_to_1);
 }
 void
 XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -634,17 +634,18 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 	for(auto it = shot_this[ *this].m_sumpts.begin();
 		it != shot_this[ *this].m_sumpts.end(); it++) {
 		if(it->isigma == 0) continue;
-		double t = log10(it->p1 / it->isigma);
+        double t = log10(it->p1 / it->isigma);
 		for(unsigned int i = 0; i < it->value_by_cond.size(); i++) {
 			sum_c[i] += it->value_by_cond[i];
 			corr[i] += it->value_by_cond[i] * t;
 		}
-		sum_t += t;
-		n++;
+        sum_t += t * it->isigma;
+        n += it->isigma;
 	}
 	if(n) {
+        //correlation for y_i * log(t_i)
 		for(unsigned int i = 0; i < corr.size(); i++) {
-			corr[i] -= sum_c[i]*sum_t/(double)n;
+            corr[i] -= sum_c[i]*sum_t/(double)n;
 			corr[i] *= ((mode__ == MEAS_T1) ? 1 : -1);
 		}
 
