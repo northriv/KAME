@@ -56,10 +56,10 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
     XPulser(name, runtime, ref(tr_meas), meas) {
 
     const int ports[] = {
-        XPulser::PORTSEL_GATE, XPulser::PORTSEL_PREGATE, XPulser::PORTSEL_TRIG1, XPulser::PORTSEL_TRIG2,
-        XPulser::PORTSEL_QPSK_A, XPulser::PORTSEL_QPSK_B, XPulser::PORTSEL_ASW, XPulser::PORTSEL_UNSEL,
-        XPulser::PORTSEL_PULSE1, XPulser::PORTSEL_PULSE2, XPulser::PORTSEL_COMB, XPulser::PORTSEL_UNSEL,
-        XPulser::PORTSEL_QPSK_OLD_PSGATE, XPulser::PORTSEL_QPSK_OLD_NONINV, XPulser::PORTSEL_QPSK_OLD_INV, XPulser::PORTSEL_COMB_FM
+        XPulser::PORTSEL_GATE, XPulser::PORTSEL_PREGATE, XPulser::PORTSEL_TRIG1, XPulser::PORTSEL_QPSK_OLD_PSGATE,
+        XPulser::PORTSEL_QPSK_OLD_INV, XPulser::PORTSEL_GATE, XPulser::PORTSEL_TRIG2, XPulser::PORTSEL_TRIG1,
+        XPulser::PORTSEL_PULSE1, XPulser::PORTSEL_ASW, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL,
+        XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL
     };
 	for(Transaction tr( *this);; ++tr) {
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {

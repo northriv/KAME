@@ -183,7 +183,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *autoPhase()] = true;
 		tr[ *autoWindow()] = true;
 		tr[ *mInftyFit()] = true;
-        tr[ *smoothSamples()] = 30;
+        tr[ *smoothSamples()] = 40;
 
 		if(tr.commit())
 			break;
@@ -604,17 +604,17 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 	tr[ *this].m_sumpts.resize(samples);
 	auto &sumpts(tr[ *this].m_sumpts);
 
-	{
+    {
 		Payload::Pt dummy;
 		dummy.c = 0; dummy.p1 = 0; dummy.isigma = 0;
 		dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
 		std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
-		double k = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
+        double k = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
 		auto pts_begin(shot_this[ *this].m_pts.begin());
 		auto pts_end(shot_this[ *this].m_pts.end());
 		int sum_size = (int)shot_this[ *this].m_sumpts.size();
 		for(auto it = pts_begin; it != pts_end; it++) {
-			int idx = lrint(log(it->p1 / p1min) * k);
+            int idx = lrint(log(it->p1 / p1min) * k);
 			if((idx < 0) || (idx >= sum_size)) continue;
 			double p1 = it->p1;
 			//For St.E., T+tau = P1+3*tau.

@@ -1,9 +1,10 @@
 * Sun Aug 24 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.9-1)
 - Fix for atomic ops.
-- tests works with MSVC
+- launching kame now possible with MSVC
 - Fix for PROT.
 - Enables SSE2 for mac/win.
+- Fix for NIDAQ under win.
 
 * Wed Aug 20 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.8-1)
