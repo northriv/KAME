@@ -210,12 +210,12 @@ win32-g++ {
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
 }
 win32-msvc* {
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
-#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/.ext/include/i386-mswin32_120
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481 -lmsvcr120-ruby200 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/include
+#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/.ext/include/i386-mswin32_120
+#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481 -lmsvcr120-ruby200 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi
 }
 
 win32 {
