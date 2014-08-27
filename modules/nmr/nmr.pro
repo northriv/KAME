@@ -39,8 +39,11 @@ FORMS += \
     nmrrelaxform.ui \
     nmrspectrumform.ui
 
-unix: PKGCONFIG += fftw3
-unix: PKGCONFIG += gsl
+unix {
+    PKGCONFIG += fftw3
+    PKGCONFIG += gsl
+#    LIBS += -lclapack -lcblas -latlas
+}
 
 win32:LIBS += -lcharinterface
 
