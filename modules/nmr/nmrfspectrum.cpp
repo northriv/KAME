@@ -70,7 +70,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
     m_conTuneStep = xqcon_create<XQLineEditConnector>(m_tuneStep, m_form->m_edTuneStep);
-    m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneStrategy, m_form->m_cmbTuneStrategy, ref(tr_meas));
+    m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneStrategy, m_form->m_cmbTuneStrategy, Snapshot( *m_tuneStrategy));
 
 	for(Transaction tr( *this);; ++tr) {
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
