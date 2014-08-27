@@ -58,7 +58,9 @@ public:
 	const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
 	//! [MHz]
-	const shared_ptr<XDoubleNode> &autoTuneStep() const {return m_autoTuneStep;}
+    const shared_ptr<XDoubleNode> &tuneStep() const {return m_tuneStep;}
+    const shared_ptr<XComboNode> &tuneStrategy() const {return m_tuneStrategy;}
+    enum TuneStrategy {TUNESTRATEGY_ASIS = 0, TUNESTRATEGY_AWAIT = 1, TUNESTRATEGY_AUTOTUNER = 2};
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
 	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner;
@@ -69,19 +71,23 @@ private:
 	const shared_ptr<XDoubleNode> m_freqSpan;
 	const shared_ptr<XDoubleNode> m_freqStep;
 	const shared_ptr<XBoolNode> m_active;
-	const shared_ptr<XDoubleNode> m_autoTuneStep;
-  
+    const shared_ptr<XDoubleNode> m_tuneStep;
+    const shared_ptr<XComboNode> m_tuneStrategy;
+
 	shared_ptr<XListener> m_lsnOnActiveChanged,
-		m_lsnOnTuningChanged;
+        m_lsnOnTuningStrategyChanged, m_lsnOnTuningChanged;
     
 	xqcon_ptr m_conCenterFreq,
 		m_conFreqSpan, m_conFreqStep;
 	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset,
-		m_conAutoTuneStep, m_conAutoTuner, m_conPulser;
+        m_conTuneStep, m_conTuneStrategy, m_conAutoTuner, m_conPulser;
 
 	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
-	void performTuning(const Snapshot &shot_this, double newf, bool firsttime);
+    void performTuning(const Snapshot &shot_this, double newf);
+
+    mutable double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
+    double m_tunedFreq;
 };
 
 

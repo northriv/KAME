@@ -14,9 +14,27 @@
    <string>NMR Spectrum Averager (Frequency Sweep)</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QHBoxLayout" name="horizontalLayout_6">
-    <item>
+   <layout class="QGridLayout" name="gridLayout_2">
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>4</number>
+    </property>
+    <property name="horizontalSpacing">
+     <number>4</number>
+    </property>
+    <item row="0" column="0">
      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item>
        <widget class="QCheckBox" name="m_ckbActive">
         <property name="sizePolicy">
@@ -409,22 +427,28 @@
       <item>
        <widget class="QGroupBox" name="groupBox1_3">
         <property name="title">
-         <string>Auto LC Tuning</string>
+         <string>LC Tuning</string>
         </property>
         <layout class="QGridLayout" name="gridLayout">
          <property name="leftMargin">
-          <number>2</number>
+          <number>4</number>
          </property>
          <property name="topMargin">
-          <number>2</number>
+          <number>4</number>
          </property>
          <property name="rightMargin">
-          <number>2</number>
+          <number>4</number>
          </property>
          <property name="bottomMargin">
+          <number>4</number>
+         </property>
+         <property name="horizontalSpacing">
           <number>2</number>
          </property>
          <item row="0" column="0">
+          <widget class="QComboBox" name="m_cmbTuneStrategy"/>
+         </item>
+         <item row="1" column="0">
           <layout class="QHBoxLayout" name="_2">
            <property name="leftMargin">
             <number>2</number>
@@ -458,7 +482,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QLineEdit" name="m_edAutoTuneStep">
+            <widget class="QLineEdit" name="m_edTuneStep">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -491,10 +515,10 @@
            </item>
           </layout>
          </item>
-         <item row="1" column="0">
+         <item row="2" column="0">
           <widget class="QComboBox" name="m_cmbAutoTuner"/>
          </item>
-         <item row="2" column="0">
+         <item row="3" column="0">
           <widget class="QComboBox" name="m_cmbPulser"/>
          </item>
         </layout>
@@ -507,15 +531,15 @@
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>20</width>
-          <height>18</height>
+          <width>208</width>
+          <height>13</height>
          </size>
         </property>
        </spacer>
       </item>
      </layout>
     </item>
-    <item>
+    <item row="0" column="1">
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <item>
        <layout class="QHBoxLayout">
@@ -820,7 +844,8 @@
   <tabstop>m_cmbPulse</tabstop>
   <tabstop>m_edSG1FreqOffset</tabstop>
   <tabstop>m_cmbSG1</tabstop>
-  <tabstop>m_edAutoTuneStep</tabstop>
+  <tabstop>m_cmbTuneStrategy</tabstop>
+  <tabstop>m_edTuneStep</tabstop>
   <tabstop>m_cmbAutoTuner</tabstop>
   <tabstop>m_cmbPulser</tabstop>
   <tabstop>m_edDump</tabstop>
