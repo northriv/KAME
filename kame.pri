@@ -7,7 +7,6 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 	CONFIG += c++11
-	DEFINES += QT_NO_OPENGL_ES_2
 }
 else {
 # for g++ with C++0x spec.
@@ -61,7 +60,7 @@ win32-msvc* {
 unix: CONFIG += link_pkgconfig
 unix: PKGCONFIG += gsl
 
-macx: DEFINES += HAVE_LAPACK
+#macx: DEFINES += HAVE_LAPACK
 
 #DEFINES += USE_STD_ATOMIC
 

@@ -89,7 +89,7 @@ HEADERS += \
     forms/recordreaderconnector.h \
     messagebox.h
 
-SOURCES += \
+SOURCES += icons/icon.cpp \
     xthread.cpp \
     xtime.cpp \
     support.cpp \
@@ -237,7 +237,7 @@ win32-msvc* {
 }
 
 unix {
-    LIBS += -lclapack -lcblas -latlas
+#    LIBS += -lclapack -lcblas -latlas
     PKGCONFIG += fftw3
     PKGCONFIG += zlib
     LIBS += -lltdl

@@ -50,7 +50,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
 
 		tr[ *centerFreq()] = 20;
-		tr[ *sg1FreqOffset()] = 700;
+        tr[ *sg1FreqOffset()] = 0;
 		tr[ *freqSpan()] = 200;
 		tr[ *freqStep()] = 1;
         tr[ *tuneStrategy()].add("As is");
