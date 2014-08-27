@@ -238,15 +238,15 @@ private:
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onDRFCondChanged(const Snapshot &shot, XValueNodeBase *);
   
-	const xqcon_ptr m_conAverage, m_conSingle,
+    xqcon_ptr m_conAverage, m_conSingle,
 		m_conTrace1, m_conTrace2, m_conTrace3, m_conTrace4;
-	const xqcon_ptr m_conFetchMode, m_conTimeWidth,
+    xqcon_ptr m_conFetchMode, m_conTimeWidth,
 		m_conVFullScale1, m_conVFullScale2, m_conVFullScale3, m_conVFullScale4;
-	const xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
-	const xqcon_ptr m_conVOffset1, m_conVOffset2, m_conVOffset3, m_conVOffset4,
+    xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
+    xqcon_ptr m_conVOffset1, m_conVOffset2, m_conVOffset3, m_conVOffset4,
 		m_conForceTrigger, m_conRecordLength;
-	const xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
-	const xqcon_ptr m_conDRFMode, m_conDRFSG, m_conDRFFreq;
+    xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
+    xqcon_ptr m_conDRFMode, m_conDRFSG, m_conDRFFreq;
  
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 

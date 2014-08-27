@@ -82,10 +82,10 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_conPosition = xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition);
-	m_conTarget = xqcon_create<XQDoubleSpinBoxConnector>(m_target, m_form->m_dblTarget, m_form->m_slTarget);
 	m_form->m_dblTarget->setRange(-3600.0, 3600.0);
 	m_form->m_dblTarget->setSingleStep(1.0);
-	m_conStepMotor = xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor);
+    m_conTarget = xqcon_create<XQDoubleSpinBoxConnector>(m_target, m_form->m_dblTarget, m_form->m_slTarget);
+    m_conStepMotor = xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor);
 	m_conStepEncoder = xqcon_create<XQLineEditConnector>(m_stepEncoder, m_form->m_edStepEncoder);
 	m_conCurrentStopping = xqcon_create<XQLineEditConnector>(m_currentStopping, m_form->m_edCurrStopping);
 	m_conCurrentRunning = xqcon_create<XQLineEditConnector>(m_currentRunning, m_form->m_edCurrRunning);

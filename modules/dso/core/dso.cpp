@@ -80,7 +80,6 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3, Snapshot( *m_vFullScale3))),
 	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4, Snapshot( *m_vFullScale4))),
 	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource, Snapshot( *m_trigSource))),
-	m_conTrigPos(xqcon_create<XQDoubleSpinBoxConnector>(m_trigPos, m_form->m_dblTrigPos, m_form->m_slTrigPos)),
 	m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
 	m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
 	m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
@@ -98,9 +97,10 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_conDRFFreq(xqcon_create<XQLineEditConnector>(m_dRFFreq, m_form->m_edRFFreq)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
     m_form->m_btnForceTrigger->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
-	m_form->m_dblTrigPos->setRange(0.0, 100.0);
-	m_form->m_dblTrigPos->setSingleStep(1.0);
-	m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
+    m_form->m_dblTrigPos->setRange(0.0, 100.0);
+    m_form->m_dblTrigPos->setSingleStep(1.0);
+    m_conTrigPos = xqcon_create<XQDoubleSpinBoxConnector>(m_trigPos, m_form->m_dblTrigPos, m_form->m_slTrigPos);
+    m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
     m_form->m_dockTrace1->showNormal();
