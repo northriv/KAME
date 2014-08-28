@@ -836,7 +836,9 @@ XStatusPrinter::print(const tstatus &status) {
 	if(status.ms) {
 		m_pBar->show();
 		m_pBar->showMessage(str, status.ms);
-	}
+        if(status.beep)
+            QApplication::beep();
+    }
 	else {
 		m_pBar->hide();
 		m_pBar->clearMessage();
@@ -856,6 +858,4 @@ XStatusPrinter::print(const tstatus &status) {
     }
     if(popup)
         XMessageBox::post(str, QIcon( *icon), popup, status.ms, status.tooltip);
-    if(status.beep)
-        QApplication::beep();
 }
