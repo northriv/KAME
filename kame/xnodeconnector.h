@@ -412,12 +412,12 @@ protected:
 public:
 	static shared_ptr<XStatusPrinter> create(QMainWindow *window = NULL);
 	~XStatusPrinter();
-    void printMessage(const XString &str, bool popup = true, const char *file = 0L, int line = 0);
-    void printWarning(const XString &str, bool popup = false, const char *file = 0L, int line = 0);
-    void printError(const XString &str, bool popup = true, const char *file = 0L, int line = 0);
+    void printMessage(const XString &str, bool popup = true, const char *file = 0L, int line = 0, bool beep = false);
+    void printWarning(const XString &str, bool popup = false, const char *file = 0L, int line = 0, bool beep = false);
+    void printError(const XString &str, bool popup = true, const char *file = 0L, int line = 0, bool beep = false);
 	void clear();
 private:
-    struct tstatus {XString str; XString tooltip; int ms; bool popup; enum {Normal, Warning, Error} type;};
+    struct tstatus {XString str; XString tooltip; int ms; bool popup; bool beep; enum {Normal, Warning, Error} type;};
 	XTalker<tstatus> m_tlkTalker;
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;
