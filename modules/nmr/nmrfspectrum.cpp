@@ -78,8 +78,6 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqSpan()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqStep()].onValueChanged().connect(m_lsnOnCondChanged);
-        m_lsnOnTuningStrategyChanged = tr[ *tuneStrategy()].onValueChanged().connectWeakly(
-            shared_from_this(), &XNMRFSpectrum::onTuningChanged);
 		if(tr.commit())
 			break;
 	}
@@ -170,6 +168,10 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
     if(pulse__)
         trans( *pulse__->avgClear()).touch();
 
+    if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AWAIT)) {
+        g_statusPrinter->printMessage(i18n("Tune it by yourself to") +
+            formatString(" %.3f~MHz", newf) + i18n(", and turn pulse on again."), true, __FILE__, __LINE__, true);
+    }
     if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AUTOTUNER)) {
         shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
         if( !autotuner) {
@@ -221,24 +223,19 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 	}	
 }
 void
-XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *node) {
+XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
     if( !pulser__) return;
-    if(node == tuneStrategy().get()) {
-        if(shot_this[ *tuneStrategy()] != TUNESTRATEGY_ASIS)
-            return;
-    }
-    else {
-        if(shot_this[ *tuneStrategy()] != TUNESTRATEGY_AUTOTUNER) {
-            shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
-            if(autotuner) {
-                Snapshot shot_tuner( *autotuner);
-                if(shot_tuner[ *autotuner->tuning()])
-                    return; //still tuner is running.
-                if( !shot_tuner[ *autotuner->succeeded()])
-                    return; //awaiting manual tuning.
-            }
+//    if(shot_this[ *tuneStrategy()] != TUNESTRATEGY_AUTOTUNER) return;
+    {
+        shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
+        if(autotuner) {
+            Snapshot shot_tuner( *autotuner);
+            if(shot_tuner[ *autotuner->tuning()])
+                return; //still tuner is running.
+            if( !shot_tuner[ *autotuner->succeeded()])
+                return; //awaiting manual tuning.
         }
     }
     m_lsnOnTuningChanged.reset();

@@ -33,6 +33,7 @@
 #include <QColorDialog>
 #include <QPainter>
 #include <QMainWindow>
+#include <QApplication>
 
 #include <map>
 #include "measure.h"
@@ -788,33 +789,36 @@ XStatusPrinter::create(QMainWindow *window) {
     return ptr;
 }
 void
-XStatusPrinter::printMessage(const XString &str, bool popup, const char *file, int line) {
+XStatusPrinter::printMessage(const XString &str, bool popup, const char *file, int line, bool beep) {
 	tstatus status;
 	status.ms = 3000;
 	status.str = str;
     if(file) status.tooltip = i18n_noncontext("Message emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
-	status.type = tstatus::Normal;
+    status.beep = beep;
+    status.type = tstatus::Normal;
 	m_tlkTalker.talk(status);
 }
 void
-XStatusPrinter::printWarning(const XString &str, bool popup, const char *file, int line) {
+XStatusPrinter::printWarning(const XString &str, bool popup, const char *file, int line, bool beep) {
 	tstatus status;
 	status.ms = 3000;
     status.str = XString(i18n_noncontext("Warning: ")) + str;
     if(file) status.tooltip = i18n_noncontext("Warning emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
-	status.type = tstatus::Warning;
+    status.beep = beep;
+    status.type = tstatus::Warning;
     m_tlkTalker.talk(status);
 }
 void
-XStatusPrinter::printError(const XString &str, bool popup, const char *file, int line) {
+XStatusPrinter::printError(const XString &str, bool popup, const char *file, int line, bool beep) {
 	tstatus status;
 	status.ms = 5000;
     status.str = XString(i18n_noncontext("Error: ")) + str;
     if(file) status.tooltip = i18n_noncontext("Error emitted at %1:%2").arg(file).arg(line);
     status.popup = popup;
-	status.type = tstatus::Error;
+    status.beep = beep;
+    status.type = tstatus::Error;
     m_tlkTalker.talk(status);
 }
 void
@@ -852,4 +856,6 @@ XStatusPrinter::print(const tstatus &status) {
     }
     if(popup)
         XMessageBox::post(str, QIcon( *icon), popup, status.ms, status.tooltip);
+    if(status.beep)
+        QApplication::beep();
 }

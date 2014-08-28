@@ -74,8 +74,7 @@ private:
     const shared_ptr<XDoubleNode> m_tuneStep;
     const shared_ptr<XComboNode> m_tuneStrategy;
 
-	shared_ptr<XListener> m_lsnOnActiveChanged,
-        m_lsnOnTuningStrategyChanged, m_lsnOnTuningChanged;
+    shared_ptr<XListener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
     
 	xqcon_ptr m_conCenterFreq,
 		m_conFreqSpan, m_conFreqStep;
