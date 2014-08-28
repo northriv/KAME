@@ -41,7 +41,7 @@ XNodeBrowser::~XNodeBrowser() {
 }
 shared_ptr<XNode>
 XNodeBrowser::connectedNode(QWidget *widget) {
-	if(!widget || (widget == m_pForm->m_txtDesc) ||
+    if( !widget || (widget == m_pForm->m_txtDesc) ||
 		(widget == m_pForm->m_edValue) || (widget == m_pForm)) {
 		return shared_ptr<XNode>();
 	}
@@ -77,6 +77,8 @@ XNodeBrowser::process() {
 		m_conValue.reset();
 		if(valuenode)
 			m_conValue = xqcon_create<XQLineEditConnector>(valuenode, m_pForm->m_edValue);
+        else
+            m_pForm->m_edValue->setText("");
 		QString str;
 		str += "<font color=#005500>Label:</font> ";
 		str += node->getLabel().c_str();
