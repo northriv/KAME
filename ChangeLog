@@ -1,7 +1,8 @@
 * Thu Aug 28 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.10-1)
-- NMR:Tune strategy for fspectrum
 - Much faster transactions.
+- NMR:Tune strategy for fspectrum
+- NMRT1: fix for autophase.
 
 * Sun Aug 24 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.9-1)
