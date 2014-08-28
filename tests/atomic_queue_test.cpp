@@ -49,7 +49,7 @@ start_routine(void) {
         int i;
         for(;;) {
             i = g_cnt;
-            if(g_cnt.compare_exchange_strong(i, i+1)) break;
+            if(g_cnt.compare_set_strong(i, i+1)) break;
         }
 
         try {

@@ -126,10 +126,10 @@ start_routine(void) {
 int
 main(int argc, char **argv) {
     for(int k = 0; k < 10; k++) {
-		gn1.reset(LongNode::create<LongNode>());
-		gn2.reset(LongNode::create<LongNode>());
-		gn3.reset(LongNode::create<LongNode>());
-		gn4.reset(LongNode::create<LongNode>());
+        gn1.reset(LongNode::create<LongNode>());
+        gn2.reset(LongNode::create<LongNode>());
+        gn3.reset(LongNode::create<LongNode>());
+        gn4.reset(LongNode::create<LongNode>());
 
 		for(Transaction tr1(*gn1); ; ++tr1){
 			if( !gn1->insert(tr1, gn2, true))

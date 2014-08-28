@@ -704,7 +704,7 @@ XXYPlot::clearAllPoints(Transaction &tr) {
 
 void
 XXYPlot::snapshot(const Snapshot &shot) {
-	const std::deque<XGraph::ValPoint> &points(shot[ *this].points());
+    const auto &points(shot[ *this].points());
 	unsigned int cnt = std::min((unsigned int)shot[ *maxCount()], (unsigned int)points.size());
 	m_ptsSnapped.resize(cnt);
 	for(unsigned int i = 0; i < cnt; ++i) {
@@ -718,7 +718,7 @@ XXYPlot::addPoint(Transaction &tr,
 
 	shared_ptr<XGraph> graph(m_graph.lock());
 
-	std::deque<XGraph::ValPoint> &points(tr[ *this].points());
+    auto &points(tr[ *this].points());
 	const Snapshot &shot(tr);
 	while((points.size() >= shot[ *maxCount()]) && points.size()) {
 		points.pop_front();

@@ -137,28 +137,28 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
 	if(transaction_started_time) {
 		int ms = ((int64_t)started_time - transaction_started_time);
 		if(ms > 0) {
-			XTime t0 = XTime::now();
-			if(ms > 2000) {
-				if(ms > 4000)
+            XTime t0 = XTime::now();
+            if(ms > 2000) {
+                if(ms > 4000)
 					fprintf(stderr, "Nested transaction?, ");
-				fprintf(stderr, "Negotiating, %f sec. requested, limited to 2 sec. ", ms*1e-3);
+                fprintf(stderr, "Negotiating, %f sec. requested, limited to 2 sec. ", ms*1e-3);
 				fprintf(stderr, "for BP@%p\n", this);
-				ms = 2000;
+                ms = 2000;
 			}
-			t0 += ms * 1e-3;
+            t0 += ms * 1e-3;
 			while(t0 > XTime::now()) {
 //				usleep(1000);
                 msecsleep(1);
-				if( !m_transaction_started_time || (((int64_t)started_time <= m_transaction_started_time)))
+                if( !m_transaction_started_time || (((int64_t)started_time <= (int64_t)m_transaction_started_time)))
 					break;
-			}
+            }
 //			started_time -= XTime::now().diff_msec(t0) + ms;
 		}
 	}
 }
 
 template <class XN>
-Node<XN>::Node() : m_link(new Linkage()) {
+Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
 	local_shared_ptr<Packet> packet(new Packet());
 	m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
 	//Use create() for this hack.
@@ -193,10 +193,10 @@ template <class XN>
 bool
 Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_after_insertion) {
 	local_shared_ptr<Packet> packet = reverseLookup(tr.m_packet, true, tr.m_serial, true);
-	packet->subpackets().reset(packet->size() ? (new PacketList( *packet->subpackets())) : (new PacketList));
+    packet->subpackets() = packet->size() ? std::make_shared<PacketList>( *packet->subpackets()) : std::make_shared<PacketList>();
 	packet->subpackets()->m_serial = tr.m_serial;
 	packet->m_missing = true;
-	packet->subnodes().reset(packet->size() ? (new NodeList( *packet->subnodes())) : (new NodeList));
+    packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
 	packet->subpackets()->resize(packet->size() + 1);
 	assert(packet->subnodes());
 	assert(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
@@ -323,9 +323,9 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 				newsubwrapper.reset(new PacketWrapper(m_link, idx, Packet::SERIAL_NULL));
 				newsubwrapper->packet() = *pit;
 			}
-			pit = packet->subpackets()->erase(pit);
+            pit = packet->subpackets()->erase(pit);
 			nit = packet->subnodes()->erase(nit);
-			old_idx = idx;
+            old_idx = idx;
 		}
 		else {
 			++nit;

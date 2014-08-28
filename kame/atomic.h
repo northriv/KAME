@@ -39,7 +39,7 @@ public:
         m_var = x.m_var;
         return *this;
     }
-    bool compare_exchange_strong(const T &oldv, const T &newv) {
+    bool compare_set_strong(const T &oldv, const T &newv) {
         local_shared_ptr<T> oldx(m_var);
         if( *oldx != oldv)
             return false;

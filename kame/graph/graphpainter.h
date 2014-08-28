@@ -186,7 +186,7 @@ Snapshot startDrawing();
         int fontsize;
         QRgb rgba;
     };
-    std::deque<Text> m_textOverpaint; //stores text to be overpainted.
+    std::vector<Text> m_textOverpaint; //stores text to be overpainted.
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
 };

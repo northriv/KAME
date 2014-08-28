@@ -85,7 +85,7 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
 				for(;;) {
 					unsigned int delay = g_adaptiveDelay;
 					if(delay <= ADAPTIVE_DELAY_MIN) break;
-                    if(g_adaptiveDelay.compare_exchange_strong(delay, delay - 1)) {
+                    if(g_adaptiveDelay.compare_set_strong(delay, delay - 1)) {
 						break;
 					}
 				}

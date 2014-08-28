@@ -135,11 +135,11 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
     shared_ptr<XPulser> pulser(m_pulser);
     const XPulser::Payload::RelPatList &relpatlist(shot[ *pulser].relPatList());
 	for(Transaction tr( *m_graph);; ++tr) {
-		std::deque<XGraph::ValPoint> & barplot_points(tr[ *m_barPlot].points());
+        auto &barplot_points(tr[ *m_barPlot].points());
 		tr[ *m_barPlot->maxCount()] = relpatlist.size();
 		barplot_points.clear();
-		std::deque<std::deque<XGraph::ValPoint> *> plots_points;
-		for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
+        std::vector<decltype(&barplot_points)> plots_points;
+        for(auto it = m_plots.begin();
 			it != m_plots.end(); it++) {
 			tr[ *(*it)->maxCount()] = relpatlist.size() * 2;
 			tr[ **it].points().clear();
@@ -215,7 +215,7 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
     else {
         m_pTable->clear();
     	for(Transaction tr( *m_graph);; ++tr) {
-			for(std::deque<shared_ptr<XXYPlot> >::iterator it = m_plots.begin();
+            for(auto it = m_plots.begin();
 				it != m_plots.end(); it++) {
 				tr[ **it].points().clear();
 			}

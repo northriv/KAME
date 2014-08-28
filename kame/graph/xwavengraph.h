@@ -95,7 +95,7 @@ public:
 		std::vector<XString> m_labels;
 		std::vector<double> m_cols;
 		int m_colw;
-		std::deque<Plot> m_plots;
+        std::vector<Plot> m_plots;
 		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
 
 		Talker<bool, bool> m_tlkOnIconChanged;

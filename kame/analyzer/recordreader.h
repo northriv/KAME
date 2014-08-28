@@ -87,7 +87,7 @@ private:
 	void gzgetline(void*fd, unsigned char*buf, unsigned int len, int del) throw (XIOError &);
   
 	typedef shared_ptr<XThread<XRawStreamRecordReader> > tThread;
-	typedef std::deque<tThread> tThreadList;
+    typedef std::vector<tThread> tThreadList;
 	typedef tThreadList::iterator tThreadIt;
 	tThreadList m_threads;  
 	void *execute(const atomic<bool> &);      
