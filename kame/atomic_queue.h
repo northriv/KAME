@@ -26,7 +26,7 @@ public:
     struct nospace_error {};
 
     atomic_nonzero_pod_queue() : m_pFirst(m_ptrs), m_pLast(m_ptrs), m_count(0) {
-    	memset(m_ptrs, 0, SIZE * sizeof(T));
+        memset(m_ptrs, 0, SIZE * sizeof(T));
     }
 
     void push(T t) {
@@ -37,8 +37,6 @@ public:
     //! This is not reentrant.
     void pop() {
         *m_pFirst = 0;
-        writeBarrier();
-        readBarrier();
         --m_count;
     }
     //! This is not reentrant.
@@ -55,11 +53,9 @@ public:
     }
     //! This is not reentrant.
     bool empty() const {
-    	readBarrier();
         return m_count == 0;
     }
     unsigned int size() const {
-    	readBarrier();
         return m_count;
     }
 
@@ -72,16 +68,14 @@ public:
         for(;;) {
             unsigned int x = m_count;
             if(x == SIZE) {
-                readBarrier();
                 if(m_count == SIZE)
                     return false;
                 continue;
             }
-            if(m_count.compare_exchange_strong(x, x + 1)) {
+            if(m_count.compare_set_strong(x, x + 1)) {
                 break;
             }
         }
-        writeBarrier();
         for(;;) {
             atomic<T> *last = m_pLast;
             atomic<T> *last_org = last;
@@ -93,13 +87,12 @@ public:
                 }
             }
             //tags the end of the queue.
-            if(m_pLast.compare_exchange_strong(last_org, last)) {
+            if(m_pLast.compare_set_strong(last_org, last)) {
                 //CAS from zero to the item.
-                if(last->compare_exchange_strong((T)0, t)) {
+                if(last->compare_set_strong((T)0, t)) {
                     break;
                 }
             }
-            readBarrier();
         }
 		return true;
     }
@@ -109,8 +102,7 @@ public:
     bool atomicPop(const_ref item) {
     	assert(item);
         atomic<T> *first = m_pFirst;
-        if(first->compare_exchange_strong((T)item, (T)0)) {
-            writeBarrier();
+        if(first->compare_set_strong((T)item, (T)0)) {
             --m_count;
             return true;
         }
@@ -126,14 +118,13 @@ public:
             for(;;) {
                 const_ref t = *first;
                 if(t) {
-                    if(m_pFirst.compare_exchange_strong(first_org, first))
+                    if(m_pFirst.compare_set_strong(first_org, first))
                         return t;
                     break;
                 }
                 first++;
                 if(first == &m_ptrs[SIZE]) {
                     first = m_ptrs;
-                    readBarrier();
                     if(empty())
                         return 0L;
                 }
@@ -144,14 +135,11 @@ public:
         if(empty())
         	return 0L;
         atomic<T> *first = m_pFirst;
-    	readBarrier();
     	for(;;) {
     		if( *first) {
                 T obj = first->exchange((T)0);
 				if(obj) {
 		            m_pFirst = first;
-                    writeBarrier();
-                    readBarrier();
                     --m_count;
 					return obj;
 				}

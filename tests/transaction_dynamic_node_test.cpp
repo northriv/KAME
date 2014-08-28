@@ -67,7 +67,7 @@ class ComplexNode : public LongNode {
 public:
 	ComplexNode(Transaction &tr, shared_ptr<LongNode> &var) : LongNode(), m_var(var) {
 //		msecsleep(40);
-		m_1.reset(create<LongNode>());
+        m_1.reset(create<LongNode>());
 		insert(m_1);
 		var->insert(tr, m_1, false);
 //		msecsleep(40);
@@ -178,10 +178,10 @@ start_routine(void) {
 int
 main(int argc, char **argv) {
     for(int k = 0; k < 10; k++) {
-		gn1.reset(LongNode::create<LongNode>());
-		gn2.reset(LongNode::create<LongNode>());
-		gn3.reset(LongNode::create<LongNode>());
-		gn4.reset(LongNode::create<LongNode>());
+        gn1.reset(LongNode::create<LongNode>());
+        gn2.reset(LongNode::create<LongNode>());
+        gn3.reset(LongNode::create<LongNode>());
+        gn4.reset(LongNode::create<LongNode>());
 
 		for(Transaction tr1(*gn1); ; ++tr1){
 			printf("1");
@@ -256,7 +256,7 @@ main(int argc, char **argv) {
 				if( !gn3->insert(tr1, p2, true))
 					continue;
 
-				p2111.reset(LongNode::create<ComplexNode>(ref(tr1), gn3));
+                p2111.reset(LongNode::create<ComplexNode>(ref(tr1), gn3));
 				shared_ptr<LongNode> p2112(LongNode::create<LongNode>());
 				shared_ptr<LongNode> p2113(LongNode::create<LongNode>());
 				shared_ptr<LongNode> p2114(LongNode::create<LongNode>());

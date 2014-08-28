@@ -155,7 +155,7 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 	const unsigned int length = shot[ *this].length();
 	for(Transaction tr( *m_waveForm);; ++tr) {
 		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
-		std::deque<XGraph::ValPoint> &points(tr[ *m_markerPlot].points());
+        auto &points(tr[ *m_markerPlot].points());
 		points.clear();
 		for(std::deque<std::pair<double, double> >::const_iterator it = shot[ *this].m_markers.begin();
 			it != shot[ *this].m_markers.end(); it++) {

@@ -622,7 +622,7 @@ MonteCarlo::execute()
 			m_thread_pool_cond.wait();
 			continue;
 		}
-        if(!m_hint_site2_left.compare_exchange_strong(left, left - 1))
+        if(!m_hint_site2_left.compare_set_strong(left, left - 1))
 			continue;
     
 		int site2 = m_hint_sec_cache_miss[left - 1];
@@ -666,7 +666,7 @@ MonteCarlo::hinteraction_miscache(int sec_cache_miss_cnt, int site1, int lidx)
 			}
 			break;
 		}
-        if(!m_hint_site2_left.compare_exchange_strong(left, left - 1))
+        if(!m_hint_site2_left.compare_set_strong(left, left - 1))
 			continue;
         
 		int site2 = m_hint_sec_cache_miss[left - 1];

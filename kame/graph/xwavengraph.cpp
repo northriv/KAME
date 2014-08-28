@@ -195,7 +195,7 @@ XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {
 void
 XWaveNGraph::Payload::setRowCount(unsigned int n) {
 	m_cols.resize(m_colcnt * n);
-	for(std::deque<Plot>::iterator it = m_plots.begin(); it != m_plots.end(); it++) {
+    for(auto it = m_plots.begin(); it != m_plots.end(); it++) {
 		tr()[ *it->xyplot->maxCount()] = n;
 	}
 }
@@ -296,7 +296,7 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
 			tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
 		}
 
-		std::deque<XGraph::ValPoint> &points_plot(tr[ *shot[ *this].plot(i)].points());
+        auto &points_plot(tr[ *shot[ *this].plot(i)].points());
 		points_plot.clear();
 		for(int i = 0; i < rowcnt; ++i) {
 			double z = 0.0;

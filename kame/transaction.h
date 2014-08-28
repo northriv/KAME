@@ -154,10 +154,7 @@ public:
 
 	void print_() const;
 
-	struct NodeList : public std::vector<shared_ptr<XN> > {
-		NodeList() : std::vector<shared_ptr<XN> >() {}
-	private:
-	};
+    typedef std::vector<shared_ptr<XN> > NodeList;
 	typedef typename NodeList::iterator iterator;
 	typedef typename NodeList::const_iterator const_iterator;
 
@@ -169,7 +166,7 @@ private:
 	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-		PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
@@ -232,7 +229,7 @@ private:
 				oldserial = s_serial;
 				newserial = oldserial + 1;
 				if(newserial == SERIAL_NULL) newserial++;
-                if(s_serial.compare_exchange_strong(oldserial, newserial))
+                if(s_serial.compare_set_strong(oldserial, newserial))
 					return newserial;
 			}
 		}
@@ -589,7 +586,7 @@ public:
 		Message_<XN> *m = talker.createMessage(arg);
 		if(m) {
 			if( !m_messages)
-				m_messages.reset(new MessageList);
+                m_messages.reset(new MessageList);
 			m_messages->push_back(shared_ptr<Message_<XN> >(m));
 		}
 	}

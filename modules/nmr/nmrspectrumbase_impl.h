@@ -289,7 +289,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		return;
 	}
 
-    if(m_isInstrumControlRequested.compare_exchange_strong((int)true, (int)false))
+    if(m_isInstrumControlRequested.compare_set_strong((int)true, (int)false))
 		rearrangeInstrum(shot);
 
 	int length = shot[ *this].wave().size();
@@ -316,10 +316,10 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 			colabs[i] = std::abs(wave[i]);
 			coldark[i] = sqrt(darkpsd[i]);
 		}
-		const std::deque<std::pair<double, double> > &peaks(shot[ *this].m_peaks);
+        const auto &peaks(shot[ *this].m_peaks);
 		int peaks_size = peaks.size();
 		tr[ *m_peakPlot->maxCount()] = peaks_size;
-		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
+        auto &points(tr[ *m_peakPlot].points());
 		points.resize(peaks_size);
 		for(int i = 0; i < peaks_size; i++) {
 			double x = peaks[i].second;

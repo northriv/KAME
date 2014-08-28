@@ -161,10 +161,10 @@ int
 main(int argc, char **argv)
 {
     for(int k = 0; k < 1; k++) {
-		gn1.reset(LongNode::create<LongNode>());
-		gn2.reset(LongNode::create<LongNode>());
-		gn3.reset(LongNode::create<LongNode>());
-		gn4.reset(LongNode::create<LongNode>());
+        gn1.reset(LongNode::create<LongNode>());
+        gn2.reset(LongNode::create<LongNode>());
+        gn3.reset(LongNode::create<LongNode>());
+        gn4.reset(LongNode::create<LongNode>());
 
 		gn1->insert(gn2);
 		Snapshot shot1(*gn2);

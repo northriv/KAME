@@ -37,7 +37,7 @@ public:
     atomic(const atomic &t) : std::atomic<T>() { *this = (T)t;}
     atomic(const T &t) : std::atomic<T>(t) {}
     atomic& operator=(const T &t) {this->store(t); return *this; }
-    bool compare_exchange_strong(const T &oldv, const T &newv) {
+    bool compare_set_strong(const T &oldv, const T &newv) {
         T expected = oldv;
         return std::atomic<T>::compare_exchange_strong(expected, newv);
     }

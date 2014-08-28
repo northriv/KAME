@@ -401,10 +401,10 @@ public:
 		XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
 
 	struct Payload : public XNode::Payload {
-		std::deque<XGraph::ValPoint> &points() {return m_points;}
-		const std::deque<XGraph::ValPoint> &points() const {return m_points;}
+        std::deque<XGraph::ValPoint> &points() {return m_points;}
+        const std::deque<XGraph::ValPoint> &points() const {return m_points;}
 	private:
-		std::deque<XGraph::ValPoint> m_points;
+        std::deque<XGraph::ValPoint> m_points;
 	};
 protected:
 	//! Takes a snap-shot all points for rendering

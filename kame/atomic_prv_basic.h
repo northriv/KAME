@@ -57,12 +57,10 @@ public:
         writeBarrier(); m_var = x.m_var; return *this;
     }
     T exchange(T newv) {
-        writeBarrier();
         T old = atomicSwap(newv, &m_var);
         return old;
     }
-    bool compare_exchange_strong(T oldv, T newv) {
-        writeBarrier();
+    bool compare_set_strong(T oldv, T newv) {
         bool ret = atomicCompareAndSet(oldv, newv, &m_var);
         return ret;
     }
@@ -82,7 +80,6 @@ public:
         for(;;) {
             T oldv = m_var;
             if(atomicCompareAndSet(oldv, oldv, &m_var)) {
-                readBarrier();
                 return oldv;
             }
         }
@@ -102,15 +99,13 @@ public:
     }
     T exchange(T newv) {
         for(;;) {
-            writeBarrier();
             T oldv = m_var;
             if(atomicCompareAndSet(oldv, newv, &m_var)) {
                 return oldv;
             }
         }
     }
-    bool compare_exchange_strong(T oldv, T newv) {
-        writeBarrier();
+    bool compare_set_strong(T oldv, T newv) {
         bool ret = atomicCompareAndSet(oldv, newv, &m_var);
         return ret;
     }
@@ -157,23 +152,19 @@ public:
     atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
     ~atomic() {}
     //! Note that the return value is atomically given.
-    atomic &operator++() {atomicInc( &this->m_var); writeBarrier(); return *this;}
+    atomic &operator++() {writeBarrier(); atomicInc( &this->m_var); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator--() {atomicDecAndTest( &this->m_var); writeBarrier(); return *this;}
+    atomic &operator--() {writeBarrier(); atomicDecAndTest( &this->m_var); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator+=(T t) {atomicAdd( &this->m_var, t); writeBarrier(); return *this;}
+    atomic &operator+=(T t) {writeBarrier(); atomicAdd( &this->m_var, t); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator-=(T t) {atomicAdd( &this->m_var, -t); writeBarrier(); return *this;}
+    atomic &operator-=(T t) {writeBarrier(); atomicAdd( &this->m_var, -t); return *this;}
     bool decAndTest() {
-        writeBarrier();
         bool ret = atomicDecAndTest( &this->m_var);
-        readBarrier();
         return ret;
     }
     bool addAndTest(T t) {
-        writeBarrier();
         bool ret = atomicAddAndTest( &this->m_var, t);
-        readBarrier();
         return ret;
     }
 };

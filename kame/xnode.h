@@ -243,9 +243,9 @@ template <class T, typename... Args>
 shared_ptr<T>
 XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
     Transactional::Node<XNode>::create<T>(name, runtime, static_cast<Args&&>(args)...);
-	shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
-	XNode::stl_thisCreating->pop_back();
-	return ptr;
+    shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
+    XNode::stl_thisCreating->pop_back();
+    return ptr;
 }
 
 template <class T, typename... Args>

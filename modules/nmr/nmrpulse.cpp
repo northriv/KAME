@@ -674,7 +674,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			return;
 	}
 
-    if(m_isPulseInversionRequested.compare_exchange_strong((int)true, (int)false)) {
+    if(m_isPulseInversionRequested.compare_set_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
 		if(pulse__) {
 			for(Transaction tr( *pulse__);; ++tr) {
@@ -719,7 +719,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		const std::vector<std::pair<double, double> > &peaks(solver.peaks());
 		int peaks_size = peaks.size();
 		tr[ *m_peakPlot->maxCount()] = peaks_size;
-		std::deque<XGraph::ValPoint> &points(tr[ *m_peakPlot].points());
+        auto &points(tr[ *m_peakPlot].points());
 		points.resize(peaks_size);
 		for(int i = 0; i < peaks_size; i++) {
 			double x = peaks[i].second;
