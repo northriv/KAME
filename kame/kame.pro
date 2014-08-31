@@ -227,7 +227,8 @@ win32-g++ {
     INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
     LIBS += -L"C:/Program Files/GnuWin32/lib/"
     LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
-    LIBS += -lltdl -lz
+    LIBS += -lz
+#    LIBS += -lltdl -lz
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
