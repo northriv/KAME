@@ -34,17 +34,17 @@ public:
 	template <class P, class T>
 	struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
-        template<Value(P::*Func)(const std::shared_ptr<T>&)>
+        template<Value(P::*)(const std::shared_ptr<T>&)>
         void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
+        template<Value(P::*)(const std::shared_ptr<T>&,Value)>
         void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
+        template<Value(P::*)(const std::shared_ptr<T>&,Value,Value)>
         void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*Func)(const std::shared_ptr<T>&)>
+        template<Value(P::*)(const std::shared_ptr<T>&)>
         void defineMethod(const char *rbname);
-        template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
+        template<Value(P::*)(const std::shared_ptr<T>&,Value)>
         void defineMethod(const char *rbname);
-        template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
+        template<Value(P::*)(const std::shared_ptr<T>&,Value,Value)>
         void defineMethod(const char *rbname);
         Value rubyClassObject() const;
         Value rubyObject(const std::shared_ptr<T> &obj) const;
@@ -60,11 +60,11 @@ public:
                 static Value __cdecl func_internal(Value self) {
 //            *func = [](Value self)->Value {
                 char errstr[256];
-					try {
+                    try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second));
-					}
+                    }
                     catch(std::bad_weak_ptr &) {
                         snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
                     catch(std::string &e) {
@@ -76,7 +76,7 @@ public:
             };
             *func = &Func_t::func_internal;
             return 0;
-		}
+        }
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value)>
         int create_function(Value(**func)(Value, Value)) {
             struct Func_t {
