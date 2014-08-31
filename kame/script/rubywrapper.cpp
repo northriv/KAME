@@ -1,3 +1,6 @@
+#ifdef _MSC_VER
+    #include <windows.h>
+#endif
 #include <ruby.h>
 #include "rubywrapper.h"
 
