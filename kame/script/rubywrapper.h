@@ -52,12 +52,16 @@ public:
             return unwrap_internal<Ptr>(v).second;
         }
     private:
+//#define RUBYDECL __cdecl
+#ifndef RUBYDECL
+    #define RUBYDECL
+#endif
         typedef std::pair<std::weak_ptr<P>, std::weak_ptr<T>> Ptr;
         static_assert(sizeof(Ptr) == sizeof(wrapped_t), "");
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         int create_function(Value(**func)(Value)) {
             struct Func_t {
-                static Value __cdecl func_internal(Value self) {
+                static Value RUBYDECL func_internal(Value self) {
 //            *func = [](Value self)->Value {
                 char errstr[256];
                     try {
@@ -80,7 +84,7 @@ public:
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value)>
         int create_function(Value(**func)(Value, Value)) {
             struct Func_t {
-                static Value __cdecl func_internal(Value self, Value x) {
+                static Value RUBYDECL func_internal(Value self, Value x) {
 //            *func = [](Value self)->Value {
                 char errstr[256];
                     try {
@@ -103,7 +107,7 @@ public:
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value, Value)>
         int create_function(Value(**func)(Value, Value, Value)) {
             struct Func_t {
-                static Value __cdecl func_internal(Value self, Value x, Value y) {
+                static Value RUBYDECL func_internal(Value self, Value x, Value y) {
 //            *func = [](Value self)->Value {
                 char errstr[256];
                     try {
