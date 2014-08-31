@@ -5,6 +5,7 @@ include_directories(
 ########### next target ###############
 
 set(script_SRCS
+	rubywrapper.cpp
 	xrubythread.cpp
 	xrubythreadconnector.cpp
 	xrubysupport.cpp

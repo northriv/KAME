@@ -147,7 +147,7 @@ XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &s
 void
 XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
     if(shot_this[ *tuneStrategy()] == TUNESTRATEGY_ASIS)
-        return;
+        return; //tuning is declined by user.
     if(shot_this[ *tuneStep()]  <= 0.0) {
         gWarnPrint(i18n("Invalid tuning step."));
         return;
@@ -169,7 +169,7 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
         trans( *pulse__->avgClear()).touch();
 
     if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AWAIT)) {
-        g_statusPrinter->printMessage(i18n("Tune it by yourself to") +
+        g_statusPrinter->printMessage(getLabel() + " " + i18n("Tune it by yourself to") +
             formatString(" %.3f~MHz", newf) + i18n(", and turn pulse on again."), true, __FILE__, __LINE__, true);
     }
     if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AUTOTUNER)) {
@@ -190,7 +190,8 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
 }
 void
 XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
-	//set new freq
+    m_lsnOnTuningChanged.reset();
+    //set new freq
 	if(shot_this[ *active()]) {
 	    shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
 		if( ! sg1__)
@@ -214,12 +215,12 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		double newf = freq; //MHz
 		newf += freq_step;
 		
-        performTuning(shot_this, newf);
+        performTuning(shot_this, newf); //tunes a circuit if needed.
 
 		if(sg1__)
-			trans( *sg1__->freq()) = newf + shot_this[ *sg1FreqOffset()];
-		if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
-			trans( *active()) = false;
+            trans( *sg1__->freq()) = newf + shot_this[ *sg1FreqOffset()]; //modifies SG freq.
+        if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
+            trans( *active()) = false; //finish
 	}	
 }
 void

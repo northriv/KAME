@@ -216,16 +216,19 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	else {
 		int diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
-			for(int i = 0; i < diff; i++) {
-				tr[ *this].m_accum[bank].push_front(0.0);
-				tr[ *this].m_accum_weights[bank].push_front(0);
-				tr[ *this].m_accum_dark[bank].push_front(0.0);
+            auto &accum = tr[ *this].m_accum[bank];
+            auto &accum_weights = tr[ *this].m_accum_weights[bank];
+            auto &accum_dark = tr[ *this].m_accum_dark[bank];
+            for(int i = 0; i < diff; i++) {
+                accum.push_front(0.0);
+                accum_weights.push_front(0);
+                accum_dark.push_front(0.0);
 			}
 			for(int i = 0; i < -diff; i++) {
-				if( !shot_this[ *this].m_accum[bank].empty()) {
-					tr[ *this].m_accum[bank].pop_front();
-					tr[ *this].m_accum_weights[bank].pop_front();
-					tr[ *this].m_accum_dark[bank].pop_front();
+                if( !accum.empty()) {
+                    accum.pop_front();
+                    accum_weights.pop_front();
+                    accum_dark.pop_front();
 				}
 			}
 		}
@@ -504,7 +507,6 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 		j += (max_idx + min_idx) / 2;
 		int l = lrint(j);
 		if((l >= 0) && (l < weights_size) && (weights[l] > th))
-			peaks.push_back(std::pair<double, double>(
-				solver.peaks()[i].first / (double)iftlen, j));
+            peaks.emplace_back(solver.peaks()[i].first / (double)iftlen, j);
 	}
 }

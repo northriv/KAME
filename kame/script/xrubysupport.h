@@ -16,12 +16,7 @@
 #ifndef xrubysupportH
 #define xrubysupportH
 
-#define NOMINMAX //for max/min of <windows.h>
-#include <ruby.h>
-#undef interface
-#undef truncate
-#undef inline
-
+#include "rubywrapper.h"
 #include "xrubythread.h"
 #include "xnode.h"
 #include "xlistnode.h"
@@ -55,35 +50,28 @@ public:
 protected:
 	virtual void *execute(const atomic<bool> &);
 private:
-	struct rnode_ptr {
-		weak_ptr<XNode> ptr;
-		XRuby *xruby;
-	};
 	//! Ruby Objects
-	VALUE rbClassNode, rbClassValueNode, rbClassListNode;
-	//! delete Wrapper struct
-	static void rnode_free(void *);
-	static shared_ptr<XRubyThread> findRubyThread(VALUE self, VALUE threadid);
+    shared_ptr<XRubyThread> findRubyThread(const shared_ptr<XNode> &self, Ruby::Value threadid);
 	//! def. output write()
-	static VALUE my_rbdefout(VALUE self, VALUE str, VALUE threadid);
+    Ruby::Value my_rbdefout(const shared_ptr<XNode> &, Ruby::Value str, Ruby::Value threadid);
 	//! def. input gets(). Return nil if the buffer is empty.
-	static VALUE my_rbdefin(VALUE self, VALUE threadid);
+    Ruby::Value my_rbdefin(const shared_ptr<XNode> &, Ruby::Value threadid);
 	//! 
-    static VALUE is_main_terminated(VALUE self);
+    Ruby::Value is_main_terminated(const shared_ptr<XNode> &node);
 	//! XNode wrappers
-	static int strOnNode(const shared_ptr<XValueNodeBase> &node, VALUE value);
-	static VALUE getValueOfNode(const shared_ptr<XValueNodeBase> &node);
-	static VALUE rnode_create(const shared_ptr<XNode> &, XRuby *);
-	static VALUE rnode_name(VALUE);
-	static VALUE rnode_touch(VALUE);
-	static VALUE rnode_count(VALUE);
-	static VALUE rnode_child(VALUE, VALUE);
-	static VALUE rvaluenode_set(VALUE, VALUE);
-	static VALUE rvaluenode_load(VALUE, VALUE);
-	static VALUE rvaluenode_get(VALUE);
-	static VALUE rvaluenode_to_str(VALUE);
-	static VALUE rlistnode_create_child(VALUE, VALUE, VALUE);
-	static VALUE rlistnode_release_child(VALUE, VALUE);
+    static void strOnNode(const shared_ptr<XValueNodeBase> &node, Ruby::Value value);
+    static Ruby::Value getValueOfNode(const shared_ptr<XValueNodeBase> &node);
+    Ruby::Value rnode_create(const shared_ptr<XNode> &);
+    Ruby::Value rnode_name(const shared_ptr<XNode> &);
+    Ruby::Value rnode_touch(const shared_ptr<XNode> &);
+    Ruby::Value rnode_count(const shared_ptr<XNode> &);
+    Ruby::Value rnode_child(const shared_ptr<XNode> &, Ruby::Value);
+    Ruby::Value rvaluenode_set(const shared_ptr<XNode> &node, Ruby::Value);
+    Ruby::Value rvaluenode_load(const shared_ptr<XNode> &node, Ruby::Value);
+    Ruby::Value rvaluenode_get(const shared_ptr<XNode> &node);
+    Ruby::Value rvaluenode_to_str(const shared_ptr<XNode> &node);
+    Ruby::Value rlistnode_create_child(const shared_ptr<XNode> &, Ruby::Value, Ruby::Value);
+    Ruby::Value rlistnode_release_child(const shared_ptr<XNode> &, Ruby::Value);
 
 	shared_ptr<XListener> m_lsnChildCreated;
 	void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
@@ -91,6 +79,10 @@ private:
 	const weak_ptr<XMeasure> m_measure;
 	XThread<XRuby> m_thread;
 
+    unique_ptr<Ruby> m_ruby;
+    unique_ptr<Ruby::Class<XRuby,XNode>> m_rubyClassNode;
+    unique_ptr<Ruby::Class<XRuby,XNode>> m_rubyClassValueNode;
+    unique_ptr<Ruby::Class<XRuby,XNode>> m_rubyClassListNode;
 };
 
 //---------------------------------------------------------------------------

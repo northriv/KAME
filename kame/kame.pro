@@ -61,6 +61,7 @@ HEADERS += \
     script/xrubythread.h \
     script/xrubythreadconnector.h \
     script/xrubywriter.h \
+    script/rubywrapper.h \
     xitemnode.h \
     xlistnode.h \
     xnode.h \
@@ -117,6 +118,7 @@ SOURCES += icons/icon.cpp \
     script/xrubythread.cpp \
     script/xrubythreadconnector.cpp \
     script/xrubywriter.cpp \
+    script/rubywrapper.cpp \
     measure.cpp \
     xnode.cpp \
     xnodeconnector.cpp \

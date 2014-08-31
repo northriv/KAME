@@ -249,7 +249,7 @@ XQLineEditConnector::onExit() {
 	    m_pItem->setText(shot[ *m_node].to_str());
 	    m_pItem->blockSignals(false);
 		shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
-		if(statusprinter) statusprinter->printMessage(i18n("Input canceled."));
+        if(statusprinter) statusprinter->printMessage(i18n("Input canceled."), true, 0, 0, true);
 	}
 }
 void
