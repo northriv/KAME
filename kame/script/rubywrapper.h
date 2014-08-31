@@ -1,7 +1,9 @@
 #include <memory>
 #include <string>
 #ifdef _MSC_VER
-    #define snprintf _snprintf
+    #ifndef snprintf
+        #define snprintf _snprintf
+    #endif
 #endif
 
 //! Wraps Ruby C interface and hides mysterious ruby.h from C++ libraries.
