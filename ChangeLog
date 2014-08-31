@@ -1,3 +1,7 @@
+* Sun Aug 31 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.11-1)
+- Wraps ruby.h
+
 * Thu Aug 28 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.10-1)
 - Much faster transactions.
