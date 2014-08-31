@@ -360,7 +360,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 		}
 		if( !channels.size()) {
             statusPrinter()->printMessage(getLabel() + " " + i18n("Select traces!."));
-            msecsleep(500);
+            msecsleep(1000);
             continue;
 		}
 		

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>709</width>
-    <height>502</height>
+    <height>435</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,6 +15,18 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QHBoxLayout" name="horizontalLayout_6">
+    <property name="leftMargin">
+     <number>6</number>
+    </property>
+    <property name="topMargin">
+     <number>6</number>
+    </property>
+    <property name="rightMargin">
+     <number>6</number>
+    </property>
+    <property name="bottomMargin">
+     <number>6</number>
+    </property>
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -194,6 +206,12 @@
          </property>
          <property name="bottomMargin">
           <number>2</number>
+         </property>
+         <property name="horizontalSpacing">
+          <number>4</number>
+         </property>
+         <property name="verticalSpacing">
+          <number>-1</number>
          </property>
          <item row="0" column="0">
           <layout class="QHBoxLayout">
@@ -376,6 +394,12 @@
          <property name="bottomMargin">
           <number>2</number>
          </property>
+         <property name="horizontalSpacing">
+          <number>4</number>
+         </property>
+         <property name="verticalSpacing">
+          <number>-1</number>
+         </property>
          <item row="1" column="0">
           <layout class="QHBoxLayout">
            <item>
@@ -503,6 +527,12 @@
          </property>
          <property name="bottomMargin">
           <number>2</number>
+         </property>
+         <property name="horizontalSpacing">
+          <number>4</number>
+         </property>
+         <property name="verticalSpacing">
+          <number>-1</number>
          </property>
          <item row="0" column="0" colspan="2">
           <widget class="QCheckBox" name="m_ckbPICEnabled">
@@ -633,6 +663,9 @@
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
        <layout class="QHBoxLayout">
+        <property name="spacing">
+         <number>4</number>
+        </property>
         <item>
          <widget class="QLineEdit" name="m_edDump"/>
         </item>
@@ -746,6 +779,12 @@
           </item>
           <item>
            <widget class="QSlider" name="m_slPhaseAdv">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>0</height>
+             </size>
+            </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
             </property>
@@ -761,12 +800,12 @@
             </property>
             <property name="minimumSize">
              <size>
-              <width>120</width>
+              <width>100</width>
               <height>0</height>
              </size>
             </property>
             <property name="suffix">
-             <string>deg</string>
+             <string> deg</string>
             </property>
             <property name="minValue" stdset="0">
              <number>0</number>
@@ -804,6 +843,12 @@
           </item>
           <item>
            <widget class="QSlider" name="m_slWindowWIdth">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>0</height>
+             </size>
+            </property>
             <property name="orientation">
              <enum>Qt::Horizontal</enum>
             </property>
@@ -819,7 +864,7 @@
             </property>
             <property name="minimumSize">
              <size>
-              <width>120</width>
+              <width>100</width>
               <height>0</height>
              </size>
             </property>
@@ -867,7 +912,7 @@
           <item>
            <layout class="QHBoxLayout">
             <property name="spacing">
-             <number>0</number>
+             <number>4</number>
             </property>
             <item>
              <widget class="QLineEdit" name="m_edFFTPos">
@@ -929,7 +974,7 @@
           <item>
            <layout class="QHBoxLayout">
             <property name="spacing">
-             <number>0</number>
+             <number>4</number>
             </property>
             <item>
              <widget class="QLineEdit" name="m_edFFTLen">

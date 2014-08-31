@@ -153,13 +153,13 @@ int main(int argc, char *argv[]) {
 
     QTranslator qtTranslator;
     qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
-    app.installTranslator(&qtTranslator);
+    app.installTranslator(&qtTranslator); //transaltions for QT.
 
     QTranslator appTranslator;
     if( !appTranslator.load("kame_" + QLocale::system().name())) {
         appTranslator.load("kame_" + QLocale::system().name(), app.applicationDirPath());
     }
-    app.installTranslator(&appTranslator);
+    app.installTranslator(&appTranslator); //translations for KAME.
 #endif
 
 //#if defined __WIN32__ || defined WINDOWS || defined _WIN32
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
 //#endif
 
 	{
-        makeIcons();
+        makeIcons(); //loads icon pixmaps.
 		{
 
 #if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
@@ -215,14 +215,6 @@ int main(int argc, char *argv[]) {
 	//Overrides GSL's error handler.
 	gsl_set_error_handler(&my_gsl_err_handler);
 
-	/*
-	  while(!app->closingDown()) {
-	  bool idle = g_signalBuffer->synchronize();  
-	  if(idle) app->processEvents();
-	  app->processEvents(15);
-	  }
-	  return 0;
-	*/
 	fprintf(stderr, "Start processing events.\n");
 
     app.processEvents();
@@ -243,10 +235,11 @@ int main(int argc, char *argv[]) {
         paths += *it + KAME_COREMODULE_DIR_SURFIX;
 #endif
 #if defined KAME_COREMODULE2_DIR_SURFIX
-        paths += *it + KAME_COREMODULE2_DIR_SURFIX;
+        paths += *it + KAME_COREMODULE2_DIR_SURFIX; //modules that depend on core ones
 #endif
-        paths += *it + KAME_MODULE_DIR_SURFIX;
+        paths += *it + KAME_MODULE_DIR_SURFIX; //modules that depend on core/core2
 
+        //searches module directories
         for(auto sit = paths.begin(); sit != paths.end(); sit++) {
 #ifdef USE_LIBTOOL
             lt_dladdsearchdir(sit->toLocal8Bit().data());
@@ -257,8 +250,9 @@ int main(int argc, char *argv[]) {
 #endif
         }
     }
-
+    //loads modules.
 	for(auto it = modules.begin(); it != modules.end(); it++) {
+        app.processEvents();
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(it->c_str());
         if(handle) {

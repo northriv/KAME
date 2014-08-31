@@ -587,7 +587,7 @@ public:
 		if(m) {
 			if( !m_messages)
                 m_messages.reset(new MessageList);
-			m_messages->push_back(shared_ptr<Message_<XN> >(m));
+            m_messages->emplace_back(m);
 		}
 	}
 	//! Cancels reserved events made toward \a x.

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>701</width>
-    <height>439</height>
+    <width>713</width>
+    <height>405</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -646,6 +646,12 @@
            </item>
            <item>
             <widget class="QSlider" name="m_slPhase">
+             <property name="minimumSize">
+              <size>
+               <width>50</width>
+               <height>0</height>
+              </size>
+             </property>
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
@@ -660,7 +666,7 @@
               </sizepolicy>
              </property>
              <property name="suffix">
-              <string>deg.</string>
+              <string> deg.</string>
              </property>
              <property name="minValue" stdset="0">
               <number>-360</number>
@@ -734,14 +740,14 @@
              <item>
               <widget class="QDoubleSpinBox" name="m_dblWindowWidth">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>150</width>
+                 <width>100</width>
                  <height>0</height>
                 </size>
                </property>

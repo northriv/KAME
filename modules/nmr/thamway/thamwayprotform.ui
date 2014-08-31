@@ -150,21 +150,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="m_dblOutput"/>
-        </item>
-        <item>
-         <widget class="QLabel" name="textLabel2_3_2_3">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>dBm</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
+         <widget class="QDoubleSpinBox" name="m_dblOutput">
+          <property name="suffix">
+           <string> dBm</string>
           </property>
          </widget>
         </item>
@@ -206,21 +194,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="m_dblRXGain"/>
-        </item>
-        <item>
-         <widget class="QLabel" name="textLabel2_3_2_4">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>dB</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
+         <widget class="QDoubleSpinBox" name="m_dblRXGain">
+          <property name="suffix">
+           <string> dB</string>
           </property>
          </widget>
         </item>
@@ -262,21 +238,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="m_dblRXPhase"/>
-        </item>
-        <item>
-         <widget class="QLabel" name="textLabel2_3_2_6">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>deg.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
+         <widget class="QDoubleSpinBox" name="m_dblRXPhase">
+          <property name="suffix">
+           <string> deg.</string>
           </property>
          </widget>
         </item>

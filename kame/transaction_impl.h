@@ -146,7 +146,7 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
                 ms = 2000;
 			}
             t0 += ms * 1e-3;
-			while(t0 > XTime::now()) {
+            while(t0 > XTime::now()) {
 //				usleep(1000);
                 msecsleep(1);
                 if( !m_transaction_started_time || (((int64_t)started_time <= (int64_t)m_transaction_started_time)))
@@ -694,7 +694,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 //			}
 		}
 		if(newwrapper) {
-			cas_infos->push_back(CASInfo(linkage_upper, shot_upper, newwrapper));
+            cas_infos->emplace_back(linkage_upper, shot_upper, newwrapper);
 			p = &newwrapper->packet();
 		}
 		if(size) {
