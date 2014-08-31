@@ -223,14 +223,14 @@ win32-msvc* {
 win32 {
 }
 win32-g++ {
-    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
-    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
-    LIBS += -L"C:/Program Files/GnuWin32/lib/"
-    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
-    LIBS += -lz
+#    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
+#    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
+#    LIBS += -L"C:/Program Files/GnuWin32/lib/"
+#    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
+#    LIBS += -lz
 #    LIBS += -lltdl -lz
 }
-win32-msvc* {
+win32 {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
     LIBS += -lzdll
