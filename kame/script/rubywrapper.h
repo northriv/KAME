@@ -58,8 +58,9 @@ public:
             return unwrap_internal<Ptr>(v).second;
         }
     private:
-//#define RUBYDECL __cdecl
-#ifndef RUBYDECL
+#ifdef _MSC_VER
+    #define RUBYDECL __cdecl
+#else
     #define RUBYDECL
 #endif
         typedef std::pair<std::weak_ptr<P>, std::weak_ptr<T>> Ptr;
