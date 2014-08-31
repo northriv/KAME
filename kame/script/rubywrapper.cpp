@@ -1,5 +1,10 @@
+#ifndef _MSC_VER
+    #include <ruby.h>
+#endif
 #include "rubywrapper.h"
-#include <ruby.h>
+#ifdef _MSC_VER
+    #include <ruby.h>
+#endif
 
 static_assert(sizeof(VALUE) == sizeof(Ruby::Value), "Size mismatch for VALUE.");
 
