@@ -57,7 +57,7 @@ public:
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         int create_function(Value(**func)(Value)) {
             struct Func_t {
-                static Value __cdecl func_internal(Value self) {
+                static Value func_internal(Value self) {
 //            *func = [](Value self)->Value {
                 char errstr[256];
 					try {
