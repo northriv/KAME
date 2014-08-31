@@ -34,20 +34,6 @@ public:
 	template <class P, class T>
 	struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
-<<<<<<< HEAD
-        template<Value(P::*)(const std::shared_ptr<T>&)>
-        void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*)(const std::shared_ptr<T>&,Value)>
-        void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*)(const std::shared_ptr<T>&,Value,Value)>
-        void defineSingletonMethod(Value obj, const char *rbname);
-        template<Value(P::*)(const std::shared_ptr<T>&)>
-        void defineMethod(const char *rbname);
-        template<Value(P::*)(const std::shared_ptr<T>&,Value)>
-        void defineMethod(const char *rbname);
-        template<Value(P::*)(const std::shared_ptr<T>&,Value,Value)>
-        void defineMethod(const char *rbname);
-=======
         //!\todo MSVC2013 cannot handle with multi-definitions correctly.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineSingletonMethod(Value obj, const char *rbname);
@@ -61,7 +47,6 @@ public:
         void defineMethod1(const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
         void defineMethod2(const char *rbname);
->>>>>>> cd4846e8a05daa1d2edd05f036667ab42f0735bb
         Value rubyClassObject() const;
         Value rubyObject(const std::shared_ptr<T> &obj) const;
         static std::weak_ptr<T> unwrap(Value v) {
