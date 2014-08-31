@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
         LTDL_SET_PRELOADED_SYMBOLS();
     #endif
 #elif defined __WIN32__ || defined WINDOWS || defined _WIN32
-    #define USE_LOADLIBRARY
+//    #define USE_LOADLIBRARY
 #endif
 	if(module_dir.isEmpty())
         module_dir = app.libraryPaths();
