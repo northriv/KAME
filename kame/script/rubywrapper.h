@@ -1,5 +1,8 @@
 #include <memory>
 #include <string>
+#ifdef _MSC_VER
+    #define snprintf _snprintf
+#endif
 
 //! Wraps Ruby C interface and hides mysterious ruby.h from C++ libraries.
 class Ruby {
@@ -34,7 +37,7 @@ public:
 	template <class P, class T>
 	struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
-        //!\todo MSVC2013 cannot handle with multi-definitions correctly.
+        //!\todo MSVC2013 cl dies with multi-definitions.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineSingletonMethod(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
@@ -64,17 +67,19 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self) {
 //            *func = [](Value self)->Value {
-					try {
+                char errstr[256];
+                    try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second));
                     }
                     catch(std::bad_weak_ptr &) {
-                        emit_error("C object no longer exists."); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
                     catch(std::string &e) {
-                        emit_error(e.c_str()); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
                     catch(const char *e) {
-                        emit_error(e); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
+                    emit_error(errstr); return Nil;
                 }
             };
             *func = &Func_t::func_internal;
@@ -85,18 +90,20 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self, Value x) {
 //            *func = [](Value self)->Value {
+                char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second), x);
                     }
                     catch(std::bad_weak_ptr &) {
-                        emit_error("C object no longer exists."); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
                     catch(std::string &e) {
-                        emit_error(e.c_str()); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
                     catch(const char *e) {
-                        emit_error(e); return Nil;}
-                    }
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
+                    emit_error(errstr); return Nil;
+                }
             };
             *func = &Func_t::func_internal;
             return 1;
@@ -106,17 +113,19 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self, Value x, Value y) {
 //            *func = [](Value self)->Value {
+                char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second), x, y);
                     }
                     catch(std::bad_weak_ptr &) {
-                        emit_error("C object no longer exists."); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
                     catch(std::string &e) {
-                        emit_error(e.c_str()); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
                     catch(const char *e) {
-                        emit_error(e); return Nil;}
+                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
+                    emit_error(errstr); return Nil;
                 }
             };
             *func = &Func_t::func_internal;
