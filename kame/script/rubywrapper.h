@@ -16,7 +16,8 @@ public:
     //! \return state.
     int evalProtect(const char* str);
 
-	typedef uintptr_t Value;
+    typedef unsigned long Value;
+
 	void defineGlobalConst(const char *rbname, Value obj);
 
     //! C++ value to Ruby object
