@@ -327,19 +327,19 @@ XRuby::execute(const atomic<bool> &) {
     m_rubyClassNode.reset(new Ruby::Class<XRuby, XNode>(xruby, "XNode"));
     m_rubyClassNode->defineMethod<&XRuby::rnode_name>("name");
     m_rubyClassNode->defineMethod<&XRuby::rnode_touch>("touch");
-    m_rubyClassNode->defineMethod<&XRuby::rnode_child>("child");
+    m_rubyClassNode->defineMethod1<&XRuby::rnode_child>("child");
     m_rubyClassNode->defineMethod<&XRuby::rnode_count>("count");
 
     m_rubyClassValueNode.reset(new Ruby::Class<XRuby, XNode>(xruby, "XValueNode",
         m_rubyClassNode->rubyClassObject()));
-    m_rubyClassValueNode->defineMethod<&XRuby::rvaluenode_set>("internal_set");
-    m_rubyClassValueNode->defineMethod<&XRuby::rvaluenode_load>("internal_load");
+    m_rubyClassValueNode->defineMethod1<&XRuby::rvaluenode_set>("internal_set");
+    m_rubyClassValueNode->defineMethod1<&XRuby::rvaluenode_load>("internal_load");
     m_rubyClassValueNode->defineMethod<&XRuby::rvaluenode_get>("internal_get");
 
     m_rubyClassListNode.reset(new Ruby::Class<XRuby, XNode>(xruby, "XListNode",
         m_rubyClassNode->rubyClassObject()));
-    m_rubyClassListNode->defineMethod<&XRuby::rlistnode_create_child>("internal_create");
-    m_rubyClassListNode->defineMethod<&XRuby::rlistnode_release_child>("release");
+    m_rubyClassListNode->defineMethod2<&XRuby::rlistnode_create_child>("internal_create");
+    m_rubyClassListNode->defineMethod1<&XRuby::rlistnode_release_child>("release");
 
     {
         shared_ptr<XMeasure> measure = m_measure.lock();
@@ -353,9 +353,9 @@ XRuby::execute(const atomic<bool> &) {
     {
         Ruby::Value rbRubyThreads = rnode_create(shared_from_this());
         m_ruby->defineGlobalConst("XRubyThreads", rbRubyThreads);
-        m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefout>(
+        m_rubyClassNode->defineSingletonMethod2<&XRuby::my_rbdefout>(
             rbRubyThreads, "my_rbdefout");
-        m_rubyClassNode->defineSingletonMethod<&XRuby::my_rbdefin>(
+        m_rubyClassNode->defineSingletonMethod1<&XRuby::my_rbdefin>(
             rbRubyThreads, "my_rbdefin");
         m_rubyClassNode->defineSingletonMethod<&XRuby::is_main_terminated>(
             rbRubyThreads, "is_main_terminated");

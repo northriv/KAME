@@ -34,18 +34,19 @@ public:
 	template <class P, class T>
 	struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
+        //!\todo MSVC2013 cannot handle with multi-definitions correctly.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineSingletonMethod(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
-        void defineSingletonMethod(Value obj, const char *rbname);
+        void defineSingletonMethod1(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
-        void defineSingletonMethod(Value obj, const char *rbname);
+        void defineSingletonMethod2(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineMethod(const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
-        void defineMethod(const char *rbname);
+        void defineMethod1(const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
-        void defineMethod(const char *rbname);
+        void defineMethod2(const char *rbname);
         Value rubyClassObject() const;
         Value rubyObject(const std::shared_ptr<T> &obj) const;
         static std::weak_ptr<T> unwrap(Value v) {
@@ -162,7 +163,7 @@ Ruby::Class<P,T>::defineMethod(const char *rbname) {
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineMethod(const char *rbname) {
+Ruby::Class<P,T>::defineMethod1(const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
     int arg_num = create_function<Func>(&func);
@@ -171,7 +172,7 @@ Ruby::Class<P,T>::defineMethod(const char *rbname) {
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineMethod(const char *rbname) {
+Ruby::Class<P,T>::defineMethod2(const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
     int arg_num = create_function<Func>(&func);
@@ -189,7 +190,7 @@ Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
+Ruby::Class<P,T>::defineSingletonMethod1(Value obj, const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
     int arg_num = create_function<Func>(&func);
@@ -198,7 +199,7 @@ Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
+Ruby::Class<P,T>::defineSingletonMethod2(Value obj, const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
     int arg_num = create_function<Func>(&func);
