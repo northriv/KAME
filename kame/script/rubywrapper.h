@@ -64,19 +64,17 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self) {
 //            *func = [](Value self)->Value {
-                char errstr[256];
 					try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second));
 					}
                     catch(std::bad_weak_ptr &) {
-                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
+                        emit_error("C object no longer exists."); return Nil;}
                     catch(std::string &e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
+                        emit_error(e.c_str()); return Nil;}
                     catch(const char *e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
-                    emit_error(errstr); return Nil;
+                        emit_error(e); return Nil;}
                 }
             };
             *func = &Func_t::func_internal;
@@ -87,20 +85,18 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self, Value x) {
 //            *func = [](Value self)->Value {
-                char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second), x);
                     }
                     catch(std::bad_weak_ptr &) {
-                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
+                        emit_error("C object no longer exists."); return Nil;}
                     catch(std::string &e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
+                        emit_error(e.c_str()); return Nil;}
                     catch(const char *e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
-                    emit_error(errstr); return Nil;
-                }
+                        emit_error(e); return Nil;}
+                    }
             };
             *func = &Func_t::func_internal;
             return 1;
@@ -110,19 +106,17 @@ public:
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self, Value x, Value y) {
 //            *func = [](Value self)->Value {
-                char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
                         return (p.get()->*Func)(std::shared_ptr<T>(st.second), x, y);
                     }
                     catch(std::bad_weak_ptr &) {
-                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
+                        emit_error("C object no longer exists."); return Nil;}
                     catch(std::string &e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
+                        emit_error(e.c_str()); return Nil;}
                     catch(const char *e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
-                    emit_error(errstr); return Nil;
+                        emit_error(e); return Nil;}
                 }
             };
             *func = &Func_t::func_internal;
