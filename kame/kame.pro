@@ -221,6 +221,9 @@ win32-msvc* {
 }
 
 win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
+    LIBS += -lzdll
 }
 win32-g++ {
 #    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
@@ -228,13 +231,8 @@ win32-g++ {
 #    LIBS += -L"C:/Program Files/GnuWin32/lib/"
 #    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
 #    LIBS += -lz
-#    LIBS += -lltdl -lz
 }
-win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
-    LIBS += -lzdll
-#    LIBS += -lltdl -lzlib
+win32-msvc* {
     QMAKE_PRE_LINK += lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def /out:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.lib
     QMAKE_PRE_LINK += & lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/libgsl.def /out:$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/libgsl.lib
 }
