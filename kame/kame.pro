@@ -61,7 +61,6 @@ HEADERS += \
     script/xrubythread.h \
     script/xrubythreadconnector.h \
     script/xrubywriter.h \
-    script/rubywrapper.h \
     xitemnode.h \
     xlistnode.h \
     xnode.h \
@@ -118,7 +117,6 @@ SOURCES += icons/icon.cpp \
     script/xrubythread.cpp \
     script/xrubythreadconnector.cpp \
     script/xrubywriter.cpp \
-    script/rubywrapper.cpp \
     measure.cpp \
     xnode.cpp \
     xnodeconnector.cpp \
@@ -186,9 +184,9 @@ else {
 
 macx: ICON = kame.icns
 
-win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame
-else:unix: LIBS += -L$$OUT_PWD/ -llibkame
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame -lrubywrapper
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame -lrubywrapper
+else:unix: LIBS += -L$$OUT_PWD/ -llibkame -lrubywrapper
 
 win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/liblibkame.a
 else:win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/debug/liblibkame.a
@@ -197,40 +195,10 @@ else:win32:!win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/
 else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 
-
-macx {
-    INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/1.8/Headers
-    LIBS += -framework Ruby
-}
-else:unix {
-    INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
-    LIBS += -lruby
-}
-win32-g++ {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
-}
-win32-msvc* {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby210 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/include
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/.ext/include/i386-mswin32_120
-#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481 -lmsvcr120-ruby200 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi
-}
-
 win32 {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
     LIBS += -lzdll
-}
-win32-g++ {
-#    INCLUDEPATH += "C:/Program Files/GnuWin32/include"
-#    INCLUDEPATH += "C:/Program Files (x86)/GnuWin32/include"
-#    LIBS += -L"C:/Program Files/GnuWin32/lib/"
-#    LIBS += -L"C:/Program Files (x86)/GnuWin32/lib/"
-#    LIBS += -lz
 }
 win32-msvc* {
     QMAKE_PRE_LINK += lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def /out:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.lib
@@ -252,6 +220,7 @@ win32-g++ {
   QMAKE_LFLAGS += -Wl,--export-all-symbols -Wl,--out-implib,$${TARGET}.a
 }
 win32-msvc* {
+    DEFINES += DECLSPEC_RUBY=__declspec(dllimport)
     DEFINES += DECLSPEC_KAME=__declspec(dllexport)
     DEFINES += DECLSPEC_MODULE=__declspec(dllexport)
     DEFINES += DECLSPEC_SHARED=__declspec(dllexport)

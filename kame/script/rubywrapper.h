@@ -5,9 +5,12 @@
         #define snprintf _snprintf
     #endif
 #endif
+#ifndef DECLSPEC_RUBY
+    #define DECLSPEC_RUBY
+#endif
 
 //! Wraps Ruby C interface and hides mysterious ruby.h from C++ libraries.
-class Ruby {
+class DECLSPEC_RUBY Ruby {
 private:
     typedef std::pair<std::weak_ptr<void *>, std::weak_ptr<void *>> wrapped_t;
 public:
