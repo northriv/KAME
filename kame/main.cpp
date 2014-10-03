@@ -273,7 +273,7 @@ int main(int argc, char *argv[]) {
         HANDLE handle = LoadLibraryA(it->c_str());
         DWORD lasterr = GetLastError();
         SetThreadErrorMode(currerrmode, NULL);
-        SetLastError(lasterror);
+        SetLastError(lasterr);
 #endif
         if(handle) {
             XMessageBox::post("Module \"" + *it + "\" loaded", *g_pIconKame);
