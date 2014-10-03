@@ -53,8 +53,8 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("Thamway PROT Control - ") + this->getLabel() );
 
     m_conRFON = xqcon_create<XQToggleButtonConnector>(this->rfON(), m_form->m_ckbRFON);
-    m_form->m_dblOutput->setRange(-40, 0);
-    m_form->m_dblOutput->setSingleStep(1.0);
+    m_form->m_dblOutput->setRange(0, 1023);
+    m_form->m_dblOutput->setSingleStep(1);
     m_conOLevel = xqcon_create<XQDoubleSpinBoxConnector>(this->oLevel(), m_form->m_dblOutput, m_form->m_slOutput);
     m_conFreq = xqcon_create<XQLineEditConnector>(this->freq(), m_form->m_edFreq);
     m_form->m_dblRXGain->setRange(0, 95);
@@ -97,7 +97,7 @@ XThamwayPROT<tInterface>::start() {
     double olevel;
     if(this->interface()->scanf("ATT1R%lf", &olevel) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
-    olevel = log10(olevel / 1023.0) * 20.0;
+//    olevel = log10(olevel / 1023.0) * 20.0;
     this->interface()->query("GAINR");
     double gain;
     if(this->interface()->scanf("GAINR%lf", &gain) != 1)
@@ -176,7 +176,9 @@ XThamwayPROT<tInterface>::onRFONChanged(const Snapshot &shot, XValueNodeBase *) 
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    this->interface()->sendf("ATT1W%04.0f", (double)pow(10, shot[ *this->oLevel()] / 20.0) * 1023.0);
+    int olevel = (int)shot[ *this->oLevel()]; //pow(10, shot[ *this->oLevel()] / 20.0) * 1023.0);
+    olevel = std::min(1023, std::max(0, olevel));
+    this->interface()->sendf("ATT1W%04.0f", (double)olevel);
 }
 template <class tInterface>
 void

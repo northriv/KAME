@@ -268,7 +268,12 @@ int main(int argc, char *argv[]) {
         lt_dlhandle handle = lt_dlopenext(it->c_str());
 #endif
 #ifdef USE_LOADLIBRARY
+        DWORD currerrmode = GetThreadErrorMode();
+        SetThreadErrorMode(currerrmode | SEM_FAILCRITICALERRORS, NULL); //suppresses an error dialog on loading.
         HANDLE handle = LoadLibraryA(it->c_str());
+        DWORD lasterr = GetLastError();
+        SetThreadErrorMode(currerrmode, NULL);
+        SetLastError(lasterror);
 #endif
         if(handle) {
             XMessageBox::post("Module \"" + *it + "\" loaded", *g_pIconKame);

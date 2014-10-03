@@ -107,9 +107,6 @@ XAgilentNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int 
 	XScopedLock<XInterface> lock( *interface());
 	if(ch >= 2)
 		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
-	interface()->queryf("SENS%u:STAT?", ch + 1u);
-	if(interface()->toInt() != 1)
-		throw XDriver::XSkippedRecordError(__FILE__, __LINE__);		
 	interface()->queryf("SENS%u:FREQ:START?", ch + 1u);
 	double start = interface()->toDouble() / 1e6;
 	writer->push(start);
