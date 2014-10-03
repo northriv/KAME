@@ -222,7 +222,7 @@ int main(int argc, char *argv[]) {
 
 	fprintf(stderr, "Start processing events.\n");
 
-    app.processEvents();
+    app.processEvents(); //displays a main window.
 
 #ifdef USE_LIBTOOL
 	fprintf(stderr, "Initializing LTDL.\n");
@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
     }
     //loads modules.
 	for(auto it = modules.begin(); it != modules.end(); it++) {
-        app.processEvents();
+        app.processEvents(); //displays message.
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(it->c_str());
 #endif

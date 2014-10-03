@@ -184,8 +184,8 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-        bool ext_clock;
-        getStatus(0, &ext_clock);
+        bool ext_clock = false;
+//        getStatus(0, &ext_clock); //PROT does not use ext. clock.
         this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
     }
@@ -198,7 +198,7 @@ XThamwayUSBPulser::getStatus(bool *running, bool *extclk_det) {
     if(running)
         *running = sta & 0x2;
     if(extclk_det)
-        *extclk_det = sta & 0x20;
+        *extclk_det = !(sta & 0x20);
     this->interface()->writeToRegister8(ADDR_REG_STS, 0);
 }
 

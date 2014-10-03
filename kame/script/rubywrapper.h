@@ -21,7 +21,7 @@ public:
     //! \return state.
     int evalProtect(const char* str);
 
-    typedef unsigned long Value;
+    typedef unsigned long Value; //has to be identical to VALUE
 
 	void defineGlobalConst(const char *rbname, Value obj);
 
@@ -65,11 +65,14 @@ public:
 #endif
         typedef std::pair<std::weak_ptr<P>, std::weak_ptr<T>> Ptr;
         static_assert(sizeof(Ptr) == sizeof(wrapped_t), "");
+        //! prepares a C-style function pointer to be called from Ruby.
+        //! \tparam Func a pointer to a C++ member function.
+        //! \return # of arguments in the ruby function.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         int create_function(Value(**func)(Value)) {
             struct Func_t {
                 static Value RUBYDECL func_internal(Value self) {
-//            *func = [](Value self)->Value {
+//            *func = [](Value self)->Value { //!\todo use lambda.
                 char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
@@ -88,6 +91,7 @@ public:
             *func = &Func_t::func_internal;
             return 0;
         }
+        //! \todo use Arg... arg
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value)>
         int create_function(Value(**func)(Value, Value)) {
             struct Func_t {
@@ -111,6 +115,7 @@ public:
             *func = &Func_t::func_internal;
             return 1;
         }
+        //! \todo use Arg... arg
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value, Value)>
         int create_function(Value(**func)(Value, Value, Value)) {
             struct Func_t {
@@ -217,6 +222,7 @@ Ruby::Class<P,T>::rubyClassObject() const {return m_rbObj;}
 template <class P, class T>
 Ruby::Value
 Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
+    //!\todo use lambda
     struct Deleter {
         static void deleter(void *p) { delete (Ptr*)p;}
     };

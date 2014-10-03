@@ -18,7 +18,6 @@
 #include "threadlocal.h"
 #include "atomic_smart_ptr.h"
 #include <vector>
-#include <deque>
 #include "atomic.h"
 #include "xtime.h"
 
@@ -293,11 +292,12 @@ private:
 		shared_ptr<Linkage> linkage;
 		local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
 	};
+    typedef std::vector<CASInfo> CASInfoList;
 	enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		SnapshotMode mode,
-		int64_t serial = Packet::SERIAL_NULL, std::deque<CASInfo> *cas_infos = 0);
+        int64_t serial = Packet::SERIAL_NULL, CASInfoList *cas_infos = 0);
 
 	//! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
 	//! If this node has been bundled at the super node, unbundle() will be called.
@@ -608,7 +608,7 @@ private:
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
 	const bool m_multi_nodal;
 	uint64_t m_started_time;
-	typedef std::deque<shared_ptr<Message_<XN> > > MessageList;
+    typedef std::vector<shared_ptr<Message_<XN> > > MessageList;
 	unique_ptr<MessageList> m_messages;
 };
 

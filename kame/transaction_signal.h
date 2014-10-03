@@ -99,8 +99,8 @@ public:
 private:
 	typedef Event<XN, tArg, tArgRef> Event_;
 	typedef XListenerImpl_<Event<XN, tArg, tArgRef> > Listener_;
-	typedef std::deque<weak_ptr<Listener_> > ListenerList;
-	typedef std::deque<shared_ptr<XListener> > UnmarkedListenerList;
+    typedef std::vector<weak_ptr<Listener_> > ListenerList;
+    typedef std::vector<shared_ptr<XListener> > UnmarkedListenerList;
 	shared_ptr<ListenerList> m_listeners;
 
 	void connect(const shared_ptr<Listener_> &);
@@ -231,6 +231,7 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener_> &lx) {
 			++it;
 	}
 	new_list->push_back(lx);
+    new_list->shrink_to_fit();
 	m_listeners = new_list;
 }
 template <class XN, typename tArg, typename tArgRef>
@@ -248,8 +249,11 @@ Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
 		}
 		++it;
 	}
-	if(new_list->empty()) new_list.reset();
-	m_listeners = new_list;
+    if(new_list->empty())
+        new_list.reset();
+    else
+        new_list->shrink_to_fit();
+    m_listeners = new_list;
 }
 
 template <class XN, typename tArg, typename tArgRef>

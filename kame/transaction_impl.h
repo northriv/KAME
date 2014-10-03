@@ -200,8 +200,8 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	packet->subpackets()->resize(packet->size() + 1);
 	assert(packet->subnodes());
 	assert(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
-	packet->subnodes()->push_back(var);
-	assert(packet->subpackets()->size() == packet->subnodes()->size());
+    packet->subnodes()->resize(packet->subpackets()->size());
+    packet->subnodes()->back() = var;
 
 	if(online_after_insertion) {
 		bool has_failed = false;
@@ -340,6 +340,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		packet->subpackets().reset();
 		packet->m_missing = false;
 	}
+//    else {
+//        packet->subpackets()->shrink_to_fit();
+//        packet->subnodes()->shrink_to_fit();
+//    }
 	if(tr.m_packet->size()) {
 		tr.m_packet->m_missing = true;
 	}
@@ -595,7 +599,7 @@ template <class XN>
 inline typename Node<XN>::SnapshotStatus
 Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
 	local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
-	SnapshotMode mode, int64_t serial, std::deque<CASInfo> *cas_infos) {
+    SnapshotMode mode, int64_t serial, CASInfoList *cas_infos) {
 	local_shared_ptr<PacketWrapper> oldwrapper(shot);
 	assert( !shot->hasPriority());
 	shared_ptr<Linkage > linkage_upper(shot->bundledBy());
@@ -1081,7 +1085,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, uint64_t &time_started,
 // Taking a snapshot inside the super packet.
 	local_shared_ptr<PacketWrapper> superwrapper(null_linkage);
 	local_shared_ptr<Packet> *newsubpacket;
-	std::deque<CASInfo> cas_infos;
+    CASInfoList cas_infos;
 	SnapshotStatus status = snapshotSupernode(sublinkage, superwrapper, &newsubpacket,
 		SNAPSHOT_FOR_UNBUNDLE, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &cas_infos);
 	switch(status) {
