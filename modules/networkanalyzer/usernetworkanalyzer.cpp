@@ -35,6 +35,9 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	calShort()->disable();
 	calTerm()->disable();
 	calThru()->disable();
+
+    interface()->setGPIBWaitBeforeRead(10);
+    interface()->setGPIBWaitBeforeWrite(10);
 }
 
 void
