@@ -1,6 +1,7 @@
 * Fri Oct 3 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.12-1)
 - Fix for PROT/USB pulser.
+- Fix for AgilentE5061
 
 * Sun Aug 31 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.11-1)
