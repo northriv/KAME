@@ -79,7 +79,7 @@ XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload
 void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
-	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "wb");
+	m_pGFD = gzopen(QString(( **filename())->to_str()).toLatin1().data(), "wb");
 }
 void
 XRawStreamRecorder::onFlush(const Snapshot &shot, XValueNodeBase *) {
@@ -261,7 +261,7 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_filemutex);  
 	if(m_stream.is_open()) m_stream.close();
 	m_stream.clear();
-	m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLocal8Bit().data(), OFSMODE);
+	m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLatin1().data(), OFSMODE);
 
 	if(m_stream.good()) {
 		for(Transaction tr( *this);; ++tr) {
@@ -311,7 +311,7 @@ XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	XScopedLock<XRecursiveMutex> lock(m_logFilemutex);
 	if(m_logStream.is_open()) m_logStream.close();
 	m_logStream.clear();
-	m_logStream.open((const char*)QString(shot[ *logFilename()].to_str()).toLocal8Bit().data(), OFSMODE);
+	m_logStream.open((const char*)QString(shot[ *logFilename()].to_str()).toLatin1().data(), OFSMODE);
 
 	if(m_logStream.good()) {
 		XString buf;

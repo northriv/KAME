@@ -247,16 +247,16 @@ int main(int argc, char *argv[]) {
         //searches module directories
         for(auto sit = paths.begin(); sit != paths.end(); sit++) {
 #ifdef USE_LIBTOOL
-            lt_dladdsearchdir(sit->toLocal8Bit().data());
+            lt_dladdsearchdir(sit->toLatin1().data());
 #endif
             XMessageBox::post("Searching for modules in " + *sit, *g_pIconInfo);
 #ifdef USE_LIBTOOL
-            lt_dlforeachfile(sit->toLocal8Bit().data(), &load_module, &modules);
+            lt_dlforeachfile(sit->toLatin1().data(), &load_module, &modules);
 #endif
 #ifdef USE_LOADLIBRARY
             QFileInfoList files = QDir(*sit).entryInfoList(QStringList("*.dll"), QDir::Files);
             for(QFileInfoList::const_iterator it = files.constBegin(); it != files.constEnd(); ++it) {
-                modules.push_back(it->filePath().toLocal8Bit().data());
+                modules.push_back(it->filePath().toLatin1().data());
             }
 #endif
         }

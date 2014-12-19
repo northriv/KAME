@@ -95,7 +95,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 void
 XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	if(m_pGFD) gzclose(static_cast<gzFile>(m_pGFD));
-	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "rb");
+	m_pGFD = gzopen(QString(( **filename())->to_str()).toLatin1().data(), "rb");
 }
 void
 XRawStreamRecordReader::readHeader(void *_fd)
