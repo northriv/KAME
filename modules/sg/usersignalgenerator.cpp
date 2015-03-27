@@ -174,22 +174,22 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
 void
 XRhodeSchwartzSMLSMV::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->sendf("FREQ %f MHz", mhz);
+    interface()->sendf(":SOUR:FREQ %f", mhz * 1e3);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
 XRhodeSchwartzSMLSMV::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("OUTP:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+    interface()->sendf(":OUTP:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
 }
 void
 XRhodeSchwartzSMLSMV::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("POW %.1f", (double)shot[ *oLevel()]);
+    interface()->sendf(":POW %.1f", (double)shot[ *oLevel()]);
 }
 void
 XRhodeSchwartzSMLSMV::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FM:STAT %s", shot[ *fmON()] ? "ON" : "OFF");
+    interface()->sendf(":FM:STAT %s", shot[ *fmON()] ? "ON" : "OFF");
 }
 void
 XRhodeSchwartzSMLSMV::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
+    interface()->sendf(":AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
 }
