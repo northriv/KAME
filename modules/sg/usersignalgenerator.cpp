@@ -174,7 +174,7 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
 void
 XRhodeSchwartzSMLSMV::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
-    interface()->sendf(":SOUR:FREQ %f", mhz * 1e3);
+    interface()->sendf(":SOUR:FREQ %f", mhz * 1e6);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
