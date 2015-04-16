@@ -1,3 +1,8 @@
+* Fri Apr 17 2015 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+- (4.0.14-1)
+- Fix for SG SML
+- Fix for NQR I=9/2 relax. function
+
 * Fri Oct 3 2014 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
 - (4.0.12-1)
 - Fix for PROT/USB pulser.

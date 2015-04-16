@@ -135,7 +135,7 @@ static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr9_9[] = {
 };
 //NQR I=9/2, 7/2
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr9_7[] = {
-    {3, 9.0/132}, {10, 5.0/572}, {21, 441.0/660}, {36, 72.9/2860}, {0, 0}
+    {3, 9.0/132}, {10, 5.0/572}, {21, 441.0/660}, {36, 729.0/2860}, {0, 0}
 };
 //NQR I=9/2, 5/2
 static const struct XRelaxFuncPoly::Term  s_relaxdata_nqr9_5[] = {
