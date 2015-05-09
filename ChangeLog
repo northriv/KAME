@@ -1,4 +1,8 @@
-* Fri Apr 17 2015 Kentaro Kitagawa <kitag@kochi-u.ac.jp>
+* Sat May 9 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.0.15-1)
+- Fix for Cryogenic SMS ver 7
+
+* Fri Apr 17 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.0.14-1)
 - Fix for SG SML
 - Fix for NQR I=9/2 relax. function

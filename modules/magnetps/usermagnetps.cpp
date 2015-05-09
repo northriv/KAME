@@ -263,14 +263,17 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 	for(;;) {
 		interface()->receive();
 		bool has_stamp = false;
-		if(strncmp( &interface()->buffer()[0], "........", 8)) {
-			if( !strncmp( &interface()->buffer()[0], "------->", 8)) {
+        const char *pbuf = &interface()->buffer()[0];
+        if( *pbuf == 0x13 /*XOFF*/)
+            pbuf++; //ignores strange XOFF for ver 7
+        if(strncmp(pbuf, "........", 8)) {
+            if( !strncmp(pbuf, "------->", 8)) {
 				//Error message is passed.
-		        throw XInterface::XInterfaceError( &interface()->buffer()[8], __FILE__, __LINE__);
+                throw XInterface::XInterfaceError(pbuf + 8, __FILE__, __LINE__);
 			}
 			//Message w/ time stamp.
 			int ss;
-			if(sscanf( &interface()->buffer()[0], "%*2d:%*2d:%2d", &ss) != 1)
+            if(sscanf( pbuf, "%*2d:%*2d:%2d", &ss) != 1)
 				throw XInterface::XConvError(__FILE__, __LINE__);
 			has_stamp = true;
 		}
@@ -280,7 +283,7 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 		int cnt = cl_pos - interface()->buffer().begin();
 		if(cnt < 10)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		if( !strncmp( &interface()->buffer()[9], title, strlen(title))) {
+        if( !strncmp( pbuf + 9, title, strlen(title))) {
 			if(is_stamp_required && !has_stamp)
 				throw XInterface::XConvError(__FILE__, __LINE__);
 			cl_pos++; //skipping colon.
