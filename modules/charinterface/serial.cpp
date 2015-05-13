@@ -269,7 +269,7 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
         case 38400: baudrate = QSerialPort::Baud38400; break;
         case 57600: baudrate = QSerialPort::Baud57600; break;
         case 115200: baudrate = QSerialPort::Baud115200; break;
-        case 230400: baudrate = QSerialPort::Baud230400; break;
+//        case 230400: baudrate = QSerialPort::Baud230400; break;
         default:
             throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
         }

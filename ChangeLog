@@ -1,6 +1,7 @@
-* Sat May 9 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Thu May 14 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.0.15-1)
 - Fix for Cryogenic SMS ver 7
+- Fix for Windows Serial Ports
 
 * Fri Apr 17 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.0.14-1)
