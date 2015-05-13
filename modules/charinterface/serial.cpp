@@ -260,7 +260,20 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
         if( !m_qport->open(QIODevice::ReadWrite))
             throw m_qport->error();
 
-        if( !m_qport->setBaudRate(static_cast<int>(m_pInterface->serialBaudRate())))
+        int baudrate;
+        switch(static_cast<int>(m_pInterface->serialBaudRate())) {
+        case 2400: baudrate = QSerialPort::Baud2400; break;
+        case 4800: baudrate = QSerialPort::Baud4800; break;
+        case 9600: baudrate = QSerialPort::Baud9600; break;
+        case 19200: baudrate = QSerialPort::Baud19200; break;
+        case 38400: baudrate = QSerialPort::Baud38400; break;
+        case 57600: baudrate = QSerialPort::Baud57600; break;
+        case 115200: baudrate = QSerialPort::Baud115200; break;
+        case 230400: baudrate = QSerialPort::Baud230400; break;
+        default:
+            throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
+        }
+        if( !m_qport->setBaudRate(baudrate))
             throw m_qport->error();
 
         QSerialPort::Parity parity;
@@ -284,6 +297,9 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
 
         if( !m_qport->setBreakEnabled(false))
             throw m_qport->error();
+
+//        if( !m_qport->setFlowControl(QSerialPort::NoFlowControl))
+//            throw m_qport->error();
 
         if( !m_qport->flush())
             throw m_qport->error();
