@@ -248,21 +248,14 @@ XThread<T>::xthread_start_routine(void *x) {
 
 	return p;
 }
-
-#include <system_error>
-
 template <class T>
 void 
 XThread<T>::waitFor(void **retval) {
 #ifdef USE_PTHREAD
 	pthread_join(m_threadid, retval);
+//  assert(!ret);
 #elif defined USE_STD_THREAD
-    assert(retval == 0);
-    if(m_thread.joinable()) {
-        try {
-            m_thread.join(); }
-        catch (std::system_error) {}
-    }
+    m_thread.join();
 #endif
 }
 template <class T>
