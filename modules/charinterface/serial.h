@@ -50,7 +50,6 @@ typedef XPosixSerialPort XSerialPort;
 #endif /*SERIAL_POSIX*/
 
 #ifdef SERIAL_WIN32
-#include <windows.h>
 
 class QSerialPort;
 
@@ -65,7 +64,7 @@ public:
     virtual void receive() throw (XInterface::XCommError &);
     virtual void receive(unsigned int length) throw (XInterface::XCommError &);
 private:
-    HANDLE m_handle;
+    void *m_handle;
 };
 
 typedef XWin32SerialPort XSerialPort;

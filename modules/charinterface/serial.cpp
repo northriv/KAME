@@ -240,12 +240,16 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) 
 
 
 #ifdef SERIAL_WIN32
+#include <windows.h>
+#undef PARITY_EVEN
+#undef PARITY_ODD
+#undef PARITY_NONE
 
-XWin32SerialPort::XWin32SerialPort(XCharInterface *interface)
-    : XPort(interface), m_handle(INVALID_HANDLE_VALUE) {
-
+XWin32SerialPort::XWin32SerialPort(XCharInterface *intf)
+    : XPort(intf), m_handle(INVALID_HANDLE_VALUE) {
+    C_ASSERT(sizeof(void *) == sizeof(HANDLE));
 }
-XWin32SerialPort::~XQtSerialPort() {
+XWin32SerialPort::~XWin32SerialPort() {
     if(m_handle != INVALID_HANDLE_VALUE)
         CloseHandle(m_handle);
 }
@@ -253,7 +257,7 @@ void
 XWin32SerialPort::open() throw (XInterface::XCommError &) {
     Snapshot shot( *m_pInterface);
 
-    m_handle = CreateFileA( shot[ *m_pInterface->port()].to_str().toLatain8Bit().data(),
+    m_handle = CreateFileA( QString(shot[ *m_pInterface->port()].to_str()).toLocal8Bit().data(),
         GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     if (m_handle == INVALID_HANDLE_VALUE)
         throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
@@ -265,16 +269,19 @@ XWin32SerialPort::open() throw (XInterface::XCommError &) {
     switch((int)m_pInterface->serialParity()) {
     case XCharInterface::PARITY_EVEN:
         dcb.fParity = TRUE;
-        dcb.Parity = EVENPARITY; break;
+        dcb.Parity = EVENPARITY;
+        break;
     case XCharInterface::PARITY_ODD:
         dcb.fParity = TRUE;
-        dcb.Parity = ODDPARITY; break;
+        dcb.Parity = ODDPARITY;
+        break;
     default:
     case XCharInterface::PARITY_NONE:
         dcb.fParity = FALSE;
-        dcb.Parity = NOPARITY; break;
+        dcb.Parity = NOPARITY;
+        break;
     }
-    dcb.StopBits = (m_pInterface->serialStopBits() == 2) ? TWOSTOPBITS : ONESTOPBITS;
+    dcb.StopBits = (m_pInterface->serialStopBits() == 2) ? TWOSTOPBITS : ONESTOPBIT;
     if( !SetCommState(m_handle, &dcb))
         throw XInterface::XCommError(i18n("tty SetCommState failed"), __FILE__, __LINE__);
 
@@ -285,7 +292,7 @@ XWin32SerialPort::open() throw (XInterface::XCommError &) {
     cto.ReadTotalTimeoutConstant = 3000;
     cto.WriteTotalTimeoutMultiplier = 0;
     cto.WriteTotalTimeoutConstant = 3000;
-    if( !SetCommTimeouts(m_handle), &cto))
+    if( !SetCommTimeouts(m_handle, &cto))
         throw XInterface::XCommError(i18n("tty SetCommTimeouts failed"), __FILE__, __LINE__);
 }
 void
@@ -340,7 +347,7 @@ XWin32SerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommE
     do {
         DWORD wcnt;
         WriteFile(m_handle, sendbuf, size - wlen, &wcnt, NULL);
-        if(wcnt < 0)
+        if( !wcnt)
             throw XInterface::XCommError(i18n("write error"), __FILE__, __LINE__);
         wlen += wcnt;
         sendbuf += wcnt;
