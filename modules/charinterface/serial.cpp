@@ -256,10 +256,8 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
     Snapshot shot( *m_pInterface);
 
     try {
-        m_qport.reset(new QSerialPort(QString(shot[ *m_pInterface->port()].to_str()).toLatin1().data()));
-        if( !m_qport->open(QIODevice::ReadWrite))
-            throw m_qport->error();
-
+        m_qport.reset(new QSerialPort());
+        m_qport->setPortName(shot[ *m_pInterface->port()].to_str());
         int baudrate;
         switch(static_cast<int>(m_pInterface->serialBaudRate())) {
         case 2400: baudrate = QSerialPort::Baud2400; break;
@@ -282,6 +280,7 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
             parity = QSerialPort::Parity::EvenParity; break;
         case XCharInterface::PARITY_ODD:
             parity = QSerialPort::Parity::OddParity; break;
+        default:
         case XCharInterface::PARITY_NONE:
             parity = QSerialPort::Parity::NoParity; break;
         }
@@ -294,11 +293,13 @@ XQtSerialPort::open() throw (XInterface::XCommError &) {
         if( !m_qport->setStopBits((m_pInterface->serialStopBits() == 2) ? QSerialPort::TwoStop : QSerialPort::OneStop))
             throw m_qport->error();
 
-
-        if( !m_qport->setBreakEnabled(false))
+        if( !m_qport->setFlowControl(QSerialPort::NoFlowControl))
             throw m_qport->error();
 
-//        if( !m_qport->setFlowControl(QSerialPort::NoFlowControl))
+        if( !m_qport->open(QIODevice::ReadWrite))
+            throw m_qport->error();
+
+//        if( !m_qport->setBreakEnabled(false))
 //            throw m_qport->error();
 
         if( !m_qport->flush())
@@ -377,7 +378,7 @@ XQtSerialPort::receive() throw (XInterface::XCommError &) {
         if(buffer().size() <= len + 1)
             buffer().resize(len + MIN_BUFFER_SIZE);
         if( !m_qport->waitForReadyRead(3000)) //3sec to timeout.
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+           throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
         int rlen = m_qport->read( &buffer().at(len), 1);
         if(rlen < 0) {
             throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
