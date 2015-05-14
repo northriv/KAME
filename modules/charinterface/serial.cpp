@@ -239,82 +239,63 @@ XPosixSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) 
 #endif /*SERIAL_POSIX*/
 
 
-#ifdef SERIAL_QT
+#ifdef SERIAL_WIN32
 
-#include <QtSerialPort/QtSerialPort>
-
-XQtSerialPort::XQtSerialPort(XCharInterface *interface)
-    : XPort(interface), m_qport() {
+XWin32SerialPort::XWin32SerialPort(XCharInterface *interface)
+    : XPort(interface), m_handle(INVALID_HANDLE_VALUE) {
 
 }
-XQtSerialPort::~XQtSerialPort() {
-    if(m_qport)
-        m_qport->close();
+XWin32SerialPort::~XQtSerialPort() {
+    if(m_handle != INVALID_HANDLE_VALUE)
+        CloseHandle(m_handle);
 }
 void
-XQtSerialPort::open() throw (XInterface::XCommError &) {
+XWin32SerialPort::open() throw (XInterface::XCommError &) {
     Snapshot shot( *m_pInterface);
 
-    try {
-        m_qport.reset(new QSerialPort(QString(shot[ *m_pInterface->port()].to_str()).toLatin1().data()));
-        if( !m_qport->open(QIODevice::ReadWrite))
-            throw m_qport->error();
+    m_handle = CreateFileA( shot[ *m_pInterface->port()].to_str().toLatain8Bit().data(),
+        GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (m_handle == INVALID_HANDLE_VALUE)
+        throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 
-        int baudrate;
-        switch(static_cast<int>(m_pInterface->serialBaudRate())) {
-        case 2400: baudrate = QSerialPort::Baud2400; break;
-        case 4800: baudrate = QSerialPort::Baud4800; break;
-        case 9600: baudrate = QSerialPort::Baud9600; break;
-        case 19200: baudrate = QSerialPort::Baud19200; break;
-        case 38400: baudrate = QSerialPort::Baud38400; break;
-        case 57600: baudrate = QSerialPort::Baud57600; break;
-        case 115200: baudrate = QSerialPort::Baud115200; break;
-//        case 230400: baudrate = QSerialPort::Baud230400; break;
-        default:
-            throw XInterface::XCommError(i18n("Invalid Baudrate"), __FILE__, __LINE__);
-        }
-        if( !m_qport->setBaudRate(baudrate))
-            throw m_qport->error();
-
-        QSerialPort::Parity parity;
-        switch((int)m_pInterface->serialParity()) {
-        case XCharInterface::PARITY_EVEN:
-            parity = QSerialPort::Parity::EvenParity; break;
-        case XCharInterface::PARITY_ODD:
-            parity = QSerialPort::Parity::OddParity; break;
-        case XCharInterface::PARITY_NONE:
-            parity = QSerialPort::Parity::NoParity; break;
-        }
-        if( !m_qport->setParity(parity))
-            throw m_qport->error();
-
-        if( !m_qport->setDataBits(m_pInterface->serial7Bits() ? QSerialPort::Data7 : QSerialPort::Data8))
-            throw m_qport->error();
-
-        if( !m_qport->setStopBits((m_pInterface->serialStopBits() == 2) ? QSerialPort::TwoStop : QSerialPort::OneStop))
-            throw m_qport->error();
-
-
-        if( !m_qport->setBreakEnabled(false))
-            throw m_qport->error();
-
-//        if( !m_qport->setFlowControl(QSerialPort::NoFlowControl))
-//            throw m_qport->error();
-
-        if( !m_qport->flush())
-            throw m_qport->error();
+    DCB dcb;
+    GetCommState(m_handle, &dcb); //loading the original state
+    dcb.BaudRate = static_cast<int>(m_pInterface->serialBaudRate());
+    dcb.ByteSize = m_pInterface->serial7Bits() ? 7 : 8;
+    switch((int)m_pInterface->serialParity()) {
+    case XCharInterface::PARITY_EVEN:
+        dcb.fParity = TRUE;
+        dcb.Parity = EVENPARITY; break;
+    case XCharInterface::PARITY_ODD:
+        dcb.fParity = TRUE;
+        dcb.Parity = ODDPARITY; break;
+    default:
+    case XCharInterface::PARITY_NONE:
+        dcb.fParity = FALSE;
+        dcb.Parity = NOPARITY; break;
     }
-    catch (QSerialPort::SerialPortError &e) {
-        throw XInterface::XCommError(i18n("tty open failed") + ": " + m_qport->errorString(), __FILE__, __LINE__);
-    }
+    dcb.StopBits = (m_pInterface->serialStopBits() == 2) ? TWOSTOPBITS : ONESTOPBITS;
+    if( !SetCommState(m_handle, &dcb))
+        throw XInterface::XCommError(i18n("tty SetCommState failed"), __FILE__, __LINE__);
+
+    COMMTIMEOUTS cto;
+    GetCommTimeouts(m_handle, &cto); //loading the original timeout settings.
+    cto.ReadIntervalTimeout = 0;
+    cto.ReadTotalTimeoutMultiplier = 0;
+    cto.ReadTotalTimeoutConstant = 3000;
+    cto.WriteTotalTimeoutMultiplier = 0;
+    cto.WriteTotalTimeoutConstant = 3000;
+    if( !SetCommTimeouts(m_handle), &cto))
+        throw XInterface::XCommError(i18n("tty SetCommTimeouts failed"), __FILE__, __LINE__);
 }
 void
-XQtSerialPort::send(const char *str) throw (XInterface::XCommError &) {
+XWin32SerialPort::send(const char *str) throw (XInterface::XCommError &) {
     XString buf(str);
     if(m_pInterface->eos().length())
         buf += m_pInterface->eos();
     else
         buf += m_pInterface->serialEOS();
+
     if(m_pInterface->serialHasEchoBack()) {
         this->write(str, strlen(str));	//every char should wait for echo back.
         this->write(buf.c_str() + strlen(str), buf.length() - strlen(str)); //EOS
@@ -325,13 +306,14 @@ XQtSerialPort::send(const char *str) throw (XInterface::XCommError &) {
     }
 }
 void
-XQtSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+XWin32SerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
     assert(m_pInterface->isOpened());
 
+    DWORD wcnt;
     if(m_pInterface->serialHasEchoBack() && (size >= 2) && isprint(sendbuf[0])) {
         for(int cnt = 0; cnt < size; ++cnt) {
         //sends 1 char.
-            write(sendbuf + cnt, 1);
+            WriteFile(m_handle, sendbuf + cnt, 1, &wcnt, NULL);
         //waits for echo back.
             for(;;) {
                 receive(1);
@@ -348,22 +330,25 @@ XQtSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommErro
     }
 
     if(m_pInterface->serialFlushBeforeWrite()) {
-        throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        if( !PurgeComm(m_handle, PURGE_RXCLEAR))
+            throw XInterface::XCommError(i18n("Serial PurgeComm error"), __FILE__, __LINE__);
     }
 
     msecsleep(TTY_WAIT);
 
     int wlen = 0;
     do {
-        int ret = m_qport->write(sendbuf, size - wlen);
-        if(ret < 0)
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
-        wlen += ret;
-        sendbuf += ret;
+        DWORD wcnt;
+        WriteFile(m_handle, sendbuf, size - wlen, &wcnt, NULL);
+        if(wcnt < 0)
+            throw XInterface::XCommError(i18n("write error"), __FILE__, __LINE__);
+        wlen += wcnt;
+        sendbuf += wcnt;
     } while (wlen < size);
 }
+
 void
-XQtSerialPort::receive() throw (XInterface::XCommError &) {
+XWin32SerialPort::receive() throw (XInterface::XCommError &) {
     assert(m_pInterface->isOpened());
 
     msecsleep(TTY_WAIT);
@@ -376,11 +361,11 @@ XQtSerialPort::receive() throw (XInterface::XCommError &) {
     for(;;) {
         if(buffer().size() <= len + 1)
             buffer().resize(len + MIN_BUFFER_SIZE);
-        if( !m_qport->waitForReadyRead(3000)) //3sec to timeout.
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
-        int rlen = m_qport->read( &buffer().at(len), 1);
-        if(rlen < 0) {
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
+        DWORD rlen;
+        ReadFile(m_handle, &buffer().at(len), 1, &rlen, NULL);
+        if(rlen == 0) {
+            buffer().at(len) = '\0';
+            throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);
         }
         len += rlen;
         if(len >= eos_len) {
@@ -394,7 +379,7 @@ XQtSerialPort::receive() throw (XInterface::XCommError &) {
     buffer().at(len) = '\0';
 }
 void
-XQtSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+XWin32SerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
     assert(m_pInterface->isOpened());
 
     msecsleep(TTY_WAIT);
@@ -403,14 +388,12 @@ XQtSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
     unsigned int len = 0;
 
     while(len < length) {
-        if( !m_qport->waitForReadyRead(3000)) //3sec to timeout.
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
-        int rlen = m_qport->read( &buffer().at(len), 1);
-        if(rlen < 0) {
-            throw XInterface::XCommError(i18n("Serial error") + ": " + m_qport->errorString(), __FILE__, __LINE__);
-        }
+        DWORD rlen;
+        ReadFile(m_handle, &buffer().at(len), 1, &rlen, NULL);
+        if(rlen == 0)
+            throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
         len += rlen;
     }
 }
 
-#endif /*SERIAL_QT*/
+#endif /*SERIAL_WIN32*/
