@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1">
+<TS version="2.1" language="ja_JP">
 <context>
     <name>static</name>
     <message>
@@ -3198,27 +3198,27 @@
     <message>
         <location line="+28"/>
         <source>1</source>
-        <translation type="unfinished">4x {1?}</translation>
+        <translation type="unfinished">1</translation>
     </message>
     <message>
         <location line="+16"/>
         <source>2</source>
-        <translation type="unfinished">4x {2?}</translation>
+        <translation type="unfinished">2</translation>
     </message>
     <message>
         <location line="+16"/>
         <source>3</source>
-        <translation type="unfinished">4x {3?}</translation>
+        <translation type="unfinished">3</translation>
     </message>
     <message>
         <location line="+16"/>
         <source>4</source>
-        <translation type="unfinished">4x {4?}</translation>
+        <translation type="unfinished">4</translation>
     </message>
     <message>
         <location line="+16"/>
         <source>5</source>
-        <translation type="unfinished">4x {5?}</translation>
+        <translation type="unfinished">5</translation>
     </message>
     <message>
         <location line="+104"/>
