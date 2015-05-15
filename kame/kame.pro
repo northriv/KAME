@@ -186,8 +186,8 @@ else {
 
 macx: ICON = kame.icns
 
-win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame -lpthread
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame -lpthread
 else:unix: LIBS += -L$$OUT_PWD/ -llibkame
 
 win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/liblibkame.a
@@ -209,7 +209,7 @@ else:unix {
 win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby210
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby220
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
