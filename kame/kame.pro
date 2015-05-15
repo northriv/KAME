@@ -186,8 +186,8 @@ else {
 
 macx: ICON = kame.icns
 
-win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame -lpthread
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame -lpthread
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/release/ -llibkame
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/debug/ -llibkame
 else:unix: LIBS += -L$$OUT_PWD/ -llibkame
 
 win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/release/liblibkame.a
