@@ -265,7 +265,7 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 		bool has_stamp = false;
         const char *pbuf = &interface()->buffer()[0];
         if( *pbuf == 0x13 /*XOFF*/)
-            pbuf++; //ignores strange XOFF for ver 7
+            pbuf++; //ignores strange non-necessary XOFF for ver 7
         if(strncmp(pbuf, "........", 8)) {
             if( !strncmp(pbuf, "------->", 8)) {
 				//Error message is passed.
@@ -448,7 +448,7 @@ XCryogenicSMS::getOutputField() {
 	interface()->send("GET OUTPUT");
 	char unit[10];
 	double x;
-	if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%lf %9s", &x, unit) != 2)
+    if(sscanf(receiveMessage("OUTPUT").c_str(), "%lf %9s", &x, unit) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	if(strncmp(unit, "TESLA", 5))
 		x *= teslaPerAmp();
