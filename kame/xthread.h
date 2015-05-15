@@ -217,7 +217,9 @@ template <class T>
 XThread<T>::~XThread() {
     terminate();
 #if defined USE_STD_THREAD
-    m_thread.detach();
+    if(m_thread.joinable()) {
+        m_thread.detach();
+    }
 #endif
 }
 
@@ -257,12 +259,7 @@ XThread<T>::waitFor(void **retval) {
 #ifdef USE_PTHREAD
 	pthread_join(m_threadid, retval);
 #elif defined USE_STD_THREAD
-    assert(retval == 0);
-    if(m_thread.joinable()) {
-        try {
-            m_thread.join(); }
-        catch (std::system_error) {}
-    }
+    m_thread.join();
 #endif
 }
 template <class T>
