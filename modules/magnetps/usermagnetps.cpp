@@ -476,7 +476,7 @@ XCryogenicSMS::getOutputVolt() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->send("GET OUTPUT");
 	double x;
-	if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%*s %*s AT %lf", &x) != 1)
+    if(sscanf(receiveMessage("OUTPUT").c_str(), "%*s %*s AT %lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	return x;
 }
