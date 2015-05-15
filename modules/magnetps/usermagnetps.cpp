@@ -417,7 +417,7 @@ XCryogenicSMS::isOutputPositive() {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->send("GET OUTPUT");
 	char c;
-	if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%c", &c) != 1)
+    if(sscanf(receiveMessage("OUTPUT").c_str(), "%c", &c) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 	return (c != '-');
 }
