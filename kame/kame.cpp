@@ -54,7 +54,7 @@ QWidget *g_pFrmMain = 0L;
 static XMessageBox *s_pMessageBox = 0L;
 
 FrmKameMain::FrmKameMain()
-    :QMainWindow(NULL, Qt::WindowStaysOnTopHint) {
+    :QMainWindow(NULL) {
 	resize(QSize(
             std::min(1280, QApplication::desktop()->width()),
 			height()).expandedTo(sizeHint()) );
