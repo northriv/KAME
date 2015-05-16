@@ -40,7 +40,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_calShort(create<XTouchableNode>("CalShort", true)),
 	m_calTerm(create<XTouchableNode>("CalTerm", true)),
 	m_calThru(create<XTouchableNode>("CalThru", true)),
-	m_form(new FrmNetworkAnalyzer(g_pFrmMain)),
+    m_form(new FrmNetworkAnalyzer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
