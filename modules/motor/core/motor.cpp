@@ -45,7 +45,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_forwardMotor(create<XTouchableNode>("ForwardMotor", true)),
     m_reverseMotor(create<XTouchableNode>("ReverseMotor", true)),
     m_stopMotor(create<XTouchableNode>("StopMotor", true)),
-    m_form(new FrmMotorDriver(g_pFrmMain)) {
+    m_form(new FrmMotorDriver) {
 
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *active()] = false;

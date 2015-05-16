@@ -96,7 +96,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_clearAll(create<XTouchableNode>("ClearAll", true)),
 	  m_fitStatus(create<XStringNode>("FitStatus", true)),
 	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
-	  m_form(new FrmNMRT1(g_pFrmMain)),
+      m_form(new FrmNMRT1),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
       m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 

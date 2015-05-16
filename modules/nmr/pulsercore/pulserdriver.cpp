@@ -126,8 +126,8 @@ XPulser::XPulser(const char *name, bool runtime,
     m_paPulseRept(create<XDoubleNode>("PAPulseRept", false)),
     m_paPulseBW(create<XDoubleNode>("PAPulseBW", false)),
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
-    m_form(new FrmPulser(g_pFrmMain)),
-    m_formMore(new FrmPulserMore(g_pFrmMain)) {
+    m_form(new FrmPulser),
+    m_formMore(new FrmPulserMore(m_form.get())) {
 
 	m_form->setWindowTitle(i18n("Pulser Control") + " - " + getLabel() );
 	m_formMore->setWindowTitle(i18n("Pulser Control More Config.") + " - " + getLabel() );
