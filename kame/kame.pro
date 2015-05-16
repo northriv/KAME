@@ -199,7 +199,7 @@ else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 
 macx {
-    INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/1.8/Headers
+    INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
     LIBS += -framework Ruby
 }
 else:unix {
@@ -232,8 +232,14 @@ win32-msvc* {
 
 unix {
 #    LIBS += -lclapack -lcblas -latlas
-    PKGCONFIG += fftw3
-    PKGCONFIG += zlib
+    macx {
+        LIBS += -lfftw3
+        LIBS += -lz
+    }
+    else {
+        PKGCONFIG += fftw3
+        PKGCONFIG += zlib
+    }
     LIBS += -lltdl
 }
 

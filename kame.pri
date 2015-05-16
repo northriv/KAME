@@ -57,8 +57,15 @@ win32-msvc* {
     LIBS += -llibfftw3-3
 }
 
-unix: CONFIG += link_pkgconfig
-unix: PKGCONFIG += gsl
+unix {
+    CONFIG += link_pkgconfig
+    macx {
+        LIBS += -lgsl -lgslcblas -lm
+    }
+    else {
+        PKGCONFIG += gsl
+    }
+}
 
 #macx: DEFINES += HAVE_LAPACK
 

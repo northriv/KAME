@@ -40,8 +40,14 @@ FORMS += \
     nmrspectrumform.ui
 
 unix {
-    PKGCONFIG += fftw3
-    PKGCONFIG += gsl
+    macx {
+        LIBS += -lfftw3
+        LIBS += -lgsl -lgslcblas
+    }
+    else {
+        PKGCONFIG += fftw3
+        PKGCONFIG += gsl
+    }
 #    LIBS += -lclapack -lcblas -latlas
 }
 

@@ -2,6 +2,9 @@
 - (4.1.0-1)
 - Fix for Cryogenic SMS ver 7
 - Fix for Windows Serial Ports
+- Fix for OS X Yosemite
+- Fix for window focus on WIndows
+- NMRPulse: makes lines conc colored
 
 * Fri Apr 17 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.0.14-1)
