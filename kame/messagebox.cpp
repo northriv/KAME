@@ -26,7 +26,7 @@ static FrmMessage *s_pFrmMessage = 0L;
 static QTimer *s_timer = 0L;
 
 XMessageBox::XMessageBox(QWidget *parent) {
-    s_pFrmMessage = new FrmMessage(NULL, Qt::Tool | Qt::WindowStaysOnBottomHint);
+    s_pFrmMessage = new FrmMessage((QWidget*)0, Qt::Tool | Qt::WindowStaysOnBottomHint);
     s_pFrmMessage->show();
 
     s_pFrmMessage->m_widget->hide();
