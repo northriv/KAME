@@ -150,11 +150,13 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *waveGraph()].axisy()->label()] = i18n("Intens. [V]");
 		tr[ *tr[ *waveGraph()].plot(0)->label()] = i18n("IFFT Re.");
 		tr[ *tr[ *waveGraph()].plot(0)->drawPoints()] = false;
-		tr[ *tr[ *waveGraph()].plot(0)->intensity()] = 2.0;
+        tr[ *tr[ *waveGraph()].plot(0)->lineColor()] = QColor(0xcc, 0x00, 0x80).rgb();
+        tr[ *tr[ *waveGraph()].plot(0)->intensity()] = 2.0;
 		tr[ *tr[ *waveGraph()].plot(1)->label()] = i18n("IFFT Im.");
 		tr[ *tr[ *waveGraph()].plot(1)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(1)->intensity()] = 2.0;
-		tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
+        tr[ *tr[ *waveGraph()].plot(1)->lineColor()] = QColor(0x00, 170, 0x00).rgb();
+        tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
 		tr[ *tr[ *waveGraph()].plot(2)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(2)->lineColor()] = QColor(0xff, 0xa0, 0x00).rgb();
 		tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.3;
