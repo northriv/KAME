@@ -96,7 +96,7 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 		case Qt::LeftButton:
 			m_conDialog = xqcon_create<XQGraphDialogConnector>(
 				m_graph,
-                new DlgGraphSetup(this));
+                new DlgGraphSetup(g_pFrmMain));
             //\todo setAttribute Qt::WA_DeleteOnClose
 			break;
 		case Qt::MidButton:
