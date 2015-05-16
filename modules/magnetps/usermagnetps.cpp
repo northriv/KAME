@@ -370,7 +370,7 @@ XCryogenicSMS::changePolarity(int p) {
 		msecsleep(100);
 		interface()->sendf("GET OUTPUT");
 		char c;
-		if(sscanf(receiveMessage("OUTPUT", true).c_str(), "%c", &c) != 1)
+        if(sscanf(receiveMessage("OUTPUT").c_str(), "%c", &c) != 1)
 			throw XInterface::XConvError(__FILE__, __LINE__);
 		int x = (c != '-') ? 1 : -1;
 		if(x * p > 0)
