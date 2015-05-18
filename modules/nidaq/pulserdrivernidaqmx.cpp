@@ -617,7 +617,7 @@ XNIDAQmxPulser::abortPulseGen() {
                     CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 0.1));
                 }
                 catch (XInterface::XInterfaceError &) {   } //ignores timeout
-                CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
+                CHECK_DAQMX_ERROR(DAQmxStopTask(m_taskGateCtr)); //ignores warning
             }
             if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
