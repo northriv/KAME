@@ -605,18 +605,21 @@ XNIDAQmxPulser::abortPulseGen() {
 						chtri = chtri + ",";
 					chtri = chtri + formatString("%s/line%u", ch, i);
 				}
-				CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
+                CHECK_DAQMX_RET(DAQmxSetDOTristate(m_taskDO, chtri.c_str(), true));
 			}
-			if(m_taskAO != TASK_UNDEF)
+            if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskAO));
 			if(m_taskDOCtr != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskDOCtr));
-			CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
-			if(m_taskGateCtr != TASK_UNDEF) {
-//				CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 0.1));
-				CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
-			}
-			if(m_taskAO != TASK_UNDEF)
+            CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
+            if(m_taskGateCtr != TASK_UNDEF) {
+                try {
+                    CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 0.1));
+                }
+                catch (XInterface::XInterfaceError &) {   } //ignores timeout
+                CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
+            }
+            if(m_taskAO != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskAO, DAQmx_Val_Task_Unreserve));
 			if(m_taskDOCtr != TASK_UNDEF)
 				CHECK_DAQMX_RET(DAQmxTaskControl(m_taskDOCtr, DAQmx_Val_Task_Unreserve));
