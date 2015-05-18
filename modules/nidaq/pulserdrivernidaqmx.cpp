@@ -613,7 +613,7 @@ XNIDAQmxPulser::abortPulseGen() {
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskDOCtr));
 			CHECK_DAQMX_RET(DAQmxStopTask(m_taskDO));
 			if(m_taskGateCtr != TASK_UNDEF) {
-				CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone (m_taskGateCtr, 0.1));
+//				CHECK_DAQMX_RET(DAQmxWaitUntilTaskDone(m_taskGateCtr, 0.1));
 				CHECK_DAQMX_RET(DAQmxStopTask(m_taskGateCtr));
 			}
 			if(m_taskAO != TASK_UNDEF)

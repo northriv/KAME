@@ -13,7 +13,9 @@ rsync --exclude "linux686" \
 	--exclude "FTGL" \
 	--exclude "/old" \
 	--exclude "*.~*" \
+	--exclude "*.user"\
 	 --exclude "*.*~"  \
+	--exclude "*.log" \
 	 --exclude "*.bin" \
 	 --exclude "*.dat" \
 	 --exclude "attic" \
