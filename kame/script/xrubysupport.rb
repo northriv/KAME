@@ -1,6 +1,7 @@
 #xrubysupport.rb
 #KAME2 xrubysuppport start-up code
 
+#coding: utf-8
 $KCODE = 'UTF8'
 
 #redirect defout, deferr
