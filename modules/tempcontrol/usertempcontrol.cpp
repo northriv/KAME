@@ -1054,8 +1054,6 @@ void XLinearResearch700::onTargetTempChanged(unsigned int loop, double temp) {
 void XLinearResearch700::onManualPowerChanged(unsigned int loop, double pow) {
     interface()->sendf("HEATER Q=%+03d", (int)lrint(pow * 10.0));
 }
-void XLinearResearch700::onPowerMaxChanged(unsigned int loop, double pow) {
-}
 void XLinearResearch700::onHeaterModeChanged(unsigned int loop, int) {
     Snapshot shot( *this);
     if(shot[ *heaterMode(loop)].to_str() == "Normal") {
@@ -1091,7 +1089,7 @@ void XLinearResearch700::open() throw (XKameError &) {
 
     interface()->query("GET 6");
     int range, exc, vexc, fil, mode, ll, snum;
-    if(interface()->scanf("%1dR,%1dE,%3d\%,%1dF,%1dM,%1dL,%2dS", &range, &exc, &vexc, &fil, &mode, &ll, &snum) != 7)
+    if(interface()->scanf("%1dR,%1dE,%3d%%,%1dF,%1dM,%1dL,%2dS", &range, &exc, &vexc, &fil, &mode, &ll, &snum) != 7)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
     for(Transaction tr( *this);; ++tr) {
