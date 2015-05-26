@@ -18,10 +18,11 @@
 REGISTER_TYPE(XDriverList, CryoconM32, "Cryocon M32 temp. controller");
 REGISTER_TYPE(XDriverList, CryoconM62, "Cryocon M62 temp. controller");
 REGISTER_TYPE(XDriverList, LakeShore340, "LakeShore 340 temp. controller");
-REGISTER_TYPE(XDriverList, LakeShore370, "LakeShore 370 temp. controller");
-REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 bridge");
+REGISTER_TYPE(XDriverList, LakeShore370, "LakeShore 370 AC res. bridge");
+REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 AC res. bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
+REGISTER_TYPE(XDriverList, LinearResearch700, "LinearResearch LR-700  AC res. bridge");
 REGISTER_TYPE(XDriverList, KE2700w7700, "Keithley 2700&7700 as temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
@@ -287,220 +288,220 @@ double XAVS47IB::getHeater(unsigned int /*loop*/) {
 }
 
 XCryocon::XCryocon(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
-	interface()->setEOS("");
-	interface()->setGPIBUseSerialPollOnWrite(false);
-	interface()->setGPIBUseSerialPollOnRead(false);
-	interface()->setGPIBWaitBeforeWrite(20);
-	//    ExclusiveWaitAfterWrite = 10;
-	interface()->setGPIBWaitBeforeRead(20);
-	interface()->setSerialEOS("\n");
-	interface()->setSerialBaudRate(9600);
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("");
+    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBUseSerialPollOnRead(false);
+    interface()->setGPIBWaitBeforeWrite(20);
+    //    ExclusiveWaitAfterWrite = 10;
+    interface()->setGPIBWaitBeforeRead(20);
+    interface()->setSerialEOS("\n");
+    interface()->setSerialBaudRate(9600);
 }
 XCryoconM62::XCryoconM62(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XCryocon(name, runtime, ref(tr_meas), meas) {
-	const char *channels_create[] = { "A", "B", 0L };
-	const char *excitations_create[] = { "10UV", "30UV", "100UV", "333UV",
-		"1.0MV", "3.3MV", 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 2);
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCryocon(name, runtime, ref(tr_meas), meas) {
+    const char *channels_create[] = { "A", "B", 0L };
+    const char *excitations_create[] = { "10UV", "30UV", "100UV", "333UV",
+        "1.0MV", "3.3MV", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, 2);
 }
 XCryoconM32::XCryoconM32(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XCryocon(name, runtime, ref(tr_meas), meas) {
-	const char *channels_create[] = { "A", "B", 0L };
-	const char *excitations_create[] = { "CI", "10MV", "3MV", "1MV", 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 2);
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCryocon(name, runtime, ref(tr_meas), meas) {
+    const char *channels_create[] = { "A", "B", 0L };
+    const char *excitations_create[] = { "CI", "10MV", "3MV", "1MV", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, 2);
 }
 void XCryocon::open() throw (XKameError &) {
-	Snapshot shot_ch( *channels());
-	const XNode::NodeList &list( *shot_ch.list());
-	assert(list.size() == 2);
-	shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
-	shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
-	interface()->query("INPUT A:VBIAS?");
-	trans( *ch0->excitation()).str(interface()->toStrSimplified());
-	interface()->query("INPUT B:VBIAS?");
-	trans( *ch1->excitation()).str(interface()->toStrSimplified());
+    Snapshot shot_ch( *channels());
+    const XNode::NodeList &list( *shot_ch.list());
+    assert(list.size() == 2);
+    shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
+    shared_ptr<XChannel> ch1 = static_pointer_cast<XChannel>(list.at(1));
+    interface()->query("INPUT A:VBIAS?");
+    trans( *ch0->excitation()).str(interface()->toStrSimplified());
+    interface()->query("INPUT B:VBIAS?");
+    trans( *ch1->excitation()).str(interface()->toStrSimplified());
 
-	Snapshot shot( *this);
-	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		trans( *powerRange(idx)).clear();
-		if( !hasExtDevice(shot, idx)) {
-			getChannel(idx);
-			interface()->queryf("LOOP %u:PMAN?", idx + 1);
-			trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:PGAIN?", idx + 1);
-			trans( *prop(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:IGAIN?", idx + 1);
-			trans( *interval(idx)).str(XString( &interface()->buffer()[0]));
-			interface()->queryf("LOOP %u:DGAIN?", idx + 1);
-			trans( *deriv(idx)).str(XString( &interface()->buffer()[0]));
+    Snapshot shot( *this);
+    for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
+        trans( *powerRange(idx)).clear();
+        if( !hasExtDevice(shot, idx)) {
+            getChannel(idx);
+            interface()->queryf("%s:PMAN?", idx + 1);
+            trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
+            interface()->queryf("%s:PGAIN?", idx + 1);
+            trans( *prop(idx)).str(XString( &interface()->buffer()[0]));
+            interface()->queryf("%s:IGAIN?", idx + 1);
+            trans( *interval(idx)).str(XString( &interface()->buffer()[0]));
+            interface()->queryf("%s:DGAIN?", idx + 1);
+            trans( *deriv(idx)).str(XString( &interface()->buffer()[0]));
 
-			for(Transaction tr( *this);; ++tr) {
-				tr[ *heaterMode(idx)].clear();
-				tr[ *heaterMode(idx)].add("OFF");
-				tr[ *heaterMode(idx)].add("PID");
-				tr[ *heaterMode(idx)].add("MAN");
-				tr[ *powerMin(idx)].setUIEnabled(false);
-				if(tr.commit())
-					break;
-			}
-			interface()->queryf("LOOP %u:TYPE?", idx + 1);
-			trans( *heaterMode(idx)).str(interface()->toStrSimplified());
-		}
-	}
+            for(Transaction tr( *this);; ++tr) {
+                tr[ *heaterMode(idx)].clear();
+                tr[ *heaterMode(idx)].add("OFF");
+                tr[ *heaterMode(idx)].add("PID");
+                tr[ *heaterMode(idx)].add("MAN");
+                tr[ *powerMin(idx)].setUIEnabled(false);
+                if(tr.commit())
+                    break;
+            }
+            interface()->queryf("%s:TYPE?", idx + 1);
+            trans( *heaterMode(idx)).str(interface()->toStrSimplified());
+        }
+    }
 
-	interface()->queryf("LOOP %u:RANGE?", 1);
-	trans( *powerRange(0)).str(interface()->toStrSimplified());
+    interface()->queryf("%s:RANGE?", 1);
+    trans( *powerRange(0)).str(interface()->toStrSimplified());
 
-	start();
+    start();
 }
 void XCryoconM32::open() throw (XKameError &) {
-	XCryocon::open();
+    XCryocon::open();
 
-	for(Transaction tr( *this);; ++tr) {
-		tr[ *powerRange(0)].add("HI");
-		tr[ *powerRange(0)].add("MID");
-		tr[ *powerRange(0)].add("LOW");
-		if(tr.commit())
-			break;
-	}
-	Snapshot shot( *this);
-	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		if( !hasExtDevice(shot, idx)) {
-			interface()->queryf("LOOP %u:MAXPWR?", idx + 1);
-			trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));
-		}
-	}
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *powerRange(0)].add("HI");
+        tr[ *powerRange(0)].add("MID");
+        tr[ *powerRange(0)].add("LOW");
+        if(tr.commit())
+            break;
+    }
+    Snapshot shot( *this);
+    for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
+        if( !hasExtDevice(shot, idx)) {
+            interface()->queryf("%s:MAXPWR?", idx + 1);
+            trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));
+        }
+    }
 }
 void XCryoconM32::onPowerMaxChanged(unsigned int loop, double x) {
-	interface()->sendf("LOOP %u:MAXPWR %f ", loop, x);
+    interface()->sendf("%s:MAXPWR %f ", loop, x);
 }
 void XCryoconM62::open() throw (XKameError &) {
-	XCryocon::open();
+    XCryocon::open();
 
-	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
-		powerMax(idx)->setUIEnabled(false);
-	}
-	//LOOP 1
-	interface()->query("HEATER:LOAD?");
-	for(Transaction tr( *this);; ++tr) {
-		if(interface()->toInt() == 50) {
-			tr[ *powerRange(0)].add("0.05W");
-			tr[ *powerRange(0)].add("0.5W");
-			tr[ *powerRange(0)].add("5.0W");
-			tr[ *powerRange(0)].add("50W");
-		}
-		else {
-			tr[ *powerRange(0)].add("0.03W");
-			tr[ *powerRange(0)].add("0.3W");
-			tr[ *powerRange(0)].add("2.5W");
-			tr[ *powerRange(0)].add("25W");
-		}
-		if(tr.commit())
-			break;
-	}
+    for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
+        powerMax(idx)->setUIEnabled(false);
+    }
+    //LOOP 1
+    interface()->query("HEATER:LOAD?");
+    for(Transaction tr( *this);; ++tr) {
+        if(interface()->toInt() == 50) {
+            tr[ *powerRange(0)].add("0.05W");
+            tr[ *powerRange(0)].add("0.5W");
+            tr[ *powerRange(0)].add("5.0W");
+            tr[ *powerRange(0)].add("50W");
+        }
+        else {
+            tr[ *powerRange(0)].add("0.03W");
+            tr[ *powerRange(0)].add("0.3W");
+            tr[ *powerRange(0)].add("2.5W");
+            tr[ *powerRange(0)].add("25W");
+        }
+        if(tr.commit())
+            break;
+    }
 }
 void XCryocon::onPChanged(unsigned int loop, double p) {
-	interface()->sendf("LOOP %u:PGAIN %f", loop + 1, p);
+    interface()->sendf("%s:PGAIN %f", loopString(loop), p);
 }
 void XCryocon::onIChanged(unsigned int loop, double i) {
-	interface()->sendf("LOOP %u:IGAIN %f", loop + 1, i);
+    interface()->sendf("%s:IGAIN %f", loopString(loop), i);
 }
 void XCryocon::onDChanged(unsigned int loop, double d) {
-	interface()->sendf("LOOP %u:DGAIN %f", loop + 1, d);
+    interface()->sendf("%s:DGAIN %f", loopString(loop), d);
 }
 void XCryocon::onTargetTempChanged(unsigned int loop, double temp) {
-	setTemp(loop, temp);
+    setTemp(loop, temp);
 }
 void XCryocon::onManualPowerChanged(unsigned int loop, double pow) {
-	interface()->sendf("LOOP %u:PMAN %f", loop + 1, pow);
+    interface()->sendf("%s:PMAN %f", loopString(loop), pow);
 }
 void XCryocon::onHeaterModeChanged(unsigned int loop, int) {
-	setHeaterMode(loop);
+    setHeaterMode(loop);
 }
 void XCryocon::onPowerRangeChanged(unsigned int loop, int) {
-	if(loop != 0)
-		return;
-	interface()->sendf("LOOP %u:RANGE %s", loop + 1, ( **powerRange(loop))->to_str().c_str());
+    if(loop != 0)
+        return;
+    interface()->sendf("%s:RANGE %s", loopString(loop), ( **powerRange(loop))->to_str().c_str());
 }
 void XCryocon::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
-	interface()->sendf("LOOP %u:SOURCE %s", loop + 1, ch->getName().c_str());
+    interface()->sendf("%s:SOURCE %s", loopString(loop), ch->getName().c_str());
 }
 void XCryocon::onExcitationChanged(const shared_ptr<XChannel> &ch, int) {
-	XScopedLock<XInterface> lock( *interface());
-	if( !interface()->isOpened())
-		return;
-	interface()->send("INPUT " + ch->getName() + ":VBIAS "
-		+ ( **ch->excitation())->to_str());
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    interface()->send("INPUT " + ch->getName() + ":VBIAS "
+        + ( **ch->excitation())->to_str());
 }
 void XCryocon::setTemp(unsigned int loop, double temp) {
-	if(temp > 0)
-		control();
-	else
-		stopControl();
+    if(temp > 0)
+        control();
+    else
+        stopControl();
 
-	Snapshot shot( *this);
-	shared_ptr<XThermometer> thermo = shot[ *(shared_ptr<XChannel>(shot[ *currentChannel(loop)])->thermometer())];
-	if(thermo)
-		setHeaterSetPoint(loop, thermo->getRawValue(temp));
-	else
-		setHeaterSetPoint(loop, temp);
+    Snapshot shot( *this);
+    shared_ptr<XThermometer> thermo = shot[ *(shared_ptr<XChannel>(shot[ *currentChannel(loop)])->thermometer())];
+    if(thermo)
+        setHeaterSetPoint(loop, thermo->getRawValue(temp));
+    else
+        setHeaterSetPoint(loop, temp);
 }
 double XCryocon::getRaw(shared_ptr<XChannel> &channel) {
-	double x;
-	x = getInput(channel);
-	return x;
+    double x;
+    x = getInput(channel);
+    return x;
 }
 double XCryocon::getTemp(shared_ptr<XChannel> &channel) {
-	double x;
-	x = getInput(channel);
-	return x;
+    double x;
+    x = getInput(channel);
+    return x;
 }
 void XCryocon::getChannel(unsigned int loop) {
-	interface()->queryf("LOOP %u:SOURCE?", loop + 1);
-	char s[3];
-	if(interface()->scanf("CH%s", s) != 1)
-		return;
-	trans( *currentChannel(loop)).str(XString(s));
+    interface()->queryf("%s:SOURCE?", loopString(loop));
+    char s[3];
+    if(interface()->scanf("CH%s", s) != 1)
+        return;
+    trans( *currentChannel(loop)).str(XString(s));
 }
 void XCryocon::setHeaterMode(unsigned int loop) {
-	Snapshot shot( *this);
-	if(shot[ *heaterMode(loop)].to_str() == "Off")
-		stopControl();
-	else
-		control();
+    Snapshot shot( *this);
+    if(shot[ *heaterMode(loop)].to_str() == "Off")
+        stopControl();
+    else
+        control();
 
-	interface()->sendf("LOOP %u:TYPE %s", loop + 1, shot[ *heaterMode(loop)].to_str().c_str());
+    interface()->sendf("%s:TYPE %s", loopString(loop), shot[ *heaterMode(loop)].to_str().c_str());
 }
 double XCryocon::getHeater(unsigned int loop) {
-	interface()->queryf("LOOP %u:OUTP?", loop + 1);
-	return interface()->toDouble();
+    interface()->queryf("%s:OUTP?", loopString(loop));
+    return interface()->toDouble();
 }
 
 int XCryocon::control() {
-	interface()->send("CONTROL");
-	return 0;
+    interface()->send("CONTROL");
+    return 0;
 }
 int XCryocon::stopControl() {
-	interface()->send("STOP");
-	return 0;
+    interface()->send("STOP");
+    return 0;
 }
 double XCryocon::getInput(shared_ptr<XChannel> &channel) {
-	interface()->query("INPUT? " + channel->getName());
-	double x;
-	if(interface()->scanf("%lf", &x) != 1)
-		x = 0.0;
-	return x;
+    interface()->query("INPUT? " + channel->getName());
+    double x;
+    if(interface()->scanf("%lf", &x) != 1)
+        x = 0.0;
+    return x;
 }
 
 int XCryocon::setHeaterSetPoint(unsigned int loop, double value) {
-	interface()->sendf("LOOP %u:SETPT %f", loop + 1, value);
-	return 0;
+    interface()->sendf("%s:SETPT %f", loopString(loop), value);
+    return 0;
 }
 
 XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
@@ -970,6 +971,135 @@ void XLakeShore370::open() throw (XKameError &) {
 	start();
 }
 
+
+XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("\n");
+    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBUseSerialPollOnRead(false);
+    interface()->setGPIBWaitBeforeWrite(40);
+    interface()->setGPIBWaitBeforeRead(40);
+    const char *channels_create[] = { "0", 0L };
+    const char *excitations_create[] = { "20uV", "60uV", "200uV", "600uV", "2mV", "6mV", "20mV", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, 1);
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *powerRange(0)].add("30uA");
+        tr[ *powerRange(0)].add("100uA");
+        tr[ *powerRange(0)].add("300uA");
+        tr[ *powerRange(0)].add("1mA");
+        tr[ *powerRange(0)].add("3mA");
+        tr[ *powerRange(0)].add("10mA");
+        tr[ *powerRange(0)].add("30mA");
+        tr[ *powerRange(0)].add("100mA");
+        tr[ *powerRange(0)].add("300mA");
+        tr[ *powerRange(0)].add("1A");
+        tr[ *powerRange(0)].add("3A");
+        if(tr.commit())
+            break;
+    }
+}
+
+double parseResponseMessage() {
+    double v; char unit;
+    int ret = interface()->scanf("%lf%c", &v, &unit);
+    if((ret != 1) || (ret != 2))
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(ret == 2) {
+        if(unit == 'K')
+            v *= 1e3;
+        if(unit == 'M')
+            v *= 1e6;
+        if(unit == 'U')
+            v *= 1e-6;
+    }
+    return v;
+}
+
+double XLinearResearch700::getRaw(shared_ptr<XChannel> &channel) {
+    interface()->query("GET 0");
+    double res =  parseResponseMessage();
+    return res;
+}
+double XLinearResearch700::getTemp(shared_ptr<XChannel> &channel) {
+    return getRaw(channel);
+}
+double XLinearResearch700::getHeater(unsigned int loop) {
+    interface()->query("GET 8");
+    double v;
+    if(interface()->scanf("%lf V", &v) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    return v;
+}
+void XLinearResearch700::onPChanged(unsigned int loop, double p) {
+    int x = lrint(log10(p / 0.1) * 3);
+    interface()->sendf("HEATER G=%02d", x);
+}
+void XLinearResearch700::onIChanged(unsigned int loop, double i) {
+    int x = lrint(log10(i / 0.2) * 3);
+    interface()->sendf("HEATER T=%02d", x);
+}
+void XLinearResearch700::onDChanged(unsigned int loop, double d) {
+}
+void XLinearResearch700::onTargetTempChanged(unsigned int loop, double temp) {
+    Snapshot shot( *this);
+    shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(loop)])->thermometer()];
+    if(thermo) {
+        temp = thermo->getRawValue(temp);
+    }
+    interface()->sendf("OFFSET R=%f", temp);
+}
+void XLinearResearch700::onManualPowerChanged(unsigned int loop, double pow) {
+    interface()->sendf("HEATER Q=%+03d", (int)lrint(pow * 10.0));
+}
+void XLinearResearch700::onPowerMaxChanged(unsigned int loop, double pow) {
+}
+void XLinearResearch700::onHeaterModeChanged(unsigned int loop, int) {
+    Snapshot shot( *this);
+    if(shot[ *heaterMode(loop)].to_str() == "Normal") {
+        interface()->sendf("HEATER L=0");
+        interface()->send("HEATER 1"); //ON
+        return;
+    }
+    if(shot[ *heaterMode(loop)].to_str() == "Inverted") {
+        interface()->sendf("HEATER L=1");
+        interface()->send("HEATER 1"); //ON
+        return;
+    }
+    if(shot[ *heaterMode(loop)].to_str() == "Open") {
+        interface()->sendf("HEATER L=2");
+        interface()->send("HEATER 1"); //ON
+        return;
+    }
+    interface()->send("HEATER 0"); //OFF
+}
+void XLinearResearch700::onPowerRangeChanged(unsigned int loop, int ran) {
+    interface()->sendf("HEATER R=%02d", ran);
+}
+void XLinearResearch700::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
+}
+void XLinearResearch700::onExcitationChanged(const shared_ptr<XChannel> &, int exc) {
+    interface()->sendf("EXCITATION %d", exc);
+}
+void XLinearResearch700::open() throw (XKameError &) {
+    Snapshot shot( *this);
+    assert(list.size() == 1);
+    shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
+
+    interface()->query("GET 6");
+    int range, exc, fil, mode, ll, snum;
+    if(interface()->scanf("%1dR,%1dE,%3d\%,%1dF,%1dM,%1dL,%2dS", &range, &exc, &vexc, &fil, &mode, &ll, &snum) != 7)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *powerRange(0)] = range;
+        tr[ *ch0->excitation()] = exc;
+        if(tr.commit())
+            break;
+    }
+    start();
+}
 
 XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
