@@ -332,13 +332,13 @@ void XCryocon::open() throw (XKameError &) {
         trans( *powerRange(idx)).clear();
         if( !hasExtDevice(shot, idx)) {
             getChannel(idx);
-            interface()->queryf("%s:PMAN?", idx + 1);
+            interface()->queryf("%s:PMAN?", loopString(idx));
             trans( *manualPower(idx)).str(XString( &interface()->buffer()[0]));
-            interface()->queryf("%s:PGAIN?", idx + 1);
+            interface()->queryf("%s:PGAIN?", loopString(idx));
             trans( *prop(idx)).str(XString( &interface()->buffer()[0]));
-            interface()->queryf("%s:IGAIN?", idx + 1);
+            interface()->queryf("%s:IGAIN?", loopString(idx));
             trans( *interval(idx)).str(XString( &interface()->buffer()[0]));
-            interface()->queryf("%s:DGAIN?", idx + 1);
+            interface()->queryf("%s:DGAIN?", loopString(idx));
             trans( *deriv(idx)).str(XString( &interface()->buffer()[0]));
 
             for(Transaction tr( *this);; ++tr) {
@@ -350,12 +350,12 @@ void XCryocon::open() throw (XKameError &) {
                 if(tr.commit())
                     break;
             }
-            interface()->queryf("%s:TYPE?", idx + 1);
+            interface()->queryf("%s:TYPE?", loopString(idx));
             trans( *heaterMode(idx)).str(interface()->toStrSimplified());
         }
     }
 
-    interface()->queryf("%s:RANGE?", 1);
+    interface()->queryf("%s:RANGE?", loopString(0));
     trans( *powerRange(0)).str(interface()->toStrSimplified());
 
     start();
@@ -373,13 +373,13 @@ void XCryoconM32::open() throw (XKameError &) {
     Snapshot shot( *this);
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
         if( !hasExtDevice(shot, idx)) {
-            interface()->queryf("%s:MAXPWR?", idx + 1);
+            interface()->queryf("%s:MAXPWR?", loopString(idx));
             trans( *powerMax(idx)).str(XString( &interface()->buffer()[0]));
         }
     }
 }
 void XCryoconM32::onPowerMaxChanged(unsigned int loop, double x) {
-    interface()->sendf("%s:MAXPWR %f ", loop, x);
+    interface()->sendf("%s:MAXPWR %f ", loopString(loop), x);
 }
 void XCryoconM62::open() throw (XKameError &) {
     XCryocon::open();
@@ -1001,7 +1001,8 @@ XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
     }
 }
 
-double parseResponseMessage() {
+double
+XLinearResearch700::parseResponseMessage() {
     double v; char unit;
     int ret = interface()->scanf("%lf%c", &v, &unit);
     if((ret != 1) || (ret != 2))
@@ -1083,12 +1084,13 @@ void XLinearResearch700::onExcitationChanged(const shared_ptr<XChannel> &, int e
     interface()->sendf("EXCITATION %d", exc);
 }
 void XLinearResearch700::open() throw (XKameError &) {
-    Snapshot shot( *this);
+    Snapshot shot_ch( *channels());
+    const XNode::NodeList &list( *shot_ch.list());
     assert(list.size() == 1);
     shared_ptr<XChannel> ch0 = static_pointer_cast<XChannel>(list.at(0));
 
     interface()->query("GET 6");
-    int range, exc, fil, mode, ll, snum;
+    int range, exc, vexc, fil, mode, ll, snum;
     if(interface()->scanf("%1dR,%1dE,%3d\%,%1dF,%1dM,%1dL,%2dS", &range, &exc, &vexc, &fil, &mode, &ll, &snum) != 7)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
