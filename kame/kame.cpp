@@ -375,7 +375,7 @@ void FrmKameMain::fileSaveAction_activated() {
     QString filename = dialog.selectedFiles().at(0);
 #endif
     if( !filename.isEmpty()) {
-		std::ofstream ofs(filename.toLatin1().data(), std::ios::out);
+        std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
 			XRubyWriter writer(m_measure, ofs);
 			writer.write();
@@ -504,7 +504,7 @@ void FrmKameMain::scriptDotSaveAction_activated() {
         "All files (*.*)"
          );
 	if( !filename.isEmpty()) {
-		std::ofstream ofs(filename.toLatin1().data(), std::ios::out);
+        std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
 			XDotWriter writer(m_measure, ofs);
 			writer.write();

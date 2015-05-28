@@ -475,12 +475,12 @@ void XTempControl::createChannels(
 					dynamic_pointer_cast<XChannel> (*it);
 				shared_ptr<XScalarEntry> entry_temp(
 					create<XScalarEntry>(
-						QString("Ch.%1").arg(channel->getName()).toLatin1().data(),
+						QString("Ch.%1").arg(channel->getName()).toLocal8Bit().data(),
 						false, dynamic_pointer_cast<XDriver> (shared_from_this()), "%.5g"));
 				shared_ptr<XScalarEntry> entry_raw(
 					create<XScalarEntry> (
 						QString("Ch.%1.raw").arg(
-						channel->getName()).toLatin1().data(), false,
+						channel->getName()).toLocal8Bit().data(), false,
 						dynamic_pointer_cast<XDriver> (shared_from_this()), "%.5g"));
 				m_entry_temps.push_back(entry_temp);
 				m_entry_raws.push_back(entry_raw);

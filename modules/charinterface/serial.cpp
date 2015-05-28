@@ -34,7 +34,7 @@ XPosixSerialPort::open() throw (XInterface::XCommError &) {
 	Snapshot shot( *m_pInterface);
 	struct termios ttyios;
 	speed_t baudrate;
-	if((m_scifd = ::open(QString(shot[ *m_pInterface->port()].to_str()).toLatin1().data(),
+	if((m_scifd = ::open(QString(shot[ *m_pInterface->port()].to_str()).toLocal8Bit().data(),
 						 O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) == -1) {
 		throw XInterface::XCommError(i18n("tty open failed"), __FILE__, __LINE__);
 	}

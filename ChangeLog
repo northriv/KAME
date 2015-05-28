@@ -1,3 +1,7 @@
+* Thu May 28 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.2-1)
+- Fix for Non-latin1 filepaths
+
 * Tue May 26 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.1-1)
 - Fix for Cryo-o-con M62 with early firmware.
