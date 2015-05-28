@@ -289,7 +289,7 @@ double XAVS47IB::getHeater(unsigned int /*loop*/) {
 
 XCryocon::XCryocon(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XCharDeviceDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
+    XCharDeviceDriver<XTempControl, XCryoconCharInterface> (name, runtime, ref(tr_meas), meas) {
     interface()->setEOS("");
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);

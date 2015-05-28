@@ -110,14 +110,24 @@ private:
     int m_autorange_wait;
 };
 
+class XCryoconCharInterface : public XCharInterface {
+public:
+    XCryoconCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    virtual ~XCryoconCharInterface() {}
+    virtual void send(const XString &str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
+    virtual void send(const char *str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
+    virtual void write(const char *sendbuf, int size) throw (XCommError &)  { ::msecsleep(20); XCharInterface::write(sendbuf, size);}
+};
+
 //! Cryo-con base class
-class XCryocon : public XCharDeviceDriver<XTempControl> {
+class XCryocon : public XCharDeviceDriver<XTempControl, XCryoconCharInterface> {
 public:
     XCryocon(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XCryocon() {}
 
 protected:
+
     //! reads sensor value from the instrument
     virtual double getRaw(shared_ptr<XChannel> &channel);
     //! reads a value in Kelvin from the instrument

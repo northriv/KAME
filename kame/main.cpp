@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
 #ifdef USE_LOADLIBRARY
             QFileInfoList files = QDir(*sit).entryInfoList(QStringList("*.dll"), QDir::Files);
             for(QFileInfoList::const_iterator it = files.constBegin(); it != files.constEnd(); ++it) {
-                modules.push_back(it->filePath().toLocal8Bit().data());
+                modules.push_back(it->filePath());
             }
 #endif
         }
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 #ifdef USE_LOADLIBRARY
         DWORD currerrmode = GetThreadErrorMode();
         SetThreadErrorMode(currerrmode | SEM_FAILCRITICALERRORS, NULL); //suppresses an error dialog on loading.
-        HANDLE handle = LoadLibraryA(it->c_str());
+        HANDLE handle = LoadLibraryA(it->toLocal8Bit().data());
         DWORD lasterr = GetLastError();
         SetThreadErrorMode(currerrmode, NULL);
         SetLastError(lasterr);
