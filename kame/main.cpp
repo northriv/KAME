@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 #ifdef USE_LOADLIBRARY
         DWORD currerrmode = GetThreadErrorMode();
         SetThreadErrorMode(currerrmode | SEM_FAILCRITICALERRORS, NULL); //suppresses an error dialog on loading.
-        HANDLE handle = LoadLibraryA(it->toLocal8Bit().data());
+        HANDLE handle = LoadLibraryA(QString( *it).toLocal8Bit().data());
         DWORD lasterr = GetLastError();
         SetThreadErrorMode(currerrmode, NULL);
         SetLastError(lasterr);
