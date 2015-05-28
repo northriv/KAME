@@ -112,7 +112,8 @@ private:
 
 class XCryoconCharInterface : public XCharInterface {
 public:
-    XCryoconCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    XCryoconCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+        : XCharInterface(name, runtime, driver) {}
     virtual ~XCryoconCharInterface() {}
     virtual void send(const XString &str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
     virtual void send(const char *str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
