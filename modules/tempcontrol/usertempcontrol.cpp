@@ -293,11 +293,13 @@ XCryocon::XCryocon(const char *name, bool runtime,
     interface()->setEOS("");
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
-    interface()->setGPIBWaitBeforeWrite(40);
+    interface()->setGPIBWaitBeforeWrite(20);
     //    ExclusiveWaitAfterWrite = 10;
-    interface()->setGPIBWaitBeforeRead(40);
+    interface()->setGPIBWaitBeforeRead(20);
     interface()->setSerialEOS("\n");
     interface()->setSerialBaudRate(9600);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialFlushBeforeWrite(true);
 }
 XCryoconM62::XCryoconM62(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
