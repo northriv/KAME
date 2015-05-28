@@ -58,7 +58,7 @@ my_gsl_err_handler (const char *reason, const char *file, int line, int gsl_errn
 
 #ifdef USE_LIBTOOL
 int load_module(const char *filename, lt_ptr data) {
-	static_cast<std::deque<std::string> *>(data)->push_back(filename);
+    static_cast<std::deque<XString> *>(data)->push_back(QString::fromLocal8Bit(filename));
 	return 0;
 }
 #endif
@@ -265,7 +265,7 @@ int main(int argc, char *argv[]) {
 	for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
 #ifdef USE_LIBTOOL
-        lt_dlhandle handle = lt_dlopenext(it->c_str());
+        lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
 #endif
 #ifdef USE_LOADLIBRARY
         DWORD currerrmode = GetThreadErrorMode();
