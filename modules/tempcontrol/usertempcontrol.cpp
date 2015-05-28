@@ -293,9 +293,9 @@ XCryocon::XCryocon(const char *name, bool runtime,
     interface()->setEOS("");
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
-    interface()->setGPIBWaitBeforeWrite(20);
+    interface()->setGPIBWaitBeforeWrite(40);
     //    ExclusiveWaitAfterWrite = 10;
-    interface()->setGPIBWaitBeforeRead(20);
+    interface()->setGPIBWaitBeforeRead(40);
     interface()->setSerialEOS("\n");
     interface()->setSerialBaudRate(9600);
 }
