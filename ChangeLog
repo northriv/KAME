@@ -1,6 +1,7 @@
 * Thu May 28 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.2-1)
 - Fix for Non-latin1 filepaths
+- Fix for Cry-o-con M62 RS232
 
 * Tue May 26 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.1-1)
