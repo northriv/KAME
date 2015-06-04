@@ -60,7 +60,7 @@ void XITC503::open() throw (XKameError &) {
 	}
 
     double t = read(0);
-    trans( *targetTemp(0)).value(t);
+    trans( *targetTemp(0)) = t;
     double p = read(8);
     double i = read(9);
     double d = read(10);
