@@ -59,14 +59,14 @@ void XITC503::open() throw (XKameError &) {
 			break;
 	}
 
-    double t = interface()->read(0);
+    double t = read(0);
     trans( *targetTemp(0)).value(t);
-    double p = interface()->read(8);
-    double i = interface()->read(9);
-    double d = interface()->read(10);
-    trans( *prop(0)).value(p);
-    trans( *interval(0)).value(i);
-    trans( *deriv(0)).value(d);
+    double p = read(8);
+    double i = read(9);
+    double d = read(10);
+    trans( *prop(0)) = p;
+    trans( *interval(0)) = i;
+    trans( *deriv(0)) = d;
     trans( *prop(1)).setUIEnabled(false);
     trans( *interval(1)).setUIEnabled(false);
     trans( *deriv(1)).setUIEnabled(false);
