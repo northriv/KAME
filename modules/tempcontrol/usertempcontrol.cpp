@@ -31,24 +31,45 @@ XITC503::XITC503(const char *name, bool runtime,
 	const char *channels_create[] = { "1", "2", "3", 0L };
 	const char *excitations_create[] = { 0L };
 	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 1);
+        excitations_create, 2);
 }
 void XITC503::open() throw (XKameError &) {
 	start();
 
+    interface()->query("X");
+    int stat, automan, locrem, sweep, ctrlsens, autopid;
+    if(interface()->scanf("X%1dA%dC%1dS%2dH%1dL%1d", &stat, &automan, &locrem, &sweep, &ctrlsens, &autopid) != 6)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+
 	for(Transaction tr( *this);; ++tr) {
 		const Snapshot &shot(tr);
-		if( !hasExtDevice(shot, 0)) {
-			tr[ *heaterMode(0)].clear();
-			tr[ *heaterMode(0)].add("PID");
-			tr[ *heaterMode(0)].add("Man");
-			tr[ *powerMax(0)].setUIEnabled(false);
-			tr[ *powerMin(0)].setUIEnabled(false);
-		}
-		tr[ *powerRange(0)].setUIEnabled(false);
-		if(tr.commit())
+        for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
+            if( !hasExtDevice(shot, idx)) {
+                tr[ *heaterMode(idx)].clear();
+                tr[ *heaterMode(idx)].add("AUTO");
+                tr[ *heaterMode(idx)].add("MAN");
+                tr[ *powerMax(idx)].setUIEnabled(false);
+                tr[ *powerMin(idx)].setUIEnabled(false);
+            }
+            tr[ *powerRange(idx)].setUIEnabled(false);
+        }
+        tr[ *heaterMode(0)] = (automan & 1) ? 0 : 1;
+        tr[ *heaterMode(1)] = (automan & 2) ? 0 : 1;
+        if(tr.commit())
 			break;
 	}
+
+    double t = interface()->read(0);
+    trans( *targetTemp(0)).value(t);
+    double p = interface()->read(8);
+    double i = interface()->read(9);
+    double d = interface()->read(10);
+    trans( *prop(0)).value(p);
+    trans( *interval(0)).value(i);
+    trans( *deriv(0)).value(d);
+    trans( *prop(1)).setUIEnabled(false);
+    trans( *interval(1)).setUIEnabled(false);
+    trans( *deriv(1)).setUIEnabled(false);
 }
 double XITC503::getRaw(shared_ptr<XChannel> &channel) {
 	interface()->send("X");
@@ -58,31 +79,44 @@ double XITC503::getTemp(shared_ptr<XChannel> &channel) {
 	interface()->send("X");
 	return read(QString(channel->getName()).toInt());
 }
-double XITC503::getHeater(unsigned int /*loop*/) {
-	return read(5);
+double XITC503::getHeater(unsigned int loop) {
+    return read(loop ? 7: 5); //loop1 is for gas flow.
 }
-void XITC503::onPChanged(unsigned int /*loop*/, double p) {
+void XITC503::onPChanged(unsigned int loop, double p) {
+    if(loop) return;
 	interface()->sendf("P%f", p);
 }
-void XITC503::onIChanged(unsigned int /*loop*/, double i) {
-	interface()->sendf("I%f", i);
+void XITC503::onIChanged(unsigned int loop, double i) {
+    if(loop) return;
+    interface()->sendf("I%f", i);
 }
-void XITC503::onDChanged(unsigned int /*loop*/, double d) {
-	interface()->sendf("D%f", d);
+void XITC503::onDChanged(unsigned int loop, double d) {
+    if(loop) return;
+    interface()->sendf("D%f", d);
 }
-void XITC503::onTargetTempChanged(unsigned int /*loop*/, double temp) {
-	if(( **heaterMode(0))->to_str() == "PID")
+void XITC503::onTargetTempChanged(unsigned int loop, double temp) {
+    if(loop) return;
+    if(( **heaterMode(0))->to_str() == "AUTO")
 		interface()->sendf("T%f", temp);
 }
-void XITC503::onManualPowerChanged(unsigned int /*loop*/, double pow) {
-	if(( **heaterMode(0))->to_str() == "Man")
-		interface()->sendf("O%f", pow);
+void XITC503::onManualPowerChanged(unsigned int loop, double pow) {
+    if(loop == 0) {
+        if(( **heaterMode(0))->to_str() == "MAN")
+            interface()->sendf("O%f", pow);
+    }
+    else {
+        if(( **heaterMode(1))->to_str() == "MAN")
+            interface()->sendf("G%f", pow);
+    }
 }
-void XITC503::onHeaterModeChanged(unsigned int /*loop*/, int) {
+void XITC503::onHeaterModeChanged(unsigned int loop, int) {
+    int mode = (( **heaterMode(0))->to_str() == "MAN") ? 0 : 1 + (( **heaterMode(1))->to_str() == "MAN") ? 0 : 2;
+    interface()->sendf("A%d", mode);
 }
 void XITC503::onPowerRangeChanged(unsigned int /*loop*/, int) {
 }
-void XITC503::onCurrentChannelChanged(unsigned int /*loop*/, const shared_ptr<XChannel> &ch) {
+void XITC503::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
+    if(loop) return;
 	interface()->send("H" + ch->getName());
 }
 void XITC503::onExcitationChanged(const shared_ptr<XChannel> &, int) {
