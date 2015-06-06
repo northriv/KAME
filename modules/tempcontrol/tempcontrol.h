@@ -83,7 +83,7 @@ protected:
 	//! \param channel_names array of pointers to channel name. ends with null pointer.
 	void createChannels(Transaction &tr, const shared_ptr<XMeasure> &meas,
 						bool multiread, const char **channel_names, const char **excitations,
-						unsigned int num_of_loops);
+                        const char **loop_names);
   
 	//! reads sensor value from the instrument
 	virtual double getRaw(shared_ptr<XChannel> &channel) = 0;

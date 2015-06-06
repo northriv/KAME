@@ -30,8 +30,9 @@ XITC503::XITC503(const char *name, bool runtime,
 	XOxfordDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "1", "2", "3", 0L };
 	const char *excitations_create[] = { 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-        excitations_create, 2);
+    const char *loops_create[] = { "HEATER", "GASFLOW", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, loops_create);
 }
 void XITC503::open() throw (XKameError &) {
 	start();
@@ -61,6 +62,7 @@ void XITC503::open() throw (XKameError &) {
 
     double t = read(0);
     trans( *targetTemp(0)) = t;
+    trans( *targetTemp(1)).setUIEnabled(false);
     double p = read(8);
     double i = read(9);
     double d = read(10);
@@ -110,7 +112,7 @@ void XITC503::onManualPowerChanged(unsigned int loop, double pow) {
     }
 }
 void XITC503::onHeaterModeChanged(unsigned int loop, int) {
-    int mode = (( **heaterMode(0))->to_str() == "MAN") ? 0 : 1 + (( **heaterMode(1))->to_str() == "MAN") ? 0 : 2;
+    int mode = ((( **heaterMode(0))->to_str() == "MAN") ? 0 : 1) + ((( **heaterMode(1))->to_str() == "MAN") ? 0 : 2);
     interface()->sendf("A%d", mode);
 }
 void XITC503::onPowerRangeChanged(unsigned int /*loop*/, int) {
@@ -129,8 +131,9 @@ XAVS47IB::XAVS47IB(const char *name, bool runtime,
 		0L };
 	const char *excitations_create[] = { "0", "3uV", "10uV", "30uV", "100uV",
 		"300uV", "1mV", "3mV", 0L };
-	createChannels(ref(tr_meas), meas, false, channels_create,
-		excitations_create, 1);
+    const char *loops_create[] = { "Loop", 0L };
+    createChannels(ref(tr_meas), meas, false, channels_create,
+        excitations_create, loops_create);
 
 	//    UseSerialPollOnWrite = false;
 	//    UseSerialPollOnRead = false;
@@ -341,16 +344,18 @@ XCryoconM62::XCryoconM62(const char *name, bool runtime,
     const char *channels_create[] = { "A", "B", 0L };
     const char *excitations_create[] = { "10UV", "30UV", "100UV", "333UV",
         "1.0MV", "3.3MV", 0L };
+    const char *loops_create[] = { "HEATER", "AOUT", 0L };
     createChannels(ref(tr_meas), meas, true, channels_create,
-        excitations_create, 2);
+        excitations_create, loops_create);
 }
 XCryoconM32::XCryoconM32(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCryocon(name, runtime, ref(tr_meas), meas) {
     const char *channels_create[] = { "A", "B", 0L };
     const char *excitations_create[] = { "CI", "10MV", "3MV", "1MV", 0L };
+    const char *loops_create[] = { "Loop#1", "Loop#2", 0L };
     createChannels(ref(tr_meas), meas, true, channels_create,
-        excitations_create, 2);
+        excitations_create, loops_create);
 }
 void XCryocon::open() throw (XKameError &) {
     Snapshot shot_ch( *channels());
@@ -546,9 +551,10 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
 	const char *channels_create[] = { "1", "2", 0L };
 	const char *excitations_create[] = { 0L };
 	//	const char *excitations_create[] = {"1mV", "320uV", "100uV", "32uV", "10uV", 0L};
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 2);
-	interface()->setEOS("");
+    const char *loops_create[] = { "Loop1", "Loop2", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, loops_create);
+    interface()->setEOS("");
 	interface()->setSerialEOS("\n");
 	for(Transaction tr( *this);; ++tr) {
 		tr[ *powerRange(0)].add("0");
@@ -710,8 +716,9 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
 	XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "A", "B", 0L };
 	const char *excitations_create[] = { 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 2);
+    const char *loops_create[] = { "Loop1", "Loop2", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, loops_create);
 }
 
 double XLakeShore340::getRaw(shared_ptr<XChannel> &channel) {
@@ -876,8 +883,9 @@ XLakeShore370::XLakeShore370(const char *name, bool runtime,
 	XLakeShoreBridge(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", 0L };
 	const char *excitations_create[] = { 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 1);
+    const char *loops_create[] = { "Loop", 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, loops_create);
 }
 
 double XLakeShore370::getRaw(shared_ptr<XChannel> &channel) {
@@ -1018,8 +1026,9 @@ XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
     interface()->setGPIBWaitBeforeRead(40);
     const char *channels_create[] = { "0", 0L };
     const char *excitations_create[] = { "20uV", "60uV", "200uV", "600uV", "2mV", "6mV", "20mV", 0L };
+    const char *loops_create[] = { "Loop", 0L };
     createChannels(ref(tr_meas), meas, true, channels_create,
-        excitations_create, 1);
+        excitations_create, loops_create);
     for(Transaction tr( *this);; ++tr) {
         tr[ *powerRange(0)].add("30uA");
         tr[ *powerRange(0)].add("100uA");
@@ -1142,8 +1151,9 @@ XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
 	XCharDeviceDriver<XTempControl>(name, runtime, ref(tr_meas), meas) {
 	const char *channels_create[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", 0L };
 	const char *excitations_create[] = { 0L };
-	createChannels(ref(tr_meas), meas, true, channels_create,
-		excitations_create, 0);
+    const char *loops_create[] = { 0L };
+    createChannels(ref(tr_meas), meas, true, channels_create,
+        excitations_create, loops_create);
 }
 void XKE2700w7700::open() throw (XKameError &) {
 	start();

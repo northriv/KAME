@@ -451,7 +451,7 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 void XTempControl::createChannels(
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
 	bool multiread, const char **channel_names, const char **excitations,
-	unsigned int num_of_loops) {
+    const char **loop_names) {
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;
 
@@ -502,11 +502,13 @@ void XTempControl::createChannels(
 		entries->insert(tr_meas, entry_raw);
 	}
 	//creates loops.
-	for(unsigned int lp = 0; lp < num_of_loops; ++lp) {
+    unsigned int num_of_loops = 0;
+    for(unsigned int lp = 0; loop_names[lp]; ++lp) {
+        num_of_loops++;
 		shared_ptr<Loop> p;
 		for(Transaction tr( *this);; ++tr) {
 			p = create<Loop>(tr,
-				formatString("Loop%u", lp + 1u).c_str(), false,
+                loop_names[lp], false,
 				dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), lp,
 				ref(tr_meas), meas);
 			if(tr.commit())
