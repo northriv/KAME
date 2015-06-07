@@ -53,7 +53,8 @@
 
 void
 my_gsl_err_handler (const char *reason, const char *file, int line, int gsl_errno) {
-	gErrPrint_redirected(formatString("GSL emitted an error for a reason:%s; %s", reason, gsl_strerror(gsl_errno)), file, line);
+//	gErrPrint_redirected(formatString("GSL emitted an error for a reason:%s; %s", reason, gsl_strerror(gsl_errno)), file, line);
+    fprintf(stderr, "GSL emitted an error for a reason:%s; %s, at %s:%d\n", reason, gsl_strerror(gsl_errno), file, line);
 }
 
 #ifdef USE_LIBTOOL
