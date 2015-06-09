@@ -146,8 +146,10 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 		break;
 	case NAK:
 	default:
-		throw XInterfaceError("Fujikin Protocol Communication Error.", __FILE__, __LINE__);
-	}
+        throw XInterfaceError(
+            formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
+            __FILE__, __LINE__);
+    }
 	if(write) {
 		master->receive(1);
 		switch(master->buffer()[0]) {
@@ -155,14 +157,18 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
 			break;
 		case NAK:
 		default:
-			throw XInterfaceError("Fujikin Protocol Command Error.", __FILE__, __LINE__);
+            throw XInterfaceError(
+                formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
+                __FILE__, __LINE__);
 		}
 	}
 	else {
 		master->receive(4);
 		if((master->buffer()[0] != 0) || (master->buffer()[1] != STX))
-			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-		int len = master->buffer()[3];
+            throw XInterfaceError(
+                formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&master->buffer()[0]),
+                __FILE__, __LINE__);
+        int len = master->buffer()[3];
 		uint8_t checksum = 0;
 		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
 			checksum += *it;
