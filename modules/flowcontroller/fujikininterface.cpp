@@ -121,6 +121,7 @@ XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attr
     for(int retry = 0; ; retry++) {
         try {
             communicate_once(classid, instanceid, attributeid, data, response);
+            break;
         }
         catch (XInterfaceError &e) {
             if(retry < 1) {
