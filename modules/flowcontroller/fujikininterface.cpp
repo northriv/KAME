@@ -118,73 +118,91 @@ XFujikinInterface::query(uint8_t classid, uint8_t instanceid, uint8_t attributei
 void
 XFujikinInterface::communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
 	const std::vector<uint8_t> &data, std::vector<uint8_t> *response) {
-	bool write = !response;
-	std::vector<uint8_t> buf;
-	buf.push_back( ***address());
-	buf.push_back(STX);
-	uint8_t commandcode = write ? 0x81 : 0x80;
-	buf.push_back(commandcode);
-	buf.push_back(3 + data.size());
-	buf.push_back(classid);
-	buf.push_back(instanceid);
-	buf.push_back(attributeid);
-	for(auto it = data.begin(); it != data.end(); ++it)
-		buf.push_back( *it);
-	buf.push_back(0); //pad
-	uint8_t checksum = 0;
-	for(auto it = buf.begin() + 1; it != buf.end(); ++it)
-		checksum += *it; //from STX to data.back.
-	buf.push_back(checksum);
+    for(int retry = 0; ; retry++) {
+        try {
+            communicate_once(classid, instanceid, attributeid, data, response);
+        }
+        catch (XInterfaceError &e) {
+            if(retry < 1) {
+                e.print("Retrying after an error: ");
+                msecsleep(20);
+                continue;
+            }
+            throw e;
+        }
+    }
+}
+void
+XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
+    const std::vector<uint8_t> &data, std::vector<uint8_t> *response) {
 
-	auto master = m_master;
-	XScopedLock<XFujikinInterface> lock( *master);
-	msecsleep(1);
-	master->write( reinterpret_cast<char*>( &buf[0]), buf.size());
-	master->receive(1);
-	switch(master->buffer()[0]) {
-	case ACK:
-		break;
-	case NAK:
-	default:
+    bool write = !response;
+    std::vector<uint8_t> buf;
+    buf.push_back( ***address());
+    buf.push_back(STX);
+    uint8_t commandcode = write ? 0x81 : 0x80;
+    buf.push_back(commandcode);
+    buf.push_back(3 + data.size());
+    buf.push_back(classid);
+    buf.push_back(instanceid);
+    buf.push_back(attributeid);
+    for(auto it = data.begin(); it != data.end(); ++it)
+        buf.push_back( *it);
+    buf.push_back(0); //pad
+    uint8_t checksum = 0;
+    for(auto it = buf.begin() + 1; it != buf.end(); ++it)
+        checksum += *it; //from STX to data.back.
+    buf.push_back(checksum);
+
+    auto master = m_master;
+    XScopedLock<XFujikinInterface> lock( *master);
+    msecsleep(1);
+    master->write( reinterpret_cast<char*>( &buf[0]), buf.size());
+    master->receive(1);
+    switch(master->buffer()[0]) {
+    case ACK:
+        break;
+    case NAK:
+    default:
         throw XInterfaceError(
             formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
             __FILE__, __LINE__);
     }
-	if(write) {
-		master->receive(1);
-		switch(master->buffer()[0]) {
-		case ACK:
-			break;
-		case NAK:
-		default:
+    if(write) {
+        master->receive(1);
+        switch(master->buffer()[0]) {
+        case ACK:
+            break;
+        case NAK:
+        default:
             throw XInterfaceError(
                 formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
                 __FILE__, __LINE__);
-		}
-	}
-	else {
-		master->receive(4);
-		if((master->buffer()[0] != 0) || (master->buffer()[1] != STX))
+        }
+    }
+    else {
+        master->receive(4);
+        if((master->buffer()[0] != 0) || (master->buffer()[1] != STX))
             throw XInterfaceError(
                 formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&master->buffer()[0]),
                 __FILE__, __LINE__);
         int len = master->buffer()[3];
-		uint8_t checksum = 0;
-		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
-			checksum += *it;
-		master->receive(len + 2);
+        uint8_t checksum = 0;
+        for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+            checksum += *it;
+        master->receive(len + 2);
 //		if((master->buffer()[0] != classid) || (master->buffer()[1] != instanceid) || (master->buffer()[2] != attributeid))
 //			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-		if((master->buffer()[len] != 0)) //pad
-			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-		for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
-			checksum += *it;
-		checksum -= master->buffer().back() * 2;
-		if(checksum != 0)
-			throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
-		response->resize(len - 3);
-		for(int i = 0; i < response->size(); ++i) {
-			response->at(i) = master->buffer()[i + 3];
-		}
-	}
+        if((master->buffer()[len] != 0)) //pad
+            throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
+        for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+            checksum += *it;
+        checksum -= master->buffer().back() * 2;
+        if(checksum != 0)
+            throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
+        response->resize(len - 3);
+        for(int i = 0; i < response->size(); ++i) {
+            response->at(i) = master->buffer()[i + 3];
+        }
+    }
 }

@@ -330,6 +330,6 @@ XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 				 << std::endl;
 	}
 	else {
-        gErrPrint(i18n("All-entry logger: Failed to open file."));
+        gWarnPrint(i18n("All-entry logger: Failed to open file."));
 	}
 }

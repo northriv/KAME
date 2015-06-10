@@ -33,7 +33,9 @@ protected:
 
 	virtual bool isOpened() const {return !!m_master;}
 private:
-	void communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
+    void communicate_once(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
+        const std::vector<uint8_t> &data, std::vector<uint8_t> *response);
+    void communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
 		const std::vector<uint8_t> &data, std::vector<uint8_t> *response = 0);
 
 	shared_ptr<XFujikinInterface> m_master;
