@@ -88,8 +88,8 @@ XPosixSerialPort::open() throw (XInterface::XCommError &) {
 void
 XPosixSerialPort::send(const char *str) throw (XInterface::XCommError &) {
 	XString buf(str);
-	if(m_pInterface->eos().length())
-		buf += m_pInterface->eos();
+    if(m_pInterface->eos().length())
+        buf += m_pInterface->eos();
 	else
 		buf += m_pInterface->serialEOS();
 	if(m_pInterface->serialHasEchoBack()) {
@@ -172,8 +172,8 @@ XPosixSerialPort::receive() throw (XInterface::XCommError &) {
    
 	buffer().resize(MIN_BUFFER_SIZE);
    
-	const char *eos = m_pInterface->eos().c_str();
-	unsigned int eos_len = m_pInterface->eos().length();
+    const char *eos = m_pInterface->eos().length() ? m_pInterface->eos().c_str() : m_pInterface->serialEOS().c_str();
+    unsigned int eos_len = strlen(eos);
 	unsigned int len = 0;
 	for(;;) {
 		if(buffer().size() <= len + 1) 
@@ -362,8 +362,8 @@ XWin32SerialPort::receive() throw (XInterface::XCommError &) {
 
     buffer().resize(MIN_BUFFER_SIZE);
 
-    const char *eos = m_pInterface->eos().c_str();
-    unsigned int eos_len = m_pInterface->eos().length();
+    const char *eos = m_pInterface->eos().length() ? m_pInterface->eos().c_str() : m_pInterface->serialEOS().c_str();
+    unsigned int eos_len = strlen(eos);
     unsigned int len = 0;
     for(;;) {
         if(buffer().size() <= len + 1)
