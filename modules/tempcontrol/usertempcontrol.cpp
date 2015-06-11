@@ -51,11 +51,11 @@ void XITC503::open() throw (XKameError &) {
                 tr[ *heaterMode(idx)].add("MAN");
                 tr[ *powerMax(idx)].setUIEnabled(false);
                 tr[ *powerMin(idx)].setUIEnabled(false);
+                tr[ *currentChannel(idx)].str(formatString("%d", ctrlsens));
+                tr[ *heaterMode(idx)] = (automan & ((idx == 0) ? 1 : 2)) ? 0 : 1;
             }
             tr[ *powerRange(idx)].setUIEnabled(false);
         }
-        tr[ *heaterMode(0)] = (automan & 1) ? 0 : 1;
-        tr[ *heaterMode(1)] = (automan & 2) ? 0 : 1;
         if(tr.commit())
 			break;
 	}
