@@ -102,7 +102,7 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 
 	shared_ptr<XDriver> driver = entry->driver();
 
-	m_cons.push_back(shared_ptr<tcons>(new tcons));
+    m_cons.push_back(std::make_shared<tcons>());
 	m_cons.back()->entry = entry;
 	m_cons.back()->label = new QLabel(m_pItem);
 	m_pItem->setCellWidget(i, 1, m_cons.back()->label);

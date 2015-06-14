@@ -86,7 +86,7 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
 	// typename is not set at this moment
     m_pItem->setItem(i, 1, new QTableWidgetItem(driver->getTypename().c_str()));
 
-	m_cons.push_back(shared_ptr<tcons>(new tcons));
+    m_cons.push_back(std::make_shared<tcons>());
 	m_cons.back()->label = new QLabel(m_pItem);
 	m_pItem->setCellWidget(i, 2, m_cons.back()->label);
 	m_cons.back()->driver = driver;
