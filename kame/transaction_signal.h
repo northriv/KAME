@@ -221,8 +221,7 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<XListener> &lx) {
 template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener_> &lx) {
-	shared_ptr<ListenerList> new_list(
-		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
+    auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
 	// clean-up dead listeners.
 	for(auto it = new_list->begin(); it != new_list->end();) {
 		if( !it->lock())
@@ -237,8 +236,7 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener_> &lx) {
 template <class XN, typename tArg, typename tArgRef>
 void
 Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
-	shared_ptr<ListenerList> new_list(
-		m_listeners ? (new ListenerList( *m_listeners)) : (new ListenerList));
+    auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
 	for(auto it = new_list->begin(); it != new_list->end();) {
 		if(auto listener = it->lock()) {
 			// clean dead listeners and matching one.

@@ -52,15 +52,17 @@ private:
 
 inline void
 XPrimaryDriverWithThread::start() {
-	m_thread.reset(new XThread<XPrimaryDriverWithThread>(shared_from_this(),
-		&XPrimaryDriverWithThread::execute_internal));
-	m_thread->resume();
+    auto th = std::make_shared<XThread<XPrimaryDriverWithThread> >(
+        shared_from_this(),
+       &XPrimaryDriverWithThread::execute_internal);
+    th->resume();
+    m_thread = th;
 }
 
 inline void
 XPrimaryDriverWithThread::stop() {
-	if(m_thread)
-		m_thread->terminate();
+    if(auto th = m_thread)
+        th->terminate();
 	else
 		closeInterface(); //closes interface if any.
 }

@@ -405,7 +405,7 @@ XNMRT1::analyzeSpectrum(Transaction &tr,
 		for(std::deque<FFT::twindowfunc>::iterator fit = funcs.begin(); fit != funcs.end(); fit++) {
 			if(shot_this[ *this].m_convolutionCache.size() <= idx) {
 				tr[ *this].m_convolutionCache.push_back(
-					shared_ptr<Payload::ConvolutionCache>(new Payload::ConvolutionCache));
+                    std::make_shared<Payload::ConvolutionCache>());
 			}
 			shared_ptr<Payload::ConvolutionCache> cache = tr[ *this].m_convolutionCache[idx];
 			if((cache->windowwidth != *wit) || (cache->origin != origin) ||

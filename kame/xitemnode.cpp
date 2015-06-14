@@ -78,7 +78,7 @@ XComboNode::Payload::operator=(int t) {
 
 void
 XComboNode::Payload::add(const XString &str) {
-	m_strings.reset(new std::deque<XString>( *m_strings));
+    m_strings = std::make_shared<std::deque<XString>>( *m_strings);
 	m_strings->push_back(str);
 	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
 	tr().mark(onListChanged(), e);
@@ -90,8 +90,7 @@ XComboNode::Payload::add(const XString &str) {
 
 void
 XComboNode::Payload::clear() {
-	m_strings.reset(new std::deque<XString>( *m_strings));
-    m_strings->clear();
+    m_strings = std::make_shared<std::deque<XString>>();
 	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
 	tr().mark(onListChanged(), e);
 	if(m_var.second >= 0) {
@@ -102,7 +101,7 @@ XComboNode::Payload::clear() {
 
 shared_ptr<const std::deque<XItemNodeBase::Item> >
 XComboNode::Payload::itemStrings() const {
-    shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
+    auto items = std::make_shared<std::deque<XItemNodeBase::Item> >();
 	for(auto it = m_strings->begin(); it != m_strings->end(); it++) {
 		XItemNodeBase::Item item;
 		item.name = *it;

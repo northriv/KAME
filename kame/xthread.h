@@ -206,7 +206,7 @@ private:
 template <class T>
 template <class X>
 XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
-	: m_startarg(new targ) {
+    : m_startarg(std::make_shared<targ>()) {
 	m_startarg->obj = dynamic_pointer_cast<T>(t);
 	assert(m_startarg->obj);
 	m_startarg->func = func;

@@ -972,7 +972,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		uint64_t npos = it->pos;
 		for(tpatset_it kit = patterns.begin(); kit != patterns.end(); kit++) {
             //Avoid overrapping within minPulseWidth(), which is typ. 1 us
-			uint64_t diff = llabs(kit->pos - npos);
+            uint64_t diff = llabs((int64_t)kit->pos - (int64_t)npos);
 			diff -= pos * (diff / pos);
 			if(diff < rintSampsMilliSec(minPulseWidth())) {
 				npos = kit->pos;

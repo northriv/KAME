@@ -156,7 +156,7 @@ public:
 		}
 	};
 	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
-		shared_ptr<std::deque<XItemNodeBase::Item> > items(new std::deque<XItemNodeBase::Item>());
+        auto items = std::make_shared<std::deque<XItemNodeBase::Item> >();
 		if(auto list = this->m_list.lock()) {
 			if(shot.size(list)) {
 				for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
@@ -184,7 +184,7 @@ public:
 	}
 
     struct DECLSPEC_KAME Payload : public XItemNodeBase::Payload {
-		Payload() : XItemNodeBase::Payload(), m_strings(new std::deque<XString>),
+        Payload() : XItemNodeBase::Payload(), m_strings(std::make_shared<std::deque<XString>>()),
 			m_var(std::pair<XString, int>("", -1)) {}
 		void add(const XString &str);
 		void clear();

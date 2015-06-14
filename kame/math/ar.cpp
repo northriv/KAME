@@ -45,7 +45,7 @@ YuleWalkerCousin<Context>::genSpectrum(const std::vector<std::complex<double> >&
 	double ic = 1e99;
 	for(unsigned int p = 0; p < t - 2; p++) {
 		if(p % taps_div == 0) {
-			m_contexts.push_back(shared_ptr<Context>(new Context(*context)));
+            m_contexts.push_back(std::make_shared<Context>(*context));
 			if(taps + taps_div/2 < p)
 				break;
 		}

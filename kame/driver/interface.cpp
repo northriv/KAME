@@ -61,7 +61,8 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 		start();
 	}
 	else {
-		Snapshot shot( *this);
+        control()->setUIEnabled(false);
+        Snapshot shot( *this);
 		shot.talk(shot[ *this].onClose(), this);
 	}
 }
@@ -115,6 +116,7 @@ XInterface::stop() {
 		tr[ *device()].setUIEnabled(true);
 		tr[ *port()].setUIEnabled(true);
 		tr[ *address()].setUIEnabled(true);
+        tr[ *control()].setUIEnabled(true);
 
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
