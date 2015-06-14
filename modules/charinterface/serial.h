@@ -28,47 +28,26 @@
 #define USE_SERIAL
 #endif
 
-#ifdef SERIAL_POSIX
-
-class XPosixSerialPort : public XPort {
+class XSerialPort : public XPort {
 public:
-	XPosixSerialPort(XCharInterface *interface);
-	virtual ~XPosixSerialPort();
- 
-	virtual void open() throw (XInterface::XCommError &);
-	virtual void send(const char *str) throw (XInterface::XCommError &);
-	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-	virtual void receive() throw (XInterface::XCommError &);
-	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
-private:
-	void flush();
-	int m_scifd;
-};
+    XSerialPort(XCharInterface *interface);
+    virtual ~XSerialPort();
 
-typedef XPosixSerialPort XSerialPort;
-
-#endif /*SERIAL_POSIX*/
-
-#ifdef SERIAL_WIN32
-
-class QSerialPort;
-
-class XWin32SerialPort : public XPort {
-public:
-    XWin32SerialPort(XCharInterface *interface);
-    virtual ~XWin32SerialPort();
-
-    virtual void open() throw (XInterface::XCommError &);
+    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
     virtual void send(const char *str) throw (XInterface::XCommError &);
     virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
     virtual void receive() throw (XInterface::XCommError &);
     virtual void receive(unsigned int length) throw (XInterface::XCommError &);
 private:
+#ifdef SERIAL_POSIX
+    void flush();
+    int m_scifd;
+#endif /*SERIAL_POSIX*/
+#ifdef SERIAL_WIN32
     void *m_handle;
-};
-
-typedef XWin32SerialPort XSerialPort;
-
 #endif /*SERIAL_WIN32*/
+    bool m_serialFlushBeforeWrite;
+    bool m_serialHasEchoBack;
+};
 
 #endif /*SERIAL_H_*/

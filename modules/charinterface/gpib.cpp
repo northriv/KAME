@@ -147,9 +147,9 @@ XNIGPIBPort::~XNIGPIBPort() {
     }
 } 
 void
-XNIGPIBPort::open() throw (XInterface::XCommError &) {
-	Snapshot shot( *m_pInterface);
-	int port = QString(shot[ *m_pInterface->port()].to_str()).toInt();
+XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
+    Snapshot shot( *pInterface);
+    int port = QString(shot[ *pInterface->port()].to_str()).toInt();
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		if(s_cntOpened == 0) {
@@ -166,20 +166,28 @@ XNIGPIBPort::open() throw (XInterface::XCommError &) {
   
 	Addr4882_t addrtbl[2];
 	int eos = 0;
-	if(m_pInterface->eos().length()) {
-		eos = 0x1400 + m_pInterface->eos()[m_pInterface->eos().length() - 1];
+    if(pInterface->eos().length()) {
+        eos = 0x1400 + pInterface->eos()[pInterface->eos().length() - 1];
 	}
 	m_ud = ibdev(port, 
-				 shot[ *m_pInterface->address()], 0, T3s, 1, eos);
+                 shot[ *pInterface->address()], 0, T3s, 1, eos);
 	if(m_ud < 0) {
 		throw XInterface::XCommError(
 			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
 	}
 	ibclr(m_ud);
 	ibeos(m_ud, eos);
-	addrtbl[0] = shot[ *m_pInterface->address()];
+    addrtbl[0] = shot[ *pInterface->address()];
 	addrtbl[1] = NOADDR;
 	EnableRemote(port, addrtbl);
+
+    m_gpibWaitBeforeWrite = pInterface->gpibWaitBeforeWrite();
+    m_gpibWaitBeforeRead = pInterface->gpibWaitBeforeRead();
+    m_gpibWaitBeforeSPoll = pInterface->gpibWaitBeforeSPoll();
+    m_bGPIBUseSerialPollOnWrite = pInterface->gpibUseSerialPollOnWrite();
+    m_bGPIBUseSerialPollOnRead = pInterface->gpibUseSerialPollOnRead();
+    m_gpibMAVbit = pInterface->gpibMAVbit();
+
 }
 void
 XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
@@ -203,21 +211,17 @@ XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
 
 void
 XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &) {
-	assert(m_pInterface->isOpened());
-  
 	XString buf(str);
-	buf += m_pInterface->eos();
-	assert(buf.length() == strlen(str) + m_pInterface->eos().length());
+    buf += eos();
+    assert(buf.length() == strlen(str) + eos().length());
 	this->write(buf.c_str(), buf.length());
 }
 void
 XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
-	assert(m_pInterface->isOpened());
-  
 	gpib_spoll_before_write();
   
 	for(int i = 0; ; i++) {
-		msecsleep(m_pInterface->gpibWaitBeforeWrite());
+        msecsleep(m_gpibWaitBeforeWrite);
 		int ret = ibwrt(m_ud, const_cast<char*>(sendbuf), size);
 		if(ret & ERR)
 		{
@@ -268,7 +272,6 @@ XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &) {
 unsigned int
 XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 	throw (XInterface::XCommError &) {
-	assert(m_pInterface->isOpened());
 
 	gpib_spoll_before_read();
 	int len = 0;
@@ -276,7 +279,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 		unsigned int buf_size = std::min(max_length, len + est_length);
 		if(buffer().size() < buf_size)
 			buffer().resize(buf_size);
-		msecsleep(m_pInterface->gpibWaitBeforeRead());
+        msecsleep(m_gpibWaitBeforeRead);
 		int ret = ibrd(m_ud, &buffer()[len], buf_size - len);
 		if(ret & ERR) {
 			switch(ThreadIberr()) {
@@ -316,20 +319,16 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 }
 void
 XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
-	if(m_pInterface->gpibUseSerialPollOnRead())
-	{
-		for(int i = 0; ; i++)
-		{
-			if(i > 30)
-			{
+    if(m_bGPIBUseSerialPollOnRead) {
+        for(int i = 0; ; i++) {
+            if(i > 30) {
 				throw XInterface::XCommError(
 					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
-			msecsleep(m_pInterface->gpibWaitBeforeSPoll());
+            msecsleep(m_gpibWaitBeforeSPoll;
 			unsigned char spr;
 			int ret = ibrsp(m_ud,(char*)&spr);
-			if(ret & ERR)
-			{
+            if(ret & ERR) {
 				switch(ThreadIberr()) {
 				case EDVR:
 				case EFSO:
@@ -341,8 +340,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 				gpib_reset();
 				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
-			if((spr & m_pInterface->gpibMAVbit()) == 0)
-			{
+            if((spr & m_gpibMAVbit == 0) {
 				//MAV isn't detected
 				msecsleep(10 * i + 10);
 				continue;
@@ -354,13 +352,13 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 }
 void 
 XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
-	if(m_pInterface->gpibUseSerialPollOnWrite()) {
+    if(m_bGPIBUseSerialPollOnWrite) {
 		for(int i = 0; ; i++) {
 			if(i > 10) {
 				throw XInterface::XCommError(
 					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
-			msecsleep(m_pInterface->gpibWaitBeforeSPoll());
+            msecsleep(m_gpibWaitBeforeSPoll);
 			unsigned char spr;
 			int ret = ibrsp(m_ud,(char*)&spr);
 			if(ret & ERR) {
@@ -375,7 +373,7 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
 				gpib_reset();
 				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
-			if((spr & m_pInterface->gpibMAVbit())) {
+            if((spr & m_gpibMAVbit) {
 				//MAV detected
 				if(i < 2) {
 					msecsleep(5*i + 5);

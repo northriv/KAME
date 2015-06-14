@@ -29,7 +29,7 @@ XDummyPort::~XDummyPort()
     m_stream.close();
 }
 void
-XDummyPort::open() throw (XInterface::XCommError &)
+XDummyPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &)
 {
     m_stream.open(DUMMYPORT_FILENAME, std::ios::out);
 }

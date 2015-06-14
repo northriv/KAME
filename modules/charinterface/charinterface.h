@@ -65,7 +65,7 @@ public:
     virtual bool isOpened() const = 0;
 
     //! only for XPort and internal use.
-    std::vector<char> &buffer_receive() const {return *s_tlBuffer;}
+    static std::vector<char> &buffer_receive() {return *s_tlBuffer;}
 protected:
     virtual void open() throw (XInterfaceError &) = 0;
     //! This can be called even if has already closed.
@@ -125,6 +125,8 @@ protected:
 	virtual void open() throw (XInterfaceError &);
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
+
+    shared_ptr<XPort> openedPort() const {return m_xport;}
 private:
     XString m_serialEOS;
 	bool m_bGPIBUseSerialPollOnWrite;
@@ -154,18 +156,22 @@ private:
 
 class XPort {
 public:
-    XPort(XCharInterface *interface): m_pInterface(interface) {}
+    XPort(XCharInterface *interface) {m_portString = ***interface->port();}
     virtual ~XPort() {}
-	virtual void open() throw (XInterface::XCommError &) = 0;
+    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &) = 0;
 	virtual void send(const char *str) throw (XInterface::XCommError &) = 0;
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &) = 0;
 	virtual void receive() throw (XInterface::XCommError &) = 0;
 	virtual void receive(unsigned int length) throw (XInterface::XCommError &) = 0;
 	//! Thread-Local-Storage Buffer.
 	//! \sa XThreadLocal
-    std::vector<char>& buffer() {return m_pInterface->buffer_receive();}
+    std::vector<char>& buffer() {return XCharInterface::buffer_receive();}
+    const XString &portString() const {return m_portString;}
+    const XString &eos() const {return m_eos;}
+    void setEOS(const char *str) {m_eos = str;}
 protected:
-	XCharInterface *const m_pInterface;
+private:
+    XString m_portString, m_eos;
 };
 
 #endif /*CHARINTERFACE_H_*/

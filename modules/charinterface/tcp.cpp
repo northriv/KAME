@@ -69,16 +69,14 @@ XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
         close(m_socket);
 #endif
     }
-    open();
+    open(0);
 }
 
 void
-XTCPSocketPort::open() throw (XInterface::XCommError &) {
-    Snapshot shot( *m_pInterface);
-
+XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
 	struct sockaddr_in dstaddr;
 
-    std::string ipaddr = shot[ *m_pInterface->port()];
+    std::string ipaddr = portString();
 	int colpos = ipaddr.find_first_of(':');
 	if(colpos == std::string::npos)
         throw XInterface::XCommError(i18n("tcp socket creation failed"), __FILE__, __LINE__);
@@ -116,13 +114,11 @@ XTCPSocketPort::open() throw (XInterface::XCommError &) {
 void
 XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
     XString buf(str);
-    buf += m_pInterface->eos();
+    buf += eos();
     this->write(buf.c_str(), buf.length());
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
-    assert(m_pInterface->isOpened());
-
 	int wlen = 0;
 	do {
         int ret = ::send(m_socket, sendbuf, size - wlen, 0);
@@ -146,12 +142,10 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 }
 void
 XTCPSocketPort::receive() throw (XInterface::XCommError &) {
-    assert(m_pInterface->isOpened());
-    
 	buffer().resize(MIN_BUFFER_SIZE);
    
-    const char *eos = m_pInterface->eos().c_str();
-    unsigned int eos_len = m_pInterface->eos().length();
+    const char *ceos = eos().c_str();
+    unsigned int eos_len = eos().length();
 	unsigned int len = 0;
 	for(;;) {
 		if(buffer().size() <= len + 1) 
@@ -177,7 +171,7 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
         }
 		len += rlen;
 		if(len >= eos_len) {
-			if( !strncmp(&buffer().at(len - eos_len), eos, eos_len)) {
+            if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len)) {
 				break;
 			}
 		}
@@ -188,8 +182,6 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
 }
 void
 XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
-    assert(m_pInterface->isOpened());
-   
 	buffer().resize(length);
 	unsigned int len = 0;
    

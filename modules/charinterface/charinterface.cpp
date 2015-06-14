@@ -201,27 +201,31 @@ XCharInterface::open() throw (XInterfaceError &) {
 	#ifdef USE_GPIB
 		if(shot[ *device()].to_str() == "GPIB") {
 			port.reset(new XGPIBPort(this));
-		}
+            port->setEOS(eos().c_str());
+        }
 	#endif
     #ifdef USE_SERIAL
         if(shot[ *device()].to_str() == "SERIAL") {
 			port.reset(new XSerialPort(this));
-		}
+            const char *seos = eos().length() ? eos().c_str() : serialEOS().c_str();
+            port->setEOS(seos);
+        }
     #endif
     #ifdef USE_TCP
         if(shot[ *device()].to_str() == "TCP/IP") {
 			port.reset(new XTCPPort(this));
-		}
+            port->setEOS(eos().c_str());
+        }
     #endif
         if(shot[ *device()].to_str() == "DUMMY") {
 			port.reset(new XDummyPort(this));
-		}
+            port->setEOS(eos().c_str());
+        }
           
 		if( !port) {
 			throw XOpenInterfaceError(__FILE__, __LINE__);
 		}
-          
-		port->open();
+        port->open(this);
 		m_xport.swap(port);
 	}
 }

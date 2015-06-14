@@ -63,7 +63,7 @@ XOxfordInterface::query(const char *str) throw (XInterface::XCommError &) {
 
 void
 XOxfordInterface::open() throw (XInterfaceError &) {
-	XCharInterface::open();
+    XCharInterface::open();
 	//    XDriver::Send("@0");
 	send("$Q2");
 	//    msecsleep(100);

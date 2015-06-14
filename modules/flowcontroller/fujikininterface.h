@@ -31,17 +31,16 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	virtual bool isOpened() const {return !!m_master;}
+    virtual bool isOpened() const {return !!m_openedPort;}
 private:
     void communicate_once(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
         const std::vector<uint8_t> &data, std::vector<uint8_t> *response);
     void communicate(uint8_t classid, uint8_t instanceid, uint8_t attributeid,
 		const std::vector<uint8_t> &data, std::vector<uint8_t> *response = 0);
 
-	shared_ptr<XFujikinInterface> m_master;
-	static XMutex s_lock;
-	static std::deque<weak_ptr<XFujikinInterface> > s_masters; //guarded by s_lock.
-	int m_openedCount; //guarded by s_lock.
+    shared_ptr<XPort> m_openedPort;
+    static XMutex s_lock;
+    static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
 
 	enum {STX = 0x02, ACK = 0x06, 	NAK = 0x16};
 };

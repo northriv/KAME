@@ -16,6 +16,7 @@
 
 #include "charinterface.h"
 #include "chardevicedriver.h"
+#include "serial.h"
 
 class XModbusRTUInterface : public XCharInterface {
 public:
@@ -48,7 +49,7 @@ protected:
 	//! This can be called even if has already closed.
 	virtual void close() throw (XInterfaceError &);
 
-	virtual bool isOpened() const {return !!m_master;}
+    virtual bool isOpened() const {return !!m_openedPort;}
 
 	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
@@ -69,10 +70,9 @@ private:
 	}
     uint16_t crc16(const unsigned char *bytes, uint32_t count);
 
-	shared_ptr<XModbusRTUInterface> m_master;
+    shared_ptr<XPort> m_openedPort;
 	static XMutex s_lock;
-	static std::deque<weak_ptr<XModbusRTUInterface> > s_masters; //guarded by s_lock.
-	int m_openedCount; //guarded by s_lock.
+    static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
 };
 
 template <class T>

@@ -1,11 +1,10 @@
 #include "modbusrtuinterface.h"
 
-std::deque<weak_ptr<XModbusRTUInterface> > XModbusRTUInterface::s_masters;
+std::deque<weak_ptr<XPort> > XModbusRTUInterface::s_openedPorts;
 XMutex XModbusRTUInterface::s_lock;
 
 XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
- XCharInterface(name, runtime, driver),
- m_openedCount(0) {
+ XCharInterface(name, runtime, driver) {
     setEOS("");
     setSerialEOS("");
 	setSerialBaudRate(9600);
@@ -16,44 +15,34 @@ XModbusRTUInterface::~XModbusRTUInterface() {
 }
 void
 XModbusRTUInterface::open() throw (XInterfaceError &) {
-	{
-		XScopedLock<XModbusRTUInterface> lock( *this);
-		m_master = dynamic_pointer_cast<XModbusRTUInterface>(shared_from_this());
+    XScopedLock<XModbusRTUInterface> lock( *this);
+    {
 		Snapshot shot( *this);
 		XScopedLock<XMutex> glock(s_lock);
-		for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
-			if(auto mint = it->lock()) {
-				if((XString)Snapshot( *mint)[ *mint->port()] == (XString)shot[ *port()]) {
-					m_master =mint;
-					assert(m_master->m_openedCount);
-					//The port has been already opened by m_master.
-					m_master->m_openedCount++;
+        for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
+            if(auto pt = it->lock()) {
+                if(pt->portString() == (XString)shot[ *port()]) {
+                    m_openedPort = pt;
+                    //The COMM port has been already opened by m_master.
 					return;
 				}
+                ++it;
 			}
-		}
-		s_masters.push_back(m_master);
-		m_master->m_openedCount = 1;
+            else
+                it = s_openedPorts.erase(it); //cleans garbage.
+        }
 	}
-	XCharInterface::open();
+    //Opens new COMM device.
+    XCharInterface::open();
+    m_openedPort = openedPort();
+    s_openedPorts.push_back(m_openedPort);
 }
 void
 XModbusRTUInterface::close() throw (XInterfaceError &) {
 	XScopedLock<XModbusRTUInterface> lock( *this);
 	XScopedLock<XMutex> glock(s_lock);
-	if(m_master) {
-		m_master->m_openedCount--;
-		if( !m_master->m_openedCount) {
-			for(auto it = s_masters.begin(); it != s_masters.end();) {
-				if(m_master == it->lock())
-					it = s_masters.erase(it);
-				else
-					++it;
-			}
-			m_master->XCharInterface::close();
-		}
-		m_master.reset();
-	}
+    m_openedPort.reset(); //release shared_ptr to the port if any.
+    XCharInterface::close(); //release shared_ptr to the port if any.
 }
 
 uint16_t
@@ -74,10 +63,10 @@ XModbusRTUInterface::crc16(const unsigned char *bytes, uint32_t count) {
 void
 XModbusRTUInterface::query_unicast(unsigned int func_code,
 		const std::vector<unsigned char> &bytes, std::vector<unsigned char> &ret_buf) {
-	auto master = m_master;
+    XScopedLock<XMutex> glock(s_lock); //!\todo better to use port-by-port lock.
+    auto port = m_openedPort;
 	double msec_per_char = 1e3 / serialBaudRate() * 12;
-	XScopedLock<XModbusRTUInterface> lock( *master);
-	unsigned int slave_addr = ***address();
+    unsigned int slave_addr = ***address();
 	std::vector<unsigned char> buf(bytes.size() + 4);
 	buf[0] = static_cast<unsigned char>(slave_addr);
 	buf[1] = static_cast<unsigned char>(func_code);
@@ -86,19 +75,19 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 	set_word( &buf[buf.size() - 2], crc);
 
 	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
-	master->write( reinterpret_cast<char*>(&buf[0]), buf.size());
+    port->write( reinterpret_cast<char*>(&buf[0]), buf.size());
 	msecsleep(buf.size() * msec_per_char); //For O_NONBLOCK.
 	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
 
 	buf.resize(ret_buf.size() + 4);
-	master->receive(2); //addr + func_code.
-	std::copy(master->buffer().begin(), master->buffer().end(), buf.begin());
+    port->receive(2); //addr + func_code.
+    std::copy(port->buffer().begin(), port->buffer().end(), buf.begin());
 
 	if((buf[0] != slave_addr) || ((buf[1] & 0x7fu) != func_code))
 		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
 	if(buf[1] != func_code) {
-		master->receive(3);
-		switch(master->buffer()[0]) {
+        port->receive(3);
+        switch(port->buffer()[0]) {
 		case 0x01:
 			throw XInterfaceError("Modbus RTU Ill Function.", __FILE__, __LINE__);
 		case 0x02:
@@ -112,8 +101,8 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 		}
 	}
 
-	master->receive( ret_buf.size() + 2); //Rest of message.
-	std::copy(master->buffer().begin(), master->buffer().end(), buf.begin() + 2);
+    port->receive( ret_buf.size() + 2); //Rest of message.
+    std::copy(port->buffer().begin(), port->buffer().end(), buf.begin() + 2);
 	crc = crc16( &buf[0], buf.size() - 2);
 	if(crc != get_word( &buf[buf.size() - 2]))
 		throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);

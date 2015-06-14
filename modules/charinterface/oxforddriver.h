@@ -22,7 +22,7 @@ class DECLSPEC_SHARED XOxfordInterface : public XCharInterface {
 public:
 	XOxfordInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 
-	virtual void open() throw (XInterfaceError &);
+    virtual void open() throw (XInterfaceError &);
 	virtual void close() throw (XInterfaceError &);
   
 	void send(const XString &str) throw (XCommError &);

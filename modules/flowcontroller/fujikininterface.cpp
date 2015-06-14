@@ -1,11 +1,10 @@
 #include "fujikininterface.h"
 
-std::deque<weak_ptr<XFujikinInterface> > XFujikinInterface::s_masters;
+std::deque<weak_ptr<XPort> > XFujikinInterface::s_openedPorts;
 XMutex XFujikinInterface::s_lock;
 
 XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
- XCharInterface(name, runtime, driver),
- m_openedCount(0) {
+ XCharInterface(name, runtime, driver) {
     setEOS("");
     setSerialEOS("");
 	setSerialBaudRate(38400);
@@ -14,46 +13,37 @@ XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const share
 
 XFujikinInterface::~XFujikinInterface() {
 }
+
 void
 XFujikinInterface::open() throw (XInterfaceError &) {
-	{
-		XScopedLock<XFujikinInterface> lock( *this);
-		m_master = dynamic_pointer_cast<XFujikinInterface>(shared_from_this());
-		Snapshot shot( *this);
-		XScopedLock<XMutex> glock(s_lock);
-		for(auto it = s_masters.begin(); it != s_masters.end(); ++it) {
-			if(auto mint = it->lock()) {
-				if((XString)Snapshot( *mint)[ *mint->port()] == (XString)shot[ *port()]) {
-					m_master =mint;
-					assert(m_master->m_openedCount);
-					//The port has been already opened by m_master.
-					m_master->m_openedCount++;
-					return;
-				}
-			}
-		}
-		s_masters.push_back(m_master);
-		m_master->m_openedCount = 1;
-	}
-	XCharInterface::open();
+    XScopedLock<XFujikinInterface> lock( *this);
+    {
+        Snapshot shot( *this);
+        XScopedLock<XMutex> glock(s_lock);
+        for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
+            if(auto pt = it->lock()) {
+                if(pt->portString() == (XString)shot[ *port()]) {
+                    m_openedPort = pt;
+                    //The COMM port has been already opened by m_master.
+                    return;
+                }
+                ++it;
+            }
+            else
+                it = s_openedPorts.erase(it); //cleans garbage.
+        }
+    }
+    //Opens new COMM device.
+    XCharInterface::open();
+    m_openedPort = openedPort();
+    s_openedPorts.push_back(m_openedPort);
 }
 void
 XFujikinInterface::close() throw (XInterfaceError &) {
 	XScopedLock<XFujikinInterface> lock( *this);
 	XScopedLock<XMutex> glock(s_lock);
-	if(m_master) {
-		m_master->m_openedCount--;
-		if( !m_master->m_openedCount) {
-			for(auto it = s_masters.begin(); it != s_masters.end();) {
-				if(m_master == it->lock())
-					it = s_masters.erase(it);
-				else
-					++it;
-			}
-			m_master->XCharInterface::close();
-		}
-		m_master.reset();
-	}
+    m_openedPort.reset(); //release shared_ptr to the port if any.
+    XCharInterface::close(); //release shared_ptr to the port if any.
 }
 
 template <typename T>
@@ -155,55 +145,55 @@ XFujikinInterface::communicate_once(uint8_t classid, uint8_t instanceid, uint8_t
         checksum += *it; //from STX to data.back.
     buf.push_back(checksum);
 
-    auto master = m_master;
-    XScopedLock<XFujikinInterface> lock( *master);
+    auto port = m_openedPort;
+    XScopedLock<XMutex> lock(s_lock); //!\todo better to use port-by-port lock.
     msecsleep(1);
-    master->write( reinterpret_cast<char*>( &buf[0]), buf.size());
-    master->receive(1);
-    switch(master->buffer()[0]) {
+    port->write( reinterpret_cast<char*>( &buf[0]), buf.size());
+    port->receive(1);
+    switch(port->buffer()[0]) {
     case ACK:
         break;
     case NAK:
     default:
         throw XInterfaceError(
-            formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
+            formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)port->buffer()[0]),
             __FILE__, __LINE__);
     }
     if(write) {
-        master->receive(1);
-        switch(master->buffer()[0]) {
+        port->receive(1);
+        switch(port->buffer()[0]) {
         case ACK:
             break;
         case NAK:
         default:
             throw XInterfaceError(
-                formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)master->buffer()[0]),
+                formatString("Fujikin Protocol Command Error ret=%x.", (unsigned int)port->buffer()[0]),
                 __FILE__, __LINE__);
         }
     }
     else {
-        master->receive(4);
-        if((master->buffer()[0] != 0) || (master->buffer()[1] != STX))
+        port->receive(4);
+        if((port->buffer()[0] != 0) || (port->buffer()[1] != STX))
             throw XInterfaceError(
-                formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&master->buffer()[0]),
+                formatString("Fujikin Protocol Command Error ret=%4s.", (const char*)&port->buffer()[0]),
                 __FILE__, __LINE__);
-        int len = master->buffer()[3];
+        int len = port->buffer()[3];
         uint8_t checksum = 0;
-        for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+        for(auto it = port->buffer().begin(); it != port->buffer().end(); ++it)
             checksum += *it;
-        master->receive(len + 2);
+        port->receive(len + 2);
 //		if((master->buffer()[0] != classid) || (master->buffer()[1] != instanceid) || (master->buffer()[2] != attributeid))
 //			throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-        if((master->buffer()[len] != 0)) //pad
+        if((port->buffer()[len] != 0)) //pad
             throw XInterfaceError("Fujikin Protocol Format Error.", __FILE__, __LINE__);
-        for(auto it = master->buffer().begin(); it != master->buffer().end(); ++it)
+        for(auto it = port->buffer().begin(); it != port->buffer().end(); ++it)
             checksum += *it;
-        checksum -= master->buffer().back() * 2;
+        checksum -= port->buffer().back() * 2;
         if(checksum != 0)
             throw XInterfaceError("Fujikin Protocol Check-Sum Error.", __FILE__, __LINE__);
         response->resize(len - 3);
         for(int i = 0; i < response->size(); ++i) {
-            response->at(i) = master->buffer()[i + 3];
+            response->at(i) = port->buffer()[i + 3];
         }
     }
 }

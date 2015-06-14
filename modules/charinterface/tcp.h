@@ -34,7 +34,7 @@ public:
     XTCPSocketPort(XCharInterface *interface);
     virtual ~XTCPSocketPort();
  
-	virtual void open() throw (XInterface::XCommError &);
+    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
 	virtual void send(const char *str) throw (XInterface::XCommError &);
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
 	virtual void receive() throw (XInterface::XCommError &);

@@ -36,7 +36,7 @@ public:
 	XNIGPIBPort(XCharInterface *interface);
 	virtual ~XNIGPIBPort();
  
-	virtual void open() throw (XInterface::XCommError &);
+    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
 	virtual void send(const char *str) throw (XInterface::XCommError &);
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
 	virtual void receive() throw (XInterface::XCommError &);
@@ -54,6 +54,13 @@ private:
 		throw (XInterface::XCommError &);
 	static int s_cntOpened;
 	static XMutex s_lock;
+
+    bool m_bGPIBUseSerialPollOnWrite;
+    bool m_bGPIBUseSerialPollOnRead;
+    int m_gpibWaitBeforeWrite;
+    int m_gpibWaitBeforeRead;
+    int m_gpibWaitBeforeSPoll;
+    unsigned char m_gpibMAVbit; //! don't check if zero
 };
 
 typedef XNIGPIBPort XGPIBPort;
