@@ -45,8 +45,6 @@ public:
 private:
 	int m_ud;
 	void gpib_close() throw (XInterface::XCommError &);
-	//! reopen device
-	void gpib_reset() throw (XInterface::XCommError &);
 	void gpib_spoll_before_write() throw (XInterface::XCommError &);
 	void gpib_spoll_before_read() throw (XInterface::XCommError &);
 	XString gpibStatus(const XString &msg);
@@ -61,6 +59,8 @@ private:
     int m_gpibWaitBeforeRead;
     int m_gpibWaitBeforeSPoll;
     unsigned char m_gpibMAVbit; //! don't check if zero
+
+    unsigned int m_address;
 };
 
 typedef XNIGPIBPort XGPIBPort;

@@ -205,7 +205,7 @@ XSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 		}
 #endif
 #ifdef SERIAL_WIN32
-        if( !PurgeComm(m_handle, PURGE_RXCLEAR))
+        if( !PurgeComm(m_handle, PURGE_RXCLEAR)) {
                 throw XInterface::XCommError(i18n("Serial PurgeComm error"), __FILE__, __LINE__);
         }
 #endif

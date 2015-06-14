@@ -129,7 +129,7 @@ XNIGPIBPort::gpibStatus(const XString &msg) {
 	}
 	return QString("GPIB %1: addr %2, sta %3, err %4, cntl %5")
 		.arg(msg)
-		.arg((int) ***m_pInterface->address())
+        .arg(m_address)
 		.arg(sta)
 		.arg(err)
 		.arg(cntl);
@@ -169,8 +169,9 @@ XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
     if(pInterface->eos().length()) {
         eos = 0x1400 + pInterface->eos()[pInterface->eos().length() - 1];
 	}
+    m_address = shot[ *pInterface->address()];
 	m_ud = ibdev(port, 
-                 shot[ *pInterface->address()], 0, T3s, 1, eos);
+                 m_address, 0, T3s, 1, eos);
 	if(m_ud < 0) {
 		throw XInterface::XCommError(
 			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
@@ -202,12 +203,6 @@ XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
 #endif
 	}
 }
-void
-XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
-    gpib_close();
-    msecsleep(100);
-    open();
-}
 
 void
 XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &) {
@@ -237,11 +232,6 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 					gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
 			}
 			gErrPrint(gpibStatus(i18n("ibwrt err")));
-			gpib_reset();
-			if(i < 2) {
-				gErrPrint(i18n("try to continue"));
-				continue;
-			}
 			throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
 		}
 		size -= ThreadIbcntl();
@@ -325,7 +315,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 				throw XInterface::XCommError(
 					gpibStatus(i18n("too many spoll timeouts")), __FILE__, __LINE__);
 			}
-            msecsleep(m_gpibWaitBeforeSPoll;
+            msecsleep(m_gpibWaitBeforeSPoll);
 			unsigned char spr;
 			int ret = ibrsp(m_ud,(char*)&spr);
             if(ret & ERR) {
@@ -337,10 +327,9 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 					continue;
 				}
 				gErrPrint(gpibStatus(i18n("ibrsp err")));
-				gpib_reset();
 				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
-            if((spr & m_gpibMAVbit == 0) {
+            if(((spr & m_gpibMAVbit) == 0)) {
 				//MAV isn't detected
 				msecsleep(10 * i + 10);
 				continue;
@@ -370,10 +359,9 @@ XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
 					continue;
 				}
 				gErrPrint(gpibStatus(i18n("ibrsp err")));
-				gpib_reset();
 				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
-            if((spr & m_gpibMAVbit) {
+            if((spr & m_gpibMAVbit)) {
 				//MAV detected
 				if(i < 2) {
 					msecsleep(5*i + 5);
