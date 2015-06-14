@@ -1,6 +1,8 @@
 * Thu Jun 11 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.4-1)
 - Allows retrys for fujikinprotocol.
+- Fix for behavior during stopping interface.
+- Fix for NI DSO that has more than 2 channels.
 
 * Sat Jun 6 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.3-1)

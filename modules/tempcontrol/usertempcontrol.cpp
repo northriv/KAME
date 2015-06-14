@@ -1050,7 +1050,7 @@ double
 XLinearResearch700::parseResponseMessage() {
     double v; char unit;
     int ret = interface()->scanf("%lf%c", &v, &unit);
-    if((ret != 1) || (ret != 2))
+    if((ret != 1) && (ret != 2))
         throw XInterface::XConvError(__FILE__, __LINE__);
     if(ret == 2) {
         if(unit == 'K')

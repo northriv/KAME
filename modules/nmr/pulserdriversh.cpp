@@ -342,7 +342,7 @@ XSHPulser::changeOutput(const Snapshot &shot, bool output, unsigned int /*blankp
 			try {
 				interface()->write("!", 1); //poff
 				interface()->receive();
-				char buf[3];
+                char buf[4];
 				if((interface()->scanf("Pulse %3s", buf) != 1) || strncmp(buf, "Off", 3))
 					throw XInterface::XConvError(__FILE__, __LINE__);
 				unsigned int size = shot[ *this].m_zippedPatterns.size();

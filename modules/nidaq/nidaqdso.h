@@ -75,7 +75,7 @@ private:
 	atomic<bool> m_running;
 	std::vector<tRawAI> m_recordBuf;
 	enum {CAL_POLY_ORDER = 4};
-	float64 m_coeffAI[2][CAL_POLY_ORDER];
+    float64 m_coeffAI[4][CAL_POLY_ORDER];
 	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
 	struct DSORawRecord {
 		unsigned int numCh;

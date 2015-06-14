@@ -374,7 +374,7 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 	std::deque<XString> list;
 	parseList(buf, list);
 	for(Transaction tr( *this);; ++tr) {
-		for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
+        for(std::deque<XString>::iterator it = list.begin(); it != list.end(); ++it) {
 			CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 			tr[ *device()].add(*it + " [" + buf + "]");
 		}
@@ -421,7 +421,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 	char buf[256];
 
 	Snapshot shot( *this);
-	if(sscanf(shot[ *device()].to_str().c_str(), "%256s", buf) != 1)
+    if(sscanf(shot[ *device()].to_str().c_str(), "%255s", buf) != 1)
 		throw XOpenInterfaceError(__FILE__, __LINE__);
 
 	XScopedLock<XMutex> lock(g_daqmx_mutex);
@@ -434,7 +434,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 		std::deque<XString> list;
 		XNIDAQmxInterface::parseList(buf, list);
 		std::deque<XString> pcidevs;
-		for(std::deque<XString>::iterator it = list.begin(); it != list.end(); it++) {
+        for(std::deque<XString>::iterator it = list.begin(); it != list.end(); ++it) {
 			// Device reset.
 			DAQmxResetDevice(it->c_str());
 			// Search for master clock among PCI(e) devices.
@@ -445,7 +445,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 			}
 		}
 		if(pcidevs.size() > 1) {
-			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+            for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); ++it) {
 				//M series only.
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;
@@ -465,12 +465,12 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				if(g_pciClockMaster.length())
 					break;
 			}
-			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+            for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); ++it) {
 				//AO of S series device cannot handle external master clock properly.
 				//Thus S should be a master when high-speed AOs are used.
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;
-				for(const ProductInfo *pit = sc_productInfoList; pit->type; pit++) {
+                for(const ProductInfo *pit = sc_productInfoList; pit->type; ++pit) {
 					if((pit->type == type) && (pit->series == XString("S"))) {
 						//RTSI synchronizations.
 						shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> route;
@@ -489,7 +489,7 @@ XNIDAQmxInterface::open() throw (XInterfaceError &) {
 				if(g_pciClockMaster.length())
 					break;
 			}
-			for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); it++) {
+            for(std::deque<XString>::iterator it = pcidevs.begin(); it != pcidevs.end(); ++it) {
 				//M series only.
 				CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 				XString type = buf;

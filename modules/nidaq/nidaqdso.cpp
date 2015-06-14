@@ -80,7 +80,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 				CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 				std::deque<XString> chans;
 				XNIDAQmxInterface::parseList(buf, chans);
-				for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
+                for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); ++it) {
 					tr[ *trigSource()].add(it->c_str());
 				}
 			}
@@ -114,7 +114,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 			local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 				list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
 			for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-					it = list->begin(); it != list->end(); it++) {
+                    it = list->begin(); it != list->end(); ++it) {
 				for(unsigned int i = 0; i < ( *it)->bits(); i++) {
 					tr[ *trigSource()].add(
 						formatString("%s/line%d", ( *it)->label(), i));
@@ -136,7 +136,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 		std::deque<XString> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
 		for(Transaction tr( *this);; ++tr) {
-			for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
+            for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); ++it) {
 				tr[ *trace1()].add(it->c_str());
 				tr[ *trace2()].add(it->c_str());
 				tr[ *trace3()].add(it->c_str());
@@ -250,7 +250,7 @@ XNIDAQmxDSO::setupTrigger() {
 		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 		std::deque<XString> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
-		for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); it++) {
+        for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); ++it) {
 			if(src == *it)
 				atrig = *it;
 		}
@@ -322,7 +322,7 @@ XNIDAQmxDSO::setupSoftwareTrigger() {
 	local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
 	for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-			it = list->begin(); it != list->end(); it++) {
+            it = list->begin(); it != list->end(); ++it) {
 		for(unsigned int i = 0; i < ( *it)->bits(); i++) {
 			if(src == formatString("%s/line%d", ( *it)->label(), i)) {
 				m_softwareTrigger = *it;
