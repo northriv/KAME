@@ -69,16 +69,16 @@ XSR830::get(double *cos, double *sin) {
 	interface()->query("SNAP?1,2");
 	if(interface()->scanf("%lf,%lf", cos, sin) != 2)
 		throw XInterface::XConvError(__FILE__, __LINE__);
-	if(ovld || (autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
-	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)))
+    if(ovld || ((autoscale_x ? fabs( *cos) : 0) + (autoscale_y ? fabs( *sin) : 0) > sens * 0.9))
 		trans( *sensitivity()) = idx + 1;
-	if((autoscale_x && (sqrt( *cos * *cos) < sens * 0.2)) ||
-	   (autoscale_y && (sqrt( *sin * *sin) < sens * 0.2))) {
-		m_cCount--;
-		if(m_cCount == 0) {
-			trans( *sensitivity()) = idx - 1;
-			m_cCount = 10;
-		}
+    if(autoscale_x || autoscale_y) {
+        if((autoscale_x ? fabs( *cos) : 0) + (autoscale_y ? fabs( *sin) : 0) < sens * 0.15) {
+            m_cCount--;
+            if(m_cCount == 0) {
+                trans( *sensitivity()) = idx - 1;
+                m_cCount = 10;
+            }
+        }
 	}
 	else
 		m_cCount = 10;
@@ -176,18 +176,18 @@ XLI5640::get(double *cos, double *sin) {
 		case 2: sens *= 10; break;
 		}
 	}
-	if((autoscale_x && (sqrt( *cos * *cos) > sens * 0.8)) ||
-	   (autoscale_y && (sqrt( *sin * *sin) > sens * 0.8)) ||
+    if(((autoscale_x ? fabs( *cos) : 0) + (autoscale_y ? fabs( *sin) : 0) > sens * 0.9) ||
 	   overlevel)
 		trans( *sensitivity()) = sidx + 1;
-	if((autoscale_x && (sqrt( *cos * *cos) < sens * 0.2)) ||
-	   (autoscale_y && (sqrt( *sin * *sin) < sens * 0.2))) {
-		m_cCount--;
-		if(m_cCount == 0) {
-			trans( *sensitivity()) = sidx - 1;
-			m_cCount = 10;
-		}
-	}
+    if(autoscale_x || autoscale_y) {
+        if((autoscale_x ? fabs( *cos) : 0) + (autoscale_y ? fabs( *sin) : 0) < sens * 0.15) {
+            m_cCount--;
+            if(m_cCount == 0) {
+                trans( *sensitivity()) = sidx - 1;
+                m_cCount = 10;
+            }
+        }
+    }
 	else
 		m_cCount = 10;
 }
