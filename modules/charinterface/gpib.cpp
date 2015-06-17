@@ -190,23 +190,16 @@ XNIGPIBPort::gpib_open() throw (XInterface::XCommError &) {
         ceos = 0x1400 + eos()[eos().length() - 1];
 	}
 	m_ud = ibdev(port, 
-                 m_address, 0, T3s, 1, eos);
+                 m_address, 0, T3s, 1, ceos);
 	if(m_ud < 0) {
 		throw XInterface::XCommError(
 			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
 	}
 	ibclr(m_ud);
     ibeos(m_ud, ceos);
-    addrtbl[0] = shot[ *pInterface->address()];
+    addrtbl[0] = m_address;
 	addrtbl[1] = NOADDR;
 	EnableRemote(port, addrtbl);
-
-    m_gpibWaitBeforeWrite = pInterface->gpibWaitBeforeWrite();
-    m_gpibWaitBeforeRead = pInterface->gpibWaitBeforeRead();
-    m_gpibWaitBeforeSPoll = pInterface->gpibWaitBeforeSPoll();
-    m_bGPIBUseSerialPollOnWrite = pInterface->gpibUseSerialPollOnWrite();
-    m_bGPIBUseSerialPollOnRead = pInterface->gpibUseSerialPollOnRead();
-    m_gpibMAVbit = pInterface->gpibMAVbit();
 
 }
 void

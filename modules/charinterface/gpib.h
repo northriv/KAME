@@ -46,6 +46,7 @@ private:
 	int m_ud;
 	void gpib_close() throw (XInterface::XCommError &);
     void gpib_open() throw (XInterface::XCommError &);
+    void gpib_reset() throw (XInterface::XCommError &);
     void gpib_spoll_before_write() throw (XInterface::XCommError &);
 	void gpib_spoll_before_read() throw (XInterface::XCommError &);
 	XString gpibStatus(const XString &msg);
