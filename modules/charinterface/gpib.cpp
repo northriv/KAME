@@ -145,11 +145,31 @@ XNIGPIBPort::~XNIGPIBPort() {
     }
     catch(...) {
     }
-} 
+}
+
+void
+XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
+    gpib_close();
+    msecsleep(100);
+    gpib_open();
+}
+
 void
 XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
     Snapshot shot( *pInterface);
-    int port = QString(shot[ *pInterface->port()].to_str()).toInt();
+    m_address = shot[ *pInterface->address()];
+    gpib_open();
+    m_gpibWaitBeforeWrite = pInterface->gpibWaitBeforeWrite();
+    m_gpibWaitBeforeRead = pInterface->gpibWaitBeforeRead();
+    m_gpibWaitBeforeSPoll = pInterface->gpibWaitBeforeSPoll();
+    m_bGPIBUseSerialPollOnWrite = pInterface->gpibUseSerialPollOnWrite();
+    m_bGPIBUseSerialPollOnRead = pInterface->gpibUseSerialPollOnRead();
+    m_gpibMAVbit = pInterface->gpibMAVbit();
+}
+
+void
+XNIGPIBPort::gpib_open() throw (XInterface::XCommError &) {
+    int port = atoi(portString().c_str());
 	{
 		XScopedLock<XMutex> lock(s_lock);
 		if(s_cntOpened == 0) {
@@ -165,11 +185,10 @@ XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
 	}
   
 	Addr4882_t addrtbl[2];
-	int eos = 0;
-    if(pInterface->eos().length()) {
-        eos = 0x1400 + pInterface->eos()[pInterface->eos().length() - 1];
+    int ceos = 0;
+    if(eos().length()) {
+        ceos = 0x1400 + eos()[eos().length() - 1];
 	}
-    m_address = shot[ *pInterface->address()];
 	m_ud = ibdev(port, 
                  m_address, 0, T3s, 1, eos);
 	if(m_ud < 0) {
@@ -177,7 +196,7 @@ XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
 			gpibStatus(i18n("opening gpib device faild")), __FILE__, __LINE__);
 	}
 	ibclr(m_ud);
-	ibeos(m_ud, eos);
+    ibeos(m_ud, ceos);
     addrtbl[0] = shot[ *pInterface->address()];
 	addrtbl[1] = NOADDR;
 	EnableRemote(port, addrtbl);
@@ -232,6 +251,11 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 					gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
 			}
 			gErrPrint(gpibStatus(i18n("ibwrt err")));
+            gpib_reset();
+            if(i < 2) {
+                gErrPrint(i18n("try to continue"));
+                continue;
+            }
 			throw XInterface::XCommError(gpibStatus(""), __FILE__, __LINE__);
 		}
 		size -= ThreadIbcntl();
@@ -283,8 +307,8 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 				throw XInterface::XCommError(
 					gpibStatus(i18n("too many EDVR/EFSO")), __FILE__, __LINE__);
 			}
-			gErrPrint(gpibStatus(i18n("ibrd err")));
-//              gpib_reset();
+            gErrPrint(gpibStatus(i18n("ibrd err")));
+//            gpib_reset();
 			if(i < 2) {
 				gErrPrint(i18n("try to continue"));
 				continue;
@@ -327,7 +351,8 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 					continue;
 				}
 				gErrPrint(gpibStatus(i18n("ibrsp err")));
-				throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
+                gpib_reset();
+                throw XInterface::XCommError(gpibStatus(i18n("ibrsp failed")), __FILE__, __LINE__);
 			}
             if(((spr & m_gpibMAVbit) == 0)) {
 				//MAV isn't detected
