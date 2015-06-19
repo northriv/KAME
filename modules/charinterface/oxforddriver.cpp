@@ -73,8 +73,14 @@ XOxfordInterface::open() throw (XInterfaceError &) {
 
 void
 XOxfordInterface::close() throw (XInterfaceError &) {
-    if( !isOpened()) return;
-	send("C0"); //local
+    if(isOpened()) {
+        try {
+            send("C0"); //local
+        }
+        catch (XInterfaceError &e) {
+            e.print(getLabel());
+        }
+    }
 	XCharInterface::close();
 }
 void

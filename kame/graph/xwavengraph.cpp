@@ -252,18 +252,18 @@ XWaveNGraph::onDumpTouched(const Snapshot &shot, XTouchableNode *) {
 void
 XWaveNGraph::Payload::dump(std::fstream &stream) {
 	if(stream.good()) {
-		stream << "#dumping...  " << (XTime::now()).getTimeFmtStr(
-			"%Y/%m/%d %H:%M:%S") << std::endl;
 		stream << "#";
 		for(unsigned int i = 0; i < colCount(); i++) {
-			stream << m_labels[i] << " ";
+            stream << m_labels[i] << KAME_DATAFILE_DELIMITER;
 		}
-		stream << std::endl;
+//		stream << std::endl;
+        stream << "#at " << (XTime::now()).getTimeFmtStr(
+            "%Y/%m/%d %H:%M:%S") << std::endl;
 
 		for(unsigned int i = 0; i < rowCount(); i++) {
 			if((m_colw < 0) || (cols(m_colw)[i] > 0)) {
 				for(unsigned int j = 0; j < colCount(); j++) {
-					stream << cols(j)[i] << " ";
+                    stream << cols(j)[i] << KAME_DATAFILE_DELIMITER;
 				}
 				stream << std::endl;
 			}

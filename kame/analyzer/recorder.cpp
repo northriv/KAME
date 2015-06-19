@@ -212,7 +212,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 					m_loggedTime = logtime;
 					for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
 						auto entry = static_pointer_cast<XScalarEntry>( *it);
-						logline.append(shot_entries[ *entry->value()].to_str() + " ");
+                        logline.append(shot_entries[ *entry->value()].to_str() + KAME_DATAFILE_DELIMITER);
 					}
 					logline.append(m_loggedTime.getTimeFmtStr("%Y/%m/%d %H:%M:%S"));
 				}
@@ -283,11 +283,11 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 				auto entry = static_pointer_cast<XScalarEntry>( *it);
 				if( !shot_entries[ *entry->store()]) continue;
 				buf.append(entry->getLabel());
-				buf.append(" ");
+                buf.append(KAME_DATAFILE_DELIMITER);
 			}
 		}
-		buf.append("Time");
-		trans( *lastLine()) = buf;
+        buf.append("Date" KAME_DATAFILE_DELIMITER "Time" KAME_DATAFILE_DELIMITER "msec");
+        trans( *lastLine()) = buf;
 	}
 	else {
 		m_lsnOnFlush.reset();
@@ -322,11 +322,11 @@ XTextWriter::onLogFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 			for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
 				auto entry = static_pointer_cast<XScalarEntry>( *it);
 				buf.append(entry->getLabel());
-				buf.append(" ");
+                buf.append(KAME_DATAFILE_DELIMITER);
 			}
 		}
-		buf.append("Time");
-		m_logStream << buf
+        buf.append("Date" KAME_DATAFILE_DELIMITER "Time" KAME_DATAFILE_DELIMITER "msec");
+        m_logStream << buf
 				 << std::endl;
 	}
 	else {
