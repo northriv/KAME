@@ -33,8 +33,6 @@ class XRawStreamRecorder;
 class XRawStreamRecordReader;
 class XRuby;
 
-#define KAME_DATAFILE_DELIMITER "\t" //Tab for inflexible IGOR
-
 /*! The root object of KAME.
  */
 class DECLSPEC_KAME XMeasure : public XNode {
