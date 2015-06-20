@@ -19,7 +19,7 @@
 
 #define quotedefined(str) #str
 
-#define KAME_DATAFILE_DELIMITER "\t" //Tab for inflexible IGOR
+#define KAME_DATAFILE_DELIMITER "\t" //Tab
 
 #ifndef DECLSPEC_KAME
     #define DECLSPEC_KAME

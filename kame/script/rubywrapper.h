@@ -222,9 +222,13 @@ Ruby::Class<P,T>::rubyClassObject() const {return m_rbObj;}
 template <class P, class T>
 Ruby::Value
 Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
-    //!\todo use lambda
+#ifdef __cpp_lambdas
+    auto f = [](void *p){delete (Ptr*)p;};
+#else
     struct Deleter {
         static void deleter(void *p) { delete (Ptr*)p;}
     };
-    return wrap_obj(m_rbObj, new Ptr(m_parent, obj), &Deleter::deleter);
+    auto f = &Deleter::deleter;
+#endif
+    return wrap_obj(m_rbObj, new Ptr(m_parent, obj), f);
 }
