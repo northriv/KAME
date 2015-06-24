@@ -698,8 +698,8 @@ void
 XXYPlot::clearAllPoints(Transaction &tr) {
     const Snapshot &shot(tr);
     tr[ *this].points().clear();
-    tr[ *this].points().shrink_to_fit();
-    tr[ *this].points().reserve(shot[ *maxCount()]);
+//    tr[ *this].points().shrink_to_fit();
+//    tr[ *this].points().reserve(shot[ *maxCount()]);
     tr[ *this].m_startPos = 0;
     shared_ptr<XGraph> graph(m_graph.lock());
 	tr.mark(shot[ *graph].onUpdate(), graph.get());
@@ -708,12 +708,20 @@ XXYPlot::clearAllPoints(Transaction &tr) {
 void
 XXYPlot::snapshot(const Snapshot &shot) {
     const auto &points(shot[ *this].points());
-    unsigned int offset = shot[ *this].m_startPos;
-    unsigned int cnt = std::min((unsigned int)shot[ *maxCount()], (unsigned int)points.size() - offset);
+    int offset = shot[ *this].m_startPos;
+    int cnt = std::min((int)shot[ *maxCount()], (int)points.size());
 	m_ptsSnapped.resize(cnt);
-    for(unsigned int i = 0; i < cnt; ++i) {
-        m_ptsSnapped[i] = points[i + offset];
+    int i = 0;
+    int j = offset;
+    for(; i < cnt - offset;) {
+        m_ptsSnapped[i] = points[j];
+        ++i; ++j;
 	}
+    j = 0;
+    for(; i < cnt;) {
+        m_ptsSnapped[i] = points[j];
+        ++i; ++j;
+    }
 }
 void
 XXYPlot::addPoint(Transaction &tr,
@@ -724,21 +732,17 @@ XXYPlot::addPoint(Transaction &tr,
 
     const Snapshot &shot(tr);
     auto &points(tr[ *this].points());
-    int diff = (int)points.size() - (int)shot[ *maxCount()];
-    if(diff > 0) {
-        tr[ *this].m_startPos = std::min(diff, (int)points.size() - 1);
-        if(diff > points.size() / 2) {
-        //shrinks
-            unsigned int offset = shot[ *this].m_startPos;
-            unsigned int cnt = (unsigned int)points.size() - offset;
-            assert(cnt <= offset);
-            for(unsigned int i = 0; i < cnt; ++i)
-                points[i] = points[i + offset];
-            tr[ *this].m_startPos = 0;
-            points.resize(cnt);
-        }
+    if(points.size() >= shot[ *maxCount()]) {
+        points.resize(shot[ *maxCount()]);
+        unsigned int offset = shot[ *this].m_startPos + 1;
+        if(offset >= points.size())
+            offset = 0;
+        tr[ *this].m_startPos = offset;
+        if(points.size())
+            points[offset] = npt;
     }
-    points.push_back(npt);
+    else
+        points.push_back(npt);
 	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
