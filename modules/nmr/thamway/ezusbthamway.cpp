@@ -221,7 +221,7 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
     catch (XInterface::XInterfaceError &e) {
         m_handle = 0;
         m_mutex.reset();
-        throw e;
+        throw;
     }
     resetBulkWrite();
 }
@@ -404,7 +404,7 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
-        throw e;
+        throw;
     }
 }
 void
@@ -429,6 +429,6 @@ XWinCUSBInterface::receive() throw (XCommError &) {
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
-        throw e;
+        throw;
     }
 }

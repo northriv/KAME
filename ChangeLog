@@ -1,4 +1,9 @@
 * Fri Jun 19 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.8-1)
+- Space as delimiter for text files, again.
+- Default # of points in graph is reduced to 2000.
+
+* Fri Jun 19 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.7-1)
 - Tab as delimiter for text files.
 
