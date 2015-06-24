@@ -19,7 +19,7 @@
 
 #define quotedefined(str) #str
 
-#define KAME_DATAFILE_DELIMITER "\t" //Tab
+#define KAME_DATAFILE_DELIMITER " " //Space
 
 #ifndef DECLSPEC_KAME
     #define DECLSPEC_KAME
