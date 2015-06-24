@@ -224,8 +224,8 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *shot_this[ *this].m_storePlot->lineColor()] = clGreen;
 		tr[ *shot_this[ *this].m_storePlot->barColor()] = clGreen;
 		tr[ *shot_this[ *this].m_storePlot->displayMajorGrid()] = false;
-        tr[ *shot_this[ *this].m_livePlot->maxCount()] = 2000;
-        tr[ *shot_this[ *this].m_storePlot->maxCount()] = 2000;
+        tr[ *shot_this[ *this].m_livePlot->maxCount()] = 10000;
+        tr[ *shot_this[ *this].m_storePlot->maxCount()] = 10000;
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
 		tr[ *graph->label()] = getLabel();

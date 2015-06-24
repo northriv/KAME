@@ -400,12 +400,14 @@ public:
 	void addPoint(Transaction &tr,
 		XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
 
-	struct Payload : public XNode::Payload {
-        std::deque<XGraph::ValPoint> &points() {return m_points;}
-        const std::deque<XGraph::ValPoint> &points() const {return m_points;}
-	private:
-        std::deque<XGraph::ValPoint> m_points;
-	};
+    struct Payload : public XNode::Payload {
+        Payload() : XNode::Payload(), m_startPos(0) {}
+        std::vector<XGraph::ValPoint> &points() {return m_points;}
+        const std::vector<XGraph::ValPoint> &points() const {return m_points;}
+        unsigned int m_startPos;
+    private:
+        std::vector<XGraph::ValPoint> m_points;
+    };
 protected:
 	//! Takes a snap-shot all points for rendering
 	virtual void snapshot(const Snapshot &shot);

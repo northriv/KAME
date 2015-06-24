@@ -696,19 +696,23 @@ XPlot::validateAutoScale(const Snapshot &shot) {
 
 void
 XXYPlot::clearAllPoints(Transaction &tr) {
-	tr[ *this].points().clear();
-	shared_ptr<XGraph> graph(m_graph.lock());
-	const Snapshot &shot(tr);
+    const Snapshot &shot(tr);
+    tr[ *this].points().clear();
+    tr[ *this].points().shrink_to_fit();
+    tr[ *this].points().reserve(shot[ *maxCount()]);
+    tr[ *this].m_startPos = 0;
+    shared_ptr<XGraph> graph(m_graph.lock());
 	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
 void
 XXYPlot::snapshot(const Snapshot &shot) {
     const auto &points(shot[ *this].points());
-	unsigned int cnt = std::min((unsigned int)shot[ *maxCount()], (unsigned int)points.size());
+    unsigned int offset = shot[ *this].m_startPos;
+    unsigned int cnt = std::min((unsigned int)shot[ *maxCount()], (unsigned int)points.size() - offset);
 	m_ptsSnapped.resize(cnt);
-	for(unsigned int i = 0; i < cnt; ++i) {
-		m_ptsSnapped[i] = points[i];
+    for(unsigned int i = 0; i < cnt; ++i) {
+        m_ptsSnapped[i] = points[i + offset];
 	}
 }
 void
@@ -718,12 +722,23 @@ XXYPlot::addPoint(Transaction &tr,
 
 	shared_ptr<XGraph> graph(m_graph.lock());
 
+    const Snapshot &shot(tr);
     auto &points(tr[ *this].points());
-	const Snapshot &shot(tr);
-	while((points.size() >= shot[ *maxCount()]) && points.size()) {
-		points.pop_front();
-	}
-	points.push_back(npt);
+    int diff = (int)points.size() - (int)shot[ *maxCount()];
+    if(diff > 0) {
+        tr[ *this].m_startPos = std::min(diff, (int)points.size() - 1);
+        if(diff > points.size() / 2) {
+        //shrinks
+            unsigned int offset = shot[ *this].m_startPos;
+            unsigned int cnt = (unsigned int)points.size() - offset;
+            assert(cnt <= offset);
+            for(unsigned int i = 0; i < cnt; ++i)
+                points[i] = points[i + offset];
+            tr[ *this].m_startPos = 0;
+            points.resize(cnt);
+        }
+    }
+    points.push_back(npt);
 	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
