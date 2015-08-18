@@ -808,7 +808,14 @@ void XLakeShore340::open() throw (XKameError &) {
 			throw XInterface::XConvError(__FILE__, __LINE__);
 
 		interface()->query("CLIMI?");
-		double max_curr_loop1 = interface()->toDouble();
+        double max_curr_loop1 = 0.0;
+        try {
+            max_curr_loop1 = interface()->toDouble();
+        }
+        catch (XInterface::XConvError &) {
+        //older firmware
+            mac_curr_loop1 = 2.0;
+        }
 
 		double maxcurr = pow(2.0, maxcurr_idx) * 0.125;
 		for(Transaction tr( *this);; ++tr) {
