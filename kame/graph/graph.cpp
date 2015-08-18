@@ -734,10 +734,13 @@ XXYPlot::addPoint(Transaction &tr,
     auto &points(tr[ *this].points());
     if(points.size() >= shot[ *maxCount()]) {
         points.resize(shot[ *maxCount()]);
-        unsigned int offset = shot[ *this].m_startPos + 1;
+        unsigned int offset = shot[ *this].m_startPos;
         if(offset >= points.size())
             offset = 0;
-        tr[ *this].m_startPos = offset;
+        unsigned int startpos = offset + 1;
+        if(startpos >= points.size())
+            startpos = 0;
+        tr[ *this].m_startPos = startpos;
         if(points.size())
             points[offset] = npt;
     }
