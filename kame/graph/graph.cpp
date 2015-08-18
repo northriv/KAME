@@ -709,19 +709,13 @@ void
 XXYPlot::snapshot(const Snapshot &shot) {
     const auto &points(shot[ *this].points());
     int offset = shot[ *this].m_startPos;
-    int cnt = std::min((int)shot[ *maxCount()], (int)points.size());
+    int cnt = (int)points.size();
 	m_ptsSnapped.resize(cnt);
-    int i = 0;
     int j = offset;
-    for(; i < cnt - offset;) {
-        m_ptsSnapped[i] = points[j];
-        ++i; ++j;
+    for(int i = 0; i < cnt; ++i) {
+        m_ptsSnapped[i] = points[j % cnt];
+        ++j;
 	}
-    j = 0;
-    for(; i < cnt;) {
-        m_ptsSnapped[i] = points[j];
-        ++i; ++j;
-    }
 }
 void
 XXYPlot::addPoint(Transaction &tr,
@@ -732,11 +726,28 @@ XXYPlot::addPoint(Transaction &tr,
 
     const Snapshot &shot(tr);
     auto &points(tr[ *this].points());
-    if(points.size() >= shot[ *maxCount()]) {
-        points.resize(shot[ *maxCount()]);
-        unsigned int offset = shot[ *this].m_startPos;
-        if(offset >= points.size())
-            offset = 0;
+    unsigned int offset = shot[ *this].m_startPos;
+    unsigned int maxcount = shot[ *maxCount()];
+    if((offset && (points.size() < maxcount)) || (points.size() > maxcount)) {
+    //maxcount has changed. reorders.
+        auto buf = points;
+        int j = offset;
+        if(points.size() > maxcount) {
+        //maxcount has decreased.
+            j += points.size() - maxcount;
+            j = j % points.size();
+            points.resize(maxcount);
+        }
+        for(int i = 0; i < points.size(); ++i) {
+            points[i] = buf[j % buf.size()];
+            ++j;
+        }
+        offset = 0;
+        tr[ *this].m_startPos = 0;
+    }
+
+
+    if(points.size() == maxcount) {
         unsigned int startpos = offset + 1;
         if(startpos >= points.size())
             startpos = 0;
@@ -744,8 +755,9 @@ XXYPlot::addPoint(Transaction &tr,
         if(points.size())
             points[offset] = npt;
     }
-    else
+    else {
         points.push_back(npt);
+    }
 	tr.mark(shot[ *graph].onUpdate(), graph.get());
 }
 
