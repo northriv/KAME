@@ -815,6 +815,7 @@ void XLakeShore340::open() throw (XKameError &) {
         catch (XInterface::XConvError &) {
         //older firmware
             mac_curr_loop1 = 2.0;
+            powerMax(0).setUIEnabled(false);
         }
 
 		double maxcurr = pow(2.0, maxcurr_idx) * 0.125;
