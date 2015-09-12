@@ -2,11 +2,9 @@ PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
 HEADERS += \
-    modbusrtuinterface.h \
     usermotor.h
 
 SOURCES += \
-    modbusrtuinterface.cpp \
     usermotor.cpp
 
 win32:LIBS += -lcharinterface

@@ -6,11 +6,13 @@ INCLUDEPATH += \
 
 HEADERS += \
     tempcontrol.h\
-    usertempcontrol.h
+    usertempcontrol.h \
+    omronmodbus.h
 
 SOURCES += \
     tempcontrol.cpp\
-    usertempcontrol.cpp
+    usertempcontrol.cpp \
+    omronmodbus.cpp
 
 FORMS +=\
     tempcontrolform.ui

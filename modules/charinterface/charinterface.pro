@@ -8,7 +8,8 @@ HEADERS += \
     gpib.h \
     oxforddriver.h \
     serial.h \
-    tcp.h
+    tcp.h \
+    modbusrtuinterface.h
 
 SOURCES += \
     charinterface.cpp \
@@ -16,7 +17,8 @@ SOURCES += \
     gpib.cpp \
     oxforddriver.cpp \
     serial.cpp \
-    tcp.cpp
+    tcp.cpp \
+    modbusrtuinterface.cpp
 
 win32 {
     INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
