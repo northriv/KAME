@@ -22,9 +22,9 @@ REGISTER_TYPE(XDriverList, EMP401, "OrientalMotor EMP401 motor controller");
 XFlexCRK::XFlexCRK(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XModbusRTUDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
-	interface()->setSerialBaudRate(115200);
-	interface()->setSerialStopBits(1);
-	interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+    interface()->setSerialBaudRate(19200);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 }
 void
 XFlexCRK::storeToROM() {
