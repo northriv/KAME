@@ -33,6 +33,10 @@ XOmronE5_CModbus::XOmronE5_CModbus(const char *name, bool runtime,
 void XOmronE5_CModbus::open() throw (XKameError &) {
 	start();
 
+    trans( *currentChannel(0)) = channels()->at[0];
+
+    interface()->presetSingleResistor(0x0, 0x00u + 1u); //Writing on
+
     double digit = pow(10.0, -(double)static_cast<int32_t>(interface()->readHoldingTwoResistors(0x0420)));
     double target = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x106)) * digit;
     trans( *targetTemp(0)) = target;
