@@ -33,7 +33,9 @@ XOmronE5_CModbus::XOmronE5_CModbus(const char *name, bool runtime,
 void XOmronE5_CModbus::open() throw (XKameError &) {
 	start();
 
-    trans( *currentChannel(0)) = channels()->at[0];
+    Snapshot shot_ch( *channels());
+    const XNode::NodeList &list( *shot_ch.list());
+    trans( *currentChannel(0)) = list.at[0];
 
     interface()->presetSingleResistor(0x0, 0x00u + 1u); //Writing on
 
