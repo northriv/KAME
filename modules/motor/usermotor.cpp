@@ -22,7 +22,7 @@ REGISTER_TYPE(XDriverList, EMP401, "OrientalMotor EMP401 motor controller");
 XFlexCRK::XFlexCRK(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XModbusRTUDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
-    interface()->setSerialBaudRate(19200);
+    interface()->setSerialBaudRate(57600);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 }
@@ -125,7 +125,7 @@ XFlexCRK::sendStopSignal(bool wait) {
 		}
 		msecsleep(100);
 		if(i > 10) {
-			gErrPrint(getLabel() + i18n(", Motor is still running"));
+            throw XInterface::XInterfaceError(i18n("Motor is still not ready"), __FILE__, __LINE__);
 		}
 	}
 }

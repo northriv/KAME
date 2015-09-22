@@ -20,7 +20,7 @@ REGISTER_TYPE(XDriverList, OmronE5_CModbus, "OMRON E5*C controller via modbus");
 XOmronE5_CModbus::XOmronE5_CModbus(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XModbusRTUDriver<XTempControl> (name, runtime, ref(tr_meas), meas) {
-    interface()->setSerialBaudRate(19200);
+    interface()->setSerialBaudRate(57600);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 
