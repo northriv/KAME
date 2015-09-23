@@ -99,6 +99,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 			* 360.0 / tr[ *stepMotor()];
 	tr[ *round()].setUIEnabled(false);
 	tr[ *roundBy()].setUIEnabled(false);
+    tr[ *active()] = (interface()->readHoldingSingleResistors(0x1e) & 0x2000u) == 1; //CON
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
@@ -188,6 +189,7 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 	if(output & 0x80) {
 		uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
 		gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
+        setActive(false);
         interface()->presetTwoResistors(0x180, 1); //clears alarm.
         interface()->presetTwoResistors(0x180, 0);
 	}
@@ -266,6 +268,8 @@ XFlexAR::getConditions(Transaction &tr) {
 			* 360.0 / tr[ *stepMotor()];
 	tr[ *round()] = (interface()->readHoldingTwoResistors(0x38e) == 1);
 	tr[ *roundBy()] = interface()->readHoldingTwoResistors(0x390);
+    tr[ *active()] = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
+
 	interface()->presetTwoResistors(0x200, 3); //Inactive after stop.
 	interface()->presetTwoResistors(0x500, 1); //Absolute.
 	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
@@ -309,8 +313,8 @@ XFlexAR::sendStopSignal(bool wait) {
 		}
 		msecsleep(150);
 		if(i > 10) {
-			gWarnPrint(getLabel() + i18n(", Motor is still running"));
-		}
+            throw XInterface::XInterfaceError(i18n("Motor is still not ready"), __FILE__, __LINE__);
+        }
 	}
 }
 void
