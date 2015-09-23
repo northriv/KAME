@@ -189,10 +189,13 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 	if(output & 0x80) {
 		uint32_t alarm = interface()->readHoldingTwoResistors(0x80);
 		gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
-        setActive(false);
         interface()->presetTwoResistors(0x180, 1); //clears alarm.
         interface()->presetTwoResistors(0x180, 0);
-	}
+        interface()->presetTwoResistors(0x182, 1); //clears abs. pos. alarm.
+        interface()->presetTwoResistors(0x182, 0);
+        interface()->presetTwoResistors(0x184, 1); //clears alarm history.
+        interface()->presetTwoResistors(0x184, 0);
+    }
 	if(output & 0x40) {
 		uint32_t warn = interface()->readHoldingTwoResistors(0x96);
 		gWarnPrint(getLabel() + i18n(" Code = %1").arg((int)warn));
