@@ -22,6 +22,12 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
         for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
             if(auto pt = it->lock()) {
                 if(pt->portString() == (XString)shot[ *port()]) {
+//                    if(pt->m_ != serialBaudRate())
+//                        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+//                    if(pt->serialStopBits() != serialStopBits())
+//                        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+//                    if(pt->serialParity() != serialParity())
+//                        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
                     m_openedPort = pt;
                     //The COMM port has been already opened by m_openedPort.
 					return;

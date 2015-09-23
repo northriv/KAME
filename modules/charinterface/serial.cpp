@@ -149,6 +149,8 @@ XSerialPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
 
     m_serialFlushBeforeWrite = pInterface->serialFlushBeforeWrite();
     m_serialHasEchoBack = pInterface->serialHasEchoBack();
+
+    fprintf(stderr, "Serial port opened w/ baudrate=%d\n", (int)pInterface->serialBaudRate());
 }
 void
 XSerialPort::send(const char *str) throw (XInterface::XCommError &) {
