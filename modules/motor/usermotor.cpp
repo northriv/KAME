@@ -99,7 +99,7 @@ XFlexCRK::getConditions(Transaction &tr) {
 			* 360.0 / tr[ *stepMotor()];
 	tr[ *round()].setUIEnabled(false);
 	tr[ *roundBy()].setUIEnabled(false);
-    tr[ *active()] = (interface()->readHoldingSingleResistors(0x1e) & 0x2000u) == 1; //CON
+    tr[ *active()] = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) == 1; //CON
 	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
 	interface()->presetSingleResistor(0x200, 0); //START by RS485.
 	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
