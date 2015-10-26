@@ -1,3 +1,7 @@
+* Tue Oct 27 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.11-1)
+- xwavengraph: avoids IO during dumping transaction.
+
 * Sun Sep 13 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.10-1)
 - Baudrate for Modbus RTU (Flex AR/CRK) is defaulted to 57600bps.

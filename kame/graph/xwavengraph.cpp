@@ -101,7 +101,7 @@ XWaveNGraph::Payload::clearPlots() {
 	m_axisy2.reset();
 	m_axisz.reset();
 	m_axisw.reset();
-	m_colw = -1;
+    m_colw = -1;
 }
 void
 XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
@@ -199,6 +199,19 @@ XWaveNGraph::Payload::setRowCount(unsigned int n) {
 		tr()[ *it->xyplot->maxCount()] = n;
 	}
 }
+double *
+XWaveNGraph::Payload::cols(unsigned int n) {
+    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
+}
+const double *
+XWaveNGraph::Payload::cols(unsigned int n) const {
+    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
+}
+const double *
+XWaveNGraph::Payload::weight() const {
+    if(m_colw < 0) return 0L;
+    return cols(m_colw);
+}
 
 void
 XWaveNGraph::onIconChanged(const Snapshot &shot, bool v) {
@@ -241,39 +254,42 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 
 void
-XWaveNGraph::onDumpTouched(const Snapshot &shot, XTouchableNode *) {
-	XScopedLock<XMutex> filelock(m_filemutex);
-	for(Transaction tr( *this);; ++tr) {
-		tr[ *this].dump(m_stream);
-		if(tr.commit())
-			break;
-	}
-}
-void
-XWaveNGraph::Payload::dump(std::fstream &stream) {
-	if(stream.good()) {
-		stream << "#";
-		for(unsigned int i = 0; i < colCount(); i++) {
-            stream << m_labels[i] << KAME_DATAFILE_DELIMITER;
-		}
+XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
+    Snapshot shot( *this);
+    {
+        XScopedLock<XMutex> filelock(m_filemutex);
+        if( !m_stream.good()) return;
+
+        int rowcnt = shot[ *this].rowCount();
+        int colcnt = shot[ *this].colCount();
+
+        m_stream << "#";
+        for(unsigned int i = 0; i < colcnt; i++) {
+            m_stream << shot[ *this]->labels()[i] << KAME_DATAFILE_DELIMITER;
+        }
 //		stream << std::endl;
-        stream << "#at " << (XTime::now()).getTimeFmtStr(
+        m_stream << "#at " << (XTime::now()).getTimeFmtStr(
             "%Y/%m/%d %H:%M:%S") << std::endl;
 
-		for(unsigned int i = 0; i < rowCount(); i++) {
-			if((m_colw < 0) || (cols(m_colw)[i] > 0)) {
-				for(unsigned int j = 0; j < colCount(); j++) {
-                    stream << cols(j)[i] << KAME_DATAFILE_DELIMITER;
-				}
-				stream << std::endl;
-			}
-		}
-		stream << std::endl;
+        auto &p(shot[ *this]);
+        for(unsigned int i = 0; i < rowcnt; i++) {
+            if( !p.weight() || (p.weight()[i] > 0)) {
+                for(unsigned int j = 0; j < colcnt; j++) {
+                    m_stream << p.cols(j)[i] << KAME_DATAFILE_DELIMITER;
+                }
+                m_stream << std::endl;
+            }
+        }
+        m_stream << std::endl;
 
-		stream.flush();
+        m_stream.flush();
+    }
 
-		tr().mark(m_tlkOnIconChanged, true);
-	}
+    for(Transaction tr( *this);; ++tr) {
+        tr().mark(m_tlkOnIconChanged, true);
+        if(tr.commit())
+            break;
+    }
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
@@ -312,12 +328,4 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
 		}
 	}
 	tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
-}
-double *
-XWaveNGraph::Payload::cols(unsigned int n) {
-    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
-}
-const double *
-XWaveNGraph::Payload::cols(unsigned int n) const {
-    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
 }

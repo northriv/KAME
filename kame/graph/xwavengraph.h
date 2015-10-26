@@ -54,8 +54,9 @@ public:
 			int coly2 = -1, int colweight = -1, int colz = -1);
 
 		void setLabel(unsigned int col, const char *label);
+        const std::vector<XString> &lables() const {return m_labels;}
 		void setRowCount(unsigned int rowcnt);
-		void setColCount(unsigned int colcnt, const char **lables);
+        void setColCount(unsigned int colcnt, const char **labels);
         unsigned int rowCount() const {
             return m_colcnt ? m_cols.size() / m_colcnt : 0;}
         unsigned int colCount() const {return m_colcnt;}
@@ -63,7 +64,8 @@ public:
 
 		const double *cols(unsigned int n) const;
 		double *cols(unsigned int n);
-		//! \param plotnum start with zero.
+        const double *weight() const;
+        //! \param plotnum start with zero.
 		int colX(unsigned int plotnum) const { return m_plots[plotnum].colx;}
 		//! \param plotnum start with zero.
 		int colY1(unsigned int plotnum) const { return m_plots[plotnum].coly1;}
@@ -80,8 +82,6 @@ public:
 		const shared_ptr<XAxis> &axisy2() const { return m_axisy2;}
 		const shared_ptr<XAxis> &axisz() const { return m_axisz;}
 		const shared_ptr<XAxis> &axisw() const { return m_axisw;}
-
-		void dump(std::fstream &);
 
 		const Talker<bool, bool> &onIconChanged() const { return m_tlkOnIconChanged;}
 		Talker<bool, bool> &onIconChanged() { return m_tlkOnIconChanged;}
