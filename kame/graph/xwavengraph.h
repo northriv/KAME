@@ -54,7 +54,7 @@ public:
 			int coly2 = -1, int colweight = -1, int colz = -1);
 
 		void setLabel(unsigned int col, const char *label);
-        const std::vector<XString> &lables() const {return m_labels;}
+        const std::vector<XString> &labels() const {return m_labels;}
 		void setRowCount(unsigned int rowcnt);
         void setColCount(unsigned int colcnt, const char **labels);
         unsigned int rowCount() const {

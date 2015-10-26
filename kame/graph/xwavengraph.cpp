@@ -265,7 +265,7 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
 
         m_stream << "#";
         for(unsigned int i = 0; i < colcnt; i++) {
-            m_stream << shot[ *this]->labels()[i] << KAME_DATAFILE_DELIMITER;
+            m_stream << shot[ *this].labels()[i] << KAME_DATAFILE_DELIMITER;
         }
 //		stream << std::endl;
         m_stream << "#at " << (XTime::now()).getTimeFmtStr(
@@ -286,7 +286,7 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
     }
 
     for(Transaction tr( *this);; ++tr) {
-        tr().mark(m_tlkOnIconChanged, true);
+        tr.mark(tr[ *this].onIconChanged(), true);
         if(tr.commit())
             break;
     }
