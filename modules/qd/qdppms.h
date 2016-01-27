@@ -19,6 +19,7 @@
 
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+#include "ui_qdppmsform.h"
 
 class XScalarEntry;
 class QMainWindow;
@@ -63,9 +64,8 @@ protected:
 protected:
 private:
     const shared_ptr<XScalarEntry> m_field, m_position, m_temp;
-    const shared_ptr<XScalarEntryList> m_entries;
 
-    const shared_ptr<XDoubleNode> m_temp;
+    const shared_ptr<XDoubleNode> m_heliumLevel;
 
     xqcon_ptr m_conField, m_conTemp, m_conPosition, m_conHeliumLevel;
 

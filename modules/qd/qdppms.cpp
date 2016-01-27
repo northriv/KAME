@@ -12,20 +12,20 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "qdppms.h"
+#include "analyzer.h"
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, QDPPMS6000, "Quantum Design PPMS low-level interface");
 
 XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
+    XCharDeviceDriver<XPrimaryDriverWithThread>(name, runtime, ref(tr_meas), meas),
     m_temp(create<XScalarEntry>("Temp", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_field(create<XScalarEntry>("Field", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_position(create<XScalarEntry>("Position", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
-    m_entries(meas->scalarEntries()),
     m_heliumLevel(create<XDoubleNode>("HeliumLevel", true)),
     m_form(new FrmQDPPMS(g_pFrmMain)) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
@@ -68,8 +68,6 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         double sample_temp;
         double sample_position;
         double helium_level;
-
-        Snapshot shot_entries( *m_entries);
 
         try {
             // Reading....
