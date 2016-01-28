@@ -98,6 +98,7 @@ XFourRes::visualize(const Snapshot &shot) {
 		for(Transaction tr( *dcsource__);; ++tr) {
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
+            msecsleep(100);
 			if(tr.commit())
 				break;
 		}

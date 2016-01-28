@@ -38,6 +38,9 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     m_conField = xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField);
     m_conPosition = xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition);
     m_conHeliumLevel = xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel);
+
+    interface()->setEOS("");
+    interface()->setSerialEOS("\r\n");
 }
 void
 XQDPPMS6000::showForms() {
@@ -98,6 +101,8 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         for(Transaction tr( *this);; ++tr) {
             Snapshot &shot(tr);
             tr[ *heliumLevel()] = helium_level;
+            if(tr.commit())
+                break;
         }
     }
 
