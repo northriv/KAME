@@ -1,6 +1,7 @@
-* Tue Oct 27 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Sun Feb 7 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.11-1)
 - xwavengraph: avoids IO during dumping transaction.
+- QD PPMS monitor
 
 * Sun Sep 13 2015 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.10-1)
