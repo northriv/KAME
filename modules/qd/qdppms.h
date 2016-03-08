@@ -38,6 +38,7 @@ public:
 
     struct Payload : public XPrimaryDriver::Payload {
         double temp() const {return m_sampleTemp;}
+        double temp_rotator() const {return m_sampleTempRotator;}
         double magnetField() const {return m_magnetField;}
         double position() const {return m_samplePosition;}
     private:
@@ -45,6 +46,7 @@ public:
         double m_magnetField;
         double m_samplePosition;
         double m_sampleTemp;
+        double m_sampleTempRotator;
     };
 protected:
     //! This function will be called when raw data are written.
@@ -59,15 +61,16 @@ protected:
     const shared_ptr<XScalarEntry> &field() const {return m_field;}
     const shared_ptr<XScalarEntry> &position() const {return m_position;}
     const shared_ptr<XScalarEntry> &temp() const {return m_temp;}
+    const shared_ptr<XScalarEntry> &temp_rotator() const {return m_temp_rotator;}
     const shared_ptr<XDoubleNode> &heliumLevel() const {return m_heliumLevel;}
 
 protected:
 private:
-    const shared_ptr<XScalarEntry> m_field, m_position, m_temp;
+    const shared_ptr<XScalarEntry> m_field, m_position, m_temp, m_temp_rotator;
 
     const shared_ptr<XDoubleNode> m_heliumLevel;
 
-    xqcon_ptr m_conField, m_conTemp, m_conPosition, m_conHeliumLevel;
+    xqcon_ptr m_conField, m_conTemp, m_conTempRotator, m_conPosition, m_conHeliumLevel;
 
     const qshared_ptr<FrmQDPPMS> m_form;
 

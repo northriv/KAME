@@ -22,6 +22,8 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     XCharDeviceDriver<XPrimaryDriverWithThread>(name, runtime, ref(tr_meas), meas),
     m_temp(create<XScalarEntry>("Temp", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
+    m_temp_rotator(create<XScalarEntry>("TempRotator", false,
+                                 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_field(create<XScalarEntry>("Field", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_position(create<XScalarEntry>("Position", false,
@@ -29,12 +31,14 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     m_heliumLevel(create<XDoubleNode>("HeliumLevel", true)),
     m_form(new FrmQDPPMS(g_pFrmMain)) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
+    meas->scalarEntries()->insert(tr_meas, m_temp_rotator);
     meas->scalarEntries()->insert(tr_meas, m_field);
     meas->scalarEntries()->insert(tr_meas, m_position);
 
     m_form->setWindowTitle(XString("QDPPMS - " + getLabel() ));
 
     m_conTemp = xqcon_create<XQLCDNumberConnector>(temp()->value(), m_form->m_lcdTemp);
+    m_conTempRotator = xqcon_create<XQLCDNumberConnector>(temp_rotator()->value(), m_form->m_lcdTempRotator);
     m_conField = xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField);
     m_conPosition = xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition);
     m_conHeliumLevel = xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel);
@@ -50,9 +54,11 @@ XQDPPMS6000::showForms() {
 void
 XQDPPMS6000::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
     tr[ *this].m_sampleTemp = reader.pop<float>();
+    tr[ *this].m_sampleTempRotator = reader.pop<float>();
     tr[ *this].m_magnetField = reader.pop<float>();
     tr[ *this].m_samplePosition = reader.pop<float>();
     m_temp->value(tr, tr[ *this].m_sampleTemp);
+    m_temp_rotator->value(tr, tr[ *this].m_sampleTempRotator);
     m_field->value(tr, tr[ *this].m_magnetField);
     m_position->value(tr, tr[*this].m_samplePosition);
 }
@@ -69,6 +75,7 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         msecsleep(100);
         double magnet_field;
         double sample_temp;
+        double sample_temp_rotator;
         double sample_position;
         double helium_level;
 
@@ -76,6 +83,9 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
             // Reading....
             interface()->query("GetDat? 2");
             if( interface()->scanf("2,%*lf,%lf", &sample_temp) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            interface()->query("GetDat? 8388608");
+            if( interface()->scanf("8388608,%*lf,%lf", &sample_temp_rotator) != 1)
                 throw XInterface::XConvError(__FILE__, __LINE__);
             interface()->query("GetDat? 4");
             if( interface()->scanf("4,%*lf,%lf", &magnet_field) != 1)
@@ -93,6 +103,7 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         }
         shared_ptr<RawData> writer(new RawData);
         writer->push((float)sample_temp);
+        writer->push((float)sample_temp_rotator);
         writer->push((float)magnet_field);
         writer->push((float)sample_position);
 
