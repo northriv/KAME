@@ -16,6 +16,7 @@
 
 #include "primarydriver.h"
 #include "xnodeconnector.h"
+#include "analyzer.h"
 
 class QMainWindow;
 class Ui_FrmDCSource;
