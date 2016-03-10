@@ -75,7 +75,8 @@ protected:
 	}
 
 private:
-	xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel, m_conRange;
+    const shared_ptr<XScalarEntry> m_entryValue;
+    xqcon_ptr m_conFunction, m_conOutput, m_conValue, m_conChannel, m_conRange;
 	const shared_ptr<XComboNode> m_function;
 	const shared_ptr<XBoolNode> m_output;
 	const shared_ptr<XDoubleNode> m_value;

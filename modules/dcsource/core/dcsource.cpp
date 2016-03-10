@@ -21,6 +21,8 @@
 XDCSource::XDCSource(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriver(name, runtime, ref(tr_meas), meas),
+    m_entryValue(create<XScalarEntry>("EntryValue", false,
+                                 dynamic_pointer_cast<XDriver>(shared_from_this()), "%.8f")),
     m_function(create<XComboNode>("Function", false)),
     m_output(create<XBoolNode>("Output", true)),
     m_value(create<XDoubleNode>("Value", false)),
@@ -29,6 +31,8 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_form(new FrmDCSource(g_pFrmMain)) {
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
+
+    meas->scalarEntries()->insert(tr_meas, m_entryValue);
 
 	m_output->setUIEnabled(false);
 	m_function->setUIEnabled(false);
@@ -92,6 +96,7 @@ XDCSource::stop() {
 
 void
 XDCSource::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&)  {
+    m_entryValue->value(tr, tr[ *value()]);
 }
 void
 XDCSource::visualize(const Snapshot &shot) {

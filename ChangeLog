@@ -1,3 +1,8 @@
+* Thu Mar 10 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.12-1)
+- QD PPMS monitor: adds user temp
+- dcsource: scalar entry.
+
 * Sun Feb 7 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.11-1)
 - xwavengraph: avoids IO during dumping transaction.
