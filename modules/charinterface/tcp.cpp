@@ -125,10 +125,9 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
         if(ret <= 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
-            if((errno == WSAEINTR)) {
-#else
-            if((errno == EINTR) || (errno == EAGAIN)) {
+//            if((errno == WSAEINTR)) {
 #endif
+            if((errno == EINTR) || (errno == EAGAIN)) {
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
@@ -158,14 +157,13 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
 		if(rlen < 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();
-            if((errno == WSAEINTR)) {
-#else
-            if((errno == EINTR) || (errno == EAGAIN)) {
+//            if((errno == WSAEINTR)) {
 #endif
+            if((errno == EINTR) || (errno == EAGAIN)) {
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
-            gErrPrint(i18n("read error, trying to reopen the socket"));
+            gErrPrint(formatPrint(i18n("read error %u, trying to reopen the socket"), errno);
             reopen_socket();
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }
