@@ -108,7 +108,10 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
 	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
 
 	if(connect(m_socket, (struct sockaddr *) &dstaddr, sizeof(dstaddr)) == -1) {
-        throw XInterface::XCommError(i18n("tcp open failed"), __FILE__, __LINE__);
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+            errno = WSAGetLastError();
+#endif
+        throw XInterface::XCommError(formatString_tr(I18N_NOOP("tcp open failed %u"), errno).c_str(), __FILE__, __LINE__);
 	}
 }
 void
@@ -141,6 +144,8 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 }
 void
 XTCPSocketPort::receive() throw (XInterface::XCommError &) {
+    msecsleep(10);
+
 	buffer().resize(MIN_BUFFER_SIZE);
    
     const char *ceos = eos().c_str();
@@ -163,7 +168,7 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
-            gErrPrint(formatPrint(i18n("read error %u, trying to reopen the socket"), errno);
+            gErrPrint(formatString_tr(I18N_NOOP("read error %u, trying to reopen the socket"), errno).c_str());
             reopen_socket();
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }

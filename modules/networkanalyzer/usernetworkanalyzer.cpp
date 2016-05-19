@@ -207,11 +207,11 @@ XVNWA3ENetworkAnalyzer::open() throw (XKameError &) {
 }
 void
 XVNWA3ENetworkAnalyzer::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FSTART %f", (double)shot[ *startFreq()] * 1e6);
+    interface()->sendf("FSTART %f", (double)shot[ *startFreq()] * 1e6);
 }
 void
 XVNWA3ENetworkAnalyzer::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("FSTOP %f", (double)shot[ *stopFreq()] * 1e6);
+    interface()->sendf("FSTOP %f", (double)shot[ *stopFreq()] * 1e6);
 }
 void
 XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
@@ -225,7 +225,7 @@ XVNWA3ENetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
 }
 void
 XVNWA3ENetworkAnalyzer::oneSweep() {
-	unsigned int num;
+    unsigned int num;
 	interface()->query("ACQNUM?");
 	if(interface()->scanf("ACQNUM %u", &num) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
