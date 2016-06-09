@@ -8,7 +8,7 @@ XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const s
     setEOS("");
     setSerialEOS("");
 	setSerialBaudRate(9600);
-	setSerialStopBits(1);
+    setSerialStopBits(1);
 }
 
 XModbusRTUInterface::~XModbusRTUInterface() {
@@ -80,18 +80,31 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 	uint16_t crc = crc16( &buf[0], buf.size() - 2);
 	set_word( &buf[buf.size() - 2], crc);
 
-	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
+    msecsleep(std::max(3.0, 3.5 * msec_per_char) + 0.5); //puts silent interval.
     port->write( reinterpret_cast<char*>(&buf[0]), buf.size());
-	msecsleep(buf.size() * msec_per_char); //For O_NONBLOCK.
-	msecsleep(std::max(1.75, 3.5 * msec_per_char)); //puts silent interval.
+    msecsleep(buf.size() * msec_per_char + std::max(3.0, 3.5 * msec_per_char) + 0.5); //For O_NONBLOCK.
 
 	buf.resize(ret_buf.size() + 4);
     port->receive(2); //addr + func_code.
     std::copy(port->buffer().begin(), port->buffer().end(), buf.begin());
 
-	if((buf[0] != slave_addr) || ((buf[1] & 0x7fu) != func_code))
-		throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
-	if(buf[1] != func_code) {
+    if(buf[0] != slave_addr) {
+        if(buf[1] == slave_addr) {
+            buf[0] = buf[1];
+            port->receive(1); //func_code.
+            buf[1] = port->buffer()[0];
+        }
+        else if((buf[1] & 0x7fu) == func_code) {
+            buf[0] = slave_addr;
+        }
+        else
+            throw XInterfaceError(formatString("Modbus RTU Address Error, got %u instead of %u, and func. = %u.", buf[0], slave_addr, buf[1]), __FILE__, __LINE__);
+        //met spurious start bit.
+        gWarnPrint(formatString("Modbus RTU, ignores spurious start bit before a response for slave %u.", slave_addr));
+    }
+    if((buf[1] & 0x7fu) != func_code)
+        throw XInterfaceError("Modbus RTU Format Error.", __FILE__, __LINE__);
+    if(buf[1] != func_code) {
         port->receive(3);
         switch(port->buffer()[0]) {
 		case 0x01:
