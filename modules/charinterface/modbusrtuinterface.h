@@ -73,6 +73,7 @@ private:
     shared_ptr<XPort> m_openedPort;
 	static XMutex s_lock;
     static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
+    static XTime s_lastTimeStamp;
 };
 
 template <class T>

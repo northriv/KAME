@@ -2,6 +2,7 @@
 
 std::deque<weak_ptr<XPort> > XModbusRTUInterface::s_openedPorts;
 XMutex XModbusRTUInterface::s_lock;
+XTime XModbusRTUInterface::s_lastTimeStamp;
 
 XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
  XCharInterface(name, runtime, driver) {
@@ -19,6 +20,7 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
     {
 		Snapshot shot( *this);
 		XScopedLock<XMutex> glock(s_lock);
+        s_lastTimeStamp = XTime::now();
         for(auto it = s_openedPorts.begin(); it != s_openedPorts.end();) {
             if(auto pt = it->lock()) {
                 if(pt->portString() == (XString)shot[ *port()]) {
@@ -80,9 +82,14 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 	uint16_t crc = crc16( &buf[0], buf.size() - 2);
 	set_word( &buf[buf.size() - 2], crc);
 
-    msecsleep(std::max(3.0, 3.5 * msec_per_char) + 0.5); //puts silent interval.
+    double silent = 1e-3 * std::max(3.0, 3.5 * msec_per_char);
+    if(XTime::now() - s_lastTimeStamp < silent)
+        msecsleep(silent * 1e3 + 0.5); //puts silent interval.
+    s_lastTimeStamp = XTime::now();
+    s_lastTimeStamp += 0.1; //for possible throwing.
+
     port->write( reinterpret_cast<char*>(&buf[0]), buf.size());
-    msecsleep(buf.size() * msec_per_char + std::max(3.0, 3.5 * msec_per_char) + 0.5); //For O_NONBLOCK.
+//    msecsleep(buf.size() * msec_per_char + std::max(3.0, 3.5 * msec_per_char) + 0.5); //For O_NONBLOCK.
 
 	buf.resize(ret_buf.size() + 4);
     port->receive(2); //addr + func_code.
@@ -126,6 +133,8 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
 	if(crc != get_word( &buf[buf.size() - 2]))
 		throw XInterfaceError("Modbus RTU CRC Error.", __FILE__, __LINE__);
 	std::copy(buffer().begin(), buffer().end() - 2, ret_buf.begin());
+
+    s_lastTimeStamp = XTime::now();
 }
 void
 XModbusRTUInterface::readHoldingResistors(uint16_t res_addr, int count, std::vector<uint16_t> &data) {
