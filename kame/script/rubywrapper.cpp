@@ -18,7 +18,8 @@ Ruby::Ruby(const char *scriptname) {
     ruby_init_loadpath();
 }
 Ruby::~Ruby() {
-    ruby_finalize();
+//    ruby_finalize();
+    ruby_stop(0);
 }
 int
 Ruby::evalProtect(const char* str) {
@@ -136,3 +137,9 @@ template <>
 Ruby::Value Ruby::convertToRuby(bool v) {
     return v ? Qtrue : Qfalse;
 }
+
+void
+Ruby::printErrorInfo() {
+    rb_p(rb_errinfo());
+}
+

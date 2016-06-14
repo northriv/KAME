@@ -373,7 +373,8 @@ XRuby::execute(const atomic<bool> &) {
 
         int state = m_ruby->evalProtect(data);
         if(state) {
-            fprintf(stderr, "Ruby, exception(s) occurred\n");
+            fprintf(stderr, "Ruby, exception(s) occurred.\n");
+            m_ruby->printErrorInfo();
         }
     }
 

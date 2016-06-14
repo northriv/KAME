@@ -21,6 +21,8 @@ public:
     //! \return state.
     int evalProtect(const char* str);
 
+    void printErrorInfo();
+
     typedef unsigned long Value; //has to be identical to VALUE
 
 	void defineGlobalConst(const char *rbname, Value obj);
