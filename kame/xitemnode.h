@@ -116,61 +116,61 @@ private:
 protected:
 	weak_ptr<TL> m_list;
 };
-//! A pointer to a XListNode TL, T1 is value type
-template <class TL, class T1>
-class XItemNode_ : public XPointerItemNode<TL> {
-public:
-	XItemNode_(const char *name, bool runtime, Transaction &tr_list,
-		const shared_ptr<TL> &list, bool auto_set_any = false)
-		:  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
-	}
-	virtual ~XItemNode_() {}
 
-	struct Payload : public XPointerItemNode<TL>::Payload {
-		Payload() : XPointerItemNode<TL>::Payload() {}
+template <class TL, class... VT>
+class XItemNode;
+
+template <class TL>
+class XItemNode<TL> : public XPointerItemNode<TL> {
+protected:
+    XItemNode(const char *name, bool runtime, Transaction &tr_list,
+        const shared_ptr<TL> &list, bool auto_set_any = false)
+        :  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
+    }
+    virtual ~XItemNode() {}
+    virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &) const {
+        return std::make_shared<std::deque<XItemNodeBase::Item> >();
+    }
+};
+
+//! A pointer to a XListNode TL, T1 (and VT) are value types
+//! template <class TL, class... VT>
+template <class TL, class T1, class... VT>
+class XItemNode<TL, T1, VT...> : public XItemNode<TL, VT...> {
+public:
+    XItemNode(const char *name, bool runtime, Transaction &tr_list,
+		const shared_ptr<TL> &list, bool auto_set_any = false)
+        :  XItemNode<TL, VT...>(name, runtime, tr_list, list, auto_set_any) {
+	}
+    virtual ~XItemNode() {}
+
+    struct Payload : public XItemNode<TL, VT...>::Payload {
+        Payload() : XItemNode<TL, VT...>::Payload() {}
 		operator shared_ptr<T1>() const {
 	        return dynamic_pointer_cast<T1>(shared_ptr<XNode>( *this));
 		}
 		Payload &operator=(const shared_ptr<XNode> &t) {
-			XPointerItemNode<TL>::Payload::operator=(t);
+            XItemNode<TL, VT...>::Payload::operator=(t);
 			return *this;
 		}
 	};
-};
-//! A pointer to a XListNode TL, T is value type
-template <class TL, class T1, class T2 = T1>
-class XItemNode : public XItemNode_<TL, T1> {
-public:
-	XItemNode(const char *name, bool runtime, Transaction &tr_list,
-		const shared_ptr<TL> &list, bool auto_set_any = false)
-		:  XItemNode_<TL, T1>(name, runtime, tr_list, list, auto_set_any) {
-	}
-	virtual ~XItemNode() {}
 
-	struct Payload : public XItemNode_<TL, T1>::Payload {
-		Payload() : XItemNode_<TL, T1>::Payload() {}
-		operator shared_ptr<T2>() const { return dynamic_pointer_cast<T2>((shared_ptr<XNode>) *this);}
-		Payload &operator=(const shared_ptr<XNode> &t) {
-			XItemNode_<TL, T1>::Payload::operator=(t);
-			return *this;
-		}
-	};
-	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
-        auto items = std::make_shared<std::deque<XItemNodeBase::Item> >();
-		if(auto list = this->m_list.lock()) {
-			if(shot.size(list)) {
-				for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
-					if(dynamic_pointer_cast<T1>( *it) || dynamic_pointer_cast<T2>( *it)) {
-						XItemNodeBase::Item item;
-						item.name = ( *it)->getName();
-						item.label = ( *it)->getLabel();
-						items->push_back(item);
-					}
-				}
-			}
-		}
-		return items;
-	}
+    virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
+        auto items = std::const_pointer_cast<std::deque<XItemNodeBase::Item> >(this->XItemNode<TL, VT...>::itemStrings(shot));
+        if(auto list = this->m_list.lock()) {
+            if(shot.size(list)) {
+                for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
+                    if(dynamic_pointer_cast<T1>( *it)) {
+                        XItemNodeBase::Item item;
+                        item.name = ( *it)->getName();
+                        item.label = ( *it)->getLabel();
+                        items->push_back(item);
+                    }
+                }
+            }
+        }
+        return items;
+    }
 };
 
 //! Contains strings, value is one of strings
