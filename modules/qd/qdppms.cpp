@@ -78,15 +78,22 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         double sample_temp_rotator;
         double sample_position;
         double helium_level;
+        int is_user_temp;
 
         try {
             // Reading....
             interface()->query("GetDat? 2");
             if( interface()->scanf("2,%*lf,%lf", &sample_temp) != 1)
                 throw XInterface::XConvError(__FILE__, __LINE__);
-            interface()->query("GetDat? 8388608");
-            if( interface()->scanf("8388608,%*lf,%lf", &sample_temp_rotator) != 1)
+            interface()->query("USERTEMP?");
+            if( interface()->scanf("%d,%*lf,%*lf,%*lf,%*lf",&is_user_temp) != 1)
                 throw XInterface::XConvError(__FILE__, __LINE__);
+            else if(is_user_temp){
+                int user_temp_channel = lrint(pow(2,is_user_temp));
+                interface()->queryf("GetDat? %d", user_temp_channel);
+                if( interface()->scanf("%*d,%*lf,%lf", &sample_temp_rotator) != 1)
+                    throw XInterface::XConvError(__FILE__, __LINE__);
+            }
             interface()->query("GetDat? 4");
             if( interface()->scanf("4,%*lf,%lf", &magnet_field) != 1)
                 throw XInterface::XConvError(__FILE__, __LINE__);
@@ -103,7 +110,12 @@ XQDPPMS6000::execute(const atomic<bool> &terminated) {
         }
         shared_ptr<RawData> writer(new RawData);
         writer->push((float)sample_temp);
-        writer->push((float)sample_temp_rotator);
+        if(is_user_temp){
+            writer->push((float)sample_temp_rotator);
+        }
+        else{
+            writer->push(0.0f);
+        }
         writer->push((float)magnet_field);
         writer->push((float)sample_position);
 
