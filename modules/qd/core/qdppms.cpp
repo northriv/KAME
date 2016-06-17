@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "qdppms.h"
 #include "analyzer.h"
+#include "ui_qdppmsform.h"
 
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

@@ -18,6 +18,7 @@
 
 class XMagnetPS;
 class XDMM;
+class XQDPPMS;
 
 class Ui_FrmNMRSpectrum;
 typedef QForm<QMainWindow, Ui_FrmNMRSpectrum> FrmNMRSpectrum;
@@ -41,7 +42,7 @@ protected:
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
 		XDriver *emitter) const;
 public:
-	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > &magnet() const {return m_magnet;}
+    const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> > &magnet() const {return m_magnet;}
 
 	const shared_ptr<XDoubleNode> &centerFreq() const {return m_centerFreq;}
 	const shared_ptr<XDoubleNode> &resolution() const {return m_resolution;}
@@ -50,7 +51,7 @@ public:
 	const shared_ptr<XDoubleNode> &fieldFactor() const {return m_fieldFactor;}
 	const shared_ptr<XDoubleNode> &residualField() const {return m_residualField;}
 private:
-	const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM> > m_magnet;
+    const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> > m_magnet;
  
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_resolution;

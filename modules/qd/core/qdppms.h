@@ -17,7 +17,6 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
-#include "ui_qdppmsform.h"
 
 class XScalarEntry;
 class QMainWindow;
