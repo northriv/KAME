@@ -650,8 +650,8 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 		for(auto it = m_messages->begin(); it != m_messages->end(); ++it) {
 			( *it)->talk( *this);
 		}
-	}
-	m_messages.reset();
+        m_messages.reset();
+    }
 }
 
 } //namespace Transactional

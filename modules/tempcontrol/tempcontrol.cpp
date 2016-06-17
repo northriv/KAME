@@ -239,10 +239,8 @@ void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase
 		shared_ptr<XDCSource> dcsrc = shot[ *m_extDevice];
 		if(dcsrc) {
 			//registers channel names.
-			shared_ptr<const std::deque<XItemNodeBase::Item> > strings(
-				dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
-			for(std::deque<XItemNodeBase::Item>::const_iterator it =
-				strings->begin(); it != strings->end(); it++) {
+            auto strings(dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
+            for(auto it = strings.begin(); it != strings.end(); it++) {
 				tr[ *m_extDCSourceChannel].add(it->label);
 			}
 		}

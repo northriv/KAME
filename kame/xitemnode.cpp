@@ -29,9 +29,9 @@ XItemNodeBase::onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent
 	if( !autoSetAny()) return;
 	XString var = shot[ *this].to_str();
 	if(var.length()) return;
-	shared_ptr<const std::deque<Item> > items = itemStrings(e.shot_of_list);
-	if(items->size()) {
-		trans( *this).str(items->front().label);
+    auto items = itemStrings(e.shot_of_list);
+    if(items.size()) {
+        trans( *this).str(items.front().label);
 	}
 }
 
@@ -99,14 +99,13 @@ XComboNode::Payload::clear() {
 	}
 }
 
-shared_ptr<const std::deque<XItemNodeBase::Item> >
-XComboNode::Payload::itemStrings() const {
-    auto items = std::make_shared<std::deque<XItemNodeBase::Item> >();
+std::vector<XItemNodeBase::Item> XComboNode::Payload::itemStrings() const {
+    std::vector<XItemNodeBase::Item> items;
 	for(auto it = m_strings->begin(); it != m_strings->end(); it++) {
 		XItemNodeBase::Item item;
 		item.name = *it;
 		item.label = *it;
-		items->push_back(item);
+        items.push_back(std::move(item));
 	}
 	assert(m_strings->size() || (m_var.second < 0));
     if(m_var.second < 0) {
@@ -114,7 +113,7 @@ XComboNode::Payload::itemStrings() const {
         item.name = m_var.first;
         if(item.name.length()) {
 	        item.label = formatString("(%s)", item.name.c_str());
-	    	items->push_back(item);
+            items.push_back(std::move(item));
         }
     }
     return items;

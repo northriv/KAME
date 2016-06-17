@@ -596,10 +596,10 @@ void
 XQComboBoxConnector::onSelect(int idx) {
     try {
 		for(Transaction tr( *m_node);; ++tr) {
-	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+            if( (idx >= m_itemStrings.size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
-	            tr[ *m_node].str(m_itemStrings->at(idx).label);
+                tr[ *m_node].str(m_itemStrings.at(idx).label);
 			tr.unmark(m_lsnValueChanged);
 			if(tr.commit())
 				break;
@@ -626,7 +626,7 @@ XQComboBoxConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) 
 	QString str = shot[ *node].to_str();
 	int idx = -1;
 	int i = 0;
-	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
+    for(auto it = m_itemStrings.begin(); it != m_itemStrings.end(); it++) {
         if(QString(it->label) == str) {
             idx = i;
         }
@@ -659,7 +659,7 @@ XQComboBoxConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Pa
 	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
 	bool exist = false;
-	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
+    for(auto it = m_itemStrings.begin(); it != m_itemStrings.end(); it++) {
         if(it->label.empty()) {
             m_pItem->addItem(i18n("(NO NAME)"));
         }
@@ -695,10 +695,10 @@ XQListWidgetConnector::OnItemSelectionChanged() {
     int idx = m_pItem->currentRow();
     try {
 		for(Transaction tr( *m_node);; ++tr) {
-	        if( !m_itemStrings || (idx >= m_itemStrings->size()) || (idx < 0))
+            if((idx >= m_itemStrings.size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
-	            tr[ *m_node].str(m_itemStrings->at(idx).label);
+                tr[ *m_node].str(m_itemStrings.at(idx).label);
 			tr.unmark(m_lsnValueChanged);
 			if(tr.commit())
 				break;
@@ -713,7 +713,7 @@ XQListWidgetConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node
     QString str = shot[ *node].to_str();
 	m_pItem->blockSignals(true);
 	unsigned int i = 0;
-	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
+    for(auto it = m_itemStrings.begin(); it != m_itemStrings.end(); it++) {
         if(str == QString(it->label))
             m_pItem->setCurrentRow(i);
         i++;
@@ -724,7 +724,7 @@ void
 XQListWidgetConnector::onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) {
 	m_itemStrings = m_node->itemStrings(e.shot_of_list);
 	m_pItem->clear();
-	for(auto it = m_itemStrings->begin(); it != m_itemStrings->end(); it++) {
+    for(auto it = m_itemStrings.begin(); it != m_itemStrings.end(); it++) {
         new QListWidgetItem(it->label, m_pItem);
 	}
     onValueChanged(shot, e.emitter);

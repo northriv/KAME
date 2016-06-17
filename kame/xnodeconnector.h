@@ -347,7 +347,7 @@ protected slots:
 protected:
 	shared_ptr<XListener>  m_lsnListChanged;
 	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) = 0;
-	shared_ptr<const std::deque<XItemNodeBase::Item> > m_itemStrings;
+    std::vector<XItemNodeBase::Item> m_itemStrings;
 };
 
 class QComboBox;

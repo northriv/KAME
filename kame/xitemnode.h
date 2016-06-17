@@ -24,7 +24,7 @@ public:
 	virtual ~XItemNodeBase() {}
   
 	struct Item { XString name, label; };
-	virtual shared_ptr<const std::deque<Item> > itemStrings(const Snapshot &shot_of_list) const = 0;
+    virtual std::vector<Item> itemStrings(const Snapshot &shot_of_list) const = 0;
 
 	bool autoSetAny() const {return !!m_lsnTryAutoSet;}
 
@@ -128,8 +128,8 @@ protected:
         :  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
     }
     virtual ~XItemNode() {}
-    virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &) const {
-        return std::make_shared<std::deque<XItemNodeBase::Item> >();
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &) const {
+        return std::vector<XItemNodeBase::Item>();
     }
 };
 
@@ -155,8 +155,8 @@ public:
 		}
 	};
 
-    virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
-        auto items = std::const_pointer_cast<std::deque<XItemNodeBase::Item> >(this->XItemNode<TL, VT...>::itemStrings(shot));
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const {
+        auto items = this->XItemNode<TL, VT...>::itemStrings(shot);
         if(auto list = this->m_list.lock()) {
             if(shot.size(list)) {
                 for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
@@ -164,12 +164,12 @@ public:
                         XItemNodeBase::Item item;
                         item.name = ( *it)->getName();
                         item.label = ( *it)->getLabel();
-                        items->push_back(item);
+                        items.push_back(item);
                     }
                 }
             }
         }
-        return items;
+        return std::move(items);
     }
 };
 
@@ -179,8 +179,8 @@ public:
 	explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
 	virtual ~XComboNode() {}
   
-	virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings(const Snapshot &shot) const {
-		return shot[ *this].itemStrings();
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const {
+        return shot[ *this].itemStrings();
 	}
 
     struct DECLSPEC_KAME Payload : public XItemNodeBase::Payload {
@@ -192,7 +192,7 @@ public:
 		virtual XString to_str() const { return m_var.first;}
 		Payload &operator=(int t);
 		Payload &operator=(const XString &);
-		virtual shared_ptr<const std::deque<XItemNodeBase::Item> > itemStrings() const;
+        virtual std::vector<XItemNodeBase::Item> itemStrings() const;
 	protected:
 		virtual void str_(const XString &);
 	private:
