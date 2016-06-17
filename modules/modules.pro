@@ -30,6 +30,7 @@ SUBDIRS += testdriver\
     sg\
     tempcontrol\
     thamway\
+    qdcore\
     qd
 
 unix: SUBDIRS +=    montecarlo\
@@ -56,10 +57,11 @@ networkanalyzer.depends += networkanalyzercore charinterface
 nmrpulsercore.file = nmr/pulsercore/nmrpulsercore.pro
 nmrpulser.file = nmr/nmrpulser.pro
 nmrpulser.depends += nmrpulsercore charinterface
-nmr.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore motorcore networkanalyzercore
+nmr.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore motorcore networkanalyzercore qdcore
 fourres.depends += dmmcore dcsourcecore
 nidaq.depends += nmrpulsercore dsocore
 tempcontrol.depends += dcsourcecore flowcontrollercore
 thamway.file = nmr/thamway/thamway.pro
 thamway.depends += nmrpulsercore sgcore networkanalyzercore
-qd.depends += charinterface
+qdcore.file = qd/core/qdcore.pro
+qd.depends += qdcore charinterface

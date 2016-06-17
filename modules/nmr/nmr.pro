@@ -90,3 +90,9 @@ win32:LIBS += -lmagnetpscore
 
 INCLUDEPATH += $$PWD/../magnetps/core
 DEPENDPATH += $$PWD/../magnetps/core
+
+win32:LIBS += -lqdcore
+
+INCLUDEPATH += $$PWD/../qd/core
+DEPENDPATH += $$PWD/../qd/core
+
