@@ -158,7 +158,15 @@ public:
 	}
     inline local_shared_ptr(const local_shared_ptr<T, reflocal_var_t> &t);
     template<typename Y, typename Z> inline local_shared_ptr(const local_shared_ptr<Y, Z> &y);
-	inline ~local_shared_ptr();
+    local_shared_ptr(local_shared_ptr<T, reflocal_var_t> &&t) noexcept {
+        this->m_ref = t.m_ref;
+        t.m_ref = 0;
+    }
+//    template<typename Y, typename Z> local_shared_ptr(const local_shared_ptr<Y, Z> &&y) noexcept {
+//        this->m_ref = y.m_ref;
+//        y.m_ref = 0;
+//    }
+    inline ~local_shared_ptr();
 
 	local_shared_ptr &operator=(const local_shared_ptr &t) {
 		local_shared_ptr(t).swap( *this);
@@ -253,6 +261,12 @@ public:
     template<typename Y> atomic_shared_ptr(const atomic_shared_ptr<Y> &y) : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
     atomic_shared_ptr(const local_shared_ptr<T> &t) : local_shared_ptr<T, atomic<uintptr_t>>(t) {}
     template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
+//    atomic_shared_ptr(atomic_shared_ptr<T> &&t) noexcept {
+//        this->m_ref = t.m_ref.exchange(0);
+//    }
+//    template<typename Y> atomic_shared_ptr(atomic_shared_ptr<Y> &&y) noexcept {
+//        this->m_ref = y.m_ref.exchange(0);
+//    }
 
     ~atomic_shared_ptr() {}
 
