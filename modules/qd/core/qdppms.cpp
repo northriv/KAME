@@ -16,7 +16,7 @@
 
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XCharDeviceDriver<XPrimaryDriverWithThread>(name, runtime, ref(tr_meas), meas),
+    XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_temp(create<XScalarEntry>("Temp", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_temp_rotator(create<XScalarEntry>("TempRotator", false,
@@ -39,9 +39,6 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_conField = xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField);
     m_conPosition = xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition);
     m_conHeliumLevel = xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel);
-
-    interface()->setEOS("");
-    interface()->setSerialEOS("\r\n");
 
 }
 void

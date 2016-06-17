@@ -40,7 +40,7 @@ public:
         double magnetField() const {return m_magnetField;}
         double position() const {return m_samplePosition;}
     private:
-        friend class XQDPPMS6000;
+        friend class XQDPPMS;
         double m_magnetField;
         double m_samplePosition;
         double m_sampleTemp;

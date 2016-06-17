@@ -15,9 +15,8 @@
 #define userqdppmsH
 
 #include "chardevicedriver.h"
+#include "qdppms.h"
 //---------------------------------------------------------------------------
-
-class XQDPPMS;
 
 //! GPIB/serial interface for Quantum Design PPMS Model6000 or later
 class DECLSPEC_SHARED XQDPPMS6000 : public XCharDeviceDriver<XQDPPMS> {
@@ -30,6 +29,7 @@ public:
 protected:
 protected:
     virtual double getField();
+    virtual double getPosition();
     virtual double getTemp();
     virtual double getTempRotator();
     virtual double getHeliumLevel();

@@ -12,7 +12,8 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "userqdppms.h"
-#include "qdppms.h"
+#include "charinterface.h"
+
 
 REGISTER_TYPE(XDriverList, QDPPMS6000, "Quantum Design PPMS low-level interface");
 
@@ -27,7 +28,7 @@ double
 XQDPPMS6000::getField(){
     double magnet_field;
     interface()->query("GetDat? 4");
-    if( interface()->scanf("4,%*lf,%lf", &magnet_field) != 1)
+    if( interface()->scanf("4,%*f,%lf", &magnet_field) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     return magnet_field;
 }
@@ -36,7 +37,7 @@ double
 XQDPPMS6000::getPosition(){
     double sample_position;
     interface()->query("GetDat? 8");
-    if( interface()->scanf("8,%*lf,%lf", &sample_position) != 1)
+    if( interface()->scanf("8,%*f,%lf", &sample_position) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     return sample_position;
 }
@@ -45,7 +46,7 @@ double
 XQDPPMS6000::getTemp(){
     double sample_temp;
     interface()->query("GetDat? 2");
-    if( interface()->scanf("2,%*lf,%lf", &sample_temp) != 1)
+    if( interface()->scanf("2,%*f,%lf", &sample_temp) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     return sample_temp;
 }
@@ -53,14 +54,14 @@ XQDPPMS6000::getTemp(){
 double
 XQDPPMS6000::getTempRotator(){
     double sample_temp_rotator;
-    bool is_user_temp;
+    int is_user_temp;
     interface()->query("USERTEMP?");
-    if( interface()->scanf("%d,%*lf,%*lf,%*lf,%*lf",&is_user_temp) != 1)
+    if( interface()->scanf("%d,%*f,%*f,%*f,%*f",&is_user_temp) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     if(is_user_temp){
         int user_temp_channel = lrint(pow(2,is_user_temp));
         interface()->queryf("GetDat? %d", user_temp_channel);
-        if( interface()->scanf("%*d,%*lf,%lf", &sample_temp_rotator) != 1)
+        if( interface()->scanf("%*d,%*f,%lf", &sample_temp_rotator) != 1)
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
     else{
@@ -73,7 +74,7 @@ double
 XQDPPMS6000::getHeliumLevel(){
     double helium_level;
     interface()->query("LEVEL?");
-    if( interface()->scanf("%lf,%*lf", &helium_level) != 1)
+    if( interface()->scanf("%lf,%*f", &helium_level) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     return helium_level;
 }
