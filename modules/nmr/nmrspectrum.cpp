@@ -16,6 +16,7 @@
 #include "nmrspectrum.h"
 #include "dmm.h"
 #include "magnetps.h"
+#include "qdppms.h"
 
 #include "nmrspectrumbase_impl.h"
 
@@ -25,7 +26,7 @@ REGISTER_TYPE(XDriverList, NMRSpectrum, "NMR field-swept spectrum measurement");
 XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	  XNMRSpectrumBase<FrmNMRSpectrum>(name, runtime, ref(tr_meas), meas),
-	  m_magnet(create<XItemNode<XDriverList, XMagnetPS, XDMM> >(
+      m_magnet(create<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> >(
 		  "MagnetPS", false, ref(tr_meas), meas->drivers(), true)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
 	  m_resolution(create<XDoubleNode>("Resolution", false)),
@@ -79,9 +80,11 @@ XNMRSpectrum::checkDependencyImpl(const Snapshot &shot_this,
 	XDriver *emitter) const {
     shared_ptr<XMagnetPS> magnet__ = shot_this[ *magnet()];
     shared_ptr<XDMM> dmm__ = shot_this[ *magnet()];
-    if( !(magnet__ || dmm__)) return false;
+    shared_ptr<XQDPPMS> ppms__ = shot_this[ *magnet()];
+    if( !(magnet__ || dmm__ || ppms__)) return false;
     if(emitter == magnet__.get()) return false;
     if(emitter == dmm__.get()) return false;
+    if(emitter == ppms__.get()) return false;
     return true;
 }
 double
@@ -106,16 +109,20 @@ double
 XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
 	shared_ptr<XMagnetPS> magnet__ = shot_this[ *magnet()];
     shared_ptr<XDMM> dmm__ = shot_this[ *magnet()];
-	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+    shared_ptr<XQDPPMS> ppms__ = shot_this[ *magnet()];
+    shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
 
-	assert( magnet__ || dmm__ );
+    assert( magnet__ || dmm__ || ppms__);
 	double field;
 	if(magnet__) {
 		field = shot_others[ *magnet__].magnetField();
 	}
-	else {
+    else if(dmm__ ) {
 		field = shot_others[ *dmm__].value();
 	}
+    else {
+        field = shot_others[ *ppms__].magnetField();
+    }
 
 	field *= shot_this[ *fieldFactor()];
 	field += shot_this[ *residualField()];
