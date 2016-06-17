@@ -12,7 +12,7 @@ win32:LIBS += -lcharinterface
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
-win32:LIBS += -lqdppmscore
+win32:LIBS += -lqdcore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core
