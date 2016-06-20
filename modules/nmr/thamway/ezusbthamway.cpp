@@ -184,9 +184,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
                 idn = formatString("%d:%s", it->addr, idn.c_str());
                 tr[ *device()].add(idn);
             }
-            if(tr.commit())
-                break;
-        }
+        });
     }
     catch (XInterface::XInterfaceError &e) {
         e.print();
