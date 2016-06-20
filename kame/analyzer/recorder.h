@@ -41,7 +41,7 @@ private:
 class XRawStreamRecorder : public XRawStream {
 public:
 	XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
-	virtual ~XRawStreamRecorder() {}
+    virtual ~XRawStreamRecorder() = default;
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
@@ -67,7 +67,7 @@ class XTextWriter : public XNode {
 public:
 	XTextWriter(const char *name, bool runtime,
 				const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist);
-	virtual ~XTextWriter() {}
+    virtual ~XTextWriter() = default;
 
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}

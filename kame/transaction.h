@@ -53,22 +53,20 @@ namespace Transactional {
 //! }
 //! \endcode\n
 //! Example 2 for simple transactional writing: adding one atomically\n
-//! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
+//! \code node1.iterate_commit([](Transaction<NodeA> &tr1(node1)) {
 //! 	tr1[node1].m_x = tr1[node1].m_x + 1;
-//! 	if(tr1.commit()) break;
 //! }
 //! \endcode\n
 //! Example 3 for adding a child node.\n
-//! \code for(Transaction<NodeA> tr1(node1);; ++tr1) {
-//! 	if( !tr1.insert(node2)) continue;
-//! 	if(tr1.commit()) break;
+//! \code node1.iterate_commit_if([](Transaction<NodeA> &tr1(node1)) {
+//! 	return tr1.insert(node2));
 //! }
 //! \endcode \n
 //! More real examples are shown in the test codes: transaction_test.cpp,
 //! transaction_dynamic_node_test.cpp, transaction_negotiation_test.cpp.\n
-//! \htmlonly Test package: <a href="../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
 //! \sa Node, Snapshot, Transaction.
 //! \sa atomic_shared_ptr.
+//// \htmlonly Test package: <a href="../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
 
 template <class XN>
 class Snapshot;
@@ -123,10 +121,15 @@ public:
 	XN *upperNode(Snapshot<XN> &shot);
 
     //! Iterates a transaction covering the node and children.
+    //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...}
     template <typename Closure>
     Transaction<XN> iterate_commit(Closure);
+    //! Iterates a transaction covering the node and children. Skips the iteration when the closure returns false.
+    //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
     Transaction<XN> iterate_commit_if(Closure);
+    //! Iterates a transaction covering the node and children, as long as the closure returns true.
+    //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
     Transaction<XN> iterate_commit_while(Closure);
 

@@ -30,7 +30,7 @@ class XDriverList;
 class DECLSPEC_KAME XDriver : public XNode {
 public:
 	XDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XDriver() {}
+    virtual ~XDriver() = default;
 
 	//! Shows all forms belonging to the driver.
 	virtual void showForms() = 0;
@@ -64,18 +64,18 @@ public:
     //! And, prints error message.
     struct DECLSPEC_KAME XRecordError : public XKameError {
         XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
-        virtual ~XRecordError() throw() {}
+        virtual ~XRecordError() = default;
     };
     //! Throwing this exception will skip signal emission, assuming record is kept valid.
     struct DECLSPEC_KAME XSkippedRecordError : public XRecordError {
         XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
         XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
-        virtual ~XSkippedRecordError() throw() {}
+        virtual ~XSkippedRecordError() = default;
     };
     //! The size of the raw record is not enough to continue analyzing.
     struct DECLSPEC_KAME XBufferUnderflowRecordError : public XRecordError {
         XBufferUnderflowRecordError(const char *file, int line);
-        virtual ~XBufferUnderflowRecordError() throw() {}
+        virtual ~XBufferUnderflowRecordError() = default;
     };
 protected:
  

@@ -137,7 +137,7 @@ class DECLSPEC_KAME XValueNodeBase : public XNode {
 protected:
     XValueNodeBase(const char *name, bool runtime) : XNode(name, runtime), m_validator(0) {}
 public:
-	typedef void (*Validator)(XString &);
+    using Validator = void (*)(XString &);
 	void setValidator(Validator x) {m_validator = x;}
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
@@ -229,12 +229,12 @@ public:
 	};
 };
 
-typedef XIntNodeBase<int> XIntNode;
-typedef XIntNodeBase<unsigned int> XUIntNode;
-typedef XIntNodeBase<long> XLongNode;
-typedef XIntNodeBase<unsigned long> XULongNode;
-typedef XIntNodeBase<bool> XBoolNode;
-typedef XIntNodeBase<unsigned long, 16> XHexNode;
+using XIntNode = XIntNodeBase<int>;
+using XUIntNode = XIntNodeBase<unsigned int>;
+using XLongNode = XIntNodeBase<long>;
+using XULongNode = XIntNodeBase<unsigned long>;
+using XBoolNode = XIntNodeBase<bool>;
+using XHexNode = XIntNodeBase<unsigned long, 16>;
 
 template <class T, typename... Args>
 shared_ptr<T>

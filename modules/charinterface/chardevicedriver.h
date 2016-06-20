@@ -23,7 +23,7 @@ class XCharDeviceDriver : public tDriver {
 public:
 	XCharDeviceDriver(const char *name, bool runtime, 
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XCharDeviceDriver() {}
+    virtual ~XCharDeviceDriver() = default;
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.

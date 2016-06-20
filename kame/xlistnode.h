@@ -20,7 +20,7 @@
 class DECLSPEC_KAME XListNodeBase : public XNode {
 public:
 	explicit XListNodeBase(const char *name, bool runtime = false);
-	virtual ~XListNodeBase() {}
+    virtual ~XListNodeBase() = default;
 
 	//! Create a object, whose class is determined from \a type.
 	//! Scripting only. Use XNode::create for coding instead.
@@ -30,7 +30,6 @@ public:
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-		Payload() : XNode::Payload() {}
 		Talker<XListNodeBase*, XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
 		struct MoveEvent {
 			unsigned int src_idx, dst_idx;
@@ -71,7 +70,7 @@ class XListNode : public  XListNodeBase {
 public:
 	explicit XListNode(const char *name, bool runtime = false)
 		:  XListNodeBase(name, runtime) {}
-	virtual ~XListNode() {}
+    virtual ~XListNode() = default;
 
 	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
 
@@ -87,7 +86,7 @@ class XAliasListNode : public  XListNodeBase {
 public:
 	explicit XAliasListNode(const char *name, bool runtime = false)
 		:  XListNodeBase(name, runtime) {}
-	virtual ~XAliasListNode() {}
+    virtual ~XAliasListNode() = default;
 
 	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
 
@@ -102,7 +101,7 @@ class XCustomTypeListNode : public  XListNodeBase {
 public:
 	explicit XCustomTypeListNode(const char *name, bool runtime = false)
 		:  XListNodeBase(name, runtime) {}
-	virtual ~XCustomTypeListNode() {}
+    virtual ~XCustomTypeListNode() = default;
 
 	virtual bool isThreadSafeDuringCreationByTypename() const {return false;} //! default behavior for safety.
 
@@ -118,7 +117,7 @@ public:
 //! call creator(type)(type, name, ...) to create children.
 template <class... ArgTypes>
 struct XTypeHolder {
-    typedef std::function<shared_ptr<XNode>(const char*, bool, ArgTypes&&...)> creator_t;
+    using creator_t = std::function<shared_ptr<XNode>(const char*, bool, ArgTypes&&...)>;
 
     XTypeHolder() {
             fprintf(stderr, "New typeholder\n");
@@ -128,22 +127,14 @@ struct XTypeHolder {
 		for(unsigned int i = 0; i < names.size(); i++) {
             if(names[i] == tp) return creators[i];
 		}
-#ifdef __cpp_lambdas
         return [](const char*, bool, ArgTypes&&...){return shared_ptr<XNode>();}; //empty
-#else
-        return empty_creator_;
-#endif
 	}
     template <class tChild>
     struct Creator {
         Creator(XTypeHolder &holder, const char *name, const char *label = 0L) {
-#ifdef __cpp_lambdas
             creator_t create_typed =
                     [](const char *name, bool runtime, ArgTypes&&... args)->shared_ptr<XNode>
-                    {return XNode::createOrphan<tChild>(name, runtime, static_cast<ArgTypes&&>(args)...);};
-#else
-            creator_t create_typed = creator_<tChild>;
-#endif
+                    {return XNode::createOrphan<tChild>(name, runtime, std::forward<ArgTypes>(args)...);};
             assert(create_typed);
             if( !label)
                 label = name;
@@ -157,19 +148,12 @@ struct XTypeHolder {
             fprintf(stderr, "%s %s\n", name, label);
         }
     private:
-#ifndef __cpp_lambdas
         template <class T>
         static shared_ptr<XNode> creator_(const char *name, bool runtime, ArgTypes&&... args) {
-            return XNode::createOrphan<T>(name, runtime, static_cast<ArgTypes&&>(args)...);
+            return XNode::createOrphan<T>(name, runtime, std::forward<ArgTypes>(args)...);
         }
-#endif
     };
     template <class tChild> friend struct Creator;
-#ifndef __cpp_lambdas
-    static shared_ptr<XNode> empty_creator_(const char *, bool, ArgTypes&&...) {
-        return shared_ptr<XNode>();
-    }
-#endif
     std::deque<creator_t> creators;
 	std::deque<XString> names, labels;
 };
@@ -193,7 +177,7 @@ class DECLSPEC_KAME XStringList : public  XListNode<XStringNode> {
 public:
 	explicit XStringList(const char *name, bool runtime = false)
 		:  XListNode<XStringNode>(name, runtime) {}
-	virtual ~XStringList() {}
+    virtual ~XStringList() = default;
 };
 
 #endif /*XLISTNODE_H_*/

@@ -19,7 +19,7 @@
 class XRawStreamRecordReader : public XRawStream {
 public:
 	XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
-	virtual ~XRawStreamRecordReader() {}
+    virtual ~XRawStreamRecordReader() = default;
   
 	void terminate();
   

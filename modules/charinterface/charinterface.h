@@ -21,7 +21,7 @@
 class DECLSPEC_SHARED XCustomCharInterface : public XInterface {
 public:
     XCustomCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-    virtual ~XCustomCharInterface() {}
+    virtual ~XCustomCharInterface() = default;
 
     //! Buffer is Thread-Local-Strage.
     //! Therefore, be careful when you access multi-interfaces in one thread.
@@ -81,7 +81,7 @@ class XPort;
 class DECLSPEC_SHARED XCharInterface : public XCustomCharInterface {
 public:
 	XCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-	virtual ~XCharInterface() {}
+    virtual ~XCharInterface() = default;
 
 	void setGPIBUseSerialPollOnWrite(bool x) {m_bGPIBUseSerialPollOnWrite = x;}
 	void setGPIBUseSerialPollOnRead(bool x) {m_bGPIBUseSerialPollOnRead = x;}
@@ -157,7 +157,7 @@ private:
 class XPort {
 public:
     XPort(XCharInterface *interface) {m_portString = ***interface->port();}
-    virtual ~XPort() {}
+    virtual ~XPort() = default;
     virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &) = 0;
 	virtual void send(const char *str) throw (XInterface::XCommError &) = 0;
 	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &) = 0;

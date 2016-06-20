@@ -152,7 +152,7 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex)
 		else
 	        throw XNoDriverError(name, __FILE__, __LINE__);
     }
-    auto rawdata = make_shared<XPrimaryDriver::RawData>();
+    auto rawdata = std::make_shared<XPrimaryDriver::RawData>();
 	try {
 		rawdata->resize(size);
 		if(gzread(fd, &rawdata->at(0), size) == -1)

@@ -24,7 +24,7 @@ public:
     XQDPPMS6000(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     //! usually nothing to do
-    virtual ~XQDPPMS6000() {}
+    virtual ~XQDPPMS6000() = default;
 
 protected:
 protected:

@@ -203,14 +203,8 @@ void XAVS47IB::onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {
 	m_autorange_wait = 0;
 
 	iterate_commit([=](Transaction &tr){
-		tr[ *powerRange(0)].add("0");
-		tr[ *powerRange(0)].add("1uW");
-		tr[ *powerRange(0)].add("10uW");
-		tr[ *powerRange(0)].add("100uW");
-		tr[ *powerRange(0)].add("1mW");
-		tr[ *powerRange(0)].add("10mW");
-		tr[ *powerRange(0)].add("100mW");
-		tr[ *powerRange(0)].add("1W");
+        for(auto &&x : {"0", "1uW", "10uW", "100uW", "1mW", "10mW", "100mW", "1W"})
+            tr[ *powerRange(0)].add(x);
     });
 }
 double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
@@ -397,9 +391,8 @@ void XCryoconM32::open() throw (XKameError &) {
     XCryocon::open();
 
     iterate_commit([=](Transaction &tr){
-        tr[ *powerRange(0)].add("HI");
-        tr[ *powerRange(0)].add("MID");
-        tr[ *powerRange(0)].add("LOW");
+        for(auto &&x : {"HI", "MID", "LOW"})
+            tr[ *powerRange(0)].add(x);
     });
     Snapshot shot( *this);
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
@@ -422,16 +415,12 @@ void XCryoconM62::open() throw (XKameError &) {
     interface()->query("HEATER:LOAD?");
     iterate_commit([=](Transaction &tr){
         if(interface()->toInt() == 50) {
-            tr[ *powerRange(0)].add("0.05W");
-            tr[ *powerRange(0)].add("0.5W");
-            tr[ *powerRange(0)].add("5.0W");
-            tr[ *powerRange(0)].add("50W");
+            for(auto &&x : {"0.05W", "0.5W", "5.0W", "50W"})
+                tr[ *powerRange(0)].add(x);
         }
         else {
-            tr[ *powerRange(0)].add("0.03W");
-            tr[ *powerRange(0)].add("0.3W");
-            tr[ *powerRange(0)].add("2.5W");
-            tr[ *powerRange(0)].add("25W");
+            for(auto &&x : {"0.03W", "0.3W", "2.5W", "25W"})
+                tr[ *powerRange(0)].add(x);
         }
     });
 }
@@ -545,11 +534,8 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
     interface()->setEOS("");
 	interface()->setSerialEOS("\n");
 	iterate_commit([=](Transaction &tr){
-		tr[ *powerRange(0)].add("0");
-		tr[ *powerRange(0)].add("0.05W");
-		tr[ *powerRange(0)].add("0.5W");
-		tr[ *powerRange(0)].add("5W");
-		tr[ *powerRange(0)].add("50W");
+        for(auto &&x : {"0", "0.05W", "0.5W", "5W", "50W"})
+            tr[ *powerRange(0)].add(x);
     });
 }
 void XNeoceraLTC21::control() {
@@ -1008,17 +994,8 @@ XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
     createChannels(ref(tr_meas), meas, true, channels_create,
         excitations_create, loops_create);
     iterate_commit([=](Transaction &tr){
-        tr[ *powerRange(0)].add("30uA");
-        tr[ *powerRange(0)].add("100uA");
-        tr[ *powerRange(0)].add("300uA");
-        tr[ *powerRange(0)].add("1mA");
-        tr[ *powerRange(0)].add("3mA");
-        tr[ *powerRange(0)].add("10mA");
-        tr[ *powerRange(0)].add("30mA");
-        tr[ *powerRange(0)].add("100mA");
-        tr[ *powerRange(0)].add("300mA");
-        tr[ *powerRange(0)].add("1A");
-        tr[ *powerRange(0)].add("3A");
+        for(auto &&x : {"30uA", "100uA", "300uA", "1mA", "3mA", "10mA", "30mA", "100mA", "300mA", "1A", "3A"})
+            tr[ *powerRange(0)].add(x);
     });
 }
 
