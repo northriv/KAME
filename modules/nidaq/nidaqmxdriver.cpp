@@ -373,9 +373,9 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<XString> list;
 	parseList(buf, list);
-    iterate_commit([=, &list](Transaction &tr){
-        for(auto it = list.begin(); it != list.end(); ++it) {
-			CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+    iterate_commit([=, &buf](Transaction &tr){
+        for(auto it = list.cbegin(); it != list.cend(); ++it) {
+            CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 			tr[ *device()].add(*it + " [" + buf + "]");
 		}
     });
