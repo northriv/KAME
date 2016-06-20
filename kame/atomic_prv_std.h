@@ -33,18 +33,18 @@ template <typename T>
 class atomic<T, typename std::enable_if<std::is_integral<T>::value || std::is_pointer<T>::value>::type>
 : public std::atomic<T> {
 public:
-    atomic() : std::atomic<T>() {}
-    atomic(const atomic &t) : std::atomic<T>() { *this = (T)t;}
-    atomic(const T &t) : std::atomic<T>(t) {}
-    atomic& operator=(const T &t) {this->store(t); return *this; }
-    bool compare_set_strong(const T &oldv, const T &newv) {
+    atomic() noexcept = default;
+    atomic(const atomic &t) noexcept : std::atomic<T>() { *this = (T)t;}
+    atomic(const T &t) = default;
+    atomic& operator=(const T &t) noexcept{this->store(t); return *this; }
+    bool compare_set_strong(const T &oldv, const T &newv) noexcept {
         T expected = oldv;
         return std::atomic<T>::compare_exchange_strong(expected, newv);
     }
-    bool decAndTest() {
+    bool decAndTest() noexcept {
         return (--( *this) == 0);
     }
-    bool addAndTest(T t) {
+    bool addAndTest(T t) noexcept {
         return ((( *this) += t) == 0);
     }
 };

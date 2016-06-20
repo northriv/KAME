@@ -38,7 +38,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	connect(magnet());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum - ") + getLabel() );
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		tr[ *m_spectrum].setLabel(0, "Field [T]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Field [T]");
 
@@ -47,9 +47,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 		tr[ *fieldFactor()] = 1;
 		tr[ *maxValue()] = 5.0;
 		tr[ *minValue()] = 3.0;
-		if(tr.commit())
-			break;
-	}
+    });
   
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edFreq);
 	m_conResolution = xqcon_create<XQLineEditConnector>(m_resolution, m_form->m_edResolution);
@@ -59,16 +57,14 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	m_conResidualField = xqcon_create<XQLineEditConnector>(m_residualField, m_form->m_edResidual);
 	m_conMagnet = xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry, ref(tr_meas));
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *resolution()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *minValue()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *maxValue()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *fieldFactor()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *residualField()].onValueChanged().connect(m_lsnOnCondChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 bool
 XNMRSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *node) const {

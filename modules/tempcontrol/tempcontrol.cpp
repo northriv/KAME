@@ -51,12 +51,10 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		create<XItemNode<XChannelList, XChannel> >("CurrentChannel", true, ref(tr),
 		tempctrl->m_channels);
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnOnExtDeviceChanged = tr[ *m_extDevice].onValueChanged().connectWeakly(
 			shared_from_this(), &XTempControl::Loop::onExtDeviceChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_currentChannel->setUIEnabled(false);
 	m_powerRange->setUIEnabled(false);
@@ -79,7 +77,7 @@ void
 XTempControl::Loop::start() {
 	auto tempctrl = m_tempctrl.lock();
 	if( !tempctrl) return;
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		if(hasExtDevice(shot)) {
 			tr[ m_heaterMode].clear();
@@ -89,9 +87,7 @@ XTempControl::Loop::start() {
 		}
 		else
 			tr[ *m_powerRange].setUIEnabled(true);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_currentChannel->setUIEnabled(true);
 	m_heaterMode->setUIEnabled(true);
@@ -109,7 +105,7 @@ XTempControl::Loop::start() {
 	m_tempErrAvg = 0.0;
 	m_lasttime = XTime::now();
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
 		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
 		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
@@ -119,9 +115,7 @@ XTempControl::Loop::start() {
 		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPowerRangeChanged);
 		m_lsnOnCurrentChannelChanged
 			= tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onCurrentChannelChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XTempControl::Loop::stop() {
@@ -196,13 +190,11 @@ XTempControl::Loop::update(double temp) {
 	else
 		power = tempctrl->getHeater(m_idx);
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		tr[ *m_sourceTemp] = temp;
 		tr[ *m_stabilized] = sqrt(m_tempErrAvg); //stderr
 		tr[ *m_heaterPower] = power;
-		if(tr.commit())
-			break;
-	}
+    });
 	tempctrl->m_form->m_toolBox->setItemText(m_idx, XString(getLabel() + formatString(": %.5g K, %.3g%s", temp, power,
 		tempctrl->m_heaterPowerUnit(m_idx))));
 }
@@ -233,7 +225,7 @@ double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
 	return -(dt + acc + dxdt * d) * p;
 }
 void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase *) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		tr[ *m_extDCSourceChannel].clear();
 		shared_ptr<XDCSource> dcsrc = shot[ *m_extDevice];
@@ -244,9 +236,7 @@ void XTempControl::Loop::onExtDeviceChanged(const Snapshot &shot, XValueNodeBase
 				tr[ *m_extDCSourceChannel].add(it->label);
 			}
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void XTempControl::Loop::onPChanged(const Snapshot &shot, XValueNodeBase *) {
 	auto tempctrl = m_tempctrl.lock();
@@ -378,21 +368,17 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	m_channels(create<XChannelList> ("Channels", false)),
 	m_form(new FrmTempControl(g_pFrmMain)) {
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_setupChannel =
 			create<XItemNode<XChannelList, XChannel> >(tr, "SetupChannel", true, ref(tr), m_channels);
-		if(tr.commit())
-			break;
-	}
+    });
 	m_conSetupChannel = xqcon_create<XQComboBoxConnector> (m_setupChannel,
 		m_form->m_cmbSetupChannel, Snapshot( *m_channels));
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
 			shared_from_this(), &XTempControl::onSetupChannelChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("TempControl - ") + getLabel());
@@ -437,13 +423,11 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 		channel->thermometer(), m_form->m_cmbThermometer, Snapshot( *channel->thermometers()));
 	m_conExcitation = xqcon_create<XQComboBoxConnector> (channel->excitation(),
 		m_form->m_cmbExcitation, Snapshot( *channel->excitation()));
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnOnExcitationChanged
 			= tr[ *channel->excitation()].onValueChanged().connectWeakly(
 				shared_from_this(), &XTempControl::onExcitationChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void XTempControl::createChannels(
@@ -453,17 +437,15 @@ void XTempControl::createChannels(
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=, &tr_meas](Transaction &tr){
 		for(int i = 0; channel_names[i]; i++) {
 			shared_ptr<XChannel> channel = m_channels->create<XChannel> (
-				tr, channel_names[i], false, ref(tr_meas), meas->thermometers());
+                tr, channel_names[i], false, ref(tr_meas), meas->thermometers());
 			for(int j = 0; excitations[j]; j++) {
 				tr[ *channel->excitation()].add(excitations[j]);
 			}
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 	if(multiread) {
 		Snapshot shot( *m_channels);
 		if(shot.size()) {
@@ -504,14 +486,12 @@ void XTempControl::createChannels(
     for(unsigned int lp = 0; loop_names[lp]; ++lp) {
         num_of_loops++;
 		shared_ptr<Loop> p;
-		for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=, &p, &tr_meas](Transaction &tr){
 			p = create<Loop>(tr,
                 loop_names[lp], false,
 				dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), lp,
 				ref(tr_meas), meas);
-			if(tr.commit())
-				break;
-		}
+        });
 		m_loops.push_back(p);
 	}
 	if(num_of_loops > 1) {

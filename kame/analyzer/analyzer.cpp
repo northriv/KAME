@@ -103,12 +103,10 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
 	double val;
     val = shot[ *m_entry->value()];
     XTime time = shot[ *driver].time();
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		if(time)
 			m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 void
 XValChart::showChart(void) {
@@ -135,7 +133,7 @@ XChartList::onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::Cat
 void
 XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(e.released);
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit_while([=](Transaction &tr){
 		shared_ptr<XValChart> valchart;
 		if(tr.size()) {
 			const XNode::NodeList &list( *tr.list());
@@ -145,12 +143,11 @@ XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::R
 			}
 		}
 		if( !valchart)
-			break;
+            return false;
 		if( !release(tr, valchart))
-			continue;
-		if(tr.commit())
-			break;
-	}
+            return true;//will fail.
+        return true;
+    });
 }
 
 XValGraph::XValGraph(const char *name, bool runtime,
@@ -161,22 +158,21 @@ XValGraph::XValGraph(const char *name, bool runtime,
 	  m_axisY1(create<tAxis>("AxisY1", false, ref(tr_entries), entries)),
 	  m_axisZ(create<tAxis>("AxisZ", false, ref(tr_entries), entries)),
 	  m_entries(entries) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	    m_lsnAxisChanged = tr[ *axisX()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XValGraph::onAxisChanged,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
 	    tr[ *axisY1()].onValueChanged().connect(m_lsnAxisChanged);
 	    tr[ *axisZ()].onValueChanged().connect(m_lsnAxisChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
     shared_ptr<XScalarEntry> entryx;
     shared_ptr<XScalarEntry> entryy1;
     shared_ptr<XScalarEntry> entryz;
-	for(Transaction tr( *this);; ++tr) {
+    shared_ptr<XGraph> graph;
+    iterate_commit([=, &entryx, &entryy1, &entryz, &graph](Transaction &tr){
 		const Snapshot &shot_this(tr);
 	    entryx = shot_this[ *axisX()];
 	    entryy1 = shot_this[ *axisY1()];
@@ -184,7 +180,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 		if(tr[ *this].m_graph) release(tr, tr[ *this].m_graph);
 		tr[ *this].m_graph = create<XGraph>(tr, getName().c_str(), false);
-		shared_ptr<XGraph> graph(tr[ *this].m_graph);
+        graph = tr[ *this].m_graph;
 
 		if( !entryx || !entryy1) return;
 
@@ -229,14 +225,10 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
 		tr[ *graph->label()] = getLabel();
-
-		if(tr.commit()) {
-            m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
-            m_graphForm->m_graphwidget->setGraph(graph);
-			break;
-		}
-	}
-	for(Transaction tr( *m_entries.lock());; ++tr) {
+    });
+    m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
+    m_graphForm->m_graphwidget->setGraph(graph);
+    for(Transaction tr( *m_entries.lock());; ++tr) {
 		if( !tr.isUpperOf( *entryx)) return;
 		if( !tr.isUpperOf( *entryy1)) return;
 		if(entryz && !tr.isUpperOf( *entryz)) return;
@@ -258,13 +250,11 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XValGraph::clearAllPoints() {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		if( !tr[ *this].m_graph) return;
 		tr[ *this].m_storePlot->clearAllPoints(tr);
 		tr[ *this].m_livePlot->clearAllPoints(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -283,11 +273,9 @@ XValGraph::onLiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	y = shot_entries[ *entryy1->value()];
 	if(entryz) z = shot_entries[ *entryz->value()];
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *this].m_livePlot->addPoint(tr, x, y, z);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -306,11 +294,9 @@ XValGraph::onStoreChanged(const Snapshot &shot, XValueNodeBase *) {
 	y = shot_entries[ *entryy1->storedValue()];
 	if(entryz) z = shot_entries[ *entryz->storedValue()];
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *this].m_storePlot->addPoint(tr, x, y, z);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XValGraph::showGraph() {

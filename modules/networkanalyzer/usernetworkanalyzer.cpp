@@ -22,14 +22,12 @@ REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzer, "DG8SAQ VNWA3E/Custom Network 
 XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
-	const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
-	for(Transaction tr( *this);; ++tr) {
-		for(const char **it = cand; strlen( *it); it++) {
+    iterate_commit([=](Transaction &tr){
+        const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
+        for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 
 	calOpen()->disable();
 	calShort()->disable();

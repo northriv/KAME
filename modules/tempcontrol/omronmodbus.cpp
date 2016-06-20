@@ -56,7 +56,7 @@ void XOmronE5_CModbus::open() throw (XKameError &) {
     bool isrunning = status & 0x01000000uL;
     bool isman = status & 0x04000000uL;
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
         for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
             if( !hasExtDevice(shot, idx)) {
@@ -71,9 +71,7 @@ void XOmronE5_CModbus::open() throw (XKameError &) {
             }
             tr[ *powerRange(idx)].setUIEnabled(false);
         }
-        if(tr.commit())
-			break;
-	}
+    });
 
 }
 double XOmronE5_CModbus::getRaw(shared_ptr<XChannel> &) {

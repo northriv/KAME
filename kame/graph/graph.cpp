@@ -182,7 +182,7 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 	  m_zwoAxisZ(create<XDoubleNode>("ZwoAxisZ", true)),
 	  m_intensity(create<XDoubleNode>("Intensity", true)) {
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 	//  MaxCount.value(0);
 		tr[ *drawLines()] = true;
 		tr[ *drawBars()] = false;
@@ -219,10 +219,7 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 		tr[ *colorPlotColorLow()].onValueChanged().connect(graph->lsnPropertyChanged());
 
 		tr[ *zwoAxisZ()] = 0.15;
-
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 bool

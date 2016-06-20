@@ -25,12 +25,10 @@ XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure
 : XAliasListNode<XRubyThread>(name, runtime),
 m_measure(measure), 
 m_thread(shared_from_this(), &XRuby::execute) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
 			&XRuby::onChildCreated, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 XRuby::~XRuby() {
 }

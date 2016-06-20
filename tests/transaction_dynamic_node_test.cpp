@@ -112,54 +112,51 @@ start_routine(void) {
 	for(int i = 0; i < 2500; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
-			for(Transaction tr1(*gn1); ; ++tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1){
 				if( !gn2->insert(tr1, p2))
-					continue;
-				if(tr1.commit()) break;
-			}
+                    return false;
+                return true;
+            });
 			gn2->swap(p2, gn3);
 			gn1->insert(p1);
 		}
 		//		gn1->print_();
-		for(Transaction tr1(*gn1); ; ++tr1){
+        gn1->iterate_commit([=](Transaction &tr1){
 //			tr1.print();
 			Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
 			tr1[gn3] = ctr1[gn3] + 1;
-			Snapshot str1(tr1);
+            Snapshot &str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] + 1;
 			}
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		trans(*gn3) += 1;
-		for(Transaction tr1(*gn4); ; ++tr1){
+        gn4->iterate_commit([=](Transaction &tr1){
 			tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		p1->release(p2);
-		for(Transaction tr1(*gn2); ; ++tr1){
-			Snapshot str1(tr1);
+        gn2->iterate_commit([=](Transaction &tr1){
+            Snapshot &str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] - 1;
 			}
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		trans(*gn3) += -1;
 		if((i % 10) == 0) {
-			for(Transaction tr1(*gn1); ; ++tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1){
 				if( !gn2->release(tr1, p2))
-					continue;
-				if(tr1.commit()) break;
-			}
+                    return false;
+                return true;
+            });
 			gn1->release(p1);
 		}
 	}
@@ -183,35 +180,32 @@ main(int argc, char **argv) {
         gn3.reset(LongNode::create<LongNode>());
         gn4.reset(LongNode::create<LongNode>());
 
-		for(Transaction tr1(*gn1); ; ++tr1){
-			printf("1");
+        gn1->iterate_commit_if([=](Transaction &tr1){
+            printf("1");
 			if( !gn1->insert(tr1, gn2, true))
-				continue;
+                return false;
 			tr1[ *gn2] = tr1[ *gn2] + 1;
 			if( !gn2->insert(tr1, gn3, true))
-				continue;
+                return false;
 			tr1.print();
 			if( !gn3->insert(tr1, gn4, true))
-				continue;
+                return false;
 			tr1.print();
 			if( !gn3->release(tr1, gn4))
-				continue;
+                return false;
 			tr1.print();
-			if(tr1.commit())
-				break;
-		}
+            return true;
+        });
 		gn1->print_();
 		gn1->release(gn2);
 		gn1->print_();
 		gn1->insert(gn2);
 		gn1->print_();
-		for(Transaction tr1(*gn2); ; ++tr1){
-			printf("2");
+        gn2->iterate_commit([=](Transaction &tr1){
+            printf("2");
 			tr1[ *gn2] = tr1[ *gn2] - 1;
 			tr1[ *gn3] = 0;
-			if(tr1.commit())
-				break;
-		}
+        });
 		{
 			Snapshot shot1(*gn1);
 			shot1.print();
@@ -249,12 +243,12 @@ main(int argc, char **argv) {
 
 			shared_ptr<ComplexNode> p2111;
 
-			for(Transaction tr1(*gn3); ; ++tr1){
+            gn3->iterate_commit_if([=, &p2111](Transaction &tr1){
 				printf("3");
 				if( !p1->insert(tr1, p22, true))
-					continue;
+                    return false;
 				if( !gn3->insert(tr1, p2, true))
-					continue;
+                    return false;
 
                 p2111.reset(LongNode::create<ComplexNode>(ref(tr1), gn3));
 				shared_ptr<LongNode> p2112(LongNode::create<LongNode>());
@@ -267,36 +261,36 @@ main(int argc, char **argv) {
 				trans( *p2114) = 1;
 
 				if( !p21->insert(tr1, p2111, true))
-					continue;
+                    return false;
 				if( !gn3->insert(tr1, p2111, true))
-					continue;
+                    return false;
 
 				tr1[ *p2113] = 0;
 				tr1[ *p2114] = 0;
 
 				tr1[*p22] = 1;
-				if(tr1.commit()) break;
-			}
+                return true;
+            });
 			{
 				Snapshot shot1(*gn3);
 				shot1[ *p2111->n1()];
 			}
-			for(Transaction tr1(*gn1); ; ++tr1){
-				printf("4");
+            gn1->iterate_commit_if([=](Transaction &tr1){
+                printf("4");
 				if( !gn3->insert(tr1, gn4, true))
-					continue;
+                    return false;
 				if( !gn2->insert(tr1, gn4, true))
-					continue;
-				if(tr1.commit()) break;
-			}
-			for(Transaction tr1(*gn1); ; ++tr1){
+                    return false;
+                return true;
+            });
+            gn1->iterate_commit_if([=](Transaction &tr1){
 				printf("5");
 				if( !gn3->release(tr1, gn4))
-					continue;
+                    return false;
 				if( !gn2->release(tr1, gn4))
-					continue;
-				if(tr1.commit()) break;
-			}
+                    return false;
+                return true;
+            });
 			{
 				Snapshot shot1(*gn3);
 				shot1[ *p2];
@@ -304,28 +298,25 @@ main(int argc, char **argv) {
 				shot1[ *p22];
 			}
 			trans(*p211) = 0;
-			for(Transaction tr1(*gn3); ; ++tr1){
-				if( !p1->release(tr1, p22))
-					continue;
-				if( !gn3->release(tr1, p2))
-					continue;
-				if( !gn3->release(tr1, p2111))
-					continue;
-				if(tr1.commit()) break;
-				printf("f");
-			}
+            gn3->iterate_commit_if([=](Transaction &tr1){
+                if( !p1->release(tr1, p22))
+                    return false;
+                if( !gn3->release(tr1, p2))
+                    return false;
+                if( !gn3->release(tr1, p2111))
+                    return false;
+                return true;
+            });
 			trans(*p22) = 0;
 
-			for(Transaction tr1(*gn1); ; ++tr1){
-				Snapshot &ctr1(tr1); // For reading.
+            gn1->iterate_commit([=](Transaction &tr1){
+                Snapshot &ctr1(tr1); // For reading.
 				tr1[gn1] = ctr1[gn1] + 1;
 				tr1[gn3] = ctr1[gn3] + 1;
-				Snapshot str1(tr1);
+                Snapshot &str1(tr1);
 				tr1[gn1] = str1[gn1] - 1;
 				tr1[gn3] = str1[gn3] - 1;
-				if(tr1.commit()) break;
-				printf("f");
-			}
+            });
 		}
 		gn1->print_();
 		gn1->release(p1);

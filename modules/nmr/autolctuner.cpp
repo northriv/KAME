@@ -63,7 +63,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	m_conUseSTM1 = xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1);
 	m_conUseSTM2 = xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_tuning] = false;
 		tr[ *m_succeeded] = false;
 		tr[ *m_reflectionTargeted] = -15.0;
@@ -74,9 +74,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 			shared_from_this(), &XAutoLCTuner::onTargetChanged);
 		m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XAutoLCTuner::~XAutoLCTuner() {
 }
@@ -105,7 +103,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 				break;
 		}
 	}
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_tuning] = true;
 		tr[ *succeeded()] = false;
 		tr[ *this].iteration_count = 0;
@@ -118,19 +116,16 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].dCb = 0.0;
 		tr[ *this].started = XTime::now();
 		tr[ *this].isTargetAbondoned = false;
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit_while([=](Transaction &tr){
 		if( !tr[ *m_tuning])
-			break;
+            return false;
 		tr[ *m_tuning] = false;
 		tr[ *this].isSTMChanged = false;
-		if(tr.commit())
-			break;
-	}
+        return true;
+    });
 }
 void
 XAutoLCTuner::determineNextC(double &deltaC1, double &deltaC2,

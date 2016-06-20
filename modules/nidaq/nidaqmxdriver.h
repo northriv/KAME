@@ -222,14 +222,12 @@ XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime,
 	m_interface(XNode::create<XNIDAQmxInterface>("Interface", false,
 												 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface);
-	for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
 	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
 			this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onOpen);
 	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
 	    	this->shared_from_this(), &XNIDAQmxDriver<tDriver>::onClose);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template<class tDriver>
 void

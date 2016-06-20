@@ -27,15 +27,13 @@ XNMRBuiltInNetworkAnalyzer::XNMRBuiltInNetworkAnalyzer(const char *name, bool ru
 	connect(m_pulser);
 	connect(m_sg);
 
-	const char *cand[] = {"OFF", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
-	for(Transaction tr( *this);; ++tr) {
-		for(const char **it = cand; strlen( *it); it++) {
+	iterate_commit([=](Transaction &tr){
+        const char *cand[] = {"OFF", "11", "21", "51", "101", "201", "401", "801", "1601", "3201", ""};
+        for(const char **it = cand; strlen( *it); it++) {
 			tr[ *points()].add( *it);
 		}
 		tr[ *this].m_sweeping = false;
-		if(tr.commit())
-			break;
-	}
+    });
 	XNetworkAnalyzer::start();
 }
 void
@@ -112,7 +110,7 @@ XNMRBuiltInNetworkAnalyzer::oneSweep() {
 bool
 XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 	bool ret = false;
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=, &ret](Transaction &tr){
 		try {
 			ret = false;
 			restart(tr, calmode, clear);
@@ -123,10 +121,7 @@ XNMRBuiltInNetworkAnalyzer::restart(int calmode, bool clear) {
 		catch (XInterface::XInterfaceError &e) {
 			gErrPrint(e.msg());
 		}
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 	return ret;
 }
 void

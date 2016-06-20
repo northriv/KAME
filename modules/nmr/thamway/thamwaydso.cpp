@@ -50,7 +50,7 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     XCharDeviceDriver<XDSO, XThamwayDVCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
     const char* sc[] = {"5", 0L};
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
         tr[ *timeWidth()] = 1e-2;
         tr[ *average()] = 1;
@@ -84,7 +84,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     XString idn = interface()->getIDN();
     fprintf(stderr, "DV IDN=%s\n", idn.c_str());
 
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *trace1()].add("CH1");
         tr[ *trace1()].add("CH2");
         tr[ *trace2()].add("CH1");
@@ -100,7 +100,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     smps--;
     double intv = getTimeInterval();
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = smps;
         tr[ *timeWidth()] = smps * intv;
         if(tr.commit())

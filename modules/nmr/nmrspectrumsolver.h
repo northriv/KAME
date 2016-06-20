@@ -55,7 +55,7 @@ public:
 			Wrapper();
 			unique_ptr<T> m_solver;
 		};
-		unique_ptr<WrapperBase> m_wrapper;
+        shared_ptr<WrapperBase> m_wrapper;
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];

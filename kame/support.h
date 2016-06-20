@@ -120,7 +120,7 @@ gWarnPrint_redirected(const XString &str, const char *file, int line);
 //! Base of exception
 struct DECLSPEC_KAME XKameError : public std::runtime_error {
 	XKameError();
-	virtual ~XKameError() throw() {}
+    virtual ~XKameError() = default;
 
 	//! errno is read and cleared after a construction
 	XKameError(const XString &s, const char *file, int line);
@@ -128,7 +128,7 @@ struct DECLSPEC_KAME XKameError : public std::runtime_error {
 	void print(const XString &header);
 	static void print(const XString &msg, const char *file, int line, int errno_);
 	const XString &msg() const;
-	virtual const char* what() const throw();
+    virtual const char* what() const noexcept;
 private:
 	XString m_msg;
 	const char * m_file;
@@ -145,13 +145,13 @@ extern bool g_bMLockAlways;
 //! If true, use mlock.
 extern bool g_bUseMLock;
 
-DECLSPEC_KAME bool isMemLockAvailable();
+DECLSPEC_KAME bool isMemLockAvailable() noexcept;
 
 //! round value to the nearest 10s. ex. 42.3 to 10, 120 to 100
 DECLSPEC_KAME double roundlog10(double val);
 //! round value within demanded precision.
 //! ex. 38.32, 40 to 30, 0.4234, 0.01 to 0.42
-DECLSPEC_KAME double setprec(double val, double prec);
+DECLSPEC_KAME double setprec(double val, double prec) noexcept;
 
 #ifdef _MSC_VER
     #define snprintf(fmt, len, ...) _snprintf_s(fmt, len, len - 1, __VA_ARGS__)
@@ -173,7 +173,7 @@ XString formatString_tr(const char *format_i18n_noop, ...)
 ;
 DECLSPEC_KAME XString formatDouble(const char *fmt, double val);
 //! validator
-//! throw XKameError
+//! throws XKameError
 //! \sa XValueNode
 DECLSPEC_KAME void formatDoubleValidator(XString &fmt);
 

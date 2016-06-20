@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2016 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -45,22 +45,21 @@ template <typename T, class Enable = void > class atomic;
 template <typename T>
 class atomic_pod_cas {
 public:
-    atomic_pod_cas() {}
-    atomic_pod_cas(T t) : m_var(t) {}
-    atomic_pod_cas(const atomic_pod_cas &t) : m_var(t) {}
-    ~atomic_pod_cas() {}
-    operator T() const { T x = m_var; readBarrier(); return x;}
-    atomic_pod_cas &operator=(T t) {
+    atomic_pod_cas() noexcept = default;
+    atomic_pod_cas(T t) noexcept : m_var(t) {}
+    atomic_pod_cas(const atomic_pod_cas &t) noexcept : m_var(t) {}
+    operator T() const noexcept { T x = m_var; readBarrier(); return x;}
+    atomic_pod_cas &operator=(T t) noexcept {
         writeBarrier(); m_var = t; return *this;
     }
-    atomic_pod_cas &operator=(const atomic_pod_cas &x) {
+    atomic_pod_cas &operator=(const atomic_pod_cas &x) noexcept {
         writeBarrier(); m_var = x.m_var; return *this;
     }
-    T exchange(T newv) {
+    T exchange(T newv) noexcept {
         T old = atomicSwap(newv, &m_var);
         return old;
     }
-    bool compare_set_strong(T oldv, T newv) {
+    bool compare_set_strong(T oldv, T newv) noexcept {
         bool ret = atomicCompareAndSet(oldv, newv, &m_var);
         return ret;
     }
@@ -72,11 +71,10 @@ protected:
 template <typename T>
 class atomic_pod_cas2 {
 public:
-    atomic_pod_cas2() {}
-    atomic_pod_cas2(T t) : m_var(t) {}
-    atomic_pod_cas2(const atomic_pod_cas2 &t) : m_var(t) {}
-    ~atomic_pod_cas2() {}
-    operator T() const {
+    atomic_pod_cas2() noexcept = default;
+    atomic_pod_cas2(T t) noexcept : m_var(t) {}
+    atomic_pod_cas2(const atomic_pod_cas2 &t) noexcept : m_var(t) {}
+    operator T() const noexcept {
         for(;;) {
             T oldv = m_var;
             if(atomicCompareAndSet(oldv, oldv, &m_var)) {
@@ -84,7 +82,7 @@ public:
             }
         }
     }
-    atomic_pod_cas2 &operator=(T t) {
+    atomic_pod_cas2 &operator=(T t) noexcept {
         writeBarrier();
         for(;;) {
             T oldv = m_var;
@@ -93,11 +91,11 @@ public:
         }
         return *this;
     }
-    atomic_pod_cas2 &operator=(const atomic_pod_cas2 &x) {
+    atomic_pod_cas2 &operator=(const atomic_pod_cas2 &x) noexcept {
         *this = (T)x;
         return *this;
     }
-    T exchange(T newv) {
+    T exchange(T newv) noexcept {
         for(;;) {
             T oldv = m_var;
             if(atomicCompareAndSet(oldv, newv, &m_var)) {
@@ -105,7 +103,7 @@ public:
             }
         }
     }
-    bool compare_set_strong(T oldv, T newv) {
+    bool compare_set_strong(T oldv, T newv) noexcept {
         bool ret = atomicCompareAndSet(oldv, newv, &m_var);
         return ret;
     }
@@ -124,9 +122,9 @@ class atomic<T, typename std::enable_if<
 (sizeof(int_cas2) * 2 == sizeof(T)) && std::is_pod<T>::value>::type>
 : public atomic_pod_cas2<T> {
 public:
-    atomic() {}
-    atomic(T t) : atomic_pod_cas2<T>(t) {}
-    atomic(const atomic &t) : atomic_pod_cas2<T>(t) {}
+    atomic() noexcept = default;
+    atomic(T t) noexcept : atomic_pod_cas2<T>(t) {}
+    atomic(const atomic &t) noexcept = default;
 };
 
 //! atomic access to POD type capable of CAS.
@@ -136,9 +134,9 @@ class atomic<T, typename std::enable_if<
 !std::is_integral<T>::value>::type>
 : public atomic_pod_cas<T> {
 public:
-    atomic() {}
-    atomic(T t) : atomic_pod_cas<T>(t) {}
-    atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
+    atomic() noexcept = default;
+    atomic(T t) noexcept : atomic_pod_cas<T>(t) {}
+    atomic(const atomic &t) noexcept = default;
 };
 
 //! atomic access to integer-POD-type capable of CAS.
@@ -147,23 +145,22 @@ class atomic<T, typename std::enable_if<
 (sizeof(int_cas_max) >= sizeof(T)) && std::is_integral<T>::value>::type >
 : public atomic_pod_cas<T> {
 public:
-    atomic() : atomic_pod_cas<T>((T)0) {}
-    atomic(T t) : atomic_pod_cas<T>(t) {}
-    atomic(const atomic &t) : atomic_pod_cas<T>(t) {}
-    ~atomic() {}
+    atomic() noexcept : atomic_pod_cas<T>((T)0) {}
+    atomic(T t) noexcept : atomic_pod_cas<T>(t) {}
+    atomic(const atomic &t) = default;
     //! Note that the return value is atomically given.
-    atomic &operator++() {writeBarrier(); atomicInc( &this->m_var); return *this;}
+    atomic &operator++() noexcept {writeBarrier(); atomicInc( &this->m_var); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator--() {writeBarrier(); atomicDecAndTest( &this->m_var); return *this;}
+    atomic &operator--() noexcept {writeBarrier(); atomicDecAndTest( &this->m_var); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator+=(T t) {writeBarrier(); atomicAdd( &this->m_var, t); return *this;}
+    atomic &operator+=(T t) noexcept {writeBarrier(); atomicAdd( &this->m_var, t); return *this;}
     //! Note that the return value is atomically given.
-    atomic &operator-=(T t) {writeBarrier(); atomicAdd( &this->m_var, -t); return *this;}
-    bool decAndTest() {
+    atomic &operator-=(T t) noexcept {writeBarrier(); atomicAdd( &this->m_var, -t); return *this;}
+    bool decAndTest() noexcept {
         bool ret = atomicDecAndTest( &this->m_var);
         return ret;
     }
-    bool addAndTest(T t) {
+    bool addAndTest(T t) noexcept {
         bool ret = atomicAddAndTest( &this->m_var, t);
         return ret;
     }

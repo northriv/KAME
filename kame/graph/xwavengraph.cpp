@@ -46,15 +46,13 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
 	init();
 }
 void XWaveNGraph::init() {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
 			shared_from_this(), &XWaveNGraph::onFilenameChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
-	for(Transaction tr(*this);; ++tr) {
-		m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
 			shared_from_this(),
 			&XWaveNGraph::onIconChanged, XListener::FLAG_MAIN_THREAD_CALL
 				| XListener::FLAG_AVOID_DUP);
@@ -63,9 +61,7 @@ void XWaveNGraph::init() {
 		tr[ *dump()].setUIEnabled(false);
 		tr[ *m_graph->persistence()] = 0.0;
 		tr[ *this].clearPlots();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XWaveNGraph::~XWaveNGraph() {
 	m_stream.close();
@@ -285,11 +281,9 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
         m_stream.flush();
     }
 
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr.mark(tr[ *this].onIconChanged(), true);
-        if(tr.commit())
-            break;
-    }
+    });
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);

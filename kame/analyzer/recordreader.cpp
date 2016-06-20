@@ -54,7 +54,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	  m_posString(create<XStringNode>("PosString", true)),
 	  m_periodicTerm(0) {
 
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *m_speed].add(SPEED_FASTEST);
         tr[ *m_speed].add(SPEED_FAST);
         tr[ *m_speed].add(SPEED_NORMAL);
@@ -81,9 +81,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
 	    tr[ *m_rewind].onValueChanged().connect(m_lsnPlayCond);
 	    tr[ *m_speed].onValueChanged().connect(m_lsnPlayCond);
-		if(tr.commit())
-			break;
-    }
+    });
     
     m_threads.resize(RECORD_READER_NUM_THREADS);
     for(auto it = m_threads.begin(); it != m_threads.end(); it++) {
@@ -250,13 +248,11 @@ void
 XRawStreamRecordReader::onStop(const Snapshot &shot, XTouchableNode *) {
     m_periodicTerm = 0;
     g_statusPrinter->printMessage(i18n("Stopped"));
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_fastForward] = false;
 		tr[ *m_rewind] = false;
 		tr.unmark(m_lsnPlayCond);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XRawStreamRecordReader::onFirst(const Snapshot &shot, XTouchableNode *) {
@@ -329,13 +325,11 @@ void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
 		}
 		catch (XRecordError &e) {
 			m_periodicTerm = 0.0;
-			for(Transaction tr( *this);; ++tr) {
+			iterate_commit([=](Transaction &tr){
 				tr[ *m_fastForward] = false;
 				tr[ *m_rewind] = false;
 				tr.unmark(m_lsnPlayCond);
-				if(tr.commit())
-					break;
-			}
+            });
 			m_filemutex.unlock();
 			e.print(i18n("No Record, because "));
 		}

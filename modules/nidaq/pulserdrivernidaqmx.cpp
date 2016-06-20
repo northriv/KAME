@@ -42,7 +42,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_taskDOCtr(TASK_UNDEF),
 	m_taskGateCtr(TASK_UNDEF) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
 			tr[ *portSel(i)].add("Pausing(PFI4)");
 	    const int ports[] = {
@@ -52,9 +52,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
 	    	tr[ *portSel(i)] = ports[i];
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
 

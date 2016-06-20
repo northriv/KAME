@@ -29,7 +29,7 @@ XTDS::XTDS(const char *name, bool runtime,
 	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
 						"20", "50", "100", 0L};
 	const char* trg[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		for(int i = 0; ch[i]; i++) {
 			tr[ *trace1()].add(ch[i]);
 			tr[ *trace2()].add(ch[i]);
@@ -45,9 +45,7 @@ XTDS::XTDS(const char *name, bool runtime,
 		for(int i = 0; trg[i]; i++) {
 			tr[ *trigSource()].add(trg[i]);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 
 	interface()->setGPIBWaitBeforeWrite(20); //20msec
 	interface()->setGPIBWaitBeforeSPoll(10); //10msec

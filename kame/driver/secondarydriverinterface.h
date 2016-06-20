@@ -112,14 +112,11 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 template <class T>
 void
 XSecondaryDriverInterface<T>::connect(const shared_ptr<XPointerItemNode<XDriverList> > &selecter) {
-    for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
     	typename Payload::Connection con;
 		con.m_selecter = selecter;
 		tr[ *this].m_connections.push_back(con);
-
-		if(tr.commit())
-			break;
-	}
+    });
 
     for(Transaction tr( *selecter);; ++tr) {
 		if(m_lsnOnItemChanged)
@@ -147,12 +144,10 @@ XSecondaryDriverInterface<T>::onItemChanged(const Snapshot &shot, XValueNodeBase
 				break;
 		}
 	}
-    for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
 		auto it = std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);
 		it->m_lsnOnRecord = lsnonrecord;
-		if(tr.commit())
-			break;
-    }
+    });
 }
 
 #endif /*SECONDARYDRIVERINTERFACE_H_*/

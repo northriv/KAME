@@ -38,12 +38,10 @@ XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver>
     m_address(create<XUIntNode>("Address", false)),
     m_control(create<XBoolNode>("Control", true)) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		lsnOnControlChanged = tr[ *control()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XInterface::onControlChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 XString
@@ -79,27 +77,22 @@ XInterface::start() {
 	}
 	catch (XInterfaceError &e) {
         e.print(getLabel() + i18n(": Opening interface failed, because "));
-    	for(Transaction tr( *this);; ++tr) {
+    	iterate_commit([=](Transaction &tr){
     		tr[ *control()] = false;
     		tr.unmark(lsnOnControlChanged);
-    		if(tr.commit())
-    			break;
-    	}
+        });
 		return;
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+    Transaction tr = iterate_commit([=](Transaction &tr){
 		tr[ *device()].setUIEnabled(false);
 		tr[ *port()].setUIEnabled(false);
 		tr[ *address()].setUIEnabled(false);
 
 		tr[ *control()] = true;
 		tr.unmark(lsnOnControlChanged);
-		if(tr.commit()) {
-			tr.talk(tr[ *this].onOpen(), this);
-			break;
-		}
-	}
+    });
+    tr.talk(tr[ *this].onOpen(), this);
 }
 void
 XInterface::stop() {
@@ -112,7 +105,7 @@ XInterface::stop() {
         e.print(getLabel() + i18n(": Closing interface failed, because"));
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *device()].setUIEnabled(true);
 		tr[ *port()].setUIEnabled(true);
 		tr[ *address()].setUIEnabled(true);
@@ -120,9 +113,6 @@ XInterface::stop() {
 
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 	//g_statusPrinter->clear();
 }

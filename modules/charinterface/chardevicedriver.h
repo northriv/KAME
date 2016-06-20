@@ -49,14 +49,12 @@ XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool
 										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
 
     meas->interfaces()->insert(tr_meas, m_interface);
-	for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
 	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
 			this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
 	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
 	    	this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onClose);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template<class tDriver, class tInterface>
 void

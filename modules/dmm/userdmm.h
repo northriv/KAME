@@ -44,12 +44,10 @@ public:
 	XKE2182(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas) {
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *function()].add("VOLT");
 			tr[ *function()].add("TEMP");
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 };
 
@@ -60,7 +58,7 @@ public:
 	XKE2000(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas) {
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *function()].add("VOLT:DC");
 			tr[ *function()].add("VOLT:AC");
 			tr[ *function()].add("CURR:DC");
@@ -72,9 +70,7 @@ public:
 			tr[ *function()].add("PER");
 			tr[ *function()].add("DIOD");
 			tr[ *function()].add("CONT");
-			if(tr.commit())
-				break;
-		}
+        });
 
 		interface()->setGPIBWaitBeforeRead(20);
 	}
@@ -87,14 +83,12 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XDMMSCPI(name, runtime, ref(tr_meas), meas)
 	{
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *function()].add("VOLT");
 			tr[ *function()].add("CURR");
 			tr[ *function()].add("RES");
 			tr[ *function()].add("FRES");
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 };
 

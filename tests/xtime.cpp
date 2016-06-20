@@ -26,7 +26,7 @@
     #include <errno.h>
 #endif
 
-void msecsleep(unsigned int ms) {
+void msecsleep(unsigned int ms) noexcept {
 #ifdef USE_QTHREAD
     QThread::msleep(ms);
 #else //USE_QTHREAD
@@ -50,7 +50,7 @@ void msecsleep(unsigned int ms) {
 #endif //USE_QTHREAD
 }
 
-unsigned int timeStamp() {
+unsigned int timeStamp() noexcept {
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
     uint64_t r;
 #ifdef _MSC_VER
@@ -80,7 +80,7 @@ unsigned int timeStamp() {
 
 
 XTime
-XTime::now() {
+XTime::now() noexcept {
 #ifdef USE_QTHREAD
     qint64 x = QDateTime::currentMSecsSinceEpoch();
     return XTime(x / 1000LL, (x % 1000LL) * 1000l);

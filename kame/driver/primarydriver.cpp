@@ -23,8 +23,8 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     const XTime &time_awared, const XTime &time_recorded_org) {
 
     XTime time_recorded = time_recorded_org;
-	for(Transaction tr( *this);; ++tr) {
-		XKameError err;
+    XKameError err;
+    Snapshot shot = iterate_commit([=, &time_recorded, &err](Transaction &tr){
 		bool skipped = false;
 		if(time_recorded) {
 			try {
@@ -43,11 +43,8 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
 		}
 		if( !skipped)
 			record(tr, time_awared, time_recorded);
-		if(tr.commit()) {
-			if(err.msg().length())
-				err.print(getLabel() + ": ");
-			visualize(tr);
-			break;
-		}
-	}
+    });
+    if(err.msg().length())
+        err.print(getLabel() + ": ");
+    visualize(shot);
 }

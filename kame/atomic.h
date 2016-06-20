@@ -25,9 +25,8 @@ class atomic {
 public:
     atomic() : m_var(new T) {}
     atomic(T t) : m_var(new T(t)) {}
-    atomic(const atomic &t) : m_var(t.m_var) {}
-    ~atomic() {}
-    operator T() const {
+    atomic(const atomic &t) noexcept : m_var(t.m_var) {}
+    operator T() const noexcept {
         local_shared_ptr<T> x = m_var;
         return *x;
     }
@@ -35,7 +34,7 @@ public:
         m_var.reset(new T(t));
         return *this;
     }
-    atomic &operator=(const atomic &x) {
+    atomic &operator=(const atomic &x) noexcept {
         m_var = x.m_var;
         return *this;
     }

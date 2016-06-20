@@ -34,11 +34,9 @@ XLIA::XLIA(const char *name, bool runtime,
     m_autoScaleY(create<XBoolNode>("AutoScaleY", false)),
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
     m_form(new FrmLIA(g_pFrmMain)) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *fetchFreq()] = 1;
-		if(tr.commit())
-			break;
-	}
+    });
   
 	meas->scalarEntries()->insert(tr_meas, m_valueX);
 	meas->scalarEntries()->insert(tr_meas, m_valueY);
@@ -133,7 +131,7 @@ XLIA::execute(const atomic<bool> &terminated) {
 	m_autoScaleY->setUIEnabled(true);
 	m_fetchFreq->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
 			shared_from_this(), &XLIA::onOutputChanged);
 		m_lsnFreq = tr[ *frequency()].onValueChanged().connectWeakly(
@@ -142,9 +140,7 @@ XLIA::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XLIA::onSensitivityChanged);
 		m_lsnTimeConst = tr[ *timeConst()].onValueChanged().connectWeakly(
 			shared_from_this(), &XLIA::onTimeConstChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	while( !terminated) {
 		double fetch_freq = ***fetchFreq();

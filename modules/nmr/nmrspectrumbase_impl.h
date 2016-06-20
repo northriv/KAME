@@ -45,7 +45,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
     
 	connect(pulse());
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
 		tr[ *m_spectrum].setColCount(6, labels);
 		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
@@ -100,10 +100,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 
 		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 		tr[ *windowWidth()] = 100.0;
-
-		if(tr.commit())
-			break;
-	}
+    });
   
 	m_conBandWidth = xqcon_create<XQLineEditConnector>(m_bandWidth, m_form->m_edBW);
 	m_conBWList = xqcon_create<XQComboBoxConnector>(m_bwList, m_form->m_cmbBWList, Snapshot( *m_bwList));
@@ -121,7 +118,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
     m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc,
 		m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnClear = tr[ *m_clear].onTouch().connectWeakly(
 			shared_from_this(), &XNMRSpectrumBase<FRM>::onClear);
 		m_lsnOnCondChanged = tr[ *bandWidth()].onValueChanged().connectWeakly(
@@ -132,9 +129,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *bwList()].onValueChanged().connect(m_lsnOnCondChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template <class FRM>
 XNMRSpectrumBase<FRM>::~XNMRSpectrumBase() {
@@ -283,12 +278,10 @@ template <class FRM>
 void
 XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 	if( !shot[ *this].time()) {
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *m_spectrum].clearPoints();
 			tr[ *m_peakPlot->maxCount()] = 0;
-			if(tr.commit())
-				break;
-		}
+        });
 		return;
 	}
 

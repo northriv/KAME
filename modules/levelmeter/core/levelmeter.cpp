@@ -47,12 +47,9 @@ XLevelMeter::createChannels(Transaction &tr_meas, const shared_ptr<XMeasure> &me
 	     m_entries.push_back(entry);
 	     entries->insert(tr_meas, entry);
     }
-  for(Transaction tr( *this);; ++tr) {
+  iterate_commit([=](Transaction &tr){
 	tr[ *this].m_levels.resize(m_entries.size());
-  	if(tr.commit()) {
-  		break;
-  	}
-  }
+  });
 }
 
 void *

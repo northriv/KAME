@@ -135,7 +135,7 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 
 void
 SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
-	unique_ptr<Payload::WrapperBase> wrapper;
+    shared_ptr<Payload::WrapperBase> wrapper;
 	bool has_window = true;
 	bool has_length = true;
 	if(m_selector) {
@@ -196,9 +196,7 @@ SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
 		m_windowfunc->setUIEnabled(has_window);
 	if(m_windowlength)
 		m_windowlength->setUIEnabled(has_length);
-	for(Transaction tr( *this);; ++tr) {
-		wrapper.swap(tr[ *this].m_wrapper);
-		if(tr.commit())
-			break;
-	}
+    iterate_commit([=](Transaction &tr){
+        tr[ *this].m_wrapper = wrapper;
+    });
 }

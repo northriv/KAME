@@ -168,7 +168,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
             openAllEZUSBdevices();
         s_refcnt++;
 
-        for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=](Transaction &tr){
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
                 XString idn;
                 if(strlen(id)) {

@@ -37,7 +37,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	m_task(TASK_UNDEF) {
 
 	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *recordLength()] = 2000;
 		tr[ *timeWidth()] = 1e-2;
 		tr[ *average()] = 1;
@@ -51,9 +51,7 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 		tr[ *vFullScale2()] = "20";
 		tr[ *vFullScale3()] = "20";
 		tr[ *vFullScale4()] = "20";
-		if(tr.commit())
-			break;
-	}
+    });
     if(isMemLockAvailable()) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
 		const void *LAST_OF_MLOCK_MEMBER = &m_task;
@@ -71,7 +69,7 @@ XNIDAQmxDSO::~XNIDAQmxDSO() {
 }
 void
 XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *trigSource()].clear();
 		XString series = interface()->productSeries();
 		{
@@ -122,9 +120,7 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 			}
 		}
 		tr.unmark(m_lsnOnTrigSourceChanged); //avoids nested transactions.
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XNIDAQmxDSO::open() throw (XKameError &) {
@@ -135,16 +131,14 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 		CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
 		std::deque<XString> chans;
 		XNIDAQmxInterface::parseList(buf, chans);
-		for(Transaction tr( *this);; ++tr) {
-            for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); ++it) {
+		iterate_commit([=](Transaction &tr){
+            for(auto it = chans.cbegin(); it != chans.cend(); ++it) {
 				tr[ *trace1()].add(it->c_str());
 				tr[ *trace2()].add(it->c_str());
 				tr[ *trace3()].add(it->c_str());
 				tr[ *trace4()].add(it->c_str());
 			}
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
 
@@ -172,14 +166,12 @@ XNIDAQmxDSO::close() throw (XKameError &) {
 		m_threadReadAI->terminate();
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *trace1()].clear();
 		tr[ *trace2()].clear();
 		tr[ *trace3()].clear();
 		tr[ *trace4()].clear();
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_recordBuf.clear();
 	m_record_av.clear();

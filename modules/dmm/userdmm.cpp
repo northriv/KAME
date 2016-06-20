@@ -55,16 +55,14 @@ XHP3458A::XHP3458A(const char *name, bool runtime,
 	XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBMAVbit(0x80);
 	interface()->setGPIBUseSerialPollOnWrite(false);
-	const char *funcs[] = {
-		"DCV", "ACV", "ACDCV", "OHM", "OHMF", "DCI", "ACI", "ACDCI", "FREQ", "PER", "DSAC", "DSDC", "SSAC", "SSDC", ""
-	};
-	for(Transaction tr( *this);; ++tr) {
-		for(const char **func = funcs; strlen( *func); func++) {
+	iterate_commit([=](Transaction &tr){
+        const char *funcs[] = {
+            "DCV", "ACV", "ACDCV", "OHM", "OHMF", "DCI", "ACI", "ACDCI", "FREQ", "PER", "DSAC", "DSDC", "SSAC", "SSDC", ""
+        };
+        for(const char **func = funcs; strlen( *func); func++) {
 			tr[ *function()].add( *func);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XHP3458A::changeFunction() {
@@ -90,16 +88,14 @@ XHP3478A::XHP3478A(const char *name, bool runtime,
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBMAVbit(0x01);
 //	setEOS("\r\n");
-	const char *funcs[] = {
-		"DCV", "ACV", "OHM", "OHMF", "DCI", "ACI", ""
-	};
-	for(Transaction tr( *this);; ++tr) {
-		for(const char **func = funcs; strlen( *func); func++) {
+	iterate_commit([=](Transaction &tr){
+        const char *funcs[] = {
+            "DCV", "ACV", "OHM", "OHMF", "DCI", "ACI", ""
+        };
+        for(const char **func = funcs; strlen( *func); func++) {
 			tr[ *function()].add( *func);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XHP3478A::changeFunction() {
@@ -126,18 +122,16 @@ XSanwaPC500::XSanwaPC500(const char *name, bool runtime,
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(2);
 	
-	const char *funcs[] = {
-		"AcV", "DcV", "Ac+DcV", "Cx", "Dx", "Dx", "TC", "TC", "TF", "Ohm",
-		"Conti", "AcA", "DcA", "Ac+DcA", "Hz", "Duty%", "%mA", "dB", "?", ""
-	};
-	for(Transaction tr( *this);; ++tr) {
-		for(const char **func = funcs; strlen( *func); func++) {
+	iterate_commit([=](Transaction &tr){
+        const char *funcs[] = {
+            "AcV", "DcV", "Ac+DcV", "Cx", "Dx", "Dx", "TC", "TC", "TF", "Ohm",
+            "Conti", "AcA", "DcA", "Ac+DcA", "Hz", "Duty%", "%mA", "dB", "?", ""
+        };
+        for(const char **func = funcs; strlen( *func); func++) {
 			tr[ *function()].add( *func);
 		}
 		tr[ *function()].str(XString("?"));
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XSanwaPC500::changeFunction() {

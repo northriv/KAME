@@ -100,12 +100,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
       m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_relaxFunc = create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
 						  tr, "RelaxFunc", false, ref(tr), m_relaxFuncs, true);
-		if(tr.commit())
-			break;
-	}
+    });
 
     m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
     m_form->m_btnResetFit->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
@@ -126,7 +124,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 //    m_windowWidthList.push_back(1.25);
     m_windowWidthList.push_back(1.5);
     m_windowWidthList.push_back(2.0);
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 	    tr[ *m_windowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_HAMMING;
 	    tr[ *m_windowWidth].add("25%");
 	    tr[ *m_windowWidth].add("50%");
@@ -184,10 +182,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *autoWindow()] = true;
 		tr[ *mInftyFit()] = true;
         tr[ *smoothSamples()] = 40;
-
-		if(tr.commit())
-			break;
-	}
+    });
 
     m_form->m_dblPhase->setRange( -360.0, 360.0);
     m_form->m_dblPhase->setSingleStep(10.0);
@@ -217,7 +212,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas));
 	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas));
 
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRT1::onActiveChanged);
 		m_lsnOnP1CondChanged = tr[ *p1Max()].onValueChanged().connectWeakly(
@@ -242,9 +237,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 			shared_from_this(), &XNMRT1::onClearAll);
 		m_lsnOnResetFit = tr[ *m_resetFit].onTouch().connectWeakly(
 			shared_from_this(), &XNMRT1::onResetFit);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XNMRT1::showForms() {
@@ -275,7 +268,7 @@ XNMRT1::distributeP1(const Snapshot &shot, double uniform_x_0_to_1) {
 }
 void
 XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		double x = randMT19937();
 		double p1min = shot[ *p1Min()];
@@ -287,9 +280,7 @@ XNMRT1::onResetFit(const Snapshot &shot, XTouchableNode *) {
 		tr[ *this].m_params[0] = 1.0 / distributeP1(shot, x);
 		tr[ *this].m_params[1] = 0.1;
 		tr[ *this].m_params[2] = 0.0;
-		if(tr.commit())
-			break;
-	}
+    });
 	requestAnalysis();
 }
 void
@@ -366,7 +357,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 void
 XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
 	requestAnalysis();
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		double p1min = shot[ *p1Min()];
 		double p1max = shot[ *p1Max()];
@@ -375,9 +366,7 @@ XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
 	      	return;
 		}
 		obtainNextP1(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XNMRT1::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
@@ -721,11 +710,9 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 void
 XNMRT1::visualize(const Snapshot &shot) {
 	if( !shot[ *this].time()) {
-		for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=](Transaction &tr){
 			tr[ *m_wave].clearPoints();
-			if(tr.commit())
-				break;
-		}
+        });
 		return;
 	}
 
@@ -747,11 +734,9 @@ XNMRT1::visualize(const Snapshot &shot) {
 				if(tr.commit())
 					break;
 			}
-			for(Transaction tr( *this);; ++tr) {
+            iterate_commit([=](Transaction &tr){
 				obtainNextP1(tr);
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 

@@ -71,7 +71,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
 	meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_pnrSolverList].str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
 		tr[ *fromTrig()] = -0.005;
 		tr[ *width()] = 0.02;
@@ -82,10 +82,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *numEcho()] = 1;
 		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 		tr[ *windowWidth()] = 100.0;
-
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
 
@@ -212,7 +209,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			break;
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnAvgClear = tr[ *m_avgClear].onTouch().connectWeakly(
 			shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
 		m_lsnOnSpectrumShow = tr[ *m_spectrumShow].onTouch().connectWeakly(
@@ -237,9 +234,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *difFreq()].onValueChanged().connect(m_lsnOnCondChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
@@ -664,17 +659,16 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit_while([=](Transaction &tr){
 		Snapshot &shot(tr);
 		if(shot[ *this].time() && shot[ *this].m_avcount)
-			break;
+            return false;
 
 		tr[ *ftWaveGraph()].clearPoints();
 		tr[ *waveGraph()].clearPoints();
 		tr[ *m_peakPlot->maxCount()] = 0;
-		if(tr.commit())
-			return;
-	}
+        return true;
+    });
 
     if(m_isPulseInversionRequested.compare_set_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
@@ -689,7 +683,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		}
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		Snapshot &shot(tr);
 		const SpectrumSolver &solver(shot[ *m_solver].solver());
 
@@ -759,9 +753,6 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			colri[i] = dsowave[i].imag();
 		}
 		waveGraph()->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 

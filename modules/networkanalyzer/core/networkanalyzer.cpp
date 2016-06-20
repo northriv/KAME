@@ -197,7 +197,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	calTerm()->setUIEnabled(true);
 	calThru()->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnStartFreqChanged = tr[ *startFreq()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNetworkAnalyzer::onStartFreqChanged);
 		m_lsnOnStopFreqChanged = tr[ *stopFreq()].onValueChanged().connectWeakly(
@@ -210,9 +210,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 		m_lsnCalShort = tr[ *m_calShort].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalShortTouched);
 		m_lsnCalTerm = tr[ *m_calTerm].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalTermTouched);
 		m_lsnCalThru = tr[ *m_calThru].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalThruTouched);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	while( !terminated) {
 		XTime time_awared = XTime::now();

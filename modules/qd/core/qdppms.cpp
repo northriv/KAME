@@ -95,12 +95,10 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
 
         finishWritingRaw(writer, XTime::now(), XTime::now());
 
-        for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=](Transaction &tr){
             Snapshot &shot(tr);
             tr[ *heliumLevel()] = helium_level;
-            if(tr.commit())
-                break;
-        }
+        });
     }
 
     return NULL;

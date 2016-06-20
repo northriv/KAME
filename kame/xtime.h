@@ -24,28 +24,28 @@
 #endif
 
 //! Sleeps in ms
-DECLSPEC_KAME void msecsleep(unsigned int ms); //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
+DECLSPEC_KAME void msecsleep(unsigned int ms) noexcept; //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 
 //! Fetches CPU counter.
-DECLSPEC_KAME unsigned int timeStamp();
+DECLSPEC_KAME unsigned int timeStamp() noexcept;
 
 class DECLSPEC_KAME XTime {
 public:
-    XTime() : tv_sec(0), tv_usec(0) {}
-    XTime(long sec, long usec) : tv_sec(sec), tv_usec(usec) {}
-    double operator-(const XTime &x) const {
+    XTime() noexcept : tv_sec(0), tv_usec(0) {}
+    XTime(long sec, long usec) noexcept : tv_sec(sec), tv_usec(usec) {}
+    double operator-(const XTime &x) const noexcept {
         return (tv_sec - x.tv_sec) + (tv_usec - x.tv_usec) * 1e-6;
     }
-    long diff_usec(const XTime &x) const {
+    long diff_usec(const XTime &x) const noexcept {
         return (tv_sec - x.tv_sec) * 1000000L + ((tv_usec - x.tv_usec));
     }
-    long diff_msec(const XTime &x) const {
+    long diff_msec(const XTime &x) const noexcept {
         return (tv_sec - x.tv_sec) * 1000L + ((tv_usec - x.tv_usec) / 1000L);
     }
-    long diff_sec(const XTime &x) const {
+    long diff_sec(const XTime &x) const noexcept {
         return tv_sec - x.tv_sec;
     }
-    XTime &operator+=(double sec_d) {
+    XTime &operator+=(double sec_d) noexcept {
         long sec = floor(sec_d + tv_sec + 1e-6 * tv_usec);
         long usec = (lrint(1e6 * (tv_sec - sec + sec_d) + tv_usec));
         tv_sec = sec;
@@ -53,37 +53,37 @@ public:
         assert((tv_usec >= 0) && (tv_usec < 1000000));
         return *this;
     }
-    XTime &operator-=(double sec) {
+    XTime &operator-=(double sec) noexcept {
         *this += -sec;
         return *this;
     }
-    bool operator==(const XTime &x) const {
+    bool operator==(const XTime &x) const noexcept {
         return (tv_sec == x.tv_sec) && (tv_usec == x.tv_usec);
     }
-    bool operator!=(const XTime &x) const {
+    bool operator!=(const XTime &x) const noexcept {
         return (tv_sec != x.tv_sec) || (tv_usec != x.tv_usec);
     }
-    bool operator<(const XTime &x) const  {
+    bool operator<(const XTime &x) const noexcept  {
         return (tv_sec < x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec < x.tv_usec));
     }
-    bool operator<=(const XTime &x) const  {
+    bool operator<=(const XTime &x) const noexcept  {
         return (tv_sec <= x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec <= x.tv_usec));
     }
-    bool operator>(const XTime &x) const  {
+    bool operator>(const XTime &x) const noexcept  {
         return (tv_sec > x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec > x.tv_usec));
     }
-    bool operator>=(const XTime &x) const  {
+    bool operator>=(const XTime &x) const noexcept  {
         return (tv_sec >= x.tv_sec) || ((tv_sec == x.tv_sec) && (tv_usec >= x.tv_usec));
     }
-    bool operator!() const {
+    bool operator!() const noexcept {
         return (tv_sec == 0) && (tv_usec == 0);
     }
-    operator bool() const {
+    operator bool() const noexcept {
         return (tv_sec != 0) || (tv_usec != 0);
     }
-    long sec() const {return tv_sec;}
-    long usec() const {return tv_usec;}
-    static XTime now();
+    long sec() const noexcept {return tv_sec;}
+    long usec() const noexcept {return tv_usec;}
+    static XTime now() noexcept;
     XString getTimeStr(bool subsecond = true) const;
     XString getTimeFmtStr(const char *fmt, bool subsecond = true) const
 #if defined __GNUC__ || defined __clang__

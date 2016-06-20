@@ -45,7 +45,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
 		tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
 
@@ -57,9 +57,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *tuneStrategy()].add("Await");
         tr[ *tuneStrategy()].add("AutoTune");
         tr[ *tuneStrategy()] = TUNESTRATEGY_ASIS;
-        if(tr.commit())
-			break;
-	}
+    });
   
 	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
 	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
@@ -72,15 +70,13 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
     m_conTuneStep = xqcon_create<XQLineEditConnector>(m_tuneStep, m_form->m_edTuneStep);
     m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneStrategy, m_form->m_cmbTuneStrategy, Snapshot( *m_tuneStrategy));
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRFSpectrum::onActiveChanged);
 		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqSpan()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *freqStep()].onValueChanged().connect(m_lsnOnCondChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void

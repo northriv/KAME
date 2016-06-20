@@ -47,11 +47,9 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_stopMotor(create<XTouchableNode>("StopMotor", true)),
     m_form(new FrmMotorDriver) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *active()] = false;
-		if(tr.commit())
-			break;
-	}
+    });
 
 	meas->scalarEntries()->insert(tr_meas, m_position);
 
@@ -162,12 +160,10 @@ XMotorDriver::onClearTouched(const Snapshot &shot, XTouchableNode *) {
         e.print(getLabel() + " " + i18n("Error while clearing position, "));
         return;
     }
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
     	tr[ *target()] = 0.0;
     	tr.unmark(m_lsnTarget);
-    	if(tr.commit())
-    		break;
-    }
+    });
 }
 void
 XMotorDriver::onStoreTouched(const Snapshot &shot, XTouchableNode *) {
@@ -222,20 +218,16 @@ XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
         e.print(getLabel() + " " + i18n("Error, "));
         return;
     }
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
     	tr[ *target()] = (double)tr[ *(m_position->value())];
     	tr.unmark(m_lsnTarget);
-    	if(tr.commit())
-    		break;
-    }
+    });
 }
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		getConditions(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_position->setUIEnabled(true);
 	m_target->setUIEnabled(true);
@@ -260,7 +252,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_stopMotor->setUIEnabled(true);
 //	m_hasEncoder->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnTarget = tr[ *target()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onTargetChanged);
 		m_lsnConditions = tr[ *stepMotor()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onConditionsChanged);
 		tr[ *stepEncoder()].onValueChanged().connect(m_lsnConditions);
@@ -279,9 +271,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		m_lsnReverseMotor = tr[ *reverseMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onReverseMotorTouched);
 		m_lsnStopMotor = tr[ *stopMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStopMotorTouched);
 		m_lsnAUX = tr[ *auxBits()].onValueChanged().connectWeakly(shared_from_this(), &XMotorDriver::onAUXChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	while( !terminated) {
 		msecsleep(100);

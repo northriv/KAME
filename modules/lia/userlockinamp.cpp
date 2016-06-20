@@ -31,16 +31,14 @@ XSR830::XSR830(const char *name, bool runtime,
 						  "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
 						  "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
 						  ""};
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		for(int i = 0; strlen(tc[i]) > 0; i++) {
 			tr[ *timeConst()].add(tc[i]);
 		}
 		for(int i = 0; strlen(sens[i]) > 0; i++) {
 			tr[ *sensitivity()].add(sens[i]);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 	//    UseSerialPollOnWrite = false;
 	interface()->setGPIBWaitBeforeWrite(20);
 	interface()->setGPIBWaitBeforeRead(20);
@@ -141,16 +139,14 @@ XLI5640::XLI5640(const char *name, bool runtime,
 						  "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
 						  "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
 						  ""};
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		for(int i = 0; strlen(tc[i]) > 0; i++) {
 			tr[ *timeConst()].add(tc[i]);
 		}
 		for(int i = 0; strlen(sens[i]) > 0; i++) {
 			tr[ *sensitivity()].add(sens[i]);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 //	interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(20);
 //	interface()->setGPIBWaitBeforeRead(20);
@@ -251,7 +247,7 @@ XAH2500A::XAH2500A(const char *name, bool runtime,
 						"1s", "2s", "4s", "8s", "15s", "30s", "60s",
 						"120s", "250s", "500s", "1000s", ""};
 	const char *sens[] = {""};
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		for(int i = 0; strlen(tc[i]) > 0; i++) {
 			tr[ *timeConst()].add(tc[i]);
 		}
@@ -264,9 +260,7 @@ XAH2500A::XAH2500A(const char *name, bool runtime,
 		tr[ *autoScaleY()].disable();
 		tr[ *sensitivity()].disable();
 		tr[ *frequency()].disable();
-		if(tr.commit())
-			break;
-	}
+    });
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBWaitBeforeWrite(20);
 	interface()->setGPIBWaitBeforeRead(20);

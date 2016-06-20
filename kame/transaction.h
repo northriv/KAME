@@ -122,19 +122,27 @@ public:
 	//! Finds the parent node in \a shot.
 	XN *upperNode(Snapshot<XN> &shot);
 
+    //! Iterates a transaction covering the node and children.
+    template <typename Closure>
+    Transaction<XN> iterate_commit(Closure);
+    template <typename Closure>
+    Transaction<XN> iterate_commit_if(Closure);
+    template <typename Closure>
+    Transaction<XN> iterate_commit_while(Closure);
+
 	//! Data holder and accessor for the node.
 	//! Derive Node<XN>::Payload as (\a subclass)::Payload.
 	//! The instances have to be capable of copy-construction and be safe to be shared reading.
 	struct Payload : public atomic_countable {
-		Payload() : m_node(0), m_serial(-1), m_tr(0) {}
-		virtual ~Payload() {}
+        Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
+        virtual ~Payload() = default;
 
 		//! Points to the corresponding node.
-		XN &node() {return *m_node;}
+        XN &node() noexcept {return *m_node;}
 		//! Points to the corresponding node.
-		const XN &node() const {return *m_node;}
-		int64_t serial() const {return this->m_serial;}
-		Transaction<XN> &tr() { return *this->m_tr;}
+        const XN &node() const noexcept {return *m_node;}
+        int64_t serial() const noexcept {return this->m_serial;}
+        Transaction<XN> &tr() noexcept { return *this->m_tr;}
 
 		virtual void catchEvent(const shared_ptr<XN>&, int) {}
 		virtual void releaseEvent(const shared_ptr<XN>&, int) {}
@@ -165,7 +173,7 @@ private:
 	struct PacketList;
 	struct PacketList : public std::vector<local_shared_ptr<Packet> > {
 		shared_ptr<NodeList> m_subnodes;
-        PacketList() : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        PacketList() noexcept : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
 		//! Serial number of the transaction.
 		int64_t m_serial;
 	};
@@ -182,11 +190,11 @@ private:
 			Payload *p = new PayloadWrapper(node);
 			return p;
 		}
-	private:
-		PayloadWrapper();
-		PayloadWrapper(XN &node) : P::Payload() {this->m_node = &node;}
-		PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
-		PayloadWrapper& operator=(const PayloadWrapper &x); //non-copyable
+        PayloadWrapper() = delete;
+        PayloadWrapper& operator=(const PayloadWrapper &x) = delete;
+    private:
+        PayloadWrapper(XN &node) noexcept : P::Payload() {this->m_node = &node;}
+        PayloadWrapper(const PayloadWrapper &x) = default;
 	};
 	struct PacketWrapper;
 	struct Linkage;
@@ -196,22 +204,22 @@ private:
 	//! "missing" indicates that the package lacks any Packet for subnodes, or
 	//! any content may be out-of-date.\n
 	struct Packet : public atomic_countable {
-		Packet();
-		int size() const {return subpackets() ? subpackets()->size() : 0;}
-		local_shared_ptr<Payload> &payload() { return m_payload;}
-		const local_shared_ptr<Payload> &payload() const { return m_payload;}
-		shared_ptr<NodeList> &subnodes() { return subpackets()->m_subnodes;}
-		shared_ptr<PacketList> &subpackets() { return m_subpackets;}
-		const shared_ptr<NodeList> &subnodes() const { return subpackets()->m_subnodes;}
-		const shared_ptr<PacketList> &subpackets() const { return m_subpackets;}
+        Packet() noexcept;
+        int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
+        local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
+        const local_shared_ptr<Payload> &payload() const noexcept { return m_payload;}
+        shared_ptr<NodeList> &subnodes() noexcept { return subpackets()->m_subnodes;}
+        shared_ptr<PacketList> &subpackets() noexcept { return m_subpackets;}
+        const shared_ptr<NodeList> &subnodes() const noexcept { return subpackets()->m_subnodes;}
+        const shared_ptr<PacketList> &subpackets() const noexcept { return m_subpackets;}
 
 		//! Points to the corresponding node.
-		Node &node() {return payload()->node();}
+        Node &node() noexcept {return payload()->node();}
 		//! Points to the corresponding node.
-		const Node &node() const {return payload()->node();}
+        const Node &node() const noexcept {return payload()->node();}
 
 		//! \return false if the packet contains the up-to-date subpackets for all the subnodes.
-		bool missing() const { return m_missing;}
+        bool missing() const noexcept { return m_missing;}
 
 		//! For debugging.
 		void print_() const;
@@ -221,7 +229,7 @@ private:
 		//! Generates a serial number assigned to bundling and transaction.\n
 		//! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
 		//! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
-		static int64_t newSerial() {
+        static int64_t newSerial() noexcept {
 			for(;;) {
 				int64_t oldserial;
 				int64_t newserial;
@@ -242,22 +250,21 @@ private:
 	//! If packet() is absent, a super node should have the up-to-date Packet.\n
 	//! If hasPriority() is not set, Packet is a super node may be latest.
 	struct PacketWrapper : public atomic_countable {
-		PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial);
+        PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
 		//! creates a wrapper not containing a packet but pointing to the upper node.
 		//! \param[in] bp \a m_link of the upper node.
 		//! \param[in] reverse_index The index for this node in the list of the upper node.
-		PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial);
-		PacketWrapper(const PacketWrapper &x, int64_t bundle_serial);
-		 ~PacketWrapper() {}
-		bool hasPriority() const { return m_ridx == PACKET_HAS_PRIORITY; }
-		const local_shared_ptr<Packet> &packet() const {return m_packet;}
-		local_shared_ptr<Packet> &packet() {return m_packet;}
+        PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
+        PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
+        bool hasPriority() const noexcept { return m_ridx == PACKET_HAS_PRIORITY; }
+        const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
+        local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
 
 		//! Points to the upper node that should have the up-to-date Packet when this lacks priority.
-		shared_ptr<Linkage> bundledBy() const {return m_bundledBy.lock();}
+        shared_ptr<Linkage> bundledBy() const noexcept {return m_bundledBy.lock();}
 		//! The index for this node in the list of the upper node.
-		int reverseIndex() const {return m_ridx;}
-		void setReverseIndex(int i) {m_ridx = i;}
+        int reverseIndex() const noexcept {return m_ridx;}
+        void setReverseIndex(int i) noexcept {m_ridx = i;}
 
 		void print_() const;
 		weak_ptr<Linkage> const m_bundledBy;
@@ -265,14 +272,14 @@ private:
 		int m_ridx;
 		int64_t m_bundle_serial;
 		enum PACKET_STATE { PACKET_HAS_PRIORITY = -1};
-	private:
-		PacketWrapper(const PacketWrapper &);
+
+        PacketWrapper(const PacketWrapper &) = delete;
 	};
 	struct Linkage : public atomic_shared_ptr<PacketWrapper> {
-		Linkage() : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
+        Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
 		atomic<uint64_t> m_transaction_started_time;
 		//! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-		inline void negotiate(uint64_t &started_time);
+        inline void negotiate(uint64_t &started_time) noexcept;
 	};
 
 	friend class Snapshot<XN>;
@@ -297,7 +304,7 @@ private:
 	static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
 		local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
 		SnapshotMode mode,
-        int64_t serial = Packet::SERIAL_NULL, CASInfoList *cas_infos = 0);
+        int64_t serial = Packet::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
 
 	//! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
 	//! If this node has been bundled at the super node, unbundle() will be called.
@@ -366,7 +373,7 @@ template <class XN>
 template <class T, typename... Args>
 T *Node<XN>::create(Args&&... args) {
     *T::stl_funcPayloadCreator = (FuncPayloadCreator)&PayloadWrapper<T>::funcPayloadCreator;
-    return new T(static_cast<Args&&>(args)...);
+    return new T(std::forward<Args>(args)...);
 }
 
 //! \brief This class takes a snapshot for a subtree.\n
@@ -375,51 +382,51 @@ T *Node<XN>::create(Args&&... args) {
 template <class XN>
 class Snapshot {
 public:
-	Snapshot(const Snapshot&x) : m_packet(x.m_packet), m_serial(x.m_serial) {
-	}
-	Snapshot(Node<XN> &node, const Snapshot &x) : m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial) {
-	}
-	Snapshot(const Transaction<XN>&x);
-	explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
+    Snapshot(const Snapshot&x) noexcept = default;
+    Snapshot(Snapshot&&x) noexcept = default;
+    Snapshot(Node<XN> &node, const Snapshot &x) noexcept : m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial) {}
+    Snapshot(const Transaction<XN>&x) noexcept;
+    Snapshot& operator=(const Snapshot&x) noexcept = default;
+    explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
 		XTime time(XTime::now());
 		uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
 		node.snapshot( *this, multi_nodal, ms);
 	}
-	virtual ~Snapshot() {}
+    virtual ~Snapshot() = default;
 
 	//! \return Payload instance for \a node, which should be included in the snapshot.
 	template <class T>
-	const typename T::Payload &operator[](const shared_ptr<T> &node) const {
+    const typename T::Payload &operator[](const shared_ptr<T> &node) const noexcept {
 		return operator[](const_cast<const T&>( *node));
 	}
 	//! \return Payload instance for \a node, which should be included in the snapshot.
 	template <class T>
-	const typename T::Payload &operator[](const T &node) const {
+    const typename T::Payload &operator[](const T &node) const noexcept {
 		const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
 		const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
 		return *static_cast<const typename T::Payload*>(payload.get());
 	}
 	//! # of child nodes.
-	int size() const {return m_packet->size();}
+    int size() const noexcept {return m_packet->size();}
 	//! The list of child nodes.
-	const shared_ptr<const typename Node<XN>::NodeList> list() const {
+    const shared_ptr<const typename Node<XN>::NodeList> list() const noexcept {
 		if( !size())
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return m_packet->subnodes();
 	}
 	//! # of child nodes owned by \a node.
-	int size(const shared_ptr<Node<XN> > &node) const {
+    int size(const shared_ptr<Node<XN> > &node) const noexcept {
 		return node->reverseLookup(m_packet)->size();
 	}
 	//! The list of child nodes owned by \a node.
-	shared_ptr<const typename Node<XN>::NodeList> list(const shared_ptr<Node<XN> > &node) const {
+    shared_ptr<const typename Node<XN>::NodeList> list(const shared_ptr<Node<XN> > &node) const noexcept {
 		auto const &packet(node->reverseLookup(m_packet));
 		if( !packet->size() )
 			return shared_ptr<typename Node<XN>::NodeList>();
 		return packet->subnodes();
 	}
 	//! Whether \a lower is a child of this or not.
-	bool isUpperOf(const XN &lower) const {
+    bool isUpperOf(const XN &lower) const noexcept {
 		const shared_ptr<const typename Node<XN>::NodeList> lx(list());
 		if( !lx)
 			return false;
@@ -442,7 +449,7 @@ protected:
 	//! The snapshot.
 	local_shared_ptr<typename Node<XN>::Packet> m_packet;
 	int64_t m_serial;
-	Snapshot() : m_packet() {}
+    Snapshot() = default;
 };
 //! \brief Snapshot class which does not care of contents (Payload) for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
@@ -451,7 +458,8 @@ template <class XN, typename T>
 class SingleSnapshot : protected Snapshot<XN> {
 public:
 	explicit SingleSnapshot(const T &node) : Snapshot<XN>(node, false) {}
-	virtual ~SingleSnapshot() {}
+    virtual ~SingleSnapshot() = default;
+    SingleSnapshot(SingleSnapshot&&x) noexcept = default;
 
 	//! \return a pointer to Payload for \a node.
 	const typename T::Payload *operator->() const {
@@ -483,7 +491,7 @@ class Transaction : public Snapshot<XN> {
 public:
 	//! Be sure for the persistence of the \a node.
 	//! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
-	explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
+    explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
 		Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
@@ -493,7 +501,7 @@ public:
 	}
 	//! \param[in] x The snapshot containing the old value of \a node.
 	//! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
-	explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) : Snapshot<XN>(x),
+    explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
 		m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
 		XTime time(XTime::now());
 		m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
@@ -507,6 +515,8 @@ public:
 			}
 		}
 	}
+    Transaction(Transaction&&x) noexcept = default;
+
 	//! \return true if succeeded.
 	bool commit() {
 		Node<XN> &node(this->m_packet->node());
@@ -530,7 +540,7 @@ public:
 		++( *this);
 		return false;
 	}
-	bool isModified() const {
+    bool isModified() const noexcept {
 		return (this->m_packet != this->m_oldpacket);
 	}
 	//! Takes another snapshot and prepares for a next transaction.
@@ -578,7 +588,7 @@ public:
 		auto &p( *static_cast<typename T::Payload *>(payload.get()));
 		return p;
 	}
-	bool isMultiNodal() const {return m_multi_nodal;}
+    bool isMultiNodal() const noexcept {return m_multi_nodal;}
 
 	//! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
 	template <typename T, typename tArgRef>
@@ -599,10 +609,10 @@ public:
 				canceled += ( *it)->unmark(x);
 		return canceled;
 	}
+    Transaction(const Transaction &tr) = delete; //non-copyable.
+    Transaction& operator=(const Transaction &tr) = delete; //non-copyable.
 private:
-	Transaction(const Transaction &tr); //non-copyable.
-	Transaction& operator=(const Transaction &tr); //non-copyable.
-	friend class Node<XN>;
+    friend class Node<XN>;
 	void finalizeCommitment(Node<XN> &node);
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
@@ -619,21 +629,21 @@ template <class XN, typename T>
 class SingleTransaction : public Transaction<XN> {
 public:
 	explicit SingleTransaction(T &node) : Transaction<XN>(node, false) {}
-	virtual ~SingleTransaction() {}
+    virtual ~SingleTransaction() = default;
 
 	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
-	typename T::Payload &operator*() {
+    typename T::Payload &operator*() noexcept {
 		return ( *this)[static_cast<T &>(this->m_packet->node())];
 	}
 	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
-	typename T::Payload *operator->() {
+    typename T::Payload *operator->() noexcept {
 		return &( **this);
 	}
 protected:
 };
 
 template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) :
+inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) noexcept :
 m_packet(x.m_packet), m_serial(x.m_serial) {}
 
 template <class XN>
@@ -651,6 +661,41 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 			( *it)->talk( *this);
 		}
         m_messages.reset();
+    }
+}
+
+template <class XN>
+template <typename Closure>
+Transaction<XN> Node<XN>::iterate_commit(Closure closure) {
+    Transaction<XN> tr( *this);
+    for(;;++tr) {
+        closure(tr);
+        if(tr.commit())
+            return tr;
+    }
+}
+template <class XN>
+template <typename Closure>
+Transaction<XN> Node<XN>::iterate_commit_if(Closure closure) {
+    //std::is_integral<std::result_of<Closure>>::type
+    Transaction<XN> tr( *this);
+    for(;;++tr) {
+        if( !closure(tr))
+            continue; //skipping.
+        if(tr.commit())
+            return tr;
+    }
+}
+template <class XN>
+template <typename Closure>
+Transaction<XN> Node<XN>::iterate_commit_while(Closure closure) {
+    //std::is_integral<std::result_of<Closure>>::type
+    Transaction<XN> tr( *this);
+    for(;;++tr) {
+        if( !closure(tr))
+             return tr;
+        if(tr.commit())
+            return tr;
     }
 }
 
