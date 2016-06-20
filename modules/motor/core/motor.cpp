@@ -287,7 +287,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + " " + i18n("Read Error, "));
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push(pos);
 		writer->push((uint16_t)slip);
 		writer->push((uint16_t)isready);

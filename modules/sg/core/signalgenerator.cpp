@@ -101,7 +101,7 @@ XSG::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     XTime time_awared(XTime::now());
     changeFreq(freq__);
 
-    shared_ptr<RawData> writer(new RawData);
+    auto writer = std::make_shared<RawData>();
     writer->push(freq__);
     finishWritingRaw(writer, time_awared, XTime::now());
 }

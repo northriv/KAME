@@ -184,7 +184,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + " " + i18n("Read Error, "));
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push(flow);
 		writer->push(valve);
 		writer->push((uint16_t)alarm);

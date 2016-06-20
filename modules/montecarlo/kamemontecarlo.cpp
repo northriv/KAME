@@ -673,7 +673,7 @@ XMonteCarloDriver::execute(int flips, long double tests) {
 			((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / spin_size));
     });
     unsigned int size = shot[ *this].m_loop->length();
-    shared_ptr<RawData> writer(new RawData);
+    auto writer = std::make_shared<RawData>();
     writer->resize(size*size*size*16);
     shot[ *this].m_loop->write((char*)&writer->at(0));
     finishWritingRaw(writer, XTime::now(), XTime::now());

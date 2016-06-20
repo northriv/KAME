@@ -380,7 +380,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 			continue;
 		}
       
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
 			getWave(writer, channels);

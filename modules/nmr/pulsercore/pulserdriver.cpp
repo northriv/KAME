@@ -551,7 +551,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 		changeUIStatus( !shot[ *pulseAnalyzerMode()], true);
 	}
 	if(shot[ *pulseAnalyzerMode()]) {
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 
 	// ver 1 records below
 	    writer->push((int16_t)0);
@@ -575,7 +575,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 		}
 	}
 
-	shared_ptr<RawData> writer(new RawData);
+	auto writer = std::make_shared<RawData>();
 
 	if( !shot[ *output()]) {
 		finishWritingRaw(writer, XTime(), XTime());

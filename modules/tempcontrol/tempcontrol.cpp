@@ -571,7 +571,7 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	while( !terminated) {
 		msecsleep(10);
 
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		Snapshot shot( *this);
 		double raw, temp;
 		XTime time_awared = XTime::now();

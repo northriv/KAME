@@ -87,7 +87,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
             e.print(getLabel() + "; ");
             continue;
         }
-        shared_ptr<RawData> writer(new RawData);
+        auto writer = std::make_shared<RawData>();
         writer->push((float)sample_temp);
         writer->push((float)sample_temp_rotator);
         writer->push((float)magnet_field);

@@ -358,7 +358,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + "; ");
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push((float)magnet_field);
 		writer->push((float)output_current);
  

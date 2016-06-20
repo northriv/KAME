@@ -82,7 +82,7 @@ XDMM::execute(const atomic<bool> &terminated) {
 		msecsleep( ***waitInms());
 		if(( **function())->to_str().empty()) continue;
       
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		double x;
 		XTime time_awared = XTime::now();
 		// try/catch exception of communication errors

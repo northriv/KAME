@@ -102,7 +102,7 @@ XDCSource::visualize(const Snapshot &shot) {
 
 void
 XDCSource::finish(const XTime &time_awared) {
-	shared_ptr<RawData> writer(new RawData);
+	auto writer = std::make_shared<RawData>();
 	if( !Snapshot( *this)[ *output()])
 		finishWritingRaw(writer, XTime(), XTime());
 	else

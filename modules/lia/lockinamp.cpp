@@ -161,7 +161,7 @@ XLIA::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + " " + i18n("Read Error, "));
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push(x);
 		writer->push(y);
 		finishWritingRaw(writer, time_awared, XTime::now());
