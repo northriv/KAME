@@ -60,9 +60,7 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
         }
         tr[ *vFullScale1()] = "5";
         tr[ *vFullScale2()] = "5";
-        if(tr.commit())
-            break;
-    }
+    });
 
     vFullScale3()->disable();
     vFullScale4()->disable();
@@ -91,9 +89,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
         tr[ *trace2()].add("CH2");
         tr[ *trace1()] = 0;
         tr[ *trace2()] = 1;
-        if(tr.commit())
-            break;
-    }
+    });
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
@@ -103,9 +99,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = smps;
         tr[ *timeWidth()] = smps * intv;
-        if(tr.commit())
-            break;
-    }
+    });
 
     m_pending = true;
     Snapshot shot( *this);
