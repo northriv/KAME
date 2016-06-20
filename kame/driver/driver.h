@@ -60,24 +60,24 @@ public:
 
 		Talker<XDriver*, XDriver*> m_tlkOnRecord;
 	};
-protected:
-	//! Throwing this exception will cause a reset of record time.
-	//! And, prints error message.
+    //! Throwing this exception will cause a reset of record time.
+    //! And, prints error message.
     struct DECLSPEC_KAME XRecordError : public XKameError {
-		XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
+        XRecordError(const XString &s, const char *file, int line) : XKameError(s, file, line) {}
         virtual ~XRecordError() throw() {}
-	};
-	//! Throwing this exception will skip signal emission, assuming record is kept valid.
+    };
+    //! Throwing this exception will skip signal emission, assuming record is kept valid.
     struct DECLSPEC_KAME XSkippedRecordError : public XRecordError {
-		XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
-		XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
+        XSkippedRecordError(const XString &s, const char *file, int line) : XRecordError(s, file, line) {}
+        XSkippedRecordError(const char *file, int line) : XRecordError("", file, line) {}
         virtual ~XSkippedRecordError() throw() {}
-	};
-	//! The size of the raw record is not enough to continue analyzing.
+    };
+    //! The size of the raw record is not enough to continue analyzing.
     struct DECLSPEC_KAME XBufferUnderflowRecordError : public XRecordError {
-		XBufferUnderflowRecordError(const char *file, int line);
+        XBufferUnderflowRecordError(const char *file, int line);
         virtual ~XBufferUnderflowRecordError() throw() {}
-	};
+    };
+protected:
  
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
