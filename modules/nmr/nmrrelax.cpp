@@ -720,7 +720,7 @@ XNMRT1::visualize(const Snapshot &shot) {
     if(shot[ *active()] && m_isPulserControlRequested.compare_set_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulser__ = shot[ *pulser()];
 		if(pulser__) {
-			for(Transaction tr( *pulser__);; ++tr) {
+            pulser__->iterate_commit([=](Transaction &tr){
 				switch(shot[ *mode()]) {
 				case MEAS_T1:
 				case MEAS_ST_E:
@@ -731,16 +731,14 @@ XNMRT1::visualize(const Snapshot &shot) {
 					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
 					break;
 				}
-				if(tr.commit())
-					break;
-			}
+            });
             iterate_commit([=](Transaction &tr){
 				obtainNextP1(tr);
             });
 		}
 	}
 
-	for(Transaction tr( *m_wave);; ++tr) {
+    m_wave->iterate_commit([=](Transaction &tr){
 		XString label;
 		switch(shot[ *mode()]) {
 		case MEAS_T1:
@@ -783,10 +781,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 			i++;
 		}
 		m_wave->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 
 void
@@ -808,7 +803,7 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 		if(pulse2__ &&
 		   ((shot_pulser[ *pulser__->combMode()] == XPulser::N_COMB_MODE_COMB_ALT) ||
 			(shot_pulser[ *pulser__->combMode()] == XPulser::N_COMB_MODE_P1_ALT))) {
-			for(Transaction tr( *pulse2__);; ++tr) {
+            pulse2__->iterate_commit([=](Transaction &tr){
 				tr[ *pulse2__->fromTrig()] =
 					shot_pulse1[ *pulse1__->fromTrig()] + shot_pulser[ *pulser__->altSep()];
 				tr[ *pulse2__->width()] = (double)shot_pulse1[ *pulse1__->width()];
@@ -825,9 +820,7 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 				tr[ *pulse2__->solverList()] = (int)shot_pulse1[ *pulse1__->solverList()];
 				tr[ *pulse2__->numEcho()] = (int)shot_pulse1[ *pulse1__->numEcho()];
 				tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 }

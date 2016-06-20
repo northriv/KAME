@@ -176,7 +176,7 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 	if((fmax <= fmin) || (fmin <= 0.1))
 		throw XDriver::XSkippedRecordError(i18n("Invalid frequency settings"), __FILE__, __LINE__);
 
-	for(Transaction trp( *pulse);; ++trp) {
+    pulse->iterate_commit([=, &tr](Transaction &trp){
 		double plsbw = trp[ *pulse].paPulseBW() * 1e-3; //[MHz]
 		double fstep = plsbw *1.0;
 		fstep = std::max(fstep, (fmax - fmin) / (pts - 1));
@@ -188,23 +188,17 @@ XNMRBuiltInNetworkAnalyzer::restart(Transaction &tr, int calmode, bool clear) {
 		rept_ms = interval * 1e3 * lrint(rept_ms / (interval * 1e3)); //round to DSO interval.
 		trp[ *pulse->paPulseRept()] = rept_ms;
 		trp[ *pulse->output()] = true;
-		if(trp.commit()) {
-			break;
-		}
-	}
+    });
 
 	trans( *sg->freq()) = fmin;
 
-	for(Transaction trd( *dso);; ++trd) {
+    dso->iterate_commit([=](Transaction &trd){
 		int avg = std::max(1L, lrint(0.03 / (interval * dso_len)));
 		avg *= std::max(1u, (unsigned int)shot_this[ *average()]);
 		trd[ *dso->average()] = (avg + 3) / 4 * 4; //round to phase cycling for NMR.
 		trd[ *dso->firEnabled()] = false;
 		trd[ *dso->restart()].touch(); //Restart averaging in DSO.
-		if(trd.commit()) {
-			break;
-		}
-	}
+    });
 
 	tr[ *this].m_sweeping = true;
 }
@@ -213,13 +207,10 @@ XNMRBuiltInNetworkAnalyzer::startContSweep() {
 	Snapshot shot_this( *this);
 	shared_ptr<XPulser> pulse = shot_this[ *m_pulser];
 	if(pulse) {
-		for(Transaction tr( *pulse);; ++tr) {
+        pulse->iterate_commit([=](Transaction &tr){
 			tr[ *pulse->pulseAnalyzerMode()] = false;
 			tr[ *pulse->output()] = false;
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
     shared_ptr<XSG> sg = shot_this[ *m_sg];
     if(sg) {

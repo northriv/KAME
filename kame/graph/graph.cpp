@@ -71,7 +71,7 @@ XGraph::XGraph(const char *name, bool runtime) :
     m_drawLegends(create<XBoolNode>("DrawLegends", true)),
     m_persistence(create<XDoubleNode>("Persistence", true)) {
 
-	for(Transaction tr(*this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnPropertyChanged = tr[ *label()].onValueChanged().connect(*this,
 																   &XGraph::onPropertyChanged);
 		tr[ *backGround()].onValueChanged().connect(lsnPropertyChanged());
@@ -90,10 +90,7 @@ XGraph::XGraph(const char *name, bool runtime) :
 	    auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::DirAxisY
 							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *yaxis->label()] = i18n("Y Axis");
-
-	    if(tr.commit())
-			break;
-	}
+    });
 }
 
 void
@@ -331,11 +328,9 @@ XPlot::findPoint(const Snapshot &shot, int start, const XGraph::GPoint &gmin, co
 
 void
 XPlot::onClearPoints(const Snapshot &, XTouchableNode *) {
-	for(Transaction tr( *m_graph.lock());; ++tr) {
+    m_graph.lock()->iterate_commit([=](Transaction &tr){
 		clearAllPoints(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void
@@ -788,7 +783,7 @@ XAxis::XAxis(const char *name, bool runtime,
 	m_logScale(create<XBoolNode>("LogScale", true)) {
 	m_ticLabelFormat->setValidator(&formatDoubleValidator);
   
-	for(Transaction tr(*this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		tr[ *x()] = 0.15;
 		tr[ *y()] = 0.15;
 		tr[ *z()] = 0.15;
@@ -838,10 +833,7 @@ XAxis::XAxis(const char *name, bool runtime,
 		tr[ *labelColor()].onValueChanged().connect(graph->lsnPropertyChanged());
 		tr[ *ticColor()].onValueChanged().connect(graph->lsnPropertyChanged());
 		tr[ *ticLabelColor()].onValueChanged().connect(graph->lsnPropertyChanged());
-
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 

@@ -92,12 +92,10 @@ void
 XFourRes::visualize(const Snapshot &shot) {
 	if(shot[ *control()]) {
 		shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
-		for(Transaction tr( *dcsource__);; ++tr) {
+        dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
             msecsleep(100);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 }

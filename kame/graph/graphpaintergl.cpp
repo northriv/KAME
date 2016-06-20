@@ -72,13 +72,11 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_bTilted(false),
 	m_bReqHelp(false) {
 	item->m_painter.reset(this);
-	for(Transaction tr( *graph);; ++tr) {
+    graph->iterate_commit([=](Transaction &tr){
 		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(
 			shared_from_this(), &XQGraphPainter::onRedraw,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-		if(tr.commit())
-			break;
-	}
+    });
 	m_pixel_ratio =
 #if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
 		m_pItem->windowHandle()->devicePixelRatio();

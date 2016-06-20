@@ -292,7 +292,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 	std::vector<double> values;
 	getValues(shot, values);
 	assert(values.size() == length);
-	for(Transaction tr( *m_spectrum);; ++tr) {
+    m_spectrum->iterate_commit([=](Transaction &tr){
 		double th = FFT::windowFuncHamming(0.1);
 		const std::complex<double> *wave( &shot[ *this].wave()[0]);
 		const double *weights( &shot[ *this].weights()[0]);
@@ -325,10 +325,7 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 			points[i] = XGraph::ValPoint(a, peaks[i].first);
 		}
 		m_spectrum->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 
 template <class FRM>

@@ -517,57 +517,6 @@ public:
 	}
     Transaction(Transaction&&x) noexcept = default;
 
-	//! \return true if succeeded.
-	bool commit() {
-		Node<XN> &node(this->m_packet->node());
-		if( !isModified() || node.commit( *this)) {
-			finalizeCommitment(node);
-			return true;
-		}
-		return false;
-	}
-//	bool commitAt(Node<XN> &supernode) {
-//		if(supernode.commit_at_super( *this)) {
-//			finalizeCommitment(this->m_packet->node());
-//			return true;
-//		}
-//		return false;
-//	}
-	//! Combination of commit() and operator++().
-	bool commitOrNext() {
-		if(commit())
-			return true;
-		++( *this);
-		return false;
-	}
-    bool isModified() const noexcept {
-		return (this->m_packet != this->m_oldpacket);
-	}
-	//! Takes another snapshot and prepares for a next transaction.
-	Transaction &operator++() {
-		Node<XN> &node(this->m_packet->node());
-		if(isMultiNodal()) {
-			uint64_t time(node.m_link->m_transaction_started_time);
-			if( !time || (time > m_started_time))
-				node.m_link->m_transaction_started_time = m_started_time;
-		}
-		m_messages.reset();
-		this->m_packet->node().snapshot( *this, m_multi_nodal);
-		return *this;
-	}
-	//! Prepares for a next transaction after taking a snapshot for \a supernode.
-	//! \return a snapshot for \a supernode.
-	Snapshot<XN> newTransactionUsingSnapshotFor(Node<XN> &supernode) {
-		Snapshot<XN> shot( *this); //for node persistence.
-		Node<XN> &node(this->m_packet->node());
-		this->operator++();
-		supernode.snapshot( *this, true);
-		Snapshot<XN> shot_super( *this);
-		Snapshot<XN> shot_this(node, shot_super);
-		this->Snapshot<XN>::operator=(shot_this);
-		this->m_oldpacket = this->m_packet;
-		return shot_super;
-	}
 
 	//! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
 	template <class T>
@@ -609,10 +558,63 @@ public:
 				canceled += ( *it)->unmark(x);
 		return canceled;
 	}
+
+    bool isModified() const noexcept {
+        return (this->m_packet != this->m_oldpacket);
+    }
+    //! \return true if succeeded.
+    bool commit() {
+        Node<XN> &node(this->m_packet->node());
+        if( !isModified() || node.commit( *this)) {
+            finalizeCommitment(node);
+            return true;
+        }
+        return false;
+    }
+    //! Combination of commit() and operator++().
+    bool commitOrNext() {
+        if(commit())
+            return true;
+        ++( *this);
+        return false;
+    }
+    //! Prepares for a next transaction after taking a snapshot for \a supernode.
+    //! \return a snapshot for \a supernode.
+    Snapshot<XN> newTransactionUsingSnapshotFor(Node<XN> &supernode) {
+        Snapshot<XN> shot( *this); //for node persistence.
+        Node<XN> &node(this->m_packet->node());
+        this->operator++();
+        supernode.snapshot( *this, true);
+        Snapshot<XN> shot_super( *this);
+        Snapshot<XN> shot_this(node, shot_super);
+        this->Snapshot<XN>::operator=(shot_this);
+        this->m_oldpacket = this->m_packet;
+        return shot_super;
+    }
     Transaction(const Transaction &tr) = delete; //non-copyable.
     Transaction& operator=(const Transaction &tr) = delete; //non-copyable.
 private:
     friend class Node<XN>;
+//	bool commitAt(Node<XN> &supernode) {
+//		if(supernode.commit_at_super( *this)) {
+//			finalizeCommitment(this->m_packet->node());
+//			return true;
+//		}
+//		return false;
+//	}
+    //! Takes another snapshot and prepares for a next transaction.
+    Transaction &operator++() {
+        Node<XN> &node(this->m_packet->node());
+        if(isMultiNodal()) {
+            uint64_t time(node.m_link->m_transaction_started_time);
+            if( !time || (time > m_started_time))
+                node.m_link->m_transaction_started_time = m_started_time;
+        }
+        m_messages.reset();
+        this->m_packet->node().snapshot( *this, m_multi_nodal);
+        return *this;
+    }
+
 	void finalizeCommitment(Node<XN> &node);
 
 	local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;

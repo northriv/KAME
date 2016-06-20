@@ -225,7 +225,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			case SelPlane:
 				break;
 			case SelAxis:
-				for(Transaction tr( *m_graph);; ++tr) {
+				m_graph->iterate_commit([=](Transaction &tr){
 					if( !m_foundAxis) {
 						//Autoscales all axes
 						if(tr.size(m_graph->axes())) {
@@ -241,9 +241,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
 							tr[ *m_foundAxis->autoScale()] = true;
 					}
-					if(tr.commit())
-						break;
-				}
+                });
 				break;
 			case TiltTracking:
 				viewRotate(0.0, 0.0, 0.0, 0.0, true);
@@ -253,7 +251,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			}
 	    }
 	    else {
-			for(Transaction tr( *m_graph);; ++tr) {
+			m_graph->iterate_commit([=](Transaction &tr){
 				switch(mode) {
 				case SelPlane:
 					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
@@ -294,9 +292,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 				default:
 					break;
 				}
-				if(tr.commit())
-					break;
-			}
+            });
 	    }
 	}
 	
@@ -326,7 +322,7 @@ void
 XQGraphPainter::zoom(double zoomscale, int , int ) {
 	XGraph::ScrPoint s1(0.5, 0.5, 0.5);
   
-	for(Transaction tr( *m_graph);; ++tr) {
+	m_graph->iterate_commit([=](Transaction &tr){
 		if(tr.size(m_graph->axes())) {
 			const auto &axes_list( *tr.list(m_graph->axes()));
 			for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
@@ -336,9 +332,7 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
 			}
 		}
 		m_graph->zoomAxes(tr, resScreen(), zoomscale, s1);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
@@ -607,12 +601,9 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
 
 Snapshot
 XQGraphPainter::startDrawing() {
-	for(Transaction tr( *m_graph);; ++tr) {
+    return m_graph->iterate_commit([=](Transaction &tr){
 		m_graph->setupRedraw(tr, resScreen());
-		if(tr.commit())
-			return tr;
-	}
-	return Snapshot( *m_graph);
+    });
 }
 void
 XQGraphPainter::drawOffScreenPlaneMarkers(const Snapshot &shot) {

@@ -174,13 +174,11 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
             gWarnPrint(i18n("AutoTuner should be selected."));
             return;
         }
-        for(Transaction tr( *autotuner);; ++tr) {
+        autotuner->iterate_commit([=](Transaction &tr){
             m_lsnOnTuningChanged = tr[ *autotuner->tuning()].onValueChanged().connectWeakly(
                 shared_from_this(), &XNMRFSpectrum::onTuningChanged);
             tr[ *autotuner->target()] = newf;
-            if(tr.commit())
-                break;
-        }
+        });
 	}
     m_tunedFreq = newf;
 }

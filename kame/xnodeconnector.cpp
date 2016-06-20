@@ -89,12 +89,10 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
     assert(item);
     s_conCreating.push_back(shared_ptr<XQConnector>(this));
 
-    for(Transaction tr( *node);; ++tr) {
+    node->iterate_commit([=](Transaction &tr){
     	m_lsnUIEnabled = tr[ *node].onUIFlagsChanged().connectWeakly(shared_from_this(), &XQConnector::onUIFlagsChanged,
     		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-    	if(tr.commit())
-    		break;
-    }
+    });
     XQConnector::onUIFlagsChanged(Snapshot(*node), node.get());
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
 			 .arg(node->getLabel())
@@ -143,23 +141,19 @@ XQButtonConnector::XQButtonConnector(const shared_ptr<XTouchableNode> &node,
 	  m_node(node), m_pItem(item) {
 
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
-    for(Transaction tr( *node);; ++tr) {
+    node->iterate_commit([=](Transaction &tr){
 		m_lsnTouch = tr[ *node].onTouch().connectWeakly
 			(shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 XQButtonConnector::~XQButtonConnector() {
 }
 void
 XQButtonConnector::onClick() {
-	for(Transaction tr( *m_node);; ++tr) {
+    m_node->iterate_commit([=](Transaction &tr){
 		tr[ *m_node].touch();
 		tr.unmark(m_lsnTouch);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XQButtonConnector::onTouch(const Snapshot &shot, XTouchableNode *node) {
@@ -167,13 +161,11 @@ XQButtonConnector::onTouch(const Snapshot &shot, XTouchableNode *node) {
 
 XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidget *item)
 	: XQConnector(node, item) {
-	for(Transaction tr( *node);; ++tr) {
+    node->iterate_commit([=](Transaction &tr){
 		m_lsnValueChanged = tr[ *node].onValueChanged().connectWeakly(
 			shared_from_this(), &XValueQConnector::onValueChanged,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XValueQConnector::~XValueQConnector() {
 }
@@ -205,12 +197,10 @@ void
 XQLineEditConnector::onTextChanged2(const QString &text) {
 	QPalette palette(m_pItem->palette());
     try {
-    	for(Transaction tr( *m_node);; ++tr) {
+        m_node->iterate_commit([=](Transaction &tr){
     		tr[ *m_node].str(text);
     		tr.unmark(m_lsnValueChanged);
-    		if(tr.commit())
-    			break;
-    	}
+        });
 		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
@@ -222,12 +212,10 @@ void
 XQLineEditConnector::onReturnPressed() {
 	QPalette palette(m_pItem->palette());
     try {
-		for(Transaction tr( *m_node);; ++tr) {
+        m_node->iterate_commit([=](Transaction &tr){
 			tr[ *m_node].str(m_pItem->text());
 			tr.unmark(m_lsnValueChanged);
-			if(tr.commit())
-				break;
-		}
+        });
 		palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
@@ -326,12 +314,10 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onChangeTMPL(X val) {
         m_pSlider->setValue(var);
         m_pSlider->blockSignals(false);
     }
-    for(Transaction tr( *m_node);; ++tr) {
+    m_node->iterate_commit([=](Transaction &tr){
         tr[ *m_node] = val;
         tr.unmark(m_lsnValueChanged);
-        if(tr.commit())
-            break;
-    }
+    });
 }
 template <class QN, class XN, class X>
 void
@@ -345,12 +331,10 @@ XQSpinBoxConnectorTMPL<QN,XN,X>::onSliderChangeTMPL(int val) {
     m_pItem->blockSignals(true);
     m_pItem->setValue(var);
     m_pItem->blockSignals(false);
-    for(Transaction tr( *m_node);; ++tr) {
+    m_node->iterate_commit([=](Transaction &tr){
         tr[ *m_node] = var;
         tr.unmark(m_lsnValueChanged);
-        if(tr.commit())
-            break;
-    }
+    });
 }
 template <class QN, class XN, class X>
 void
@@ -413,12 +397,10 @@ XFilePathConnector::onClick() {
         m_pItem->setText(str);
 	    m_pItem->blockSignals(false);
 	    try {
-			for(Transaction tr( *m_node);; ++tr) {
+            m_node->iterate_commit([=](Transaction &tr){
             tr[ *m_node].str(str);
 				tr.unmark(m_lsnValueChanged);
-                if(tr.commit())
-					break;
-			}
+            });
 	    }
 	    catch (XKameError &e) {
 		e.print();
@@ -492,12 +474,10 @@ XQToggleButtonConnector::XQToggleButtonConnector(const shared_ptr<XBoolNode> &no
 
 void
 XQToggleButtonConnector::onClick() {
-	for(Transaction tr( *m_node);; ++tr) {
+    m_node->iterate_commit([=](Transaction &tr){
 		tr[ *m_node] = m_pItem->isChecked();
 		tr.unmark(m_lsnValueChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void
@@ -510,16 +490,14 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 	: XQConnector(node, item),
 	  m_pItem(item), m_list(node) {
 
-	for(Transaction tr( *node);; ++tr) {
+    node->iterate_commit([=](Transaction &tr){
 	    m_lsnMove = tr[ *node].onMove().connectWeakly(shared_from_this(),
 	         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnCatch = tr[ *node].onCatch().connectWeakly(shared_from_this(),
 			&XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnRelease = tr[ *node].onRelease().connectWeakly(shared_from_this(),
 	    	&XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
+    });
     QHeaderView *header = m_pItem->verticalHeader();
 #if QT_VERSION  < QT_VERSION_CHECK(5,0,0)
     header->setMovable(true);
@@ -545,7 +523,7 @@ XListQConnector::OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVis
     int toIndex = newVisualIndex;
     if(toIndex == fromIndex)
         toIndex++;
-    for(Transaction tr( *m_list);; ++tr) {
+    m_list->iterate_commit([=](Transaction &tr){
         unsigned int src = fromIndex;
         unsigned int dst = toIndex;
 		if( !tr.size() || src >= tr.size() || (dst >= tr.size())) {
@@ -558,9 +536,7 @@ XListQConnector::OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVis
             i = next;
         }
 		tr.unmark(m_lsnMove);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 void
 XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e) {
@@ -573,13 +549,11 @@ XListQConnector::onMove(const Snapshot &shot, const XListNodeBase::Payload::Move
 
 XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget *item)
 	: XValueQConnector(node, item) {
-	for(Transaction tr( *node);; ++tr) {
+    node->iterate_commit([=](Transaction &tr){
 	    m_lsnListChanged = tr[ *node].onListChanged().connectWeakly(shared_from_this(),
 	    	&XItemQConnector::onListChanged,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XItemQConnector::~XItemQConnector() {
 }
@@ -595,15 +569,13 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 void
 XQComboBoxConnector::onSelect(int idx) {
     try {
-		for(Transaction tr( *m_node);; ++tr) {
+        m_node->iterate_commit([=](Transaction &tr){
             if( (idx >= m_itemStrings.size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
                 tr[ *m_node].str(m_itemStrings.at(idx).label);
 			tr.unmark(m_lsnValueChanged);
-			if(tr.commit())
-				break;
-		}
+        });
     }
     catch (XKameError &e) {
         e.print();
@@ -694,15 +666,13 @@ void
 XQListWidgetConnector::OnItemSelectionChanged() {
     int idx = m_pItem->currentRow();
     try {
-		for(Transaction tr( *m_node);; ++tr) {
+        m_node->iterate_commit([=](Transaction &tr){
             if((idx >= m_itemStrings.size()) || (idx < 0))
 	            tr[ *m_node].str(XString());
 	        else
                 tr[ *m_node].str(m_itemStrings.at(idx).label);
 			tr.unmark(m_lsnValueChanged);
-			if(tr.commit())
-				break;
-		}
+        });
     }
     catch (XKameError &e) {
         e.print();
@@ -752,11 +722,9 @@ XColorConnector::onClick() {
 }
 void
 XColorConnector::OnColorSelected(const QColor & color) {
-    for(Transaction tr( *m_node);; ++tr) {
+    m_node->iterate_commit([=](Transaction &tr){
         tr[ *m_node] = color.rgb();
-        if(tr.commit())
-            break;
-    }
+    });
 }
 void
 XColorConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {

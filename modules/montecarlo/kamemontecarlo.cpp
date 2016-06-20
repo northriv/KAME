@@ -156,7 +156,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
     m_targetTemp->setUIEnabled(true);
     m_targetField->setUIEnabled(true);
 
-    for(Transaction tr( *m_wave3D);; ++tr) {
+    m_wave3D->iterate_commit([=](Transaction &tr){
 		const char *s_trace_names[] = {
 			"h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
 		};
@@ -182,9 +182,7 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 		tr[ *tr[ *m_wave3D].axisz()->labelColor()] = clWhite;
 		tr[ *tr[ *m_wave3D].axisz()->ticLabelColor()] = clWhite;
 		tr[ *m_wave3D].clearPoints();
-		if(tr.commit())
-			break;
-    }
+    });
 }
 XMonteCarloDriver::~XMonteCarloDriver() {
 	Snapshot shot( *this);
@@ -420,7 +418,7 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 		fftw_execute(shot[ *this].m_fftplan[1]);
 		fftw_execute(shot[ *this].m_fftplan[2]);
     
-		for(Transaction tr( *m_wave3D);; ++tr) {
+        m_wave3D->iterate_commit([=](Transaction &tr){
 			tr[ *m_wave3D].setRowCount(fftlen * fftlen * fftlen );
 			double normalize = A_MOMENT / fftlen / fftlen / fftlen;
 			int idx = 0;
@@ -458,66 +456,60 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				}
 			}
 			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
 	if(calcasite) {
-		for(Transaction tr( *m_wave3D);; ++tr) {
-		int idx = 0;
-		tr[ *m_wave3D].setRowCount(16*size*size*size);
-		for(int site = 0; site < 16; site++) {
-			const int *pos = cg_ASitePositions[site];
-			for(int k = 0; k < size; k++) {
-				for(int j = 0; j < size; j++) {
-					for(int i = 0; i < size; i++) {
-						int sidx = size*(size*(size*site + k) + j) + i;
-						int fftidx = fftlen*(fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
-						double x = i + pos[0] * 0.25;
-						double y = j + pos[1] * 0.25;
-						double z = k + pos[2] * 0.25;
-						tr[ *m_wave3D].cols(0)[idx] = x;
-						tr[ *m_wave3D].cols(1)[idx] = y;
-						tr[ *m_wave3D].cols(2)[idx] = z;
-						double sx = shot[ *this].m_pFFTin[0][fftidx][0];
-						double sy = shot[ *this].m_pFFTin[1][fftidx][0];
-						double sz = shot[ *this].m_pFFTin[2][fftidx][0];
-						double v = 0.0;
-						if(along_field_dir) {
-							v = field_dir.innerProduct(MonteCarlo::Vector3<double>
-													   (sx,sy,sz)) * A_MOMENT;
-						}
-						else {
-							if(calcp) {
-								v = probabilities[sidx];
-							}
-							else {
-								if(calch) {
-									v = fields[sidx];
-								}
-							}
-						}
-						tr[ *m_wave3D].cols(3)[idx] = v;
-						tr[ *m_wave3D].cols(4)[idx] = sx;
-						tr[ *m_wave3D].cols(5)[idx] = sy;
-						tr[ *m_wave3D].cols(6)[idx] = sz;
-						tr[ *m_wave3D].cols(7)[idx] = site;
-						idx++;
-					}
-				}
-			}
-			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
-	}
-	}
+        m_wave3D->iterate_commit([=](Transaction &tr){
+            int idx = 0;
+            tr[ *m_wave3D].setRowCount(16*size*size*size);
+            for(int site = 0; site < 16; site++) {
+                const int *pos = cg_ASitePositions[site];
+                for(int k = 0; k < size; k++) {
+                    for(int j = 0; j < size; j++) {
+                        for(int i = 0; i < size; i++) {
+                            int sidx = size*(size*(size*site + k) + j) + i;
+                            int fftidx = fftlen*(fftlen*(4*k+pos[2]) + 4*j+pos[1]) + 4*i + pos[0];
+                            double x = i + pos[0] * 0.25;
+                            double y = j + pos[1] * 0.25;
+                            double z = k + pos[2] * 0.25;
+                            tr[ *m_wave3D].cols(0)[idx] = x;
+                            tr[ *m_wave3D].cols(1)[idx] = y;
+                            tr[ *m_wave3D].cols(2)[idx] = z;
+                            double sx = shot[ *this].m_pFFTin[0][fftidx][0];
+                            double sy = shot[ *this].m_pFFTin[1][fftidx][0];
+                            double sz = shot[ *this].m_pFFTin[2][fftidx][0];
+                            double v = 0.0;
+                            if(along_field_dir) {
+                                v = field_dir.innerProduct(MonteCarlo::Vector3<double>
+                                                           (sx,sy,sz)) * A_MOMENT;
+                            }
+                            else {
+                                if(calcp) {
+                                    v = probabilities[sidx];
+                                }
+                                else {
+                                    if(calch) {
+                                        v = fields[sidx];
+                                    }
+                                }
+                            }
+                            tr[ *m_wave3D].cols(3)[idx] = v;
+                            tr[ *m_wave3D].cols(4)[idx] = sx;
+                            tr[ *m_wave3D].cols(5)[idx] = sy;
+                            tr[ *m_wave3D].cols(6)[idx] = sz;
+                            tr[ *m_wave3D].cols(7)[idx] = site;
+                            idx++;
+                        }
+                    }
+                }
+                m_wave3D->drawGraph(tr);
+            }
+        });
+    }
 	if(calcbsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(16*size*size*size);
 		shot[ *this].m_store->write_bsite(&fields[0]);
-		for(Transaction tr( *m_wave3D);; ++tr) {
+        m_wave3D->iterate_commit([=](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(16*size*size*size);
 			for(int site = 0; site < 16; site++) {
@@ -544,15 +536,12 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				}
 			}
 			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
 	if(calc8asite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(8*size*size*size);
 		shot[ *this].m_store->write_8asite(&fields[0]);
-		for(Transaction tr( *m_wave3D);; ++tr) {
+        m_wave3D->iterate_commit([=](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(8*size*size*size);
 			for(int site = 0; site < 8; site++) {
@@ -579,15 +568,12 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				}
 			}
 			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
 	if(calc48fsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(48*size*size*size);
 		shot[ *this].m_store->write_48fsite(&fields[0]);
-		for(Transaction tr( *m_wave3D);; ++tr) {
+        m_wave3D->iterate_commit([=](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(48*size*size*size);
 			for(int site = 0; site < 48; site++) {
@@ -614,16 +600,13 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				}
 			}
 			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
 	if(writeflips) {
 		std::deque<MonteCarlo::FlipHistory> flips;
 		shot[ *this].m_loop->write_flips(flips);
 
-		for(Transaction tr( *m_wave3D);; ++tr) {
+        m_wave3D->iterate_commit([=](Transaction &tr){
 			tr[ *m_wave3D].setRowCount(flips.size());
 			for(int idx = 0; idx < (int)flips.size(); idx++) {
 				int lidx = flips[idx].lidx;
@@ -648,10 +631,7 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				tr[ *m_wave3D].cols(7)[idx] = site;
 			}
 			m_wave3D->drawGraph(tr);
-			if(tr.commit()) {
-				break;
-			}
-		}
+        });
 	}
 }
 void

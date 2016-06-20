@@ -137,7 +137,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form->m_cmbPulser, ref(tr_meas));
 	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas));
 
-	for(Transaction tr( *waveGraph());; ++tr) {
+    waveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
 		tr[ *waveGraph()].setColCount(5, labels);
 		tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
@@ -162,10 +162,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x00, 0xa0, 0xff).rgb();
 		tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.3;
 		tr[ *waveGraph()].clearPoints();
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *ftWaveGraph());; ++tr) {
+    });
+    ftWaveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
 		tr[ *ftWaveGraph()].setColCount(6, labels);
@@ -205,9 +203,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
 		tr[ *ftWaveGraph()].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnAvgClear = tr[ *m_avgClear].onTouch().connectWeakly(
@@ -673,13 +669,11 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
     if(m_isPulseInversionRequested.compare_set_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
 		if(pulse__) {
-			for(Transaction tr( *pulse__);; ++tr) {
+            pulse__->iterate_commit([=](Transaction &tr){
 				if(tr[ *pulse__].time()) {
 					tr[ *pulse__->invertPhase()] = !tr[ *pulse__->invertPhase()];
 				}
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 

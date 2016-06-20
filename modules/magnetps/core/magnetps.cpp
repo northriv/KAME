@@ -459,13 +459,11 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
                             }
                             else {
                                 double sweep_rate = getSweepRate();
-                                for(Transaction tr( *secondaryps);; ++tr) {
+                                secondaryps->iterate_commit([=](Transaction &tr){
                                     tr[ *secondaryps->sweepRate()] = sweep_rate * mul;
                                     tr[ *secondaryps->targetField()] = next_target_ps * mul;
                                     tr[ *secondaryps->approach()] = (int)shot[ *approach()];
-                                    if(tr.commit())
-                                        break;
-                                }
+                                });
                             }
                         }
                     }

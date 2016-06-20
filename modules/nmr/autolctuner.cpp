@@ -88,20 +88,16 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 	const unsigned int tunebits = 0xffu;
 	if(stm1__) {
-		for(Transaction tr( *stm1__);; ++tr) {
+        stm1__->iterate_commit([=](Transaction &tr){
 			tr[ *stm1__->active()] = true; // Activate motor.
 			tr[ *stm1__->auxBits()] = tunebits; //For external RF relays.
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 	if(stm2__) {
-		for(Transaction tr( *stm2__);; ++tr) {
+        stm2__->iterate_commit([=](Transaction &tr){
 			tr[ *stm2__->active()] = true; // Activate motor.
 			tr[ *stm2__->auxBits()] = tunebits; //For external RF relays.
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 	iterate_commit([=](Transaction &tr){
 		tr[ *m_tuning] = true;
@@ -629,20 +625,16 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 		if(shot_this[ *succeeded()]){
 			const unsigned int tunebits = 0;
 			if(stm1__) {
-				for(Transaction tr( *stm1__);; ++tr) {
+                stm1__->iterate_commit([=](Transaction &tr){
 					tr[ *stm1__->active()] = false; //Deactivates motor.
 					tr[ *stm1__->auxBits()] = tunebits; //For external RF relays.
-					if(tr.commit())
-						break;
-				}
+                });
 			}
 			if(stm2__) {
-				for(Transaction tr( *stm2__);; ++tr) {
+                stm2__->iterate_commit([=](Transaction &tr){
 					tr[ *stm2__->active()] = false; //Deactivates motor.
 					tr[ *stm2__->auxBits()] = tunebits; //For external RF relays.
-					if(tr.commit())
-						break;
-				}
+                });
 			}
 			msecsleep(50); //waits for relays.
 			trans( *tuning()) = false; //finishes tuning successfully.
@@ -650,22 +642,20 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 	}
 	if(shot_this[ *this].isSTMChanged) {
 		if(stm1__) {
-			for(Transaction tr( *stm1__);; ++tr) {
+            stm1__->iterate_commit_while([=](Transaction &tr){
 				if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
-					break;
+                    return false;
 				tr[ *stm1__->target()] = shot_this[ *this].stm1;
-				if(tr.commit())
-					break;
-			}
+                return true;
+            });
 		}
 		if(stm2__) {
-			for(Transaction tr( *stm2__);; ++tr) {
+            stm2__->iterate_commit_while([=](Transaction &tr){
 				if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
-					break;
+                    return false;
 				tr[ *stm2__->target()] = shot_this[ *this].stm2;
-				if(tr.commit())
-					break;
-			}
+                return true;
+            });
 		}
 		msecsleep(50); //waits for ready indicators.
 		if( !shot_this[ *tuning()]) {

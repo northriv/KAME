@@ -155,14 +155,12 @@ XRuby::rnode_touch(const shared_ptr<XNode> &node) {
     if( !node)
         throw (std::string)formatString("Type mismatch on node %s\n", node->getName().c_str());
     dbgPrint(QString("Ruby, Node %1, touching."));
-    for(Transaction tr( *tnode);; ++tr) {
+    tnode->iterate_commit([=](Transaction &tr){
         if(tr[ *tnode].isUIEnabled() )
             tr[ *tnode].touch();
         else
             throw (std::string)formatString("Node %s is read-only!\n", node->getName().c_str());
-        if(tr.commit())
-            break;
-    }
+    });
     return Ruby::Nil;
 }
 Ruby::Value

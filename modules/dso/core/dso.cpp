@@ -162,13 +162,11 @@ XDSO::XDSO(const char *name, bool runtime,
 //	dRFFreq()->setUIEnabled(false);
 //	dRFSG()->setUIEnabled(false);
 
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_waveForm].setColCount(4, s_trace_names);
 		tr[ *m_waveForm->graph()->persistence()] = 0;
 		tr[ *m_waveForm].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XDSO::showForms() {
@@ -213,7 +211,7 @@ XDSO::visualize(const Snapshot &shot) {
 		return;
 	}
 	const unsigned int length = shot[ *this].lengthDisp();
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_waveForm].setColCount(num_channels + 1, s_trace_names);
 		if(tr[ *m_waveForm].numPlots() != num_channels) {
 			tr[ *m_waveForm].clearPlots();
@@ -243,9 +241,7 @@ XDSO::visualize(const Snapshot &shot) {
 			memcpy(tr[ *m_waveForm].cols(i + 1), shot[ *this].waveDisp(i), length * sizeof(double));
 		}
 		m_waveForm->drawGraph(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XDSO::onRestartTouched(const Snapshot &shot, XTouchableNode *) {

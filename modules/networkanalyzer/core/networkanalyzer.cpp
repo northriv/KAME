@@ -68,7 +68,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_conCalTerm = xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm);
 	m_conCalThru = xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru);
 
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"Freq [MHz]", "Level [dB]", "Phase [deg.]"};
 		tr[ *m_waveForm].setColCount(3, labels);
 		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
@@ -114,9 +114,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 		tr[ *plot->clearPoints()].setUIEnabled(false);
 		tr[ *plot->maxCount()].setUIEnabled(false);
 		tr[ *m_waveForm].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XNetworkAnalyzer::showForms() {
@@ -153,7 +151,7 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 		return;
 	  }
 	const unsigned int length = shot[ *this].length();
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
         auto &points(tr[ *m_markerPlot].points());
 		points.clear();
@@ -179,10 +177,7 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 		}
 
 		m_waveForm->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 
 void *

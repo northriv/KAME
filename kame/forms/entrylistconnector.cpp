@@ -117,13 +117,11 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_cons.back()->condelta = xqcon_create<XQDoubleSpinBoxConnector>(entry->delta(), numDelta);
 	m_pItem->setCellWidget(i, 3, numDelta);
 	m_cons.back()->driver = driver;
-	for(Transaction tr( *driver);; ++tr) {
+    driver->iterate_commit([=](Transaction &tr){
 		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
 				shared_from_this(), &XEntryListConnector::onRecord,
 				XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	assert(m_pItem->rowCount() == (int)m_cons.size());
 }

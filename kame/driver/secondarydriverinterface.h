@@ -118,15 +118,13 @@ XSecondaryDriverInterface<T>::connect(const shared_ptr<XPointerItemNode<XDriverL
 		tr[ *this].m_connections.push_back(con);
     });
 
-    for(Transaction tr( *selecter);; ++tr) {
+    selecter->iterate_commit([=](Transaction &tr){
 		if(m_lsnOnItemChanged)
 			tr[ *selecter].onValueChanged().connect(m_lsnOnItemChanged);
 		else
 			m_lsnOnItemChanged = tr[ *selecter].onValueChanged().connectWeakly(this->shared_from_this(),
 				&XSecondaryDriverInterface<T>::onItemChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template <class T>
 void
@@ -137,12 +135,10 @@ XSecondaryDriverInterface<T>::onItemChanged(const Snapshot &shot, XValueNodeBase
 
     shared_ptr<XListener> lsnonrecord;
 	if(driver) {
-		for(Transaction tr( *driver);; ++tr) {
+        driver->iterate_commit([=, &lsnonrecord](Transaction &tr){
 			lsnonrecord = tr[ *driver].onRecord().connectWeakly(
 				this->shared_from_this(), &XSecondaryDriverInterface<T>::onConnectedRecorded);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
     this->iterate_commit([=](Transaction &tr){
 		auto it = std::find(tr[ *this].m_connections.begin(), tr[ *this].m_connections.end(), item);

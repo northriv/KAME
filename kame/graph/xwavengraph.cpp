@@ -231,7 +231,7 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
             (const char*)QString(shot[ *filename()].to_str().c_str()).toLocal8Bit().data(),
 			OFSMODE);
 
-		for(Transaction tr(*this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			if(m_stream.good()) {
 				m_lsnOnDumpTouched = tr[ *dump()].onTouch().connectWeakly(
 					shared_from_this(), &XWaveNGraph::onDumpTouched);
@@ -243,9 +243,7 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 				gErrPrint(i18n("Failed to open file."));
 			}
 			tr.mark(tr[ *this].onIconChanged(), false);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 }
 
