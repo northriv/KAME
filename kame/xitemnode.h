@@ -21,7 +21,7 @@
 class DECLSPEC_KAME XItemNodeBase : public XValueNodeBase {
 public:
 	explicit XItemNodeBase(const char *name, bool runtime = false, bool auto_set_any = false);
-	virtual ~XItemNodeBase() {}
+    virtual ~XItemNodeBase() = default;
   
 	struct Item { XString name, label; };
     virtual std::vector<Item> itemStrings(const Snapshot &shot_of_list) const = 0;
@@ -57,10 +57,9 @@ public:
 		m_lsnOnItemReleased = tr_list[ *list].onRelease().connect( *this, &XPointerItemNode<TL>::onItemReleased);
 		m_lsnOnListChanged = tr_list[ *list].onListChanged().connect( *this, &XPointerItemNode<TL>::lsnOnListChanged);
     }
-	virtual ~XPointerItemNode() {}
+    virtual ~XPointerItemNode() = default;
 
 	struct Payload : public XItemNodeBase::Payload {
-		Payload() : XItemNodeBase::Payload() {}
 		operator shared_ptr<XNode>() const { return m_var.lock();}
 		virtual XString to_str() const {
 			shared_ptr<XNode> node( *this);
@@ -127,7 +126,7 @@ protected:
         const shared_ptr<TL> &list, bool auto_set_any = false)
         :  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
     }
-    virtual ~XItemNode() {}
+    virtual ~XItemNode() = default;
     virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &) const {
         return std::vector<XItemNodeBase::Item>();
     }
@@ -142,7 +141,7 @@ public:
 		const shared_ptr<TL> &list, bool auto_set_any = false)
         :  XItemNode<TL, VT...>(name, runtime, tr_list, list, auto_set_any) {
 	}
-    virtual ~XItemNode() {}
+    virtual ~XItemNode() = default;
 
     struct Payload : public XItemNode<TL, VT...>::Payload {
         Payload() : XItemNode<TL, VT...>::Payload() {}
@@ -177,7 +176,7 @@ public:
 class DECLSPEC_KAME XComboNode : public XItemNodeBase {
 public:
 	explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
-	virtual ~XComboNode() {}
+    virtual ~XComboNode() = default;
   
     virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const {
         return shot[ *this].itemStrings();

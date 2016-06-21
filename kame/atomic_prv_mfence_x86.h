@@ -23,23 +23,23 @@
 #endif
 
 //! memory barriers.
-inline void readBarrier() {
+inline void readBarrier() noexcept {
     _mm_lfence();
 //	asm volatile( "lfence" ::: "memory" );
 //	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
-inline void writeBarrier() {
+inline void writeBarrier() noexcept {
     _mm_sfence();
 //    asm volatile( "sfence" ::: "memory" );
 //	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
-inline void memoryBarrier() {
+inline void memoryBarrier() noexcept {
     _mm_mfence();
 //    asm volatile( "mfence" ::: "memory" );
 //	//	asm volatile ("lock; addl $0,0(%%esp)" ::: "memory");
 }
 
-inline void pause4spin() {
+inline void pause4spin() noexcept {
     _mm_pause();
 //	asm volatile( "pause" ::: "memory" );
 }

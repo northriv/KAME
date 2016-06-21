@@ -71,7 +71,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 	meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
 	meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_pnrSolverList].str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
 		tr[ *fromTrig()] = -0.005;
 		tr[ *width()] = 0.02;
@@ -82,10 +82,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *numEcho()] = 1;
 		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 		tr[ *windowWidth()] = 100.0;
-
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
 
@@ -140,7 +137,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_form->m_cmbPulser, ref(tr_meas));
 	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas));
 
-	for(Transaction tr( *waveGraph());; ++tr) {
+    waveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
 		tr[ *waveGraph()].setColCount(5, labels);
 		tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
@@ -165,10 +162,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x00, 0xa0, 0xff).rgb();
 		tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.3;
 		tr[ *waveGraph()].clearPoints();
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *ftWaveGraph());; ++tr) {
+    });
+    ftWaveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
 		tr[ *ftWaveGraph()].setColCount(6, labels);
@@ -208,11 +203,9 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
 		tr[ *ftWaveGraph()].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnAvgClear = tr[ *m_avgClear].onTouch().connectWeakly(
 			shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
 		m_lsnOnSpectrumShow = tr[ *m_spectrumShow].onTouch().connectWeakly(
@@ -237,9 +230,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *difFreq()].onValueChanged().connect(m_lsnOnCondChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 XNMRPulseAnalyzer::~XNMRPulseAnalyzer() {
 }
@@ -664,32 +655,29 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit_while([=](Transaction &tr){
 		Snapshot &shot(tr);
 		if(shot[ *this].time() && shot[ *this].m_avcount)
-			break;
+            return false;
 
 		tr[ *ftWaveGraph()].clearPoints();
 		tr[ *waveGraph()].clearPoints();
 		tr[ *m_peakPlot->maxCount()] = 0;
-		if(tr.commit())
-			return;
-	}
+        return true;
+    });
 
     if(m_isPulseInversionRequested.compare_set_strong((int)true, (int)false)) {
 		shared_ptr<XPulser> pulse__ = shot[ *pulser()];
 		if(pulse__) {
-			for(Transaction tr( *pulse__);; ++tr) {
+            pulse__->iterate_commit([=](Transaction &tr){
 				if(tr[ *pulse__].time()) {
 					tr[ *pulse__->invertPhase()] = !tr[ *pulse__->invertPhase()];
 				}
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		Snapshot &shot(tr);
 		const SpectrumSolver &solver(shot[ *m_solver].solver());
 
@@ -759,9 +747,6 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			colri[i] = dsowave[i].imag();
 		}
 		waveGraph()->drawGraph(tr);
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 

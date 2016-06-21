@@ -48,7 +48,7 @@ XCounter::execute(const atomic<bool> &terminated) {
     while( !terminated) {
 		msecsleep(50);
 
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
 			unsigned int num = m_entries.size();

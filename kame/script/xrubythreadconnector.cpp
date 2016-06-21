@@ -50,29 +50,22 @@ XRubyThreadConnector::XRubyThreadConnector(
     m_pForm->m_ptxtDefout->setOpenLinks(false);
     m_pForm->m_ptxtDefout->setOpenExternalLinks(false);
 
-    for(Transaction tr( *m_resume);; ++tr) {
+    m_resume->iterate_commit([=](Transaction &tr){
 		m_lsnOnResumeTouched = tr[ *m_resume].onTouch().connectWeakly(
 			shared_from_this(), &XRubyThreadConnector::onResumeTouched);
-		if(tr.commit())
-			break;
-    }
-    for(Transaction tr( *m_kill);; ++tr) {
+    });
+    m_kill->iterate_commit([=](Transaction &tr){
 		m_lsnOnKillTouched = tr[ *m_kill].onTouch().connectWeakly(
 			shared_from_this(), &XRubyThreadConnector::onKillTouched);
-		if(tr.commit())
-			break;
-    }
-	for(Transaction tr( *rbthread);; ++tr) {
+    });
+    Snapshot shot = rbthread->iterate_commit([=](Transaction &tr){
 	    m_lsnOnDefout = tr[ *rbthread].onMessageOut().connectWeakly(
 	        shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnOnStatusChanged = tr[ *rbthread->status()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
-		if(tr.commit()) {
-		    onStatusChanged(tr, rbthread->status().get());
-			break;
-		}
-	}
-        
+    });
+    onStatusChanged(shot, rbthread->status().get());
+
     form->setWindowIcon( *g_pIconScript);
     form->setWindowTitle(rbthread->getLabel());
 }

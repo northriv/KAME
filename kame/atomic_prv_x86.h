@@ -35,7 +35,7 @@ typedef uint_cas2 uint_cas_max;
 #ifdef HAVE_ATOMIC_RW64
 //! \param x must be aligned to 8bytes.
 template <typename T>
-inline void atomicWrite64(const T &x, T *target) {
+inline void atomicWrite64(const T &x, T *target) noexcept {
 	static_assert(sizeof(T) == 8, "");
 	asm (
 		" movq %0, %%xmm0;"
@@ -47,7 +47,7 @@ inline void atomicWrite64(const T &x, T *target) {
 
 //! \param x must be aligned to 8bytes.
 template <typename T>
-inline void atomicRead64(T *x, const T &target) {
+inline void atomicRead64(T *x, const T &target) noexcept {
 	static_assert(__alignof__(T) >= 8, "");
 	static_assert(sizeof(T) == 8, "");
 	asm (
@@ -67,7 +67,7 @@ inline void atomicRead64(T *x, const T &target) {
 template <typename T>
 inline bool atomicCompareAndSet2(
 	T oldv0, T oldv1,
-	T newv0, T newv1, T *target ) {
+    T newv0, T newv1, T *target ) noexcept {
 	unsigned char ret;
 #if defined __LP64__ || defined __LLP64__
 	asm volatile (
@@ -99,7 +99,7 @@ inline typename std::enable_if<
 std::is_pod<T>::value && (sizeof(T) == sizeof(int_cas2) * 2) && (sizeof(X) == sizeof(int_cas2) * 2), bool>::type
 atomicCompareAndSet(
 	T oldv,
-	T newv, X *target ) {
+    T newv, X *target ) noexcept {
 	union {
 		T x;
 		uint_cas2 w[2];
@@ -114,7 +114,7 @@ atomicCompareAndSet(
 template <typename T>
 inline typename std::enable_if<
 std::is_pod<T>::value && (sizeof(T) <= sizeof(int_cas_max)), bool>::type
-atomicCompareAndSet(T oldv, T newv, T *target ) {
+atomicCompareAndSet(T oldv, T newv, T *target ) noexcept {
 	unsigned char ret;
 	asm volatile (
 		"  lock; cmpxchg %2,%3;"
@@ -125,7 +125,7 @@ atomicCompareAndSet(T oldv, T newv, T *target ) {
 	return ret;
 }
 template <typename T>
-inline T atomicSwap(T v, T *target ) {
+inline T atomicSwap(T v, T *target ) noexcept {
 	asm volatile (
 		"xchg %0,%1" //lock prefix is not needed.
 		: "=q" (v)
@@ -134,7 +134,7 @@ inline T atomicSwap(T v, T *target ) {
 	return v;
 }
 template <typename T>
-inline void atomicAdd(T *target, T x ) {
+inline void atomicAdd(T *target, T x ) noexcept {
 	asm (
 		"lock; add %1,%0"
 		:
@@ -143,7 +143,7 @@ inline void atomicAdd(T *target, T x ) {
 }
 //! \return true if new value is zero.
 template <typename T>
-inline bool atomicAddAndTest(T *target, T x ) {
+inline bool atomicAddAndTest(T *target, T x ) noexcept {
     unsigned char ret;
 	asm volatile (
 		"lock; add %2,%1;"
@@ -156,7 +156,7 @@ inline bool atomicAddAndTest(T *target, T x ) {
 template <typename T>
 inline
 typename std::enable_if<(4 > sizeof(T)), void>::type
-atomicInc(T *target ) {
+atomicInc(T *target ) noexcept {
 	asm (
 		"lock; inc%z0 %0"
 		:
@@ -166,7 +166,7 @@ atomicInc(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
-atomicInc(T *target ) {
+atomicInc(T *target ) noexcept {
 	asm (
         "lock; incl %0"
 		:
@@ -176,7 +176,7 @@ atomicInc(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(8 == sizeof(T)), void>::type //hack for buggy %z.
-atomicInc(T *target ) {
+atomicInc(T *target ) noexcept {
 	asm (
 		"lock; incq %0"
 		:
@@ -187,7 +187,7 @@ atomicInc(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(4 > sizeof(T)), void>::type
-atomicDec(T *target ) {
+atomicDec(T *target ) noexcept {
 	asm (
 		"lock; dec%z0 %0"
 		:
@@ -197,7 +197,7 @@ atomicDec(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(4 == sizeof(T)), void>::type //hack for buggy %z.
-atomicDec(T *target ) {
+atomicDec(T *target ) noexcept {
 	asm (
         "lock; decl %0"
 		:
@@ -207,7 +207,7 @@ atomicDec(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(8 == sizeof(T)), void>::type //hack for buggy %z.
-atomicDec(T *target ) {
+atomicDec(T *target ) noexcept {
 	asm (
 		"lock; decq %0"
 		:
@@ -218,7 +218,7 @@ atomicDec(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(4 > sizeof(T)), bool>::type
-atomicDecAndTest(T *target ) {
+atomicDecAndTest(T *target ) noexcept {
     unsigned char ret;
 	asm volatile (
 		"lock; dec%z1 %1;"
@@ -231,7 +231,7 @@ atomicDecAndTest(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(4 == sizeof(T)), bool>::type //hack for buggy %z.
-atomicDecAndTest(T *target ) {
+atomicDecAndTest(T *target ) noexcept {
     unsigned char ret;
 	asm volatile (
         "lock; decl %1;"
@@ -244,7 +244,7 @@ atomicDecAndTest(T *target ) {
 template <typename T>
 inline
 typename std::enable_if<(8 == sizeof(T)), bool>::type //hack for buggy %z.
-atomicDecAndTest(T *target ) {
+atomicDecAndTest(T *target ) noexcept {
     unsigned char ret;
 	asm volatile (
 		"lock; decq %1;"

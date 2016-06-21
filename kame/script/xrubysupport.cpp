@@ -25,12 +25,10 @@ XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure
 : XAliasListNode<XRubyThread>(name, runtime),
 m_measure(measure), 
 m_thread(shared_from_this(), &XRuby::execute) {
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
 			&XRuby::onChildCreated, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 XRuby::~XRuby() {
 }
@@ -157,14 +155,12 @@ XRuby::rnode_touch(const shared_ptr<XNode> &node) {
     if( !node)
         throw (std::string)formatString("Type mismatch on node %s\n", node->getName().c_str());
     dbgPrint(QString("Ruby, Node %1, touching."));
-    for(Transaction tr( *tnode);; ++tr) {
+    tnode->iterate_commit([=](Transaction &tr){
         if(tr[ *tnode].isUIEnabled() )
             tr[ *tnode].touch();
         else
             throw (std::string)formatString("Node %s is read-only!\n", node->getName().c_str());
-        if(tr.commit())
-            break;
-    }
+    });
     return Ruby::Nil;
 }
 Ruby::Value

@@ -23,7 +23,7 @@ class XCharDeviceDriver : public tDriver {
 public:
 	XCharDeviceDriver(const char *name, bool runtime, 
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XCharDeviceDriver() {}
+    virtual ~XCharDeviceDriver() = default;
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -49,14 +49,12 @@ XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool
 										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
 
     meas->interfaces()->insert(tr_meas, m_interface);
-	for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
 	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
 			this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onOpen);
 	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
 	    	this->shared_from_this(), &XCharDeviceDriver<tDriver, tInterface>::onClose);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template<class tDriver, class tInterface>
 void

@@ -171,7 +171,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     m_script_send(create<XStringNode>("Send", true)),
     m_script_query(create<XStringNode>("Query", true)) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	#ifdef USE_GPIB
         tr[ *device()].add("GPIB");
 	#endif
@@ -187,9 +187,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 			shared_from_this(), &XCharInterface::onSendRequested);
 		m_lsnOnQueryRequested = tr[ *m_script_query].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onQueryRequested);
-		if(tr.commit())
-			break;
-	}
+    });
 }
          
 void
@@ -304,10 +302,8 @@ XCharInterface::onQueryRequested(const Snapshot &shot, XValueNodeBase *) {
     if(!isOpened())
 		throw XInterfaceError(i18n("Port is not opened."), __FILE__, __LINE__);
     this->query(shot[ *m_script_query].to_str());
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *m_script_query] = XString(&buffer()[0]);
 		tr.unmark(m_lsnOnQueryRequested);
-		if(tr.commit())
-			break;
-	}
+    });
 }

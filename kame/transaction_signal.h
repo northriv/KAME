@@ -22,7 +22,7 @@ namespace Transactional {
 
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 struct Event {
-	Event(const Snapshot<XN> &s, tArgRef a) :
+    Event(const Snapshot<XN> &s, tArgRef a) noexcept :
 		shot(s), arg(a) {}
 	Snapshot<XN> shot;
 	tArg arg;
@@ -32,7 +32,7 @@ template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &
 struct ListenerRef_ : public XListenerImpl_<Event<XN, tArg, tArgRef> > {
 	ListenerRef_(tClass &obj,
 		void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
-		XListener::FLAGS flags) :
+        XListener::FLAGS flags) noexcept :
 		XListenerImpl_<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
 		(m_obj.*m_func)(x.shot, x.arg);
@@ -45,7 +45,7 @@ template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &
 struct ListenerWeak_ : public XListenerImpl_<Event<XN, tArg, tArgRef> > {
 	ListenerWeak_(const shared_ptr<tClass> &obj,
 		void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
-		 XListener::FLAGS flags) :
+         XListener::FLAGS flags) noexcept :
 		 XListenerImpl_<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
 	virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
 		if(auto p = m_obj.lock() )
@@ -58,7 +58,7 @@ private:
 
 template <class XN>
 struct Message_ {
-	virtual ~Message_() {}
+    virtual ~Message_() = default;
 	virtual void talk(const Snapshot<XN> &shot) = 0;
 	virtual int unmark(const shared_ptr<XListener> &x) = 0;
 };
@@ -71,9 +71,7 @@ struct Message_ {
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 class Talker {
 public:
-	Talker() {}
-	Talker(const Talker &x) : m_listeners(x.m_listeners) {}
-	virtual ~Talker() {}
+    virtual ~Talker() = default;
 
 	template <class tObj, class tClass>
 	shared_ptr<XListener> connect(tObj &obj, void (tClass::*func)(
@@ -95,7 +93,7 @@ public:
 		m.talk(shot);
 	}
 
-	bool empty() const {return !m_listeners;}
+    bool empty() const noexcept {return !m_listeners;}
 private:
 	typedef Event<XN, tArg, tArgRef> Event_;
 	typedef XListenerImpl_<Event<XN, tArg, tArgRef> > Listener_;
@@ -106,14 +104,14 @@ private:
 	void connect(const shared_ptr<Listener_> &);
 
 	struct EventWrapper : public XTransaction_ {
-		EventWrapper(const shared_ptr<Listener_> &l) :
+        EventWrapper(const shared_ptr<Listener_> &l) noexcept :
 			XTransaction_(), listener(l) {}
-		virtual ~EventWrapper() {}
+        virtual ~EventWrapper() = default;
 		const shared_ptr<Listener_> listener;
 		virtual bool talkBuffered() = 0;
 	};
 	struct EventWrapperAllowDup : public EventWrapper {
-		EventWrapperAllowDup(const shared_ptr<Listener_> &l, const Event_ &e) :
+        EventWrapperAllowDup(const shared_ptr<Listener_> &l, const Event_ &e) noexcept :
 			EventWrapper(l), event(e) {}
 		const Event_ event;
 		virtual bool talkBuffered() {
@@ -140,7 +138,7 @@ private:
 	};
 protected:
 	struct Message : public Message_<XN> {
-		Message(tArgRef a, const shared_ptr<ListenerList> &l) : Message_<XN>(), arg(a), listeners(l) {}
+        Message(tArgRef a, const shared_ptr<ListenerList> &l) noexcept : Message_<XN>(), arg(a), listeners(l) {}
 		tArg arg;
 		shared_ptr<ListenerList> listeners;
 		shared_ptr<UnmarkedListenerList> listeners_unmarked;

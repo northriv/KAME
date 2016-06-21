@@ -35,12 +35,10 @@ XConCalTable::XConCalTable
 	   m_waveform(new FrmGraphNURL(g_pFrmMain, Qt::Window)),
 	   m_wave(XNode::createOrphan<XWaveNGraph>("Waveform", true, m_waveform.get())) {
 
-	for(Transaction tr( *list);; ++tr) {
+    list->iterate_commit([=](Transaction &tr){
 		m_thermometer = XNode::createOrphan<XItemNode<XThermometerList, XThermometer> >(
 						 "thermometer", false, ref(tr), list, true);
-		if(tr.commit())
-			break;
-	}
+    });
 
     m_conThermo = xqcon_create<XQComboBoxConnector> (m_thermometer,
 		(QComboBox *) form->cmbThermometer, Snapshot( *list));
@@ -48,30 +46,24 @@ XConCalTable::XConCalTable
 	m_conValue = xqcon_create<XQLineEditConnector> (m_value, form->edValue, false);
 	m_conDisplay = xqcon_create<XQButtonConnector> (m_display, form->btnDisplay);
 
-	for(Transaction tr( *temp());; ++tr) {
+    temp()->iterate_commit([=](Transaction &tr){
 		m_lsnTemp = tr[ *temp()].onValueChanged().connectWeakly(
 			shared_from_this(),
 			&XConCalTable::onTempChanged);
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *value());; ++tr) {
+    });
+    value()->iterate_commit([=](Transaction &tr){
 		m_lsnValue = tr[ *value()].onValueChanged().connectWeakly(
 			shared_from_this(),
 			&XConCalTable::onValueChanged);
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *display());; ++tr) {
+    });
+    display()->iterate_commit([=](Transaction &tr){
 		m_lsnDisplay = tr[ *display()].onTouch().connectWeakly(
 			shared_from_this(),
 			&XConCalTable::onDisplayTouched, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_waveform->setWindowTitle(i18n("Thermometer Calibration"));
-	for(Transaction tr( *m_wave);; ++tr) {
+    m_wave->iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"Temp. [K]", "Value", "T(v(T))-T [K]"};
 		tr[ *m_wave].setColCount(3, labels);
 		tr[ *m_wave].insertPlot(labels[1], 0, 1);
@@ -86,9 +78,7 @@ XConCalTable::XConCalTable
 		tr[ *axisy->logScale()] = true;
 		m_wave->drawGraph(tr);
 		tr[ *m_wave].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void
@@ -96,40 +86,34 @@ XConCalTable::onTempChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = ***thermometer();
 	if( !thermo) return;
 	double ret = thermo->getRawValue(shot[ *temp()]);
-	for(Transaction tr( *value());; ++tr) {
+    value()->iterate_commit([=](Transaction &tr){
 		tr[ *value()] = ret;
 		tr.unmark(m_lsnValue);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XConCalTable::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 	shared_ptr<XThermometer> thermo = ***thermometer();
 	if( !thermo) return;
 	double ret = thermo->getTemp(shot[ *value()]);
-	for(Transaction tr( *temp());; ++tr) {
+    temp()->iterate_commit([=](Transaction &tr){
 		tr[ *temp()] = ret;
 		tr.unmark(m_lsnTemp);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 	shared_ptr<XThermometer> thermo = ***thermometer();
 	if( !thermo) {
-		for(Transaction tr( *m_wave);; ++tr) {
+        m_wave->iterate_commit([=](Transaction &tr){
 			tr[ *m_wave].clearPoints();
-			if(tr.commit())
-				break;
-		}
+        });
 		return;
 	}
 	const int length = 1000;
 	Snapshot shot_th( *thermo);
 	double step = (log(shot_th[ *thermo->tempMax()]) - log(shot_th[ *thermo->tempMin()])) / length;
-	for(Transaction tr( *m_wave);; ++tr) {
+    m_wave->iterate_commit([=](Transaction &tr){
 		tr[ *m_wave].setRowCount(length);
 		double lt = log(shot_th[ *thermo->tempMin()]);
 		for(int i = 0; i < length; ++i) {
@@ -141,9 +125,7 @@ XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 			lt += step;
 		}
 		m_wave->drawGraph(tr);
-		if(tr.commit())
-			break;
-	}
+    });
     m_waveform->showNormal();
 	m_waveform->raise();  
 }

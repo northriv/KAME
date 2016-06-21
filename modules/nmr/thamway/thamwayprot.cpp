@@ -111,15 +111,13 @@ XThamwayPROT<tInterface>::start() {
     if(this->interface()->scanf("LPF1R%lf", &bw) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     bw *= 1e-3;
-    for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
         tr[ *this->freq()] = f;
         tr[ *this->oLevel()] = olevel;
         tr[ *this->rxGain()] = gain;
         tr[ *this->rxPhase()] = phase;
         tr[ *this->rxLPFBW()] = bw;
-        if(tr.commit())
-            break;
-    }
+    });
 
     XSG::start();
 
@@ -127,7 +125,7 @@ XThamwayPROT<tInterface>::start() {
     rxPhase()->setUIEnabled(true);
     rxLPFBW()->setUIEnabled(true);
 
-    for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
         m_lsnRFON = tr[ *this->rfON()].onValueChanged().connectWeakly(
             this->shared_from_this(), &XThamwayPROT::onRFONChanged);
         m_lsnOLevel = tr[ *this->oLevel()].onValueChanged().connectWeakly(
@@ -140,9 +138,7 @@ XThamwayPROT<tInterface>::start() {
             this->shared_from_this(), &XThamwayPROT::onRXPhaseChanged);
         m_lsnRXLPFBW = tr[ *rxLPFBW()].onValueChanged().connectWeakly(
             this->shared_from_this(), &XThamwayPROT::onRXLPFBWChanged);
-        if(tr.commit())
-            break;
-    }
+    });
 }
 template <class tInterface>
 void

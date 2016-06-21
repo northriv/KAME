@@ -373,14 +373,12 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 	CHECK_DAQMX_RET(DAQmxGetSysDevNames(buf, sizeof(buf)));
 	std::deque<XString> list;
 	parseList(buf, list);
-	for(Transaction tr( *this);; ++tr) {
-        for(std::deque<XString>::iterator it = list.begin(); it != list.end(); ++it) {
-			CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
+    iterate_commit([=, &buf](Transaction &tr){
+        for(auto it = list.cbegin(); it != list.cend(); ++it) {
+            CHECK_DAQMX_RET(DAQmxGetDevProductType(it->c_str(), buf, sizeof(buf)));
 			tr[ *device()].add(*it + " [" + buf + "]");
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 #endif //HAVE_NI_DAQMX
 }
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)

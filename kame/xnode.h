@@ -109,9 +109,9 @@ public:
 	};
 	enum FLAG {NODE_UI_ENABLED = 0x1, NODE_DISABLED = 0x2, NODE_RUNTIME = 0x4};
 
-protected: 
+    XNode() = delete;
+protected:
 private:
-	XNode(); //inhibited.
 	const XString m_name;
 
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
@@ -119,11 +119,10 @@ private:
 
 class DECLSPEC_KAME XTouchableNode : public XNode {
 public:
-	explicit XTouchableNode(const char *name, bool runtime) : XNode(name, runtime) {}
+    XTouchableNode(const char *name, bool runtime) : XNode(name, runtime) {}
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-		Payload() : XNode::Payload() {}
-		void touch();
+        void touch();
 		//! \sa touch()
 		Talker<XTouchableNode*, XTouchableNode*> &onTouch() {return m_tlkOnTouch;}
 		const Talker<XTouchableNode*, XTouchableNode*> &onTouch() const {return m_tlkOnTouch;}
@@ -136,9 +135,9 @@ protected:
 //! Interface class containing values
 class DECLSPEC_KAME XValueNodeBase : public XNode {
 protected:
-	explicit XValueNodeBase(const char *name, bool runtime) : XNode(name, runtime), m_validator(0) {}
+    XValueNodeBase(const char *name, bool runtime) : XNode(name, runtime), m_validator(0) {}
 public:
-	typedef void (*Validator)(XString &);
+    using Validator = void (*)(XString &);
 	void setValidator(Validator x) {m_validator = x;}
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
@@ -169,9 +168,8 @@ protected:
 template <typename T, int base = 10>
 class DECLSPEC_KAME XIntNodeBase : public XValueNodeBase {
 public:
-	explicit XIntNodeBase(const char *name, bool runtime = false)
-	: XValueNodeBase(name, runtime) {}
-	virtual ~XIntNodeBase() {}
+    explicit XIntNodeBase(const char *name, bool runtime = false) : XValueNodeBase(name, runtime) {}
+    virtual ~XIntNodeBase() = default;
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
 		Payload() : XValueNodeBase::Payload() {this->m_var = 0;}
@@ -191,7 +189,7 @@ public:
 class DECLSPEC_KAME XDoubleNode : public XValueNodeBase {
 public:
 	explicit XDoubleNode(const char *name, bool runtime = false, const char *format = 0L);
-	virtual ~XDoubleNode() {}
+    virtual ~XDoubleNode() = default;
 
 	const char *format() const {return local_shared_ptr<XString>(m_format)->c_str();}
 	void setFormat(const char* format);
@@ -215,11 +213,10 @@ public:
 class DECLSPEC_KAME XStringNode : public XValueNodeBase {
 public:
 	explicit XStringNode(const char *name, bool runtime = false);
-	virtual ~XStringNode() {}
+    virtual ~XStringNode() = default;
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
-		Payload() : XValueNodeBase::Payload() {}
-		virtual XString to_str() const {return this->m_var;}
+        virtual XString to_str() const {return this->m_var;}
 		operator const XString&() const {return m_var;}
 		Payload &operator=(const XString &x) {
 			m_var = x;
@@ -232,17 +229,17 @@ public:
 	};
 };
 
-typedef XIntNodeBase<int> XIntNode;
-typedef XIntNodeBase<unsigned int> XUIntNode;
-typedef XIntNodeBase<long> XLongNode;
-typedef XIntNodeBase<unsigned long> XULongNode;
-typedef XIntNodeBase<bool> XBoolNode;
-typedef XIntNodeBase<unsigned long, 16> XHexNode;
+using XIntNode = XIntNodeBase<int>;
+using XUIntNode = XIntNodeBase<unsigned int>;
+using XLongNode = XIntNodeBase<long>;
+using XULongNode = XIntNodeBase<unsigned long>;
+using XBoolNode = XIntNodeBase<bool>;
+using XHexNode = XIntNodeBase<unsigned long, 16>;
 
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
-    Transactional::Node<XNode>::create<T>(name, runtime, static_cast<Args&&>(args)...);
+    Transactional::Node<XNode>::create<T>(name, runtime, std::forward<Args>(args)...);
     shared_ptr<T> ptr = dynamic_pointer_cast<T>(XNode::stl_thisCreating->back());
     XNode::stl_thisCreating->pop_back();
     return ptr;
@@ -251,7 +248,7 @@ XNode::createOrphan(const char *name, bool runtime, Args&&... args) {
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::create(Transaction &tr, const char *name, bool runtime, Args&&... args) {
-    shared_ptr<T> ptr(createOrphan<T>(name, runtime, static_cast<Args&&>(args)...));
+    shared_ptr<T> ptr(createOrphan<T>(name, runtime, std::forward<Args>(args)...));
 	if(ptr) insert(tr, ptr, true);
 	return ptr;
 }
@@ -259,7 +256,7 @@ XNode::create(Transaction &tr, const char *name, bool runtime, Args&&... args) {
 template <class T, typename... Args>
 shared_ptr<T>
 XNode::create(const char *name, bool runtime, Args&&... args) {
-    shared_ptr<T> ptr(createOrphan<T>(name, runtime, static_cast<Args&&>(args)...));
+    shared_ptr<T> ptr(createOrphan<T>(name, runtime, std::forward<Args>(args)...));
 	if(ptr) insert(ptr);
 	return ptr;
 }

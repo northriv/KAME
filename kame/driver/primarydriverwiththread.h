@@ -20,7 +20,7 @@ class XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
 	XPrimaryDriverWithThread(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XPrimaryDriver(name, runtime, ref(tr_meas), meas) {}
-	virtual ~XPrimaryDriverWithThread() {}
+    virtual ~XPrimaryDriverWithThread() = default;
   
 	//! Shuts down your threads, unconnects GUI, and deactivates signals.\n
 	//! This function may be called even if driver has already stopped.

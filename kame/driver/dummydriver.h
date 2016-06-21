@@ -58,14 +58,12 @@ XDummyDriver<tDriver>::XDummyDriver(const char *name, bool runtime,
 	m_interface(XNode::create<XDummyInterface>("Interface", false,
 											   dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface);
-	for(Transaction tr( *this);; ++tr) {
+    this->iterate_commit([=](Transaction &tr){
 	    m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
 	    	this->shared_from_this(), &XDummyDriver<tDriver>::onOpen);
 	    m_lsnOnClose = tr[ *interface()].onClose().connectWeakly(
 	    	this->shared_from_this(), &XDummyDriver<tDriver>::onClose);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 template<class tDriver>
 void

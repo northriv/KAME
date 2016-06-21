@@ -139,7 +139,7 @@ XPulser::XPulser(const char *name, bool runtime,
 
     m_form->m_btnMoreConfig->setIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogContentsView));
 
-	for(Transaction tr( *this);; ++tr) {
+    Snapshot shot = iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		{
 	  		const char *desc[] = {
@@ -218,19 +218,16 @@ XPulser::XPulser(const char *name, bool runtime,
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-		if(tr.commit()) {
-			QComboBox*const combo[] = {
-				m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
-				m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7,
-				m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11,
-				m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
-			};
-			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
-				m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot);
-			}
-			break;
-		}
-	}
+    });
+    QComboBox*const combo[] = {
+        m_formMore->m_cmbPortSel0, m_formMore->m_cmbPortSel1, m_formMore->m_cmbPortSel2, m_formMore->m_cmbPortSel3,
+        m_formMore->m_cmbPortSel4, m_formMore->m_cmbPortSel5, m_formMore->m_cmbPortSel6, m_formMore->m_cmbPortSel7,
+        m_formMore->m_cmbPortSel8, m_formMore->m_cmbPortSel9, m_formMore->m_cmbPortSel10, m_formMore->m_cmbPortSel11,
+        m_formMore->m_cmbPortSel12, m_formMore->m_cmbPortSel13, m_formMore->m_cmbPortSel14, m_formMore->m_cmbPortSel15
+    };
+    for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+        m_conPortSel[i] = xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot);
+    }
   
 	m_conOutput = xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput);
 	m_conCombMode = xqcon_create<XQComboBoxConnector>(m_combMode, m_form->m_cmbCombMode, Snapshot( *m_combMode));
@@ -309,7 +306,7 @@ XPulser::start() {
 	changeUIStatus( !***pulseAnalyzerMode(), true);
 	pulseAnalyzerMode()->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnPulseChanged = tr[ *combMode()].onValueChanged().connectWeakly(
 			shared_from_this(), &XPulser::onPulseChanged);
 		tr[ *rtime()].onValueChanged().connect(m_lsnOnPulseChanged);
@@ -362,9 +359,7 @@ XPulser::start() {
 		tr[ *pulseAnalyzerMode()].onValueChanged().connect(m_lsnOnPulseChanged);
 		tr[ *paPulseRept()].onValueChanged().connect(m_lsnOnPulseChanged);
 		tr[ *paPulseBW()].onValueChanged().connect(m_lsnOnPulseChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XPulser::stop() {
@@ -556,7 +551,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 		changeUIStatus( !shot[ *pulseAnalyzerMode()], true);
 	}
 	if(shot[ *pulseAnalyzerMode()]) {
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 
 	// ver 1 records below
 	    writer->push((int16_t)0);
@@ -580,7 +575,7 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 		}
 	}
 
-	shared_ptr<RawData> writer(new RawData);
+	auto writer = std::make_shared<RawData>();
 
 	if( !shot[ *output()]) {
 		finishWritingRaw(writer, XTime(), XTime());

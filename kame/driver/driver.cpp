@@ -26,15 +26,14 @@ shared_ptr<XNode>
 XDriverList::createByTypename(const XString &type, const XString& name) {
 	shared_ptr<XMeasure> measure(m_measure.lock());
 	shared_ptr<XNode> ptr;
-	for(Transaction tr( *measure);; ++tr) {
+    measure->iterate_commit_if([=, &ptr](Transaction &tr){
 		ptr = creator(type)
 			(name.c_str(), false, ref(tr), measure);
 		if(ptr)
 			if( !insert(tr, ptr))
-				continue;
-		if(tr.commit())
-			break;
-	}
+                return false;
+        return true;
+    });
     return ptr;
 }
 

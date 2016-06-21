@@ -62,7 +62,7 @@ XDCSource::start() {
 	m_channel->setUIEnabled(true);
 	m_range->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
 							  shared_from_this(), &XDCSource::onOutputChanged);
 		m_lsnFunction = tr[ *function()].onValueChanged().connectWeakly(
@@ -73,9 +73,7 @@ XDCSource::start() {
 							  shared_from_this(), &XDCSource::onChannelChanged);
 		m_lsnRange = tr[ *range()].onValueChanged().connectWeakly(
 							  shared_from_this(), &XDCSource::onRangeChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 	updateStatus();
 }
 void
@@ -104,7 +102,7 @@ XDCSource::visualize(const Snapshot &shot) {
 
 void
 XDCSource::finish(const XTime &time_awared) {
-	shared_ptr<RawData> writer(new RawData);
+	auto writer = std::make_shared<RawData>();
 	if( !Snapshot( *this)[ *output()])
 		finishWritingRaw(writer, XTime(), XTime());
 	else
@@ -165,16 +163,14 @@ XDCSource::onRangeChanged(const Snapshot &shot, XValueNodeBase *) {
 void 
 XDCSource::onChannelChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-    	for(Transaction tr( *this);; ++tr) {
+    	iterate_commit([=](Transaction &tr){
     		int ch = tr[ *channel()];
             queryStatus(tr, ch);
             tr.unmark(m_lsnOutput);
             tr.unmark(m_lsnFunction);
             tr.unmark(m_lsnRange);
             tr.unmark(m_lsnValue);
-    		if(tr.commit())
-    			break;
-    	}
+        });
     }
     catch (XKameError& e) {
         e.print(getLabel());

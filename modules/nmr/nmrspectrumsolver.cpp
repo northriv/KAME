@@ -52,7 +52,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 	const shared_ptr<XDoubleNode> windowlength, bool leastsquareonly)
 	: XNode(name, runtime), m_selector(selector), m_windowfunc(windowfunc), m_windowlength(windowlength) {
 	if(windowfunc) {
-		for(Transaction tr( *windowfunc);; ++tr) {
+        windowfunc->iterate_commit([=](Transaction &tr){
 			tr[ *windowfunc].add(WINDOW_FUNC_DEFAULT);
 			tr[ *windowfunc].add(WINDOW_FUNC_HANNING);
 			tr[ *windowfunc].add(WINDOW_FUNC_HAMMING);
@@ -62,12 +62,10 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_1);
 			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_2);
 			tr[ *windowfunc].add(WINDOW_FUNC_KAISER_3);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 	if(selector) {
-		for(Transaction tr( *selector);; ++tr) {
+        Snapshot shot = selector->iterate_commit([=](Transaction &tr){
 			if( !leastsquareonly) {
 				tr[ *selector].add(SPECTRUM_SOLVER_ZF_FFT);
 				tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT);
@@ -89,12 +87,9 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 
 			m_lsnOnChanged = tr[ *selector].onValueChanged().connectWeakly(
 				shared_from_this(), &SpectrumSolverWrapper::onSolverChanged);
-			if(tr.commit()) {
-				onSolverChanged(tr, selector.get());
-				break;
-			}
-		}
-	}
+        });
+        onSolverChanged(shot, selector.get());
+    }
 }
 SpectrumSolverWrapper::~SpectrumSolverWrapper() {
 	if(m_windowfunc) {
@@ -135,7 +130,7 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 
 void
 SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
-	unique_ptr<Payload::WrapperBase> wrapper;
+    shared_ptr<Payload::WrapperBase> wrapper;
 	bool has_window = true;
 	bool has_length = true;
 	if(m_selector) {
@@ -196,9 +191,7 @@ SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
 		m_windowfunc->setUIEnabled(has_window);
 	if(m_windowlength)
 		m_windowlength->setUIEnabled(has_length);
-	for(Transaction tr( *this);; ++tr) {
-		wrapper.swap(tr[ *this].m_wrapper);
-		if(tr.commit())
-			break;
-	}
+    iterate_commit([=](Transaction &tr){
+        tr[ *this].m_wrapper = wrapper;
+    });
 }

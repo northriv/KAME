@@ -34,11 +34,9 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
     m_control(create<XBoolNode>("Control", true)),
     m_form(new FrmFlowController(g_pFrmMain)) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *control()] = false;
-		if(tr.commit())
-			break;
-	}
+    });
 
 	meas->scalarEntries()->insert(tr_meas, m_flow);
 
@@ -163,7 +161,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 		e.print(getLabel() + " " + i18n("Read Error, "));
 	}
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *this].m_fullScale = fs;
 		tr[ *this].m_unit = unit_in_slm ? "SLM" : "SCCM";
 		m_lsnTarget = tr[ *target()].onValueChanged().connectWeakly(shared_from_this(), &XFlowControllerDriver::onTargetChanged);
@@ -171,9 +169,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 		m_lsnControl = tr[ *control()].onValueChanged().connectWeakly(shared_from_this(), &XFlowControllerDriver::onControlChanged);
 		m_lsnCloseValve = tr[ *closeValve()].onTouch().connectWeakly(shared_from_this(), &XFlowControllerDriver::onCloseValveTouched);
 		m_lsnOpenValve = tr[ *openValve()].onTouch().connectWeakly(shared_from_this(), &XFlowControllerDriver::onOpenValveTouched);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	while( !terminated) {
 		msecsleep(100);
@@ -188,7 +184,7 @@ XFlowControllerDriver::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + " " + i18n("Read Error, "));
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push(flow);
 		writer->push(valve);
 		writer->push((uint16_t)alarm);

@@ -58,13 +58,13 @@ class DECLSPEC_KAME XTalkerBase_ {
 protected:
 	XTalkerBase_() {}
 public:
-	virtual ~XTalkerBase_() {}
+    virtual ~XTalkerBase_() = default;
 protected:
 };
 
 struct XTransaction_ {
 	XTransaction_() : registered_time(timeStamp()) {}
-	virtual ~XTransaction_() {}
+    virtual ~XTransaction_() = default;
 	const unsigned long registered_time;
 	virtual bool talkBuffered() = 0;
 };
@@ -79,7 +79,7 @@ template <class tArg>
 class XTalker : public XTalkerBase_ {
 public:
 	XTalker() {}
-	virtual ~XTalker() {}
+    virtual ~XTalker() = default;
 
 	//! Associate XTalker to XListener
 	//! Talker will call user member function of \a listener.

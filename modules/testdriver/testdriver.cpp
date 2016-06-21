@@ -55,7 +55,7 @@ XTestDriver::execute(const atomic<bool> &terminated) {
 		double x = randMT19937() - 0.2;
 		double y = randMT19937()- 0.2;
 
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push(x);
 		writer->push(y);
 		finishWritingRaw(writer, XTime::now(), XTime::now());

@@ -62,18 +62,14 @@ XDriverListConnector::XDriverListConnector
 		}
 	}
 
-	for(Transaction tr( *m_create);; ++tr) {
+    m_create->iterate_commit([=](Transaction &tr){
 		m_lsnOnCreateTouched = tr[ *m_create].onTouch().connectWeakly(shared_from_this(),
 			&XDriverListConnector::onCreateTouched, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *m_release);; ++tr) {
+    });
+    m_release->iterate_commit([=](Transaction &tr){
 		m_lsnOnReleaseTouched = tr[ *m_release].onTouch().connectWeakly(shared_from_this(),
 			&XDriverListConnector::onReleaseTouched, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void
@@ -90,13 +86,11 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
 	m_cons.back()->label = new QLabel(m_pItem);
 	m_pItem->setCellWidget(i, 2, m_cons.back()->label);
 	m_cons.back()->driver = driver;
-	for(Transaction tr( *driver);; ++tr) {
+    driver->iterate_commit([=](Transaction &tr){
 		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
 				shared_from_this(), &XDriverListConnector::onRecord,
 				XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-		if(tr.commit())
-			break;
-	}
+    });
 
     assert(m_pItem->rowCount() == (int)m_cons.size());
 }

@@ -54,7 +54,7 @@ XSG::start() {
 	m_amON->setUIEnabled(true);
 	m_fmON->setUIEnabled(true);
 	
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnRFON = tr[ *rfON()].onValueChanged().connectWeakly(
 			shared_from_this(), &XSG::onRFONChanged);
 		m_lsnOLevel = tr[ *oLevel()].onValueChanged().connectWeakly(
@@ -65,9 +65,7 @@ XSG::start() {
 			shared_from_this(), &XSG::onFMONChanged);
 		m_lsnFreq = tr[ *freq()].onValueChanged().connectWeakly(
 			shared_from_this(), &XSG::onFreqChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XSG::stop() {
@@ -103,7 +101,7 @@ XSG::onFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     XTime time_awared(XTime::now());
     changeFreq(freq__);
 
-    shared_ptr<RawData> writer(new RawData);
+    auto writer = std::make_shared<RawData>();
     writer->push(freq__);
     finishWritingRaw(writer, time_awared, XTime::now());
 }

@@ -36,13 +36,10 @@ XFourRes::XFourRes(const char *name, bool runtime,
 
     connect(dmm());
     connect(dcsource());
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *control()] = false;
 		tr[ *this].value_inverted = 0.0;
-
-		if(tr.commit())
-			break;
-	}
+    });
 	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
 	m_conDMM = xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas));
 	m_conDCSource = xqcon_create<XQComboBoxConnector>(m_dcsource, m_form->m_cmbDCSource, ref(tr_meas));
@@ -95,12 +92,10 @@ void
 XFourRes::visualize(const Snapshot &shot) {
 	if(shot[ *control()]) {
 		shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
-		for(Transaction tr( *dcsource__);; ++tr) {
+        dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
             msecsleep(100);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 }

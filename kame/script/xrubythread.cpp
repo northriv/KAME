@@ -21,7 +21,7 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 	  m_lineinput(create<XStringNode>("LineInput", true)),
 	  m_threadID(create<XLongNode>("ThreadID", true)) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	    tr[ *m_threadID] = -1;
 	    tr[ *m_filename] = filename;
 	    tr[ *m_action] = RUBY_THREAD_ACTION_STARTING;
@@ -30,9 +30,7 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 
 	    m_lsnOnLineChanged = tr[ *lineinput()].onValueChanged().connectWeakly(shared_from_this(),
 	        &XRubyThread::onLineChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
  
 bool
@@ -57,12 +55,10 @@ XRubyThread::onLineChanged(const Snapshot &shot, XValueNodeBase *) {
 	XString line = shot[ *lineinput()];
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	m_lineBuffer.push_back(line);
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *lineinput()] = "";
 		tr.unmark(m_lsnOnLineChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 XString

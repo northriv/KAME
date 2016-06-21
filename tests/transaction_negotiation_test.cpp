@@ -104,40 +104,37 @@ start_routine(int th_no) {
 			gn2->swap(p2, gn3);
 			gn1->insert(p1);
 		}
-		for(Transaction tr1(*gn1); ; ++tr1){
-			Snapshot &ctr1(tr1); // For reading.
+        gn1->iterate_commit([=](Transaction &tr1){
+            Snapshot &ctr1(tr1); // For reading.
 			tr1[gn1] = ctr1[gn1] + 1;
 			tr1[gn3] = ctr1[gn3] + 1;
-			Snapshot str1(tr1);
+            Snapshot &str1(tr1);
 			tr1[gn1] = str1[gn1] - 1;
 			tr1[gn2] = str1[gn2] + 1;
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] + 1;
 			}
 			if(wait) msecsleep(10);
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		trans(*gn3) += 1;
-		for(Transaction tr1(*gn4); ; ++tr1){
-			tr1[gn4] = tr1[gn4] + 1;
+        gn4->iterate_commit([=](Transaction &tr1){
+            tr1[gn4] = tr1[gn4] + 1;
 			tr1[gn4] = tr1[gn4] - 1;
 			if(wait) msecsleep(30);
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		p1->release(p2);
-		for(Transaction tr1(*gn2); ; ++tr1){
-			Snapshot str1(tr1);
+        gn2->iterate_commit([=](Transaction &tr1){
+            Snapshot &str1(tr1);
 			tr1[gn2] = tr1[gn2] - 1;
 			tr1[gn3] = str1[gn3] - 1;
 			if((i % 10) == 0) {
 				tr1[p2] = str1[p2] - 1;
 			}
 			if(wait) msecsleep(60);
-			if(tr1.commit()) break;
 //			printf("f");
-		}
+        });
 		trans(*gn3) += -1;
 		if((i % 10) == 0) {
 			gn2->release(p2);
@@ -216,16 +213,15 @@ main(int argc, char **argv)
 			trans(*p2) = 1;
 			trans(*p2) = 0;
 
-			for(Transaction tr1(*gn1); ; ++tr1){
-				Snapshot &ctr1(tr1); // For reading.
+            gn1->iterate_commit([=](Transaction &tr1){
+                Snapshot &ctr1(tr1); // For reading.
 				tr1[gn1] = ctr1[gn1] + 1;
 				tr1[gn3] = ctr1[gn3] + 1;
-				Snapshot str1(tr1);
+                Snapshot &str1(tr1);
 				tr1[gn1] = str1[gn1] - 1;
 				tr1[gn3] = str1[gn3] - 1;
-				if(tr1.commit()) break;
-				printf("f");
-			}
+//				printf("f");
+            });
 		}
 		gn1->release(p1);
 

@@ -194,7 +194,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
             e.print(getLabel() + "; ");
             continue;
         }
-        shared_ptr<RawData> writer(new RawData);
+        auto writer = std::make_shared<RawData>();
         writer->push((float)sample_temp);
         writer->push((float)sample_temp_rotator);
         writer->push((float)magnet_field);
@@ -202,15 +202,12 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
 
         finishWritingRaw(writer, XTime::now(), XTime::now());
 
-        for(Transaction tr( *this);; ++tr) {
-            Snapshot &shot(tr);
+        iterate_commit([=](Transaction &tr){
             tr[ *heliumLevel()] = helium_level;
             tr[ *tempStatus()] = mp_temp_status.at(status & 0xf);
             tr[ *fieldStatus()] = mp_field_status.at((status >> 4) & 0xf);
             tr[ *positionStatus()] = mp_position_status.at((status >> 12) & 0xf);
-            if(tr.commit())
-                break;
-        }
+        });
     }
 
     targetField()->setUIEnabled(false);

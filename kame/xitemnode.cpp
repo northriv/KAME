@@ -16,12 +16,10 @@
 XItemNodeBase::XItemNodeBase(const char *name, bool runtime, bool auto_set_any) : 
     XValueNodeBase(name, runtime) {
 	if(auto_set_any) {
-		for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=](Transaction &tr){
 			m_lsnTryAutoSet = tr[ *this].onListChanged().connect( *this,
 				&XItemNodeBase::onTryAutoSet);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 }
 void

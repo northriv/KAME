@@ -110,7 +110,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	m_form->m_dockTrigger->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *singleSequence()] = true;
 		tr[ *firBandWidth()] = 1000.0;
 		tr[ *firCenterFreq()] = .0;
@@ -138,9 +138,7 @@ XDSO::XDSO(const char *name, bool runtime,
 		 tr[ *dRFSG()].onValueChanged().connect(m_lsnOnDRFCondChanged);
 		 tr[ *dRFFreq()].onValueChanged().connect(m_lsnOnDRFCondChanged);
 
-		if(tr.commit())
-			break;
-	}
+    });
   
 	average()->setUIEnabled(false);
 	singleSequence()->setUIEnabled(false);
@@ -164,13 +162,11 @@ XDSO::XDSO(const char *name, bool runtime,
 //	dRFFreq()->setUIEnabled(false);
 //	dRFSG()->setUIEnabled(false);
 
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_waveForm].setColCount(4, s_trace_names);
 		tr[ *m_waveForm->graph()->persistence()] = 0;
 		tr[ *m_waveForm].clearPoints();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XDSO::showForms() {
@@ -209,15 +205,13 @@ XDSO::visualize(const Snapshot &shot) {
 //  }
 	const unsigned int num_channels = shot[ *this].numChannelsDisp();
 	if( !num_channels) {
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *m_waveForm].clearPoints();
-			if(tr.commit())
-				break;
-		}
+        });
 		return;
 	}
 	const unsigned int length = shot[ *this].lengthDisp();
-	for(Transaction tr( *m_waveForm);; ++tr) {
+    m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_waveForm].setColCount(num_channels + 1, s_trace_names);
 		if(tr[ *m_waveForm].numPlots() != num_channels) {
 			tr[ *m_waveForm].clearPlots();
@@ -247,9 +241,7 @@ XDSO::visualize(const Snapshot &shot) {
 			memcpy(tr[ *m_waveForm].cols(i + 1), shot[ *this].waveDisp(i), length * sizeof(double));
 		}
 		m_waveForm->drawGraph(tr);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XDSO::onRestartTouched(const Snapshot &shot, XTouchableNode *) {
@@ -287,7 +279,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 	dRFFreq()->setUIEnabled(true);
 	dRFSG()->setUIEnabled(true);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
 			shared_from_this(), &XDSO::onAverageChanged);
 		m_lsnOnSingleChanged = tr[ *singleSequence()].onValueChanged().connectWeakly(
@@ -332,9 +324,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XDSO::onForceTriggerTouched);
 		m_lsnOnRestartTouched = tr[ *restart()].onTouch().connectWeakly(
 			shared_from_this(), &XDSO::onRestartTouched);
-		 if(tr.commit())
-			break;
-	}
+    });
 
 	while( !terminated) {
 		Snapshot shot( *this);
@@ -390,7 +380,7 @@ XDSO::execute(const atomic<bool> &terminated) {
 			continue;
 		}
       
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
 			getWave(writer, channels);
@@ -482,12 +472,10 @@ XDSO::onCondChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XDSO::onDRFCondChanged(const Snapshot &shot, XValueNodeBase *) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *this].m_dRFRefWave.reset();
 		tr[ *restart()].touch();
-		if(tr.commit())
-			break;
-	}
+    });
 }
 double
 XDSO::phaseOfRF(const Snapshot &shot_of_this, uint64_t count, double interval) {

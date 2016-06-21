@@ -43,13 +43,11 @@ XH8Pulser::XH8Pulser(const char *name, bool runtime,
     	PORTSEL_PULSE1, PORTSEL_PULSE2, PORTSEL_COMB, PORTSEL_UNSEL,
     	PORTSEL_QPSK_OLD_PSGATE, PORTSEL_QPSK_OLD_NONINV, PORTSEL_QPSK_OLD_INV, PORTSEL_COMB_FM
     };
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
 	    	tr[ *portSel(i)] = ports[i];
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XH8Pulser::open() throw (XKameError &) {

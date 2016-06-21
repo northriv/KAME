@@ -38,43 +38,35 @@ XRawStreamRecorder::XRawStreamRecorder(const char *name, bool runtime, const sha
 	: XRawStream(name, runtime, driverlist),
 	  m_recording(create<XBoolNode>("Recording", true)) {
     
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 	    tr[ *recording()] = false;
 	    m_lsnOnOpen = tr[ *filename()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XRawStreamRecorder::onOpen);
 	    m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XRawStreamRecorder::onFlush);
-		if(tr.commit())
-			break;
-	}
-    for(Transaction tr( *m_drivers);; ++tr) {
+    });
+    m_drivers->iterate_commit([=](Transaction &tr){
         m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XRawStreamRecorder::onCatch);
         m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XRawStreamRecorder::onRelease);
-    	if(tr.commit())
-    		break;
-    }
+    });
 }
 void
 XRawStreamRecorder::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.caught);
-    for(Transaction tr( *driver);; ++tr) {
-		if(m_lsnOnRecord)
+    driver->iterate_commit([=](Transaction &tr){
+        if(m_lsnOnRecord)
 			tr[ *driver].onRecord().connect(m_lsnOnRecord);
 		else
 			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
 				shared_from_this(), &XRawStreamRecorder::onRecord);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 void
 XRawStreamRecorder::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.released);
-    for(Transaction tr( *driver);; ++tr) {
-		tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
-		if(tr.commit())
-			break;
-    }
+    driver->iterate_commit([=](Transaction &tr){
+        tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
+    });
 }
 void
 XRawStreamRecorder::onOpen(const Snapshot &shot, XValueNodeBase *) {
@@ -143,7 +135,7 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	  m_logRecording(create<XBoolNode>("LogRecording", false)),
 	  m_logEvery(create<XUIntNode>("LogEvery", false))  {
   
-	for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
 	    tr[ *recording()] = false;
 	    tr[ *lastLine()].setUIEnabled(false);
 	    tr[ *logRecording()] = false;
@@ -152,37 +144,29 @@ XTextWriter::XTextWriter(const char *name, bool runtime,
 	        shared_from_this(), &XTextWriter::onFilenameChanged);
 	    m_lsnOnLogFilenameChanged = tr[ *logFilename()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XTextWriter::onLogFilenameChanged);
-		if(tr.commit())
-			break;
-	}
-    for(Transaction tr( *m_drivers);; ++tr) {
+    });
+    m_drivers->iterate_commit([=](Transaction &tr){
         m_lsnOnCatch = tr[ *m_drivers].onCatch().connect( *this, &XTextWriter::onCatch);
         m_lsnOnRelease = tr[ *m_drivers].onRelease().connect( *this, &XTextWriter::onRelease);
-    	if(tr.commit())
-    		break;
-    }
+    });
 }
 void
 XTextWriter::onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.caught);
-    for(Transaction tr( *driver);; ++tr) {
-		if(m_lsnOnRecord)
+    driver->iterate_commit([=](Transaction &tr){
+        if(m_lsnOnRecord)
 			tr[ *driver].onRecord().connect(m_lsnOnRecord);
 		else
 			m_lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
 				shared_from_this(), &XTextWriter::onRecord);
-		if(tr.commit())
-			break;
-    }
+    });
 }
 void
 XTextWriter::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
     auto driver = static_pointer_cast<XDriver>(e.released);
-    for(Transaction tr( *driver);; ++tr) {
-		tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
-		if(tr.commit())
-			break;
-    }
+    driver->iterate_commit([=](Transaction &tr){
+        tr[ *driver].onRecord().disconnect(m_lsnOnRecord);
+    });
 }
 void
 XTextWriter::onLastLineChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -264,14 +248,12 @@ XTextWriter::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 	m_stream.open((const char*)QString(shot[ *filename()].to_str()).toLocal8Bit().data(), OFSMODE);
 
 	if(m_stream.good()) {
-		for(Transaction tr( *this);; ++tr) {
+        iterate_commit([=](Transaction &tr){
 			m_lsnOnFlush = tr[ *recording()].onValueChanged().connectWeakly(
 				shared_from_this(), &XTextWriter::onFlush);
 			m_lsnOnLastLineChanged = tr[ *lastLine()].onValueChanged().connectWeakly(
 				shared_from_this(), &XTextWriter::onLastLineChanged);
-			if(tr.commit())
-				break;
-		}
+        });
 		lastLine()->setUIEnabled(true);
 
 		XString buf;

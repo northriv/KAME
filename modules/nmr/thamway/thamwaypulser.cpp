@@ -61,13 +61,11 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
         XPulser::PORTSEL_PULSE1, XPulser::PORTSEL_ASW, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL,
         XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL
     };
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
             tr[ *XPulser::portSel(i)] = ports[i];
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 

@@ -21,7 +21,7 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XFuncSynth>(name, runtime, ref(tr_meas), meas) {
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *function()].add("SINUSOID");
 		tr[ *function()].add("TRIANGLE");
 		tr[ *function()].add("SQUARE");
@@ -35,9 +35,7 @@ XWAVEFACTORY::XWAVEFACTORY(const char *name, bool runtime,
 		tr[ *mode()].add("MODULATION");
 		tr[ *mode()].add("NOISE");
 		tr[ *mode()].add("DC");
-		if(tr.commit())
-			break;
-	}
+    });
 }
 /*
   double

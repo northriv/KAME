@@ -21,12 +21,10 @@ REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source
 XYK7651::XYK7651(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *function()].add("F1");
 		tr[ *function()].add("F5");
-		if(tr.commit())
-			break;
-	}
+    });
 	channel()->disable();
 	interface()->setGPIBUseSerialPollOnRead(false);
 	interface()->setGPIBUseSerialPollOnWrite(false);
@@ -40,7 +38,7 @@ void
 XYK7651::changeFunction(int /*ch*/, int ) {
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened()) return;
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		if(shot[ *function()] == 0) {
 			tr[ *range()].clear();
@@ -56,9 +54,7 @@ XYK7651::changeFunction(int /*ch*/, int ) {
 			tr[ *range()].add("10mA");
 			tr[ *range()].add("100mA");
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 	interface()->send(( **function())->to_str() + "E");
 }
 void
@@ -114,12 +110,10 @@ XYK7651::changeRange(int /*ch*/, int ran) {
 XADVR6142::XADVR6142(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *function()].add("V [V]");
 		tr[ *function()].add("I [A]");
-		if(tr.commit())
-			break;
-	}
+    });
 	channel()->disable();
 	interface()->setEOS("\r\n");
 }
@@ -131,7 +125,7 @@ void
 XADVR6142::changeFunction(int /*ch*/, int ) {
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened()) return;
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		if(shot[ *function()] == 0) {
 			tr[ *range()].clear();
@@ -147,9 +141,7 @@ XADVR6142::changeFunction(int /*ch*/, int ) {
 			tr[ *range()].add("10mA");
 			tr[ *range()].add("100mA");
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XADVR6142::changeOutput(int /*ch*/, bool x) {
@@ -230,7 +222,7 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 	interface()->setEOS("\n");
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(2);
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *channel()].add("1");
 		tr[ *channel()].add("2");
 		tr[ *channel()].add("3");
@@ -239,9 +231,7 @@ XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
 		tr[ *range()].add("0.99uA");
 		tr[ *range()].add("9.9mA");
 		tr[ *range()].add("99mA");
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {

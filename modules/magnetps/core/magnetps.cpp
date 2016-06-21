@@ -156,7 +156,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 	m_conPCSHWait = xqcon_create<XQLineEditConnector>(
 		m_pcshWait, m_formConfig->m_edPCSHWait);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *allowPersistent()] = false;
 		tr[ *approach()].add("Linear");
 		tr[ *approach()].add("Oscillating");
@@ -172,9 +172,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 		m_lsnConfigShow = tr[ *m_configShow].onTouch().connectWeakly(
 			shared_from_this(), &XMagnetPS::onConfigShow,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XMagnetPS::showForms() {
@@ -321,12 +319,10 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 	double target_corr = 0.0;
 
 	if(is_pcs_fitted) allowPersistent()->setUIEnabled(true);
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnRate = tr[ *sweepRate()].onValueChanged().connectWeakly(
 			shared_from_this(), &XMagnetPS::onRateChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
     while( !terminated) {
 		msecsleep(100);
@@ -362,13 +358,15 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			e.print(getLabel() + "; ");
 			continue;
 		}
-		shared_ptr<RawData> writer(new RawData);
+		auto writer = std::make_shared<RawData>();
 		writer->push((float)magnet_field);
 		writer->push((float)output_current);
  
 		finishWritingRaw(writer, XTime::now(), XTime::now());
       
-		for(Transaction tr( *this);; ++tr) {
+        XTime newtime = XTime::now();
+        double havg_next;
+        Snapshot shot = iterate_commit([=, &havg_next](Transaction &tr){
 			Snapshot &shot(tr);
 			tr[ *magnetField()] = magnet_field;
 			tr[ *outputField()] = output_field;
@@ -382,7 +380,7 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 				//Aborting.
 				tr[ *targetField()].setUIEnabled(false);
 				tr[ *targetField()] = 0;
-				tr[ *sweepRate()] = limitSweepRate(magnet_field, 1.0, shot) / 2.0; //-0.5T/min.
+                tr[ *sweepRate()] = limitSweepRate(magnet_field, 1.0, shot) / 10.0; //-0.1T/min or less.
 			}
 			//Limits sweep rate and field by software.
 			double sweep_rate =  limitSweepRate(magnet_field, shot[ *sweepRate()], shot);
@@ -392,137 +390,132 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 				tr[ *sweepRate()] =  sweep_rate;
 			}
 
-			XTime newtime = XTime::now();
-			double dt = fabs(newtime - lasttime);
-			//Estimates field deviation.
-			havg = (havg - magnet_field) * exp( -0.1 * dt) + magnet_field; //LPF by 10sec.
-			tr[ *stabilized()] = std::max(fabs(magnet_field - target_field_ps), fabs(havg - target_field_ps));
-			double field_resolution_for_stab = field_resolution * 1.3;
-			if(tr[ *stabilized()] > field_resolution_for_stab)
-				last_unstab_time = XTime::now();
-			if(tr.commit()) {
-				lasttime = newtime;
+            double dt = fabs(newtime - lasttime);
+            //Estimates field deviation.
+            havg_next = (havg - magnet_field) * exp( -0.1 * dt) + magnet_field; //LPF by 10sec.
+            tr[ *stabilized()] = std::max(fabs(magnet_field - target_field_ps), fabs(havg_next - target_field_ps));
+        });
+        havg = havg_next;
+        double field_resolution_for_stab = field_resolution * 1.3;
+        if(shot[ *stabilized()] > field_resolution_for_stab)
+            last_unstab_time = XTime::now();
+        lasttime = newtime;
 
-				//Checks abort condition.
-				if( !shot[ *m_aborting] && !isSafeConditionSatisfied(shot, shot_entries)) {
-					m_statusPrinter->printMessage(getLabel() + " " +
-												  i18n("Aborting."));
-					trans( *m_aborting) = true;
-					break;
-				}
-				if( shot[ *m_aborting] && isSafeConditionSatisfied(shot, shot_entries)) {
-					m_statusPrinter->printMessage(getLabel() + " " +
-												  i18n("Safe conditions are satisfied."));
-					trans( *m_aborting) = false;
-					trans( *targetField()).setUIEnabled(true);
-					break;
-				}
+        //Checks abort condition.
+        if( !shot[ *m_aborting] && !isSafeConditionSatisfied(shot, shot_entries)) {
+            m_statusPrinter->printMessage(getLabel() + " " +
+                                          i18n("Aborting."));
+            trans( *m_aborting) = true;
+            break;
+        }
+        if( shot[ *m_aborting] && isSafeConditionSatisfied(shot, shot_entries)) {
+            m_statusPrinter->printMessage(getLabel() + " " +
+                                          i18n("Safe conditions are satisfied."));
+            trans( *m_aborting) = false;
+            trans( *targetField()).setUIEnabled(true);
+            break;
+        }
 
-				try {
-					shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
-					if(secondaryps.get() == this)
-						secondaryps.reset();
+        try {
+            shared_ptr<XMagnetPS> secondaryps = shot[ *m_secondaryPS];
+            if(secondaryps.get() == this)
+                secondaryps.reset();
 
-					if(pcs_heater || !is_pcs_fitted) {
-						//pcs heater is on or not fitted.
-						if((target_field_old != shot[ *targetField()]) ||
-							((fabs(target_field_ps - target_field_old - target_corr) > field_resolution) &&
-								(fabs(target_field_ps - magnet_field) < field_resolution))) {
-							//Target has changed, or field has reached the temporary target.
-							if( !is_pcs_fitted || isNonPersistentStabilized(shot, shot_entries, pcsh_time)) {
-								//Sweeping starts.
-								double next_target_ps = shot[ *targetField()];
-								if(target_field_old != shot[ *targetField()])
-									target_corr = 0.0;
-								target_field_old = shot[ *targetField()];
-								if(shot[ *approach()] == APPROACH_OSC) {
-									next_target_ps += 0.2 * (next_target_ps - magnet_field) + target_corr;
-								}
-								target_corr = 0.0;
-								if((next_target_ps * magnet_field < 0) && (fabs(magnet_field) > field_resolution) &&
-									!canChangePolarityDuringSweep()) {
-									target_corr = next_target_ps - shot[ *targetField()];
-									next_target_ps = 0.0; //First go to zero before setting target with different polarity.
-								}
-								//Limits target.
-								double x =  limitTargetField(next_target_ps, shot);
-								if(x != next_target_ps) {
-									m_statusPrinter->printMessage(getLabel() + " " +
-																  i18n("Limits field."));
-									next_target_ps = x;
-								}
-								setPoint(next_target_ps);
-								toSetPoint();
-								if(secondaryps) {
-									double mul = shot[ *m_secondaryPSMultiplier];
-									if(fabs(mul) > 0.4) {
-										m_statusPrinter->printMessage(getLabel() + " " +
-																	  i18n("Multiplier too large."));
-									}
-									else {
-										double sweep_rate = getSweepRate();
-										for(Transaction tr( *secondaryps);; ++tr) {
-											tr[ *secondaryps->sweepRate()] = sweep_rate * mul;
-											tr[ *secondaryps->targetField()] = next_target_ps * mul;
-											tr[ *secondaryps->approach()] = (int)shot[ *approach()];
-											if(tr.commit())
-												break;
-										}
-									}
-								}
-							}
-						}
-						else {
-							if(is_pcs_fitted &&
-							   (fabs(magnet_field - shot[ *targetField()]) < field_resolution) && shot[ *allowPersistent()]) {
-								if(XTime::now() - last_unstab_time >
-										std::max(30.0, (double)shot[ *m_pcshWait]) + field_resolution_for_stab * 1.05 / sweep_rate * 60.0) {
-									//field is not sweeping, and persistent mode is allowed
-									m_statusPrinter->printMessage(getLabel() + " " +
-																  i18n("Turning on Perisistent mode."));
-									pcsh_time = XTime::now();
-									toPersistent();
-								}
-							}
-						}
-					}
-					else {
-						//pcs heater is off
-						if(fabs(magnet_field - shot[ *targetField()]) >= field_resolution) {
-							if((fabs(magnet_field - output_field) < field_resolution) &&
-								(fabs(target_field_ps  - magnet_field) < field_resolution)) {
-								//ready to go non-persistent.
-								m_statusPrinter->printMessage(getLabel() + " " +
-															  i18n("Non-Perisistent mode."));
-								double h = getPersistentField();
-								if(fabs(h - output_field) > field_resolution)
-									throw XInterface::XInterfaceError(getLabel() +
-																	  i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
-								pcsh_time = XTime::now();
-								toNonPersistent();
-							}
-							else  {
-								//set output to persistent field.
-								if(shot[ *m_persistent]) {
-									setPoint(magnet_field);
-									toSetPoint();
-								}
-							}
-						}
-						else {
-							if(shot[ *m_persistent] && (fabs(output_field) > field_resolution)) {
-								toZero();
-							}
-						}
-					}
-				}
-				catch (XKameError &e) {
-					e.print(getLabel());
-				}
+            if(pcs_heater || !is_pcs_fitted) {
+                //pcs heater is on or not fitted.
+                if((target_field_old != shot[ *targetField()]) ||
+                    ((fabs(target_field_ps - target_field_old - target_corr) > field_resolution) &&
+                        (fabs(target_field_ps - magnet_field) < field_resolution))) {
+                    //Target has changed, or field has reached the temporary target.
+                    if( !is_pcs_fitted || isNonPersistentStabilized(shot, shot_entries, pcsh_time)) {
+                        //Sweeping starts.
+                        double next_target_ps = shot[ *targetField()];
+                        if(target_field_old != shot[ *targetField()])
+                            target_corr = 0.0;
+                        target_field_old = shot[ *targetField()];
+                        if(shot[ *approach()] == APPROACH_OSC) {
+                            next_target_ps += 0.2 * (next_target_ps - magnet_field) + target_corr;
+                        }
+                        target_corr = 0.0;
+                        if((next_target_ps * magnet_field < 0) && (fabs(magnet_field) > field_resolution) &&
+                            !canChangePolarityDuringSweep()) {
+                            target_corr = next_target_ps - shot[ *targetField()];
+                            next_target_ps = 0.0; //First go to zero before setting target with different polarity.
+                        }
+                        //Limits target.
+                        double x =  limitTargetField(next_target_ps, shot);
+                        if(x != next_target_ps) {
+                            m_statusPrinter->printMessage(getLabel() + " " +
+                                                          i18n("Limits field."));
+                            next_target_ps = x;
+                        }
+                        setPoint(next_target_ps);
+                        toSetPoint();
+                        if(secondaryps) {
+                            double mul = shot[ *m_secondaryPSMultiplier];
+                            if(fabs(mul) > 0.4) {
+                                m_statusPrinter->printMessage(getLabel() + " " +
+                                                              i18n("Multiplier too large."));
+                            }
+                            else {
+                                double sweep_rate = getSweepRate();
+                                secondaryps->iterate_commit([=](Transaction &tr){
+                                    tr[ *secondaryps->sweepRate()] = sweep_rate * mul;
+                                    tr[ *secondaryps->targetField()] = next_target_ps * mul;
+                                    tr[ *secondaryps->approach()] = (int)shot[ *approach()];
+                                });
+                            }
+                        }
+                    }
+                }
+                else {
+                    if(is_pcs_fitted &&
+                       (fabs(magnet_field - shot[ *targetField()]) < field_resolution) && shot[ *allowPersistent()]) {
+                        if(XTime::now() - last_unstab_time >
+                                std::max(30.0, (double)shot[ *m_pcshWait]) + field_resolution_for_stab * 1.05 / shot[ *sweepRate()] * 60.0) {
+                            //field is not sweeping, and persistent mode is allowed
+                            m_statusPrinter->printMessage(getLabel() + " " +
+                                                          i18n("Turning on Perisistent mode."));
+                            pcsh_time = XTime::now();
+                            toPersistent();
+                        }
+                    }
+                }
+            }
+            else {
+                //pcs heater is off
+                if(fabs(magnet_field - shot[ *targetField()]) >= field_resolution) {
+                    if((fabs(magnet_field - output_field) < field_resolution) &&
+                        (fabs(target_field_ps  - magnet_field) < field_resolution)) {
+                        //ready to go non-persistent.
+                        m_statusPrinter->printMessage(getLabel() + " " +
+                                                      i18n("Non-Perisistent mode."));
+                        double h = getPersistentField();
+                        if(fabs(h - output_field) > field_resolution)
+                            throw XInterface::XInterfaceError(getLabel() +
+                                                              i18n("Huh? Magnet field confusing."), __FILE__, __LINE__);
+                        pcsh_time = XTime::now();
+                        toNonPersistent();
+                    }
+                    else  {
+                        //set output to persistent field.
+                        if(shot[ *m_persistent]) {
+                            setPoint(magnet_field);
+                            toSetPoint();
+                        }
+                    }
+                }
+                else {
+                    if(shot[ *m_persistent] && (fabs(output_field) > field_resolution)) {
+                        toZero();
+                    }
+                }
+            }
+        }
+        catch (XKameError &e) {
+            e.print(getLabel());
+        }
 
-				break;
-			}
-		}
 	}
 
 	targetField()->setUIEnabled(false);

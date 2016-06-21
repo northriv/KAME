@@ -27,12 +27,10 @@ XQGraphDialogConnector::XQGraphDialogConnector
     XQConnector(graph, item),
     m_pItem(item) {
 
-	for(Transaction tr( *graph);; ++tr) {
+    graph->iterate_commit([=](Transaction &tr){
 		m_selPlot = XNode::createOrphan<XItemNode<XPlotList, XPlot> >("", true, ref(tr), graph->plots(), true);
 		m_selAxis = XNode::createOrphan<XItemNode<XAxisList, XAxis> >("", true, ref(tr), graph->axes(), true);
-		if(tr.commit())
-			break;
-	}
+    });
     m_pItem->m_dblIntensity->setRange(0.0, 2.0);
     m_pItem->m_dblIntensity->setSingleStep(0.1);
     m_pItem->m_dblPersistence->setRange(0.0, 1.0);
@@ -47,18 +45,14 @@ XQGraphDialogConnector::XQGraphDialogConnector
     m_conPlots = xqcon_create<XQListWidgetConnector>(m_selPlot, m_pItem->lbPlots, Snapshot( *graph));
     m_conAxes = xqcon_create<XQListWidgetConnector>(m_selAxis, m_pItem->lbAxes, Snapshot( *graph));
 
-	for(Transaction tr( *m_selAxis);; ++tr) {
+    m_selAxis->iterate_commit([=](Transaction &tr){
 	    m_lsnAxisChanged = tr[ *m_selAxis].onValueChanged().connectWeakly
 	        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
-	for(Transaction tr( *m_selPlot);; ++tr) {
+    });
+    m_selPlot->iterate_commit([=](Transaction &tr){
 	    m_lsnPlotChanged = tr[ *m_selPlot].onValueChanged().connectWeakly
 	        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, XListener::FLAG_MAIN_THREAD_CALL);
-		if(tr.commit())
-			break;
-	}
+    });
 
     m_pItem->showNormal();
 }   

@@ -34,7 +34,7 @@ template <class XN>
 atomic<int64_t> Node<XN>::Packet::s_serial = Node<XN>::Packet::SERIAL_FIRST;
 
 template <class XN>
-Node<XN>::Packet::Packet() : m_missing(false) {}
+Node<XN>::Packet::Packet() noexcept : m_missing(false) {}
 
 template <class XN>
 void
@@ -66,7 +66,7 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 	try {
 		if(size()) {
 			if( !(payload()->m_serial - subpackets()->m_serial < 0x7fffffffffffffffLL))
-				throw __LINE__;
+                throw __LINE__;
 		}
 		for(int i = 0; i < size(); i++) {
 			if( !subpackets()->at(i)) {
@@ -92,24 +92,24 @@ Node<XN>::Packet::checkConsistensy(const local_shared_ptr<Packet> &rootpacket) c
 	}
 	catch (int &line) {
 		fprintf(stderr, "Line %d, losing consistensy on node %p:\n", line, &node());
-		rootpacket->print_();
-		throw *this;
+        rootpacket->print_();
+        throw *this;
 	}
 	return true;
 }
 
 template <class XN>
-Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) :
+Node<XN>::PacketWrapper::PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept :
 	m_bundledBy(), m_packet(x), m_ridx(PACKET_HAS_PRIORITY), m_bundle_serial(bundle_serial) {
 }
 template <class XN>
 Node<XN>::PacketWrapper::PacketWrapper(const shared_ptr<Linkage > &bp, int reverse_index,
-	int64_t bundle_serial) :
+    int64_t bundle_serial) noexcept :
 	m_bundledBy(bp), m_packet(), m_ridx(), m_bundle_serial(bundle_serial) {
 	setReverseIndex(reverse_index);
 }
 template <class XN>
-Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) :
+Node<XN>::PacketWrapper::PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept :
 	m_bundledBy(x.m_bundledBy), m_packet(x.m_packet),
 	m_ridx(x.m_ridx), m_bundle_serial(bundle_serial) {}
 
@@ -132,11 +132,11 @@ Node<XN>::PacketWrapper::print_() const {
 
 template <class XN>
 inline void
-Node<XN>::Linkage::negotiate(uint64_t &started_time) {
+Node<XN>::Linkage::negotiate(uint64_t &started_time) noexcept {
 	int64_t transaction_started_time = m_transaction_started_time;
 	if(transaction_started_time) {
 		int ms = ((int64_t)started_time - transaction_started_time);
-		if(ms > 0) {
+        if(ms > 0) {
             XTime t0 = XTime::now();
             if(ms > 2000) {
                 if(ms > 4000)
@@ -147,10 +147,10 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) {
 			}
             t0 += ms * 1e-3;
             for(;;) {
-                double dt = t0 - XTime::now();
+                int dt = -XTime::now().diff_msec(t0);
                 if(dt <= 0) break;
 //				usleep(1000);
-                msecsleep(dt * 1e3 + 1.0);
+                msecsleep(dt + 1);
                 if( !m_transaction_started_time || (((int64_t)started_time <= (int64_t)m_transaction_started_time)))
 					break;
             }
@@ -209,7 +209,7 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 		bool has_failed = false;
 		//Tags serial.
 		local_shared_ptr<Packet> newpacket(tr.m_packet);
-		tr.m_packet.reset(new Packet( *tr.m_oldpacket));
+        tr.m_packet.reset(new Packet( *tr.m_oldpacket));
 		if( !tr.m_packet->node().commit(tr)) {
 			printf("*\n");
 			has_failed = true;
@@ -336,7 +336,8 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		}
 	}
 	if(old_idx < 0)
-		throw NodeNotFoundError("Lookup failure.");
+        std::terminate();
+//        throw NodeNotFoundError("Lookup failure.");
 
 	if( !packet->subpackets()->size()) {
 		packet->subpackets().reset();
@@ -436,7 +437,8 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 		++idx;
 	}
 	if((x_idx < 0) || (y_idx < 0))
-		throw NodeNotFoundError("Lookup failure.");
+        std::terminate();
+//        throw NodeNotFoundError("Lookup failure.");
 	local_shared_ptr<Packet> px = packet->subpackets()->at(x_idx);
 	local_shared_ptr<Packet> py = packet->subpackets()->at(y_idx);
 	packet->subpackets()->at(x_idx) = py;
@@ -571,8 +573,9 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
 	bool copy_branch, int64_t tr_serial, bool set_missing) {
 	local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
 	if( !foundpacket) {
-		fprintf(stderr, "Node not found during a lookup.\n");
-		throw NodeNotFoundError("Lookup failure.");
+        std::terminate();
+//        fprintf(stderr, "Node not found during a lookup.\n");
+//        throw NodeNotFoundError("Lookup failure.");
 	}
 	return *foundpacket;
 }
@@ -583,8 +586,9 @@ Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
 	local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
 		const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
 	if( !foundpacket) {
-		fprintf(stderr, "Node not found during a lookup.\n");
-		throw NodeNotFoundError("Lookup failure.");
+        std::terminate();
+//        fprintf(stderr, "Node not found during a lookup.\n");
+//        throw NodeNotFoundError("Lookup failure.");
 	}
 	return *foundpacket;
 }

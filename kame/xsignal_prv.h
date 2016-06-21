@@ -20,7 +20,7 @@ protected:
 	XListenerImpl_(XListener::FLAGS flags)
 		: XListener(flags), arg() {}
 public:
-	virtual ~XListenerImpl_() {}
+    virtual ~XListenerImpl_() = default;
 	virtual void operator() (const Arg &) const = 0;
 	//! is used when m_bAvoidDup is on.
 	atomic_unique_ptr<Arg> arg;

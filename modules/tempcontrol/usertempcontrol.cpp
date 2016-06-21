@@ -42,7 +42,7 @@ void XITC503::open() throw (XKameError &) {
     if(interface()->scanf("X%1dA%dC%1dS%2dH%1dL%1d", &stat, &automan, &locrem, &sweep, &ctrlsens, &autopid) != 6)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
         for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
             if( !hasExtDevice(shot, idx)) {
@@ -56,9 +56,7 @@ void XITC503::open() throw (XKameError &) {
             }
             tr[ *powerRange(idx)].setUIEnabled(false);
         }
-        if(tr.commit())
-			break;
-	}
+    });
 
     double t = read(0);
     trans( *targetTemp(0)) = t;
@@ -204,18 +202,10 @@ void XAVS47IB::onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {
 	interface()->sendf("EXC %u", (unsigned int) exc);
 	m_autorange_wait = 0;
 
-	for(Transaction tr( *this);; ++tr) {
-		tr[ *powerRange(0)].add("0");
-		tr[ *powerRange(0)].add("1uW");
-		tr[ *powerRange(0)].add("10uW");
-		tr[ *powerRange(0)].add("100uW");
-		tr[ *powerRange(0)].add("1mW");
-		tr[ *powerRange(0)].add("10mW");
-		tr[ *powerRange(0)].add("100mW");
-		tr[ *powerRange(0)].add("1W");
-		if(tr.commit())
-			break;
-	}
+	iterate_commit([=](Transaction &tr){
+        for(auto &&x : {"0", "1uW", "10uW", "100uW", "1mW", "10mW", "100mW", "1W"})
+            tr[ *powerRange(0)].add(x);
+    });
 }
 double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 	return getRes();
@@ -231,7 +221,7 @@ void XAVS47IB::open() throw (XKameError &) {
 
 	start();
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		if( !hasExtDevice(shot, 0)) {
 			tr[ *heaterMode(0)].clear();
@@ -239,9 +229,7 @@ void XAVS47IB::open() throw (XKameError &) {
 			tr[ *powerMax(0)].setUIEnabled(false);
 			tr[ *powerMin(0)].setUIEnabled(false);
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void XAVS47IB::closeInterface() {
 	XScopedLock<XInterface> lock( *interface());
@@ -382,15 +370,13 @@ void XCryocon::open() throw (XKameError &) {
             interface()->queryf("%s:DGAIN?", loopString(idx));
             trans( *deriv(idx)).str(XString( &interface()->buffer()[0]));
 
-            for(Transaction tr( *this);; ++tr) {
+            iterate_commit([=](Transaction &tr){
                 tr[ *heaterMode(idx)].clear();
                 tr[ *heaterMode(idx)].add("OFF");
                 tr[ *heaterMode(idx)].add("PID");
                 tr[ *heaterMode(idx)].add("MAN");
                 tr[ *powerMin(idx)].setUIEnabled(false);
-                if(tr.commit())
-                    break;
-            }
+            });
             interface()->queryf("%s:TYPE?", loopString(idx));
             trans( *heaterMode(idx)).str(interface()->toStrSimplified());
         }
@@ -404,13 +390,10 @@ void XCryocon::open() throw (XKameError &) {
 void XCryoconM32::open() throw (XKameError &) {
     XCryocon::open();
 
-    for(Transaction tr( *this);; ++tr) {
-        tr[ *powerRange(0)].add("HI");
-        tr[ *powerRange(0)].add("MID");
-        tr[ *powerRange(0)].add("LOW");
-        if(tr.commit())
-            break;
-    }
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x : {"HI", "MID", "LOW"})
+            tr[ *powerRange(0)].add(x);
+    });
     Snapshot shot( *this);
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
         if( !hasExtDevice(shot, idx)) {
@@ -430,22 +413,16 @@ void XCryoconM62::open() throw (XKameError &) {
     }
     //LOOP 1
     interface()->query("HEATER:LOAD?");
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         if(interface()->toInt() == 50) {
-            tr[ *powerRange(0)].add("0.05W");
-            tr[ *powerRange(0)].add("0.5W");
-            tr[ *powerRange(0)].add("5.0W");
-            tr[ *powerRange(0)].add("50W");
+            for(auto &&x : {"0.05W", "0.5W", "5.0W", "50W"})
+                tr[ *powerRange(0)].add(x);
         }
         else {
-            tr[ *powerRange(0)].add("0.03W");
-            tr[ *powerRange(0)].add("0.3W");
-            tr[ *powerRange(0)].add("2.5W");
-            tr[ *powerRange(0)].add("25W");
+            for(auto &&x : {"0.03W", "0.3W", "2.5W", "25W"})
+                tr[ *powerRange(0)].add(x);
         }
-        if(tr.commit())
-            break;
-    }
+    });
 }
 void XCryocon::onPChanged(unsigned int loop, double p) {
     interface()->sendf("%s:PGAIN %f", loopString(loop), p);
@@ -556,15 +533,10 @@ XNeoceraLTC21::XNeoceraLTC21(const char *name, bool runtime,
         excitations_create, loops_create);
     interface()->setEOS("");
 	interface()->setSerialEOS("\n");
-	for(Transaction tr( *this);; ++tr) {
-		tr[ *powerRange(0)].add("0");
-		tr[ *powerRange(0)].add("0.05W");
-		tr[ *powerRange(0)].add("0.5W");
-		tr[ *powerRange(0)].add("5W");
-		tr[ *powerRange(0)].add("50W");
-		if(tr.commit())
-			break;
-	}
+	iterate_commit([=](Transaction &tr){
+        for(auto &&x : {"0", "0.05W", "0.5W", "5W", "50W"})
+            tr[ *powerRange(0)].add(x);
+    });
 }
 void XNeoceraLTC21::control() {
 	interface()->send("SCONT;");
@@ -660,7 +632,7 @@ void XNeoceraLTC21::open() throw (XKameError &) {
 				if(interface()->scanf("%1d;%1d;", &sens, &cmode) != 2)
 					throw XInterface::XConvError(__FILE__, __LINE__);
 			}
-			for(Transaction tr( *this);; ++tr) {
+			iterate_commit([=](Transaction &tr){
 				tr[ *currentChannel(idx)].str(formatString("%d", sens));
 
 				tr[ *heaterMode(idx)].clear();
@@ -675,25 +647,21 @@ void XNeoceraLTC21::open() throw (XKameError &) {
 				tr[ *heaterMode(idx)] = cmode;
 				if(idx == 0)
 					tr[ *powerRange(idx)] = range;
-				if(tr.commit())
-					break;
-			}
+            });
 
 			interface()->queryf("QPID?%u;", idx + 1);
 			double p, i, d, power, limit;
 			if(interface()->scanf("%lf;%lf;%lf;%lf;%lf;", &p, &i, &d, &power,
 				&limit) != 5)
 				throw XInterface::XConvError(__FILE__, __LINE__);
-			for(Transaction tr( *this);; ++tr) {
+			iterate_commit([=](Transaction &tr){
 				tr[ *prop(idx)] = p;
 				tr[ *interval(idx)] = i;
 				tr[ *deriv(idx)] = d;
 				tr[ *manualPower(idx)] = power;
 				tr[ *powerMax(idx)] = limit;
 				tr[ *powerMin(0)].setUIEnabled(false);
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 	start();
@@ -819,7 +787,7 @@ void XLakeShore340::open() throw (XKameError &) {
         }
 
 		double maxcurr = pow(2.0, maxcurr_idx) * 0.125;
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *powerRange(idx)].clear();
 			if(idx == 0) {
 				tr[ *powerRange(idx)].add("0");
@@ -828,12 +796,10 @@ void XLakeShore340::open() throw (XKameError &) {
 						* pow(maxcurr, 2.0) * res));
 				}
 			}
-			if(tr.commit())
-				break;
-		}
+        });
 		if( !hasExtDevice(shot, idx)) {
 			interface()->queryf("CSET? %u", idx + 1);
-			for(Transaction tr( *this);; ++tr) {
+			iterate_commit([=](Transaction &tr){
 				char ch[2];
 				if(interface()->scanf("%1s", ch) == 1)
 					tr[ *currentChannel(idx)].str(XString(ch));
@@ -847,9 +813,7 @@ void XLakeShore340::open() throw (XKameError &) {
 				else
 					tr[ *powerMax(idx)].setUIEnabled(false);
 				tr[ *powerMin(idx)].setUIEnabled(false);
-				if(tr.commit())
-					break;
-			}
+            });
 
 			interface()->queryf("CMODE? %u", idx + 1);
 			switch(interface()->toInt()) {
@@ -874,13 +838,11 @@ void XLakeShore340::open() throw (XKameError &) {
 			double p, i, d;
 			if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
 				throw XInterface::XConvError(__FILE__, __LINE__);
-			for(Transaction tr( *this);; ++tr) {
+			iterate_commit([=](Transaction &tr){
 				tr[ *prop(idx)] = p;
 				tr[ *interval(idx)] = i;
 				tr[ *deriv(idx)] = d;
-				if(tr.commit())
-					break;
-			}
+            });
 		}
 	}
 	start();
@@ -965,7 +927,7 @@ void XLakeShore370::open() throw (XKameError &) {
 	if(interface()->scanf("%d,%*d,%d,%*d,%*d,%d,%lf", &ctrl_ch, &units, &htr_limit, &htr_res) != 4)
 		throw XInterface::XConvError(__FILE__, __LINE__);
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		tr[ *powerRange(0)].clear();
 		tr[ *powerRange(0)].add("0");
 		for(int i = 1; i < htr_limit; i++) {
@@ -975,19 +937,15 @@ void XLakeShore370::open() throw (XKameError &) {
 			else
 				tr[ *powerRange(0)].add(formatString("%.2g mW", pwr));
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 	if( !hasExtDevice(shot, 0)) {
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *currentChannel(0)].str(formatString("%d", ctrl_ch ));
 			tr[ *heaterMode(0)].clear();
 			tr[ *heaterMode(0)].add("Off");
 			tr[ *heaterMode(0)].add("PID");
 			tr[ *heaterMode(0)].add("Man");
-			if(tr.commit())
-				break;
-		}
+        });
 
 		interface()->query("CMODE?");
 		switch(interface()->toInt()) {
@@ -1010,15 +968,13 @@ void XLakeShore370::open() throw (XKameError &) {
 		double p, i, d;
 		if(interface()->scanf("%lf,%lf,%lf", &p, &i, &d) != 3)
 			throw XInterface::XConvError(__FILE__, __LINE__);
-		for(Transaction tr( *this);; ++tr) {
+		iterate_commit([=](Transaction &tr){
 			tr[ *prop(0)] = p;
 			tr[ *interval(0)] = i;
 			tr[ *deriv(0)] = d;
 			tr[ *powerMax(0)].setUIEnabled(false);
 			tr[ *powerMin(0)].setUIEnabled(false);
-			if(tr.commit())
-				break;
-		}
+        });
 	}
 	start();
 }
@@ -1037,21 +993,10 @@ XLinearResearch700::XLinearResearch700(const char *name, bool runtime,
     const char *loops_create[] = { "Loop", 0L };
     createChannels(ref(tr_meas), meas, true, channels_create,
         excitations_create, loops_create);
-    for(Transaction tr( *this);; ++tr) {
-        tr[ *powerRange(0)].add("30uA");
-        tr[ *powerRange(0)].add("100uA");
-        tr[ *powerRange(0)].add("300uA");
-        tr[ *powerRange(0)].add("1mA");
-        tr[ *powerRange(0)].add("3mA");
-        tr[ *powerRange(0)].add("10mA");
-        tr[ *powerRange(0)].add("30mA");
-        tr[ *powerRange(0)].add("100mA");
-        tr[ *powerRange(0)].add("300mA");
-        tr[ *powerRange(0)].add("1A");
-        tr[ *powerRange(0)].add("3A");
-        if(tr.commit())
-            break;
-    }
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x : {"30uA", "100uA", "300uA", "1mA", "3mA", "10mA", "30mA", "100mA", "300mA", "1A", "3A"})
+            tr[ *powerRange(0)].add(x);
+    });
 }
 
 double
@@ -1145,12 +1090,10 @@ void XLinearResearch700::open() throw (XKameError &) {
     if(interface()->scanf("%1dR,%1dE,%3d%%,%1dF,%1dM,%1dL,%2dS", &range, &exc, &vexc, &fil, &mode, &ll, &snum) != 7)
         throw XInterface::XConvError(__FILE__, __LINE__);
 
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *powerRange(0)] = range;
         tr[ *ch0->excitation()] = exc;
-        if(tr.commit())
-            break;
-    }
+    });
     start();
 }
 

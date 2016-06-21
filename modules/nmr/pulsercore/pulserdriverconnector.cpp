@@ -27,13 +27,11 @@ XQPulserDriverConnector::XQPulserDriverConnector(
       m_graph(XNode::createOrphan<XGraph>(node->getName().c_str(), false)) {
 
 	shared_ptr<XPulser> pulser(node);
-	for(Transaction tr( *pulser);; ++tr) {
+    pulser->iterate_commit([=](Transaction &tr){
 		m_lsnOnPulseChanged = tr[ *pulser].onRecord().connectWeakly(
 			shared_from_this(), &XQPulserDriverConnector::onPulseChanged,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
-		if(tr.commit())
-			break;
-	}
+    });
 	m_pTable->setColumnCount(3);
 	double def = 50;
 	m_pTable->setColumnWidth(0, (int)(def * 1.5));
@@ -59,7 +57,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 
     qgraph->setGraph(m_graph);
     
-    for(Transaction tr( *m_graph);; ++tr) {
+    m_graph->iterate_commit([=](Transaction &tr){
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
 		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
 		shared_ptr<XAxis> axisy = static_pointer_cast<XAxis>(axes_list.at(1));
@@ -112,9 +110,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 		tr[ *m_barPlot->maxCount()].setUIEnabled(false);
 
 		tr[ *m_graph->label()] = i18n("Pulse Patterns");
-		if(tr.commit())
-			break;
-    }
+    });
 }
 
 XQPulserDriverConnector::~XQPulserDriverConnector() {
@@ -134,7 +130,7 @@ void
 XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) {
     shared_ptr<XPulser> pulser(m_pulser);
     const XPulser::Payload::RelPatList &relpatlist(shot[ *pulser].relPatList());
-	for(Transaction tr( *m_graph);; ++tr) {
+	m_graph->iterate_commit([=](Transaction &tr){
         auto &barplot_points(tr[ *m_barPlot].points());
 		tr[ *m_barPlot->maxCount()] = relpatlist.size();
 		barplot_points.clear();
@@ -180,10 +176,7 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
 			tr[ *axisx->maxValue()] = lasttime;
 		}
 		tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
-		if(tr.commit()) {
-			break;
-		}
-	}
+    });
 }
 
 void
@@ -214,16 +207,13 @@ XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
     }
     else {
         m_pTable->clear();
-    	for(Transaction tr( *m_graph);; ++tr) {
+    	m_graph->iterate_commit([=](Transaction &tr){
             for(auto it = m_plots.begin();
 				it != m_plots.end(); it++) {
 				tr[ **it].points().clear();
 			}
 			tr[ *m_barPlot].points().clear();
 			tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
-			if(tr.commit()) {
-				break;
-			}
-    	}
+        });
     }
 }

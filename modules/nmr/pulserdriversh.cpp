@@ -101,13 +101,11 @@ XSHPulser::XSHPulser(const char *name, bool runtime,
     	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW,
     	PORTSEL_PULSE1, PORTSEL_PULSE2, PORTSEL_COMB_FM, PORTSEL_COMB
     };
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
 	    	tr[ *portSel(i)] = ports[i];
 		}
-		if(tr.commit())
-			break;
-	}
+    });
 }
 
 void

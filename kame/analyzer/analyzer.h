@@ -30,7 +30,7 @@ class DECLSPEC_KAME XScalarEntry : public XNode {
 public:
 	XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
 				 const char *format = 0L);
-	virtual ~XScalarEntry() {}
+    virtual ~XScalarEntry() = default;
 
 	//A condition for determining a trigger of storing.
 	//0: never
@@ -85,7 +85,7 @@ class XXYPlot;
 class XValChart : public XNode {
 public:
 	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
-	virtual ~XValChart() {}
+    virtual ~XValChart() = default;
 	void showChart();
 	const shared_ptr<XScalarEntry> &entry() const {return m_entry;}
 private:
@@ -102,7 +102,7 @@ private:
 class XChartList : public XAliasListNode<XValChart> {
 public:
 	XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
-	virtual ~XChartList() {}
+    virtual ~XChartList() = default;
 private:
 	shared_ptr<XListener> m_lsnOnCatchEntry;
 	shared_ptr<XListener> m_lsnOnReleaseEntry;
@@ -116,7 +116,7 @@ class XValGraph : public XNode {
 public:
 	XValGraph(const char *name, bool runtime,
 		Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries);
-	virtual ~XValGraph() {}
+    virtual ~XValGraph() = default;
 
 	void showGraph();
 	void clearAllPoints();
@@ -152,7 +152,7 @@ private:
 class XGraphList : public XCustomTypeListNode<XValGraph> {
 public:
 	XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
-	virtual ~XGraphList() {}
+    virtual ~XGraphList() = default;
 
 	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 	const shared_ptr<XScalarEntryList> &entries() const {return m_entries;}

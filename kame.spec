@@ -5,7 +5,7 @@ Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 4.1.12
+Version: 4.1.13
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -125,6 +125,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/kame/modules/libfourres*
 %{_libdir}/kame/modules/libmotor*
 %{_libdir}/kame/modules/libflowcontroller*
+%{_libdir}/kame/modules/libqd*
 
 %files modules-nmr
 %{_libdir}/libkame_nmrpulsercore*

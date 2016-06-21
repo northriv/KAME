@@ -26,7 +26,7 @@ bool g_bUseOverpaint;
 bool g_bMLockAlways;
 bool g_bUseMLock;
 
-bool isMemLockAvailable() {return g_bUseMLock;}
+bool isMemLockAvailable() noexcept {return g_bUseMLock;}
 
 #include <iostream>
 #include <fstream>
@@ -107,7 +107,7 @@ XKameError::msg() const {
 	return m_msg;
 }
 
-const char* XKameError::what() const throw() {
+const char* XKameError::what() const noexcept {
 	return m_msg.c_str();
 }
 
@@ -115,7 +115,7 @@ double roundlog10(double val) {
 	int i = lrint(log10(val));
 	return pow(10.0, (double)i);
 }
-double setprec(double val, double prec) {
+double setprec(double val, double prec) noexcept {
 	double x;
 
 	if(prec <= 1e-100) return val;
@@ -280,8 +280,7 @@ void formatDoubleValidator(XString &fmt) {
         throw XKameError(i18n_noncontext("Illegal Format, no %."), __FILE__, __LINE__);
 }
 
-XString dumpCString(const char *cstr)
-{
+XString dumpCString(const char *cstr) {
 	XString buf;
 	for(; *cstr; cstr++) {
 		if(isprint(*cstr))

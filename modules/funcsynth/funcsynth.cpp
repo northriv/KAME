@@ -73,7 +73,7 @@ XFuncSynth::start() {
     m_phase->setUIEnabled(true);
     m_offset->setUIEnabled(true);
         
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOutput = tr[ *output()].onValueChanged().connectWeakly(
 			shared_from_this(), &XFuncSynth::onOutputChanged);
 		m_lsnMode = tr[ *mode()].onValueChanged().connectWeakly(
@@ -88,16 +88,12 @@ XFuncSynth::start() {
 			shared_from_this(), &XFuncSynth::onPhaseChanged);
 		m_lsnOffset = tr[ *offset()].onValueChanged().connectWeakly(
 			shared_from_this(), &XFuncSynth::onOffsetChanged);
-		if(tr.commit())
-			break;
-	}
+    });
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnTrig = tr[ *trig()].onTouch().connectWeakly(
 			shared_from_this(), &XFuncSynth::onTrigTouched);
-		if(tr.commit())
-			break;
-	}
+    });
 }
 void
 XFuncSynth::stop() {

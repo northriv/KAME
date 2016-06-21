@@ -30,7 +30,7 @@ public:
     XQDPPMS(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     //! usually nothing to do
-    virtual ~XQDPPMS() {}
+    virtual ~XQDPPMS() = default;
     //! Shows all forms belonging to driver
     virtual void showForms();
 

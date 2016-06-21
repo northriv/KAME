@@ -112,12 +112,10 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 
 	g_statusPrinter = XStatusPrinter::create();
 
-	for(Transaction tr( *this);; ++tr) {
+	iterate_commit([=](Transaction &tr){
 		m_lsnOnReleaseDriver = tr[ *drivers()].onRelease().connect(
 			*this, &XMeasure::onReleaseDriver);
-		if(tr.commit())
-			break;
-	}
+    });
 
 	m_ruby = createOrphan<XRuby>("RubySupport", true,
 		dynamic_pointer_cast<XMeasure>(shared_from_this()));
