@@ -24,11 +24,8 @@ XOmronE5_CModbus::XOmronE5_CModbus(const char *name, bool runtime,
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
 
-    const char *channels_create[] = { "1", 0L };
-	const char *excitations_create[] = { 0L };
-    const char *loops_create[] = { "Loop1", 0L };
-    createChannels(ref(tr_meas), meas, true, channels_create,
-        excitations_create, loops_create);
+    createChannels(ref(tr_meas), meas, true,
+        {"1"}, {}, {"Loop1"});
 }
 void XOmronE5_CModbus::open() throw (XKameError &) {
 	start();
@@ -61,9 +58,7 @@ void XOmronE5_CModbus::open() throw (XKameError &) {
         for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
             if( !hasExtDevice(shot, idx)) {
                 tr[ *heaterMode(idx)].clear();
-                tr[ *heaterMode(idx)].add("OFF");
-                tr[ *heaterMode(idx)].add("AUTO");
-                tr[ *heaterMode(idx)].add("MAN");
+                tr[ *heaterMode(idx)].add({"OFF", "AUTO", "MAN"});
                 tr[ *powerMax(idx)].setUIEnabled(false);
                 tr[ *powerMin(idx)].setUIEnabled(false);
                 tr[ *currentChannel(idx)].setUIEnabled(false);

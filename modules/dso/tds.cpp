@@ -25,26 +25,12 @@ REGISTER_TYPE(XDriverList, TDS, "Tektronix DSO");
 XTDS::XTDS(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XDSO>(name, runtime, ref(tr_meas), meas) {
-	const char* ch[] = {"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2", 0L};
-	const char* sc[] = {"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10",
-						"20", "50", "100", 0L};
-	const char* trg[] = {"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE", 0L};
 	iterate_commit([=](Transaction &tr){
-		for(int i = 0; ch[i]; i++) {
-			tr[ *trace1()].add(ch[i]);
-			tr[ *trace2()].add(ch[i]);
-			tr[ *trace3()].add(ch[i]);
-			tr[ *trace4()].add(ch[i]);
-		}
-		for(int i = 0; sc[i]; i++) {
-			tr[ *vFullScale1()].add(sc[i]);
-			tr[ *vFullScale2()].add(sc[i]);
-			tr[ *vFullScale3()].add(sc[i]);
-			tr[ *vFullScale4()].add(sc[i]);
-		}
-		for(int i = 0; trg[i]; i++) {
-			tr[ *trigSource()].add(trg[i]);
-		}
+        for(auto &&x: {trace1(), trace2(), trace3(), trace4()})
+            tr[ *x].add({"CH1", "CH2", "CH3", "CH4", "MATH1", "MATH2"});
+        for(auto &&x: {vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4()})
+            tr[ *x].add({"0.02", "0.05", "0.1", "0.2", "0.5", "1", "2", "5", "10", "20", "50", "100"});
+        tr[ *trigSource()].add({"EXT", "EXT10", "CH1", "CH2", "CH3", "CH4", "LINE"});
     });
 
 	interface()->setGPIBWaitBeforeWrite(20); //20msec

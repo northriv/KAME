@@ -49,17 +49,14 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XDSO, XThamwayDVCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
-    const char* sc[] = {"5", 0L};
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
         tr[ *timeWidth()] = 1e-2;
         tr[ *average()] = 1;
-        for(int i = 0; sc[i]; i++) {
-            tr[ *vFullScale1()].add(sc[i]);
-            tr[ *vFullScale2()].add(sc[i]);
+        for(auto &&x: {vFullScale1(), vFullScale2()}) {
+            tr[ *x].add({"5"});
+            tr[ *x] = "5";
         }
-        tr[ *vFullScale1()] = "5";
-        tr[ *vFullScale2()] = "5";
     });
 
     vFullScale3()->disable();
@@ -83,10 +80,8 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     fprintf(stderr, "DV IDN=%s\n", idn.c_str());
 
     iterate_commit([=](Transaction &tr){
-        tr[ *trace1()].add("CH1");
-        tr[ *trace1()].add("CH2");
-        tr[ *trace2()].add("CH1");
-        tr[ *trace2()].add("CH2");
+        for(auto &&x: {trace1(), trace2()})
+            tr[ *x].add({"CH1", "CH2"});
         tr[ *trace1()] = 0;
         tr[ *trace2()] = 1;
     });

@@ -92,39 +92,6 @@ private:
     virtual void onPositionChanged(const Snapshot &shot,  XValueNodeBase *);
     virtual void onTempChanged(const Snapshot &shot,  XValueNodeBase *);
 
-    const std::map<int,std::string> mp_field_status = {
-        {0x0,"Unknown"},
-        {0x1,"Persistent Stable"},
-        {0x2,"Persist Warming"},
-        {0x3,"Persist Cooling"},
-        {0x4,"Driven Stable"},
-        {0x5,"Driven Approach"},
-        {0x6,"Charging"},
-        {0x7,"Unchaging"},
-        {0x8,"Current Error"},
-        {0xf,"Failure"}
-    };
-    const std::map<int,std::string> mp_temp_status = {
-        {0x0,"Unknown"},
-        {0x1,"Stable"},
-        {0x2,"Tracking"},
-        {0x5,"Wait"},
-        {0x6,"not Valid"},
-        {0x7,"Fill/Empty Reservoir"},
-        {0xa,"Standby"},
-        {0xd,"Control Disabled"},
-        {0xe,"Cannot Complete"},
-        {0xf,"Failure"}
-    };
-    const std::map<int,std::string> mp_position_status ={
-        {0x0,"Unknown"},
-        {0x1,"Stopped"},
-        {0x5,"Moving"},
-        {0x8,"Limit"},
-        {0x9,"Index"},
-        {0xf,"Failure"}
-    };
-
     const shared_ptr<XScalarEntry> m_field, m_position, m_temp, m_temp_rotator;
 
     const shared_ptr<XDoubleNode> m_heliumLevel;

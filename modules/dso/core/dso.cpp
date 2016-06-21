@@ -121,17 +121,10 @@ XDSO::XDSO(const char *name, bool runtime,
 		tr[ *firBandWidth()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *firCenterFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *firSharpness()].onValueChanged().connect(m_lsnOnCondChanged);
-		{
-			const char *modes[] = {"Never", "Averaging", "Sequence", 0L};
-			for(const char **mode = &modes[0]; *mode; mode++)
-				tr[ *fetchMode()].add(*mode);
-		}
+        tr[ *fetchMode()].add({"Never", "Averaging", "Sequence"});
 		tr[ *fetchMode()] = FETCHMODE_SEQ;
 
-		 tr[ *dRFMode()].add("OFF");
-		 tr[ *dRFMode()].add("By Given Freq.");
-		 tr[ *dRFMode()].add("By SG Freq.");
-		 tr[ *dRFMode()].add("With Coherent SG");
+         tr[ *dRFMode()].add({"OFF", "By Given Freq.", "By SG Freq.", "With Coherent SG"});
 
 		m_lsnOnDRFCondChanged = tr[ *dRFMode()].onValueChanged().connectWeakly(
 			shared_from_this(), &XDSO::onDRFCondChanged);

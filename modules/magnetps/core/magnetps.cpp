@@ -158,8 +158,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 
 	iterate_commit([=](Transaction &tr){
 		tr[ *allowPersistent()] = false;
-		tr[ *approach()].add("Linear");
-		tr[ *approach()].add("Oscillating");
+        tr[ *approach()].add({"Linear", "Oscillating"});
 		tr[ *m_pcshWait] = 40.0; //sec
 		tr[ *m_safeCond1Max] = 100.0;
 		tr[ *m_safeCond2Max] = 100.0;

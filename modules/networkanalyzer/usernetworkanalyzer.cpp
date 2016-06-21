@@ -23,10 +23,7 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
     iterate_commit([=](Transaction &tr){
-        const char *cand[] = {"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601", ""};
-        for(const char **it = cand; strlen( *it); it++) {
-			tr[ *points()].add( *it);
-		}
+        tr[ *points()].add({"3", "5", "11", "21", "51", "101", "201", "401", "801", "1601"});
     });
 
 	calOpen()->disable();

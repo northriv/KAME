@@ -93,9 +93,9 @@ using std::reference_wrapper;
 #endif
 
 class XString : public std::string {
-typedef std::string base_type;
+using base_type = std::string;
 public:
-	XString() : base_type() {}
+    XString() = default;
 	XString(const char *str) : base_type(str) {}
     XString(const QString &str) : base_type(str.toUtf8().data()) {}
     XString(const base_type &str) : base_type(str) {}

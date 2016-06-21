@@ -36,21 +36,14 @@ XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	m_dsoRawRecordBankLatest(0),
 	m_task(TASK_UNDEF) {
 
-	const char* sc[] = {"0.4", "1", "2", "4", "10", "20", "40", "84", 0L};
 	iterate_commit([=](Transaction &tr){
 		tr[ *recordLength()] = 2000;
 		tr[ *timeWidth()] = 1e-2;
 		tr[ *average()] = 1;
-		for(int i = 0; sc[i]; i++) {
-			tr[ *vFullScale1()].add(sc[i]);
-			tr[ *vFullScale2()].add(sc[i]);
-			tr[ *vFullScale3()].add(sc[i]);
-			tr[ *vFullScale4()].add(sc[i]);
-		}
-		tr[ *vFullScale1()] = "20";
-		tr[ *vFullScale2()] = "20";
-		tr[ *vFullScale3()] = "20";
-		tr[ *vFullScale4()] = "20";
+        for(auto &&x: {vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4()}) {
+            tr[ *x].add({"0.4", "1", "2", "4", "10", "20", "40", "84"});
+            tr[ *x] = "20";
+        }
     });
     if(isMemLockAvailable()) {
 		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
@@ -133,11 +126,9 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 		XNIDAQmxInterface::parseList(buf, chans);
 		iterate_commit([=](Transaction &tr){
             for(auto it = chans.cbegin(); it != chans.cend(); ++it) {
-				tr[ *trace1()].add(it->c_str());
-				tr[ *trace2()].add(it->c_str());
-				tr[ *trace3()].add(it->c_str());
-				tr[ *trace4()].add(it->c_str());
-			}
+                for(auto &&x: {trace1(), trace2(), trace3(), trace4()})
+                    tr[ *x].add(it->c_str());
+            }
         });
 	}
 	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
@@ -167,10 +158,8 @@ XNIDAQmxDSO::close() throw (XKameError &) {
 	}
 
 	iterate_commit([=](Transaction &tr){
-		tr[ *trace1()].clear();
-		tr[ *trace2()].clear();
-		tr[ *trace3()].clear();
-		tr[ *trace4()].clear();
+        for(auto &&x: {trace1(), trace2(), trace3(), trace4()})
+            tr[ *x].clear();
     });
 
 	m_recordBuf.clear();

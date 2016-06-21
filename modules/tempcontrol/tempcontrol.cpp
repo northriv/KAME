@@ -432,18 +432,17 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 
 void XTempControl::createChannels(
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
-	bool multiread, const char **channel_names, const char **excitations,
-    const char **loop_names) {
+    bool multiread, std::initializer_list<XString> channel_names,
+    std::initializer_list<XString> excitations,
+    std::initializer_list<XString> loop_names) {
 	shared_ptr<XScalarEntryList> entries(meas->scalarEntries());
 	m_multiread = multiread;
 
     iterate_commit([=, &tr_meas](Transaction &tr){
-		for(int i = 0; channel_names[i]; i++) {
+        for(auto &&ch: channel_names) {
 			shared_ptr<XChannel> channel = m_channels->create<XChannel> (
-                tr, channel_names[i], false, ref(tr_meas), meas->thermometers());
-			for(int j = 0; excitations[j]; j++) {
-				tr[ *channel->excitation()].add(excitations[j]);
-			}
+                tr, ch.c_str(), false, ref(tr_meas), meas->thermometers());
+            tr[ *channel->excitation()].add(excitations);
 		}
     });
 	if(multiread) {
@@ -483,17 +482,17 @@ void XTempControl::createChannels(
 	}
 	//creates loops.
     unsigned int num_of_loops = 0;
-    for(unsigned int lp = 0; loop_names[lp]; ++lp) {
-        num_of_loops++;
+    for(auto &&lp: loop_names) {
 		shared_ptr<Loop> p;
         iterate_commit([=, &p, &tr_meas](Transaction &tr){
 			p = create<Loop>(tr,
-                loop_names[lp], false,
-				dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), lp,
+                lp.c_str(), false,
+                dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), num_of_loops,
 				ref(tr_meas), meas);
         });
 		m_loops.push_back(p);
-	}
+        num_of_loops++;
+    }
 	if(num_of_loops > 1) {
 		auto lp = loop(1);
 		lp->m_conCurrentChannel = xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,

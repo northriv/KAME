@@ -67,22 +67,20 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_conPositionSlowDownCode = xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode);
     m_conPostionStatus = xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus);
     iterate_commit([=](Transaction &tr){
-        tr[ *targetField()].setUIEnabled(false);
-        tr[ *fieldSweepRate()].setUIEnabled(false);
-        tr[ *fieldApproachMode()].add("Linear");
-        tr[ *fieldApproachMode()].add("No Overshoot");
-        tr[ *fieldApproachMode()].add("Oscillate");
-        tr[ *fieldMagnetMode()].add("Persistent");
-        tr[ *fieldMagnetMode()].add("Driven");
-        tr[ *targetPosition()].setUIEnabled(false);
+        tr[ *fieldApproachMode()].add({"Linear", "No Overshoot", "Oscillate"});
+        tr[ *fieldMagnetMode()].add({"Persistent", "Driven"});
         tr[ *positionApproachMode()].add("default");
         tr[ *positionSlowDownCode()] = 0;
-        tr[ *positionSlowDownCode()].setUIEnabled(false);
-        tr[ *targetTemp()].setUIEnabled(false);
-        tr[ *tempSweepRate()].setUIEnabled(false);
-        tr[ *tempApproachMode()].add("FastSettle");
-        tr[ *tempApproachMode()].add("No Overshoot");
+        tr[ *tempApproachMode()].add({"FastSettle", "No Overshoot"});
+        std::vector<shared_ptr<XNode>> runtime_ui{
+            targetField(), fieldSweepRate(), fieldApproachMode(),
+            fieldMagnetMode(), targetTemp(), tempSweepRate(), tempApproachMode(),
+            targetPosition(), positionApproachMode(), positionSlowDownCode()
+            };
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
     });
+
 }
 void
 XQDPPMS::showForms() {
@@ -147,19 +145,15 @@ XQDPPMS::onTempChanged(const Snapshot &shot,  XValueNodeBase *){
 
 void *
 XQDPPMS::execute(const atomic<bool> &terminated) {
-
-    targetField()->setUIEnabled(true);
-    fieldSweepRate()->setUIEnabled(true);
-    fieldApproachMode()->setUIEnabled(true);
-    fieldMagnetMode()->setUIEnabled(true);
-    targetTemp()->setUIEnabled(true);
-    tempSweepRate()->setUIEnabled(true);
-    tempApproachMode()->setUIEnabled(true);
-    targetPosition()->setUIEnabled(true);
-    positionApproachMode()->setUIEnabled(true);
-    positionSlowDownCode()->setUIEnabled(true);
-
+    std::vector<shared_ptr<XNode>> runtime_ui{
+        targetField(), fieldSweepRate(), fieldApproachMode(),
+        fieldMagnetMode(), targetTemp(), tempSweepRate(), tempApproachMode(),
+        targetPosition(), positionApproachMode(), positionSlowDownCode()
+        };
     iterate_commit([=](Transaction &tr){
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(true);
+
         m_lsnFieldSet = tr[ *targetField()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onFieldChanged);
         m_lsnTempSet = tr[ *targetTemp()].onValueChanged().connectWeakly(
@@ -198,24 +192,52 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
 
         finishWritingRaw(writer, XTime::now(), XTime::now());
 
-        iterate_commit([=](Transaction &tr){
-            tr[ *heliumLevel()] = helium_level;
-            tr[ *tempStatus()] = mp_temp_status.at(status & 0xf);
-            tr[ *fieldStatus()] = mp_field_status.at((status >> 4) & 0xf);
-            tr[ *positionStatus()] = mp_position_status.at((status >> 12) & 0xf);
-        });
+        try{
+            iterate_commit([=](Transaction &tr){
+                tr[ *heliumLevel()] = helium_level;
+                tr[ *tempStatus()] = std::map<int,std::string>{
+                    {0x0,"Unknown"},
+                    {0x1,"Persistent Stable"},
+                    {0x2,"Persist Warming"},
+                    {0x3,"Persist Cooling"},
+                    {0x4,"Driven Stable"},
+                    {0x5,"Driven Approach"},
+                    {0x6,"Charging"},
+                    {0x7,"Unchaging"},
+                    {0x8,"Current Error"},
+                    {0xf,"Failure"}
+                }.at(status & 0xf);
+                tr[ *fieldStatus()] = std::map<int,std::string>{
+                    {0x0,"Unknown"},
+                    {0x1,"Stable"},
+                    {0x2,"Tracking"},
+                    {0x5,"Wait"},
+                    {0x6,"not Valid"},
+                    {0x7,"Fill/Empty Reservoir"},
+                    {0xa,"Standby"},
+                    {0xd,"Control Disabled"},
+                    {0xe,"Cannot Complete"},
+                    {0xf,"Failure"}
+                }.at((status >> 4) & 0xf);
+                tr[ *positionStatus()] = std::map<int,std::string>{
+                    {0x0,"Unknown"},
+                    {0x1,"Stopped"},
+                    {0x5,"Moving"},
+                    {0x8,"Limit"},
+                    {0x9,"Index"},
+                    {0xf,"Failure"}
+                }.at((status >> 12) & 0xf);
+            });
+        }
+        catch (std::out_of_range &) {
+            gErrPrint(i18n("PPMS: unknown status has been returned."));
+        }
     }
 
-    targetField()->setUIEnabled(false);
-    fieldSweepRate()->setUIEnabled(false);
-    fieldApproachMode()->setUIEnabled(false);
-    fieldMagnetMode()->setUIEnabled(false);
-    targetTemp()->setUIEnabled(false);
-    tempSweepRate()->setUIEnabled(false);
-    tempApproachMode()->setUIEnabled(false);
-    targetPosition()->setUIEnabled(false);
-    positionApproachMode()->setUIEnabled(false);
-    positionSlowDownCode()->setUIEnabled(false);
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
+    });
 
     m_lsnFieldSet.reset();
     m_lsnTempSet.reset();

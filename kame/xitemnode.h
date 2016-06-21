@@ -186,7 +186,8 @@ public:
         Payload() : XItemNodeBase::Payload(), m_strings(std::make_shared<std::deque<XString>>()),
 			m_var(std::pair<XString, int>("", -1)) {}
 		void add(const XString &str);
-		void clear();
+        void add(std::initializer_list<XString> strlist) {for(auto &&x: strlist){ add(x);}}
+        void clear();
 		operator int() const { return m_var.second;}
 		virtual XString to_str() const { return m_var.first;}
 		Payload &operator=(int t);
