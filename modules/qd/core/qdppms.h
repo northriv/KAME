@@ -17,6 +17,7 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+#include "string"
 
 class XScalarEntry;
 class QMainWindow;
@@ -61,18 +62,100 @@ protected:
     const shared_ptr<XScalarEntry> &temp_rotator() const {return m_temp_rotator;}
     const shared_ptr<XDoubleNode> &heliumLevel() const {return m_heliumLevel;}
 
+    const shared_ptr<XDoubleNode> &targetField() const {return m_targetField;}
+    const shared_ptr<XDoubleNode> &fieldSweepRate() const {return m_fieldSweepRate;}
+    const shared_ptr<XComboNode> &fieldApproachMode() const {return m_fieldApproachMode;}
+    const shared_ptr<XComboNode> &fieldMagnetMode() const {return m_fieldMagnetMode;}
+    const shared_ptr<XStringNode> &fieldStatus() const {return m_fieldStatus;}
+
+    const shared_ptr<XDoubleNode> &targetPosition() const {return m_targetPosition;}
+    const shared_ptr<XComboNode> &positionApproachMode() const {return m_positionApproachMode;}
+    const shared_ptr<XIntNode> &positionSlowDownCode() const {return m_positionSlowDownCode;}
+    const shared_ptr<XStringNode> &positionStatus() const {return m_positionStatus;}
+
+    const shared_ptr<XDoubleNode> &targetTemp() const {return m_targetTemp;}
+    const shared_ptr<XDoubleNode> &tempSweepRate() const {return m_tempSweepRate;}
+    const shared_ptr<XComboNode> &tempApproachMode() const {return m_tempApproachMode;}
+    const shared_ptr<XStringNode> &tempStatus() const {return m_tempStatus;}
 protected:
+    virtual void setField(double field, double rate, int approach_mode, int magnet_mode) = 0;
+    virtual void setPosition(double position, int mode, int slow_down_code) = 0;
+    virtual void setTemp(double temp, double rate, int approach_mode) = 0;
     virtual double getField() = 0;
     virtual double getPosition() = 0;
     virtual double getTemp() = 0;
     virtual double getTempRotator() = 0;
     virtual double getHeliumLevel() = 0;
+    virtual int getStatus() = 0;
 private:
+    virtual void onFieldChanged(const Snapshot &shot,  XValueNodeBase *);
+    virtual void onPositionChanged(const Snapshot &shot,  XValueNodeBase *);
+    virtual void onTempChanged(const Snapshot &shot,  XValueNodeBase *);
+
+    const std::map<int,std::string> mp_field_status = {
+        {0x0,"Unknown"},
+        {0x1,"Persistent Stable"},
+        {0x2,"Persist Warming"},
+        {0x3,"Persist Cooling"},
+        {0x4,"Driven Stable"},
+        {0x5,"Driven Approach"},
+        {0x6,"Charging"},
+        {0x7,"Unchaging"},
+        {0x8,"Current Error"},
+        {0xf,"Failure"}
+    };
+    const std::map<int,std::string> mp_temp_status = {
+        {0x0,"Unknown"},
+        {0x1,"Stable"},
+        {0x2,"Tracking"},
+        {0x5,"Wait"},
+        {0x6,"not Valid"},
+        {0x7,"Fill/Empty Reservoir"},
+        {0xa,"Standby"},
+        {0xd,"Control Disabled"},
+        {0xe,"Cannot Complete"},
+        {0xf,"Failure"}
+    };
+    const std::map<int,std::string> mp_position_status ={
+        {0x0,"Unknown"},
+        {0x1,"Stopped"},
+        {0x5,"Moving"},
+        {0x8,"Limit"},
+        {0x9,"Index"},
+        {0xf,"Failure"}
+    };
+
     const shared_ptr<XScalarEntry> m_field, m_position, m_temp, m_temp_rotator;
 
     const shared_ptr<XDoubleNode> m_heliumLevel;
 
+    const shared_ptr<XDoubleNode> m_targetField, m_fieldSweepRate;
+    const shared_ptr<XComboNode> m_fieldApproachMode, m_fieldMagnetMode;
+    const shared_ptr<XStringNode> m_fieldStatus;
+
+    const shared_ptr<XDoubleNode> m_targetPosition;
+    const shared_ptr<XComboNode> m_positionApproachMode;
+    const shared_ptr<XIntNode> m_positionSlowDownCode;
+    const shared_ptr<XStringNode> m_positionStatus;
+
+    const shared_ptr<XDoubleNode> m_targetTemp, m_tempSweepRate;
+    const shared_ptr<XComboNode> m_tempApproachMode;
+    const shared_ptr<XStringNode> m_tempStatus;
+
+    shared_ptr<XListener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
+
+
     xqcon_ptr m_conField, m_conTemp, m_conTempRotator, m_conPosition, m_conHeliumLevel;
+    xqcon_ptr m_conTargetField, m_conFieldSweepRate;
+    xqcon_ptr m_conFieldApproachMode, m_conFieldMagnetMode;
+    xqcon_ptr m_conFieldStatus;
+    xqcon_ptr m_conTargetPosition;
+    xqcon_ptr m_conPositionApproachMode;
+    xqcon_ptr m_conPositionSlowDownCode;
+    xqcon_ptr m_conPostionStatus;
+    xqcon_ptr m_conTargetTemp, m_conTempSweepRate;
+    xqcon_ptr m_conTempApproachMode;
+    xqcon_ptr m_conTempStatus;
 
     const qshared_ptr<FrmQDPPMS> m_form;
 

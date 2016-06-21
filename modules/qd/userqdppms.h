@@ -28,11 +28,15 @@ public:
 
 protected:
 protected:
+    virtual void setField(double field, double rate, int approach_mode, int magnet_mode);
+    virtual void setPosition(double position, int mode, int slow_down_code);
+    virtual void setTemp(double temp, double rate, int approach_mode);
     virtual double getField();
     virtual double getPosition();
     virtual double getTemp();
     virtual double getTempRotator();
     virtual double getHeliumLevel();
+    virtual int getStatus();
 private:
 };
 

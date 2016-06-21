@@ -26,7 +26,20 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
     m_position(create<XScalarEntry>("Position", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
-    m_heliumLevel(create<XDoubleNode>("HeliumLevel", true)),
+    m_heliumLevel(create<XDoubleNode>("HeliumLevel", false)),
+    m_targetField(create<XDoubleNode>("TargetField",true)),
+    m_fieldSweepRate(create<XDoubleNode>("FieldSweepRate",true)),
+    m_fieldApproachMode(create<XComboNode>("FieldApproachMode",true,true)),
+    m_fieldMagnetMode(create<XComboNode>("FieldMagnetMode",true,true)),
+    m_fieldStatus(create<XStringNode>("FieldStatus",false)),
+    m_targetPosition(create<XDoubleNode>("TargetPosition",true)),
+    m_positionApproachMode(create<XComboNode>("PositionApproachMode",true,true)),
+    m_positionSlowDownCode(create<XIntNode>("PositionSlowDownCode",true)),
+    m_positionStatus(create<XStringNode>("PositionStatus",false)),
+    m_targetTemp(create<XDoubleNode>("TargetTemp",true)),
+    m_tempSweepRate(create<XDoubleNode>("TempdSweepRate",true)),
+    m_tempApproachMode(create<XComboNode>("TempApproachMode",true,true)),
+    m_tempStatus(create<XStringNode>("TempStatus",false)),
     m_form(new FrmQDPPMS(g_pFrmMain)) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
     meas->scalarEntries()->insert(tr_meas, m_temp_rotator);
@@ -40,7 +53,38 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_conField = xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField);
     m_conPosition = xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition);
     m_conHeliumLevel = xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel);
-
+    m_conTargetField = xqcon_create<XQLineEditConnector>(targetField(), m_form->m_edTargetField);
+    m_conFieldSweepRate = xqcon_create<XQLineEditConnector>(fieldSweepRate(), m_form->m_edFieldSweepRate);
+    m_conFieldApproachMode = xqcon_create<XQComboBoxConnector>(fieldApproachMode(), m_form->m_cmbFieldApproachMode, Snapshot( *m_fieldApproachMode));
+    m_conFieldMagnetMode = xqcon_create<XQComboBoxConnector>(fieldMagnetMode(), m_form->m_cmbMagnetMode, Snapshot( *m_fieldMagnetMode));
+    m_conFieldStatus = xqcon_create<XQLabelConnector>(fieldStatus(), m_form->m_labelFieldStatus);
+    m_conTargetTemp = xqcon_create<XQLineEditConnector>(targetTemp(), m_form->m_edTargetTemp);
+    m_conTempSweepRate = xqcon_create<XQLineEditConnector>(tempSweepRate(), m_form->m_edTempSweepRate);
+    m_conTempApproachMode = xqcon_create<XQComboBoxConnector>(tempApproachMode(), m_form->m_cmbTempApproachMode, Snapshot( *m_tempApproachMode));
+    m_conTempStatus = xqcon_create<XQLabelConnector>(tempStatus(), m_form->m_labelTempStatus);
+    m_conTargetPosition = xqcon_create<XQLineEditConnector>(targetPosition(), m_form->m_edTargetPosition);
+    m_conPositionApproachMode = xqcon_create<XQComboBoxConnector>(positionApproachMode(), m_form->m_cmbPositionApproachMode, Snapshot( *m_positionApproachMode));
+    m_conPositionSlowDownCode = xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode);
+    m_conPostionStatus = xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus);
+    for(Transaction tr( *this);; ++tr) {
+        tr[ *targetField()].setUIEnabled(false);
+        tr[ *fieldSweepRate()].setUIEnabled(false);
+        tr[ *fieldApproachMode()].add("Linear");
+        tr[ *fieldApproachMode()].add("No Overshoot");
+        tr[ *fieldApproachMode()].add("Oscillate");
+        tr[ *fieldMagnetMode()].add("Persistent");
+        tr[ *fieldMagnetMode()].add("Driven");
+        tr[ *targetPosition()].setUIEnabled(false);
+        tr[ *positionApproachMode()].add("default");
+        tr[ *positionSlowDownCode()] = 0;
+        tr[ *positionSlowDownCode()].setUIEnabled(false);
+        tr[ *targetTemp()].setUIEnabled(false);
+        tr[ *tempSweepRate()].setUIEnabled(false);
+        tr[ *tempApproachMode()].add("FastSettle");
+        tr[ *tempApproachMode()].add("No Overshoot");
+        if(tr.commit())
+            break;
+    }
 }
 void
 XQDPPMS::showForms() {
@@ -63,9 +107,70 @@ XQDPPMS::visualize(const Snapshot &shot) {
 }
 
 
+void
+XQDPPMS::onFieldChanged(const Snapshot &shot,  XValueNodeBase *){
+    double sweepRate = ***fieldSweepRate();
+    int approachMode = ***fieldApproachMode();
+    int magnetMode = ***fieldMagnetMode();
+    try {
+        setField(shot[ *targetField()], sweepRate,
+                approachMode, magnetMode);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + "; ");
+    }
+}
+
+void
+XQDPPMS::onPositionChanged(const Snapshot &shot,  XValueNodeBase *){
+    int approachMode = ***positionApproachMode();
+    int slowDownCode = ***positionSlowDownCode();
+    try {
+        setPosition(shot[ *targetPosition()], approachMode, slowDownCode);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + "; ");
+    }
+}
+
+void
+XQDPPMS::onTempChanged(const Snapshot &shot,  XValueNodeBase *){
+    double sweepRate = ***tempSweepRate();
+    int approachMode = ***tempApproachMode();
+    try {
+        setTemp(shot[ *targetTemp()], sweepRate, approachMode);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + "; ");
+    }
+    catch (NodeNotFoundError &e){
+    }
+}
 
 void *
 XQDPPMS::execute(const atomic<bool> &terminated) {
+
+    targetField()->setUIEnabled(true);
+    fieldSweepRate()->setUIEnabled(true);
+    fieldApproachMode()->setUIEnabled(true);
+    fieldMagnetMode()->setUIEnabled(true);
+    targetTemp()->setUIEnabled(true);
+    tempSweepRate()->setUIEnabled(true);
+    tempApproachMode()->setUIEnabled(true);
+    targetPosition()->setUIEnabled(true);
+    positionApproachMode()->setUIEnabled(true);
+    positionSlowDownCode()->setUIEnabled(true);
+
+    for(Transaction tr( *this);; ++tr) {
+        m_lsnFieldSet = tr[ *targetField()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XQDPPMS::onFieldChanged);
+        m_lsnTempSet = tr[ *targetTemp()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XQDPPMS::onTempChanged);
+        m_lsnPositionSet = tr[ *targetPosition()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XQDPPMS::onPositionChanged);
+        if(tr.commit())
+            break;
+    }
 
     while( !terminated) {
         msecsleep(100);
@@ -74,6 +179,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         double sample_temp_rotator;
         double sample_position;
         double helium_level;
+        int status;
 
         try {
             // Reading....
@@ -82,6 +188,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
             sample_temp_rotator = getTempRotator();
             sample_position = getPosition();
             helium_level = getHeliumLevel();
+            status = getStatus();
         }
         catch (XKameError &e) {
             e.print(getLabel() + "; ");
@@ -98,10 +205,28 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         for(Transaction tr( *this);; ++tr) {
             Snapshot &shot(tr);
             tr[ *heliumLevel()] = helium_level;
+            tr[ *tempStatus()] = mp_temp_status.at(status & 0xf);
+            tr[ *fieldStatus()] = mp_field_status.at((status >> 4) & 0xf);
+            tr[ *positionStatus()] = mp_position_status.at((status >> 12) & 0xf);
             if(tr.commit())
                 break;
         }
     }
+
+    targetField()->setUIEnabled(false);
+    fieldSweepRate()->setUIEnabled(false);
+    fieldApproachMode()->setUIEnabled(false);
+    fieldMagnetMode()->setUIEnabled(false);
+    targetTemp()->setUIEnabled(false);
+    tempSweepRate()->setUIEnabled(false);
+    tempApproachMode()->setUIEnabled(false);
+    targetPosition()->setUIEnabled(false);
+    positionApproachMode()->setUIEnabled(false);
+    positionSlowDownCode()->setUIEnabled(false);
+
+    m_lsnFieldSet.reset();
+    m_lsnTempSet.reset();
+    m_lsnPositionSet.reset();
 
     return NULL;
 }

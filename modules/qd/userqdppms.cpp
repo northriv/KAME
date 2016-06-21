@@ -24,6 +24,21 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
     interface()->setSerialEOS("\r\n");
 }
 
+void
+XQDPPMS6000::setField(double field, double rate, int approach_mode, int magnet_mode){
+    interface()->sendf("FIELD %f %f %d %d", field*1e4, rate*1e4, approach_mode, magnet_mode);
+}
+
+void
+XQDPPMS6000::setPosition(double position, int mode, int slow_down_code){
+    interface()->sendf("MOVE %f %d %d", position, mode, slow_down_code);
+}
+
+void
+XQDPPMS6000::setTemp(double temp, double rate, int approach_mode){
+    interface()->sendf("TEMP %f %f %d", temp, rate, approach_mode);
+}
+
 double
 XQDPPMS6000::getField(){
     double magnet_field;
@@ -77,4 +92,13 @@ XQDPPMS6000::getHeliumLevel(){
     if( interface()->scanf("%lf,%*f", &helium_level) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     return helium_level;
+}
+
+int
+XQDPPMS6000::getStatus(){
+    int status;
+    interface()->query("GetDat? 1");
+    if( interface()->scanf("1,%*f,%d", &status) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    return status;
 }
