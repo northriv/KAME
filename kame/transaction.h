@@ -138,7 +138,7 @@ public:
 	//! The instances have to be capable of copy-construction and be safe to be shared reading.
 	struct Payload : public atomic_countable {
         Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
-        virtual ~Payload() = default;
+        virtual ~Payload() {}
 
 		//! Points to the corresponding node.
         XN &node() noexcept {return *m_node;}
