@@ -66,7 +66,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_conPositionApproachMode = xqcon_create<XQComboBoxConnector>(positionApproachMode(), m_form->m_cmbPositionApproachMode, Snapshot( *m_positionApproachMode));
     m_conPositionSlowDownCode = xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode);
     m_conPostionStatus = xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus);
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         tr[ *targetField()].setUIEnabled(false);
         tr[ *fieldSweepRate()].setUIEnabled(false);
         tr[ *fieldApproachMode()].add("Linear");
@@ -82,9 +82,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
         tr[ *tempSweepRate()].setUIEnabled(false);
         tr[ *tempApproachMode()].add("FastSettle");
         tr[ *tempApproachMode()].add("No Overshoot");
-        if(tr.commit())
-            break;
-    }
+    });
 }
 void
 XQDPPMS::showForms() {
@@ -161,16 +159,14 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
     positionApproachMode()->setUIEnabled(true);
     positionSlowDownCode()->setUIEnabled(true);
 
-    for(Transaction tr( *this);; ++tr) {
+    iterate_commit([=](Transaction &tr){
         m_lsnFieldSet = tr[ *targetField()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onFieldChanged);
         m_lsnTempSet = tr[ *targetTemp()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onTempChanged);
         m_lsnPositionSet = tr[ *targetPosition()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onPositionChanged);
-        if(tr.commit())
-            break;
-    }
+    });
 
     while( !terminated) {
         msecsleep(100);
