@@ -145,7 +145,7 @@
             </widget>
            </item>
            <item>
-            <widget class="QLCDNumber" name="m_lcdTempRotator">
+            <widget class="QLCDNumber" name="m_lcdUserTemp">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                <horstretch>0</horstretch>
@@ -579,8 +579,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>272</width>
-         <height>242</height>
+         <width>310</width>
+         <height>273</height>
         </rect>
        </property>
        <attribute name="label">
@@ -711,8 +711,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>265</width>
-         <height>242</height>
+         <width>167</width>
+         <height>122</height>
         </rect>
        </property>
        <attribute name="label">
@@ -869,8 +869,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>272</width>
-         <height>242</height>
+         <width>171</width>
+         <height>94</height>
         </rect>
        </property>
        <attribute name="label">

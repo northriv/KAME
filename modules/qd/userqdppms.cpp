@@ -67,8 +67,8 @@ XQDPPMS6000::getTemp(){
 }
 
 double
-XQDPPMS6000::getTempRotator(){
-    double sample_temp_rotator;
+XQDPPMS6000::getUserTemp(){
+    double sample_user_temp;
     int is_user_temp;
     interface()->query("USERTEMP?");
     if( interface()->scanf("%d,%*f,%*f,%*f,%*f",&is_user_temp) != 1)
@@ -76,13 +76,13 @@ XQDPPMS6000::getTempRotator(){
     if(is_user_temp){
         int user_temp_channel = lrint(pow(2,is_user_temp));
         interface()->queryf("GetDat? %d", user_temp_channel);
-        if( interface()->scanf("%*d,%*f,%lf", &sample_temp_rotator) != 1)
+        if( interface()->scanf("%*d,%*f,%lf", &sample_user_temp) != 1)
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
     else{
-        sample_temp_rotator = 0.0;
+        sample_user_temp = 0.0;
     }
-    return sample_temp_rotator;
+    return sample_user_temp;
 }
 
 double

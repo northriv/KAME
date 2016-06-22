@@ -36,7 +36,7 @@ public:
 
     struct Payload : public XPrimaryDriver::Payload {
         double temp() const {return m_sampleTemp;}
-        double temp_rotator() const {return m_sampleTempRotator;}
+        double user_temp() const {return m_sampleUserTemp;}
         double magnetField() const {return m_magnetField;}
         double position() const {return m_samplePosition;}
     private:
@@ -44,7 +44,7 @@ public:
         double m_magnetField;
         double m_samplePosition;
         double m_sampleTemp;
-        double m_sampleTempRotator;
+        double m_sampleUserTemp;
     };
 protected:
     //! This function will be called when raw data are written.
@@ -59,7 +59,7 @@ protected:
     const shared_ptr<XScalarEntry> &field() const {return m_field;}
     const shared_ptr<XScalarEntry> &position() const {return m_position;}
     const shared_ptr<XScalarEntry> &temp() const {return m_temp;}
-    const shared_ptr<XScalarEntry> &temp_rotator() const {return m_temp_rotator;}
+    const shared_ptr<XScalarEntry> &user_temp() const {return m_user_temp;}
     const shared_ptr<XDoubleNode> &heliumLevel() const {return m_heliumLevel;}
 
     const shared_ptr<XDoubleNode> &targetField() const {return m_targetField;}
@@ -84,7 +84,7 @@ protected:
     virtual double getField() = 0;
     virtual double getPosition() = 0;
     virtual double getTemp() = 0;
-    virtual double getTempRotator() = 0;
+    virtual double getUserTemp() = 0;
     virtual double getHeliumLevel() = 0;
     virtual int getStatus() = 0;
 private:
@@ -92,7 +92,7 @@ private:
     virtual void onPositionChanged(const Snapshot &shot,  XValueNodeBase *);
     virtual void onTempChanged(const Snapshot &shot,  XValueNodeBase *);
 
-    const shared_ptr<XScalarEntry> m_field, m_position, m_temp, m_temp_rotator;
+    const shared_ptr<XScalarEntry> m_field, m_position, m_temp, m_user_temp;
 
     const shared_ptr<XDoubleNode> m_heliumLevel;
 
@@ -112,7 +112,7 @@ private:
     shared_ptr<XListener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
 
 
-    xqcon_ptr m_conField, m_conTemp, m_conTempRotator, m_conPosition, m_conHeliumLevel;
+    xqcon_ptr m_conField, m_conTemp, m_conUserTemp, m_conPosition, m_conHeliumLevel;
     xqcon_ptr m_conTargetField, m_conFieldSweepRate;
     xqcon_ptr m_conFieldApproachMode, m_conFieldMagnetMode;
     xqcon_ptr m_conFieldStatus;
