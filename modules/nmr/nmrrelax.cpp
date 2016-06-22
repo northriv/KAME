@@ -161,18 +161,13 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *plot3->clearPoints()].setUIEnabled(false);
 		tr[ *m_wave].clearPoints();
 
-		tr[ *mode()].add("T1 Measurement");
-		tr[ *mode()].add("T2 Measurement");
-		tr[ *mode()].add("St.E. Measurement");
+        tr[ *mode()].add({"T1 Measurement", "T2 Measurement", "St.E. Measurement"});
 		tr[ *mode()] = MEAS_T1;
 
-		tr[ *p1Strategy()].add(P1STRATEGY_RANDOM);
-		tr[ *p1Strategy()].add(P1STRATEGY_FLATTEN);
+        tr[ *p1Strategy()].add({P1STRATEGY_RANDOM, P1STRATEGY_FLATTEN});
 		tr[ *p1Strategy()] = 1;
 
-		tr[ *p1Dist()].add(P1DIST_LINEAR);
-		tr[ *p1Dist()].add(P1DIST_LOG);
-		tr[ *p1Dist()].add(P1DIST_RECIPROCAL);
+        tr[ *p1Dist()].add({P1DIST_LINEAR, P1DIST_LOG, P1DIST_RECIPROCAL});
 		tr[ *p1Dist()] = 1;
 
 		tr[ *relaxFunc()].str(XString("NMR I=1/2"));

@@ -25,7 +25,7 @@
 #include "ui_dsoform.h"
 
 const char *XDSO::s_trace_names[] = {
-	"Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
+    "Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
 };
 const unsigned int XDSO::s_trace_colors[] = {
 	clRed, clGreen, clLime, clAqua
@@ -156,7 +156,7 @@ XDSO::XDSO(const char *name, bool runtime,
 //	dRFSG()->setUIEnabled(false);
 
     m_waveForm->iterate_commit([=](Transaction &tr){
-		tr[ *m_waveForm].setColCount(4, s_trace_names);
+        tr[ *m_waveForm].setColCount(5, s_trace_names);
 		tr[ *m_waveForm->graph()->persistence()] = 0;
 		tr[ *m_waveForm].clearPoints();
     });

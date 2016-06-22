@@ -178,11 +178,11 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 
 void
 XWaveNGraph::Payload::setColCount(unsigned int n, const char **labels) {
-	m_colcnt = n;
-	m_labels.resize(m_colcnt);
-	for(unsigned int i = 0; i < n; i++) {
-		m_labels[i] = labels[i];
-	}
+    m_colcnt = n;
+    m_labels.resize(m_colcnt);
+    for(unsigned int i = 0; i < n; i++) {
+        m_labels[i] = labels[i];
+    }
 }
 void
 XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {

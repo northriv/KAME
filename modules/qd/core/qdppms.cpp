@@ -139,8 +139,6 @@ XQDPPMS::onTempChanged(const Snapshot &shot,  XValueNodeBase *){
     catch (XKameError &e) {
         e.print(getLabel() + "; ");
     }
-    catch (NodeNotFoundError &e){
-    }
 }
 
 void *
