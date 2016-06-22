@@ -133,30 +133,25 @@ Node<XN>::PacketWrapper::print_() const {
 template <class XN>
 inline void
 Node<XN>::Linkage::negotiate(uint64_t &started_time) noexcept {
-	int64_t transaction_started_time = m_transaction_started_time;
-	if(transaction_started_time) {
-		int ms = ((int64_t)started_time - transaction_started_time);
-        if(ms > 0) {
-            XTime t0 = XTime::now();
-            if(ms > 2000) {
-                if(ms > 4000)
-					fprintf(stderr, "Nested transaction?, ");
-                fprintf(stderr, "Negotiating, %f sec. requested, limited to 2 sec. ", ms*1e-3);
-				fprintf(stderr, "for BP@%p\n", this);
-                ms = 2000;
-			}
-            t0 += ms * 1e-3;
-            for(;;) {
-                int dt = -XTime::now().diff_msec(t0);
-                if(dt <= 0) break;
-//				usleep(1000);
-                msecsleep(dt + 1);
-                if( !m_transaction_started_time || (((int64_t)started_time <= (int64_t)m_transaction_started_time)))
-					break;
+    for(;;) {
+        int64_t transaction_started_time = m_transaction_started_time;
+        if( !transaction_started_time)
+            break;
+        int ms = ((int64_t)started_time - transaction_started_time);
+        if(ms <= 0)
+            break; //This thread is the slowest.
+        int dice = 10;
+        msecsleep(ms/dice + 1);
+        double sec_elapsed = XTime::now() - XTime(transaction_started_time / 1000u, transaction_started_time % 1000u);
+        if((double)rand() / RAND_MAX < ms * 1e-3 / dice / sec_elapsed) {
+            if(ms > 500) {
+                fprintf(stderr, "Nested transaction?, ");
+                fprintf(stderr, "Negotiating, %f sec. requested.", ms*1e-3);
+                fprintf(stderr, "for BP@%p\n", this);
             }
-//			started_time -= XTime::now().diff_msec(t0) + ms;
-		}
-	}
+            break; //performs anyway.
+        }
+    }
 }
 
 template <class XN>
@@ -199,8 +194,11 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 	packet->subpackets()->m_serial = tr.m_serial;
 	packet->m_missing = true;
     packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
-	packet->subpackets()->resize(packet->size() + 1);
-	assert(packet->subnodes());
+    if( !packet->subpackets()->size()) {
+        packet->subpackets()->reserve(4);
+        packet->subnodes()->reserve(4);
+    }
+    packet->subpackets()->resize(packet->size() + 1);
 	assert(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
     packet->subnodes()->resize(packet->subpackets()->size());
     packet->subnodes()->back() = var;
@@ -336,17 +334,18 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 		}
 	}
 	if(old_idx < 0)
-        std::terminate();
-//        throw NodeNotFoundError("Lookup failure.");
+        throw NodeNotFoundError("Lookup failure.");
 
 	if( !packet->subpackets()->size()) {
 		packet->subpackets().reset();
 		packet->m_missing = false;
 	}
-//    else {
-//        packet->subpackets()->shrink_to_fit();
-//        packet->subnodes()->shrink_to_fit();
-//    }
+    else {
+        if(packet->subpackets()->capacity() - packet->subpackets()->size() > 8) {
+            packet->subpackets()->shrink_to_fit();
+            packet->subnodes()->shrink_to_fit();
+        }
+    }
 	if(tr.m_packet->size()) {
 		tr.m_packet->m_missing = true;
 	}
@@ -437,8 +436,7 @@ Node<XN>::swap(Transaction<XN> &tr, const shared_ptr<XN> &x, const shared_ptr<XN
 		++idx;
 	}
 	if((x_idx < 0) || (y_idx < 0))
-        std::terminate();
-//        throw NodeNotFoundError("Lookup failure.");
+        throw NodeNotFoundError("Lookup failure.");
 	local_shared_ptr<Packet> px = packet->subpackets()->at(x_idx);
 	local_shared_ptr<Packet> py = packet->subpackets()->at(y_idx);
 	packet->subpackets()->at(x_idx) = py;
@@ -573,9 +571,8 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
 	bool copy_branch, int64_t tr_serial, bool set_missing) {
 	local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
 	if( !foundpacket) {
-        std::terminate();
-//        fprintf(stderr, "Node not found during a lookup.\n");
-//        throw NodeNotFoundError("Lookup failure.");
+        fprintf(stderr, "Node not found during a lookup.\n");
+        throw NodeNotFoundError("Lookup failure.");
 	}
 	return *foundpacket;
 }
@@ -586,9 +583,8 @@ Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
 	local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
 		const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
 	if( !foundpacket) {
-        std::terminate();
-//        fprintf(stderr, "Node not found during a lookup.\n");
-//        throw NodeNotFoundError("Lookup failure.");
+        fprintf(stderr, "Node not found during a lookup.\n");
+        throw NodeNotFoundError("Lookup failure.");
 	}
 	return *foundpacket;
 }
