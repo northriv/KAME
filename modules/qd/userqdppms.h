@@ -34,7 +34,7 @@ protected:
     virtual double getField();
     virtual double getPosition();
     virtual double getTemp();
-    virtual double getTempRotator();
+    virtual double getUserTemp();
     virtual double getHeliumLevel();
     virtual int getStatus();
 private:
