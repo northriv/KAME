@@ -127,7 +127,7 @@ XChartList::onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::Cat
 void
 XChartList::onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
 	shared_ptr<XScalarEntry> entry = dynamic_pointer_cast<XScalarEntry>(e.released);
-    iterate_commit_while([=](Transaction &tr){
+    iterate_commit_while([=](Transaction &tr)->bool{
 		shared_ptr<XValChart> valchart;
 		if(tr.size()) {
 			const XNode::NodeList &list( *tr.list());

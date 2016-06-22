@@ -115,7 +115,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
-    iterate_commit_while([=](Transaction &tr){
+    iterate_commit_while([=](Transaction &tr)->bool{
 		if( !tr[ *m_tuning])
             return false;
 		tr[ *m_tuning] = false;
@@ -642,7 +642,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 	}
 	if(shot_this[ *this].isSTMChanged) {
 		if(stm1__) {
-            stm1__->iterate_commit_while([=](Transaction &tr){
+            stm1__->iterate_commit_while([=](Transaction &tr)->bool{
 				if(tr[ *stm1__->position()->value()] == shot_this[ *this].stm1)
                     return false;
 				tr[ *stm1__->target()] = shot_this[ *this].stm1;
@@ -650,7 +650,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
             });
 		}
 		if(stm2__) {
-            stm2__->iterate_commit_while([=](Transaction &tr){
+            stm2__->iterate_commit_while([=](Transaction &tr)->bool{
 				if(tr[ *stm2__->position()->value()] == shot_this[ *this].stm2)
                     return false;
 				tr[ *stm2__->target()] = shot_this[ *this].stm2;
