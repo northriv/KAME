@@ -655,7 +655,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
-    iterate_commit_while([=](Transaction &tr){
+    iterate_commit_while([=](Transaction &tr)->bool{
 		Snapshot &shot(tr);
 		if(shot[ *this].time() && shot[ *this].m_avcount)
             return false;

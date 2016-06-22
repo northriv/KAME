@@ -112,7 +112,7 @@ start_routine(void) {
 	for(int i = 0; i < 2500; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
-            gn1->iterate_commit_if([=](Transaction &tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 				if( !gn2->insert(tr1, p2))
                     return false;
                 return true;
@@ -152,7 +152,7 @@ start_routine(void) {
         });
 		trans(*gn3) += -1;
 		if((i % 10) == 0) {
-            gn1->iterate_commit_if([=](Transaction &tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 				if( !gn2->release(tr1, p2))
                     return false;
                 return true;
@@ -180,7 +180,7 @@ main(int argc, char **argv) {
         gn3.reset(LongNode::create<LongNode>());
         gn4.reset(LongNode::create<LongNode>());
 
-        gn1->iterate_commit_if([=](Transaction &tr1){
+        gn1->iterate_commit_if([=](Transaction &tr1)->bool{
             printf("1");
 			if( !gn1->insert(tr1, gn2, true))
                 return false;
@@ -243,7 +243,7 @@ main(int argc, char **argv) {
 
 			shared_ptr<ComplexNode> p2111;
 
-            gn3->iterate_commit_if([=, &p2111](Transaction &tr1){
+            gn3->iterate_commit_if([=, &p2111](Transaction &tr1)->bool{
 				printf("3");
 				if( !p1->insert(tr1, p22, true))
                     return false;
@@ -275,7 +275,7 @@ main(int argc, char **argv) {
 				Snapshot shot1(*gn3);
 				shot1[ *p2111->n1()];
 			}
-            gn1->iterate_commit_if([=](Transaction &tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
                 printf("4");
 				if( !gn3->insert(tr1, gn4, true))
                     return false;
@@ -283,7 +283,7 @@ main(int argc, char **argv) {
                     return false;
                 return true;
             });
-            gn1->iterate_commit_if([=](Transaction &tr1){
+            gn1->iterate_commit_if([=](Transaction &tr1)->bool{
 				printf("5");
 				if( !gn3->release(tr1, gn4))
                     return false;
@@ -298,7 +298,7 @@ main(int argc, char **argv) {
 				shot1[ *p22];
 			}
 			trans(*p211) = 0;
-            gn3->iterate_commit_if([=](Transaction &tr1){
+            gn3->iterate_commit_if([=](Transaction &tr1)->bool{
                 if( !p1->release(tr1, p22))
                     return false;
                 if( !gn3->release(tr1, p2))
