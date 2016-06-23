@@ -1,7 +1,8 @@
-* Fri Jun 17 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Thu Jun 23 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.13-1)
 - Faster transaction.
 - OrientalMotor Flex: better recovery from errors.
+- QD PPMS: adds controls.
 - nmrspectrum: reads field values from QD PPMS.
 
 * Thu Mar 10 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>

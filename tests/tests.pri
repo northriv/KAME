@@ -1,6 +1,6 @@
 TEMPLATE = app
 
-#DEFINES += USE_STD_ATOMIC
+DEFINES += USE_STD_ATOMIC
 
 CONFIG += exceptions
 CONFIG += sse sse2 rtti

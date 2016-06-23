@@ -69,8 +69,7 @@ unix {
 
 #macx: DEFINES += HAVE_LAPACK
 
-#DEFINES += USE_STD_ATOMIC
-
+DEFINES += USE_STD_ATOMIC
 
 win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2

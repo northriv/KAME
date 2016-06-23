@@ -35,7 +35,7 @@ class atomic<T, typename std::enable_if<std::is_integral<T>::value || std::is_po
 public:
     atomic() noexcept = default;
     atomic(const atomic &t) noexcept : std::atomic<T>() { *this = (T)t;}
-    atomic(const T &t) = default;
+    atomic(const T &t) : std::atomic<T>(t) {}
     atomic& operator=(const T &t) noexcept{this->store(t); return *this; }
     bool compare_set_strong(const T &oldv, const T &newv) noexcept {
         T expected = oldv;

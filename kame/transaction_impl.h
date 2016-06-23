@@ -33,8 +33,6 @@ XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCre
 template <class XN>
 atomic<int64_t> Node<XN>::Packet::s_serial = Node<XN>::Packet::SERIAL_FIRST;
 
-template <class XN>
-Node<XN>::Packet::Packet() noexcept : m_missing(false) {}
 
 template <class XN>
 void
@@ -141,9 +139,10 @@ Node<XN>::Linkage::negotiate(uint64_t &started_time) noexcept {
         if(ms <= 0)
             break; //This thread is the slowest.
         int dice = 10;
-        msecsleep(ms/dice + 1);
-        double sec_elapsed = XTime::now() - XTime(transaction_started_time / 1000u, transaction_started_time % 1000u);
-        if((double)rand() / RAND_MAX < ms * 1e-3 / dice / sec_elapsed) {
+        int msec_elapsed = XTime::now().diff_msec(XTime(transaction_started_time / 1000u, transaction_started_time % 1000u));
+        int slp_ms = std::min(ms + 1, msec_elapsed / dice);
+        msecsleep(slp_ms);
+        if((double)rand() / RAND_MAX < (double)slp_ms / msec_elapsed) {
             if(ms > 500) {
                 fprintf(stderr, "Nested transaction?, ");
                 fprintf(stderr, "Negotiating, %f sec. requested.", ms*1e-3);
@@ -179,12 +178,9 @@ Node<XN>::print_() const {
 template <class XN>
 void
 Node<XN>::insert(const shared_ptr<XN> &var) {
-	for(Transaction<XN> tr( *this);; ++tr) {
-		if( !insert(tr, var))
-			continue;
-		if(tr.commit())
-			break;
-	}
+    iterate_commit_if([this, var](Transaction<XN> &tr)->bool {
+        return insert(tr, var);
+    });
 }
 template <class XN>
 bool
@@ -258,12 +254,9 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
 template <class XN>
 void
 Node<XN>::release(const shared_ptr<XN> &var) {
-	for(Transaction<XN> tr( *this);; ++tr) {
-		if( !release(tr, var))
-			continue;
-		if(tr.commit())
-			break;
-	}
+    iterate_commit_if([this, var](Transaction<XN> &tr)->bool {
+        return release(tr, var);
+    });
 }
 
 template <class XN>
@@ -383,40 +376,21 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
 template <class XN>
 void
 Node<XN>::releaseAll() {
-	for(Transaction<XN> tr( *this);; ++tr) {
-		bool failed = false;
-		while(tr.size()) {
-			shared_ptr<const NodeList> list(tr.list());
-			if( !release(tr, list->front())) {
-				failed = true;
-				break;
-			}
-		}
-		if( !failed && tr.commit())
-			break;
-	}
-//	for(;;) {
-//		Transaction<XN> tr( *this);
-//		if( !tr.size())
-//			break;
-//		shared_ptr<const NodeList> list(tr.list());
-//		if( !release(tr, list->front()))
-//			continue;
-//		if( !tr.commit())
-//			continue;
-//		if( !tr.size())
-//			break;
-//	}
+    iterate_commit_if([this](Transaction<XN> &tr)->bool {
+        while(tr.size()) {
+            if( !release(tr, tr.list()->front())) {
+                return false;
+            }
+        }
+        return true;
+    });
 }
 template <class XN>
 void
 Node<XN>::swap(const shared_ptr<XN> &x, const shared_ptr<XN> &y) {
-	for(Transaction<XN> tr( *this);; ++tr) {
-		if( !swap(tr, x, y))
-			continue;
-		if(tr.commit())
-			break;
-	}
+    iterate_commit_if([this, x, y](Transaction<XN> &tr)->bool {
+        return swap(tr, x, y);
+    });
 }
 template <class XN>
 bool
@@ -1024,8 +998,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 	assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
 	assert(this == &tr.m_packet->node());
 
-	m_link->negotiate(tr.m_started_time);
-
 	local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
 	for(int retry = 0;; ++retry) {
 		local_shared_ptr<PacketWrapper> wrapper( *m_link);
@@ -1046,7 +1018,10 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
 			STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
-			if(m_link->compareAndSet(wrapper, newwrapper)) {
+
+            m_link->negotiate(tr.m_started_time);
+
+            if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
 //					it = subwrappers.begin(); it != subwrappers.end(); ++it)
@@ -1055,7 +1030,9 @@ Node<XN>::commit(Transaction<XN> &tr) {
 			}
 			continue;
 		}
-		//Unbundling this node from the super packet.
+//        if(retry == 0)
+//            m_link->negotiate(tr.m_started_time);
+        //Unbundling this node from the super packet.
 		UnbundledStatus status = unbundle(NULL, tr.m_started_time, m_link, wrapper,
 			tr.isMultiNodal() ? &tr.m_oldpacket : NULL, tr.isMultiNodal() ? &newwrapper : NULL);
 		switch(status) {

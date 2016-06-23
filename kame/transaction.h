@@ -203,7 +203,7 @@ private:
     //! "missing" indicates that the package lacks any Packet for subnodes, or
     //! any content may be out-of-date.\n
     struct Packet : public atomic_countable {
-        Packet() noexcept;
+        Packet() noexcept : m_missing(false) {}
         int size() const noexcept {return subpackets() ? subpackets()->size() : 0;}
         local_shared_ptr<Payload> &payload() noexcept { return m_payload;}
         const local_shared_ptr<Payload> &payload() const noexcept { return m_payload;}
@@ -428,8 +428,8 @@ public:
         const shared_ptr<const typename Node<XN>::NodeList> lx(list());
         if( !lx)
             return false;
-        for(auto it = lx->begin(); it != lx->end(); ++it) {
-            if(it->get() == &lower)
+        for(auto &&x: *lx) {
+            if(x.get() == &lower)
                 return true;
         }
         return false;
@@ -539,8 +539,7 @@ public:
     //! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
     template <typename T, typename tArgRef>
     void mark(T &talker, tArgRef arg) {
-        Message_<XN> *m = talker.createMessage(arg);
-        if(m) {
+        if(Message_<XN> *m = talker.createMessage(arg)) {
             if( !m_messages)
                 m_messages.reset(new MessageList);
             m_messages->emplace_back(m);
@@ -551,8 +550,8 @@ public:
     int unmark(const shared_ptr<XListener> &x) {
         int canceled = 0;
         if(m_messages)
-            for(auto it = m_messages->begin(); it != m_messages->end(); ++it)
-                canceled += ( *it)->unmark(x);
+            for(auto &&msg: *m_messages)
+                canceled += msg->unmark(x);
         return canceled;
     }
 
@@ -655,9 +654,8 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     m_oldpacket.reset();
     //Messaging.
     if(m_messages) {
-        for(auto it = m_messages->begin(); it != m_messages->end(); ++it) {
-            ( *it)->talk( *this);
-        }
+        for(auto &&msg: *m_messages)
+            msg->talk( *this);
         m_messages.reset();
     }
 }
