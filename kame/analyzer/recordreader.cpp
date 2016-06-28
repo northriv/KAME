@@ -223,11 +223,17 @@ XRawStreamRecordReader::goToHeader(void *_fd)
 void
 XRawStreamRecordReader::terminate() {
     m_periodicTerm = 0;
-    for(auto it = m_threads.begin(); it != m_threads.end(); it++) {
-        ( *it)->terminate();
+    for(auto &&x: m_threads) {
+        x->terminate();
     }
     XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
+}
+void
+XRawStreamRecordReader::join() {
+    for(auto &&x: m_threads) {
+        x->waitFor();
+    }
 }
 
 void

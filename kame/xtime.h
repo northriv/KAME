@@ -27,7 +27,9 @@
 DECLSPEC_KAME void msecsleep(unsigned int ms) noexcept; //<!\todo {std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 
 //! Fetches CPU counter.
-DECLSPEC_KAME unsigned int timeStamp() noexcept;
+using timestamp_t = uint64_t;
+DECLSPEC_KAME timestamp_t timeStamp() noexcept;
+DECLSPEC_KAME timestamp_t timeStampCountsPerMilliSec() noexcept;
 
 class DECLSPEC_KAME XTime {
 public:

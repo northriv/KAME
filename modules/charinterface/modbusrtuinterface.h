@@ -70,10 +70,14 @@ private:
 	}
     uint16_t crc16(const unsigned char *bytes, uint32_t count);
 
-    shared_ptr<XPort> m_openedPort;
-	static XMutex s_lock;
-    static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
-    static XTime s_lastTimeStamp;
+    struct PortWrapper {
+        shared_ptr<XPort> port;
+        XTime lastTimeStamp;
+        XMutex mutex;
+    };
+    shared_ptr<PortWrapper> m_openedPort;
+    static XMutex s_globalMutex;
+    static std::deque<weak_ptr<PortWrapper>> s_openedPorts; //guarded by s_globalMutex.
 };
 
 template <class T>

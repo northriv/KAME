@@ -1,6 +1,7 @@
 TEMPLATE = app
 
 DEFINES += USE_STD_ATOMIC
+DEFINES += USE_QTHREAD
 
 CONFIG += exceptions
 CONFIG += sse sse2 rtti

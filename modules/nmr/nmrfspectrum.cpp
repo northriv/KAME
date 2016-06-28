@@ -40,8 +40,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
       m_tuneStrategy(create<XComboNode>("TuneStrategy", false, true)) {
 
 	connect(sg1());
-	connect(autoTuner());
-	connect(pulser());
+//	connect(autoTuner());
+//	connect(pulser());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -83,6 +83,11 @@ void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
+//        if(shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()]) {
+//            if(shot_this[ *tuneStrategy()] != TUNESTRATEGY_AUTOTUNER)
+//                if( !Snapshot( *autotuner)[ *autotuner].time())
+//                    gErrPrint(i18n("Be sure to turn on \"success\" lamp for Auto LC tuner."));
+//        }
 		onClear(shot_this, clear().get());
         m_lastFreqAcquired = -1000.0;
         m_tunedFreq = -1000.0;

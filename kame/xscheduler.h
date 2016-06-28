@@ -28,11 +28,11 @@ public:
 	bool synchronize(); //!< \return true if not busy
 private:
 	typedef atomic_pointer_queue<XTransaction_, 1000> Queue;
-	typedef std::deque<std::pair<XTransaction_*, unsigned long> > SkippedQueue;
+    typedef std::deque<std::pair<XTransaction_*, XTime> > SkippedQueue;
 	XTransaction_ *popOldest();
 	Queue m_queue;
 	SkippedQueue m_skippedQueue;
-	atomic<unsigned long> m_oldest_timestamp;
+    atomic<XTime> m_oldest_timestamp;
 };
 
 extern atomic<unsigned int> g_adaptiveDelay; //!< ms.

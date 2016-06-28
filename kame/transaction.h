@@ -19,7 +19,6 @@
 #include "atomic_smart_ptr.h"
 #include <vector>
 #include "atomic.h"
-#include "xtime.h"
 
 namespace Transactional {
 
@@ -55,18 +54,17 @@ namespace Transactional {
 //! Example 2 for simple transactional writing: adding one atomically\n
 //! \code node1.iterate_commit([](Transaction<NodeA> &tr1(node1)) {
 //! 	tr1[node1].m_x = tr1[node1].m_x + 1;
-//! }
+//! });
 //! \endcode\n
 //! Example 3 for adding a child node.\n
 //! \code node1.iterate_commit_if([](Transaction<NodeA> &tr1(node1)) {
 //! 	return tr1.insert(node2));
-//! }
+//! });
 //! \endcode \n
 //! More real examples are shown in the test codes: transaction_test.cpp,
 //! transaction_dynamic_node_test.cpp, transaction_negotiation_test.cpp.\n
 //! \sa Node, Snapshot, Transaction.
 //! \sa atomic_shared_ptr.
-//// \htmlonly Test package: <a href="../stmtests.tar.gz">stmtests.tar.gz</a> (49kB)<bt/>\endhtmlonly
 
 template <class XN>
 class Snapshot;
@@ -276,15 +274,16 @@ private:
     };
     struct Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
-        atomic<uint64_t> m_transaction_started_time;
+        atomic<int64_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        inline void negotiate(uint64_t &started_time) noexcept;
+        inline void negotiate(int64_t &started_time) noexcept;
     };
 
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
+
     void snapshot(Snapshot<XN> &target, bool multi_nodal,
-        uint64_t &started_time) const;
+        int64_t started_time) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
         target.m_oldpacket = target.m_packet;
@@ -318,10 +317,10 @@ private:
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
     BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
-        uint64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
+        int64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-        uint64_t &started_time, int64_t bundle_serial);
+        int64_t &started_time, int64_t bundle_serial);
     enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
         UNBUNDLE_SUBVALUE_HAS_CHANGED,
         UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
@@ -333,7 +332,7 @@ private:
     //! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
-    static UnbundledStatus unbundle(const int64_t *bundle_serial, uint64_t &time_started,
+    static UnbundledStatus unbundle(const int64_t *bundle_serial, int64_t &time_started,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -387,9 +386,7 @@ public:
     Snapshot(const Transaction<XN>&x) noexcept;
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        XTime time(XTime::now());
-        uint64_t ms = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
-        node.snapshot( *this, multi_nodal, ms);
+        node.snapshot( *this, multi_nodal, Node<XN>::Packet::newSerial());
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -490,8 +487,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
-        XTime time(XTime::now());
-        m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
+        m_started_time = Node<XN>::Packet::newSerial();
         node.snapshot( *this, multi_nodal);
         assert( &this->m_packet->node() == &node);
         assert( &this->m_oldpacket->node() == &node);
@@ -500,14 +496,13 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
-        XTime time(XTime::now());
-        m_started_time = (uint64_t)time.sec() * 1000u + time.usec() / 1000u;
+        m_started_time = Node<XN>::Packet::newSerial();
     }
     ~Transaction() {
         //Do not leave the time stamp.
         if(m_started_time) {
             Node<XN> &node(this->m_packet->node());
-            if(node.m_link->m_transaction_started_time >= m_started_time) {
+            if(node.m_link->m_transaction_started_time == m_started_time) {
                 node.m_link->m_transaction_started_time = 0;
             }
         }
@@ -602,7 +597,7 @@ private:
     Transaction &operator++() {
         Node<XN> &node(this->m_packet->node());
         if(isMultiNodal()) {
-            uint64_t time(node.m_link->m_transaction_started_time);
+            int64_t time(node.m_link->m_transaction_started_time);
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
@@ -615,7 +610,7 @@ private:
 
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
-    uint64_t m_started_time;
+    int64_t m_started_time;
     typedef std::vector<shared_ptr<Message_<XN> > > MessageList;
     unique_ptr<MessageList> m_messages;
 };
@@ -646,7 +641,7 @@ m_packet(x.m_packet), m_serial(x.m_serial) {}
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
     //Clears the time stamp linked to this object.
-    if(node.m_link->m_transaction_started_time >= m_started_time) {
+    if(node.m_link->m_transaction_started_time == m_started_time) {
         node.m_link->m_transaction_started_time = 0;
     }
     m_started_time = 0;

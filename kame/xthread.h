@@ -18,6 +18,7 @@
 #include "atomic.h"
 
 #ifdef USE_QTHREAD
+    #include <QThread>
     #define threadid_t Qt::HANDLE
     inline threadid_t threadID() {return QThread::currentThreadId();}
     #define is_thread_equal(x,y) ((x) == (y))

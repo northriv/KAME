@@ -33,6 +33,7 @@ public:
   
 	void resume() {m_thread.resume();}
 	void terminate() {m_thread.terminate();}
+    void join() {m_thread.waitFor();}
 
 	struct Payload : public XAliasListNode<XRubyThread>::Payload {
 		struct tCreateChild {

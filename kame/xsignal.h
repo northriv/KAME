@@ -63,9 +63,9 @@ protected:
 };
 
 struct XTransaction_ {
-	XTransaction_() : registered_time(timeStamp()) {}
+    XTransaction_() : registered_time(XTime::now()) {}
     virtual ~XTransaction_() = default;
-	const unsigned long registered_time;
+    const XTime registered_time;
 	virtual bool talkBuffered() = 0;
 };
 
@@ -155,8 +155,8 @@ private:
 			virtual bool talkBuffered() {
 				bool skip = false;
 				if(XTalker<tArg>::Transaction::listener->delay_ms()) {
-					long elapsed_ms = (timeStamp() - 
-						XTalker<tArg>::Transaction::registered_time) / 1000uL;
+                    long elapsed_ms = XTime::now().diff_msec(
+                                XTalker<tArg>::Transaction::registered_time);
 					skip = ((long)XTalker<tArg>::Transaction::listener->delay_ms() > elapsed_ms);
 				}
 				if(!skip) {

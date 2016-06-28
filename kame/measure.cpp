@@ -127,9 +127,11 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 
 XMeasure::~XMeasure() {
 	printf("terminate\n");
-	m_rawStreamRecordReader->terminate();
+    m_rawStreamRecordReader->terminate();
 	m_ruby->terminate();
-	m_ruby.reset();
+    m_rawStreamRecordReader->join();
+    m_ruby->join();
+    m_ruby.reset();
 	g_statusPrinter.reset();
 }
 void XMeasure::initialize() {
