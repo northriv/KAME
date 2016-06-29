@@ -87,11 +87,11 @@ private:
 		atomic<int> locked;
 		bool tryLock() {
             bool ret = locked.compare_set_strong(false, true);
-			return ret;
+            return ret;
 		}
 		void unlock() {
 			assert(locked);
-			locked = false;
+            locked = false;
 		}
 	};
 	DSORawRecord m_dsoRawRecordBanks[2];
