@@ -130,6 +130,7 @@ Node<XN>::PacketWrapper::print_() const {
 template <class XN>
 inline void
 Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
+static atomic<unsigned int> rand_seed;
     for(;;) {
         //diverting Node<XN>::Packet::newSerial() for a serialization of transactions.
         int64_t transaction_started_time = m_transaction_started_time;
@@ -139,8 +140,18 @@ Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
         if(dt <= 0)
             break; //This thread is the oldest.
         int64_t dt2 = Node<XN>::Packet::newSerial() - transaction_started_time;
-        if(dt <= dt2 / 10)
-            break; //This thread is approx. the oldest.
+
+        unsigned int seed = rand_seed;
+        if((double)rand_r( &seed) / RAND_MAX > 1.5 * dt / dt2) {
+//            if(ms > 500) {
+//                fprintf(stderr, "Nested transaction?, ");
+//                fprintf(stderr, "Negotiating, %f sec. requested.", ms*1e-3);
+//                fprintf(stderr, "for BP@%p\n", this);
+//            }
+            break; //performs anyway.
+        }
+        rand_seed = seed;
+
         msecsleep(std::max(std::min((int)(dt2 / 10000), 100),  1));
     }
 }

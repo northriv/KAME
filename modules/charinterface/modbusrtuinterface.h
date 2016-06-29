@@ -73,11 +73,11 @@ private:
     struct PortWrapper {
         shared_ptr<XPort> port;
         XTime lastTimeStamp;
-        XMutex mutex;
+        XMutex mutex; //for the port.
     };
     shared_ptr<PortWrapper> m_openedPort;
     static XMutex s_globalMutex;
-    static std::deque<weak_ptr<PortWrapper>> s_openedPorts; //guarded by s_globalMutex.
+    static std::deque<weak_ptr<PortWrapper>> s_openedPorts; //should be guarded by s_globalMutex.
 };
 
 template <class T>

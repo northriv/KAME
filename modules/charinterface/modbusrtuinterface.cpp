@@ -37,13 +37,13 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
             else
                 it = s_openedPorts.erase(it); //cleans garbage.
         }
-	}
-    //Opens new COMM device.
-    XCharInterface::open();
-    m_openedPort = std::make_shared<PortWrapper>();
-    m_openedPort->port = openedPort();
-    m_openedPort->lastTimeStamp = XTime::now();
-    s_openedPorts.push_back(m_openedPort);
+        //Opens new COMM device.
+        XCharInterface::open();
+        m_openedPort = std::make_shared<PortWrapper>();
+        m_openedPort->port = openedPort();
+        m_openedPort->lastTimeStamp = XTime::now();
+        s_openedPorts.push_back(m_openedPort);
+    }
 }
 void
 XModbusRTUInterface::close() throw (XInterfaceError &) {
@@ -76,10 +76,10 @@ XModbusRTUInterface::query_unicast(unsigned int func_code,
     double silent = 1e-3 * std::max(3.0, 3.5 * msec_per_char);
     for(;; msecsleep(silent * 1e3 / 2 + 1)) {
         {
-            XScopedLock<XMutex> glock(port->mutex);
+            XScopedLock<XMutex> portlock(port->mutex);
 
             if(XTime::now() - port->lastTimeStamp < silent)
-                continue; //puts silent interval.
+                continue; //puts silent interval. Waits outside the lock.
 
             port->lastTimeStamp = XTime::now();
             port->lastTimeStamp += 0.1; //for possible throwing.
