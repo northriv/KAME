@@ -87,12 +87,10 @@ private:
 		atomic<int> locked;
 		bool tryLock() {
             bool ret = locked.compare_set_strong(false, true);
-			readBarrier();
 			return ret;
 		}
 		void unlock() {
 			assert(locked);
-			writeBarrier();
 			locked = false;
 		}
 	};
