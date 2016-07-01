@@ -1,3 +1,7 @@
+* Wed Jun 29 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.14-1)
+- std::atomic of mingw is buggy? Back to the original one.
+
 * Thu Jun 23 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.13-1)
 - Faster transaction.

@@ -18,6 +18,14 @@
     #ifdef _MSC_VER
         #define USE_STD_ATOMIC
     #endif
+    #if defined __clang__
+        #define USE_STD_ATOMIC
+    #endif
+    #if defined __GNUC__ && !defined __clang__
+        #if __GNUC__ >= 5 && __GNUC_MINOR__ >= 1
+            #define USE_STD_ATOMIC
+        #endif
+    #endif
 #endif
 
 #include <stdint.h>

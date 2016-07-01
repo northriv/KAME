@@ -39,6 +39,7 @@
     #include <sys/types.h>
     #include <sys/socket.h>
     #include <netinet/in.h>
+    #include <netinet/tcp.h>
     #include <arpa/inet.h>
     #include <netdb.h>
     #include <errno.h>
@@ -102,6 +103,11 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
     if(setsockopt(m_socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&opt, sizeof(opt)))
         throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
+    //disables NAGLE protocol
+    opt = 1;
+    if(setsockopt(m_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&opt, sizeof(opt)))
+        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
+
 	memset( &dstaddr, 0, sizeof(dstaddr));
 	dstaddr.sin_port = htons(port);
 	dstaddr.sin_family = AF_INET;
@@ -144,8 +150,6 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 }
 void
 XTCPSocketPort::receive() throw (XInterface::XCommError &) {
-    msecsleep(10);
-
 	buffer().resize(MIN_BUFFER_SIZE);
    
     const char *ceos = eos().c_str();

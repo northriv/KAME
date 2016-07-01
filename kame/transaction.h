@@ -121,15 +121,15 @@ public:
     //! Iterates a transaction covering the node and children.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...}
     template <typename Closure>
-    Transaction<XN> iterate_commit(Closure);
+    inline Snapshot<XN> iterate_commit(Closure);
     //! Iterates a transaction covering the node and children. Skips the iteration when the closure returns false.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
-    Transaction<XN> iterate_commit_if(Closure);
+    inline Snapshot<XN> iterate_commit_if(Closure);
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
-    Transaction<XN> iterate_commit_while(Closure);
+    inline Snapshot<XN> iterate_commit_while(Closure);
 
     //! Data holder and accessor for the node.
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
@@ -346,7 +346,7 @@ private:
     //! \param[in] tr_serial The serial number associated with the transaction.
     inline local_shared_ptr<Packet> *reverseLookup(local_shared_ptr<Packet> &superpacket,
         bool copy_branch, int64_t tr_serial, bool set_missing, XN** uppernode);
-    local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
+    inline local_shared_ptr<Packet> &reverseLookup(local_shared_ptr<Packet> &superpacket,
         bool copy_branch, int64_t tr_serial = 0, bool set_missing = false);
     const local_shared_ptr<Packet> &reverseLookup(const local_shared_ptr<Packet> &superpacket) const;
     inline static local_shared_ptr<Packet> *reverseLookupWithHint(shared_ptr<Linkage > &linkage,
@@ -365,6 +365,9 @@ protected:
 private:
     using FuncPayloadCreator = Payload *(*)(XN &);
     static XThreadLocal<FuncPayloadCreator> stl_funcPayloadCreator;
+    void lookupFailure() const;
+    local_shared_ptr<typename Node<XN>::Packet>*lookupFromChild(local_shared_ptr<Packet> &superpacket,
+        bool copy_branch, int64_t tr_serial, bool set_missing, XN **uppernode);
 };
 
 template <class XN>
@@ -657,38 +660,76 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
 template <class XN>
 template <typename Closure>
-Transaction<XN> Node<XN>::iterate_commit(Closure closure) {
+inline Snapshot<XN> Node<XN>::iterate_commit(Closure closure) {
     Transaction<XN> tr( *this);
     for(;;++tr) {
         closure(tr);
         if(tr.commit())
-            return tr;
+            return std::move(tr);
     }
 }
 template <class XN>
 template <typename Closure>
-Transaction<XN> Node<XN>::iterate_commit_if(Closure closure) {
+inline Snapshot<XN> Node<XN>::iterate_commit_if(Closure closure) {
     //std::is_integral<std::result_of<Closure>>::type
     Transaction<XN> tr( *this);
     for(;;++tr) {
         if( !closure(tr))
             continue; //skipping.
         if(tr.commit())
-            return tr;
+            return std::move(tr);
     }
 }
 template <class XN>
 template <typename Closure>
-Transaction<XN> Node<XN>::iterate_commit_while(Closure closure) {
+inline Snapshot<XN> Node<XN>::iterate_commit_while(Closure closure) {
     //std::is_integral<std::result_of<Closure>>::type
     Transaction<XN> tr( *this);
     for(;;++tr) {
         if( !closure(tr))
-             return tr;
+             return Snapshot<XN>();
         if(tr.commit())
-            return tr;
+            return std::move(tr);
     }
 }
+
+template <class XN>
+inline local_shared_ptr<typename Node<XN>::Packet>*
+Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
+    bool copy_branch, int64_t tr_serial, bool set_missing, XN **uppernode) {
+    local_shared_ptr<Packet> *foundpacket;
+    if( &superpacket->node() == this)
+        foundpacket = &superpacket;
+    else
+        foundpacket = lookupFromChild(superpacket,
+            copy_branch, tr_serial, set_missing, uppernode);
+
+    if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
+        foundpacket->reset(new Packet( **foundpacket));
+    }
+    return foundpacket;
+}
+
+template <class XN>
+inline local_shared_ptr<typename Node<XN>::Packet>&
+Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
+    bool copy_branch, int64_t tr_serial, bool set_missing) {
+    local_shared_ptr<Packet> *foundpacket = reverseLookup(superpacket, copy_branch, tr_serial, set_missing, 0);
+    if( !foundpacket)
+        lookupFailure();
+    return *foundpacket;
+}
+
+template <class XN>
+inline const local_shared_ptr<typename Node<XN>::Packet> &
+Node<XN>::reverseLookup(const local_shared_ptr<Packet> &superpacket) const {
+    local_shared_ptr<Packet> *foundpacket = const_cast<Node*>(this)->reverseLookup(
+        const_cast<local_shared_ptr<Packet> &>(superpacket), false, 0, false, 0);
+    if( !foundpacket)
+        lookupFailure();
+    return *foundpacket;
+}
+
 
 } //namespace Transactional
 
