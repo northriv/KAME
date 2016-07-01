@@ -107,6 +107,9 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
     opt = 1;
     if(setsockopt(m_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&opt, sizeof(opt)))
         throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
+//    opt = 0;
+//    if(setsockopt(m_socket, SOL_SOCKET, SO_SNDBUF, (char*)&opt, sizeof(opt)))
+//        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
 	memset( &dstaddr, 0, sizeof(dstaddr));
 	dstaddr.sin_port = htons(port);
@@ -128,6 +131,16 @@ XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+    fd_set fs;
+    FD_ZERO(&fs);
+    FD_SET(m_socket , &fs);
+    struct timeval timeout;
+    timeout.tv_sec  = 3; //3sec. timeout.
+    timeout.tv_usec = 0;
+    if(::select(0, NULL, &fs, NULL, &timeout) == 0) {
+        throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
+    }
+
 	int wlen = 0;
 	do {
         int ret = ::send(m_socket, sendbuf, size - wlen, 0);
@@ -150,6 +163,16 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 }
 void
 XTCPSocketPort::receive() throw (XInterface::XCommError &) {
+    fd_set fs;
+    FD_ZERO(&fs);
+    FD_SET(m_socket , &fs);
+    struct timeval timeout;
+    timeout.tv_sec  = 3; //3sec. timeout.
+    timeout.tv_usec = 0;
+    if(::select(0, &fs, NULL, NULL, &timeout) == 0) {
+        throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+    }
+
 	buffer().resize(MIN_BUFFER_SIZE);
    
     const char *ceos = eos().c_str();

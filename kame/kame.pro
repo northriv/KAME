@@ -209,7 +209,7 @@ else:unix {
 win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby220
+    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby230
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
