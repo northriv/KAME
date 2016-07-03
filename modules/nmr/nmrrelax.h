@@ -236,6 +236,7 @@ private:
 
 	double distributeP1(const Snapshot &shot, double uniform_x_0_to_1);
 	void obtainNextP1(Transaction &tr);
+    void setNextP1(const Snapshot &shot);
 };
 
 //---------------------------------------------------------------------------

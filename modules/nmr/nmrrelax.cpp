@@ -701,7 +701,27 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	m_isPulserControlRequested = (emitter != this);
 }
-
+void
+XNMRT1::setNextP1(const Snapshot &shot) {
+    shared_ptr<XPulser> pulser__ = shot[ *pulser()];
+    if(pulser__) {
+        pulser__->iterate_commit([=](Transaction &tr){
+            switch(shot[ *mode()]) {
+            case MEAS_T1:
+            case MEAS_ST_E:
+                tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
+                tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
+                break;
+            case MEAS_T2:
+                tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
+                break;
+            }
+        });
+        iterate_commit([=](Transaction &tr){
+            obtainNextP1(tr);
+        });
+    }
+}
 void
 XNMRT1::visualize(const Snapshot &shot) {
 	if( !shot[ *this].time()) {
@@ -713,24 +733,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 
 	//set new P1s
     if(shot[ *active()] && m_isPulserControlRequested.compare_set_strong((int)true, (int)false)) {
-		shared_ptr<XPulser> pulser__ = shot[ *pulser()];
-		if(pulser__) {
-            pulser__->iterate_commit([=](Transaction &tr){
-				switch(shot[ *mode()]) {
-				case MEAS_T1:
-				case MEAS_ST_E:
-					tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
-					tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
-					break;
-				case MEAS_T2:
-					tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
-					break;
-				}
-            });
-            iterate_commit([=](Transaction &tr){
-				obtainNextP1(tr);
-            });
-		}
+        setNextP1(shot);
 	}
 
     m_wave->iterate_commit([=](Transaction &tr){
@@ -817,6 +820,7 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 				tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
             });
 		}
+        setNextP1(shot_this);
 	}
 }
 
