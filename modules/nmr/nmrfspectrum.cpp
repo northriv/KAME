@@ -241,7 +241,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         case STRATEGY_CYCLE_OCT:
             num_psk_cycles = 8; break;
         }
-        if(freq_span <= freq_step * 3) {
+        if(freq_span < freq_step * 1.5) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
@@ -271,7 +271,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
             });
         }
 
-        newf = lrint(newf * 1e8) / 1e8; //rounds
+        newf = round(newf * 1e8) / 1e8; //rounds
 
         performTuning(shot_this, newf); //tunes a circuit if needed.
 
