@@ -209,8 +209,10 @@ else:unix {
 win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    LIBS += -L$$files("$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/liblmsvcrt-ruby*.lib")
-#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcrt-ruby
+    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*.dll.a) {
+        error("No Ruby2 library!")
+    }
+    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*.dll.a)
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
