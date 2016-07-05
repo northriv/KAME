@@ -271,7 +271,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
             });
         }
 
-        newf = lrint(newf * 1e8) / 1e8; //rounds
+        newf = round(newf * 1e8) / 1e8; //rounds
 
         performTuning(shot_this, newf); //tunes a circuit if needed.
 
