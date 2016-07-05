@@ -241,7 +241,7 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         case STRATEGY_CYCLE_OCT:
             num_psk_cycles = 8; break;
         }
-        if(freq_span <= freq_step * 3) {
+        if(freq_span < freq_step * 1.5) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
