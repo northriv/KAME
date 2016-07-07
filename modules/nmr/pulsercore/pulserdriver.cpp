@@ -125,6 +125,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_pulseAnalyzerMode(create<XBoolNode>("PulseAnalyzerMode", true)),
     m_paPulseRept(create<XDoubleNode>("PAPulseRept", false)),
     m_paPulseBW(create<XDoubleNode>("PAPulseBW", false)),
+    m_firstPhase(create<XUIntNode>("FirstPhase", true)),
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
     m_form(new FrmPulser),
     m_formMore(new FrmPulserMore(m_form.get())) {
@@ -214,6 +215,8 @@ XPulser::XPulser(const char *name, bool runtime,
 
 	    tr[ *paPulseRept()] = 1; //ms
 	    tr[ *paPulseBW()] = 1000.0; //kHz
+
+        tr[ *firstPhase()] = 0;
 
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
@@ -638,26 +641,6 @@ XPulser::Payload::periodicTerm() const {
     return m_relPatList.back().time;
 }
 
-//A pettern at absolute time
-class tpat {
-public:
-	tpat(uint64_t npos, uint32_t newpat, uint32_t nmask) {
-		pos = npos; pat = newpat; mask = nmask;
-	}
-	tpat(const tpat &x) {
-		pos = x.pos; pat = x.pat; mask = x.mask;
-	}
-	uint64_t pos;
-	//this pattern bits will be outputted at 'pos'
-	uint32_t pat;
-	//mask bits
-	uint32_t mask;
-
-	bool operator< (const tpat &y) const {
-		return pos < y.pos;
-	}          
-}; 
-
 unsigned int 
 XPulser::selectedPorts(const Snapshot &shot, int func) const {
 	unsigned int mask = 0;
@@ -669,7 +652,27 @@ XPulser::selectedPorts(const Snapshot &shot, int func) const {
 }
 void
 XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
-	const Snapshot &shot(tr);
+    //A pettern at absolute time
+    class tpat {
+    public:
+        tpat(uint64_t npos, uint32_t newpat, uint32_t nmask) {
+            pos = npos; pat = newpat; mask = nmask;
+        }
+        tpat(const tpat &x) {
+            pos = x.pos; pat = x.pat; mask = x.mask;
+        }
+        uint64_t pos;
+        //this pattern bits will be outputted at 'pos'
+        uint32_t pat;
+        //mask bits
+        uint32_t mask;
+
+        bool operator< (const tpat &y) const {
+            return pos < y.pos;
+        }
+    };
+
+    const Snapshot &shot(tr);
 
 	unsigned int g3mask = selectedPorts(shot, PORTSEL_GATE3);
 	unsigned int g2mask = selectedPorts(shot, PORTSEL_PREGATE);
@@ -712,6 +715,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 	int comb_mode__ = shot[ *this].combMode();
 	int rt_mode__ = shot[ *this].rtMode();
 	int num_phase_cycle__ = shot[ *this].numPhaseCycle();
+    int first_phase__ = shot[ *firstPhase()];
   
 	bool comb_mode_alt = ((comb_mode__ == N_COMB_MODE_P1_ALT) ||
 								(comb_mode__ == N_COMB_MODE_COMB_ALT));
@@ -772,7 +776,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
   
 	bool former_of_alt = !invert_phase__;
 	for(int i = 0; i < num_phase_cycle__ * (comb_mode_alt ? 2 : 1); i++) {
-		int j = (i / (comb_mode_alt ? 2 : 1)) % num_phase_cycle__; //index for phase cycling
+        int j = (i / (comb_mode_alt ? 2 : 1) + first_phase__) % num_phase_cycle__; //index for phase cycling
 		if(invert_phase__)
 			j = num_phase_cycle__ - 1 - j;
 		former_of_alt = !former_of_alt;
@@ -1050,20 +1054,22 @@ XPulser::bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned 
 	unsigned int qpskmask = qpskamask | qpskbmask |
 		qpskinvmask | qpsknoninvmask | qpskpsgatemask | PAT_QAM_PHASE_MASK;
 
-	//patterns correspoinding to 0, pi/2, pi, -pi/2
-	const unsigned int qpskIQ[4] = {0, 1, 3, 2};
-	const unsigned int qpskOLD[4] = {2, 3, 4, 5};
-
-	//\todo use lambda.
-	//unit of phase is pi/2
-#define qpsk_ph__(phase) ((((phase) + (invert ? 2 : 0)) % 4))
-#define qpsk__(phase)  ( \
-  	((qpskIQ[qpsk_ph__(phase)] & 1) ? qpskamask : 0) | \
-  	((qpskIQ[qpsk_ph__(phase)] & 2) ? qpskbmask : 0) | \
-  	((qpskOLD[qpsk_ph__(phase)] & 1) ? qpskpsgatemask : 0) | \
-  	((qpskOLD[qpsk_ph__(phase)] & 2) ? qpsknoninvmask : 0) | \
-  	((qpskOLD[qpsk_ph__(phase)] & 4) ? qpskinvmask : 0) | \
-  	(qpsk_ph__(phase) * PAT_QAM_PHASE))
+    auto qpsk__ = [=](unsigned int phase) -> unsigned int {
+        //unit of phase is pi/2
+        auto qpsk_ph__ = [invert](unsigned int phase) -> unsigned int {
+            return (phase + (invert ? 2 : 0)) % 4;
+        };
+        //patterns correspoinding to 0, pi/2, pi, -pi/2
+        const unsigned int qpskIQ[4] = {0, 1, 3, 2};
+        const unsigned int qpskOLD[4] = {2, 3, 4, 5};
+        return
+        ((qpskIQ[qpsk_ph__(phase)] & 1) ? qpskamask : 0) |
+        ((qpskIQ[qpsk_ph__(phase)] & 2) ? qpskbmask : 0) |
+        ((qpskOLD[qpsk_ph__(phase)] & 1) ? qpskpsgatemask : 0) |
+        ((qpskOLD[qpsk_ph__(phase)] & 2) ? qpsknoninvmask : 0) |
+        ((qpskOLD[qpsk_ph__(phase)] & 4) ? qpskinvmask : 0) |
+        (qpsk_ph__(phase) * PAT_QAM_PHASE);
+    };
 
 	for(int ph = 0; ph < 4; ++ph) {
 		qpsk[ph] = qpsk__(ph);

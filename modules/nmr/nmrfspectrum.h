@@ -58,9 +58,10 @@ public:
 	const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
 	const shared_ptr<XBoolNode> &active() const {return m_active;}
 	//! [MHz]
-    const shared_ptr<XDoubleNode> &tuneStep() const {return m_tuneStep;}
-    const shared_ptr<XComboNode> &tuneStrategy() const {return m_tuneStrategy;}
-    enum TuneStrategy {TUNESTRATEGY_ASIS = 0, TUNESTRATEGY_AWAIT = 1, TUNESTRATEGY_AUTOTUNER = 2};
+    const shared_ptr<XDoubleNode> &tuneCycleStep() const {return m_tuneCycleStep;}
+    const shared_ptr<XComboNode> &tuneCycleStrategy() const {return m_tuneCycleStrategy;}
+    enum TuneCycleStrategy {STRATEGY_ASIS = 0, STRATEGY_TUNE_AWAIT = 1, STRATEGY_AUTOTUNE = 2,
+                            STRATEGY_CYCLE_DBL = 3, STRATEGY_CYCLE_QUAD = 4, STRATEGY_CYCLE_OCT = 5};
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
 	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner;
@@ -71,8 +72,8 @@ private:
 	const shared_ptr<XDoubleNode> m_freqSpan;
 	const shared_ptr<XDoubleNode> m_freqStep;
 	const shared_ptr<XBoolNode> m_active;
-    const shared_ptr<XDoubleNode> m_tuneStep;
-    const shared_ptr<XComboNode> m_tuneStrategy;
+    const shared_ptr<XDoubleNode> m_tuneCycleStep;
+    const shared_ptr<XComboNode> m_tuneCycleStrategy;
 
     shared_ptr<XListener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
     
@@ -87,6 +88,7 @@ private:
 
     mutable double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
     double m_tunedFreq;
+    int m_lastCycle; //!< 0-7
 };
 
 

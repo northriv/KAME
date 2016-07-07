@@ -124,7 +124,7 @@ private:
 			virtual bool talkBuffered() {
 				bool skip = false;
 				if(this->listener->delay_ms()) {
-					long elapsed_ms = (timeStamp() - this->registered_time) / 1000uL;
+                    long elapsed_ms = XTime::now().diff_msec(this->registered_time);
 					skip = ((long)this->listener->delay_ms() > elapsed_ms);
 				}
 				if( !skip) {

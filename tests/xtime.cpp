@@ -14,8 +14,10 @@
 #include "xtime.h"
 #include <string.h>
 #include <stdint.h>
+#include "atomic.h"
 
 #ifdef USE_QTHREAD
+    #include <QThread>
     #include <QDateTime>
 #endif
 #ifdef _MSC_VER
@@ -28,7 +30,27 @@
 
 void msecsleep(unsigned int ms) noexcept {
 #ifdef USE_QTHREAD
-    QThread::msleep(ms);
+    XTime t0(XTime::now());
+    for(;;) {
+        unsigned int elapsed_ms = XTime::now().diff_msec(t0);
+        if(elapsed_ms >= ms)
+            break;
+        if(ms - elapsed_ms >= 30) {
+            QThread::msleep(ms - elapsed_ms);
+        }
+        else {
+            XTime t1(XTime::now());
+            QThread::yieldCurrentThread();
+            if(XTime::now().diff_msec(t1) > 1)
+                QThread::msleep(std::min(10u, ms - elapsed_ms)); //needs time slicing.
+            else {
+                pause4spin();
+                pause4spin();
+                pause4spin();
+                pause4spin();
+            }
+        }
+    }
 #else //USE_QTHREAD
     XTime t0(XTime::now());
     XTime t1 =  t0;
@@ -50,34 +72,45 @@ void msecsleep(unsigned int ms) noexcept {
 #endif //USE_QTHREAD
 }
 
-unsigned int timeStamp() noexcept {
+timestamp_t timeStamp() noexcept {
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+    memoryBarrier();
     uint64_t r;
-#ifdef _MSC_VER
-    r =  __rdtsc();
-#else
-    asm volatile("rdtsc" : "=A" (r));
-#endif
-    return (unsigned long)(r / (uint64_t)256);
-#elif defined __powerpc__ || defined __POWERPC__ || defined __ppc__
-    uint32_t rx, ry, rz;
-    asm volatile("1: \n"
-                 "mftbu %[rx]\n"
-                 "mftb %[ry]\n"
-                 "mftbu %[rz]\n"
-                 "cmpw %[rz], %[rx]\n"
-                 "bne- 1b"
-                 : [rx] "=&r" (rx), [ry] "=&r" (ry), [rz] "=&r" (rz)
-                 :: "cc");
-    uint64_t r = rx;
-    r = (r << 32u) + ry;
-    return (unsigned int)(r);
+    #ifdef _MSC_VER
+        r =  __rdtsc();
+    #else
+        asm volatile("rdtsc" : "=A" (r));
+    #endif
+    memoryBarrier();
+    return r;
 #else
     XTime time(XTime::now());
-    return (unsigned long)(time.usec() + time.sec() * 1000000uL);
+    return (time.usec() + time.sec() * 1000000uL);
 #endif
 }
 
+static atomic<timestamp_t> s_time_stamp_cnt_per_ms = 0;
+static atomic<timestamp_t> s_time_stamp_calc;
+
+DECLSPEC_KAME timestamp_t timeStampCountsPerMilliSec() noexcept {
+    if( !s_time_stamp_cnt_per_ms) {
+        for(;;) {
+            timestamp_t time_stamp_start = timeStamp();
+            s_time_stamp_calc = time_stamp_start;
+            XTime time_start(XTime::now());
+            timestamp_t time_stamp_start2 = timeStamp();
+            msecsleep(20);
+            timestamp_t dt = timeStamp() - time_stamp_start2;
+            unsigned int msec = XTime::now().diff_msec(time_start);
+            timestamp_t dt2 = timeStamp() - time_stamp_start;
+            s_time_stamp_cnt_per_ms = (dt+dt2)/2 / msec;
+            fprintf(stderr, "Clocks per ms = %d\n", (int)s_time_stamp_cnt_per_ms);
+            if((double)dt2 / dt < 1.2)
+                break;
+        }
+    }
+    return s_time_stamp_cnt_per_ms;
+}
 
 XTime
 XTime::now() noexcept {

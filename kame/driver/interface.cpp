@@ -84,7 +84,7 @@ XInterface::start() {
 		return;
 	}
 
-    Transaction tr = iterate_commit([=](Transaction &tr){
+    Snapshot shot = iterate_commit([=](Transaction &tr){
 		tr[ *device()].setUIEnabled(false);
 		tr[ *port()].setUIEnabled(false);
 		tr[ *address()].setUIEnabled(false);
@@ -92,7 +92,7 @@ XInterface::start() {
 		tr[ *control()] = true;
 		tr.unmark(lsnOnControlChanged);
     });
-    tr.talk(tr[ *this].onOpen(), this);
+    shot.talk(shot[ *this].onOpen(), this);
 }
 void
 XInterface::stop() {

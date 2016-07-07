@@ -374,7 +374,8 @@ XRuby::execute(const atomic<bool> &) {
         }
     }
 
+    fprintf(stderr, "ruby fin");
     m_ruby.reset();
-    fprintf(stderr, "ruby finished\n");
+    fprintf(stderr, "ished\n");
 	return NULL;
 }

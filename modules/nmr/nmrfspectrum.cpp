@@ -36,12 +36,12 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	  m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
 	  m_freqStep(create<XDoubleNode>("FreqStep", false)),
 	  m_active(create<XBoolNode>("Active", true)),
-      m_tuneStep(create<XDoubleNode>("TuneStep", false)),
-      m_tuneStrategy(create<XComboNode>("TuneStrategy", false, true)) {
+      m_tuneCycleStep(create<XDoubleNode>("TuneCycleStep", false)),
+      m_tuneCycleStrategy(create<XComboNode>("TuneCycleStrategy", false, true)) {
 
 	connect(sg1());
-	connect(autoTuner());
-	connect(pulser());
+//	connect(autoTuner());
+//	connect(pulser());
 
 	m_form->setWindowTitle(i18n("NMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -53,10 +53,10 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *sg1FreqOffset()] = 0;
 		tr[ *freqSpan()] = 200;
 		tr[ *freqStep()] = 1;
-        tr[ *tuneStrategy()].add("As is");
-        tr[ *tuneStrategy()].add("Await");
-        tr[ *tuneStrategy()].add("AutoTune");
-        tr[ *tuneStrategy()] = TUNESTRATEGY_ASIS;
+
+        for(auto &&x: {"As is", "Await Manual Tune", "Auto Tune", "Cyclic Avg. BPSK", "Cyclic Avg. QPSK", "Cyclic Avg. QPSKxP.I"})
+            tr[ *tuneCycleStrategy()].add(x);
+        tr[ *tuneCycleStrategy()] = STRATEGY_ASIS;
     });
   
 	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
@@ -67,8 +67,8 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 	m_conAutoTuner = xqcon_create<XQComboBoxConnector>(m_autoTuner, m_form->m_cmbAutoTuner, ref(tr_meas));
 	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
 	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-    m_conTuneStep = xqcon_create<XQLineEditConnector>(m_tuneStep, m_form->m_edTuneStep);
-    m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneStrategy, m_form->m_cmbTuneStrategy, Snapshot( *m_tuneStrategy));
+    m_conTuneStep = xqcon_create<XQLineEditConnector>(m_tuneCycleStep, m_form->m_edTuneCycleStep);
+    m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy));
 
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
@@ -83,12 +83,40 @@ void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
+        switch(shot_this[ *tuneCycleStrategy()]) {
+        case STRATEGY_ASIS:
+            break;
+        case STRATEGY_CYCLE_DBL:
+        case STRATEGY_CYCLE_QUAD:
+        case STRATEGY_CYCLE_OCT:
+            {
+                double x = shot_this[ *tuneCycleStep()] / shot_this[ *freqStep()];
+                if((x < 0.9) || (fabs(x - lrint(x)) > 0.003 * x))
+                    gErrPrint(i18n("Invalid cyclic step."));
+            }
+        case STRATEGY_TUNE_AWAIT:
+        case STRATEGY_AUTOTUNE:
+            {
+                shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+                if( !pulser__)
+                    gErrPrint(i18n("Pulser should be selected."));
+                pulser__->iterate_commit([=](Transaction &tr){
+                    tr[ *pulser__->firstPhase()] = 0;
+                    tr[ *pulser__->invertPhase()] = false;
+                });
+            }
+            if(shot_this[ *tuneCycleStep()]  <= 0.0)
+                gErrPrint(i18n("Invalid tuning/cyclic step."));
+            break;
+        }
+
 		onClear(shot_this, clear().get());
         m_lastFreqAcquired = -1000.0;
         m_tunedFreq = -1000.0;
-    	double newf =
-				shot_this[ *centerFreq()] - shot_this[ *freqSpan()] / 2e3 + shot_this[ *sg1FreqOffset()];
+        m_lastCycle = 0;
+        double newf = getMinFreq(shot_this) * 1e-6; //MHz
         performTuning(shot_this, newf);
+        newf += shot_this[ *sg1FreqOffset()];
 		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
 		if(sg1__)
 			trans( *sg1__->freq()) = newf;
@@ -142,16 +170,14 @@ XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &s
 }
 void
 XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
-    if(shot_this[ *tuneStrategy()] == TUNESTRATEGY_ASIS)
+    if((shot_this[ *tuneCycleStrategy()] != STRATEGY_AUTOTUNE) ||
+         (shot_this[ *tuneCycleStrategy()] != STRATEGY_TUNE_AWAIT))
         return; //tuning is declined by user.
-    if(shot_this[ *tuneStep()]  <= 0.0) {
-        gWarnPrint(i18n("Invalid tuning step."));
-        return;
-    }
-    if(fabs(m_tunedFreq - newf) <= shot_this[ *tuneStep()] / 2)
+
+    if(fabs(m_tunedFreq - newf) <= shot_this[ *tuneCycleStep()] / 2 * 1e-3)
         return; //not needed yet
 
-    newf += shot_this[ *tuneStep()] / 2; //to be tuned to
+    newf += shot_this[ *tuneCycleStep()] / 2 * 1e-3; //to be tuned to
 
     shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
     if( !pulser__) {
@@ -164,11 +190,11 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
     if(pulse__)
         trans( *pulse__->avgClear()).touch();
 
-    if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AWAIT)) {
+    if((shot_this[ *tuneCycleStrategy()] == STRATEGY_TUNE_AWAIT)) {
         g_statusPrinter->printMessage(getLabel() + " " + i18n("Tune it by yourself to") +
             formatString(" %.3f~MHz", newf) + i18n(", and turn pulse on again."), true, __FILE__, __LINE__, true);
     }
-    if((shot_this[ *tuneStrategy()] == TUNESTRATEGY_AUTOTUNER)) {
+    if((shot_this[ *tuneCycleStrategy()] == STRATEGY_AUTOTUNE)) {
         shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
         if( !autotuner) {
             gWarnPrint(i18n("AutoTuner should be selected."));
@@ -198,24 +224,61 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 
 	    double cfreq = shot_this[ *centerFreq()]; //MHz
 		double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
-		double freq_step = shot_this[ *freqStep()] * 1e-3; //MHz
 		if(cfreq <= freq_span / 2) {
 			throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
 		}
-		if(freq_span <= freq_step * 2) {
+
+        double freq_step = shot_this[ *tuneCycleStep()] * 1e-3; //MHz
+        int num_psk_cycles = 0;
+        switch(shot_this[ *tuneCycleStrategy()]) {
+        default:
+            freq_step = shot_this[ *freqStep()] * 1e-3; //MHz
+            break;
+        case STRATEGY_CYCLE_DBL:
+            num_psk_cycles = 2; break;
+        case STRATEGY_CYCLE_QUAD:
+            num_psk_cycles = 4; break;
+        case STRATEGY_CYCLE_OCT:
+            num_psk_cycles = 8; break;
+        }
+        if(freq_span < freq_step * 1.5) {
 			throw XRecordError(i18n("Too large freq. step."), __FILE__, __LINE__);
 		}
 	  
 		double newf = freq; //MHz
 		newf += freq_step;
 		
+        if(newf >= getMaxFreq(shot_this) * 1e-6) {
+            double x = (newf - getMinFreq(shot_this) * 1e-6) / freq_step;
+            newf -= floor(x + 0.01) * freq_step; //the first freq of this cycle.
+            ++m_lastCycle;
+            if(m_lastCycle >= num_psk_cycles) {
+                m_lastCycle = 0;
+                newf += shot_this[ *freqStep()] * 1e-3; //shifted.
+                if((newf - getMinFreq(shot_this) * 1e-6) / freq_step > 0.99) {
+                    trans( *active()) = false; //finish
+                    return;
+                }
+            }
+            shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
+            if( !pulser__)
+                throw XRecordError(i18n("Pulser should be selected."), __FILE__, __LINE__);
+            if( ***pulser__->rtime() < 1000)
+                throw XRecordError(i18n("Too short repetition period."), __FILE__, __LINE__);
+            pulser__->iterate_commit([=](Transaction &tr){
+                tr[ *pulser__->firstPhase()] = m_lastCycle % 4;
+                tr[ *pulser__->invertPhase()] = (m_lastCycle / 4) ? true : false;
+            });
+        }
+
+        newf = round(newf * 1e8) / 1e8; //rounds
+
         performTuning(shot_this, newf); //tunes a circuit if needed.
 
-		if(sg1__)
-            trans( *sg1__->freq()) = newf + shot_this[ *sg1FreqOffset()]; //modifies SG freq.
-        if(newf >= getMaxFreq(shot_this) * 1e-6 - freq_step)
-            trans( *active()) = false; //finish
-	}	
+        newf += shot_this[ *sg1FreqOffset()]; //modifies SG freq.
+        if(sg1__)
+            trans( *sg1__->freq()) = newf;
+    }
 }
 void
 XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {

@@ -14,18 +14,20 @@
 #include "rand.h"
 #include "xthread.h"
 
-static XMutex s_mutex;
 #ifdef USE_STD_RANDOM
 //C++11
     #include <random>
-    static std::random_device seed_gen;
-    static std::mt19937 s_rng_mt19937(seed_gen());
-    static std::uniform_real_distribution<> s_un01(0.0, 1.0);
+    struct Rand {
+        Rand() : un01(0.0, 1.0) {}
+        std::mt19937 rng_mt19937;
+        std::uniform_real_distribution<> un01;
+    };
+    static XThreadLocal<Rand> stl_rand;
     double randMT19937() {
-        XScopedLock<XMutex> lock(s_mutex);
-        return s_un01(s_rng_mt19937);
+        return stl_rand->un01( stl_rand->rng_mt19937);
     }
 #else
+    static XMutex s_mutex;
     #include <boost/random/mersenne_twister.hpp>
     #include <boost/random/uniform_01.hpp>
 

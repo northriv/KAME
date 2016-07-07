@@ -212,7 +212,8 @@ public:
     const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
     const shared_ptr<XDoubleNode> &paPulseRept() const {return m_paPulseRept;}
     const shared_ptr<XDoubleNode> &paPulseBW() const {return m_paPulseBW;}
-    
+    const shared_ptr<XUIntNode> &firstPhase() const {return m_firstPhase;} //!< 0-3, selects the first phase of QPSK.
+
     //! time resolution [ms]
     virtual double resolution() const = 0;
 protected:
@@ -300,7 +301,8 @@ private:
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
     const shared_ptr<XDoubleNode> m_paPulseRept; //!< [ms]
     const shared_ptr<XDoubleNode> m_paPulseBW; //!< [kHz]
-    
+    const shared_ptr<XUIntNode> m_firstPhase; //!< 0-3, selects QPSK for the first cycle.
+
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
 	xqcon_ptr m_conOutput;
 	xqcon_ptr m_conCombMode, m_conRTMode;

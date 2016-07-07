@@ -1,7 +1,16 @@
-* Fri Jun 17 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Sun Jul 3 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.15-1)
+- nmrfspectrum: Cyclic sweep mode.
+
+* Wed Jun 29 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.14-1)
+- std::atomic of mingw is buggy? Back to the original one.
+
+* Thu Jun 23 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.13-1)
 - Faster transaction.
 - OrientalMotor Flex: better recovery from errors.
+- QD PPMS: adds controls.
 - nmrspectrum: reads field values from QD PPMS.
 
 * Thu Mar 10 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>

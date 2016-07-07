@@ -22,7 +22,8 @@ public:
     virtual ~XRawStreamRecordReader() = default;
   
 	void terminate();
-  
+    void join();
+
 	const shared_ptr<XComboNode> &speed() const {return m_speed;}
 	const shared_ptr<XBoolNode> &fastForward() const {return m_fastForward;}
 	const shared_ptr<XBoolNode> &rewind() const {return m_rewind;}

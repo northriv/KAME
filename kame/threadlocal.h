@@ -58,9 +58,9 @@ private:
         return *m_tls.localData();
     }
 
-#endif //USE_QTHREAD
+#else
 
-#ifdef USE_PTHREAD
+    #ifdef USE_PTHREAD
 
     #ifdef USE__THREAD_TLS
 
@@ -109,7 +109,8 @@ private:
         }
         return *static_cast<T*>(p);
     }
-#endif //USE_PTHREAD
+    #endif //USE_PTHREAD
+#endif //USE_QTHREAD
 
 template <typename T>
 inline T *XThreadLocal<T>::operator->() const {
