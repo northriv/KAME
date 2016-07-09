@@ -157,7 +157,10 @@ Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
 }
 
 template <class XN>
-Node<XN>::Node() : m_link(std::make_shared<Linkage>()) {
+Node<XN>::Node() :
+    m_allocatorPayload(&m_mempoolPayload),
+    m_allocatorPacket(&m_mempoolPacket),
+    m_link(std::make_shared<Linkage>()) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
     //Use create() for this hack.

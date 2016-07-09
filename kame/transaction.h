@@ -19,6 +19,7 @@
 #include "atomic_smart_ptr.h"
 #include <vector>
 #include "atomic.h"
+#include "allocator.h"
 
 namespace Transactional {
 
@@ -129,14 +130,14 @@ public:
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
-    inline Snapshot<XN> iterate_commit_while(Closure);
+    inline void iterate_commit_while(Closure);
 
     //! Data holder and accessor for the node.
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
     //! The instances have to be capable of copy-construction and be safe to be shared reading.
     struct Payload : public atomic_countable {
-        Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
-        virtual ~Payload() {}
+        Payload() noexcept : m_serial(-1), m_tr(nullptr) {}
+        virtual ~Payload() = default;
 
         //! Points to the corresponding node.
         XN &node() noexcept {return *m_node;}
@@ -149,10 +150,12 @@ public:
         virtual void releaseEvent(const shared_ptr<XN>&, int) {}
         virtual void moveEvent(unsigned int /*src_idx*/, unsigned int /*dst_idx*/) {}
         virtual void listChangeEvent() {}
+
     private:
         friend class Node;
         friend class Transaction<XN>;
-        virtual Payload *clone(Transaction<XN> &tr, int64_t serial) = 0;
+        using rettype_clone = local_shared_ptr<Payload>;
+        virtual rettype_clone clone(Transaction<XN> &tr, int64_t serial) = 0;
 
         XN *m_node;
         //! Serial number of the transaction.
@@ -175,24 +178,31 @@ private:
     struct PacketList : public std::vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
         PacketList() noexcept : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
     };
 
     template <class P>
     struct PayloadWrapper : public P::Payload {
-        virtual PayloadWrapper *clone(Transaction<XN> &tr, int64_t serial) {
-            PayloadWrapper *p = new PayloadWrapper( *this);
+        virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
+            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
+//            auto p = make_local_shared<PayloadWrapper>( *this);
             p->m_tr = &tr;
             p->m_serial = serial;
             return p;
         }
         PayloadWrapper() = delete;
         PayloadWrapper& operator=(const PayloadWrapper &x) = delete;
-        PayloadWrapper(XN &node) noexcept : P::Payload() {this->m_node = &node;}
+        PayloadWrapper(XN &node) noexcept : P::Payload(){ this->m_node = &node;}
+        PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
     private:
-        PayloadWrapper(const PayloadWrapper &x) = default;
     };
+    MemoryPool m_mempoolPayload;
+    allocator<Payload> m_allocatorPayload;
+    MemoryPool m_mempoolPacket;
+    allocator<Payload> m_allocatorPacket;
+
     struct PacketWrapper;
     struct Linkage;
     //! A package containing \a Payload, sub-Packets, and a list of subnodes.\n
@@ -512,7 +522,6 @@ public:
     }
     Transaction(Transaction&&x) noexcept = default;
 
-
     //! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
     template <class T>
     typename T::Payload &operator[](const shared_ptr<T> &node) {
@@ -525,7 +534,7 @@ public:
         auto &payload(
             node.reverseLookup(this->m_packet, true, this->m_serial)->payload());
         if(payload->m_serial != this->m_serial) {
-            payload.reset(payload->clone( *this, this->m_serial));
+            payload = payload->clone( *this, this->m_serial);
             auto &p( *static_cast<typename T::Payload *>(payload.get()));
             return p;
         }
@@ -661,8 +670,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 template <class XN>
 template <typename Closure>
 inline Snapshot<XN> Node<XN>::iterate_commit(Closure closure) {
-    Transaction<XN> tr( *this);
-    for(;;++tr) {
+    for(Transaction<XN> tr( *this);;++tr) {
         closure(tr);
         if(tr.commit())
             return std::move(tr);
@@ -672,8 +680,7 @@ template <class XN>
 template <typename Closure>
 inline Snapshot<XN> Node<XN>::iterate_commit_if(Closure closure) {
     //std::is_integral<std::result_of<Closure>>::type
-    Transaction<XN> tr( *this);
-    for(;;++tr) {
+    for(Transaction<XN> tr( *this);;++tr) {
         if( !closure(tr))
             continue; //skipping.
         if(tr.commit())
@@ -682,14 +689,12 @@ inline Snapshot<XN> Node<XN>::iterate_commit_if(Closure closure) {
 }
 template <class XN>
 template <typename Closure>
-inline Snapshot<XN> Node<XN>::iterate_commit_while(Closure closure) {
-    //std::is_integral<std::result_of<Closure>>::type
-    Transaction<XN> tr( *this);
-    for(;;++tr) {
+inline void Node<XN>::iterate_commit_while(Closure closure) {
+    for(Transaction<XN> tr( *this);;++tr) {
         if( !closure(tr))
-             return Snapshot<XN>();
+             return;
         if(tr.commit())
-            return std::move(tr);
+            return;
     }
 }
 
@@ -705,7 +710,8 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
             copy_branch, tr_serial, set_missing, uppernode);
 
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
-        foundpacket->reset(new Packet( **foundpacket));
+//        foundpacket->reset(new Packet( **foundpacket));
+        *foundpacket = allocate_local_shared<Packet>(this->m_allocatorPacket, **foundpacket);
     }
     return foundpacket;
 }

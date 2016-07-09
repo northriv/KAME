@@ -4,10 +4,6 @@
 
 #include "support.h"
 
-//For inline expansion of lock-free custom new()/delete() operators.
-//Comment out this and '#include "allocator.cpp"' in support.cpp to use the original operators.
-#include "allocator.h"
-
 #include <stdint.h>
 #include <thread>
 
@@ -18,7 +14,7 @@ atomic<int> objcnt = 0;
 atomic<long> total = 0;
 atomic<int> xxx = 0;
 
-//class A : public atomic_countable {
+//class A : public atomic_countable<A> {
 class A {
 public:
 	A(long x) : m_x(x) {

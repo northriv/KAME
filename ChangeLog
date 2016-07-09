@@ -1,6 +1,7 @@
-* Sun Jul 3 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Sat Jul 9 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.15-1)
 - nmrfspectrum: Cyclic sweep mode.
+- Faster transaction.
 
 * Wed Jun 29 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.14-1)

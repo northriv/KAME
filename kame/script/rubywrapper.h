@@ -11,8 +11,8 @@ class Ruby {
 private:
     typedef std::pair<std::weak_ptr<void *>, std::weak_ptr<void *>> wrapped_t;
 public:
-	Ruby(const char *scriptname);
-	~Ruby();
+    Ruby(const char *scriptname);
+    ~Ruby();
 
     static const int Nil;
     static const int False;
@@ -25,7 +25,7 @@ public:
 
     typedef unsigned long Value; //has to be identical to VALUE
 
-	void defineGlobalConst(const char *rbname, Value obj);
+    void defineGlobalConst(const char *rbname, Value obj);
 
     //! C++ value to Ruby object
     template <typename X>
@@ -38,8 +38,8 @@ public:
     template <typename X>
     static bool isConvertible(Value var);
 
-	template <class P, class T>
-	struct Class {
+    template <class P, class T>
+    struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
         //!\todo MSVC2013 cl dies with multi-definitions.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
@@ -72,9 +72,7 @@ public:
         //! \return # of arguments in the ruby function.
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         int create_function(Value(**func)(Value)) {
-            struct Func_t {
-                static Value RUBYDECL func_internal(Value self) {
-//            *func = [](Value self)->Value { //!\todo use lambda.
+            *func = [](Value self)->Value {
                 char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
@@ -88,17 +86,13 @@ public:
                     catch(const char *e) {
                         snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
                     emit_error(errstr); return Nil;
-                }
             };
-            *func = &Func_t::func_internal;
             return 0;
         }
         //! \todo use Arg... arg
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value)>
         int create_function(Value(**func)(Value, Value)) {
-            struct Func_t {
-                static Value RUBYDECL func_internal(Value self, Value x) {
-//            *func = [](Value self)->Value {
+            *func = [](Value self, Value x)->Value {
                 char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
@@ -112,17 +106,13 @@ public:
                     catch(const char *e) {
                         snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
                     emit_error(errstr); return Nil;
-                }
             };
-            *func = &Func_t::func_internal;
             return 1;
         }
         //! \todo use Arg... arg
         template<Value(P::*Func)(const std::shared_ptr<T>&, Value, Value)>
         int create_function(Value(**func)(Value, Value, Value)) {
-            struct Func_t {
-                static Value RUBYDECL func_internal(Value self, Value x, Value y) {
-//            *func = [](Value self)->Value {
+            *func = [](Value self, Value x, Value y)->Value {
                 char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
@@ -136,14 +126,12 @@ public:
                     catch(const char *e) {
                         snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
                     emit_error(errstr); return Nil;
-                }
             };
-            *func = &Func_t::func_internal;
             return 2;
         }
         std::weak_ptr<P> m_parent;
-		Value m_rbObj;
-	};
+        Value m_rbObj;
+    };
 private:
     template <class Y>
     static Y &unwrap_internal(Value self) {
@@ -224,13 +212,6 @@ Ruby::Class<P,T>::rubyClassObject() const {return m_rbObj;}
 template <class P, class T>
 Ruby::Value
 Ruby::Class<P,T>::rubyObject(const std::shared_ptr<T> &obj) const {
-#ifdef __cpp_lambdas
     auto f = [](void *p){delete (Ptr*)p;};
-#else
-    struct Deleter {
-        static void deleter(void *p) { delete (Ptr*)p;}
-    };
-    auto f = &Deleter::deleter;
-#endif
     return wrap_obj(m_rbObj, new Ptr(m_parent, obj), f);
 }

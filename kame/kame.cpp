@@ -313,14 +313,16 @@ FrmKameMain::processSignals() {
 void
 FrmKameMain::closeEvent( QCloseEvent* ce ) {
 	bool opened = false;
-    Snapshot shot( *m_measure->interfaces());
-    if(shot.size()) {
-    	const XNode::NodeList &list(*shot.list());
-		for(auto it = list.begin(); it != list.end(); it++) {
-			auto intf = dynamic_pointer_cast<XInterface>( *it);
-			if(intf->isOpened()) opened = true;
-		}
-	}
+    {
+        Snapshot shot( *m_measure->interfaces());
+        if(shot.size()) {
+            const XNode::NodeList &list(*shot.list());
+            for(auto it = list.begin(); it != list.end(); it++) {
+                auto intf = dynamic_pointer_cast<XInterface>( *it);
+                if(intf->isOpened()) opened = true;
+            }
+        }
+    }
 	if(opened) {
 		QMessageBox::warning( this, "KAME", i18n("Stop running first.") );
 		ce->ignore();

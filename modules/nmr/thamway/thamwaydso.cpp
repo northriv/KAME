@@ -49,6 +49,11 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XDSO, XThamwayDVCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
+    std::vector<shared_ptr<XNode>> unnecessary_ui{
+        vFullScale3(), vFullScale4(), vOffset1(), vOffset2(), vOffset3(), vOffset4(),
+        trigPos(), trigSource(), trigLevel(), trigFalling(), forceTrigger()->disable();
+        };
+
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
         tr[ *timeWidth()] = 1e-2;
@@ -57,19 +62,9 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
             tr[ *x].add({"5"});
             tr[ *x] = "5";
         }
+        for(auto &&x: unnecessary_ui)
+            tr[ *x].disable();
     });
-
-    vFullScale3()->disable();
-    vFullScale4()->disable();
-    vOffset1()->disable();
-    vOffset2()->disable();
-    vOffset3()->disable();
-    vOffset4()->disable();
-    trigPos()->disable();
-    trigSource()->disable();
-    trigLevel()->disable();
-    trigFalling()->disable();
-    forceTrigger()->disable();
 }
 XThamwayDVUSBDSO::~XThamwayDVUSBDSO() {
 }

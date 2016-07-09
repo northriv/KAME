@@ -18,8 +18,8 @@ Ruby::Ruby(const char *scriptname) {
     ruby_init_loadpath();
 }
 Ruby::~Ruby() {
-    ruby_finalize();
-//    ruby_stop(0);
+//    ruby_finalize();
+    ruby_cleanup(0);
 }
 int
 Ruby::evalProtect(const char* str) {

@@ -141,12 +141,10 @@ SOURCES += icons/icon.cpp \
 
 unix {
     HEADERS += \
-        allocator_prv.h \
         allocator.h \
         math/matrix.h \
         math/freqest.h \
     SOURCES += \
-        allocator.cpp\
         math/freqest.cpp \
         math/matrix.cpp \
 }
@@ -209,18 +207,19 @@ else:unix {
 win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*.dll.a) {
+    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*[0-9].dll.a) {
         error("No Ruby2 library!")
     }
-    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*.dll.a)
+    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*[0-9].dll.a)
 }
 win32-msvc* {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/include
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2/.ext/include/i386-mswin32_120
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.1.2 -lmsvcr120-ruby212 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/include
-#    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481/.ext/include/i386-mswin32_120
-#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby-2.0.0-p481 -lmsvcr120-ruby200 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mswin32_120
+    !exists($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib) {
+        error("No Ruby2 library!")
+    }
+    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcr*-ruby2*[0-9].lib)
+#    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby -lmsvcr120-ruby212 #-static -lWS2_32 -lAdvapi32 -lShell32 -limagehlp -lShlwapi -lIphlpapi
 }
 
 win32 {

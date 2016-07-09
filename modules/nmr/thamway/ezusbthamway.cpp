@@ -44,49 +44,30 @@ std::deque<XWinCUSBInterface::USBDevice> XWinCUSBInterface::s_devices;
 void
 XWinCUSBInterface::openAllEZUSBdevices() {
     QDir dir(QApplication::applicationDirPath());
+    auto load_firm = [&dir](char *data, int expected_size, const char *filename){
+        QString path = filename;
+        dir.filePath(path);
+        if( !dir.exists())
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF/firmware file ") +
+                filename + i18n_noncontext(" not found."), __FILE__, __LINE__);
+        QFile file(dir.absoluteFilePath(path));
+        if( !file.open(QIODevice::ReadOnly))
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF/firmware file ") +
+                filename + i18n_noncontext(" not found."), __FILE__, __LINE__);
+        int size = file.read(data, expected_size);
+        if(size != expected_size)
+            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF/firmware file ") +
+                filename + i18n_noncontext(" is not proper."), __FILE__, __LINE__);
+    };
+
     char firmware[CUSB_DWLSIZE];
-    {
-        QString path = THAMWAY_USB_FIRMWARE_FILE;
-        dir.filePath(path);
-        if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file not found"), __FILE__, __LINE__);
-        QFile file(dir.absoluteFilePath(path));
-        if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file not found"), __FILE__, __LINE__);
-        int size = file.read(firmware, CUSB_DWLSIZE);
-        if(size != CUSB_DWLSIZE)
-            throw XInterface::XInterfaceError(i18n_noncontext("USB firmware file is not proper"), __FILE__, __LINE__);
-    }
+    load_firm(firmware, CUSB_DWLSIZE, THAMWAY_USB_FIRMWARE_FILE);
     char gpifwave1[THAMWAY_USB_GPIFWAVE_SIZE];
-    {
-        QString path = THAMWAY_USB_GPIFWAVE1_FILE;
-        dir.filePath(path);
-        if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
-            THAMWAY_USB_GPIFWAVE1_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
-        QFile file(dir.absoluteFilePath(path));
-        if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
-            THAMWAY_USB_GPIFWAVE1_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
-        int size = file.read(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE);
-        if(size != THAMWAY_USB_GPIFWAVE_SIZE)
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
-    }
+    load_firm(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE1_FILE);
     char gpifwave2[THAMWAY_USB_GPIFWAVE_SIZE];
     bool always_slow_usb = false;
     try {
-        QString path = THAMWAY_USB_GPIFWAVE2_FILE;
-        dir.filePath(path);
-        if( !dir.exists())
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
-            THAMWAY_USB_GPIFWAVE2_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
-        QFile file(dir.absoluteFilePath(path));
-        if( !file.open(QIODevice::ReadOnly))
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file ") +
-            THAMWAY_USB_GPIFWAVE2_FILE + i18n_noncontext(" not found"), __FILE__, __LINE__);
-        int size = file.read(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE);
-        if(size != THAMWAY_USB_GPIFWAVE_SIZE)
-            throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF wave file is not proper"), __FILE__, __LINE__);
+        load_firm(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE2_FILE);
     }
     catch (XInterface::XInterfaceError& e) {
         e.print();

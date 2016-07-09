@@ -16,10 +16,6 @@
 
 bool g_bUseMLock = false;
 
-#if !defined USE_STD_ATOMIC && !defined __WIN32 && !defined __WIN32__ && !defined __WINDOWS__
-	#include "allocator.cpp"
-#endif
-
 int my_assert(char const*s, int d) {
         fprintf(stderr, "Err:%s:%d\n", s, d);
         abort();

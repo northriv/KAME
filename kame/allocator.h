@@ -15,23 +15,20 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-#include "allocator_prv.h"
+#include <array>
+#include "atomic.h"
 
-//! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Memory blocks in a unit of double-quad word less than 8KiB
-//! can be allocated from fixed-size or variable-size memory pools.
-//! The larger memory is provided by standard malloc().
-//! \sa PoolAllocator, allocator_test.cpp.
-#ifdef USE_EXTERN_INLINE
-extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
-	return new_redirected(size);
-}
-extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
-	return new_redirected(size);
-}
-#endif
+namespace Transactional {
 
-extern void release_pools();
+struct MemoryPool : public std::array<atomic<void*>, 6> {
+    MemoryPool() {
+        std::fill(this->begin(), this->end(), nullptr);
+    }
+    ~MemoryPool() {
+        for(auto &&x: *this)
+            operator delete((void*)x);
+    }
+};
 
 template<typename T>
 class allocator {
@@ -49,41 +46,71 @@ public:
 		typedef allocator<Y> other;
 	};
 
-	allocator() throw () { }
-	allocator(const allocator&) throw () { }
-	template<typename Y> allocator(const allocator<Y> &) throw () {}
-	~allocator() throw () {}
+    allocator(MemoryPool *pool) noexcept : m_pool(pool) {}
+    allocator(const allocator& x) noexcept : m_pool(x.m_pool) {}
+
+    template<typename Y> allocator(const allocator<Y> &x) noexcept : m_pool(x.m_pool) {}
+
+    ~allocator() {
+    }
 
     pointer allocate(size_type num, const void * /*hint*/ = 0) {
-		return (pointer) (operator new(num * sizeof(T)));
+        const int unsigned pool_size = std::max(2, std::min(6, 256 / (int)sizeof(T)));
+        for(unsigned int i = 0; i < pool_size; ++i) {
+            auto &x = (*m_pool)[i];
+            void *ptr = x.exchange(nullptr);
+            if(ptr) {
+                return static_cast<pointer>(ptr);
+            }
+        }
+        return (pointer) (operator new(num * sizeof(T)));
 	}
-	void construct(pointer p, const T& value) {
-		new((void*) p) T(value);
+    template <class U, class... Args>
+    void construct(U* p, Args&&... args) {
+        new((void*) p) U(std::forward<Args>(args)...);
 	}
 
-    void deallocate(pointer p, size_type /*num*/) {
-		operator delete((void *) p);
-	}
-	void destroy(pointer p) {
-		p->~T();
+    void deallocate(pointer ptr, size_type /*num*/) {
+        void *p = ptr;
+        const int unsigned pool_size = std::max(2, std::min(6, 256 / (int)sizeof(T)));
+        for(unsigned int i = 0; i < pool_size; ++i) {
+            auto &x = (*m_pool)[i];
+            p = x.exchange(p);
+            if( !p) {
+                return; //left in the pool.
+            }
+        }
+        operator delete(p);
+    }
+    template <class U>
+    void destroy(U* p) {
+        p->~U();
 	}
 
-	pointer address(reference value) const {
+    pointer address(reference value) const noexcept {
 		return &value;
 	}
-	const_pointer address(const_reference value) const {
+    const_pointer address(const_reference value) const noexcept {
 		return &value;
 	}
 
-	size_type max_size() const throw () {
+    size_type max_size() const noexcept {
 		return std::numeric_limits<size_t>::max() / sizeof(T);
 	}
+private:
+    template <typename Y> friend class allocator;
+    MemoryPool *m_pool;
 };
 
 template <class T1, class T2>
-bool operator==(const allocator<T1>&, const allocator<T2>&) throw() { return true; }
+bool operator==(const allocator<T1>&, const allocator<T2>&) noexcept {
+    return true;
+}
 
 template <class T1, class T2>
-bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() { return false; }
+bool operator!=(const allocator<T1>&, const allocator<T2>&) noexcept {
+    return false;
+}
 
+}
 #endif /* ALLOCATOR_H_ */

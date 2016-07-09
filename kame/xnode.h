@@ -14,11 +14,6 @@
 #ifndef xnodeH
 #define xnodeH
 
-#if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
-    //For inline expansion of lock-free custom new()/delete() operators.
-    #include "allocator.h"
-#endif
-
 #include "transaction.h"
 #include "xsignal.h"
 #include "threadlocal.h"

@@ -143,16 +143,14 @@ XPulser::XPulser(const char *name, bool runtime,
     Snapshot shot = iterate_commit([=](Transaction &tr){
 		const Snapshot &shot(tr);
 		{
-	  		const char *desc[] = {
-	  			"Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
-	  			"QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
-	  			"QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
-	  			"QPSK-PS-Gate", "PAnaGate", 0L
-	  		};
 			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 				m_portSel[i] = create<XComboNode>(tr, formatString("PortSel%u", i).c_str(), false);
-				for(const char **p = &desc[0]; *p; p++)
-					tr[ *m_portSel[i]].add(*p);
+                tr[ *m_portSel[i]].add({
+                       "Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
+                       "QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
+                       "QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
+                       "QPSK-PS-Gate", "PAnaGate"
+                });
 	//			m_portSel[i]->setUIEnabled(false);
 			}
 			tr[ *portSel(0)] = PORTSEL_GATE;
@@ -179,11 +177,7 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *echoNum()] = 1;
 	    tr[ *combOffRes()] = 0.0;
 	    tr[ *drivenEquilibrium()] = false;
-	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_1);
-	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_2);
-	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_4);
-	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_8);
-	    tr[ *numPhaseCycle()].add(NUM_PHASE_CYCLE_16);
+        tr[ *numPhaseCycle()].add({NUM_PHASE_CYCLE_1, NUM_PHASE_CYCLE_2, NUM_PHASE_CYCLE_4, NUM_PHASE_CYCLE_8, NUM_PHASE_CYCLE_16});
 	    tr[ *numPhaseCycle()] = NUM_PHASE_CYCLE_16;
 	    tr[ *p1Level()] = -5.0;
 	    tr[ *p2Level()] = -0.5;
@@ -195,13 +189,9 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *qswWidth()] = 10.0;
 	    tr[ *qswSoftSWOff()] = 1.0;
 
-	    tr[ *combMode()].add(COMB_MODE_OFF);
-	    tr[ *combMode()].add(COMB_MODE_ON);
-	    tr[ *combMode()].add(COMB_MODE_P1_ALT);
-	    tr[ *combMode()].add(COMB_MODE_COMB_ALT);
+        tr[ *combMode()].add({COMB_MODE_OFF ,COMB_MODE_ON, COMB_MODE_P1_ALT, COMB_MODE_COMB_ALT});
 	    tr[ *combMode()] = N_COMB_MODE_OFF;
-	    tr[ *rtMode()].add(RT_MODE_FIXREP);
-	    tr[ *rtMode()].add(RT_MODE_FIXREST);
+        tr[ *rtMode()].add({RT_MODE_FIXREP, RT_MODE_FIXREST});
 	    tr[ *rtMode()] = 1;
 
 		for(const __PulseFunc *f = cg_PulseFuncs; f->fp; ++f) {

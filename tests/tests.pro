@@ -2,10 +2,6 @@ TEMPLATE = subdirs
 
 CONFIG += testcase
 
-unix: {
-    SUBDIRS = allocator_test
-    allocator_test.file = allocator_test.pro
-}
 SUBDIRS += \
     atomic_shared_ptr_test\
     atomic_scoped_ptr_test\
