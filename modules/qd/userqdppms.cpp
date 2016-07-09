@@ -36,7 +36,12 @@ XQDPPMS6000::setPosition(double position, int mode, int slow_down_code){
 
 void
 XQDPPMS6000::setTemp(double temp, double rate, int approach_mode){
-    interface()->sendf("TEMP %f %f %d", temp, rate, approach_mode);
+    if(temp>0){
+        interface()->sendf("TEMP %f %f %d", temp, rate, approach_mode);
+    }
+    else{
+        interface()->send("SHUTDOWN");
+    }
 }
 
 double

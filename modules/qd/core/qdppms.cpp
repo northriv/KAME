@@ -37,7 +37,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_positionSlowDownCode(create<XIntNode>("PositionSlowDownCode",true)),
     m_positionStatus(create<XStringNode>("PositionStatus",false)),
     m_targetTemp(create<XDoubleNode>("TargetTemp",true)),
-    m_tempSweepRate(create<XDoubleNode>("TempdSweepRate",true)),
+    m_tempSweepRate(create<XDoubleNode>("TempSweepRate",true)),
     m_tempApproachMode(create<XComboNode>("TempApproachMode",true,true)),
     m_tempStatus(create<XStringNode>("TempStatus",false)),
     m_form(new FrmQDPPMS(g_pFrmMain)) {
@@ -195,26 +195,26 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                 tr[ *heliumLevel()] = helium_level;
                 tr[ *tempStatus()] = std::map<int,std::string>{
                     {0x0,"Unknown"},
-                    {0x1,"Persistent Stable"},
-                    {0x2,"Persist Warming"},
-                    {0x3,"Persist Cooling"},
-                    {0x4,"Driven Stable"},
-                    {0x5,"Driven Approach"},
-                    {0x6,"Charging"},
-                    {0x7,"Unchaging"},
-                    {0x8,"Current Error"},
+                    {0x1,"Stable"},
+                    {0x2,"Tracking"},
+                    {0x5,"Near"},
+                    {0x6,"Chasing"},
+                    {0x7,"Pot Ops"},
+                    {0xa,"Standby"},
+                    {0xd,"Control Disabled"},
+                    {0xe,"Cannot Complete"},
                     {0xf,"Failure"}
                 }.at(status & 0xf);
                 tr[ *fieldStatus()] = std::map<int,std::string>{
                     {0x0,"Unknown"},
-                    {0x1,"Stable"},
-                    {0x2,"Tracking"},
-                    {0x5,"Wait"},
-                    {0x6,"not Valid"},
-                    {0x7,"Fill/Empty Reservoir"},
-                    {0xa,"Standby"},
-                    {0xd,"Control Disabled"},
-                    {0xe,"Cannot Complete"},
+                    {0x1,"Persistent"},
+                    {0x2,"SW-Warm"},
+                    {0x3,"SW-Cool"},
+                    {0x4,"Holding"},
+                    {0x5,"Itelate"},
+                    {0x6,"Charging"},
+                    {0x7,"Discharging"},
+                    {0x8,"CurrentError"},
                     {0xf,"Failure"}
                 }.at((status >> 4) & 0xf);
                 tr[ *positionStatus()] = std::map<int,std::string>{
