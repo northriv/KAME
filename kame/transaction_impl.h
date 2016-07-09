@@ -196,10 +196,10 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
-    if( !packet->subpackets()->size()) {
-        packet->subpackets()->reserve(4);
-        packet->subnodes()->reserve(4);
-    }
+//    if( !packet->subpackets()->size()) {
+//        packet->subpackets()->reserve(4);
+//        packet->subnodes()->reserve(4);
+//    }
     packet->subpackets()->resize(packet->size() + 1);
     assert(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
     packet->subnodes()->resize(packet->subpackets()->size());
@@ -347,10 +347,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         packet->m_missing = false;
     }
     else {
-        if(packet->subpackets()->capacity() - packet->subpackets()->size() > 8) {
-            packet->subpackets()->shrink_to_fit();
-            packet->subnodes()->shrink_to_fit();
-        }
+//        if(packet->subpackets()->capacity() - packet->subpackets()->size() > 8) {
+//            packet->subpackets()->shrink_to_fit();
+//            packet->subnodes()->shrink_to_fit();
+//        }
     }
     if(tr.m_packet->size()) {
         tr.m_packet->m_missing = true;
@@ -391,7 +391,7 @@ void
 Node<XN>::releaseAll() {
     iterate_commit_if([this](Transaction<XN> &tr)->bool {
         while(tr.size()) {
-            if( !release(tr, tr.list()->front())) {
+            if( !release(tr, tr.list()->back())) {
                 return false;
             }
         }

@@ -165,7 +165,7 @@ public:
 
     void print_() const;
 
-    typedef std::vector<shared_ptr<XN> > NodeList;
+    typedef fast_vector<shared_ptr<XN> > NodeList;
     typedef typename NodeList::iterator iterator;
     typedef typename NodeList::const_iterator const_iterator;
 
@@ -175,9 +175,9 @@ private:
     struct Packet;
 
     struct PacketList;
-    struct PacketList : public std::vector<local_shared_ptr<Packet> > {
+    struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
-        PacketList() noexcept : std::vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        PacketList() noexcept : fast_vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
@@ -302,12 +302,13 @@ private:
         SNAPSHOT_VOID_PACKET = 2, SNAPSHOT_NODE_MISSING = 4,
         SNAPSHOT_COLLIDED = 8, SNAPSHOT_NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
+        CASInfo() = default;
         CASInfo(const shared_ptr<Linkage> &b, const local_shared_ptr<PacketWrapper> &o,
             const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(o), new_wrapper(n) {}
         shared_ptr<Linkage> linkage;
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
-    typedef std::vector<CASInfo> CASInfoList;
+    typedef fast_vector<CASInfo> CASInfoList;
     enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
     static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
@@ -623,7 +624,7 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     int64_t m_started_time;
-    typedef std::vector<shared_ptr<Message_<XN> > > MessageList;
+    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
     unique_ptr<MessageList> m_messages;
 };
 
