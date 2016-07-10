@@ -160,7 +160,8 @@ template <class XN>
 Node<XN>::Node() :
     m_link(std::make_shared<Linkage>()),
     m_allocatorPayload(&m_link->m_mempoolPayload),
-    m_allocatorPacket(&m_link->m_mempoolPacket) {
+    m_allocatorPacket(&m_link->m_mempoolPacket),
+    m_allocatorPacketWrapper(&m_link->m_mempoolPacketWrapper) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
     //Use create() for this hack.
@@ -463,7 +464,8 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
         return nullptr;
     if(copy_branch) {
         if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
-            foundpacket->reset(new Packet( **foundpacket));
+            *foundpacket = allocate_local_shared<Packet>(( *foundpacket)->node().m_allocatorPacket, **foundpacket);
+//            foundpacket->reset(new Packet( **foundpacket));
             ( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
             ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
             ( *foundpacket)->subpackets()->m_serial = tr_serial;
@@ -645,14 +647,20 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage, shared_ptr<Link
         local_shared_ptr<Packet> *p(upperpacket);
         local_shared_ptr<PacketWrapper> newwrapper;
         if(shot == shot_upper) {
-            newwrapper.reset(
-                new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
+            newwrapper = allocate_local_shared<PacketWrapper>
+                    (shot_upper->packet()->node().m_allocatorPacketWrapper,
+                     *shot_upper, shot_upper->m_bundle_serial);
+//            newwrapper.reset(
+//                new PacketWrapper( *shot_upper, shot_upper->m_bundle_serial));
         }
         else {
             assert(cas_infos->size());
 //			if(shot->packet()->missing()) {
-                newwrapper.reset(
-                    new PacketWrapper( *p, shot->m_bundle_serial));
+            newwrapper = allocate_local_shared<PacketWrapper>
+                    ( (*p)->node().m_allocatorPacketWrapper,
+                     *p, shot->m_bundle_serial);
+//                newwrapper.reset(
+//                    new PacketWrapper( *p, shot->m_bundle_serial));
 //			}
         }
         if(newwrapper) {
@@ -660,7 +668,9 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage, shared_ptr<Link
             p = &newwrapper->packet();
         }
         if(size) {
-            p->reset(new Packet( **p));
+            *p = allocate_local_shared<Packet>(
+                (*p)->node().m_allocatorPacket, **p);
+//            p->reset(new Packet( **p));
 //			( *p)->subpackets().reset(new PacketList( *( *p)->subpackets()));
             ( *p)->m_missing = true;
 //			if(status == SNAPSHOT_SUCCESS)
@@ -821,8 +831,12 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
     if( !oldsuperwrapper->hasPriority() ||
         (oldsuperwrapper->m_bundle_serial != bundle_serial)) {
         //Tags serial.
-        local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper(oldsuperwrapper->packet(), bundle_serial));
+//        local_shared_ptr<PacketWrapper> superwrapper(
+//            new PacketWrapper(oldsuperwrapper->packet(), bundle_serial));
+        local_shared_ptr<PacketWrapper> superwrapper =
+            allocate_local_shared<PacketWrapper>(
+                oldsuperwrapper->packet()->node().m_allocatorPacketWrapper,
+                oldsuperwrapper->packet(), bundle_serial);
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
             return BUNDLE_DISTURBED;
         }
@@ -832,8 +846,12 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
     std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(;;) {
-        local_shared_ptr<PacketWrapper> superwrapper(
-            new PacketWrapper( *oldsuperwrapper, bundle_serial));
+        local_shared_ptr<PacketWrapper> superwrapper =
+            allocate_local_shared<PacketWrapper>(
+                oldsuperwrapper->packet()->node().m_allocatorPacketWrapper,
+                *oldsuperwrapper, bundle_serial);
+//        local_shared_ptr<PacketWrapper> superwrapper(
+//            new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
             reverseLookup(superwrapper->packet(), true, Packet::newSerial()));
         assert(newpacket->size());
@@ -901,9 +919,13 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             shared_ptr<Node> child(( *subnodes)[i]);
             local_shared_ptr<PacketWrapper> null_linkage;
             if(( *subpackets)[i])
-                null_linkage.reset(new PacketWrapper(m_link, i, bundle_serial));
+                null_linkage = allocate_local_shared<PacketWrapper>(
+                    m_allocatorPacketWrapper, m_link, i, bundle_serial);
+//                        .reset(new PacketWrapper(m_link, i, bundle_serial));
             else
-                null_linkage.reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
+                null_linkage = allocate_local_shared<PacketWrapper>(
+                    child->m_allocatorPacketWrapper, *subwrappers_org[i], bundle_serial);
+//                            .reset(new PacketWrapper( *subwrappers_org[i], bundle_serial));
 
             assert( !null_linkage->hasPriority());
             //Second checkpoint, the written bundle is valid or not.
@@ -919,7 +941,10 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if(changed_during_bundling)
             continue;
 
-        superwrapper.reset(new PacketWrapper( *oldsuperwrapper, bundle_serial));
+        superwrapper = allocate_local_shared<PacketWrapper>(
+            supernode.m_allocatorPacketWrapper, *oldsuperwrapper, bundle_serial);
+
+//        superwrapper.reset(new PacketWrapper( *oldsuperwrapper, bundle_serial));
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, Packet::newSerial()));
@@ -981,7 +1006,9 @@ Node<XN>::commit(Transaction<XN> &tr) {
     assert(tr.isMultiNodal() || tr.m_packet->subpackets() == tr.m_oldpacket->subpackets());
     assert(this == &tr.m_packet->node());
 
-    local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
+    local_shared_ptr<PacketWrapper> newwrapper = allocate_local_shared<PacketWrapper>(
+        m_allocatorPacketWrapper, tr.m_packet, tr.m_serial);
+//    local_shared_ptr<PacketWrapper> newwrapper(new PacketWrapper(tr.m_packet, tr.m_serial));
     for(int retry = 0;; ++retry) {
         local_shared_ptr<PacketWrapper> wrapper( *m_link);
         if(wrapper->hasPriority()) {
@@ -1093,7 +1120,10 @@ Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
     if(oldsubpacket)
         newsubwrapper = *newsubwrapper_returned;
     else
-        newsubwrapper.reset(new PacketWrapper( *newsubpacket, Packet::SERIAL_NULL));
+        newsubwrapper = allocate_local_shared<PacketWrapper>(
+            ( *newsubpacket)->node().m_allocatorPacketWrapper,
+            *newsubpacket, Packet::SERIAL_NULL);
+//    newsubwrapper.reset(new PacketWrapper( *newsubpacket, Packet::SERIAL_NULL));
 
     if( !sublinkage->compareAndSet(null_linkage, newsubwrapper))
         return UNBUNDLE_SUBVALUE_HAS_CHANGED;

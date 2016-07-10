@@ -286,6 +286,7 @@ private:
         inline void negotiate(int64_t &started_time) noexcept;
         MemoryPool m_mempoolPayload;
         MemoryPool m_mempoolPacket;
+        MemoryPool m_mempoolPacketWrapper;
     };
 
     friend class Snapshot<XN>;
@@ -351,7 +352,8 @@ private:
     shared_ptr<Linkage> m_link;
     //! Allocators for memory pools in the Linkage.
     allocator<Payload> m_allocatorPayload;
-    allocator<Payload> m_allocatorPacket;
+    allocator<Packet> m_allocatorPacket;
+    allocator<PacketWrapper> m_allocatorPacketWrapper;
 
     //! finds the packet for this node in the (un)bundled \a packet.
     //! \param[in,out] superpacket The bundled packet.
