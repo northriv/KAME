@@ -109,7 +109,7 @@ start_routine(void) {
 	printf("start\n");
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
-	for(int i = 0; i < 2500; i++) {
+    for(int i = 0; i < 2500; i++) {
 		p1->insert(p2);
 		if((i % 10) == 0) {
             gn1->iterate_commit_if([=](Transaction &tr1)->bool{
@@ -170,11 +170,11 @@ start_routine(void) {
     return;
 }
 
-#define NUM_THREADS 2
+#define NUM_THREADS 4
 
 int
 main(int argc, char **argv) {
-    for(int k = 0; k < 10; k++) {
+    for(int k = 0; k < 100; k++) {
         gn1.reset(LongNode::create<LongNode>());
         gn2.reset(LongNode::create<LongNode>());
         gn3.reset(LongNode::create<LongNode>());
@@ -328,10 +328,9 @@ main(int argc, char **argv) {
             std::thread th( &start_routine);
             threads[i].swap(th);
         }
+        msecsleep(10);
         for(int i = 0; i < 100; i++) {
-            msecsleep(10);
 			gn3->insert(gn4);
-            msecsleep(10);
 			gn3->release(gn4);
 		}
         for(int i = 0; i < NUM_THREADS; i++) {

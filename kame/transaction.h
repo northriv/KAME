@@ -198,10 +198,6 @@ private:
         PayloadWrapper(const PayloadWrapper &x) : P::Payload(x) {}
     private:
     };
-    MemoryPool m_mempoolPayload;
-    allocator<Payload> m_allocatorPayload;
-    MemoryPool m_mempoolPacket;
-    allocator<Payload> m_allocatorPacket;
 
     struct PacketWrapper;
     struct Linkage;
@@ -255,7 +251,7 @@ private:
     };
     //! A class wrapping Packet and providing indice and links for lookup.\n
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
-    //! If hasPriority() is not set, Packet is a super node may be latest.
+    //! If hasPriority() is not set, Packet in a super node may be latest.
     struct PacketWrapper : public atomic_countable {
         PacketWrapper(const local_shared_ptr<Packet> &x, int64_t bundle_serial) noexcept;
         //! creates a wrapper not containing a packet but pointing to the upper node.
@@ -284,9 +280,12 @@ private:
     };
     struct Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
+        ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<int64_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
         inline void negotiate(int64_t &started_time) noexcept;
+        MemoryPool m_mempoolPayload;
+        MemoryPool m_mempoolPacket;
     };
 
     friend class Snapshot<XN>;
@@ -310,7 +309,7 @@ private:
     };
     typedef fast_vector<CASInfo> CASInfoList;
     enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
-    static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
+    static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage, shared_ptr<Linkage> &linkage_super,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
         SnapshotMode mode,
         int64_t serial = Packet::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
@@ -350,6 +349,9 @@ private:
         local_shared_ptr<PacketWrapper> *superwrapper = NULL);
     //! The point where the packet is held.
     shared_ptr<Linkage> m_link;
+    //! Allocators for memory pools in the Linkage.
+    allocator<Payload> m_allocatorPayload;
+    allocator<Payload> m_allocatorPacket;
 
     //! finds the packet for this node in the (un)bundled \a packet.
     //! \param[in,out] superpacket The bundled packet.
@@ -712,7 +714,8 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
 
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
 //        foundpacket->reset(new Packet( **foundpacket));
-        *foundpacket = allocate_local_shared<Packet>(this->m_allocatorPacket, **foundpacket);
+        *foundpacket = allocate_local_shared<Packet>(
+                (*foundpacket)->node().m_allocatorPacket, **foundpacket);
     }
     return foundpacket;
 }

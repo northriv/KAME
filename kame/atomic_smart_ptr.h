@@ -187,13 +187,23 @@ public:
         local_shared_ptr(y).swap( *this);
         return *this;
     }
-    //! \param[in] t The pointer holded by this instance is replaced with that of \a t.
+    local_shared_ptr &operator=(local_shared_ptr &&t) noexcept {
+        t.swap( *this);
+        t.reset();
+        return *this;
+    }
+    template<typename Y, typename Z> local_shared_ptr &operator=(local_shared_ptr<Y, Z> &&y) noexcept {
+        y.swap( *this);
+        y.reset();
+        return *this;
+    }
+    //! \param[in] t The pointer held by this instance is replaced with that of \a t.
     local_shared_ptr &operator=(const atomic_shared_ptr<T> &t) noexcept {
         this->reset();
         this->m_ref = reinterpret_cast<RefLocal_>(t.scan_());
         return *this;
     }
-    //! \param[in] y The pointer holded by this instance is replaced with that of \a y.
+    //! \param[in] y The pointer held by this instance is replaced with that of \a y.
     template<typename Y> local_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) noexcept {
         static_assert(sizeof(static_cast<const T*>(y.get())), "");
         this->reset();
@@ -201,14 +211,14 @@ public:
         return *this;
     }
 
-    //! \param[in,out] x \p The pointer holded by \a x is swapped with that of this instance.
+    //! \param[in,out] x \p The pointer held by \a x is swapped with that of this instance.
     inline void swap(local_shared_ptr &x) noexcept;
-    //! \param[in,out] x \p The pointer holded by \a x is atomically swapped with that of this instance.
+    //! \param[in,out] x \p The pointer held by \a x is atomically swapped with that of this instance.
     void swap(atomic_shared_ptr<T> &x) noexcept;
 
-    //! The pointer holded by this instance is reset to null pointer.
+    //! The pointer held by this instance is reset to null pointer.
     inline void reset() noexcept;
-    //! The pointer holded by this instance is reset with a pointer \a y.
+    //! The pointer held by this instance is reset with a pointer \a y.
     template<typename Y> void reset(Y *y) { reset(); this->reset_unsafe(y, [y](){ delete y;}); }
     template<typename Y, typename D> void reset(Y *y, D deleter) { reset(); this->reset_unsafe(y, deleter); }
 
@@ -282,26 +292,26 @@ public:
 
     ~atomic_shared_ptr() {}
 
-    //! \param[in] t The pointer holded by this instance is atomically replaced with that of \a t.
+    //! \param[in] t The pointer held by this instance is atomically replaced with that of \a t.
     atomic_shared_ptr &operator=(const atomic_shared_ptr &t) noexcept {
         local_shared_ptr<T>(t).swap( *this);
         return *this;
     }
-    //! \param[in] y The pointer holded by this instance is atomically replaced with that of \a y.
+    //! \param[in] y The pointer held by this instance is atomically replaced with that of \a y.
     template<typename Y> atomic_shared_ptr &operator=(const local_shared_ptr<Y> &y) noexcept {
         local_shared_ptr<T>(y).swap( *this);
         return *this;
     }
-    //! \param[in] y The pointer holded by this instance is atomically replaced with that of \a y.
+    //! \param[in] y The pointer held by this instance is atomically replaced with that of \a y.
     template<typename Y> atomic_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) noexcept {
         local_shared_ptr<T>(y).swap( *this);
         return *this;
     }
-    //! The pointer holded by this instance is atomically reset to null pointer.
+    //! The pointer held by this instance is atomically reset to null pointer.
     void reset() noexcept {
         local_shared_ptr<T>().swap( *this);
     }
-    //! The pointer holded by this instance is atomically reset with a pointer \a y.
+    //! The pointer held by this instance is atomically reset with a pointer \a y.
     template<typename Y> void reset(Y *y) {
         local_shared_ptr<T>(y).swap( *this);
     }

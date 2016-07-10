@@ -1,5 +1,5 @@
 #rubyLine Shell.rb
-#coding: utf-8
+# -*- coding: utf-8 -*-
 
 greeting=[\
 "Use the Source, Luke.\n",\

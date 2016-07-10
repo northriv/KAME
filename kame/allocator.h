@@ -21,13 +21,17 @@
 
 namespace Transactional {
 
-struct MemoryPool : public std::array<atomic<void*>, 6> {
+enum {mempool_max_size = 4};
+struct MemoryPool : public std::array<atomic<void*>, mempool_max_size> {
     MemoryPool() {
         std::fill(this->begin(), this->end(), nullptr);
     }
     ~MemoryPool() {
-        for(auto &&x: *this)
+        memoryBarrier();
+        for(auto &&x: *this) {
             operator delete((void*)x);
+            x = (void*)((uintptr_t)(void*)x | 1u); //invalid address.
+        }
     }
 };
 
@@ -55,12 +59,16 @@ public:
     ~allocator() {
     }
 
+    unsigned int pool_size() const {
+        return std::min((int)mempool_max_size, std::max(2, 256 / (int)sizeof(T)));
+    }
     pointer allocate(size_type num, const void * /*hint*/ = 0) {
-        const int unsigned pool_size = std::max(2, std::min(6, 256 / (int)sizeof(T)));
-        for(unsigned int i = 0; i < pool_size; ++i) {
+        for(unsigned int i = 0; i < pool_size(); ++i) {
             auto &x = (*m_pool)[i];
             void *ptr = x.exchange(nullptr);
             if(ptr) {
+//                if((uintptr_t)ptr & 1u)
+//                    throw ptr; //invalid address.
                 return static_cast<pointer>(ptr);
             }
         }
@@ -73,10 +81,11 @@ public:
 
     void deallocate(pointer ptr, size_type /*num*/) {
         void *p = ptr;
-        const int unsigned pool_size = std::max(2, std::min(6, 256 / (int)sizeof(T)));
-        for(unsigned int i = 0; i < pool_size; ++i) {
+        for(unsigned int i = 0; i < pool_size(); ++i) {
             auto &x = (*m_pool)[i];
             p = x.exchange(p);
+            if((uintptr_t)p & 1u)
+                throw ptr; //invalid address.
             if( !p) {
                 return; //left in the pool.
             }

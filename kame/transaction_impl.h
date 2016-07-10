@@ -158,9 +158,9 @@ Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
 
 template <class XN>
 Node<XN>::Node() :
-    m_allocatorPayload(&m_mempoolPayload),
-    m_allocatorPacket(&m_mempoolPacket),
-    m_link(std::make_shared<Linkage>()) {
+    m_link(std::make_shared<Linkage>()),
+    m_allocatorPayload(&m_link->m_mempoolPayload),
+    m_allocatorPacket(&m_link->m_mempoolPacket) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
     //Use create() for this hack.
@@ -554,12 +554,13 @@ Node<XN>::lookupFromChild(local_shared_ptr<Packet> &superpacket,
 
 template <class XN>
 inline typename Node<XN>::SnapshotStatus
-Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
+Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage, shared_ptr<Linkage> &linkage_super,
     local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
     SnapshotMode mode, int64_t serial, CASInfoList *cas_infos) {
     local_shared_ptr<PacketWrapper> oldwrapper(shot);
     assert( !shot->hasPriority());
     shared_ptr<Linkage > linkage_upper(shot->bundledBy());
+    linkage_super = linkage_upper;
     if( !linkage_upper) {
         if( *linkage == oldwrapper)
             //Supernode has been destroyed.
@@ -573,7 +574,7 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage,
     SnapshotStatus status = SNAPSHOT_NODE_MISSING;
     local_shared_ptr<Packet> *upperpacket;
     if( !shot_upper->hasPriority()) {
-        status = snapshotSupernode(linkage_upper, shot, &upperpacket,
+        status = snapshotSupernode(linkage_upper, linkage_super, shot, &upperpacket,
             mode, serial, cas_infos);
     }
     switch(status) {
@@ -691,10 +692,11 @@ Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, int64_t started_tim
         }
         else {
             // Taking a snapshot inside the super packet.
-            shared_ptr<Linkage > linkage(m_link);
+            shared_ptr<Linkage> linkage_super; //keeps memory pools in the Linkage alive.
             local_shared_ptr<PacketWrapper> superwrapper(target);
             local_shared_ptr<Packet> *foundpacket;
-            SnapshotStatus status = snapshotSupernode(linkage, superwrapper, &foundpacket, SNAPSHOT_FOR_BUNDLE);
+            SnapshotStatus status = snapshotSupernode(m_link, linkage_super,
+                        superwrapper, &foundpacket, SNAPSHOT_FOR_BUNDLE);
             switch(status) {
             case SNAPSHOT_SUCCESS: {
                     if( !( *foundpacket)->missing() || !multi_nodal) {
@@ -891,7 +893,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 //			oldsuperwrapper = superwrapper;
 //			continue;
         }
-        oldsuperwrapper = superwrapper;
+        oldsuperwrapper = std::move(superwrapper);
 
         //clearing all packets on sub-nodes if not modified.
         bool changed_during_bundling = false;
@@ -917,7 +919,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if(changed_during_bundling)
             continue;
 
-        superwrapper.reset(new PacketWrapper( *superwrapper, bundle_serial));
+        superwrapper.reset(new PacketWrapper( *oldsuperwrapper, bundle_serial));
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
                 reverseLookup(superwrapper->packet(), true, Packet::newSerial()));
@@ -927,7 +929,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper))
             return BUNDLE_DISTURBED;
-        oldsuperwrapper = superwrapper;
+        oldsuperwrapper = std::move(superwrapper);
 
         break;
     }
@@ -1043,10 +1045,11 @@ Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
     assert( !null_linkage->hasPriority());
 
 // Taking a snapshot inside the super packet.
+    shared_ptr<Linkage> linkage_super;
     local_shared_ptr<PacketWrapper> superwrapper(null_linkage);
     local_shared_ptr<Packet> *newsubpacket;
     CASInfoList cas_infos;
-    SnapshotStatus status = snapshotSupernode(sublinkage, superwrapper, &newsubpacket,
+    SnapshotStatus status = snapshotSupernode(sublinkage, linkage_super, superwrapper, &newsubpacket,
         SNAPSHOT_FOR_UNBUNDLE, bundle_serial ? *bundle_serial : Packet::SERIAL_NULL, &cas_infos);
     switch(status) {
     case SNAPSHOT_SUCCESS:
@@ -1096,7 +1099,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
         return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 
     if(newsubwrapper_returned)
-        *newsubwrapper_returned = newsubwrapper;
+        *newsubwrapper_returned = std::move(newsubwrapper);
 
 //	if(oldsuperwrapper) {
 //		if( &( *oldsuperwrapper)->packet()->node().m_link != &cas_infos.front().linkage)
