@@ -21,7 +21,7 @@
 
 namespace Transactional {
 
-enum {mempool_max_size = 4};
+enum {mempool_max_size = 2};
 struct MemoryPool : public std::array<atomic<void*>, mempool_max_size> {
     MemoryPool() {
         std::fill(this->begin(), this->end(), nullptr);
@@ -30,7 +30,7 @@ struct MemoryPool : public std::array<atomic<void*>, mempool_max_size> {
         memoryBarrier();
         for(auto &&x: *this) {
             operator delete((void*)x);
-            x = (void*)((uintptr_t)(void*)x | 1u); //invalid address.
+//            x = (void*)((uintptr_t)(void*)x | 1u); //invalid address.
         }
     }
 };
@@ -77,15 +77,15 @@ public:
     template <class U, class... Args>
     void construct(U* p, Args&&... args) {
         new((void*) p) U(std::forward<Args>(args)...);
-	}
+    }
 
     void deallocate(pointer ptr, size_type /*num*/) {
         void *p = ptr;
         for(unsigned int i = 0; i < pool_size(); ++i) {
             auto &x = (*m_pool)[i];
             p = x.exchange(p);
-            if((uintptr_t)p & 1u)
-                throw ptr; //invalid address.
+//            if((uintptr_t)p & 1u)
+//                throw ptr; //invalid address.
             if( !p) {
                 return; //left in the pool.
             }
