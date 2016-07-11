@@ -51,8 +51,8 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
 
     std::vector<shared_ptr<XNode>> unnecessary_ui{
         vFullScale3(), vFullScale4(), vOffset1(), vOffset2(), vOffset3(), vOffset4(),
-        trigPos(), trigSource(), trigLevel(), trigFalling(), forceTrigger()->disable()
-        };
+        trigPos(), trigSource(), trigLevel(), trigFalling(), forceTrigger()
+    };
 
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
