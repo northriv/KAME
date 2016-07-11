@@ -111,7 +111,9 @@ public:
 	const shared_ptr<XBoolNode> &mInftyFit() const {return m_mInftyFit;}
 	//! Use absolute value, ignoring phase
 	const shared_ptr<XBoolNode> &absFit() const {return m_absFit;}
-	//! Region of P1 or 2tau for fitting, display, control of pulser [ms]
+    //! Tracks peak freq. to accomodate a field decay.
+    const shared_ptr<XBoolNode> &trackPeak() const {return m_trackPeak;}
+    //! Region of P1 or 2tau for fitting, display, control of pulser [ms]
 	const shared_ptr<XDoubleNode> &p1Min() const {return m_p1Min;}
 	const shared_ptr<XDoubleNode> &p1Max() const {return m_p1Max;}
 	//! Candidate for the next P1/2tau.
@@ -158,7 +160,8 @@ private:
 	const shared_ptr<XBoolNode> m_autoPhase;
 	const shared_ptr<XBoolNode> m_mInftyFit;
 	const shared_ptr<XBoolNode> m_absFit;
-	const shared_ptr<XDoubleNode> m_p1Min;
+    const shared_ptr<XBoolNode> m_trackPeak;
+    const shared_ptr<XDoubleNode> m_p1Min;
 	const shared_ptr<XDoubleNode> m_p1Max;
 	const shared_ptr<XDoubleNode> m_p1Next;
 	const shared_ptr<XDoubleNode> m_p1AltNext;
@@ -199,7 +202,7 @@ private:
 	xqcon_ptr m_conP1Strategy, m_conP1Dist, m_conRelaxFunc;
 	xqcon_ptr m_conClearAll, m_conResetFit;
 	xqcon_ptr m_conActive, m_conAutoPhase, m_conMInftyFit, m_conAbsFit;
-	xqcon_ptr m_conMode;
+    xqcon_ptr m_conMode, m_conTrackPeak;
 	xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
 
 	void analyzeSpectrum(Transaction &tr,

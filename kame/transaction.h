@@ -283,7 +283,7 @@ private:
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
         atomic<int64_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        inline void negotiate(int64_t &started_time) noexcept;
+        inline void negotiate(int64_t &started_time, float mult_wait = 6.0f) noexcept;
         MemoryPool m_mempoolPayload;
         MemoryPool m_mempoolPacket;
         MemoryPool m_mempoolPacketList;
@@ -296,6 +296,7 @@ private:
     void snapshot(Snapshot<XN> &target, bool multi_nodal,
         int64_t started_time) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
+        m_link->negotiate(target.m_started_time, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
         target.m_oldpacket = target.m_packet;
     }

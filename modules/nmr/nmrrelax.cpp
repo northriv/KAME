@@ -79,7 +79,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_autoPhase(create<XBoolNode>("AutoPhase", false)),
 	  m_mInftyFit(create<XBoolNode>("MInftyFit", false)),
 	  m_absFit(create<XBoolNode>("AbsFit", false)),
-	  m_p1Min(create<XDoubleNode>("P1Min", false)),
+      m_trackPeak(create<XBoolNode>("TrackPeakFreq", false)),
+      m_p1Min(create<XDoubleNode>("P1Min", false)),
 	  m_p1Max(create<XDoubleNode>("P1Max", false)),
 	  m_p1Next(create<XDoubleNode>("P1Next", true)),
 	  m_p1AltNext(create<XDoubleNode>("P1Next", true)),
@@ -126,13 +127,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_windowWidthList.push_back(2.0);
     iterate_commit([=](Transaction &tr){
 	    tr[ *m_windowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_HAMMING;
-	    tr[ *m_windowWidth].add("25%");
-	    tr[ *m_windowWidth].add("50%");
-	//    tr[ *m_windowWidth].add("75%");
-	    tr[ *m_windowWidth].add("100%");
-	//    tr[ *m_windowWidth].add("125%");
-	    tr[ *m_windowWidth].add("150%");
-	    tr[ *m_windowWidth].add("200%");
+        tr[ *m_windowWidth].add({"25%", "50%", "100%", "150%", "200%"});
 	    tr[ *m_windowWidth] = 2;
 
 	    const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
@@ -176,6 +171,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *autoPhase()] = true;
 		tr[ *autoWindow()] = true;
 		tr[ *mInftyFit()] = true;
+        tr[ *trackPeak()] = false;
         tr[ *smoothSamples()] = 40;
     });
 
@@ -199,7 +195,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
 	m_conMInftyFit = xqcon_create<XQToggleButtonConnector>(m_mInftyFit, m_form->m_ckbMInftyFit);
 	m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
-	m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
+    m_conTrackPeak = xqcon_create<XQToggleButtonConnector>(m_trackPeak, m_form->m_ckbTrackPeak);
+    m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
 	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbRelaxFunc, Snapshot( *m_relaxFuncs));
 	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
 
@@ -515,16 +512,24 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		}
 
 		std::deque<std::complex<double> > cmp1, cmp2;
-		double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
+        double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
+        if(shot_this[ *trackPeak()]) {
+            if(((mode__ == MEAS_T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
+               ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33)))) {
+                tr[ *freq()] = (double)shot_pulse1[ *pulse1__->entryPeakFreq()->value()];
+                tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
+            }
+        }
+
 		analyzeSpectrum(tr, shot_pulse1[ *pulse1__].wave(),
-			shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
-		Payload::RawPt pt1, pt2;
-		if(pulse2__) {
+			shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);        
+        Payload::RawPt pt1, pt2;
+        if(pulse2__) {
 			analyzeSpectrum(tr, shot_pulse2[ *pulse2__].wave(),
 				shot_pulse2[ *pulse2__].waveFTPos(), cfreq, cmp2);
 			pt2.value_by_cond.resize(cmp2.size());
 		}
-		pt1.value_by_cond.resize(cmp1.size());
+        pt1.value_by_cond.resize(cmp1.size());
 		switch(shot_pulser[ *pulser__].combMode()) {
         default:
 			throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);

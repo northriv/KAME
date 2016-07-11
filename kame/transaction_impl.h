@@ -129,7 +129,7 @@ Node<XN>::PacketWrapper::print_() const {
 
 template <class XN>
 inline void
-Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
+Node<XN>::Linkage::negotiate(int64_t &started_time, float mult_wait) noexcept {
 
     for(int ms = 0;;) {
         //diverting Node<XN>::Packet::newSerial() for a serialization of transactions.
@@ -141,10 +141,13 @@ Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
             break; //This thread is the oldest.
         int64_t dt2 = Node<XN>::Packet::newSerial() - transaction_started_time;
 
-        static XThreadLocal<unsigned int> stl_seed;
-        if((double)rand_r( &*stl_seed) / RAND_MAX > 5 * dt / dt2) {
-            break; //performs anyway.
-        }
+        if(mult_wait * dt < dt2)
+            break;
+
+//        static XThreadLocal<unsigned int> stl_seed;
+//        if((double)rand_r( &*stl_seed) / RAND_MAX > 20 * dt / dt2) {
+//            break; //performs anyway.
+//        }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
         if(ms > 200) {
             fprintf(stderr, "Nested transaction?, ");
@@ -910,12 +913,12 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         }
         newpacket->m_missing = true;
 
-        supernode.m_link->negotiate(started_time);
+        supernode.m_link->negotiate(started_time, 4.0f);
         //First checkpoint.
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
 //			if(superwrapper->m_bundle_serial != bundle_serial)
-                return BUNDLE_DISTURBED;
+            return BUNDLE_DISTURBED;
 //			oldsuperwrapper = superwrapper;
 //			continue;
         }
@@ -1036,8 +1039,8 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
-            m_link->negotiate(tr.m_started_time);
 
+//            m_link->negotiate(tr.m_started_time, 1.4f);
             if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
@@ -1045,7 +1048,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //					assert( !( *it)->hasPriority()));
                 return true;
             }
-
             continue;
         }
 
@@ -1062,7 +1064,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
         case UNBUNDLE_SUBVALUE_HAS_CHANGED: {
                 STRICT_TEST(s_serial_abandoned = tr.m_serial);
 //				fprintf(stderr, "F");
-//                m_link->negotiate(tr.m_started_time);
                 return false;
             }
         case UNBUNDLE_DISTURBED:
@@ -1111,7 +1112,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
         return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started);
+//        it->linkage->negotiate(time_started, 1.2f);
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UNBUNDLE_DISTURBED;
         if(oldsuperwrapper) {
