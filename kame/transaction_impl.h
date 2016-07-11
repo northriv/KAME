@@ -142,7 +142,7 @@ Node<XN>::Linkage::negotiate(int64_t &started_time) noexcept {
         int64_t dt2 = Node<XN>::Packet::newSerial() - transaction_started_time;
 
         static XThreadLocal<unsigned int> stl_seed;
-        if((double)rand_r( &*stl_seed) / RAND_MAX > 10 * dt / dt2) {
+        if((double)rand_r( &*stl_seed) / RAND_MAX > 5 * dt / dt2) {
             break; //performs anyway.
         }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
@@ -161,6 +161,7 @@ Node<XN>::Node() :
     m_link(std::make_shared<Linkage>()),
     m_allocatorPayload(&m_link->m_mempoolPayload),
     m_allocatorPacket(&m_link->m_mempoolPacket),
+    m_allocatorPacketList(&m_link->m_mempoolPacketList),
     m_allocatorPacketWrapper(&m_link->m_mempoolPacketWrapper) {
     local_shared_ptr<Packet> packet(new Packet());
     m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
@@ -466,7 +467,9 @@ Node<XN>::reverseLookupWithHint(shared_ptr<Linkage> &linkage,
         if(( *foundpacket)->subpackets()->m_serial != tr_serial) {
             *foundpacket = allocate_local_shared<Packet>(( *foundpacket)->node().m_allocatorPacket, **foundpacket);
 //            foundpacket->reset(new Packet( **foundpacket));
-            ( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
+            ( *foundpacket)->subpackets() = std::allocate_shared<PacketList>(
+                ( *foundpacket)->node().m_allocatorPacketList, *( *foundpacket)->subpackets());
+//            ( *foundpacket)->subpackets().reset(new PacketList( *( *foundpacket)->subpackets()));
             ( *foundpacket)->m_missing = ( *foundpacket)->m_missing || set_missing;
             ( *foundpacket)->subpackets()->m_serial = tr_serial;
         }
@@ -492,8 +495,11 @@ Node<XN>::forwardLookup(local_shared_ptr<Packet> &superpacket,
         return nullptr;
     if(copy_branch) {
         if(superpacket->subpackets()->m_serial != tr_serial) {
-            superpacket.reset(new Packet( *superpacket));
-            superpacket->subpackets().reset(new PacketList( *superpacket->subpackets()));
+            superpacket = allocate_local_shared<Packet>(superpacket->node().m_allocatorPacket, *superpacket);
+//            superpacket.reset(new Packet( *superpacket));
+            superpacket->subpackets()= std::allocate_shared<PacketList>(
+                 superpacket->node().m_allocatorPacketList, *superpacket->subpackets());
+//            superpacket->subpackets().reset(new PacketList( *superpacket->subpackets()));
             superpacket->subpackets()->m_serial = tr_serial;
             superpacket->m_missing = superpacket->m_missing || set_missing;
         }
@@ -840,7 +846,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
             return BUNDLE_DISTURBED;
         }
-        oldsuperwrapper = superwrapper;
+        oldsuperwrapper = std::move(superwrapper);
     }
 
     std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
@@ -860,7 +866,9 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         STRICT_assert(s_serial_abandoned != newpacket->subpackets()->m_serial);
 
         //copying all sub-packets from nodes to the new packet.
-        newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
+        newpacket->subpackets() = std::allocate_shared<PacketList>(
+            newpacket->node().m_allocatorPacketList, *newpacket->subpackets());
+//        newpacket->subpackets().reset(new PacketList( *newpacket->subpackets()));
         shared_ptr<PacketList> &subpackets(newpacket->subpackets());
         shared_ptr<NodeList> &subnodes(newpacket->subnodes());
 
@@ -920,7 +928,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
             local_shared_ptr<PacketWrapper> null_linkage;
             if(( *subpackets)[i])
                 null_linkage = allocate_local_shared<PacketWrapper>(
-                    m_allocatorPacketWrapper, m_link, i, bundle_serial);
+                    child->m_allocatorPacketWrapper, m_link, i, bundle_serial);
 //                        .reset(new PacketWrapper(m_link, i, bundle_serial));
             else
                 null_linkage = allocate_local_shared<PacketWrapper>(
@@ -1028,7 +1036,6 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(std::deque<local_shared_ptr<PacketWrapper> > subwrappers);
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
-
             m_link->negotiate(tr.m_started_time);
 
             if(m_link->compareAndSet(wrapper, newwrapper)) {
@@ -1038,8 +1045,10 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //					assert( !( *it)->hasPriority()));
                 return true;
             }
+
             continue;
         }
+
 //        if(retry == 0)
 //            m_link->negotiate(tr.m_started_time);
         //Unbundling this node from the super packet.
@@ -1053,6 +1062,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         case UNBUNDLE_SUBVALUE_HAS_CHANGED: {
                 STRICT_TEST(s_serial_abandoned = tr.m_serial);
 //				fprintf(stderr, "F");
+//                m_link->negotiate(tr.m_started_time);
                 return false;
             }
         case UNBUNDLE_DISTURBED:

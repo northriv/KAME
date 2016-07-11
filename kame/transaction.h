@@ -286,6 +286,7 @@ private:
         inline void negotiate(int64_t &started_time) noexcept;
         MemoryPool m_mempoolPayload;
         MemoryPool m_mempoolPacket;
+        MemoryPool m_mempoolPacketList;
         MemoryPool m_mempoolPacketWrapper;
     };
 
@@ -308,7 +309,7 @@ private:
         shared_ptr<Linkage> linkage;
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
-    typedef fast_vector<CASInfo> CASInfoList;
+    typedef fast_vector<CASInfo, 16> CASInfoList;
     enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
     static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage, shared_ptr<Linkage> &linkage_super,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
@@ -353,6 +354,7 @@ private:
     //! Allocators for memory pools in the Linkage.
     allocator<Payload> m_allocatorPayload;
     allocator<Packet> m_allocatorPacket;
+    allocator<PacketList> m_allocatorPacketList;
     allocator<PacketWrapper> m_allocatorPacketWrapper;
 
     //! finds the packet for this node in the (un)bundled \a packet.
