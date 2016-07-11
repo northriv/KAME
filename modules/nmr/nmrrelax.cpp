@@ -515,7 +515,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MEAS_T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
-               ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33)))) {
+               ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33))) ||
+               shot_this[ *this].m_sumpts.empty()) {
                 tr[ *freq()] = (double)shot_pulse1[ *pulse1__->entryPeakFreq()->value()];
                 tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
             }

@@ -17,7 +17,6 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
-#include "string"
 
 class XScalarEntry;
 class QMainWindow;
@@ -110,7 +109,6 @@ private:
     const shared_ptr<XStringNode> m_tempStatus;
 
     shared_ptr<XListener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
-
 
     xqcon_ptr m_conField, m_conTemp, m_conUserTemp, m_conPosition, m_conHeliumLevel;
     xqcon_ptr m_conTargetField, m_conFieldSweepRate;

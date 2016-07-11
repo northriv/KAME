@@ -128,9 +128,8 @@ Node<XN>::PacketWrapper::print_() const {
 }
 
 template <class XN>
-inline void
-Node<XN>::Linkage::negotiate(int64_t &started_time, float mult_wait) noexcept {
-
+void
+Node<XN>::Linkage::negotiate_internal(int64_t &started_time, float mult_wait) noexcept {
     for(int ms = 0;;) {
         //diverting Node<XN>::Packet::newSerial() for a serialization of transactions.
         int64_t transaction_started_time = m_transaction_started_time;
