@@ -56,7 +56,6 @@ protected:
 
 class DECLSPEC_KAME XTalkerBase_ {
 protected:
-	XTalkerBase_() {}
 public:
     virtual ~XTalkerBase_() = default;
 protected:
@@ -78,7 +77,6 @@ DECLSPEC_KAME void registerTransactionList(XTransaction_ *);
 template <class tArg>
 class XTalker : public XTalkerBase_ {
 public:
-	XTalker() {}
     virtual ~XTalker() = default;
 
 	//! Associate XTalker to XListener

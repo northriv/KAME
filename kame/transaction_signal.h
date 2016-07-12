@@ -80,7 +80,7 @@ public:
     shared_ptr<XListener> connectWeakly(const shared_ptr<tObj> &obj, void (tClass::*func)(
         const Snapshot<XN> &shot, tArgRef), int flags = 0);
 
-    void connect(const shared_ptr<XListener> &);
+    void connect(const shared_ptr<XListener> &x);
     void disconnect(const shared_ptr<XListener> &);
 
     //! Requests a talk to connected listeners.

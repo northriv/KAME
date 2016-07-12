@@ -85,7 +85,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_p1Next(create<XDoubleNode>("P1Next", true)),
 	  m_p1AltNext(create<XDoubleNode>("P1Next", true)),
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
-	  m_freq(create<XDoubleNode>("Freq", false)),
+      m_freq(create<XDoubleNode>("Freq", false, "%.3f")),
 	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
 	  m_autoWindow(create<XBoolNode>("AutoWindow", false)),
 	  m_windowWidth(create<XComboNode>("WindowWidth", false, true)),
@@ -118,15 +118,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     connect(pulse1());
     connect(pulse2());
 
-    m_windowWidthList.push_back(0.25);
-    m_windowWidthList.push_back(0.5);
-//    m_windowWidthList.push_back(0.75);
-    m_windowWidthList.push_back(1.0);
-//    m_windowWidthList.push_back(1.25);
-    m_windowWidthList.push_back(1.5);
-    m_windowWidthList.push_back(2.0);
     iterate_commit([=](Transaction &tr){
 	    tr[ *m_windowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_HAMMING;
+        m_windowWidthList = {0.25, 0.5, 1.0, 1.5, 2.0};
         tr[ *m_windowWidth].add({"25%", "50%", "100%", "150%", "200%"});
 	    tr[ *m_windowWidth] = 2;
 
@@ -209,21 +203,15 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 			shared_from_this(), &XNMRT1::onActiveChanged);
 		m_lsnOnP1CondChanged = tr[ *p1Max()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRT1::onP1CondChanged);
-		tr[ *p1Min()].onValueChanged().connect(m_lsnOnP1CondChanged);
-		tr[ *p1Strategy()].onValueChanged().connect(m_lsnOnP1CondChanged);
-		tr[ *p1Dist()].onValueChanged().connect(m_lsnOnP1CondChanged);
-		tr[ *smoothSamples()].onValueChanged().connect(m_lsnOnP1CondChanged);
+        for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
+            {p1Min(), p1Strategy(), p1Dist(), smoothSamples()}))
+            tr[ *x].onValueChanged().connect(m_lsnOnP1CondChanged);
 		m_lsnOnCondChanged = tr[ *phase()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRT1::onCondChanged);
-		tr[ *mInftyFit()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *absFit()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *relaxFunc()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *autoPhase()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *freq()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *autoWindow()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
-		tr[ *mode()].onValueChanged().connect(m_lsnOnCondChanged);
+        for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
+            {mInftyFit(), absFit(), relaxFunc(), autoPhase(), freq(), autoWindow(),
+            windowFunc(), windowWidth(), mode()}))
+            tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
 
 		m_lsnOnClearAll = tr[ *m_clearAll].onTouch().connectWeakly(
 			shared_from_this(), &XNMRT1::onClearAll);

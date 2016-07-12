@@ -162,7 +162,7 @@ public:
     template<typename Y> explicit local_shared_ptr(Y *y) { this->reset_unsafe(y, [y](){delete y;}); }
     template<typename Y, typename D> local_shared_ptr(Y *y, D deleter) { this->reset_unsafe(y, deleter); }
 
-    local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<RefLocal_>(t.scan_()); }
+    explicit local_shared_ptr(const atomic_shared_ptr<T> &t) noexcept { this->m_ref = reinterpret_cast<RefLocal_>(t.scan_()); }
     template<typename Y> local_shared_ptr(const atomic_shared_ptr<Y> &y) {
         static_assert(sizeof(static_cast<const T*>(y.get())), "");
         this->m_ref = reinterpret_cast<RefLocal_>(y.scan_());

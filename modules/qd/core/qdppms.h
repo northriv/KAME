@@ -110,17 +110,7 @@ private:
 
     shared_ptr<XListener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
 
-    xqcon_ptr m_conField, m_conTemp, m_conUserTemp, m_conPosition, m_conHeliumLevel;
-    xqcon_ptr m_conTargetField, m_conFieldSweepRate;
-    xqcon_ptr m_conFieldApproachMode, m_conFieldMagnetMode;
-    xqcon_ptr m_conFieldStatus;
-    xqcon_ptr m_conTargetPosition;
-    xqcon_ptr m_conPositionApproachMode;
-    xqcon_ptr m_conPositionSlowDownCode;
-    xqcon_ptr m_conPostionStatus;
-    xqcon_ptr m_conTargetTemp, m_conTempSweepRate;
-    xqcon_ptr m_conTempApproachMode;
-    xqcon_ptr m_conTempStatus;
+    std::deque<xqcon_ptr> m_conUIs;
 
     const qshared_ptr<FrmQDPPMS> m_form;
 

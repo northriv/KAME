@@ -177,7 +177,7 @@ private:
     struct PacketList;
     struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
-        PacketList() noexcept : fast_vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        PacketList() : fast_vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
@@ -410,7 +410,8 @@ public:
     Snapshot(const Snapshot&x) noexcept = default;
     Snapshot(Snapshot&&x) noexcept = default;
     Snapshot(Node<XN> &node, const Snapshot &x) noexcept : m_packet(node.reverseLookup(x.m_packet)), m_serial(x.m_serial) {}
-    Snapshot(const Transaction<XN>&x) noexcept;
+    explicit Snapshot(const Transaction<XN>&x) noexcept : m_packet(x.m_packet), m_serial(x.m_serial) {}
+    explicit Snapshot(Transaction<XN>&&x) noexcept : m_packet(std::move(x.m_packet)), m_serial(x.m_serial) {}
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
         node.snapshot( *this, multi_nodal, Node<XN>::Packet::newSerial());
@@ -527,7 +528,7 @@ public:
     }
     ~Transaction() {
         //Do not leave the time stamp.
-        if(m_started_time) {
+        if(m_started_time && this->m_packet) { //not moved
             Node<XN> &node(this->m_packet->node());
             if(node.m_link->m_transaction_started_time == m_started_time) {
                 node.m_link->m_transaction_started_time = 0;
@@ -659,10 +660,6 @@ public:
     }
 protected:
 };
-
-template <class XN>
-inline Snapshot<XN>::Snapshot(const Transaction<XN>&x) noexcept :
-m_packet(x.m_packet), m_serial(x.m_serial) {}
 
 template <class XN>
 void Transaction<XN>::finalizeCommitment(Node<XN> &node) {

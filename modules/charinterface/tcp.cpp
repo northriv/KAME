@@ -131,15 +131,15 @@ XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
-    fd_set fs;
-    FD_ZERO(&fs);
-    FD_SET(m_socket , &fs);
-    struct timeval timeout;
-    timeout.tv_sec  = 3; //3sec. timeout.
-    timeout.tv_usec = 0;
-    if(::select(0, NULL, &fs, NULL, &timeout) == 0) {
-        throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
-    }
+//    fd_set fs;
+//    FD_ZERO(&fs);
+//    FD_SET(m_socket , &fs);
+//    struct timeval timeout;
+//    timeout.tv_sec  = 3; //3sec. timeout.
+//    timeout.tv_usec = 0;
+//    if(::select(0, NULL, &fs, NULL, &timeout) == 0) {
+//        throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
+//    }
 
 	int wlen = 0;
 	do {

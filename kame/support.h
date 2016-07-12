@@ -96,11 +96,15 @@ class XString : public std::string {
 using base_type = std::string;
 public:
     XString() = default;
-	XString(const char *str) : base_type(str) {}
+    XString(const XString&) = default;
+    XString(XString&&) noexcept = default;
+    XString(const char *str) : base_type(str) {}
     XString(const QString &str) : base_type(str.toUtf8().data()) {}
     XString(const base_type &str) : base_type(str) {}
     operator QString() const {return QString::fromUtf8(c_str());}
     XString operator+(const char *s) {return *this + base_type(s);}
+    XString &operator=(const XString&) = default;
+    XString &operator=(XString&&) noexcept = default;
 };
 
 //! Debug printing.
@@ -124,7 +128,7 @@ struct DECLSPEC_KAME XKameError : public std::runtime_error {
 
 	//! errno is read and cleared after a construction
 	XKameError(const XString &s, const char *file, int line);
-	void print();
+    void print();
 	void print(const XString &header);
 	static void print(const XString &msg, const char *file, int line, int errno_);
 	const XString &msg() const;

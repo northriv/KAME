@@ -48,24 +48,27 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
 
     m_form->setWindowTitle(XString("QDPPMS - " + getLabel() ));
 
-    m_conTemp = xqcon_create<XQLCDNumberConnector>(temp()->value(), m_form->m_lcdTemp);
-    m_conUserTemp = xqcon_create<XQLCDNumberConnector>(user_temp()->value(), m_form->m_lcdUserTemp);
-    m_conField = xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField);
-    m_conPosition = xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition);
-    m_conHeliumLevel = xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel);
-    m_conTargetField = xqcon_create<XQLineEditConnector>(targetField(), m_form->m_edTargetField);
-    m_conFieldSweepRate = xqcon_create<XQLineEditConnector>(fieldSweepRate(), m_form->m_edFieldSweepRate);
-    m_conFieldApproachMode = xqcon_create<XQComboBoxConnector>(fieldApproachMode(), m_form->m_cmbFieldApproachMode, Snapshot( *m_fieldApproachMode));
-    m_conFieldMagnetMode = xqcon_create<XQComboBoxConnector>(fieldMagnetMode(), m_form->m_cmbMagnetMode, Snapshot( *m_fieldMagnetMode));
-    m_conFieldStatus = xqcon_create<XQLabelConnector>(fieldStatus(), m_form->m_labelFieldStatus);
-    m_conTargetTemp = xqcon_create<XQLineEditConnector>(targetTemp(), m_form->m_edTargetTemp);
-    m_conTempSweepRate = xqcon_create<XQLineEditConnector>(tempSweepRate(), m_form->m_edTempSweepRate);
-    m_conTempApproachMode = xqcon_create<XQComboBoxConnector>(tempApproachMode(), m_form->m_cmbTempApproachMode, Snapshot( *m_tempApproachMode));
-    m_conTempStatus = xqcon_create<XQLabelConnector>(tempStatus(), m_form->m_labelTempStatus);
-    m_conTargetPosition = xqcon_create<XQLineEditConnector>(targetPosition(), m_form->m_edTargetPosition);
-    m_conPositionApproachMode = xqcon_create<XQComboBoxConnector>(positionApproachMode(), m_form->m_cmbPositionApproachMode, Snapshot( *m_positionApproachMode));
-    m_conPositionSlowDownCode = xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode);
-    m_conPostionStatus = xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus);
+    m_conUIs = {
+        xqcon_create<XQLCDNumberConnector>(temp()->value(), m_form->m_lcdTemp),
+        xqcon_create<XQLCDNumberConnector>(user_temp()->value(), m_form->m_lcdUserTemp),
+        xqcon_create<XQLCDNumberConnector>(field()->value(), m_form->m_lcdField),
+        xqcon_create<XQLCDNumberConnector>(position()->value(), m_form->m_lcdPosition),
+        xqcon_create<XQLCDNumberConnector>(heliumLevel(), m_form->m_lcdHeliumLevel),
+        xqcon_create<XQLineEditConnector>(targetField(), m_form->m_edTargetField),
+        xqcon_create<XQLineEditConnector>(fieldSweepRate(), m_form->m_edFieldSweepRate),
+        xqcon_create<XQComboBoxConnector>(fieldApproachMode(), m_form->m_cmbFieldApproachMode, Snapshot( *m_fieldApproachMode)),
+        xqcon_create<XQComboBoxConnector>(fieldMagnetMode(), m_form->m_cmbMagnetMode, Snapshot( *m_fieldMagnetMode)),
+        xqcon_create<XQLabelConnector>(fieldStatus(), m_form->m_labelFieldStatus),
+        xqcon_create<XQLineEditConnector>(targetTemp(), m_form->m_edTargetTemp),
+        xqcon_create<XQLineEditConnector>(tempSweepRate(), m_form->m_edTempSweepRate),
+        xqcon_create<XQComboBoxConnector>(tempApproachMode(), m_form->m_cmbTempApproachMode, Snapshot( *m_tempApproachMode)),
+        xqcon_create<XQLabelConnector>(tempStatus(), m_form->m_labelTempStatus),
+        xqcon_create<XQLineEditConnector>(targetPosition(), m_form->m_edTargetPosition),
+        xqcon_create<XQComboBoxConnector>(positionApproachMode(), m_form->m_cmbPositionApproachMode, Snapshot( *m_positionApproachMode)),
+        xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode),
+        xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus)
+    };
+
     iterate_commit([=](Transaction &tr){
         tr[ *fieldApproachMode()].add({"Linear", "No Overshoot", "Oscillate"});
         tr[ *fieldMagnetMode()].add({"Persistent", "Driven"});

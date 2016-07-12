@@ -114,5 +114,5 @@ std::vector<XItemNodeBase::Item> XComboNode::Payload::itemStrings() const {
             items.push_back(std::move(item));
         }
     }
-    return items;
+    return std::move(items);
 }
