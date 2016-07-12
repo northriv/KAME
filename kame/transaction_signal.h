@@ -165,8 +165,8 @@ protected:
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 class TalkerSingleton : public Talker<XN, tArg, tArgRef> {
 public:
-    TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(0) {}
-    TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(0) {}
+    TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(nullptr) {}
+    TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(nullptr) {}
     virtual Message_<XN>* createMessage(tArgRef arg) const {
         if(m_marked) {
             static_cast<typename Talker<XN, tArg, tArgRef>::Message *>(m_marked)->arg = arg;
