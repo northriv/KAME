@@ -71,8 +71,8 @@ private:
 	const shared_ptr<XBoolNode> m_fmON;
 	const shared_ptr<XBoolNode> m_amON;
   
-	xqcon_ptr m_conRFON, m_conFreq, m_conOLevel, m_conFMON, m_conAMON;
-	shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
+    std::deque<xqcon_ptr> m_conUIs;
+    shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
   
 	const qshared_ptr<FrmSG> m_form;
 };//---------------------------------------------------------------------------

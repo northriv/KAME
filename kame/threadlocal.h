@@ -17,7 +17,7 @@
 #include "support.h"
 
 #if defined __GNUC__ && __GNUC__ >= 4
-// #define USE__THREAD_TLS
+// #define USE_STD_TLS
 #endif
 
 #ifdef USE_QTHREAD
@@ -27,6 +27,20 @@
 //! Thread Local Storage template.
 //! \p T must have constructor T()
 //! object \p T will be deleted only when the thread is finished.
+#ifdef USE_STD_TLS
+template <typename T>
+class XThreadLocal {
+public:
+    template <typename ...Arg>
+    XThreadLocal(Arg&& ...arg) : m_var(std::forward<Arg>(arg)...) {}
+    //! \return return thread local object. Create an object if not allocated.
+    T &operator*() const {return m_var;}
+    //! \sa operator T&()
+    T *operator->() const {return &m_var;}
+private:
+    static T thread_local m_var;
+};
+#else
 template <typename T>
 class XThreadLocal {
 public:
@@ -59,26 +73,7 @@ private:
     }
 
 #else
-
     #ifdef USE_PTHREAD
-
-    #ifdef USE__THREAD_TLS
-
-    template <typename T>
-    class XThreadLocalPOD {
-    public:
-        XThreadLocalPOD() {}
-        ~XThreadLocalPOD() {}
-        //! \return return thread local object. Create an object if not allocated.
-        T &operator*() const {return m_var;}
-        //! \sa operator T&()
-        T *operator->() const {return &m_var;}
-    private:
-        static __thread T m_var;
-    };
-
-    #endif /*USE__THREAD_TLS*/
-
     template <typename T>
     XThreadLocal<T>::XThreadLocal() {
         int ret = pthread_key_create( &m_key, &XThreadLocal<T>::delete_tls);
@@ -112,9 +107,12 @@ private:
     #endif //USE_PTHREAD
 #endif //USE_QTHREAD
 
-template <typename T>
-inline T *XThreadLocal<T>::operator->() const {
-    return &( **this);
-}
+    template <typename T>
+    inline T *XThreadLocal<T>::operator->() const {
+        return &( **this);
+    }
+
+#endif /*USE_STD_TLS*/
+
 
 #endif /*THREADLOCAL_H_*/

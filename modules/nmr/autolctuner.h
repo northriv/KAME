@@ -99,9 +99,7 @@ private:
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
 
-	xqcon_ptr m_conTarget, m_conReflectionTargeted, m_conReflectionRequired,
-		m_conSTM1, m_conSTM2, m_conNetAna, m_conAbortTuning,
-		m_conTuning, m_conSucceeded, m_conUseSTM1, m_conUseSTM2;
+    std::deque<xqcon_ptr> m_conUIs;
 
 	shared_ptr<XListener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
 

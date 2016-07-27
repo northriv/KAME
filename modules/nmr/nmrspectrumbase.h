@@ -131,10 +131,7 @@ private:
 	const shared_ptr<XComboNode> m_windowFunc;
 	const shared_ptr<XDoubleNode> m_windowWidth;
 	
-	xqcon_ptr m_conBandWidth, m_conBWList;
-	xqcon_ptr m_conPulse;
-	xqcon_ptr m_conPhase, m_conAutoPhase;
-	xqcon_ptr m_conClear, m_conSolverList, m_conWindowWidth, m_conWindowFunc;
+    std::deque<xqcon_ptr> m_conBaseUIs;
 
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 	shared_ptr<XXYPlot> m_peakPlot;

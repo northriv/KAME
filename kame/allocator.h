@@ -21,7 +21,7 @@
 
 namespace Transactional {
 
-enum {mempool_max_size = 2};
+enum {mempool_max_size = 4};
 struct MemoryPool : public std::array<atomic<void*>, mempool_max_size> {
     MemoryPool() {
         std::fill(this->begin(), this->end(), nullptr);
@@ -60,7 +60,7 @@ public:
     }
 
     unsigned int pool_size() const {
-        return std::min((int)mempool_max_size, std::max(2, 256 / (int)sizeof(T)));
+        return std::min((int)mempool_max_size, std::max(4, 256 / (int)sizeof(T)));
     }
     pointer allocate(size_type num, const void * /*hint*/ = 0) {
         for(unsigned int i = 0; i < pool_size(); ++i) {

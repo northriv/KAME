@@ -172,31 +172,32 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     m_form->m_dblPhase->setRange( -360.0, 360.0);
     m_form->m_dblPhase->setSingleStep(10.0);
 
-	m_conP1Min = xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min);
-	m_conP1Max = xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max);
-	m_conP1Next = xqcon_create<XQLineEditConnector>(m_p1Next, m_form->m_edP1Next);
-    m_conPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_phase, m_form->m_dblPhase, m_form->m_slPhase);
-	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
-	m_conAutoWindow = xqcon_create<XQToggleButtonConnector>(m_autoWindow, m_form->m_ckbAutoWindow);
-	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc));
-	m_conWindowWidth = xqcon_create<XQComboBoxConnector>(m_windowWidth, m_form->m_cmbWindowWidth, Snapshot( *m_windowWidth));
-	m_conSmoothSamples = xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples);
-	m_conP1Strategy = xqcon_create<XQComboBoxConnector>(m_p1Strategy, m_form->m_cmbP1Strategy, Snapshot( *m_p1Strategy));
-	m_conP1Dist = xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist, Snapshot( *m_p1Dist));
-	m_conClearAll = xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear);
-	m_conResetFit = xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit);
-	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-	m_conAutoPhase = xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase);
-	m_conMInftyFit = xqcon_create<XQToggleButtonConnector>(m_mInftyFit, m_form->m_ckbMInftyFit);
-	m_conAbsFit = xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit);
-    m_conTrackPeak = xqcon_create<XQToggleButtonConnector>(m_trackPeak, m_form->m_ckbTrackPeak);
-    m_conFitStatus = xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus);
-	m_conRelaxFunc = xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbRelaxFunc, Snapshot( *m_relaxFuncs));
-	m_conMode = xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode));
-
-	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
-	m_conPulse1 = xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas));
-	m_conPulse2 = xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas));
+    m_conUIs = {
+        xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min),
+        xqcon_create<XQLineEditConnector>(m_p1Max, m_form->m_edP1Max),
+        xqcon_create<XQLineEditConnector>(m_p1Next, m_form->m_edP1Next),
+        xqcon_create<XQDoubleSpinBoxConnector>(m_phase, m_form->m_dblPhase, m_form->m_slPhase),
+        xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq),
+        xqcon_create<XQToggleButtonConnector>(m_autoWindow, m_form->m_ckbAutoWindow),
+        xqcon_create<XQComboBoxConnector>(m_windowFunc, m_form->m_cmbWindowFunc, Snapshot( *m_windowFunc)),
+        xqcon_create<XQComboBoxConnector>(m_windowWidth, m_form->m_cmbWindowWidth, Snapshot( *m_windowWidth)),
+        xqcon_create<XQLineEditConnector>(m_smoothSamples, m_form->m_edSmoothSamples),
+        xqcon_create<XQComboBoxConnector>(m_p1Strategy, m_form->m_cmbP1Strategy, Snapshot( *m_p1Strategy)),
+        xqcon_create<XQComboBoxConnector>(m_p1Dist, m_form->m_cmbP1Dist, Snapshot( *m_p1Dist)),
+        xqcon_create<XQButtonConnector>(m_clearAll, m_form->m_btnClear),
+        xqcon_create<XQButtonConnector>(m_resetFit, m_form->m_btnResetFit),
+        xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
+        xqcon_create<XQToggleButtonConnector>(m_autoPhase, m_form->m_ckbAutoPhase),
+        xqcon_create<XQToggleButtonConnector>(m_mInftyFit, m_form->m_ckbMInftyFit),
+        xqcon_create<XQToggleButtonConnector>(m_absFit, m_form->m_ckbAbsFit),
+        xqcon_create<XQToggleButtonConnector>(m_trackPeak, m_form->m_ckbTrackPeak),
+        xqcon_create<XQTextBrowserConnector>(m_fitStatus, m_form->m_txtFitStatus),
+        xqcon_create<XQComboBoxConnector>(m_relaxFunc, m_form->m_cmbRelaxFunc, Snapshot( *m_relaxFuncs)),
+        xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode)),
+        xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas))
+    };
 
     iterate_commit([=](Transaction &tr){
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(

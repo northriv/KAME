@@ -20,23 +20,19 @@
 
 class XNode;
 
-typedef Transactional::Snapshot<XNode> Snapshot;
-typedef Transactional::Transaction<XNode> Transaction;
+using Snapshot = Transactional::Snapshot<XNode>;
+using Transaction = Transactional::Transaction<XNode>;
+
 template <class T>
-struct SingleSnapshot : public Transactional::SingleSnapshot<XNode, T> {
-    explicit SingleSnapshot(const T&node) :  Transactional::SingleSnapshot<XNode, T>(node) {}
-};
+using SingleSnapshot = Transactional::SingleSnapshot<XNode, T>;
 template <class T>
-struct SingleTransaction : public Transactional::SingleTransaction<XNode, T> {
-    explicit SingleTransaction(T&node) :  Transactional::SingleTransaction<XNode, T>(node) {}
-};
+using SingleTransaction = Transactional::SingleTransaction<XNode, T>;
 
 #define trans(node) for(Transaction \
     implicit_tr(node, false); !implicit_tr.isModified() || !implicit_tr.commitOrNext(); ) implicit_tr[node]
 
 template <class T>
-typename std::enable_if<std::is_base_of<XNode, T>::value,
-    const SingleSnapshot<T> >::type
+typename std::enable_if<std::is_base_of<XNode, T>::value, const SingleSnapshot<T> >::type
  operator*(T &node) {
     return SingleSnapshot<T>(node);
 }

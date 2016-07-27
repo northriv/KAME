@@ -49,13 +49,15 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 		tr[ *minValue()] = 3.0;
     });
   
-	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edFreq);
-	m_conResolution = xqcon_create<XQLineEditConnector>(m_resolution, m_form->m_edResolution);
-	m_conMin = xqcon_create<XQLineEditConnector>(m_minValue, m_form->m_edMin);
-	m_conMax = xqcon_create<XQLineEditConnector>(m_maxValue, m_form->m_edMax);
-	m_conFieldFactor = xqcon_create<XQLineEditConnector>(m_fieldFactor, m_form->m_edFieldFactor);
-	m_conResidualField = xqcon_create<XQLineEditConnector>(m_residualField, m_form->m_edResidual);
-	m_conMagnet = xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry, ref(tr_meas));
+    m_conUIs = {
+        xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edFreq),
+        xqcon_create<XQLineEditConnector>(m_resolution, m_form->m_edResolution),
+        xqcon_create<XQLineEditConnector>(m_minValue, m_form->m_edMin),
+        xqcon_create<XQLineEditConnector>(m_maxValue, m_form->m_edMax),
+        xqcon_create<XQLineEditConnector>(m_fieldFactor, m_form->m_edFieldFactor),
+        xqcon_create<XQLineEditConnector>(m_residualField, m_form->m_edResidual),
+        xqcon_create<XQComboBoxConnector>(m_magnet, m_form->m_cmbFieldEntry, ref(tr_meas)),
+    };
 
     iterate_commit([=](Transaction &tr){
 		tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);

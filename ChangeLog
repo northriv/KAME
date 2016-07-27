@@ -1,3 +1,7 @@
+* Wed Jul 27 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.1.16-1)
+- Fix severe bugs for 4.1.14 and 15.
+
 * Feb Jul 12 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.15-1)
 - nmrfspectrum: Cyclic sweep mode.

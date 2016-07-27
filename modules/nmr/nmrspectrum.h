@@ -58,9 +58,7 @@ private:
 	const shared_ptr<XDoubleNode> m_minValue, m_maxValue;
 	const shared_ptr<XDoubleNode> m_fieldFactor;
 	const shared_ptr<XDoubleNode> m_residualField;
-	xqcon_ptr m_conCenterFreq, m_conResolution, m_conMin, m_conMax,
-		m_conFieldFactor, m_conResidualField;
-	xqcon_ptr m_conMagnet;
+    std::deque<xqcon_ptr> m_conUIs;
 };
 
 #endif

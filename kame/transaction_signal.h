@@ -87,7 +87,8 @@ public:
     //! If a listener is not mainthread model, the listener will be called later.
     //! \param arg passing argument to all listeners
     //! If listener avoids duplication, lock won't be passed to listener.
-    virtual Message_<XN>* createMessage(tArgRef arg) const;
+    struct Message;
+    virtual shared_ptr<Message> createMessage(int64_t tr_serial, tArgRef arg) const;
     void talk(const Snapshot<XN> &shot, tArgRef arg) const {
         Message m(arg, m_listeners);
         m.talk(shot);
@@ -136,7 +137,7 @@ private:
                 return skip;
             }
     };
-protected:
+public:
     struct Message : public Message_<XN> {
         Message(tArgRef a, const shared_ptr<ListenerList> &l) noexcept : Message_<XN>(), arg(a), listeners(l) {}
         tArg arg;
@@ -147,8 +148,8 @@ protected:
             if( !listeners)
                 return 0;
             int canceled = 0;
-            for(auto it = listeners->begin(); it != listeners->end(); it++) {
-                if(auto listener = it->lock()) {
+            for(auto &&y: *listeners) {
+                if(auto listener = y.lock()) {
                     if(listener == x) {
                         if( !listeners_unmarked)
                             listeners_unmarked.reset(new UnmarkedListenerList);
@@ -165,26 +166,27 @@ protected:
 template <class XN, typename tArg, typename tArgRef = const tArg &>
 class TalkerSingleton : public Talker<XN, tArg, tArgRef> {
 public:
-    TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(nullptr) {}
-    TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(nullptr) {}
-    virtual Message_<XN>* createMessage(tArgRef arg) const {
-        if(m_marked) {
-            static_cast<typename Talker<XN, tArg, tArgRef>::Message *>(m_marked)->arg = arg;
-            return 0;
+    TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(nullptr), m_transaction_serial(0) {}
+    TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(nullptr), m_transaction_serial(0) {}
+    virtual shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> createMessage(int64_t tr_serial, tArgRef arg) const {
+        if(m_marked && (m_transaction_serial == tr_serial)) {
+            m_marked->arg = arg;
+            return nullptr;
         }
-        m_marked = Talker<XN, tArg, tArgRef>::createMessage(arg);
+        m_marked = Talker<XN, tArg, tArgRef>::createMessage(tr_serial, arg);
+        m_transaction_serial = tr_serial;
         return m_marked;
     }
 private:
-    mutable Message_<XN> *m_marked;
+    mutable shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> m_marked;
+    mutable int64_t m_transaction_serial;
 };
 
 template <class XN, typename tArg, typename tArgRef>
-Message_<XN>*
-Talker<XN, tArg, tArgRef>::createMessage(tArgRef arg) const {
+shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> Talker<XN, tArg, tArgRef>::createMessage(int64_t, tArgRef arg) const {
     if( !m_listeners)
-        return 0;
-    return new Message(arg, m_listeners);
+        return nullptr;
+    return std::make_shared<Message>(arg, m_listeners);
 }
 
 template <class XN, typename tArg, typename tArgRef>
@@ -192,9 +194,9 @@ template <class tObj, class tClass>
 shared_ptr<XListener>
 Talker<XN, tArg, tArgRef>::connect(tObj &obj, void (tClass::*func)(
     const Snapshot<XN> &shot, tArgRef), int flags) {
-    shared_ptr<Listener_> listener(
-        new ListenerRef_<XN, tClass, tArg, tArgRef>(
-            static_cast<tClass&>(obj), func, (XListener::FLAGS)flags) );
+    shared_ptr<Listener_> listener =
+            std::make_shared<ListenerRef_<XN, tClass, tArg, tArgRef>>(
+            static_cast<tClass&>(obj), func, (XListener::FLAGS)flags);
     connect(listener);
     return listener;
 }
@@ -204,9 +206,9 @@ template <class tObj, class tClass>
 shared_ptr<XListener>
 Talker<XN, tArg, tArgRef>::connectWeakly(const shared_ptr<tObj> &obj,
     void (tClass::*func)(const Snapshot<XN> &shot, tArgRef), int flags) {
-    shared_ptr<Listener_> listener(
-        new ListenerWeak_<XN, tClass, tArg, tArgRef>(
-            static_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags) );
+    shared_ptr<Listener_> listener =
+            std::make_shared<ListenerWeak_<XN, tClass, tArg, tArgRef>>(
+            static_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags);
     connect(listener);
     return listener;
 }
@@ -257,8 +259,8 @@ void
 Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
     if( !listeners) return;
     //Writing deferred events to event pool.
-    for(auto it = listeners->begin(); it != listeners->end(); it++) {
-        if(auto listener = it->lock()) {
+    for(auto &&x: *listeners) {
+        if(auto listener = x.lock()) {
             if(listeners_unmarked &&
                 (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
                 continue;
@@ -286,8 +288,8 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
         }
     }
     //Immediate events.
-    for(auto it = listeners->begin(); it != listeners->end(); it++) {
-        if(auto listener = it->lock()) {
+    for(auto &&x: *listeners) {
+        if(auto listener = x.lock()) {
             if(listeners_unmarked &&
                 (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
                 continue;

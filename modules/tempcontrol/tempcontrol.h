@@ -157,12 +157,7 @@ private:
 		void onCurrentChannelChanged(const Snapshot &shot, XValueNodeBase *);
 		void onExtDeviceChanged(const Snapshot &shot, XValueNodeBase *);
 
-		xqcon_ptr m_conCurrentChannel,
-			m_conHeaterMode, m_conPowerRange,
-			m_conTargetTemp, m_conManualPower, m_conP, m_conI, m_conD,
-			m_conPowerMax, m_conPowerMin,
-			m_conHeater, m_conTemp,
-			m_conExtDevice, m_conExtDCSourceChannel, m_conExtIsPositive;
+        std::deque<xqcon_ptr> m_conUIs;
 
 		shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
 			m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,

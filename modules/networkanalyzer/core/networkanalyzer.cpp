@@ -58,15 +58,16 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	calTerm()->setUIEnabled(false);
 	calThru()->setUIEnabled(false);
 
-	m_conStartFreq = xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart);
-	m_conStopFreq = xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop);
-	m_conPoints = xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints, Snapshot( *points()));
-	m_conAverage = xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage);
-
-	m_conCalOpen = xqcon_create<XQButtonConnector>(m_calOpen, m_form->m_btnCalOpen);
-	m_conCalShort = xqcon_create<XQButtonConnector>(m_calShort, m_form->m_btnCalShort);
-	m_conCalTerm = xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm);
-	m_conCalThru = xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru);
+    m_conUIs = {
+        xqcon_create<XQLineEditConnector>(startFreq(), m_form->m_edStart),
+        xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop),
+        xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints, Snapshot( *points())),
+        xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage),
+        xqcon_create<XQButtonConnector>(m_calOpen, m_form->m_btnCalOpen),
+        xqcon_create<XQButtonConnector>(m_calShort, m_form->m_btnCalShort),
+        xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm),
+        xqcon_create<XQButtonConnector>(m_calThru, m_form->m_btnCalThru)
+    };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"Freq [MHz]", "Level [dB]", "Phase [deg.]"};

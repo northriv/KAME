@@ -88,54 +88,36 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 
 	m_spectrumForm->setWindowTitle(i18n("NMR-Spectrum - ") + getLabel() );
 
-	m_conAvgClear = xqcon_create<XQButtonConnector>(m_avgClear,
-		m_form->m_btnAvgClear);
-	m_conSpectrumShow = xqcon_create<XQButtonConnector>(m_spectrumShow, m_form->m_btnSpectrum);
-
-	m_conFromTrig = xqcon_create<XQLineEditConnector>(fromTrig(),
-		m_form->m_edPos);
-	m_conWidth = xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth);
-    m_form->m_dblPhaseAdv->setRange(-180.0, 180.0);
-    m_form->m_dblPhaseAdv->setSingleStep(10.0);
-    m_conPhaseAdv = xqcon_create<XQDoubleSpinBoxConnector>(phaseAdv(),
-        m_form->m_dblPhaseAdv, m_form->m_slPhaseAdv);
-	m_conUsePNR = xqcon_create<XQToggleButtonConnector>(usePNR(),
-		m_form->m_ckbPNR);
-	m_conPNRSolverList = xqcon_create<XQComboBoxConnector>(pnrSolverList(),
-		m_form->m_cmbPNRSolver, Snapshot( *pnrSolverList()));
-	m_conSolverList = xqcon_create<XQComboBoxConnector>(solverList(),
-		m_form->m_cmbSolver, Snapshot( *solverList()));
-	m_conBGPos = xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos);
-	m_conBGWidth = xqcon_create<XQLineEditConnector>(bgWidth(),
-		m_form->m_edBGWidth);
-	m_conFFTPos = xqcon_create<XQLineEditConnector>(fftPos(),
-		m_form->m_edFFTPos);
-	m_conFFTLen = xqcon_create<XQLineEditConnector>(fftLen(),
-		m_form->m_edFFTLen);
-	m_form->m_numExtraAvg->setRange(0, 100000);
-    m_conExtraAv = xqcon_create<XQSpinBoxUnsignedConnector>(extraAvg(),
-		m_form->m_numExtraAvg);
-	m_conExAvgIncr = xqcon_create<XQToggleButtonConnector>(exAvgIncr(),
-		m_form->m_ckbIncrAvg);
-    m_conNumEcho = xqcon_create<XQSpinBoxUnsignedConnector>(numEcho(),
-		m_form->m_numEcho);
-	m_conEchoPeriod = xqcon_create<XQLineEditConnector>(echoPeriod(),
-		m_form->m_edEchoPeriod);
-	m_conWindowFunc = xqcon_create<XQComboBoxConnector>(windowFunc(),
-		m_form->m_cmbWindowFunc, Snapshot( *windowFunc()));
     m_form->m_dblWindowWidth->setRange(3.0, 200.0);
     m_form->m_dblWindowWidth->setSingleStep(1.0);
-    m_conWindowWidth = xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(),
-        m_form->m_dblWindowWidth, m_form->m_slWindowWIdth);
-	m_conDIFFreq = xqcon_create<XQLineEditConnector>(difFreq(),
-		m_form->m_edDIFFreq);
+    m_form->m_numExtraAvg->setRange(0, 100000);
+    m_form->m_dblPhaseAdv->setRange(-180.0, 180.0);
+    m_form->m_dblPhaseAdv->setSingleStep(10.0);
 
-	m_conPICEnabled = xqcon_create<XQToggleButtonConnector>(m_picEnabled,
-		m_form->m_ckbPICEnabled);
-
-	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser,
-		m_form->m_cmbPulser, ref(tr_meas));
-	m_conDSO = xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas));
+    m_conUIs = {
+        xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear),
+        xqcon_create<XQButtonConnector>(m_spectrumShow, m_form->m_btnSpectrum),
+        xqcon_create<XQLineEditConnector>(fromTrig(), m_form->m_edPos),
+        xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth),
+        xqcon_create<XQDoubleSpinBoxConnector>(phaseAdv(), m_form->m_dblPhaseAdv, m_form->m_slPhaseAdv),
+        xqcon_create<XQToggleButtonConnector>(usePNR(), m_form->m_ckbPNR),
+        xqcon_create<XQComboBoxConnector>(pnrSolverList(), m_form->m_cmbPNRSolver, Snapshot( *pnrSolverList())),
+        xqcon_create<XQComboBoxConnector>(solverList(), m_form->m_cmbSolver, Snapshot( *solverList())),
+        xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos),
+        xqcon_create<XQLineEditConnector>(bgWidth(), m_form->m_edBGWidth),
+        xqcon_create<XQLineEditConnector>(fftPos(), m_form->m_edFFTPos),
+        xqcon_create<XQLineEditConnector>(fftLen(), m_form->m_edFFTLen),
+        xqcon_create<XQSpinBoxUnsignedConnector>(extraAvg(), m_form->m_numExtraAvg),
+        xqcon_create<XQToggleButtonConnector>(exAvgIncr(), m_form->m_ckbIncrAvg),
+        xqcon_create<XQSpinBoxUnsignedConnector>(numEcho(), m_form->m_numEcho),
+        xqcon_create<XQLineEditConnector>(echoPeriod(), m_form->m_edEchoPeriod),
+        xqcon_create<XQComboBoxConnector>(windowFunc(),	m_form->m_cmbWindowFunc, Snapshot( *windowFunc())),
+        xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(), m_form->m_dblWindowWidth, m_form->m_slWindowWIdth),
+        xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq),
+        xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled),
+        xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas))
+    };
 
     waveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};

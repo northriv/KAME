@@ -51,17 +51,19 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 
 	m_form->setWindowTitle(i18n("NMR LC autotuner - ") + getLabel() );
 
-	m_conSTM1 = xqcon_create<XQComboBoxConnector>(stm1(), m_form->m_cmbSTM1, ref(tr_meas));
-	m_conSTM2 = xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas));
-	m_conNetAna = xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas));
-	m_conTarget = xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget);
-	m_conReflectionTargeted = xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted);
-	m_conReflectionRequired = xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired);
-	m_conAbortTuning = xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning);
-	m_conTuning = xqcon_create<XQLedConnector>(m_tuning, m_form->m_ledTuning);
-	m_conSucceeded = xqcon_create<XQLedConnector>(m_succeeded, m_form->m_ledSucceeded);
-	m_conUseSTM1 = xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1);
-	m_conUseSTM2 = xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2);
+    m_conUIs = {
+        xqcon_create<XQComboBoxConnector>(stm1(), m_form->m_cmbSTM1, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas)),
+        xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget),
+        xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted),
+        xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired),
+        xqcon_create<XQButtonConnector>(m_abortTuning, m_form->m_btnAbortTuning),
+        xqcon_create<XQLedConnector>(m_tuning, m_form->m_ledTuning),
+        xqcon_create<XQLedConnector>(m_succeeded, m_form->m_ledSucceeded),
+        xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1),
+        xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2)
+    };
 
 	iterate_commit([=](Transaction &tr){
 		tr[ *m_tuning] = false;

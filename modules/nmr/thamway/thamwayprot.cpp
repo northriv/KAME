@@ -52,19 +52,23 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     m_form->statusBar()->hide();
     m_form->setWindowTitle(i18n("Thamway PROT Control - ") + this->getLabel() );
 
-    m_conRFON = xqcon_create<XQToggleButtonConnector>(this->rfON(), m_form->m_ckbRFON);
     m_form->m_dblOutput->setRange(0, 1023);
     m_form->m_dblOutput->setSingleStep(1);
-    m_conOLevel = xqcon_create<XQDoubleSpinBoxConnector>(this->oLevel(), m_form->m_dblOutput, m_form->m_slOutput);
-    m_conFreq = xqcon_create<XQLineEditConnector>(this->freq(), m_form->m_edFreq);
     m_form->m_dblRXGain->setRange(0, 95);
     m_form->m_dblRXGain->setSingleStep(2.0);
-    m_conRXGain = xqcon_create<XQDoubleSpinBoxConnector>(m_rxGain, m_form->m_dblRXGain, m_form->m_slRXGain);
     m_form->m_dblRXPhase->setRange(0, 360);
     m_form->m_dblRXPhase->setSingleStep(1.0);
-    m_conRXPhase = xqcon_create<XQDoubleSpinBoxConnector>(m_rxPhase, m_form->m_dblRXPhase, m_form->m_slRXPhase);
-    m_conRXLPFBW = xqcon_create<XQLineEditConnector>(m_rxLPFBW, m_form->m_edRXLPFBW);
 
+//    XSG::m_conUIs.clear();
+//    XSG::m_form.reset();
+    m_conUIs = {
+        xqcon_create<XQToggleButtonConnector>(this->rfON(), m_form->m_ckbRFON),
+        xqcon_create<XQDoubleSpinBoxConnector>(this->oLevel(), m_form->m_dblOutput, m_form->m_slOutput),
+        xqcon_create<XQLineEditConnector>(this->freq(), m_form->m_edFreq),
+        xqcon_create<XQDoubleSpinBoxConnector>(m_rxGain, m_form->m_dblRXGain, m_form->m_slRXGain),
+        xqcon_create<XQDoubleSpinBoxConnector>(m_rxPhase, m_form->m_dblRXPhase, m_form->m_slRXPhase),
+        xqcon_create<XQLineEditConnector>(m_rxLPFBW, m_form->m_edRXLPFBW)
+    };
     this->rfON()->setUIEnabled(false);
     this->oLevel()->setUIEnabled(false);
     this->freq()->setUIEnabled(false);

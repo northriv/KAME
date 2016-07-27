@@ -84,11 +84,10 @@ protected:
 private:
     const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW;
 
-    xqcon_ptr m_conRFON, m_conFreq, m_conOLevel;
-    shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;
-
-    xqcon_ptr m_conRXGain, m_conRXPhase, m_conRXLPFBW;
+    shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;    
     shared_ptr<XListener> m_lsnRXGain, m_lsnRXPhase, m_lsnRXLPFBW;
+
+    std::deque<xqcon_ptr> m_conUIs;
 
     const qshared_ptr<FrmThamwayPROT> m_form;
 };

@@ -195,15 +195,7 @@ private:
 	void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
 	void onCondChanged (const Snapshot &shot, XValueNodeBase *);
 	void onP1CondChanged (const Snapshot &shot, XValueNodeBase *);
-	xqcon_ptr m_conP1Min, m_conP1Max, m_conP1Next, m_conPhase, m_conFreq,
-		m_conWindowFunc, m_conWindowWidth, m_conAutoWindow,
-		m_conSmoothSamples, m_conASWClearance;
-	xqcon_ptr m_conFitStatus;
-	xqcon_ptr m_conP1Strategy, m_conP1Dist, m_conRelaxFunc;
-	xqcon_ptr m_conClearAll, m_conResetFit;
-	xqcon_ptr m_conActive, m_conAutoPhase, m_conMInftyFit, m_conAbsFit;
-    xqcon_ptr m_conMode, m_conTrackPeak;
-	xqcon_ptr m_conPulser, m_conPulse1, m_conPulse2;
+    std::deque<xqcon_ptr> m_conUIs;
 
 	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,

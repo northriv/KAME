@@ -185,14 +185,7 @@ private:
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
 	atomic<int> m_isPulseInversionRequested;
 
-	xqcon_ptr m_conFromTrig, m_conWidth, m_conPhaseAdv, m_conBGPos,
-		m_conUsePNR, m_conPNRSolverList, m_conSolverList, 
-		m_conBGWidth, m_conFFTPos, m_conFFTLen, m_conExtraAv;
-	xqcon_ptr m_conExAvgIncr;
-	xqcon_ptr m_conAvgClear, m_conSpectrumShow, m_conWindowFunc, m_conWindowWidth, m_conDIFFreq;
-	xqcon_ptr m_conNumEcho, m_conEchoPeriod;
-	xqcon_ptr m_conDSO;
-	xqcon_ptr m_conPulser, m_conPICEnabled;
+    std::deque<xqcon_ptr> m_conUIs;
 
 	shared_ptr<XListener> m_lsnOnSpectrumShow, m_lsnOnAvgClear;
 	shared_ptr<XListener> m_lsnOnCondChanged;
