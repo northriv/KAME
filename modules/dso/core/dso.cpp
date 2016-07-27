@@ -67,39 +67,10 @@ XDSO::XDSO(const char *name, bool runtime,
     m_form(new FrmDSO),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
 	   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tlDump, m_form->m_btnDump)),
-	m_conAverage(xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage)),
-	m_conSingle(xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq)),
-	m_conTrace1(xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1, Snapshot( *m_trace1))),
-	m_conTrace2(xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2, Snapshot( *m_trace2))),
-	m_conTrace3(xqcon_create<XQComboBoxConnector>(m_trace3, m_form->m_cmbTrace3, Snapshot( *m_trace3))),
-	m_conTrace4(xqcon_create<XQComboBoxConnector>(m_trace4, m_form->m_cmbTrace4, Snapshot( *m_trace4))),
-	m_conFetchMode(xqcon_create<XQComboBoxConnector>(m_fetchMode, m_form->m_cmbFetchMode, Snapshot( *m_fetchMode))),
-	m_conTimeWidth(xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth)),
-	m_conVFullScale1(xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1, Snapshot( *m_vFullScale1))),
-	m_conVFullScale2(xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2, Snapshot( *m_vFullScale2))),
-	m_conVFullScale3(xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3, Snapshot( *m_vFullScale3))),
-	m_conVFullScale4(xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4, Snapshot( *m_vFullScale4))),
-	m_conTrigSource(xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource, Snapshot( *m_trigSource))),
-	m_conTrigLevel(xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel)),
-	m_conTrigFalling(xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling)),
-	m_conVOffset1(xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1)),
-	m_conVOffset2(xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2)),
-	m_conVOffset3(xqcon_create<XQLineEditConnector>(m_vOffset3, m_form->m_edVOffset3)),
-	m_conVOffset4(xqcon_create<XQLineEditConnector>(m_vOffset4, m_form->m_edVOffset4)),
-	m_conForceTrigger(xqcon_create<XQButtonConnector>(m_forceTrigger, m_form->m_btnForceTrigger)),
-	m_conRecordLength(xqcon_create<XQLineEditConnector>(m_recordLength, m_form->m_edRecordLength)),
-	m_conFIREnabled(xqcon_create<XQToggleButtonConnector>(m_firEnabled, m_form->m_ckbFIREnabled)),
-	m_conFIRBandWidth(xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth)),
-	m_conFIRSharpness(xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness)),
-	m_conFIRCenterFreq(xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq)),
-	m_conDRFMode(xqcon_create<XQComboBoxConnector>(m_dRFMode, m_form->m_cmbRFMode, Snapshot( *m_dRFMode))),
-	m_conDRFSG(xqcon_create<XQComboBoxConnector>(m_dRFSG, m_form->m_cmbRFSG, ref(tr_meas))),
-	m_conDRFFreq(xqcon_create<XQLineEditConnector>(m_dRFFreq, m_form->m_edRFFreq)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
     m_form->m_btnForceTrigger->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
     m_form->m_dblTrigPos->setRange(0.0, 100.0);
     m_form->m_dblTrigPos->setSingleStep(1.0);
-    m_conTrigPos = xqcon_create<XQDoubleSpinBoxConnector>(m_trigPos, m_form->m_dblTrigPos, m_form->m_slTrigPos);
     m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);
 	m_form->tabifyDockWidget(m_form->m_dockTrace2, m_form->m_dockTrace3);
 	m_form->tabifyDockWidget(m_form->m_dockTrace3, m_form->m_dockTrace4);
@@ -109,6 +80,38 @@ XDSO::XDSO(const char *name, bool runtime,
     m_form->m_dockTrigger->showNormal();
 	m_form->m_dockTrigger->raise();
 	m_form->resize( QSize(m_form->width(), 400) );
+
+    m_conUIs = {
+        xqcon_create<XQDoubleSpinBoxConnector>(m_trigPos, m_form->m_dblTrigPos, m_form->m_slTrigPos),
+        xqcon_create<XQLineEditConnector>(m_average, m_form->m_edAverage),
+        xqcon_create<XQToggleButtonConnector>(m_singleSequence, m_form->m_ckbSingleSeq),
+        xqcon_create<XQComboBoxConnector>(m_trace1, m_form->m_cmbTrace1, Snapshot( *m_trace1)),
+        xqcon_create<XQComboBoxConnector>(m_trace2, m_form->m_cmbTrace2, Snapshot( *m_trace2)),
+        xqcon_create<XQComboBoxConnector>(m_trace3, m_form->m_cmbTrace3, Snapshot( *m_trace3)),
+        xqcon_create<XQComboBoxConnector>(m_trace4, m_form->m_cmbTrace4, Snapshot( *m_trace4)),
+        xqcon_create<XQComboBoxConnector>(m_fetchMode, m_form->m_cmbFetchMode, Snapshot( *m_fetchMode)),
+        xqcon_create<XQLineEditConnector>(m_timeWidth, m_form->m_edTimeWidth),
+        xqcon_create<XQComboBoxConnector>(m_vFullScale1, m_form->m_cmbVFS1, Snapshot( *m_vFullScale1)),
+        xqcon_create<XQComboBoxConnector>(m_vFullScale2, m_form->m_cmbVFS2, Snapshot( *m_vFullScale2)),
+        xqcon_create<XQComboBoxConnector>(m_vFullScale3, m_form->m_cmbVFS3, Snapshot( *m_vFullScale3)),
+        xqcon_create<XQComboBoxConnector>(m_vFullScale4, m_form->m_cmbVFS4, Snapshot( *m_vFullScale4)),
+        xqcon_create<XQComboBoxConnector>(m_trigSource, m_form->m_cmbTrigSource, Snapshot( *m_trigSource)),
+        xqcon_create<XQLineEditConnector>(m_trigLevel, m_form->m_edTrigLevel),
+        xqcon_create<XQToggleButtonConnector>(m_trigFalling, m_form->m_ckbTrigFalling),
+        xqcon_create<XQLineEditConnector>(m_vOffset1, m_form->m_edVOffset1),
+        xqcon_create<XQLineEditConnector>(m_vOffset2, m_form->m_edVOffset2),
+        xqcon_create<XQLineEditConnector>(m_vOffset3, m_form->m_edVOffset3),
+        xqcon_create<XQLineEditConnector>(m_vOffset4, m_form->m_edVOffset4),
+        xqcon_create<XQButtonConnector>(m_forceTrigger, m_form->m_btnForceTrigger),
+        xqcon_create<XQLineEditConnector>(m_recordLength, m_form->m_edRecordLength),
+        xqcon_create<XQToggleButtonConnector>(m_firEnabled, m_form->m_ckbFIREnabled),
+        xqcon_create<XQLineEditConnector>(m_firBandWidth, m_form->m_edFIRBandWidth),
+        xqcon_create<XQLineEditConnector>(m_firSharpness, m_form->m_edFIRSharpness),
+        xqcon_create<XQLineEditConnector>(m_firCenterFreq, m_form->m_edFIRCenterFreq),
+        xqcon_create<XQComboBoxConnector>(m_dRFMode, m_form->m_cmbRFMode, Snapshot( *m_dRFMode)),
+        xqcon_create<XQComboBoxConnector>(m_dRFSG, m_form->m_cmbRFSG, ref(tr_meas)),
+        xqcon_create<XQLineEditConnector>(m_dRFFreq, m_form->m_edRFFreq)
+    };
 
 	iterate_commit([=](Transaction &tr){
 		tr[ *singleSequence()] = true;
@@ -132,28 +135,18 @@ XDSO::XDSO(const char *name, bool runtime,
 		 tr[ *dRFFreq()].onValueChanged().connect(m_lsnOnDRFCondChanged);
 
     });
-  
-	average()->setUIEnabled(false);
-	singleSequence()->setUIEnabled(false);
-//  fetchMode()->setUIEnabled(false);
-	timeWidth()->setUIEnabled(false);
-	trigSource()->setUIEnabled(false);
-	trigPos()->setUIEnabled(false);
-	trigLevel()->setUIEnabled(false);
-	trigFalling()->setUIEnabled(false);
-	vFullScale1()->setUIEnabled(false);
-	vFullScale2()->setUIEnabled(false);
-	vFullScale3()->setUIEnabled(false);
-	vFullScale4()->setUIEnabled(false);
-	vOffset1()->setUIEnabled(false);
-	vOffset2()->setUIEnabled(false);
-	vOffset3()->setUIEnabled(false);
-	vOffset4()->setUIEnabled(false);
-	forceTrigger()->setUIEnabled(false);
-	recordLength()->setUIEnabled(false);
-//	dRFMode()->setUIEnabled(false);
-//	dRFFreq()->setUIEnabled(false);
-//	dRFSG()->setUIEnabled(false);
+    std::vector<shared_ptr<XNode>> runtime_ui{
+        average(), singleSequence(),
+        timeWidth(), trigSource(), trigPos(), trigLevel(), trigFalling(),
+        vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4(),
+        vOffset1(), vOffset2(), vOffset3(), vOffset4(),
+        forceTrigger(), recordLength()
+        //  fetchMode(), dRFMode(), dRFFreq(), dRFSG(),
+    };
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
+    });
 
     m_waveForm->iterate_commit([=](Transaction &tr){
         tr[ *m_waveForm].setColCount(5, s_trace_names);
@@ -250,27 +243,17 @@ XDSO::execute(const atomic<bool> &terminated) {
 	//  trace2()->setUIEnabled(false);
 	//  trace3()->setUIEnabled(false);
 	//  trace4()->setUIEnabled(false);
-
-	average()->setUIEnabled(true);
-	singleSequence()->setUIEnabled(true);
-	timeWidth()->setUIEnabled(true);
-	trigSource()->setUIEnabled(true);
-	trigPos()->setUIEnabled(true);
-	trigLevel()->setUIEnabled(true);
-	trigFalling()->setUIEnabled(true);
-	vFullScale1()->setUIEnabled(true);
-	vFullScale2()->setUIEnabled(true);
-	vFullScale3()->setUIEnabled(true);
-	vFullScale4()->setUIEnabled(true);
-	vOffset1()->setUIEnabled(true);
-	vOffset2()->setUIEnabled(true);
-	vOffset3()->setUIEnabled(true);
-	vOffset4()->setUIEnabled(true);
-	forceTrigger()->setUIEnabled(true);
-	recordLength()->setUIEnabled(true);
-	dRFMode()->setUIEnabled(true);
-	dRFFreq()->setUIEnabled(true);
-	dRFSG()->setUIEnabled(true);
+    std::vector<shared_ptr<XNode>> runtime_ui{
+        average(), singleSequence(),
+        timeWidth(), trigSource(), trigPos(), trigLevel(), trigFalling(),
+        vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4(),
+        vOffset1(), vOffset2(), vOffset3(), vOffset4(),
+        forceTrigger(), recordLength(),
+    };
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(true);
+    });
 
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
@@ -409,27 +392,10 @@ XDSO::execute(const atomic<bool> &terminated) {
 
     //  trace1()->setUIEnabled(true);
     //  trace2()->setUIEnabled(true);
-
-	average()->setUIEnabled(false);
-	singleSequence()->setUIEnabled(false);
-	timeWidth()->setUIEnabled(false);
-	trigSource()->setUIEnabled(false);
-	trigPos()->setUIEnabled(false);
-	trigLevel()->setUIEnabled(false);
-	trigFalling()->setUIEnabled(false);
-	vFullScale1()->setUIEnabled(false);
-	vFullScale2()->setUIEnabled(false);
-	vFullScale3()->setUIEnabled(false);
-	vFullScale4()->setUIEnabled(false);
-	vOffset1()->setUIEnabled(false);
-	vOffset2()->setUIEnabled(false);
-	vOffset3()->setUIEnabled(false);
-	vOffset4()->setUIEnabled(false);
-	forceTrigger()->setUIEnabled(false);
-	recordLength()->setUIEnabled(false);
-//	dRFMode()->setUIEnabled(false);
-//	dRFFreq()->setUIEnabled(false);
-//	dRFSG()->setUIEnabled(false);
+    iterate_commit([=](Transaction &tr){
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
+    });
 
 	m_lsnOnAverageChanged.reset();
 	m_lsnOnSingleChanged.reset();

@@ -28,11 +28,13 @@ XSG::XSG(const char *name, bool runtime,
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Signal Gen. Control - ") + getLabel() );
 
-	m_conRFON = xqcon_create<XQToggleButtonConnector>(m_rfON, m_form->m_ckbRFON);
-	m_conOLevel = xqcon_create<XQLineEditConnector>(m_oLevel, m_form->m_edOLevel);
-	m_conFreq = xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq);
-	m_conAMON = xqcon_create<XQToggleButtonConnector>(m_amON, m_form->m_ckbAMON);
-	m_conFMON = xqcon_create<XQToggleButtonConnector>(m_fmON, m_form->m_ckbFMON);
+    m_conUIs = {
+        xqcon_create<XQToggleButtonConnector>(m_rfON, m_form->m_ckbRFON),
+        xqcon_create<XQLineEditConnector>(m_oLevel, m_form->m_edOLevel),
+        xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq),
+        xqcon_create<XQToggleButtonConnector>(m_amON, m_form->m_ckbAMON),
+        xqcon_create<XQToggleButtonConnector>(m_fmON, m_form->m_ckbFMON)
+    };
       
 	rfON()->setUIEnabled(false);
 	oLevel()->setUIEnabled(false);

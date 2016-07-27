@@ -304,25 +304,7 @@ private:
     const shared_ptr<XUIntNode> m_firstPhase; //!< 0-3, selects QPSK for the first cycle.
 
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
-	xqcon_ptr m_conOutput;
-	xqcon_ptr m_conCombMode, m_conRTMode;
-	xqcon_ptr m_conRT, m_conTau, m_conCombPW, m_conPW1, m_conPW2,
-		m_conCombNum, m_conCombPT, m_conCombP1, m_conCombP1Alt,
-		m_conASWHold, m_conASWSetup, m_conALTSep, m_conG2Setup,
-		m_conEchoNum, m_conDrivenEquilibrium, m_conNumPhaseCycle,
-		m_conCombOffRes, m_conInvertPhase, m_conConserveStEPhase,
-		m_conCombFunc, m_conP1Func, m_conP2Func,
-		m_conCombLevel, m_conP1Level, m_conP2Level,
-		m_conMasterLevel,
-		m_conQAMOffset1, m_conQAMOffset2,
-		m_conQAMLevel1, m_conQAMLevel2,
-		m_conQAMDelay1, m_conQAMDelay2,
-		m_conMoreConfigShow,
-		m_conDIFFreq,
-		m_conInduceEmission, m_conInduceEmissionPhase,
-		m_conQSWDelay, m_conQSWWidth, m_conQSWSoftSWOff, m_conQSWPiPulseOnly,
-		m_conPulseAnalyzerMode, m_conPAPulseBW, m_conPAPulseRept;
-	xqcon_ptr m_conPortSel[NUM_DO_PORTS];
+    std::deque<xqcon_ptr> m_conUIs;
 	shared_ptr<XListener> m_lsnOnPulseChanged;
 	shared_ptr<XListener> m_lsnOnMoreConfigShow;
 	void onMoreConfigShow(const Snapshot &shot, XTouchableNode *);

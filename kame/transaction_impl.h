@@ -31,8 +31,24 @@ template <class XN>
 XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCreator;
 
 template <class XN>
-atomic<int64_t> Node<XN>::Packet::s_serial = Node<XN>::Packet::SERIAL_FIRST;
-
+XThreadLocal<typename Node<XN>::SerialGenerator::cnt_t> Node<XN>::SerialGenerator::stl_serial;
+template <class XN>
+atomic<typename Node<XN>::ProcessCounter::cnt_t> Node<XN>::ProcessCounter::s_count = 0;
+template <class XN>
+XThreadLocal<typename Node<XN>::ProcessCounter> Node<XN>::stl_processID;
+template <class XN>
+Node<XN>::ProcessCounter::ProcessCounter() {
+    for(;;) {
+        cnt_t oldv = s_count;
+        cnt_t newv = oldv + (cnt_t)1u;
+        if( !newv) ++newv;
+        if(s_count.compare_set_strong(oldv, newv)) {
+            //avoids zero.
+            m_var = newv;
+            break;
+        }
+    }
+}
 template <class XN>
 void
 Node<XN>::Packet::print_() const {
@@ -129,16 +145,15 @@ Node<XN>::PacketWrapper::print_() const {
 
 template <class XN>
 void
-Node<XN>::Linkage::negotiate_internal(int64_t &started_time, float mult_wait) noexcept {
+Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
     for(int ms = 0;;) {
-        //diverting Node<XN>::Packet::newSerial() for a serialization of transactions.
-        int64_t transaction_started_time = m_transaction_started_time;
+        auto transaction_started_time = m_transaction_started_time;
         if( !transaction_started_time)
             break; //collision has not been detected.
-        int64_t dt = started_time - transaction_started_time;
+        auto dt = started_time - transaction_started_time;
         if(dt <= 0)
             break; //This thread is the oldest.
-        int64_t dt2 = Node<XN>::Packet::newSerial() - transaction_started_time;
+        auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
 
         if(mult_wait * dt < dt2)
             break;
@@ -166,7 +181,7 @@ Node<XN>::Node() :
     m_allocatorPacketList(&m_link->m_mempoolPacketList),
     m_allocatorPacketWrapper(&m_link->m_mempoolPacketWrapper) {
     local_shared_ptr<Packet> packet(new Packet());
-    m_link->reset(new PacketWrapper(packet, Packet::SERIAL_INIT));
+    m_link->reset(new PacketWrapper(packet, SerialGenerator::gen()));
     //Use create() for this hack.
     packet->m_payload.reset(( *stl_funcPayloadCreator)(static_cast<XN&>( *this)));
     *stl_funcPayloadCreator = nullptr;
@@ -695,10 +710,10 @@ Node<XN>::snapshotSupernode(const shared_ptr<Linkage > &linkage, shared_ptr<Link
 
 template <class XN>
 void
-Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, int64_t started_time) const {
+Node<XN>::snapshot(Snapshot<XN> &snapshot, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const {
     local_shared_ptr<PacketWrapper> target;
     for(;;) {
-        snapshot.m_serial = Node<XN>::Packet::newSerial();
+        snapshot.m_serial = SerialGenerator::gen();
         target = *m_link;
         if(target->hasPriority()) {
             if( !multi_nodal)
@@ -765,7 +780,7 @@ typename Node<XN>::BundledStatus
 Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
     const shared_ptr<Node> &subnode,
     local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-    int64_t &started_time, int64_t bundle_serial) {
+    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial) {
 
     if( !subwrapper->hasPriority()) {
         shared_ptr<Linkage > linkage(subwrapper->bundledBy());
@@ -828,7 +843,7 @@ Node<XN>::bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper,
 template <class XN>
 typename Node<XN>::BundledStatus
 Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
-    int64_t &started_time, int64_t bundle_serial, bool is_bundle_root) {
+    typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root) {
 
     assert(oldsuperwrapper->packet());
     assert(oldsuperwrapper->packet()->size());
@@ -861,7 +876,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 //        local_shared_ptr<PacketWrapper> superwrapper(
 //            new PacketWrapper( *oldsuperwrapper, bundle_serial));
         local_shared_ptr<Packet> &newpacket(
-            reverseLookup(superwrapper->packet(), true, Packet::newSerial()));
+            reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
         assert(newpacket->size());
         assert(newpacket->missing());
 
@@ -957,7 +972,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 //        superwrapper.reset(new PacketWrapper( *oldsuperwrapper, bundle_serial));
         if( !missing) {
             local_shared_ptr<Packet> &newpacket(
-                reverseLookup(superwrapper->packet(), true, Packet::newSerial()));
+                reverseLookup(superwrapper->packet(), true, SerialGenerator::gen()));
             newpacket->m_missing = false;
             STRICT_assert(newpacket->checkConsistensy(newpacket));
         }
@@ -1039,7 +1054,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
-//            m_link->negotiate(tr.m_started_time, 1.4f);
+            m_link->negotiate(tr.m_started_time, 4.0f);
             if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
@@ -1051,7 +1066,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
         }
 
 //        if(retry == 0)
-//            m_link->negotiate(tr.m_started_time);
+//            m_link->negotiate(tr.m_started_time, 4.0f);
         //Unbundling this node from the super packet.
         UnbundledStatus status = unbundle(nullptr, tr.m_started_time, m_link, wrapper,
             tr.isMultiNodal() ? &tr.m_oldpacket : nullptr, tr.isMultiNodal() ? &newwrapper : nullptr);
@@ -1074,7 +1089,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 
 template <class XN>
 typename Node<XN>::UnbundledStatus
-Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
+Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
     const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
     const local_shared_ptr<Packet> *oldsubpacket, local_shared_ptr<PacketWrapper> *newsubwrapper_returned,
     local_shared_ptr<PacketWrapper> *oldsuperwrapper) {
@@ -1111,7 +1126,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, int64_t &time_started,
         return UNBUNDLE_SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-//        it->linkage->negotiate(time_started, 1.2f);
+//        it->linkage->negotiate(time_started, 2.0f);
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UNBUNDLE_DISTURBED;
         if(oldsuperwrapper) {

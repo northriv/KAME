@@ -20,6 +20,7 @@
 #include <vector>
 #include "atomic.h"
 #include "allocator.h"
+#include "xtime.h"
 
 namespace Transactional {
 
@@ -177,7 +178,7 @@ private:
     struct PacketList;
     struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
-        PacketList() : fast_vector<local_shared_ptr<Packet> >(), m_serial(Packet::SERIAL_INIT) {}
+        PacketList() : fast_vector<local_shared_ptr<Packet> >(), m_serial(SerialGenerator::gen()) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
@@ -186,8 +187,8 @@ private:
     template <class P>
     struct PayloadWrapper : public P::Payload {
         virtual typename PayloadWrapper::rettype_clone clone(Transaction<XN> &tr, int64_t serial) {
-            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
-//            auto p = make_local_shared<PayloadWrapper>( *this);
+//            auto p = allocate_local_shared<PayloadWrapper>(this->m_node->m_allocatorPayload, *this);
+            auto p = make_local_shared<PayloadWrapper>( *this);
             p->m_tr = &tr;
             p->m_serial = serial;
             return p;
@@ -229,25 +230,56 @@ private:
         //! For debugging.
         bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
 
-        //! Generates a serial number assigned to bundling and transaction.\n
-        //! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
-        //! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
-        static int64_t newSerial() noexcept {
-            for(;;) {
-                int64_t oldserial;
-                int64_t newserial;
-                oldserial = s_serial;
-                newserial = oldserial + 1;
-                if(newserial == SERIAL_NULL) newserial++;
-                if(s_serial.compare_set_strong(oldserial, newserial))
-                    return newserial;
-            }
-        }
-        enum {SERIAL_NULL = 0, SERIAL_FIRST = 1, SERIAL_INIT = -1};
+        enum {SERIAL_NULL = 0};
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;
-        static atomic<int64_t> s_serial;
         bool m_missing;
+    };
+
+    struct NegotiationCounter {
+        using cnt_t = int64_t;
+        static cnt_t now() noexcept {
+            auto tm = XTime::now();
+            return (cnt_t)tm.sec() * 1000000uL + tm.usec();
+        }
+    private:
+    };
+    struct ProcessCounter {
+        using cnt_t = uint16_t;
+        ProcessCounter();
+        operator cnt_t() const noexcept {return m_var;}
+    private:
+        cnt_t m_var;
+        static atomic<cnt_t> s_count;
+    };
+    //! Holds the current porcess(thread) internal ID. Taking non-zero value.
+    static XThreadLocal<ProcessCounter> stl_processID;
+    //! Generates a serial number assigned to bundling and transaction.\n
+    //! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
+    //! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
+    struct SerialGenerator {
+        struct cnt_t {
+            cnt_t() {
+                m_var = (int64_t)*stl_processID * 1000000000000uLL;
+            }
+            operator int64_t() const noexcept {return m_var;}
+            //16bit process ID + 48bit counter.
+            cnt_t &operator++(int) noexcept {
+                m_var = ((m_var + 1) & 0xffffffffffffuLL)
+                | ((m_var) & 0xffff000000000000uLL);
+                return *this;
+            }
+            int64_t m_var;
+        };
+        static int64_t current() noexcept {
+            return *stl_serial;
+        }
+        static int64_t gen() noexcept {
+            auto &v = *stl_serial;
+            v++;
+            return v;
+        }
+        static XThreadLocal<cnt_t> stl_serial;
     };
     //! A class wrapping Packet and providing indice and links for lookup.\n
     //! If packet() is absent, a super node should have the up-to-date Packet.\n
@@ -281,26 +313,26 @@ private:
     struct Linkage : public atomic_shared_ptr<PacketWrapper> {
         Linkage() noexcept : atomic_shared_ptr<PacketWrapper>(), m_transaction_started_time(0) {}
         ~Linkage() {this->reset(); } //Packet should be freed before memory pools.
-        atomic<int64_t> m_transaction_started_time;
+        atomic<typename NegotiationCounter::cnt_t> m_transaction_started_time;
         //! Puts a wait so that the slowest thread gains a chance to finish its transaction, if needed.
-        void negotiate(int64_t &started_time, float mult_wait = 6.0f) noexcept {
-            int64_t transaction_started_time = m_transaction_started_time;
+        void negotiate(typename NegotiationCounter::cnt_t &started_time, float mult_wait = 6.0f) noexcept {
+            auto transaction_started_time = m_transaction_started_time;
             if( !transaction_started_time)
                 return; //collision has not been detected.
             negotiate_internal(started_time, mult_wait);
         }
-        void negotiate_internal(int64_t &started_time, float mult_wait) noexcept;
+        void negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept;
         MemoryPool m_mempoolPayload;
         MemoryPool m_mempoolPacket;
         MemoryPool m_mempoolPacketList;
         MemoryPool m_mempoolPacketWrapper;
+        NegotiationCounter m_negotiationCounter;
     };
 
     friend class Snapshot<XN>;
     friend class Transaction<XN>;
 
-    void snapshot(Snapshot<XN> &target, bool multi_nodal,
-        int64_t started_time) const;
+    void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
         m_link->negotiate(target.m_started_time, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
@@ -336,10 +368,10 @@ private:
     //! cleared and each PacketWrapper::bundledBy() will point to its upper node.
     //! \sa snapshot().
     BundledStatus bundle(local_shared_ptr<PacketWrapper> &target,
-        int64_t &started_time, int64_t bundle_serial, bool is_bundle_root);
+        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial, bool is_bundle_root);
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
-        int64_t &started_time, int64_t bundle_serial);
+        typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial);
     enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
         UNBUNDLE_SUBVALUE_HAS_CHANGED,
         UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
@@ -351,7 +383,7 @@ private:
     //! \param[in] oldsubpacket If not zero, the packet will be compared with the packet inside the super packet.
     //! \param[in,out] newsubwrapper If \a oldsubpacket and \a newsubwrapper are not zero, \a newsubwrapper will be a new value.
     //! If \a oldsubpacket is zero, unloaded value  of \a sublinkage will be substituted to \a newsubwrapper.
-    static UnbundledStatus unbundle(const int64_t *bundle_serial, int64_t &time_started,
+    static UnbundledStatus unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cnt_t &time_started,
         const shared_ptr<Linkage> &sublinkage, const local_shared_ptr<PacketWrapper> &null_linkage,
         const local_shared_ptr<Packet> *oldsubpacket = NULL,
         local_shared_ptr<PacketWrapper> *newsubwrapper = NULL,
@@ -414,7 +446,7 @@ public:
     explicit Snapshot(Transaction<XN>&&x) noexcept : m_packet(std::move(x.m_packet)), m_serial(x.m_serial) {}
     Snapshot& operator=(const Snapshot&x) noexcept = default;
     explicit Snapshot(const Node<XN>&node, bool multi_nodal = true) {
-        node.snapshot( *this, multi_nodal, Node<XN>::Packet::newSerial());
+        node.snapshot( *this, multi_nodal, Node<XN>::NegotiationCounter::now());
     }
 
     //! \return Payload instance for \a node, which should be included in the snapshot.
@@ -515,7 +547,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(Node<XN>&node, bool multi_nodal = true) :
         Snapshot<XN>(), m_oldpacket(), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::Packet::newSerial();
+        m_started_time = Node<XN>::NegotiationCounter::now();
         node.snapshot( *this, multi_nodal);
         assert( &this->m_packet->node() == &node);
         assert( &this->m_oldpacket->node() == &node);
@@ -524,7 +556,7 @@ public:
     //! \param[in] multi_nodal If false, the snapshot and following commitment are not aware of the contents of the child nodes.
     explicit Transaction(const Snapshot<XN> &x, bool multi_nodal = true) noexcept : Snapshot<XN>(x),
         m_oldpacket(this->m_packet), m_multi_nodal(multi_nodal) {
-        m_started_time = Node<XN>::Packet::newSerial();
+        m_started_time = Node<XN>::NegotiationCounter::now();
     }
     ~Transaction() {
         //Do not leave the time stamp.
@@ -561,10 +593,10 @@ public:
     //! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
     template <typename T, typename tArgRef>
     void mark(T &talker, tArgRef arg) {
-        if(Message_<XN> *m = talker.createMessage(arg)) {
+        if(auto m = talker.createMessage(this->m_serial, arg)) {
             if( !m_messages)
                 m_messages.reset(new MessageList);
-            m_messages->emplace_back(m);
+            m_messages->push_back(m);
         }
     }
     //! Cancels reserved events made toward \a x.
@@ -624,7 +656,7 @@ private:
     Transaction &operator++() {
         Node<XN> &node(this->m_packet->node());
         if(isMultiNodal()) {
-            int64_t time(node.m_link->m_transaction_started_time);
+            auto time(node.m_link->m_transaction_started_time);
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
@@ -637,8 +669,9 @@ private:
 
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
-    int64_t m_started_time;
-    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
+    typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
+//    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
+    typedef std::vector<shared_ptr<Message_<XN> >> MessageList;
     unique_ptr<MessageList> m_messages;
 };
 
@@ -721,9 +754,9 @@ Node<XN>::reverseLookup(local_shared_ptr<Packet> &superpacket,
             copy_branch, tr_serial, set_missing, uppernode);
 
     if(copy_branch && (( *foundpacket)->payload()->m_serial != tr_serial)) {
-//        foundpacket->reset(new Packet( **foundpacket));
-        *foundpacket = allocate_local_shared<Packet>(
-                (*foundpacket)->node().m_allocatorPacket, **foundpacket);
+        foundpacket->reset(new Packet( **foundpacket));
+//        *foundpacket = allocate_local_shared<Packet>(
+//                (*foundpacket)->node().m_allocatorPacket, **foundpacket);
     }
     return foundpacket;
 }

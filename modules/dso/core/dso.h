@@ -238,16 +238,8 @@ private:
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onDRFCondChanged(const Snapshot &shot, XValueNodeBase *);
   
-    xqcon_ptr m_conAverage, m_conSingle,
-		m_conTrace1, m_conTrace2, m_conTrace3, m_conTrace4;
-    xqcon_ptr m_conFetchMode, m_conTimeWidth,
-		m_conVFullScale1, m_conVFullScale2, m_conVFullScale3, m_conVFullScale4;
-    xqcon_ptr m_conTrigSource, m_conTrigPos, m_conTrigLevel, m_conTrigFalling;
-    xqcon_ptr m_conVOffset1, m_conVOffset2, m_conVOffset3, m_conVOffset4,
-		m_conForceTrigger, m_conRecordLength;
-    xqcon_ptr m_conFIREnabled, m_conFIRBandWidth, m_conFIRSharpness, m_conFIRCenterFreq;
-    xqcon_ptr m_conDRFMode, m_conDRFSG, m_conDRFFreq;
- 
+    std::deque<xqcon_ptr> m_conUIs;
+
 	const shared_ptr<XStatusPrinter> m_statusPrinter;
 
 	void *execute(const atomic<bool> &);

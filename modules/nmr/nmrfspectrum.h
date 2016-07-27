@@ -77,10 +77,7 @@ private:
 
     shared_ptr<XListener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
     
-	xqcon_ptr m_conCenterFreq,
-		m_conFreqSpan, m_conFreqStep;
-	xqcon_ptr m_conActive, m_conSG1, m_conSG1FreqOffset,
-        m_conTuneStep, m_conTuneStrategy, m_conAutoTuner, m_conPulser;
+    std::deque<xqcon_ptr> m_conUIs;
 
 	void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
 	void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.

@@ -59,16 +59,18 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         tr[ *tuneCycleStrategy()] = STRATEGY_ASIS;
     });
   
-	m_conSG1FreqOffset = xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset);
-	m_conCenterFreq = xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq);
-	m_conFreqSpan = xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan);
-	m_conFreqStep = xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep);
-	m_conSG1 = xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas));
-	m_conAutoTuner = xqcon_create<XQComboBoxConnector>(m_autoTuner, m_form->m_cmbAutoTuner, ref(tr_meas));
-	m_conPulser = xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas));
-	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-    m_conTuneStep = xqcon_create<XQLineEditConnector>(m_tuneCycleStep, m_form->m_edTuneCycleStep);
-    m_conTuneStrategy = xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy));
+    m_conUIs = {
+        xqcon_create<XQLineEditConnector>(m_sg1FreqOffset, m_form->m_edSG1FreqOffset),
+        xqcon_create<XQLineEditConnector>(m_centerFreq, m_form->m_edCenterFreq),
+        xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan),
+        xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep),
+        xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_autoTuner, m_form->m_cmbAutoTuner, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
+        xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
+        xqcon_create<XQLineEditConnector>(m_tuneCycleStep, m_form->m_edTuneCycleStep),
+        xqcon_create<XQComboBoxConnector>(m_tuneCycleStrategy, m_form->m_cmbTuneCycleStrategy, Snapshot( *m_tuneCycleStrategy))
+    };
 
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnActiveChanged = tr[ *active()].onValueChanged().connectWeakly(
