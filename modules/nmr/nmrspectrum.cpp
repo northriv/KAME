@@ -98,8 +98,8 @@ XNMRSpectrum::getMinFreq(const Snapshot &shot_this) const {
 double
 XNMRSpectrum::getMaxFreq(const Snapshot &shot_this) const {
 	double freq = -log(shot_this[ *maxValue()]) * shot_this[ *centerFreq()];
-	freq = std::max(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
-	return freq * 1e6;
+    freq = std::max(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
+    return freq * 1e6;
 }
 double
 XNMRSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const {
