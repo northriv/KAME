@@ -866,7 +866,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         oldsuperwrapper = std::move(superwrapper);
     }
 
-    std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
+    fast_vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(;;) {
         local_shared_ptr<PacketWrapper> superwrapper =

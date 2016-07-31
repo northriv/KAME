@@ -166,7 +166,7 @@ public:
 
     void print_() const;
 
-    typedef fast_vector<shared_ptr<XN> > NodeList;
+    typedef fast_vector<shared_ptr<XN>, 2> NodeList;
     typedef typename NodeList::iterator iterator;
     typedef typename NodeList::const_iterator const_iterator;
 
@@ -176,9 +176,9 @@ private:
     struct Packet;
 
     struct PacketList;
-    struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
+    struct PacketList : public fast_vector<local_shared_ptr<Packet>, 2> {
         shared_ptr<NodeList> m_subnodes;
-        PacketList() : fast_vector<local_shared_ptr<Packet> >(), m_serial(SerialGenerator::gen()) {}
+        PacketList() : fast_vector<local_shared_ptr<Packet>, 2>(), m_serial(SerialGenerator::gen()) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
@@ -670,8 +670,7 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-//    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
-    typedef std::vector<shared_ptr<Message_<XN> >> MessageList;
+    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
     unique_ptr<MessageList> m_messages;
 };
 

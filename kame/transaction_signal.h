@@ -99,7 +99,7 @@ private:
     typedef Event<XN, tArg, tArgRef> Event_;
     typedef XListenerImpl_<Event<XN, tArg, tArgRef> > Listener_;
     typedef std::vector<weak_ptr<Listener_> > ListenerList;
-    typedef std::vector<shared_ptr<XListener> > UnmarkedListenerList;
+    typedef fast_vector<shared_ptr<XListener> > UnmarkedListenerList;
     shared_ptr<ListenerList> m_listeners;
 
     void connect(const shared_ptr<Listener_> &);

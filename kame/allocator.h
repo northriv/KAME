@@ -132,24 +132,65 @@ public:
     using const_pointer = const T*;
     using iterator = pointer;
     using const_iterator = const_pointer;
-    fast_vector() : m_size(0) {m_vector.shrink_to_fit();}
-//    ~fast_vector() {clear();}
-    fast_vector(const fast_vector &r) : m_size(r.m_size), m_array(), m_vector() {
-        if(r.is_fixed()) {
-            std::copy(r.m_array.begin(), r.m_array.end(), m_array.begin());
-        }
-        else if(r.m_vector.size() <= max_fixed_size) {
-            std::copy(r.m_vector.begin(), r.m_vector.end(), m_array.begin());
+    fast_vector() : m_size(0) {}
+    ~fast_vector() { destroy(); }
+    fast_vector(size_type size) {
+        if(size > max_fixed_size) {
+            new (&m_vector) std::vector<T>(size);
+            m_size = HAS_STD_VECTOR;
         }
         else {
-            m_vector = std::move(std::vector<T>(r.m_vector));
+            for(size_type i = 0; i < size; ++i)
+                new (m_array + i) T();
+            m_size = size;
         }
+    }
+    fast_vector(const fast_vector &r) : m_size(0) {
+        this->operator=(r);
+    }
+    fast_vector(fast_vector &&r) : m_size(0) {
+        this->operator=(std::move(r));
+    }
+    fast_vector& operator=(const fast_vector &r) {
+        destroy();
+        if(r.is_fixed()) {
+            m_size = r.m_size;
+            for(size_type i = 0; i < m_size; ++i) {
+                new (m_array + i) T(r.m_array[i]);
+            }
+        }
+        else if(r.m_vector.size() <= max_fixed_size) {
+            m_size = r.m_vector.size();
+            for(size_type i = 0; i < m_size; ++i) {
+                new (m_array + i) T(r.m_vector[i]);
+            }
+        }
+        else {
+            m_size = HAS_STD_VECTOR;
+            new (&m_vector) std::vector<T>(r.m_vector);
+        }
+        return *this;
+    }
+    fast_vector& operator=(fast_vector &&r) {
+        destroy();
+        if(r.is_fixed()) {
+            m_size = r.m_size;
+            for(size_type i = 0; i < m_size; ++i) {
+                new (m_array + i) T(std::move(r.m_array[i]));
+            }
+            r.clear_fixed();
+        }
+        else {
+            m_size = HAS_STD_VECTOR;
+            new (&m_vector) std::vector<T>(std::move(r.m_vector));
+        }
+        return *this;
     }
     iterator begin() noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
     const_iterator begin() const noexcept {return is_fixed() ? &m_array[0] : &m_vector[0];}
     iterator end() noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
     const_iterator end() const noexcept {return is_fixed() ? &m_array[m_size] : &m_vector[m_vector.size()];}
-    size_type size() const noexcept {return m_size;}
+    size_type size() const noexcept {return is_fixed() ? m_size : m_vector.size();}
     bool empty() const noexcept {return !size();}
     reference operator[](size_type n) {return is_fixed() ? m_array[n] : m_vector[n];}
     const_reference operator[](size_type n) const {return is_fixed() ? m_array[n] : m_vector[n];}
@@ -159,45 +200,35 @@ public:
     const_reference front() const {return is_fixed() ? m_array.front() : m_vector.front();}
     reference back() {return (*this)[this->size() - 1];}
     const_reference back() const {return (*this)[this->size() - 1];}
+    void push_back(const T& x) {
+        emplace_back(x);
+    }
     void push_back(T&& x) {
-        if(m_size < max_fixed_size) {
-            m_array[m_size] = std::move(x);
-        }
-        else {
-            if(m_size == max_fixed_size) {
-                m_vector = std::move(std::vector<T>(m_array.begin(), m_array.end()));
-                for(auto &&x: m_array)
-                    x = std::move(T());
-            }
-            m_vector.push_back(x);
-        }
-        ++m_size;
+        emplace_back(std::move(x));
     }
     template <class... Args>
     void emplace_back(Args&&... args) {
         if(m_size < max_fixed_size) {
-            m_array[m_size] = T(std::forward<Args>(args)...);
+            new (m_array + m_size) T(std::forward<Args>(args)...);
+            ++m_size;
         }
         else {
             if(m_size == max_fixed_size) {
-                m_vector = std::move(std::vector<T>(m_array.begin(), m_array.end()));
-                for(auto &&x: m_array)
-                    x = std::move(T());
+                move_fixed_to_var(m_size);
             }
             m_vector.emplace_back(std::forward<Args>(args)...);
         }
-        ++m_size;
     }
     iterator erase(const_iterator position) {
         if(is_fixed()) {
             for(auto it = const_cast<iterator>(position);;) {
                  auto nit = it + 1;
                  if(nit == end()) {
-                     *it = std::move(T());
+                     it->~T();
                      break;
                  }
                  else
-                     *it = *nit;
+                     *it = std::move(*nit);
                  it = nit;
             }
             --m_size;
@@ -205,7 +236,6 @@ public:
         }
         else {
             auto it = m_vector.erase(m_vector.begin() + (position - begin()));
-            --m_size;
             return &*it;
         }
     }
@@ -216,45 +246,66 @@ public:
         }
         else {
             m_vector.clear();
-//            shrink_to_fit();
         }
-        m_size = 0;
     }
     void resize(size_type sz) {
         if(is_fixed()) {
             if(sz > max_fixed_size) {
-                auto eit = m_array.begin() + m_size;
-                m_vector = std::move(std::vector<T>(m_array.begin(), eit));
-                clear_fixed();
-                m_vector.resize(sz);
+                move_fixed_to_var(sz);
             }
             else {
+                for(size_type i = m_size; i < sz; ++i)
+                    new (m_array + i) T();
                 for(size_type i = sz; i < m_size; ++i)
-                    m_array[i] = std::move(T());
+                    m_array[i].~T();
+                m_size = sz;
             }
         }
         else {
             m_vector.resize(sz);
 //            shrink_to_fit();
         }
-        m_size = sz;
     }
-private:
-    bool is_fixed() const noexcept {return m_vector.empty();}
     void shrink_to_fit() {
         if( !is_fixed()) return;
         if(m_vector.capacity() - m_vector.size() > max_fixed_size) {
             m_vector.shrink_to_fit();
         }
     }
-    void clear_fixed() {
-        auto eit = m_array.begin() + m_size;
-        for(auto it = m_array.begin(); it != eit; ++it)
-            *it = std::move(T());
+private:
+    void destroy() {
+        clear();
+        if(!is_fixed())
+            m_vector.~vector();
+    }
+    bool is_fixed() const noexcept {return m_size != (size_type)HAS_STD_VECTOR;}
+    void clear_fixed() noexcept {
+        assert(is_fixed());
+        for(size_type i = 0; i < m_size; ++i)
+            m_array[i].~T();
+        m_size = 0;
+    }
+    void move_fixed_to_var(size_type new_size) {
+        std::vector<T> tmp;
+        tmp.reserve(m_size);
+        for(size_type i = 0; i < m_size; ++i) {
+            tmp.emplace_back(std::move(m_array[i]));
+            m_array[i].~T();
+        }
+        new (&m_vector) std::vector<T>();
+        m_vector.reserve(std::max(new_size, (size_type)(max_fixed_size * 2)));
+        assert(new_size >= m_size);
+        for(auto &&x: tmp)
+            m_vector.emplace_back(std::move(x));
+        m_vector.resize(new_size);
+        m_size = HAS_STD_VECTOR;
     }
     size_type m_size;
-    std::array<T, max_fixed_size> m_array;
-    std::vector<T> m_vector;
+    enum {HAS_STD_VECTOR = -1};
+    union {
+        T m_array[max_fixed_size];
+        std::vector<T> m_vector;
+    };
 };
 
 }
