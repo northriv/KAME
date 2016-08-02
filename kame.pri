@@ -76,3 +76,7 @@ win32-msvc* {
 else {
     QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
 }
+win32-g++ {
+#workaround for movaps alignment problem
+    QMAKE_CXXFLAGS += -mstackrealign
+}
