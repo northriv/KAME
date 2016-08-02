@@ -27,18 +27,24 @@
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
-    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
-                         QGL::DepthBuffer | QGL::AccumBuffer |
-                         QGL::SampleBuffers)
-               , parent, 0, Qt::WindowFlags(fl | Qt::WA_PaintOnScreen)) {
-    if( !format().directRendering()) dbgPrint("direct rendering disabled");
+    QOpenGLWidget(parent) {
 //    if( !parent->layout() ) {
 //        parent->setLayout(new QHBoxLayout(this));
 //        parent->layout()->addWidget(this);
 //    }
     setMouseTracking(true);
-    setAutoFillBackground(false);
 
+    QSurfaceFormat format;
+    format.setAlphaBufferSize(8);
+    format.setDepthBufferSize(16);
+    format.setSamples(2);
+//    format.setVersion(2, 2);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+
+//    QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
+//                             QGL::DepthBuffer | QGL::AccumBuffer |
+//                             QGL::SampleBuffers
+    setFormat(format);
 }
 XQGraph::~XQGraph() {
     m_painter.reset();
@@ -119,8 +125,8 @@ XQGraph::showEvent ( QShowEvent *) {
 		m_painter.reset();
 		// m_painter will be re-set in the constructor.
 		new XQGraphPainter(graph, this);
-        glInit();
 //        setMouseTracking(true);
+        initializeGL();
     }
 }
 void
@@ -131,44 +137,22 @@ XQGraph::hideEvent ( QHideEvent * ) {
 }
 //! openGL stuff
 void
-XQGraph::initializeGL () {
-    glEnable(GL_MULTISAMPLE);
-
+XQGraph::initializeGL() {
     if(m_painter )
         m_painter->initializeGL();
 }
 void
 XQGraph::resizeGL ( int width, int height ) {
     // be aware of retina display.
-    double pixel_ratio =
-#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
-        devicePixelRatio();
-#else
-        1.0;
-#endif
+    double pixel_ratio = devicePixelRatio();
     glViewport( 0, 0, (GLint)(width * pixel_ratio),
                 (GLint)(height * pixel_ratio));
     if(m_painter )
         m_painter->resizeGL(width, height);
 }
 
-void XQGraph::paintEvent(QPaintEvent *event) {
-    if(g_bUseOverpaint) {
-        makeCurrent();
-        if(m_painter )
-            m_painter->paintGL();
-    }
-    else {
-        QGLWidget::paintEvent(event);
-    }
-}
 void
-XQGraph::paintGL () {
-    if( !g_bUseOverpaint) {
-        if(m_painter )
-            m_painter->paintGL();
-    //    glEnd();
-    }
-    else {
-    }
+XQGraph::paintGL() {
+    if(m_painter )
+        m_painter->paintGL();
 }

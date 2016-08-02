@@ -142,8 +142,6 @@ private:
 
 //! If true, Log all dbgPrint().
 extern bool g_bLogDbgPrint;
-//! If true, use overpaint feature over OpenGL context.
-extern bool g_bUseOverpaint;
 //! If true, use mlockall MCL_FUTURE.
 extern bool g_bMLockAlways;
 //! If true, use mlock.

@@ -29,7 +29,6 @@
 #include "xsignal.h"
 #include "icons/icon.h"
 #include "messagebox.h"
-#include <QGLFormat>
 #include <QFile>
 #include <QTextCodec>
 #include <QTranslator>
@@ -89,9 +88,7 @@ int main(int argc, char *argv[]) {
 	options.add("logging", ki18n("log debugging info."));
 	options.add("mlockall", ki18n("never cause swapping, perhaps you need 'ulimit -l <MB>'"));
 	options.add("nomlock", ki18n("never use mlock"));
-    options.add("nooverpaint", ki18n("draws text with QGLWidget::drawText"));
     options.add("nodr");
-	options.add("nodirectrender", ki18n("do not use direct rendering"));
 	options.add("moduledir <path>", ki18n("search modules in <path> instead of the standard dirs"));
 	options.add("+[File]", ki18n("measurement file to open"));
 
@@ -103,13 +100,11 @@ int main(int argc, char *argv[]) {
 
 	KCmdLineArgs *args = KCmdLineArgs::parsedArgs();
 	g_bLogDbgPrint = args->isSet("logging");
-    g_bUseOverpaint = args->isSet("overpaint");
     g_bMLockAlways = args->isSet("mlockall");
 	g_bUseMLock = args->isSet("mlock");
 	QStringList  module_dir = args->getOptionList("moduledir");
 	if(module_dir.isEmpty())
 		module_dir = KGlobal::dirs()->resourceDirs("lib");
-    bool usedirectrender =args->isSet("directrender") ;
 
     XString mesfile = args->count() ? args->arg(0) : "";
     args->clear();
@@ -127,15 +122,11 @@ int main(int argc, char *argv[]) {
 
     QCommandLineOption logOption(QStringList() << "l" << "logging", "Log debugging info.");
     parser.addOption(logOption);
-    QCommandLineOption noOverpaintOption(QStringList() << "o" << "nooverpaint", "draws text with QGLWidget::drawText");
-    parser.addOption(noOverpaintOption);
     QCommandLineOption mlockAllOption(QStringList() << "m" << "mlockall",
           "Never cause swapping, perhaps you need 'ulimit -l <MB>'");
     parser.addOption(mlockAllOption);
     QCommandLineOption noMLockOption(QStringList() << "n" << "nomlock", "Never use mlock");
     parser.addOption(noMLockOption);
-    QCommandLineOption noDirectRenderOption("nodr", QCoreApplication::translate("main", "Do not use direct rendering"));
-    parser.addOption(noDirectRenderOption);
 
     QCommandLineOption moduleDirectoryOption("moduledir",
             QCoreApplication::translate("main", "search modules in <path> instead of the standard dirs"),
@@ -147,11 +138,9 @@ int main(int argc, char *argv[]) {
     QStringList args = parser.positionalArguments();
 
     g_bLogDbgPrint = parser.isSet(logOption);
-    g_bUseOverpaint = !parser.isSet(noOverpaintOption);
     g_bMLockAlways = parser.isSet(mlockAllOption);
     g_bUseMLock = !parser.isSet(noMLockOption);
 	QStringList  module_dir = parser.values(moduleDirectoryOption);
-    bool usedirectrender = !parser.isSet(noDirectRenderOption);
 
     XString mesfile = args.count() ? args.at(0) : "";
     args.clear();
@@ -192,12 +181,6 @@ int main(int argc, char *argv[]) {
             if(isMemLockAvailable())
                 mlock(dummy_for_mlock, sizeof(dummy_for_mlock)); //reserve stack of main thread.
 
-            if( !usedirectrender) {
-                QGLFormat f;
-                f.setDirectRendering( false);
-                QGLFormat::setDefaultFormat( f );
-            }
-            
             // Use UTF8 conversion from std::string to QString.
 //            QTextCodec::setCodecForLocale(QTextCodec::codecForName("utf8") );
             
@@ -289,9 +272,6 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
-    if( !(QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_2_1)) {
-        gErrPrint(i18n_noncontext("KAME requires OpenGL 2.1 or later for graph drawing."));
-    }
     int ret = app.exec();
 
 //#if defined __WIN32__ || defined WINDOWS || defined _WIN32

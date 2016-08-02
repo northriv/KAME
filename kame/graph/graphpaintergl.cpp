@@ -15,6 +15,7 @@
 #include "graphwidget.h"
 #include <QTimer>
 #include <GL/glu.h>
+#include <QPainter>
 
 #if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
     #include <QWindow>
@@ -77,12 +78,7 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 			shared_from_this(), &XQGraphPainter::onRedraw,
 			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
     });
-	m_pixel_ratio =
-#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
-		m_pItem->windowHandle()->devicePixelRatio();
-#else
-		1.0;
-#endif
+    m_pixel_ratio = m_pItem->devicePixelRatio();
 }
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
@@ -117,10 +113,7 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 void
 XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2) {
 	if((x1 != x2) || (y1 != y2)) {
-        if(g_bUseOverpaint)
-            m_pItem->update();
-        else
-            m_pItem->updateGL();
+        m_pItem->update();
 	}
 }
 void
@@ -254,19 +247,14 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
 		if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
 		if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
 
-        if(g_bUseOverpaint) {
-            //draws texts later.
-            Text txt;
-            txt.text = str;
-            txt.x = lrint(x);
-            txt.y = lrint(y);
-            txt.fontsize = m_curFontSize;
-            txt.rgba = m_curTextColor;
-            m_textOverpaint.push_back(txt);
-        }
-        else {
-            m_pItem->renderText(lrint(x), lrint(y), str, font); //window coord. from top-left end.
-        }
+        //draws texts later.
+        Text txt;
+        txt.text = str;
+        txt.x = lrint(x);
+        txt.y = lrint(y);
+        txt.fontsize = m_curFontSize;
+        txt.rgba = m_curTextColor;
+        m_textOverpaint.push_back(txt);
     }
 }
 
@@ -383,6 +371,10 @@ XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
 }
 void
 XQGraphPainter::initializeGL () {
+    initializeOpenGLFunctions();
+
+    glEnable(GL_MULTISAMPLE);
+
     //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
@@ -411,20 +403,12 @@ XQGraphPainter::paintGL () {
     glGetError(); // flush error
 
     GLint depth_func_org;
-    if(g_bUseOverpaint) {
-        //stores states
-        glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        m_textOverpaint.clear();
-    }
-    else {
-        // Set up the rendering context,
-        glHint(GL_POINT_SMOOTH_HINT,GL_FASTEST);
-        glHint(GL_LINE_SMOOTH_HINT,GL_FASTEST);
-        glDisable(GL_LINE_SMOOTH);
-        glDisable(GL_POINT_SMOOTH);
-    }
+    //stores states
+    glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    m_textOverpaint.clear();
+
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glDepthFunc(GL_LEQUAL);
 
@@ -457,7 +441,7 @@ XQGraphPainter::paintGL () {
         shot = startDrawing();
 
         QColor bgc = (QRgb)shot[ *m_graph->backGround()];
-        m_pItem->qglClearColor(bgc);
+        glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
@@ -587,15 +571,12 @@ XQGraphPainter::paintGL () {
 
     drawOnScreenViewObj(shot);
 
-    if( !g_bUseOverpaint) {
-        if(m_bReqHelp) drawOnScreenHelp(shot, 0);
-    }
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
 //    glFlush();
 
-    if(g_bUseOverpaint) {
+    {
         //restores states
         glShadeModel(GL_FLAT);
         glDisable(GL_CULL_FACE);
