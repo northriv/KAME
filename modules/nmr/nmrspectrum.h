@@ -52,7 +52,6 @@ public:
 	const shared_ptr<XDoubleNode> &residualField() const {return m_residualField;}
 private:
     const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> > m_magnet;
-    std::array<int, 40> m_test;
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_resolution;
 	const shared_ptr<XDoubleNode> m_minValue, m_maxValue;
