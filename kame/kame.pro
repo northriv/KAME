@@ -9,7 +9,6 @@ win32: SCRIPT_DIR = resources
 DEFINES += RUBYLINESHELL_DIR=\"quotedefined($${SCRIPT_DIR}/)\"
 DEFINES += USE_STD_RANDOM
 
-QT       += opengl
 CONFIG += CONSOLE
 
 #win32: QMAKE_CXXFLAGS += -pie

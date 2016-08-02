@@ -17,7 +17,6 @@
 // \todo Use Payload for scales.
 
 #include "graphpainter.h"
-#include <qgl.h>
 
 using std::min;
 using std::max;

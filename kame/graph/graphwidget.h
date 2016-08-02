@@ -19,11 +19,11 @@ class XQGraphPainter;
 
 #include "support.h"
 #include "xnodeconnector.h"
-#include <QGLWidget>
+#include <QOpenGLWidget>
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
-class DECLSPEC_KAME XQGraph : public QGLWidget {
+class DECLSPEC_KAME XQGraph : public QOpenGLWidget {
 	Q_OBJECT
 public:
     XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = 0 );
@@ -32,18 +32,17 @@ public:
 	void setGraph(const shared_ptr<XGraph> &);
 
 protected:
-	virtual void mousePressEvent ( QMouseEvent*);
-	virtual void mouseReleaseEvent ( QMouseEvent*);
-	virtual void mouseDoubleClickEvent ( QMouseEvent*);
-	virtual void mouseMoveEvent ( QMouseEvent*);
-	virtual void wheelEvent ( QWheelEvent *);
-	virtual void showEvent ( QShowEvent * );
-	virtual void hideEvent ( QHideEvent * );  
-    virtual void paintEvent(QPaintEvent *event);
-    virtual void paintGL ();
+    virtual void mousePressEvent ( QMouseEvent*) override;
+    virtual void mouseReleaseEvent ( QMouseEvent*) override;
+    virtual void mouseDoubleClickEvent ( QMouseEvent*) override;
+    virtual void mouseMoveEvent ( QMouseEvent*) override;
+    virtual void wheelEvent ( QWheelEvent *) override;
+    virtual void showEvent ( QShowEvent * ) override;
+    virtual void hideEvent ( QHideEvent * ) override;
+    virtual void paintGL() override;
     //! openGL stuff
-	virtual void initializeGL ();
-	virtual void resizeGL ( int width, int height );
+    virtual void initializeGL() override;
+    virtual void resizeGL ( int width, int height ) override;
 private:  
 	friend class XQGraphPainter;
 	shared_ptr<XGraph> m_graph;

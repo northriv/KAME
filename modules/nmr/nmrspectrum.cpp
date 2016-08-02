@@ -100,8 +100,10 @@ XNMRSpectrum::getMinFreq(const Snapshot &shot_this) const {
 }
 double
 XNMRSpectrum::getMaxFreq(const Snapshot &shot_this) const {
-    fprintf(stderr, "g");
-	double freq = -log(shot_this[ *maxValue()]) * shot_this[ *centerFreq()];
+    double mv = shot_this[ *maxValue()];
+    fprintf(stderr, "g%f", mv);
+    double freq = -log(mv);
+    freq *= shot_this[ *centerFreq()];
     fprintf(stderr, "e");
     freq = std::max(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
     fprintf(stderr, "t");

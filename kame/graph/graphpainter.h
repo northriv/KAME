@@ -18,12 +18,12 @@
 #include "graphwidget.h"
 
 #include <Qt>
-#include <qgl.h>
+#include <QOpenGLFunctions>
 
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
-class XQGraphPainter : public enable_shared_from_this<XQGraphPainter> {
+class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>, protected QOpenGLFunctions {
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -50,16 +50,13 @@ public:
  
  void setColor(float r, float g, float b, float a = 1.0f) {
     glColor4f(r, g, b, a );
-    if(g_bUseOverpaint)
-        m_curTextColor = QColor(lrintf(r * 256.0), lrintf(g * 256.0), lrintf(b * 256.0), a).rgba();
+    m_curTextColor = QColor(lrintf(r * 256.0), lrintf(g * 256.0), lrintf(b * 256.0), a).rgba();
 }
  void setColor(unsigned int rgb, float a = 1.0f) {
     QColor qc = QRgb(rgb);
     glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
-    if(g_bUseOverpaint) {
-        qc.setAlpha(lrintf(a * 255));
-        m_curTextColor = qc.rgba();
-    }
+    qc.setAlpha(lrintf(a * 255));
+    m_curTextColor = qc.rgba();
 }
  void setVertex(const XGraph::ScrPoint &p) {
     glVertex3f(p.x, p.y, p.z);
