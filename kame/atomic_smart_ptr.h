@@ -173,7 +173,7 @@ public:
         this->m_ref = t.m_ref;
         t.m_ref = (RefLocal_)nullptr;
     }
-    template<typename Y, typename Z> local_shared_ptr(const local_shared_ptr<Y, Z> &&y) noexcept {
+    template<typename Y, typename Z> local_shared_ptr(local_shared_ptr<Y, Z> &&y) noexcept {
         this->m_ref = y.m_ref;
         y.m_ref = (RefLocal_)nullptr;
     }

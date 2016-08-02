@@ -187,7 +187,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	
 	double res = getFreqResHint(shot_this);
 	res = df * std::max(1L, lrint(res / df - 0.5));
-	
+
 	double max__ = getMaxFreq(shot_this);
 	double min__ = getMinFreq(shot_this);
 	
