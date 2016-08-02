@@ -37,10 +37,10 @@ typename std::enable_if<std::is_base_of<XNode, T>::value, const SingleSnapshot<T
     return SingleSnapshot<T>(node);
 }
 
-template <typename Arg>
-using Talker = Transactional::Talker<Snapshot, Arg>;
-template <typename Arg>
-using TalkerSingleton = Transactional::TalkerSingleton<Snapshot, Arg>;
+template <typename...Args>
+using Talker = Transactional::Talker<Snapshot, Args...>;
+template <typename...Args>
+using TalkerSingleton = Transactional::TalkerSingleton<Snapshot, Args...>;
 
 extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
@@ -164,7 +164,7 @@ public:
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
         Payload() : XValueNodeBase::Payload() {this->m_var = 0;}
-        virtual XString to_str() const;
+        virtual XString to_str() const override;
         operator T() const {return m_var;}
         Payload &operator=(T x) {
             m_var = x;
@@ -172,7 +172,7 @@ public:
             return *this;
         }
     protected:
-        virtual void str_(const XString &);
+        virtual void str_(const XString &) override;
         T m_var;
     };
 };
@@ -187,7 +187,7 @@ public:
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
         Payload() : XValueNodeBase::Payload() {this->m_var = 0.0;}
-        virtual XString to_str() const;
+        virtual XString to_str() const override;
         operator double() const {return m_var;}
         Payload &operator=(double x) {
             m_var = x;
@@ -195,7 +195,7 @@ public:
             return *this;
         }
     protected:
-        virtual void str_(const XString &);
+        virtual void str_(const XString &) override;
         double m_var;
     };
     atomic_shared_ptr<XString> m_format;
@@ -207,7 +207,7 @@ public:
     virtual ~XStringNode() = default;
 
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
-        virtual XString to_str() const {return this->m_var;}
+        virtual XString to_str() const override {return this->m_var;}
         operator const XString&() const {return m_var;}
         Payload &operator=(const XString &x) {
             m_var = x;
@@ -215,7 +215,7 @@ public:
             return *this;
         }
     protected:
-        virtual void str_(const XString &str) { *this = str;}
+        virtual void str_(const XString &str) override { *this = str;}
         XString m_var;
     };
 };

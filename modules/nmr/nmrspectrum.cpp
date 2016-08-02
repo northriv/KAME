@@ -34,6 +34,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
 	  m_maxValue(create<XDoubleNode>("FieldMax", false)),
 	  m_fieldFactor(create<XDoubleNode>("FieldFactor", false)),
 	  m_residualField(create<XDoubleNode>("ResidualField", false)) {
+    std::fill(m_test.begin(), m_test.end(), 0x8888u);
 
 	connect(magnet());
 
@@ -99,8 +100,12 @@ XNMRSpectrum::getMinFreq(const Snapshot &shot_this) const {
 }
 double
 XNMRSpectrum::getMaxFreq(const Snapshot &shot_this) const {
+    fprintf(stderr, "g");
 	double freq = -log(shot_this[ *maxValue()]) * shot_this[ *centerFreq()];
+    fprintf(stderr, "e");
     freq = std::max(freq, -log(shot_this[ *minValue()]) * shot_this[ *centerFreq()]);
+    fprintf(stderr, "t");
+    for(auto &&x: m_test) if(x != 0x8888u) fprintf(stderr, "!!!!!\n");
     return freq * 1e6;
 }
 double

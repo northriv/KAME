@@ -32,20 +32,20 @@ public:
 	virtual ~XNMRSpectrumBase();
   
 	//! Shows all forms belonging to driver
-	virtual void showForms();
+    virtual void showForms() override;
 protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) throw (XRecordError&);
+        XDriver *emitter) throw (XRecordError&) override;
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
-	virtual void visualize(const Snapshot &shot);
+    virtual void visualize(const Snapshot &shot) override;
 	//! Checks if the connected drivers have valid time stamps.
 	//! \return true if dependency is resolved.
 	//! This function must be reentrant unlike analyze().
 	virtual bool checkDependency(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) const;
+        XDriver *emitter) const override;
 public:
 	//! driver specific part below 
 	struct Payload : public XSecondaryDriver::Payload {
@@ -110,7 +110,7 @@ protected:
 	virtual double getMaxFreq(const Snapshot &shot_this) const = 0;
 	//! [Hz]
 	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const = 0;
-	virtual void rearrangeInstrum(const Snapshot &shot) {}
+    virtual void rearrangeInstrum(const Snapshot &) {}
 	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const = 0;
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,

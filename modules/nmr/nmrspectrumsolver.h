@@ -27,7 +27,7 @@ public:
 	SpectrumSolverWrapper(const char *name, bool runtime,
 		const shared_ptr<XComboNode> selector, const shared_ptr<XComboNode> windowfunc,
 		const shared_ptr<XDoubleNode> windowlength, bool leastsqureonly = false);
-	~SpectrumSolverWrapper();
+    virtual ~SpectrumSolverWrapper();
 
 	struct Payload : public XNode::Payload {
 		Payload() : XNode::Payload() {}
@@ -40,7 +40,7 @@ public:
 	private:
 		friend class SpectrumSolverWrapper;
 		struct WrapperBase {
-			virtual ~WrapperBase() {}
+            virtual ~WrapperBase() = default;
 			virtual WrapperBase *clone() = 0;
 			virtual SpectrumSolver &solver() = 0;
 			virtual const SpectrumSolver &solver() const = 0;

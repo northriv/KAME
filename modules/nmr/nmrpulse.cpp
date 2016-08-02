@@ -702,7 +702,9 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 
 		int length = shot[ *this].m_dsoWave.size();
 		const std::complex<double> *dsowave( &shot[ *this].m_dsoWave[0]);
-		const std::complex<double> *ifft( &solver.ifft()[0]);
+        if(solver.ifft().size() < ftsize)
+            return; //solver has been failed.
+        const std::complex<double> *ifft( &solver.ifft()[0]);
 		int dsowavestartpos = shot[ *this].m_dsoWaveStartPos;
 		double interval = shot[ *this].m_interval;
 		double starttime = shot[ *this].startTime();

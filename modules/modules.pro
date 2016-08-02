@@ -25,11 +25,11 @@ SUBDIRS += testdriver\
     nidaq\
     nmrpulsercore\
     nmrpulser\
+    thamway\
     nmr\
     sgcore\
     sg\
     tempcontrol\
-    thamway\
     qdcore\
     qd
 

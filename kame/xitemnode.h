@@ -61,7 +61,7 @@ public:
 
     struct Payload : public XItemNodeBase::Payload {
         operator shared_ptr<XNode>() const { return m_var.lock();}
-        virtual XString to_str() const {
+        virtual XString to_str() const override {
             shared_ptr<XNode> node( *this);
             if(node)
                 return node->getLabel();
@@ -74,7 +74,7 @@ public:
             return *this;
         }
     protected:
-        virtual void str_(const XString &var) {
+        virtual void str_(const XString &var) override {
             if(var.empty()) {
                 *this = shared_ptr<XNode>();
                 return;
@@ -127,7 +127,7 @@ protected:
         :  XPointerItemNode<TL>(name, runtime, tr_list, list, auto_set_any) {
     }
     virtual ~XItemNode() = default;
-    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &) const {
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &) const override {
         return std::vector<XItemNodeBase::Item>();
     }
 };
@@ -154,7 +154,7 @@ public:
         }
     };
 
-    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const {
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const override {
         auto items = this->XItemNode<TL, VT...>::itemStrings(shot);
         if(auto list = this->m_list.lock()) {
             if(shot.size(list)) {
@@ -178,7 +178,7 @@ public:
     explicit XComboNode(const char *name, bool runtime = false, bool auto_set_any = false);
     virtual ~XComboNode() = default;
 
-    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const {
+    virtual std::vector<XItemNodeBase::Item> itemStrings(const Snapshot &shot) const override {
         return shot[ *this].itemStrings();
     }
 
@@ -189,12 +189,12 @@ public:
         void add(std::initializer_list<XString> strlist) {for(auto &&x: strlist){ add(x);}}
         void clear();
         operator int() const { return m_var.second;}
-        virtual XString to_str() const { return m_var.first;}
+        virtual XString to_str() const override { return m_var.first;}
         Payload &operator=(int t);
         Payload &operator=(const XString &);
         virtual std::vector<XItemNodeBase::Item> itemStrings() const;
     protected:
-        virtual void str_(const XString &);
+        virtual void str_(const XString &) override;
     private:
         shared_ptr<std::deque<XString> > m_strings;
         std::pair<XString, int> m_var;

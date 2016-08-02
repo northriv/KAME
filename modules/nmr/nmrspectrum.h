@@ -28,19 +28,19 @@ public:
 	XNMRSpectrum(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! ususally nothing to do
-	~XNMRSpectrum() {}
+    virtual ~XNMRSpectrum() = default;
 protected:
 	//! \return true to be cleared.
-	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const;
-	virtual double getFreqResHint(const Snapshot &shot_this) const;
-	virtual double getMinFreq(const Snapshot &shot_this) const;
-	virtual double getMaxFreq(const Snapshot &shot_this) const;
-	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const;
-	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const;
+    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const override;
+    virtual double getFreqResHint(const Snapshot &shot_this) const override;
+    virtual double getMinFreq(const Snapshot &shot_this) const override;
+    virtual double getMaxFreq(const Snapshot &shot_this) const override;
+    virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const override;
+    virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const override;
 
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) const;
+        XDriver *emitter) const override;
 public:
     const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> > &magnet() const {return m_magnet;}
 
@@ -52,7 +52,7 @@ public:
 	const shared_ptr<XDoubleNode> &residualField() const {return m_residualField;}
 private:
     const shared_ptr<XItemNode<XDriverList, XMagnetPS, XDMM, XQDPPMS> > m_magnet;
- 
+    std::array<int, 40> m_test;
 	const shared_ptr<XDoubleNode> m_centerFreq;
 	const shared_ptr<XDoubleNode> m_resolution;
 	const shared_ptr<XDoubleNode> m_minValue, m_maxValue;

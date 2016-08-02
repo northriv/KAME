@@ -28,21 +28,21 @@ public:
 	XNMRFSpectrum(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! ususally nothing to do
-	~XNMRFSpectrum() {}
+    virtual ~XNMRFSpectrum() = default;
 protected:
 	//! \return true to be cleared.
-	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const;
-	virtual double getFreqResHint(const Snapshot &shot_this) const;
-	virtual double getMinFreq(const Snapshot &shot_this) const;
-	virtual double getMaxFreq(const Snapshot &shot_this) const;
-	virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const;
-	virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const;
+    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const override;
+    virtual double getFreqResHint(const Snapshot &shot_this) const override;
+    virtual double getMinFreq(const Snapshot &shot_this) const override;
+    virtual double getMaxFreq(const Snapshot &shot_this) const override;
+    virtual double getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &shot_others) const override;
+    virtual void getValues(const Snapshot &shot_this, std::vector<double> &values) const override;
 
 	virtual bool checkDependencyImpl(const Snapshot &shot_this,
 		const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) const;
+        XDriver *emitter) const override;
 
-	virtual void rearrangeInstrum(const Snapshot &shot);
+    virtual void rearrangeInstrum(const Snapshot &shot) override;
 public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
