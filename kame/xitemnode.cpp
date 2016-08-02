@@ -79,7 +79,7 @@ XComboNode::Payload::add(const XString &str) {
     m_strings = std::make_shared<std::deque<XString>>( *m_strings);
 	m_strings->push_back(str);
 	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
-	tr().mark(onListChanged(), e);
+    tr().mark(onListChanged(), std::move(e));
 	if(str == m_var.first) {
 		m_var.second = m_strings->size() - 1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
@@ -90,7 +90,7 @@ void
 XComboNode::Payload::clear() {
     m_strings = std::make_shared<std::deque<XString>>();
 	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
-	tr().mark(onListChanged(), e);
+    tr().mark(onListChanged(), std::move(e));
 	if(m_var.second >= 0) {
 	    m_var.second = -1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
@@ -114,5 +114,5 @@ std::vector<XItemNodeBase::Item> XComboNode::Payload::itemStrings() const {
             items.push_back(std::move(item));
         }
     }
-    return std::move(items);
+    return items;
 }

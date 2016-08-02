@@ -16,69 +16,98 @@
 
 #include "transaction.h"
 #include <deque>
+#include <tuple>
 #include "xsignal.h"
 
 namespace Transactional {
 
-template <class XN, typename tArg, typename tArgRef = const tArg &>
+template <int N>
+struct CallByTuple {
+    template <class Func, class R, typename TPL, typename... Args>
+    CallByTuple(Func f, R &r, TPL& t, Args&...args) {
+        CallByTuple<N - 1>(f, r, t, std::get<N - 1>(t), args...);
+    }
+};
+template <>
+struct CallByTuple<0> {
+    template <class Func, class R, typename TPL, typename... Args>
+    CallByTuple(Func f, R &r, TPL&, Args&...args) {
+        (r.*f)(std::forward<Args>(args)...);
+    }
+};
+
+template <typename...Args>
 struct Event {
-    Event(const Snapshot<XN> &s, tArgRef a) noexcept :
-        shot(s), arg(a) {}
-    Snapshot<XN> shot;
-    tArg arg;
+    explicit Event(std::tuple<Args...>&& tpl) noexcept : tuple(std::move(tpl)) {}
+    Event(const Event&) = default;
+    Event(Event&&) = default;
+    Event &operator=(const Event&) = delete;
+private:
+    std::tuple<Args...> tuple;
+public:
+    template <class Func, class T>
+    void operator()(Func f, T &t) const {
+        CallByTuple<sizeof...(Args)>(f, t, tuple);
+    }
 };
 
-template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &>
-struct ListenerRef_ : public XListenerImpl_<Event<XN, tArg, tArgRef> > {
-    ListenerRef_(tClass &obj,
-        void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
-        XListener::FLAGS flags) noexcept :
-        XListenerImpl_<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
-    virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-        (m_obj.*m_func)(x.shot, x.arg);
-    }
-private:
-    void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
-    tClass &m_obj;
-};
-template <class XN, class tClass, typename tArg, typename tArgRef = const tArg &>
-struct ListenerWeak_ : public XListenerImpl_<Event<XN, tArg, tArgRef> > {
-    ListenerWeak_(const shared_ptr<tClass> &obj,
-        void (tClass::*func)(const Snapshot<XN> &shot, tArgRef),
-         XListener::FLAGS flags) noexcept :
-         XListenerImpl_<Event<XN, tArg, tArgRef> >(flags), m_func(func), m_obj(obj) { }
-    virtual void operator() (const Event<XN, tArg, tArgRef> &x) const {
-        if(auto p = m_obj.lock() )
-            (p.get()->*m_func)(x.shot, x.arg);
-    }
-private:
-    void (tClass::*const m_func)(const Snapshot<XN> &shot, tArgRef);
-    const weak_ptr<tClass> m_obj;
+template <class Event>
+class ListenerBase : public XListener {
+protected:
+    explicit ListenerBase(XListener::FLAGS flags) : XListener(flags), event() {}
+public:
+    virtual void operator() (const Event&) const = 0;
+protected:
+    template <class SS, typename...Args>
+    friend class Talker;
+    atomic_unique_ptr<Event> event;
 };
 
-template <class XN>
+template<class Event, class R, class Func>
+struct ListenerRef : public ListenerBase<Event> {
+    ListenerRef(R &obj, Func f, XListener::FLAGS flags) noexcept :
+        ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
+    virtual void operator() (const Event& e) const override {
+        e(m_func, m_obj);
+    }
+private:
+    Func m_func;
+    R &m_obj;
+};
+template<class Event, class R, class Func>
+struct ListenerWeak : public ListenerBase<Event> {
+    ListenerWeak(const shared_ptr<R> &obj, Func f, XListener::FLAGS flags) noexcept :
+         ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
+    virtual void operator() (const Event& e) const override {
+        if(auto p = m_obj.lock() ) {
+            e(m_func, *p);
+        }
+    }
+private:
+    Func m_func;
+    const weak_ptr<R> m_obj;
+};
+
+template <class SS>
 struct Message_ {
     virtual ~Message_() = default;
-    virtual void talk(const Snapshot<XN> &shot) = 0;
+    virtual void talk(const SS &shot) = 0;
     virtual int unmark(const shared_ptr<XListener> &x) = 0;
 };
 
 //! M/M Listener and Talker model
 //! \sa XListener, XSignalStore
 //! \p tArg: value which will be derivered
-//! \p tArgWrapper: copied argument, will be released by GC someday
-//!\todo abandon tArgRef, use const tArg&.
-template <class XN, typename tArg, typename tArgRef = const tArg &>
+template <class SS, typename...Args>
 class Talker {
 public:
     virtual ~Talker() = default;
 
-    template <class tObj, class tClass>
-    shared_ptr<XListener> connect(tObj &obj, void (tClass::*func)(
-        const Snapshot<XN> &shot, tArgRef), int flags = 0);
-    template <class tObj, class tClass>
-    shared_ptr<XListener> connectWeakly(const shared_ptr<tObj> &obj, void (tClass::*func)(
-        const Snapshot<XN> &shot, tArgRef), int flags = 0);
+    template <class R, class T, typename...ArgRefs>
+    shared_ptr<XListener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0);
+    template <class R, class T, typename...ArgRefs>
+    shared_ptr<XListener> connectWeakly(const shared_ptr<R> &obj,
+        void (T::*func)(ArgRefs...), int flags = 0);
 
     void connect(const shared_ptr<XListener> &x);
     void disconnect(const shared_ptr<XListener> &);
@@ -88,16 +117,18 @@ public:
     //! \param arg passing argument to all listeners
     //! If listener avoids duplication, lock won't be passed to listener.
     struct Message;
-    virtual shared_ptr<Message> createMessage(int64_t tr_serial, tArgRef arg) const;
-    void talk(const Snapshot<XN> &shot, tArgRef arg) const {
-        Message m(arg, m_listeners);
+    template <typename...ArgRefs>
+    shared_ptr<Message> createMessage(int64_t tr_serial, ArgRefs&&... arg) const;
+    template <typename...ArgRefs>
+    void talk(const SS &shot, ArgRefs&&...args) const {
+        Message m(m_listeners, std::forward<ArgRefs>(args)...);
         m.talk(shot);
     }
 
     bool empty() const noexcept {return !m_listeners;}
 private:
-    typedef Event<XN, tArg, tArgRef> Event_;
-    typedef XListenerImpl_<Event<XN, tArg, tArgRef> > Listener_;
+    using Event_ = Event<SS, Args...>;
+    using Listener_ = ListenerBase<Event_> ;
     typedef std::vector<weak_ptr<Listener_> > ListenerList;
     typedef fast_vector<shared_ptr<XListener> > UnmarkedListenerList;
     shared_ptr<ListenerList> m_listeners;
@@ -114,15 +145,15 @@ private:
     struct EventWrapperAllowDup : public EventWrapper {
         EventWrapperAllowDup(const shared_ptr<Listener_> &l, const Event_ &e) noexcept :
             EventWrapper(l), event(e) {}
-        const Event_ event;
-        virtual bool talkBuffered() {
-            ( *this->listener)(event);
+        Event_ event;
+        virtual bool talkBuffered() override {
+            ( *this->listener)(std::move(event));
             return false;
         }
     };
     struct EventWrapperAvoidDup : public EventWrapper {
         EventWrapperAvoidDup(const shared_ptr<Listener_> &l) : EventWrapper(l) {}
-            virtual bool talkBuffered() {
+            virtual bool talkBuffered() override {
                 bool skip = false;
                 if(this->listener->delay_ms()) {
                     long elapsed_ms = XTime::now().diff_msec(this->registered_time);
@@ -130,21 +161,23 @@ private:
                 }
                 if( !skip) {
                     atomic_unique_ptr<Event_> e;
-                    e.swap(this->listener->arg);
+                    e.swap(this->listener->event);
                     assert(e.get());
-                    ( *this->listener)( *e);
+                    ( *this->listener)( std::move(*e));
                 }
                 return skip;
             }
     };
 public:
-    struct Message : public Message_<XN> {
-        Message(tArgRef a, const shared_ptr<ListenerList> &l) noexcept : Message_<XN>(), arg(a), listeners(l) {}
-        tArg arg;
+    struct Message : public Message_<SS> {
+        template <class...ArgRefs>
+        Message(const shared_ptr<ListenerList> &l, ArgRefs&&...as) noexcept :
+            Message_<SS>(), listeners(l), args(std::forward<Args>(as)...) {}
         shared_ptr<ListenerList> listeners;
+        std::tuple<Args...> args;
         shared_ptr<UnmarkedListenerList> listeners_unmarked;
-        virtual void talk(const Snapshot<XN> &shot);
-        virtual int unmark(const shared_ptr<XListener> &x) {
+        virtual void talk(const SS &shot) override;
+        virtual int unmark(const shared_ptr<XListener> &x) override {
             if( !listeners)
                 return 0;
             int canceled = 0;
@@ -163,64 +196,68 @@ public:
     };
 };
 
-template <class XN, typename tArg, typename tArgRef = const tArg &>
-class TalkerSingleton : public Talker<XN, tArg, tArgRef> {
+template <class SS, typename...Args>
+class TalkerSingleton : public Talker<SS, Args...> {
 public:
-    TalkerSingleton() : Talker<XN, tArg, tArgRef>(), m_marked(nullptr), m_transaction_serial(0) {}
-    TalkerSingleton(const TalkerSingleton &x) : Talker<XN, tArg, tArgRef>(x), m_marked(nullptr), m_transaction_serial(0) {}
-    virtual shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> createMessage(int64_t tr_serial, tArgRef arg) const {
-        if(m_marked && (m_transaction_serial == tr_serial)) {
-            m_marked->arg = arg;
-            return nullptr;
+    TalkerSingleton() : Talker<SS, Args...>(), m_transaction_serial(0) {}
+    TalkerSingleton(const TalkerSingleton &x) : Talker<SS, Args...>(x), m_transaction_serial(0) {}
+    template <typename...ArgRefs>
+    shared_ptr<typename TalkerSingleton::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
+        if(m_transaction_serial == tr_serial) {
+            if(auto m = m_marked.lock()) {
+                m->args = std::make_tuple(std::forward<ArgRefs>(args)...);
+                return nullptr;
+            }
         }
-        m_marked = Talker<XN, tArg, tArgRef>::createMessage(tr_serial, arg);
+        auto m = Talker<SS, Args...>::createMessage(tr_serial, std::forward<ArgRefs>(args)...);
         m_transaction_serial = tr_serial;
-        return m_marked;
+        m_marked = m;
+        return m;
     }
 private:
-    mutable shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> m_marked;
+    mutable weak_ptr<typename Talker<SS, Args...>::Message> m_marked;
     mutable int64_t m_transaction_serial;
 };
 
-template <class XN, typename tArg, typename tArgRef>
-shared_ptr<typename Talker<XN, tArg, tArgRef>::Message> Talker<XN, tArg, tArgRef>::createMessage(int64_t, tArgRef arg) const {
+template <class SS, typename...Args>
+template <typename...ArgRefs>
+shared_ptr<typename Talker<SS, Args...>::Message> Talker<SS, Args...>::createMessage(int64_t, ArgRefs&&...args) const {
     if( !m_listeners)
         return nullptr;
-    return std::make_shared<Message>(arg, m_listeners);
+    return std::make_shared<Message>(m_listeners, std::forward<ArgRefs>(args)...);
 }
 
-template <class XN, typename tArg, typename tArgRef>
-template <class tObj, class tClass>
+template <class SS, typename...Args>
+template <class R, class T, typename...ArgRefs>
 shared_ptr<XListener>
-Talker<XN, tArg, tArgRef>::connect(tObj &obj, void (tClass::*func)(
-    const Snapshot<XN> &shot, tArgRef), int flags) {
+Talker<SS, Args...>::connect(R &obj, void(T::*func)(ArgRefs...), int flags) {
     shared_ptr<Listener_> listener =
-            std::make_shared<ListenerRef_<XN, tClass, tArg, tArgRef>>(
-            static_cast<tClass&>(obj), func, (XListener::FLAGS)flags);
+            std::make_shared<ListenerRef<Talker<SS, Args...>::Event_, T, decltype(func)>>(
+                static_cast<T&>(obj), func, (XListener::FLAGS)flags);
     connect(listener);
     return listener;
 }
 
-template <class XN, typename tArg, typename tArgRef>
-template <class tObj, class tClass>
+template <class SS, typename...Args>
+template <class R, class T, typename...ArgRefs>
 shared_ptr<XListener>
-Talker<XN, tArg, tArgRef>::connectWeakly(const shared_ptr<tObj> &obj,
-    void (tClass::*func)(const Snapshot<XN> &shot, tArgRef), int flags) {
+Talker<SS, Args...>::connectWeakly(const shared_ptr<R> &obj,
+    void(T::*func)(ArgRefs...), int flags) {
     shared_ptr<Listener_> listener =
-            std::make_shared<ListenerWeak_<XN, tClass, tArg, tArgRef>>(
-            static_pointer_cast<tClass>(obj), func, (XListener::FLAGS)flags);
+            std::make_shared<ListenerWeak<Talker<SS, Args...>::Event_, T, decltype(func)>>(
+            static_pointer_cast<T>(obj), func, (XListener::FLAGS)flags);
     connect(listener);
     return listener;
 }
-template <class XN, typename tArg, typename tArgRef>
+template <class SS, typename...Args>
 void
-Talker<XN, tArg, tArgRef>::connect(const shared_ptr<XListener> &lx) {
+Talker<SS, Args...>::connect(const shared_ptr<XListener> &lx) {
     auto listener = dynamic_pointer_cast<Listener_>(lx);
     connect(listener);
 }
-template <class XN, typename tArg, typename tArgRef>
+template <class SS, typename...Args>
 void
-Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener_> &lx) {
+Talker<SS, Args...>::connect(const shared_ptr<Listener_> &lx) {
     auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
     // clean-up dead listeners.
     for(auto it = new_list->begin(); it != new_list->end();) {
@@ -233,9 +270,9 @@ Talker<XN, tArg, tArgRef>::connect(const shared_ptr<Listener_> &lx) {
     new_list->shrink_to_fit();
     m_listeners = new_list;
 }
-template <class XN, typename tArg, typename tArgRef>
+template <class SS, typename...Args>
 void
-Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
+Talker<SS, Args...>::disconnect(const shared_ptr<XListener> &lx) {
     auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
     for(auto it = new_list->begin(); it != new_list->end();) {
         if(auto listener = it->lock()) {
@@ -254,10 +291,11 @@ Talker<XN, tArg, tArgRef>::disconnect(const shared_ptr<XListener> &lx) {
     m_listeners = new_list;
 }
 
-template <class XN, typename tArg, typename tArgRef>
+template <class SS, typename...Args>
 void
-Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
+Talker<SS, Args...>::Message::talk(const SS &shot) {
     if( !listeners) return;
+    Event_ event(std::tuple_cat(std::tie(shot), std::move(args)));
     //Writing deferred events to event pool.
     for(auto &&x: *listeners) {
         if(auto listener = x.lock()) {
@@ -266,22 +304,22 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
                 continue;
             if(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL) {
                 if(listener->flags() & XListener::FLAG_AVOID_DUP) {
-                    atomic_unique_ptr<Event_> newevent(new Event_(shot, arg) );
-                    newevent.swap(listener->arg);
+                    atomic_unique_ptr<Event_> newevent(new Event_(event) );
+                    newevent.swap(listener->event);
                     if( !newevent.get())
                         registerTransactionList(new EventWrapperAvoidDup(listener));
                 }
                 else {
                     if(isMainThread()) {
                         try {
-                            ( *listener)(Event_(shot, arg));
+                            ( *listener)(event);
                         }
                         catch (XKameError &e) {
                             e.print();
                         }
                     }
                     else {
-                        registerTransactionList(new EventWrapperAllowDup(listener, Event_(shot, arg)));
+                        registerTransactionList(new EventWrapperAllowDup(listener, event));
                     }
                 }
             }
@@ -295,7 +333,7 @@ Talker<XN, tArg, tArgRef>::Message::talk(const Snapshot<XN> &shot) {
                 continue;
             if( !(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL)) {
                 try {
-                    ( *listener)(Event_(shot, arg));
+                    ( *listener)(event);
                 }
                 catch (XKameError &e) {
                     e.print();

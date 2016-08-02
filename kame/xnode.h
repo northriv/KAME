@@ -37,10 +37,10 @@ typename std::enable_if<std::is_base_of<XNode, T>::value, const SingleSnapshot<T
     return SingleSnapshot<T>(node);
 }
 
-template <typename tArg, typename tArgRef = const tArg &>
-using Talker = Transactional::Talker<XNode, tArg, tArgRef>;
-template <typename tArg, typename tArgRef = const tArg &>
-using TalkerSingleton = Transactional::TalkerSingleton<XNode, tArg, tArgRef>;
+template <typename Arg>
+using Talker = Transactional::Talker<Snapshot, Arg>;
+template <typename Arg>
+using TalkerSingleton = Transactional::TalkerSingleton<Snapshot, Arg>;
 
 extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
@@ -83,22 +83,22 @@ public:
     //! Data holder.
     //! \sa Transactional::Node::Payload.
     struct DECLSPEC_KAME Payload : public Transactional::Node<XNode>::Payload {
-        Payload() : Transactional::Node<XNode>::Payload(), m_flags(NODE_UI_ENABLED) {}
+        Payload() : Transactional::Node<XNode>::Payload(), m_flags((int)FLAG::NODE_UI_ENABLED) {}
         //! If true, operations are allowed by UI and scripts.
-        bool isUIEnabled() const {return m_flags & NODE_UI_ENABLED;}
+        bool isUIEnabled() const {return m_flags & FLAG::NODE_UI_ENABLED;}
         void setUIEnabled(bool var);
-        bool isDisabled() const {return m_flags & NODE_DISABLED;}
+        bool isDisabled() const {return m_flags & FLAG::NODE_DISABLED;}
         void disable();
-        bool isRuntime() const {return m_flags & NODE_RUNTIME;}
-        void setRuntime(bool var) {m_flags = (m_flags & ~NODE_RUNTIME) | (var ? NODE_RUNTIME : 0);}
+        bool isRuntime() const {return m_flags & FLAG::NODE_RUNTIME;}
+        void setRuntime(bool var) {m_flags = (m_flags & ~FLAG::NODE_RUNTIME) | (var ? FLAG::NODE_RUNTIME : 0);}
         //! \sa setUIEnabled
-        Talker<XNode*, XNode*> &onUIFlagsChanged() {return m_tlkOnUIFlagsChanged;}
-        const Talker<XNode*, XNode*> &onUIFlagsChanged() const {return m_tlkOnUIFlagsChanged;}
+        Talker<XNode*> &onUIFlagsChanged() {return m_tlkOnUIFlagsChanged;}
+        const Talker<XNode*> &onUIFlagsChanged() const {return m_tlkOnUIFlagsChanged;}
     private:
+        enum FLAG : int {NODE_UI_ENABLED = 0x1, NODE_DISABLED = 0x2, NODE_RUNTIME = 0x4};
         int m_flags;
-        TalkerSingleton<XNode*, XNode*> m_tlkOnUIFlagsChanged;
+        TalkerSingleton<XNode*> m_tlkOnUIFlagsChanged;
     };
-    enum FLAG {NODE_UI_ENABLED = 0x1, NODE_DISABLED = 0x2, NODE_RUNTIME = 0x4};
 
     XNode() = delete;
 protected:
@@ -115,10 +115,10 @@ public:
     struct DECLSPEC_KAME Payload : public XNode::Payload {
         void touch();
         //! \sa touch()
-        Talker<XTouchableNode*, XTouchableNode*> &onTouch() {return m_tlkOnTouch;}
-        const Talker<XTouchableNode*, XTouchableNode*> &onTouch() const {return m_tlkOnTouch;}
+        Talker<XTouchableNode*> &onTouch() {return m_tlkOnTouch;}
+        const Talker<XTouchableNode*> &onTouch() const {return m_tlkOnTouch;}
     protected:
-        Talker<XTouchableNode*, XTouchableNode*> m_tlkOnTouch;
+        Talker<XTouchableNode*> m_tlkOnTouch;
     };
 protected:
 };
@@ -143,13 +143,13 @@ public:
                 (*static_cast<XValueNodeBase&>(node()).m_validator)(sc);
             str_(sc);
         }
-        Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() {return m_tlkOnValueChanged;}
-        const Talker<XValueNodeBase*, XValueNodeBase*> &onValueChanged() const {return m_tlkOnValueChanged;}
+        Talker<XValueNodeBase*> &onValueChanged() {return m_tlkOnValueChanged;}
+        const Talker<XValueNodeBase*> &onValueChanged() const {return m_tlkOnValueChanged;}
     protected:
         //! \a str_() can throw exception due to format issues.
         //! A marking to \a onValueChanged() is necessary.
         virtual void str_(const XString &) = 0;
-        TalkerSingleton<XValueNodeBase*, XValueNodeBase*> m_tlkOnValueChanged;
+        TalkerSingleton<XValueNodeBase*> m_tlkOnValueChanged;
     };
 protected:
     Validator m_validator;

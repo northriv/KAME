@@ -30,7 +30,7 @@ public:
 	virtual bool isThreadSafeDuringCreationByTypename() const = 0;
 
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-		Talker<XListNodeBase*, XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
+        Talker<XListNodeBase*> &onListChanged() {return m_tlkOnListChanged;}
 		struct MoveEvent {
 			unsigned int src_idx, dst_idx;
 			XListNodeBase *emitter;
@@ -52,7 +52,7 @@ public:
 		Talker<ReleaseEvent> &onRelease() {return m_tlkOnRelease;}
 		const Talker<ReleaseEvent> &onRelease() const {return m_tlkOnRelease;}
 	private:
-		TalkerSingleton<XListNodeBase*, XListNodeBase*> m_tlkOnListChanged;
+        TalkerSingleton<XListNodeBase*> m_tlkOnListChanged;
 		Talker<MoveEvent> m_tlkOnMove;
 		Talker<CatchEvent> m_tlkOnCatch;
 		Talker<ReleaseEvent> m_tlkOnRelease;

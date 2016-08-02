@@ -134,10 +134,10 @@ public:
 	const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
 
 	struct Payload : public XNode::Payload {
-		Talker<XGraph*, XGraph*> &onUpdate() {return m_tlkOnUpdate;}
-		const Talker<XGraph*, XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
+        Talker<XGraph*> &onUpdate() {return m_tlkOnUpdate;}
+        const Talker<XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
 	private:
-		TalkerSingleton<XGraph*, XGraph*> m_tlkOnUpdate;
+        TalkerSingleton<XGraph*> m_tlkOnUpdate;
 	};
 
 protected:

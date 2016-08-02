@@ -106,8 +106,8 @@ public:
 private:
 	shared_ptr<XListener> m_lsnOnCatchEntry;
 	shared_ptr<XListener> m_lsnOnReleaseEntry;
-	void onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
-	void onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
+    void onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
+    void onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 
 	const shared_ptr<XScalarEntryList> m_entries;
 };

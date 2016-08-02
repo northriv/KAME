@@ -284,10 +284,10 @@ public:
     atomic_shared_ptr(const local_shared_ptr<T> &t) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(t) {}
     template<typename Y> atomic_shared_ptr(const local_shared_ptr<Y> &y) noexcept : local_shared_ptr<T, atomic<uintptr_t>>(y) {}
     atomic_shared_ptr(atomic_shared_ptr<T> &&t) noexcept {
-        this->m_ref = t.m_ref.exchange((Ref*)nullptr);
+        operator=(std::move(t));
     }
     template<typename Y> atomic_shared_ptr(atomic_shared_ptr<Y> &&y) noexcept {
-        this->m_ref = y.m_ref.exchange((Ref*)nullptr);
+        operator=(std::move(y));
     }
 
     ~atomic_shared_ptr() {}
@@ -302,9 +302,14 @@ public:
         local_shared_ptr<T>(y).swap( *this);
         return *this;
     }
-    //! \param[in] y The pointer held by this instance is atomically replaced with that of \a y.
-    template<typename Y> atomic_shared_ptr &operator=(const atomic_shared_ptr<Y> &y) noexcept {
-        local_shared_ptr<T>(y).swap( *this);
+    atomic_shared_ptr &operator=(local_shared_ptr<T> &&t) noexcept {
+        t.swap( *this);
+        t.reset();
+        return *this;
+    }
+    template<typename Y> atomic_shared_ptr &operator=(local_shared_ptr<Y> &&y) noexcept {
+        y.swap( *this);
+        y.reset();
         return *this;
     }
     //! The pointer held by this instance is atomically reset to null pointer.

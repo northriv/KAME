@@ -417,12 +417,13 @@ public:
     void printError(const XString &str, bool popup = true, const char *file = 0L, int line = 0, bool beep = false);
 	void clear();
 private:
-    struct tstatus {XString str; XString tooltip; int ms; bool popup; bool beep; enum {Normal, Warning, Error} type;};
-	XTalker<tstatus> m_tlkTalker;
+    struct tstatus {XString str; XString tooltip; int ms; bool popup; bool beep;
+        enum : int {Normal, Warning, Error} type;};
+    Transactional::Talker<tstatus> m_tlkTalker;
 	shared_ptr<XListener> m_lsn;
 	QMainWindow *m_pWindow;
 	QStatusBar *m_pBar;
-	void print(const tstatus &status);
+    void print(const tstatus &status);
 };
 
 //---------------------------------------------------------------------------

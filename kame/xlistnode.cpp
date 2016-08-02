@@ -23,7 +23,7 @@ XListNodeBase::Payload::catchEvent(const shared_ptr<XNode>& var, int idx) {
 	e.emitter = static_cast<XListNodeBase*>(&node());
 	e.caught = var;
 	e.index = idx;
-	tr().mark(onCatch(), e);
+    tr().mark(onCatch(), std::move(e));
 }
 void
 XListNodeBase::Payload::releaseEvent(const shared_ptr<XNode>& var, int idx) {
@@ -31,7 +31,7 @@ XListNodeBase::Payload::releaseEvent(const shared_ptr<XNode>& var, int idx) {
 	e.emitter = static_cast<XListNodeBase*>(&node());
 	e.released = var;
 	e.index = idx;
-	tr().mark(onRelease(), e);
+    tr().mark(onRelease(), std::move(e));
 }
 void
 XListNodeBase::Payload::moveEvent(unsigned int src_idx, unsigned int dst_idx) {
@@ -39,7 +39,7 @@ XListNodeBase::Payload::moveEvent(unsigned int src_idx, unsigned int dst_idx) {
 	e.emitter = static_cast<XListNodeBase*>(&node());
 	e.src_idx = src_idx;
 	e.dst_idx = dst_idx;
-	tr().mark(onMove(), e);
+    tr().mark(onMove(), std::move(e));
 }
 void
 XListNodeBase::Payload::listChangeEvent() {

@@ -48,8 +48,8 @@ public:
 		//! It is undefined if record is invalid.
 		const XTime &timeAwared() const {return m_awaredTime;}
 
-		Talker<XDriver*, XDriver*> &onRecord() {return m_tlkOnRecord;}
-		const Talker<XDriver*, XDriver*> &onRecord() const {return m_tlkOnRecord;}
+        Talker<XDriver*> &onRecord() {return m_tlkOnRecord;}
+        const Talker<XDriver*> &onRecord() const {return m_tlkOnRecord;}
 	private:
 		friend class XDriver;
 
@@ -58,7 +58,7 @@ public:
 		//! \sa timeAwared()
 		XTime m_awaredTime;
 
-		Talker<XDriver*, XDriver*> m_tlkOnRecord;
+        Talker<XDriver*> m_tlkOnRecord;
 	};
     //! Throwing this exception will cause a reset of record time.
     //! And, prints error message.

@@ -743,7 +743,7 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window) {
     m_pBar = (window->statusBar());
     s_statusPrinterCreating.push_back(shared_ptr<XStatusPrinter>(this));
 	m_pBar->hide();
-	m_lsn = m_tlkTalker.connectWeak(
+    m_lsn = m_tlkTalker.connectWeakly(
         shared_from_this(), &XStatusPrinter::print,
         XListener::FLAG_MAIN_THREAD_CALL);
 }
@@ -765,7 +765,7 @@ XStatusPrinter::printMessage(const XString &str, bool popup, const char *file, i
     status.popup = popup;
     status.beep = beep;
     status.type = tstatus::Normal;
-	m_tlkTalker.talk(status);
+    m_tlkTalker.talk(std::move(status));
 }
 void
 XStatusPrinter::printWarning(const XString &str, bool popup, const char *file, int line, bool beep) {
@@ -776,7 +776,7 @@ XStatusPrinter::printWarning(const XString &str, bool popup, const char *file, i
     status.popup = popup;
     status.beep = beep;
     status.type = tstatus::Warning;
-    m_tlkTalker.talk(status);
+    m_tlkTalker.talk(std::move(status));
 }
 void
 XStatusPrinter::printError(const XString &str, bool popup, const char *file, int line, bool beep) {
@@ -787,20 +787,20 @@ XStatusPrinter::printError(const XString &str, bool popup, const char *file, int
     status.popup = popup;
     status.beep = beep;
     status.type = tstatus::Error;
-    m_tlkTalker.talk(status);
+    m_tlkTalker.talk(std::move(status));
 }
 void
 XStatusPrinter::clear(void) {
 	tstatus status;
 	status.ms = 0;
 	status.str = "";
-    m_tlkTalker.talk(status);
+    m_tlkTalker.talk(std::move(status));
 }
 
 void
 XStatusPrinter::print(const tstatus &status) {
 	bool popup = status.popup;
-	QString str = status.str;
+    QString str = std::move(status.str);
 	if(status.ms) {
 		m_pBar->show();
 		m_pBar->showMessage(str, status.ms);

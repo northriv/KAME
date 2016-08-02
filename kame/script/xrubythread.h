@@ -49,10 +49,11 @@ public:
 	const shared_ptr<XLongNode> &threadID() const {return m_threadID;}
 
 	struct Payload : public XNode::Payload {
-		Talker<shared_ptr<XString> > &onMessageOut() {return m_tlkOnMessageOut;}
-		const Talker<shared_ptr<XString> > &onMessageOut() const {return m_tlkOnMessageOut;}
+        using Talker = Talker<shared_ptr<XString>>;
+        Talker &onMessageOut() {return m_tlkOnMessageOut;}
+        const Talker &onMessageOut() const {return m_tlkOnMessageOut;}
 	private:
-		Talker<shared_ptr<XString> > m_tlkOnMessageOut;
+        Talker m_tlkOnMessageOut;
 	};
 private:
 	const shared_ptr<XStringNode> m_filename;

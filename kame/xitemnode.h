@@ -108,7 +108,7 @@ private:
         if(auto list = m_list.lock()) {
             assert(node == list.get());
             typename Payload::ListChangeEvent e(shot, this);
-            Snapshot( *this).talk(( **this)->onListChanged(), e);
+            Snapshot( *this).talk(( **this)->onListChanged(), std::move(e));
         }
     }
     shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;

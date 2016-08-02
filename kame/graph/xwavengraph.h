@@ -83,8 +83,8 @@ public:
 		const shared_ptr<XAxis> &axisz() const { return m_axisz;}
 		const shared_ptr<XAxis> &axisw() const { return m_axisw;}
 
-		const Talker<bool, bool> &onIconChanged() const { return m_tlkOnIconChanged;}
-		Talker<bool, bool> &onIconChanged() { return m_tlkOnIconChanged;}
+        const Talker<bool> &onIconChanged() const { return m_tlkOnIconChanged;}
+        Talker<bool> &onIconChanged() { return m_tlkOnIconChanged;}
 	private:
 //		friend class XWaveNGraph;
 		struct Plot {
@@ -98,7 +98,7 @@ public:
         std::vector<Plot> m_plots;
 		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
 
-		Talker<bool, bool> m_tlkOnIconChanged;
+        Talker<bool> m_tlkOnIconChanged;
 	};
 private:
 	void init();

@@ -43,10 +43,11 @@ public:
 			XCondition cond;
 			shared_ptr<XNode> child;
 		};
-		Talker<shared_ptr<tCreateChild> > &onChildCreated() {return m_tlkOnChildCreated;}
-		const Talker<shared_ptr<tCreateChild> > &onChildCreated() const {return m_tlkOnChildCreated;}
+        using Talker = Talker<shared_ptr<tCreateChild>>;
+        Talker &onChildCreated() {return m_tlkOnChildCreated;}
+        const Talker &onChildCreated() const {return m_tlkOnChildCreated;}
 	private:
-		Talker<shared_ptr<tCreateChild> > m_tlkOnChildCreated;
+        Talker m_tlkOnChildCreated;
 	};
 protected:
 	virtual void *execute(const atomic<bool> &);

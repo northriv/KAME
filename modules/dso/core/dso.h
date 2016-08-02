@@ -209,7 +209,7 @@ private:
 	//! Converts the raw to a display-able style and performs extra digital processing.
 	void convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
 	//! Digital direct conversion.
-	void demodulateDisp(Transaction &tr) throw (XRecordError&);
+    void demodulateDisp(Transaction &tr) throw (XRecordError&);
   
 	shared_ptr<XListener> m_lsnOnSingleChanged;
 	shared_ptr<XListener> m_lsnOnAverageChanged;

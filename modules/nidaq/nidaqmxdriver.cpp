@@ -87,8 +87,7 @@ static std::deque<shared_ptr<XNIDAQmxInterface::XNIDAQmxRoute> > g_daqmx_sync_ro
 
 atomic_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
 XNIDAQmxInterface::SoftwareTrigger::s_virtualTrigList(new XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList);
-XTalker<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> >
-XNIDAQmxInterface::SoftwareTrigger::s_onChange;
+XNIDAQmxInterface::SoftwareTrigger::STRGTalker XNIDAQmxInterface::SoftwareTrigger::s_onChange;
 
 shared_ptr<XNIDAQmxInterface::SoftwareTrigger>
 XNIDAQmxInterface::SoftwareTrigger::create(const char *label, unsigned int bits) {
@@ -118,7 +117,7 @@ XNIDAQmxInterface::SoftwareTrigger::unregister(const shared_ptr<SoftwareTrigger>
 		new_list->erase(std::find(new_list->begin(), new_list->end(), p));
 		if(s_virtualTrigList.compareAndSwap(old_list, new_list)) break;
 	}
-	onChange().talk(p);
+    onChange().talk(p);
 }
 void
 XNIDAQmxInterface::SoftwareTrigger::clear_() {
@@ -157,7 +156,7 @@ XNIDAQmxInterface::SoftwareTrigger::start(float64 freq) {
 		m_freq = freq;
 		clear_();
 	}
-	onStart().talk(shared_from_this());
+    onStart().talk(shared_from_this());
 }
 
 void

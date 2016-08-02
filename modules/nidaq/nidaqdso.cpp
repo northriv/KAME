@@ -131,7 +131,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
             }
         });
 	}
-	onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
+    onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
 
 	m_suspendRead = true;
 	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
@@ -140,7 +140,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 
 	this->start();
 
-	m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeak(
+    m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeakly(
 		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged,
 		XListener::FLAG_MAIN_THREAD_CALL);
 	createChannels();
@@ -832,7 +832,7 @@ XNIDAQmxDSO::startSequence() {
 
 	if(m_softwareTrigger) {
 		if( !m_lsnOnSoftTrigStarted)
-			m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeak(
+            m_lsnOnSoftTrigStarted = m_softwareTrigger->onStart().connectWeakly(
 				shared_from_this(), &XNIDAQmxDSO::onSoftTrigStarted);
 		if(m_running) {
 			clearStoredSoftwareTrigger();

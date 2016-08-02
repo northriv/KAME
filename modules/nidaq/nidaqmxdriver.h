@@ -132,10 +132,11 @@ public:
 			m_blankTerm = llrint(blankterm * freq());
 			memoryBarrier();
 		}
+        using STRGTalker = Transactional::Talker<shared_ptr<SoftwareTrigger>>;
 		//! for restarting connected task.
-		XTalker<shared_ptr<SoftwareTrigger> > &onStart() {return m_onStart;}
-		//! for changeing list.
-		static XTalker<shared_ptr<SoftwareTrigger> > &onChange() {return s_onChange;}
+        STRGTalker &onStart() {return m_onStart;}
+        //! for changing list.
+        static STRGTalker &onChange() {return s_onChange;}
 		//! clears all time stamps.
 		void clear();
 		//! clears past time stamps.
@@ -166,8 +167,8 @@ public:
 		SlowQueue m_slowQueue; //!< recorded stamps, when \a m_fastQueue is full.
 		atomic<unsigned int> m_slowQueueSize;
 		XMutex m_mutex; //!< for \a m_slowQueue.
-		XTalker<shared_ptr<SoftwareTrigger> > m_onStart;
-		static XTalker<shared_ptr<SoftwareTrigger> > s_onChange;
+        STRGTalker m_onStart;
+        static STRGTalker s_onChange;
 		static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
 		bool m_isPersistentCoherent;
 	};

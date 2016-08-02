@@ -183,7 +183,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
     #endif
         tr[ *device()].add("DUMMY");
   
-		m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
+        m_lsnOnSendRequested = tr[ *m_script_send].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onSendRequested);
 		m_lsnOnQueryRequested = tr[ *m_script_query].onValueChanged().connectWeakly(
 			shared_from_this(), &XCharInterface::onQueryRequested);

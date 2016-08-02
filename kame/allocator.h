@@ -301,7 +301,7 @@ private:
         m_size = HAS_STD_VECTOR;
     }
     size_type m_size;
-    enum {HAS_STD_VECTOR = -1};
+    enum : size_type {HAS_STD_VECTOR = (size_type)-1};
     union {
         T m_array[max_fixed_size];
         std::vector<T> m_vector;

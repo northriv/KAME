@@ -425,8 +425,9 @@ void XTempControl::onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *)
 		m_form->m_cmbExcitation, Snapshot( *channel->excitation()));
     iterate_commit([=](Transaction &tr){
 		m_lsnOnExcitationChanged
-			= tr[ *channel->excitation()].onValueChanged().connectWeakly(
-				shared_from_this(), &XTempControl::onExcitationChanged);
+            = tr[ *channel->excitation()].onValueChanged().connectWeakly(
+                shared_from_this(),
+                &XTempControl::onExcitationChangedInternal);
     });
 }
 
@@ -614,27 +615,27 @@ XTempControl::execute(const atomic<bool> &terminated) {
 	return NULL;
 }
 
-void XTempControl::onExcitationChanged(const Snapshot &shot, XValueNodeBase *node) {
-	try {
-		shared_ptr<XChannel> ch;
-		Snapshot shot( *channels());
-		if(shot.size()) {
-			const XNode::NodeList &list( *shot.list());
-			for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
-				shared_ptr<XChannel> ch__ =
-					dynamic_pointer_cast<XChannel> ( *it);
-				if(ch__->excitation().get() == node)
-					ch = ch__;
-			}
-		}
-		if( !ch)
-			return;
-		int exc = shot[ *ch->excitation()];
-		if(exc < 0)
-			return;
-		onExcitationChanged(ch, exc);
-	}
-	catch(XInterface::XInterfaceError& e) {
-		e.print();
-	}
+void XTempControl::onExcitationChangedInternal(const Snapshot &, XValueNodeBase *node) {
+    try {
+        shared_ptr<XChannel> ch;
+        Snapshot shot( *channels());
+        if(shot.size()) {
+            const XNode::NodeList &list( *shot.list());
+            for(XNode::const_iterator it = list.begin(); it != list.end(); it++) {
+                shared_ptr<XChannel> ch__ =
+                    dynamic_pointer_cast<XChannel> ( *it);
+                if(ch__->excitation().get() == node)
+                    ch = ch__;
+            }
+        }
+        if( !ch)
+            return;
+        int exc = shot[ *ch->excitation()];
+        if(exc < 0)
+            return;
+        onExcitationChanged(ch, exc);
+    }
+    catch(XInterface::XInterfaceError& e) {
+        e.print();
+    }
 }

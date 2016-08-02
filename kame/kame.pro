@@ -68,7 +68,6 @@ HEADERS += \
     xnodeconnector_prv.h \
     xnodeconnector.h \
     xscheduler.h \
-    xsignal_prv.h \
     xsignal.h \
     icons/icon.h \
     measure.h \

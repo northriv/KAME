@@ -67,8 +67,8 @@ private:
 	typedef int16 tRawAI;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
 	shared_ptr<XListener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
-	void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
-	void onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
+    void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
+    void onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
 	shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
 	void *executeReadAI(const atomic<bool> &);
 	atomic<bool> m_suspendRead;

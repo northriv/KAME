@@ -207,7 +207,7 @@ XPulser::XPulser(const char *name, bool runtime,
 
 		m_lsnOnMoreConfigShow = tr[ *m_moreConfigShow].onTouch().connectWeakly(
 			shared_from_this(), &XPulser::onMoreConfigShow,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
     });
 
     m_conUIs = {

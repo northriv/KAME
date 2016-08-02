@@ -182,7 +182,7 @@ private:
 	shared_ptr<XListener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged;
 
 	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
-	void onExcitationChanged(const Snapshot &shot, XValueNodeBase *);
+    void onExcitationChangedInternal(const Snapshot &shot, XValueNodeBase *);
 
 	std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
 	std::deque<shared_ptr<XScalarEntry> > m_entry_raws;

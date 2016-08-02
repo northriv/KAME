@@ -69,7 +69,8 @@ start_routine() {
     	gp3.reset(new A(1001));
 
     	gp3.reset();
-    	gp1 = p2;
+        gp1 = std::move(p2);
+        assert( !p2);
     	p2 = gp1;
     	gp1 = gp1;
     	p2.swap(p3);

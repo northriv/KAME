@@ -69,13 +69,13 @@ public:
 	void stop();
   
     struct DECLSPEC_KAME Payload : public XNode::Payload {
-		Talker<XInterface*, XInterface*> &onOpen() {return m_tlkOnOpen;}
-		const Talker<XInterface*, XInterface*> &onOpen() const {return m_tlkOnOpen;}
-		Talker<XInterface*, XInterface*> &onClose() {return m_tlkOnClose;}
-		const Talker<XInterface*, XInterface*> &onClose() const {return m_tlkOnClose;}
+        Talker<XInterface*> &onOpen() {return m_tlkOnOpen;}
+        const Talker<XInterface*> &onOpen() const {return m_tlkOnOpen;}
+        Talker<XInterface*> &onClose() {return m_tlkOnClose;}
+        const Talker<XInterface*> &onClose() const {return m_tlkOnClose;}
 	protected:
-		Talker<XInterface*, XInterface*> m_tlkOnOpen;
-		Talker<XInterface*, XInterface*> m_tlkOnClose;
+        Talker<XInterface*> m_tlkOnOpen;
+        Talker<XInterface*> m_tlkOnClose;
 	};
 protected:  
 	virtual void open() throw (XInterfaceError &) = 0;

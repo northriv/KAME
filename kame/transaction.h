@@ -87,7 +87,7 @@ public:
 
     virtual ~Node();
 
-    typedef std::domain_error NodeNotFoundError;
+    using NodeNotFoundError = std::domain_error;
 
     //! Adds a hard link to \a var.
     //! The subnode \a var will be storaged in the list of shared_ptr<XN>, NodeList.
@@ -166,9 +166,9 @@ public:
 
     void print_() const;
 
-    typedef fast_vector<shared_ptr<XN>, 2> NodeList;
-    typedef typename NodeList::iterator iterator;
-    typedef typename NodeList::const_iterator const_iterator;
+    using NodeList = fast_vector<shared_ptr<XN>, 2>;
+    using iterator = typename NodeList::iterator;
+    using const_iterator = typename NodeList::const_iterator;
 
     Node(const Node &) = delete; //non-copyable.
     Node &operator=(const Node &) = delete; //non-copyable.
@@ -230,7 +230,6 @@ private:
         //! For debugging.
         bool checkConsistensy(const local_shared_ptr<Packet> &rootpacket) const;
 
-        enum {SERIAL_NULL = 0};
         local_shared_ptr<Payload> m_payload;
         shared_ptr<PacketList> m_subpackets;
         bool m_missing;
@@ -258,6 +257,7 @@ private:
     //! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
     //! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
     struct SerialGenerator {
+        enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
             cnt_t() {
                 m_var = (int64_t)*stl_processID * 1000000000000uLL;
@@ -291,7 +291,7 @@ private:
         //! \param[in] reverse_index The index for this node in the list of the upper node.
         PacketWrapper(const shared_ptr<Linkage> &bp, int reverse_index, int64_t bundle_serial) noexcept;
         PacketWrapper(const PacketWrapper &x, int64_t bundle_serial) noexcept;
-        bool hasPriority() const noexcept { return m_ridx == PACKET_HAS_PRIORITY; }
+        bool hasPriority() const noexcept { return m_ridx == (int)PACKET_STATE::PACKET_HAS_PRIORITY; }
         const local_shared_ptr<Packet> &packet() const noexcept {return m_packet;}
         local_shared_ptr<Packet> &packet() noexcept {return m_packet;}
 
@@ -306,7 +306,7 @@ private:
         local_shared_ptr<Packet> m_packet;
         int m_ridx;
         int64_t m_bundle_serial;
-        enum PACKET_STATE { PACKET_HAS_PRIORITY = -1};
+        enum class PACKET_STATE : int { PACKET_HAS_PRIORITY = -1};
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
@@ -338,7 +338,7 @@ private:
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
         target.m_oldpacket = target.m_packet;
     }
-    enum SnapshotStatus {SNAPSHOT_SUCCESS = 0, SNAPSHOT_DISTURBED = 1,
+    enum class SnapshotStatus {SNAPSHOT_SUCCESS = 0, SNAPSHOT_DISTURBED = 1,
         SNAPSHOT_VOID_PACKET = 2, SNAPSHOT_NODE_MISSING = 4,
         SNAPSHOT_COLLIDED = 8, SNAPSHOT_NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
@@ -348,12 +348,12 @@ private:
         shared_ptr<Linkage> linkage;
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
-    typedef fast_vector<CASInfo, 16> CASInfoList;
-    enum SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
+    using CASInfoList = fast_vector<CASInfo, 16>;
+    enum class SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
     static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage, shared_ptr<Linkage> &linkage_super,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
         SnapshotMode mode,
-        int64_t serial = Packet::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
+        int64_t serial = SerialGenerator::SERIAL_NULL, CASInfoList *cas_infos = nullptr);
 
     //! Updates a packet to \a tr.m_packet if the current packet is unchanged (== \a tr.m_oldpacket).
     //! If this node has been bundled at the super node, unbundle() will be called.
@@ -361,7 +361,7 @@ private:
     bool commit(Transaction<XN> &tr);
 //	bool commit_at_super(Transaction<XN> &tr);
 
-    enum BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
+    enum class BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
     //! Bundles all the subpackets so that the whole packet can be treated atomically.
     //! Namely this function takes a snapshot.
     //! All the subpackets held by \a m_link at the subnodes will be
@@ -372,7 +372,7 @@ private:
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
         typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial);
-    enum UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
+    enum class UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
         UNBUNDLE_SUBVALUE_HAS_CHANGED,
         UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
@@ -498,7 +498,7 @@ public:
 
     //! Stores an event immediately from \a talker with \a arg.
     template <typename T, typename tArgRef>
-    void talk(T &talker, tArgRef arg) const { talker.talk( *this, arg); }
+    void talk(T &talker, tArgRef arg) const { talker.talk( *this, std::forward<tArgRef>(arg)); }
 protected:
     friend class Node<XN>;
     //! The snapshot.
@@ -591,9 +591,9 @@ public:
     bool isMultiNodal() const noexcept {return m_multi_nodal;}
 
     //! Reserves an event, to be emitted from \a talker with \a arg after the transaction is committed.
-    template <typename T, typename tArgRef>
-    void mark(T &talker, tArgRef arg) {
-        if(auto m = talker.createMessage(this->m_serial, arg)) {
+    template <typename T, typename ...Args>
+    void mark(T &talker, Args&&...args) {
+        if(auto m = talker.createMessage(this->m_serial, std::forward<Args>(args)...)) {
             if( !m_messages)
                 m_messages.reset(new MessageList);
             m_messages->push_back(m);
@@ -670,7 +670,7 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    typedef fast_vector<shared_ptr<Message_<XN> >, 4> MessageList;
+    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>> >, 3>;
     unique_ptr<MessageList> m_messages;
 };
 
