@@ -1,7 +1,7 @@
 PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
-QT += opengl
+QT += widgets
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../kame/graph\

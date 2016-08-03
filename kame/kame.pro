@@ -11,6 +11,8 @@ DEFINES += USE_STD_RANDOM
 
 CONFIG += CONSOLE
 
+QT += widgets
+
 #win32: QMAKE_CXXFLAGS += -pie
 
 INCLUDEPATH += \
