@@ -211,6 +211,7 @@ win32-g++ {
         error("No Ruby2 library!")
     }
     LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby2*[0-9].dll.a)
+    LIBS += -lopengl32 -lglu32
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
