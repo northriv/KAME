@@ -1,6 +1,13 @@
+* Wed Aug 3 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.0-1)
+- Fix severe bugs regarding SSE on mingw32. adds -mstackrealign compile option.
+- Uses QOpenGLWidget for QT > 5.4 instead of the obsolete QGLWidget. Adds -lopengl32 -lglut32 for mingw32.
+- Abondons nooverpaint/nodirectrender options.
+- Refactors signal/slot.
+
 * Wed Jul 27 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.16-1)
-- Fix severe bugs for 4.1.14 and 15.
+- Fix severe bugs for 4.1.14 and 15. (note: not fixed yet)
 
 * Feb Jul 12 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.1.15-1)
