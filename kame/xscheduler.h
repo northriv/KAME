@@ -13,29 +13,43 @@
 ***************************************************************************/
 #ifndef XSCHEDULER_H_
 #define XSCHEDULER_H_
-#include "xsignal.h"
+#include "transaction_signal.h"
 #include "atomic_queue.h"
+#include <deque>
+
+namespace Transactional {
 
 //! Synchronize requests in talkers with main-thread
-//! \sa Talker, XListener
-class XSignalBuffer {
+//! \sa Transactional::Talker, Transactional::Listener
+class SignalBuffer {
 public:
-	XSignalBuffer();
-	~XSignalBuffer();
 	//! Called by Talker
-	void registerTransactionList(XTransaction_ *);
+    static void registerEvent(BufferedEvent *event);
 	//! be called by thread pool
-	bool synchronize(); //!< \return true if not busy
+    static bool synchronize(); //!< \return true if not busy
+
+    static void initialize();
+    static void cleanup();
+    static unsigned int adaptiveDelay(); //!< ms
 private:
-	typedef atomic_pointer_queue<XTransaction_, 1000> Queue;
-    typedef std::deque<std::pair<XTransaction_*, XTime> > SkippedQueue;
-	XTransaction_ *popOldest();
+    SignalBuffer();
+
+    typedef atomic_pointer_queue<BufferedEvent, 1000> Queue;
+    typedef std::deque<std::pair<BufferedEvent*, XTime> > SkippedQueue;
+    BufferedEvent *popOldest();
 	Queue m_queue;
 	SkippedQueue m_skippedQueue;
     atomic<XTime> m_oldest_timestamp;
+    atomic<unsigned int> m_adaptiveDelay; //!< ms.
+
+    enum : int {ADAPTIVE_DELAY_MIN=5, ADAPTIVE_DELAY_MAX=50};
+
+    void register_event(BufferedEvent *event);
+    bool synchronize__(); //!< \return true if not busy
+
+    static shared_ptr<SignalBuffer> s_signalBuffer;
 };
 
-extern atomic<unsigned int> g_adaptiveDelay; //!< ms.
-extern shared_ptr<XSignalBuffer> g_signalBuffer;
+}
 
 #endif /*XSCHEDULER_H_*/

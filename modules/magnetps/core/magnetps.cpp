@@ -170,7 +170,7 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
 		tr[ *allowPersistent()].setUIEnabled(false);
 		m_lsnConfigShow = tr[ *m_configShow].onTouch().connectWeakly(
 			shared_from_this(), &XMagnetPS::onConfigShow,
-            XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
 }
 void

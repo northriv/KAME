@@ -49,7 +49,7 @@ private:
     
   
 	const xqcon_ptr m_conNewGraph, m_conDeleteGraph;
-	shared_ptr<XListener> m_lsnNewGraph, m_lsnDeleteGraph;
+	shared_ptr<Listener> m_lsnNewGraph, m_lsnDeleteGraph;
   
 	void onNewGraph (const Snapshot &shot, XTouchableNode *);
 	void onDeleteGraph (const Snapshot &shot, XTouchableNode *);

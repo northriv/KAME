@@ -91,7 +91,7 @@ XQConnector::XQConnector(const shared_ptr<XNode> &node, QWidget *item)
 
     node->iterate_commit([=](Transaction &tr){
     	m_lsnUIEnabled = tr[ *node].onUIFlagsChanged().connectWeakly(shared_from_this(), &XQConnector::onUIFlagsChanged,
-    		XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
     XQConnector::onUIFlagsChanged(Snapshot(*node), node.get());
     dbgPrint(QString("connector %1 created., addr=0x%2, size=0x%3")
@@ -143,7 +143,7 @@ XQButtonConnector::XQButtonConnector(const shared_ptr<XTouchableNode> &node,
     connect(item, SIGNAL( clicked() ), this, SLOT( onClick() ) );
     node->iterate_commit([=](Transaction &tr){
 		m_lsnTouch = tr[ *node].onTouch().connectWeakly
-			(shared_from_this(), &XQButtonConnector::onTouch, XListener::FLAG_MAIN_THREAD_CALL);
+            (shared_from_this(), &XQButtonConnector::onTouch, Listener::FLAG_MAIN_THREAD_CALL);
     });
 }
 XQButtonConnector::~XQButtonConnector() {
@@ -164,7 +164,7 @@ XValueQConnector::XValueQConnector(const shared_ptr<XValueNodeBase> &node, QWidg
     node->iterate_commit([=](Transaction &tr){
 		m_lsnValueChanged = tr[ *node].onValueChanged().connectWeakly(
 			shared_from_this(), &XValueQConnector::onValueChanged,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
 }
 XValueQConnector::~XValueQConnector() {
@@ -421,7 +421,7 @@ XQLabelConnector::XQLabelConnector(const shared_ptr<XValueNodeBase> &node, QLabe
 
 void
 XQLabelConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
-	m_pItem->setText(shot[ *node].to_str());
+    m_pItem->setText(shot[ *node].to_str());
 }
 
 XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, QTextBrowser *item)
@@ -492,11 +492,11 @@ XListQConnector::XListQConnector(const shared_ptr<XListNodeBase> &node, QTableWi
 
     node->iterate_commit([=](Transaction &tr){
 	    m_lsnMove = tr[ *node].onMove().connectWeakly(shared_from_this(),
-	         &XListQConnector::onMove, XListener::FLAG_MAIN_THREAD_CALL);
+             &XListQConnector::onMove, Listener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnCatch = tr[ *node].onCatch().connectWeakly(shared_from_this(),
-			&XListQConnector::onCatch, XListener::FLAG_MAIN_THREAD_CALL);
+            &XListQConnector::onCatch, Listener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnRelease = tr[ *node].onRelease().connectWeakly(shared_from_this(),
-	    	&XListQConnector::onRelease, XListener::FLAG_MAIN_THREAD_CALL);
+            &XListQConnector::onRelease, Listener::FLAG_MAIN_THREAD_CALL);
     });
     QHeaderView *header = m_pItem->verticalHeader();
 #if QT_VERSION  < QT_VERSION_CHECK(5,0,0)
@@ -552,7 +552,7 @@ XItemQConnector::XItemQConnector(const shared_ptr<XItemNodeBase> &node, QWidget 
     node->iterate_commit([=](Transaction &tr){
 	    m_lsnListChanged = tr[ *node].onListChanged().connectWeakly(shared_from_this(),
 	    	&XItemQConnector::onListChanged,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
 }
 XItemQConnector::~XItemQConnector() {
@@ -563,8 +563,8 @@ XQComboBoxConnector::XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 	: XItemQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     connect(item, SIGNAL( activated(int) ), this, SLOT( onSelect(int) ) );
-    XItemNodeBase::Payload::ListChangeEvent e(shot_of_list, node.get());
-    onListChanged(Snapshot( *node), e);
+    onListChanged(Snapshot( *node),
+        XItemNodeBase::Payload::ListChangeEvent({shot_of_list, node.get()}));
 }
 void
 XQComboBoxConnector::onSelect(int idx) {
@@ -654,8 +654,8 @@ XQListWidgetConnector::XQListWidgetConnector(const shared_ptr<XItemNodeBase> &no
     item->setMovement(QListView::Static);
     item->setSelectionBehavior(QAbstractItemView::SelectRows);
     item->setSelectionMode(QAbstractItemView::SingleSelection);
-    XItemNodeBase::Payload::ListChangeEvent e(shot_of_list, node.get());
-    onListChanged(Snapshot( *node), e);
+    onListChanged(Snapshot( *node),
+        XItemNodeBase::Payload::ListChangeEvent({shot_of_list, node.get()}));
 }
 XQListWidgetConnector::~XQListWidgetConnector() {
     if(isItemAlive()) {
@@ -745,7 +745,7 @@ XStatusPrinter::XStatusPrinter(QMainWindow *window) {
 	m_pBar->hide();
     m_lsn = m_tlkTalker.connectWeakly(
         shared_from_this(), &XStatusPrinter::print,
-        XListener::FLAG_MAIN_THREAD_CALL);
+        Listener::FLAG_MAIN_THREAD_CALL);
 }
 XStatusPrinter::~XStatusPrinter() {
 }

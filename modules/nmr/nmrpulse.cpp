@@ -192,7 +192,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			shared_from_this(), &XNMRPulseAnalyzer::onAvgClear);
 		m_lsnOnSpectrumShow = tr[ *m_spectrumShow].onTouch().connectWeakly(
 			shared_from_this(), &XNMRPulseAnalyzer::onSpectrumShow,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
 
 		m_lsnOnCondChanged = tr[ *fromTrig()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNMRPulseAnalyzer::onCondChanged);

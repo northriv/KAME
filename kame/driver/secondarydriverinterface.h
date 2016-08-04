@@ -22,9 +22,6 @@ XSecondaryDriverInterface<T>::XSecondaryDriverInterface(const char *name, bool r
     T(name, runtime, ref(tr_meas), meas),
     m_drivers(meas->drivers()) {
 }
-template <class T>
-XSecondaryDriverInterface<T>::~XSecondaryDriverInterface() {
-}
 
 template <class T>
 void
@@ -133,7 +130,7 @@ XSecondaryDriverInterface<T>::onItemChanged(const Snapshot &shot, XValueNodeBase
     shared_ptr<XNode> nd = shot[ *item];
     auto driver = static_pointer_cast<XDriver>(nd);
 
-    shared_ptr<XListener> lsnonrecord;
+    shared_ptr<Listener> lsnonrecord;
 	if(driver) {
         driver->iterate_commit([=, &lsnonrecord](Transaction &tr){
 			lsnonrecord = tr[ *driver].onRecord().connectWeakly(

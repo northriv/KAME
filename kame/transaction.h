@@ -21,6 +21,7 @@
 #include "atomic.h"
 #include "allocator.h"
 #include "xtime.h"
+#include "transaction_signal.h"
 
 namespace Transactional {
 
@@ -243,16 +244,7 @@ private:
         }
     private:
     };
-    struct ProcessCounter {
-        using cnt_t = uint16_t;
-        ProcessCounter();
-        operator cnt_t() const noexcept {return m_var;}
-    private:
-        cnt_t m_var;
-        static atomic<cnt_t> s_count;
-    };
-    //! Holds the current porcess(thread) internal ID. Taking non-zero value.
-    static XThreadLocal<ProcessCounter> stl_processID;
+
     //! Generates a serial number assigned to bundling and transaction.\n
     //! During a transaction, a serial is used for determining whether Payload or PacketList should be cloned.\n
     //! During bundle(), it is used to prevent infinite loops due to unbundle()-ing itself.
@@ -260,7 +252,7 @@ private:
         enum : int64_t {SERIAL_NULL = 0};
         struct cnt_t {
             cnt_t() {
-                m_var = (int64_t)*stl_processID * 1000000000000uLL;
+                m_var = (int64_t)ProcessCounter::id() * 1000000000000uLL;
             }
             operator int64_t() const noexcept {return m_var;}
             //16bit process ID + 48bit counter.
@@ -526,10 +518,6 @@ public:
 protected:
 };
 
-}
-#include "transaction_signal.h"
-namespace Transactional {
-
 //! \brief A class supporting transactional writing for a subtree.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.\n
 //!
@@ -601,7 +589,7 @@ public:
     }
     //! Cancels reserved events made toward \a x.
     //! \return # of unmarked events.
-    int unmark(const shared_ptr<XListener> &x) {
+    int unmark(const shared_ptr<Listener> &x) {
         int canceled = 0;
         if(m_messages)
             for(auto &&msg: *m_messages)

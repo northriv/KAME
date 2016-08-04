@@ -15,8 +15,9 @@
 #define xnodeH
 
 #include "transaction.h"
-#include "xsignal.h"
 #include "threadlocal.h"
+#include "xthread.h"
+#include <deque>
 
 class XNode;
 
@@ -41,6 +42,8 @@ template <typename...Args>
 using Talker = Transactional::Talker<Snapshot, Args...>;
 template <typename...Args>
 using TalkerSingleton = Transactional::TalkerSingleton<Snapshot, Args...>;
+
+using Listener = Transactional::Listener;
 
 extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),

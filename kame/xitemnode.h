@@ -31,7 +31,6 @@ public:
     struct DECLSPEC_KAME Payload : public XValueNodeBase::Payload {
         Payload() : XValueNodeBase::Payload() {}
         struct ListChangeEvent {
-            ListChangeEvent(const Snapshot &s, XItemNodeBase *e) : shot_of_list(s), emitter(e) {}
             Snapshot shot_of_list;
             XItemNodeBase *emitter;
         };
@@ -41,7 +40,7 @@ public:
         TalkerSingleton<ListChangeEvent> m_tlkOnListChanged;
     };
 private:
-    shared_ptr<XListener> m_lsnTryAutoSet;
+    shared_ptr<Listener> m_lsnTryAutoSet;
     void onTryAutoSet(const Snapshot &shot, const Payload::ListChangeEvent &e);
 };
 
@@ -107,11 +106,11 @@ private:
     void lsnOnListChanged(const Snapshot& shot, XListNodeBase* node) {
         if(auto list = m_list.lock()) {
             assert(node == list.get());
-            typename Payload::ListChangeEvent e(shot, this);
-            Snapshot( *this).talk(( **this)->onListChanged(), std::move(e));
+            Snapshot( *this).talk(( **this)->onListChanged(),
+                XItemNodeBase::Payload::ListChangeEvent({shot, this}));
         }
     }
-    shared_ptr<XListener> m_lsnOnItemReleased, m_lsnOnListChanged;
+    shared_ptr<Listener> m_lsnOnItemReleased, m_lsnOnListChanged;
 protected:
     weak_ptr<TL> m_list;
 };
@@ -160,10 +159,7 @@ public:
             if(shot.size(list)) {
                 for(auto it = shot.list(list)->begin(); it != shot.list(list)->end(); ++it) {
                     if(dynamic_pointer_cast<T1>( *it)) {
-                        XItemNodeBase::Item item;
-                        item.name = ( *it)->getName();
-                        item.label = ( *it)->getLabel();
-                        items.push_back(std::move(item));
+                        items.push_back({( *it)->getName(), ( *it)->getLabel()});
                     }
                 }
             }

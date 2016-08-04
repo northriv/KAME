@@ -120,7 +120,7 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
     driver->iterate_commit([=](Transaction &tr){
 		m_cons.back()->lsnOnRecord = tr[ *driver].onRecord().connectWeakly(
 				shared_from_this(), &XEntryListConnector::onRecord,
-				XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+				Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
     });
 
 	assert(m_pItem->rowCount() == (int)m_cons.size());

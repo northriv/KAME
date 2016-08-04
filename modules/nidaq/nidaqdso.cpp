@@ -142,7 +142,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 
     m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeakly(
 		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged,
-		XListener::FLAG_MAIN_THREAD_CALL);
+        Listener::FLAG_MAIN_THREAD_CALL);
 	createChannels();
 }
 void

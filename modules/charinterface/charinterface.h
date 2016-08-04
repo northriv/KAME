@@ -148,8 +148,8 @@ private:
 	//! for scripting
 	shared_ptr<XStringNode> m_script_send;
 	shared_ptr<XStringNode> m_script_query;
-	shared_ptr<XListener> m_lsnOnSendRequested;
-	shared_ptr<XListener> m_lsnOnQueryRequested;
+    shared_ptr<Listener> m_lsnOnSendRequested;
+    shared_ptr<Listener> m_lsnOnQueryRequested;
 	void onSendRequested(const Snapshot &shot, XValueNodeBase *);
 	void onQueryRequested(const Snapshot &shot, XValueNodeBase *);
 };

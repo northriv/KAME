@@ -164,7 +164,7 @@ protected:
 
 	const shared_ptr<XStatusPrinter> &statusPrinter() const {return m_statusPrinter;}
 
-	shared_ptr<XListener> m_lsnOnTrigSourceChanged;
+    shared_ptr<Listener> m_lsnOnTrigSourceChanged;
 private:
 	enum {FETCHMODE_NEVER = 0, FETCHMODE_AVG = 1, FETCHMODE_SEQ = 2};
  
@@ -211,29 +211,29 @@ private:
 	//! Digital direct conversion.
     void demodulateDisp(Transaction &tr) throw (XRecordError&);
   
-	shared_ptr<XListener> m_lsnOnSingleChanged;
-	shared_ptr<XListener> m_lsnOnAverageChanged;
-	shared_ptr<XListener> m_lsnOnTrigPosChanged;
-	shared_ptr<XListener> m_lsnOnTrigLevelChanged;
-	shared_ptr<XListener> m_lsnOnTrigFallingChanged;
-	shared_ptr<XListener> m_lsnOnTimeWidthChanged;
-	shared_ptr<XListener> m_lsnOnTrace1Changed;
-	shared_ptr<XListener> m_lsnOnTrace2Changed;
-	shared_ptr<XListener> m_lsnOnTrace3Changed;
-	shared_ptr<XListener> m_lsnOnTrace4Changed;
-	shared_ptr<XListener> m_lsnOnVFullScale1Changed;
-	shared_ptr<XListener> m_lsnOnVFullScale2Changed;
-	shared_ptr<XListener> m_lsnOnVFullScale3Changed;
-	shared_ptr<XListener> m_lsnOnVFullScale4Changed;
-	shared_ptr<XListener> m_lsnOnVOffset1Changed;
-	shared_ptr<XListener> m_lsnOnVOffset2Changed;
-	shared_ptr<XListener> m_lsnOnVOffset3Changed;
-	shared_ptr<XListener> m_lsnOnVOffset4Changed;
-	shared_ptr<XListener> m_lsnOnRecordLengthChanged;
-	shared_ptr<XListener> m_lsnOnForceTriggerTouched;
-	shared_ptr<XListener> m_lsnOnRestartTouched;
-	shared_ptr<XListener> m_lsnOnCondChanged;
-	shared_ptr<XListener> m_lsnOnDRFCondChanged;
+    shared_ptr<Listener> m_lsnOnSingleChanged;
+    shared_ptr<Listener> m_lsnOnAverageChanged;
+    shared_ptr<Listener> m_lsnOnTrigPosChanged;
+    shared_ptr<Listener> m_lsnOnTrigLevelChanged;
+    shared_ptr<Listener> m_lsnOnTrigFallingChanged;
+    shared_ptr<Listener> m_lsnOnTimeWidthChanged;
+    shared_ptr<Listener> m_lsnOnTrace1Changed;
+    shared_ptr<Listener> m_lsnOnTrace2Changed;
+    shared_ptr<Listener> m_lsnOnTrace3Changed;
+    shared_ptr<Listener> m_lsnOnTrace4Changed;
+    shared_ptr<Listener> m_lsnOnVFullScale1Changed;
+    shared_ptr<Listener> m_lsnOnVFullScale2Changed;
+    shared_ptr<Listener> m_lsnOnVFullScale3Changed;
+    shared_ptr<Listener> m_lsnOnVFullScale4Changed;
+    shared_ptr<Listener> m_lsnOnVOffset1Changed;
+    shared_ptr<Listener> m_lsnOnVOffset2Changed;
+    shared_ptr<Listener> m_lsnOnVOffset3Changed;
+    shared_ptr<Listener> m_lsnOnVOffset4Changed;
+    shared_ptr<Listener> m_lsnOnRecordLengthChanged;
+    shared_ptr<Listener> m_lsnOnForceTriggerTouched;
+    shared_ptr<Listener> m_lsnOnRestartTouched;
+    shared_ptr<Listener> m_lsnOnCondChanged;
+    shared_ptr<Listener> m_lsnOnDRFCondChanged;
   
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onDRFCondChanged(const Snapshot &shot, XValueNodeBase *);

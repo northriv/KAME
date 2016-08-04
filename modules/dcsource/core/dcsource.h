@@ -83,7 +83,7 @@ private:
 	const shared_ptr<XDoubleNode> m_value;
 	const shared_ptr<XComboNode> m_channel;
 	const shared_ptr<XComboNode> m_range;
-	shared_ptr<XListener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel,
+	shared_ptr<Listener> m_lsnFunction, m_lsnOutput, m_lsnValue, m_lsnChannel,
 		m_lsnRange;
 
 	virtual void onFunctionChanged(const Snapshot &shot, XValueNodeBase *);

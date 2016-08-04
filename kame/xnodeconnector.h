@@ -18,8 +18,8 @@
 
 #include "support.h"
 #include <QObject>
-
-#include "xsignal.h"
+#include "transaction_signal.h"
+using Transactional::isMainThread;
 
 class QWidget;
 
@@ -60,9 +60,13 @@ protected:
 public:
 };
 
-typedef qshared_ptr<XQConnectorHolder_> xqcon_ptr;
+using xqcon_ptr = qshared_ptr<XQConnectorHolder_>;
 
-#include "xnodeconnector_prv.h"
+//! function for creating XQConnector instances
+template <class T, class A, class B, typename...Args>
+xqcon_ptr xqcon_create(const shared_ptr<A> &a, B *b, Args&&...args) {
+    return xqcon_ptr(new XQConnectorHolder_( new T(a, b, std::forward<Args>(args)...)));
+}
 
 #include "xnode.h"
 #include "xlistnode.h"
@@ -80,17 +84,12 @@ extern DECLSPEC_KAME QWidget *g_pFrmMain;
 //! Providing an easy access to make a new form with UIs designed by Qt designer.
 template <class FRM, class UI>
 struct QForm : public FRM, public UI {
-    QForm() : FRM(), UI() {this->setupUi(this);}
-	template <typename A>
-    explicit QForm(A a) : FRM(a), UI() {this->setupUi(this);}
-	template <typename A, typename B>
-    QForm(A a, B b) : FRM(a, b), UI() {this->setupUi(this);}
-	template <typename A, typename B, typename C>
-    QForm(A a, B b, C c) : FRM(a, b, c), UI() {this->setupUi(this);}
+    template <typename...Args>
+    QForm(Args&&...args) : FRM(std::forward<Args>(args)...), UI() {this->setupUi(this);}
 };
 
 //! Associate QWidget to XNode.
-//! use connectWeak() to make XListener.
+//! use connectWeak() to make Listener.
 //! use xqcon_create<T>() to make instances.
 //! \sa xqcon_create()
 class DECLSPEC_KAME XQConnector : public QObject,
@@ -110,7 +109,7 @@ protected slots:
 protected:
 	friend class XQConnectorHolder_;
 	bool isItemAlive() const {return m_pWidget;}
-	shared_ptr<XListener> m_lsnUIEnabled;
+    shared_ptr<Listener> m_lsnUIEnabled;
     virtual void onUIFlagsChanged(const Snapshot &shot, XNode *node);
 	QWidget *m_pWidget;
 };
@@ -127,7 +126,7 @@ protected slots:
 virtual void onClick();
 protected:
 	virtual void onTouch(const Snapshot &shot, XTouchableNode *node);
-	shared_ptr<XListener> m_lsnTouch;
+    shared_ptr<Listener> m_lsnTouch;
 	const shared_ptr<XTouchableNode> m_node;
 	QAbstractButton *const m_pItem;
 };
@@ -139,7 +138,7 @@ public:
 	virtual ~XValueQConnector();
 private slots:
 protected:
-	shared_ptr<XListener> m_lsnValueChanged;
+    shared_ptr<Listener> m_lsnValueChanged;
 	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) = 0;
 };
 
@@ -326,10 +325,10 @@ private slots:
 protected slots:
 void OnSectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex);
 protected:
-	shared_ptr<XListener> m_lsnMove;
+    shared_ptr<Listener> m_lsnMove;
 	virtual void onMove(const Snapshot &shot, const XListNodeBase::Payload::MoveEvent &e);
-	shared_ptr<XListener> m_lsnCatch;
-	shared_ptr<XListener> m_lsnRelease;
+    shared_ptr<Listener> m_lsnCatch;
+    shared_ptr<Listener> m_lsnRelease;
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e) = 0;
 	virtual void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) = 0;
     QTableWidget *const m_pItem;
@@ -345,7 +344,7 @@ public:
 private slots:
 protected slots:
 protected:
-	shared_ptr<XListener>  m_lsnListChanged;
+    shared_ptr<Listener>  m_lsnListChanged;
 	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) = 0;
     std::vector<XItemNodeBase::Item> m_itemStrings;
 };
@@ -420,7 +419,7 @@ private:
     struct tstatus {XString str; XString tooltip; int ms; bool popup; bool beep;
         enum : int {Normal, Warning, Error} type;};
     Transactional::Talker<tstatus> m_tlkTalker;
-	shared_ptr<XListener> m_lsn;
+    shared_ptr<Listener> m_lsn;
 	QMainWindow *m_pWindow;
 	QStatusBar *m_pBar;
     void print(const tstatus &status);

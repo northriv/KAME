@@ -98,7 +98,7 @@ public:
 	//! Clears stored points.
 	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
 protected:
-	shared_ptr<XListener> m_lsnOnClear, m_lsnOnCondChanged;
+    shared_ptr<Listener> m_lsnOnClear, m_lsnOnCondChanged;
     
 	//! \return true to be cleared.
 	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const = 0;

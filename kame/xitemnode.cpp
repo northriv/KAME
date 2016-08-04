@@ -59,7 +59,7 @@ XComboNode::Payload::operator=(const XString &var) {
 	}
 	if(i == m_strings->size())
 		i = -1;
-	m_var = std::pair<XString, int>(var, i);
+    m_var = {var, i};
     tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	return *this;
 }
@@ -67,9 +67,9 @@ XComboNode::Payload::operator=(const XString &var) {
 XComboNode::Payload&
 XComboNode::Payload::operator=(int t) {
     if((t >= 0) && (t < (int)m_strings->size()))
-	    m_var = std::pair<XString, int>(m_strings->at(t), t);
+        m_var = {m_strings->at(t), t};
 	else
-	    m_var = std::pair<XString, int>("", -1);
+        m_var = {"", -1};
     tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	return *this;
 }
@@ -78,8 +78,7 @@ void
 XComboNode::Payload::add(const XString &str) {
     m_strings = std::make_shared<std::deque<XString>>( *m_strings);
 	m_strings->push_back(str);
-	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
-    tr().mark(onListChanged(), std::move(e));
+    tr().mark(onListChanged(), ListChangeEvent({tr(), static_cast<XItemNodeBase*>( &node())}));
 	if(str == m_var.first) {
 		m_var.second = m_strings->size() - 1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
@@ -89,8 +88,7 @@ XComboNode::Payload::add(const XString &str) {
 void
 XComboNode::Payload::clear() {
     m_strings = std::make_shared<std::deque<XString>>();
-	ListChangeEvent e(tr(), static_cast<XItemNodeBase*>( &node()));
-    tr().mark(onListChanged(), std::move(e));
+    tr().mark(onListChanged(), ListChangeEvent({tr(), static_cast<XItemNodeBase*>( &node())}));
 	if(m_var.second >= 0) {
 	    m_var.second = -1;
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
@@ -100,18 +98,12 @@ XComboNode::Payload::clear() {
 std::vector<XItemNodeBase::Item> XComboNode::Payload::itemStrings() const {
     std::vector<XItemNodeBase::Item> items;
 	for(auto it = m_strings->begin(); it != m_strings->end(); it++) {
-		XItemNodeBase::Item item;
-		item.name = *it;
-		item.label = *it;
-        items.push_back(std::move(item));
+        items.push_back({*it, *it});
 	}
 	assert(m_strings->size() || (m_var.second < 0));
     if(m_var.second < 0) {
-	    XItemNodeBase::Item item;
-        item.name = m_var.first;
-        if(item.name.length()) {
-	        item.label = formatString("(%s)", item.name.c_str());
-            items.push_back(std::move(item));
+        if(m_var.first.length()) {
+            items.push_back({m_var.first, "(" + m_var.first + ")"});
         }
     }
     return items;

@@ -32,7 +32,6 @@
 #endif
 
 #include "kame.h"
-#include "xsignal.h"
 #include "xscheduler.h"
 #include "measure.h"
 #include "interface.h"
@@ -97,7 +96,7 @@ FrmKameMain::FrmKameMain()
     dock->setWidget(m_pMdiRight);
     addDockWidget(Qt::RightDockWidgetArea, dock);
 
-    g_signalBuffer.reset(new XSignalBuffer());
+    Transactional::SignalBuffer::initialize();
 
     m_pFrmDriver = new FrmDriver(this);
     m_pFrmDriver->setWindowIcon(*g_pIconDriver);
@@ -200,7 +199,7 @@ FrmKameMain::~FrmKameMain() {
 	m_pTimer->stop();
 //	while( !g_signalBuffer->synchronize()) {}
 	m_measure.reset();
-	g_signalBuffer.reset();
+    Transactional::SignalBuffer::cleanup();
     delete s_pMessageBox; s_pMessageBox = 0L;
 }
 
@@ -296,7 +295,7 @@ FrmKameMain::createMenus() {
 
 void
 FrmKameMain::processSignals() {
-	bool idle = g_signalBuffer->synchronize();
+    bool idle = Transactional::SignalBuffer::synchronize();
 	if(idle) {
         msecsleep(5);
 	#ifdef HAVE_LIBGCCPP

@@ -187,8 +187,8 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 
-	shared_ptr<XListener> m_lsnOnSpectrumShow, m_lsnOnAvgClear;
-	shared_ptr<XListener> m_lsnOnCondChanged;
+    shared_ptr<Listener> m_lsnOnSpectrumShow, m_lsnOnAvgClear;
+    shared_ptr<Listener> m_lsnOnCondChanged;
     
 	const qshared_ptr<FrmNMRPulse> m_form;
 	const shared_ptr<XStatusPrinter> m_statusPrinter;

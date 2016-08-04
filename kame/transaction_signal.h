@@ -14,12 +14,28 @@
 #ifndef TRANSACTION_SIGNAL_H
 #define TRANSACTION_SIGNAL_H
 
-#include "transaction.h"
-#include <deque>
-#include <tuple>
-#include "xsignal.h"
+#include "support.h"
+#include "threadlocal.h"
+#include "atomic_smart_ptr.h"
+#include "allocator.h"
+#include "xtime.h"
 
 namespace Transactional {
+
+struct ProcessCounter {
+    using cnt_t = uint16_t;
+    ProcessCounter();
+    operator cnt_t() const noexcept {return m_var;}
+    enum : cnt_t { MAINTHREADID = 1 };
+    static cnt_t id() noexcept {return *stl_processID;}
+private:
+    cnt_t m_var;
+    static atomic<cnt_t> s_count;
+    //! Holds the current porcess(thread) internal ID. Taking non-zero value.
+    static XThreadLocal<ProcessCounter> stl_processID;
+};
+
+inline bool isMainThread() noexcept {return ProcessCounter::id() == ProcessCounter::MAINTHREADID;}
 
 template <int N>
 struct CallByTuple {
@@ -51,10 +67,32 @@ public:
     }
 };
 
-template <class Event>
-class ListenerBase : public XListener {
+template <class SS, typename...Args> class Talker;
+
+//! Base class of listener, which holds pointers to object and function.
+//! Hold instances by shared_ptr.
+class DECLSPEC_KAME Listener {
+public:
+    virtual ~Listener() = default;
+    //! \return an appropriate delay for delayed events.
+    unsigned int delay_ms() const;
+
+    enum FLAGS : int {
+        FLAG_MAIN_THREAD_CALL = 0x01, FLAG_AVOID_DUP = 0x02,
+        FLAG_DELAY_SHORT = 0x100, FLAG_DELAY_ADAPTIVE = 0x200
+    };
+    int flags() const {return (int)m_flags;}
 protected:
-    explicit ListenerBase(XListener::FLAGS flags) : XListener(flags), event() {}
+    template <class SS, typename...Args>
+    friend class Transactional::Talker;
+    Listener(FLAGS flags);
+    const int m_flags;
+};
+
+template <class Event>
+class ListenerBase : public Listener {
+protected:
+    explicit ListenerBase(Listener::FLAGS flags) : Listener(flags), event() {}
 public:
     virtual void operator() (const Event&) const = 0;
 protected:
@@ -65,7 +103,7 @@ protected:
 
 template<class Event, class R, class Func>
 struct ListenerRef : public ListenerBase<Event> {
-    ListenerRef(R &obj, Func f, XListener::FLAGS flags) noexcept :
+    ListenerRef(R &obj, Func f, Listener::FLAGS flags) noexcept :
         ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
     virtual void operator() (const Event& e) const override {
         e(m_func, m_obj);
@@ -76,7 +114,7 @@ private:
 };
 template<class Event, class R, class Func>
 struct ListenerWeak : public ListenerBase<Event> {
-    ListenerWeak(const shared_ptr<R> &obj, Func f, XListener::FLAGS flags) noexcept :
+    ListenerWeak(const shared_ptr<R> &obj, Func f, Listener::FLAGS flags) noexcept :
          ListenerBase<Event>(flags), m_func(f), m_obj(obj) { }
     virtual void operator() (const Event& e) const override {
         if(auto p = m_obj.lock() ) {
@@ -92,11 +130,19 @@ template <class SS>
 struct Message_ {
     virtual ~Message_() = default;
     virtual void talk(const SS &shot) = 0;
-    virtual int unmark(const shared_ptr<XListener> &x) = 0;
+    virtual int unmark(const shared_ptr<Listener> &x) = 0;
+};
+
+struct BufferedEvent {
+    BufferedEvent() : registered_time(XTime::now()) {}
+    virtual ~BufferedEvent() = default;
+    const XTime registered_time;
+    virtual bool talkBuffered() = 0;
+    static DECLSPEC_KAME void registerEvent(BufferedEvent *);
 };
 
 //! M/M Listener and Talker model
-//! \sa XListener, XSignalStore
+//! \sa Listener
 //! \p tArg: value which will be derivered
 template <class SS, typename...Args>
 class Talker {
@@ -104,13 +150,13 @@ public:
     virtual ~Talker() = default;
 
     template <class R, class T, typename...ArgRefs>
-    shared_ptr<XListener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0);
+    shared_ptr<Listener> connect(R& obj, void(T::*func)(ArgRefs...), int flags = 0);
     template <class R, class T, typename...ArgRefs>
-    shared_ptr<XListener> connectWeakly(const shared_ptr<R> &obj,
+    shared_ptr<Listener> connectWeakly(const shared_ptr<R> &obj,
         void (T::*func)(ArgRefs...), int flags = 0);
 
-    void connect(const shared_ptr<XListener> &x);
-    void disconnect(const shared_ptr<XListener> &);
+    void connect(const shared_ptr<Listener> &x);
+    void disconnect(const shared_ptr<Listener> &);
 
     //! Requests a talk to connected listeners.
     //! If a listener is not mainthread model, the listener will be called later.
@@ -128,22 +174,20 @@ public:
     bool empty() const noexcept {return !m_listeners;}
 private:
     using Event_ = Event<SS, Args...>;
-    using Listener_ = ListenerBase<Event_> ;
-    typedef std::vector<weak_ptr<Listener_> > ListenerList;
-    typedef fast_vector<shared_ptr<XListener> > UnmarkedListenerList;
+    typedef std::vector<weak_ptr<ListenerBase<Event_>> > ListenerList;
+    typedef fast_vector<shared_ptr<Listener> > UnmarkedListenerList;
     shared_ptr<ListenerList> m_listeners;
 
-    void connect(const shared_ptr<Listener_> &);
+    void connect(const shared_ptr<ListenerBase<Event_>> &);
 
-    struct EventWrapper : public XTransaction_ {
-        EventWrapper(const shared_ptr<Listener_> &l) noexcept :
-            XTransaction_(), listener(l) {}
+    struct EventWrapper : public BufferedEvent {
+        EventWrapper(const shared_ptr<ListenerBase<Event_>> &l) noexcept :
+            BufferedEvent(), listener(l) {}
         virtual ~EventWrapper() = default;
-        const shared_ptr<Listener_> listener;
-        virtual bool talkBuffered() = 0;
+        const shared_ptr<ListenerBase<Event_>> listener;
     };
     struct EventWrapperAllowDup : public EventWrapper {
-        EventWrapperAllowDup(const shared_ptr<Listener_> &l, const Event_ &e) noexcept :
+        EventWrapperAllowDup(const shared_ptr<ListenerBase<Event_>> &l, const Event_ &e) noexcept :
             EventWrapper(l), event(e) {}
         Event_ event;
         virtual bool talkBuffered() override {
@@ -152,7 +196,7 @@ private:
         }
     };
     struct EventWrapperAvoidDup : public EventWrapper {
-        EventWrapperAvoidDup(const shared_ptr<Listener_> &l) : EventWrapper(l) {}
+        EventWrapperAvoidDup(const shared_ptr<ListenerBase<Event_>> &l) : EventWrapper(l) {}
             virtual bool talkBuffered() override {
                 bool skip = false;
                 if(this->listener->delay_ms()) {
@@ -177,7 +221,7 @@ public:
         std::tuple<Args...> args;
         shared_ptr<UnmarkedListenerList> listeners_unmarked;
         virtual void talk(const SS &shot) override;
-        virtual int unmark(const shared_ptr<XListener> &x) override {
+        virtual int unmark(const shared_ptr<Listener> &x) override {
             if( !listeners)
                 return 0;
             int canceled = 0;
@@ -229,35 +273,35 @@ shared_ptr<typename Talker<SS, Args...>::Message> Talker<SS, Args...>::createMes
 
 template <class SS, typename...Args>
 template <class R, class T, typename...ArgRefs>
-shared_ptr<XListener>
+shared_ptr<Listener>
 Talker<SS, Args...>::connect(R &obj, void(T::*func)(ArgRefs...), int flags) {
-    shared_ptr<Listener_> listener =
+    shared_ptr<ListenerBase<Event_>> listener =
             std::make_shared<ListenerRef<Talker<SS, Args...>::Event_, T, decltype(func)>>(
-                static_cast<T&>(obj), func, (XListener::FLAGS)flags);
+                static_cast<T&>(obj), func, (Listener::FLAGS)flags);
     connect(listener);
     return listener;
 }
 
 template <class SS, typename...Args>
 template <class R, class T, typename...ArgRefs>
-shared_ptr<XListener>
+shared_ptr<Listener>
 Talker<SS, Args...>::connectWeakly(const shared_ptr<R> &obj,
     void(T::*func)(ArgRefs...), int flags) {
-    shared_ptr<Listener_> listener =
+    shared_ptr<ListenerBase<Event_>> listener =
             std::make_shared<ListenerWeak<Talker<SS, Args...>::Event_, T, decltype(func)>>(
-            static_pointer_cast<T>(obj), func, (XListener::FLAGS)flags);
+            static_pointer_cast<T>(obj), func, (Listener::FLAGS)flags);
     connect(listener);
     return listener;
 }
 template <class SS, typename...Args>
 void
-Talker<SS, Args...>::connect(const shared_ptr<XListener> &lx) {
-    auto listener = dynamic_pointer_cast<Listener_>(lx);
+Talker<SS, Args...>::connect(const shared_ptr<Listener> &lx) {
+    auto listener = dynamic_pointer_cast<ListenerBase<Event_>>(lx);
     connect(listener);
 }
 template <class SS, typename...Args>
 void
-Talker<SS, Args...>::connect(const shared_ptr<Listener_> &lx) {
+Talker<SS, Args...>::connect(const shared_ptr<ListenerBase<Event_>> &lx) {
     auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
     // clean-up dead listeners.
     for(auto it = new_list->begin(); it != new_list->end();) {
@@ -272,7 +316,7 @@ Talker<SS, Args...>::connect(const shared_ptr<Listener_> &lx) {
 }
 template <class SS, typename...Args>
 void
-Talker<SS, Args...>::disconnect(const shared_ptr<XListener> &lx) {
+Talker<SS, Args...>::disconnect(const shared_ptr<Listener> &lx) {
     auto new_list = m_listeners ? std::make_shared<ListenerList>( *m_listeners) : std::make_shared<ListenerList>();
     for(auto it = new_list->begin(); it != new_list->end();) {
         if(auto listener = it->lock()) {
@@ -302,12 +346,12 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
             if(listeners_unmarked &&
                 (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
                 continue;
-            if(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL) {
-                if(listener->flags() & XListener::FLAG_AVOID_DUP) {
+            if(listener->flags() & Listener::FLAG_MAIN_THREAD_CALL) {
+                if(listener->flags() & Listener::FLAG_AVOID_DUP) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
                     if( !newevent.get())
-                        registerTransactionList(new EventWrapperAvoidDup(listener));
+                        BufferedEvent::registerEvent(new EventWrapperAvoidDup(listener));
                 }
                 else {
                     if(isMainThread()) {
@@ -319,7 +363,7 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                         }
                     }
                     else {
-                        registerTransactionList(new EventWrapperAllowDup(listener, event));
+                        BufferedEvent::registerEvent(new EventWrapperAllowDup(listener, event));
                     }
                 }
             }
@@ -331,7 +375,7 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
             if(listeners_unmarked &&
                 (std::find(listeners_unmarked->begin(), listeners_unmarked->end(), listener) != listeners_unmarked->end()))
                 continue;
-            if( !(listener->flags() & XListener::FLAG_MAIN_THREAD_CALL)) {
+            if( !(listener->flags() & Listener::FLAG_MAIN_THREAD_CALL)) {
                 try {
                     ( *listener)(event);
                 }

@@ -36,7 +36,7 @@ protected:
 	//! This function should be called before leaving a measurement thread to terminate the interface.
 	virtual void closeInterface() {close();}
 private:
-	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
+	shared_ptr<Listener> m_lsnOnOpen, m_lsnOnClose;
   
 	const shared_ptr<tInterface> m_interface;
 };

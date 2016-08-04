@@ -27,7 +27,7 @@ m_measure(measure),
 m_thread(shared_from_this(), &XRuby::execute) {
     iterate_commit([=](Transaction &tr){
 		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
-			&XRuby::onChildCreated, XListener::FLAG_MAIN_THREAD_CALL);
+            &XRuby::onChildCreated, Listener::FLAG_MAIN_THREAD_CALL);
     });
 }
 XRuby::~XRuby() {

@@ -62,7 +62,7 @@ private:
 	const shared_ptr<XScalarEntry> m_entry;
 	const shared_ptr<XComboNode> m_function;
 	const shared_ptr<XUIntNode> m_waitInms;
-	shared_ptr<XListener> m_lsnOnFunctionChanged;
+	shared_ptr<Listener> m_lsnOnFunctionChanged;
 	xqcon_ptr m_conFunction, m_conWaitInms;
  
 	const qshared_ptr<FrmDMM> m_form;

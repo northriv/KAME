@@ -54,8 +54,8 @@ void XWaveNGraph::init() {
     iterate_commit([=](Transaction &tr){
         m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
 			shared_from_this(),
-			&XWaveNGraph::onIconChanged, XListener::FLAG_MAIN_THREAD_CALL
-				| XListener::FLAG_AVOID_DUP);
+			&XWaveNGraph::onIconChanged, Listener::FLAG_MAIN_THREAD_CALL
+				| Listener::FLAG_AVOID_DUP);
 		tr.mark(tr[ *this].onIconChanged(), false);
 
 		tr[ *dump()].setUIEnabled(false);

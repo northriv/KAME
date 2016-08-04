@@ -61,7 +61,7 @@ private:
 	shared_ptr<XStringNode> m_action;
 	shared_ptr<XStringNode> m_lineinput;
 	shared_ptr<XLongNode> m_threadID;
-	shared_ptr<XListener> m_lsnOnLineChanged;
+    shared_ptr<Listener> m_lsnOnLineChanged;
 	void onLineChanged(const Snapshot &shot, XValueNodeBase *);
 	std::deque<XString> m_lineBuffer;
 	XMutex m_lineBufferMutex;

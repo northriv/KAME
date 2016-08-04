@@ -45,7 +45,7 @@ protected:
 	virtual void closeInterface() {interface()->stop();}
 	const shared_ptr<XDummyInterface> &interface() const {return m_interface;}
 private:
-	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
+    shared_ptr<Listener> m_lsnOnOpen, m_lsnOnClose;
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	const shared_ptr<XDummyInterface> m_interface;

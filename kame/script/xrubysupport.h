@@ -75,7 +75,7 @@ private:
     Ruby::Value rlistnode_create_child(const shared_ptr<XNode> &, Ruby::Value, Ruby::Value);
     Ruby::Value rlistnode_release_child(const shared_ptr<XNode> &, Ruby::Value);
 
-	shared_ptr<XListener> m_lsnChildCreated;
+	shared_ptr<Listener> m_lsnChildCreated;
 	void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
   
 	const weak_ptr<XMeasure> m_measure;

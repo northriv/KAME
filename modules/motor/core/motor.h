@@ -102,7 +102,7 @@ private:
 	const shared_ptr<XTouchableNode>  m_reverseMotor;
 	const shared_ptr<XTouchableNode> m_stopMotor;
 
-	shared_ptr<XListener> m_lsnTarget, m_lsnConditions,
+	shared_ptr<Listener> m_lsnTarget, m_lsnConditions,
 		m_lsnClear, m_lsnStore, m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor, m_lsnAUX;
 	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
 		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,

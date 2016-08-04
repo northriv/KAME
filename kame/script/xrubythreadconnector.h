@@ -33,10 +33,10 @@ public:
 private:
     const shared_ptr<XTouchableNode> m_resume;
     const shared_ptr<XTouchableNode> m_kill;
-    shared_ptr<XListener> m_lsnOnResumeTouched;
-    shared_ptr<XListener> m_lsnOnKillTouched;
-    shared_ptr<XListener> m_lsnOnDefout;
-    shared_ptr<XListener> m_lsnOnStatusChanged;
+    shared_ptr<Listener> m_lsnOnResumeTouched;
+    shared_ptr<Listener> m_lsnOnKillTouched;
+    shared_ptr<Listener> m_lsnOnDefout;
+    shared_ptr<Listener> m_lsnOnStatusChanged;
     void onResumeTouched(const Snapshot &shot, XTouchableNode *node);
     void onKillTouched(const Snapshot &shot, XTouchableNode *node);
     void onDefout(const Snapshot &shot, const shared_ptr<XString> &str);

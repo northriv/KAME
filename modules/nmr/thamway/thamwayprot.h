@@ -84,8 +84,8 @@ protected:
 private:
     const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW;
 
-    shared_ptr<XListener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;    
-    shared_ptr<XListener> m_lsnRXGain, m_lsnRXPhase, m_lsnRXLPFBW;
+    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;
+    shared_ptr<Listener> m_lsnRXGain, m_lsnRXPhase, m_lsnRXLPFBW;
 
     std::deque<xqcon_ptr> m_conUIs;
 

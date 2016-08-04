@@ -97,7 +97,7 @@ public:
 		reference_wrapper<Transaction>,
 		const shared_ptr<XMeasure> &
 		)
-		virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name);
+    virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name) override;
 private:
 	const weak_ptr<XMeasure> m_measure;
 };

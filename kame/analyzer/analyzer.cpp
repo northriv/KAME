@@ -155,7 +155,7 @@ XValGraph::XValGraph(const char *name, bool runtime,
 	iterate_commit([=](Transaction &tr){
 	    m_lsnAxisChanged = tr[ *axisX()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XValGraph::onAxisChanged,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
 	    tr[ *axisY1()].onValueChanged().connect(m_lsnAxisChanged);
 	    tr[ *axisZ()].onValueChanged().connect(m_lsnAxisChanged);
     });

@@ -47,8 +47,8 @@ private:
 	shared_ptr<XItemNode<XThermometerList, XThermometer> > m_thermometer;
 	xqcon_ptr m_conThermo, m_conTemp, m_conValue, m_conDisplay;
   
-	shared_ptr<XListener> m_lsnTemp, m_lsnValue;
-	shared_ptr<XListener> m_lsnDisplay;
+	shared_ptr<Listener> m_lsnTemp, m_lsnValue;
+	shared_ptr<Listener> m_lsnDisplay;
   
 	void onTempChanged(const Snapshot &shot, XValueNodeBase *);
 	void onValueChanged(const Snapshot &shot, XValueNodeBase *);  

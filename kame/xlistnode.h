@@ -72,10 +72,10 @@ public:
 		:  XListNodeBase(name, runtime) {}
     virtual ~XListNode() = default;
 
-	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
+    virtual bool isThreadSafeDuringCreationByTypename() const override {return true;}
 
 	virtual shared_ptr<XNode> createByTypename(
-        const XString &, const XString &name) {
+        const XString &, const XString &name) override {
 		return this->create<NT>(name.c_str(), false);
 	}
 };
@@ -88,10 +88,10 @@ public:
 		:  XListNodeBase(name, runtime) {}
     virtual ~XAliasListNode() = default;
 
-	virtual bool isThreadSafeDuringCreationByTypename() const {return true;}
+    virtual bool isThreadSafeDuringCreationByTypename() const override {return true;}
 
 	virtual shared_ptr<XNode> createByTypename(
-        const XString &, const XString &) {
+        const XString &, const XString &) override {
 		return shared_ptr<XNode>();
 	}
 };
@@ -103,10 +103,7 @@ public:
 		:  XListNodeBase(name, runtime) {}
     virtual ~XCustomTypeListNode() = default;
 
-	virtual bool isThreadSafeDuringCreationByTypename() const {return false;} //! default behavior for safety.
-
-	virtual shared_ptr<XNode> createByTypename(
-        const XString &type, const XString &name) = 0;
+    virtual bool isThreadSafeDuringCreationByTypename() const override {return false;} //! default behavior for safety.
 };  
 
 #include <functional>

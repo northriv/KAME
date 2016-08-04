@@ -76,8 +76,11 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
     graph->iterate_commit([=](Transaction &tr){
 		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(
 			shared_from_this(), &XQGraphPainter::onRedraw,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
     });
+    m_lsnRepaint = m_tlkRepaint.connectWeakly(
+        shared_from_this(), &XQGraphPainter::onRepaint,
+        Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
     m_pixel_ratio = m_pItem->devicePixelRatio();
 }
 XQGraphPainter::~XQGraphPainter() {
@@ -113,14 +116,16 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 void
 XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2) {
 	if((x1 != x2) || (y1 != y2)) {
-        m_pItem->update();
-	}
+        if(m_bIsRedrawNeeded)
+            m_pItem->update();
+        else
+            m_tlkRepaint.talk(Snapshot( *m_graph)); //defers update.
+    }
 }
 void
-XQGraphPainter::redrawOffScreen() {
-	m_bIsRedrawNeeded = true;
+XQGraphPainter::onRepaint(const Snapshot &shot) {
+    m_pItem->update();
 }
-  
 void
 XQGraphPainter::beginLine(double size) {
 	glLineWidth(size);

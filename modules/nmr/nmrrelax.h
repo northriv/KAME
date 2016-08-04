@@ -187,9 +187,9 @@ private:
 		double fixed_minfty;
 	};
  
-	shared_ptr<XListener> m_lsnOnClearAll, m_lsnOnResetFit;
-	shared_ptr<XListener> m_lsnOnActiveChanged;
-	shared_ptr<XListener> m_lsnOnCondChanged, m_lsnOnP1CondChanged;
+    shared_ptr<Listener> m_lsnOnClearAll, m_lsnOnResetFit;
+    shared_ptr<Listener> m_lsnOnActiveChanged;
+    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnP1CondChanged;
 	void onClearAll (const Snapshot &shot, XTouchableNode *);
 	void onResetFit (const Snapshot &shot, XTouchableNode *);
 	void onActiveChanged (const Snapshot &shot, XValueNodeBase *);

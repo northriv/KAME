@@ -30,7 +30,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
     pulser->iterate_commit([=](Transaction &tr){
 		m_lsnOnPulseChanged = tr[ *pulser].onRecord().connectWeakly(
 			shared_from_this(), &XQPulserDriverConnector::onPulseChanged,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
     });
 	m_pTable->setColumnCount(3);
 	double def = 50;

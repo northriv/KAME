@@ -92,7 +92,7 @@ public:
 private:
 	const shared_ptr<XComboNode> m_selector, m_windowfunc;
 	const shared_ptr<XDoubleNode> m_windowlength;
-	shared_ptr<XListener> m_lsnOnChanged;
+    shared_ptr<Listener> m_lsnOnChanged;
 	void onSolverChanged(const Snapshot &shot, XValueNodeBase *);
 };
 

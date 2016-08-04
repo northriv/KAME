@@ -60,7 +60,7 @@ XRubyThreadConnector::XRubyThreadConnector(
     });
     Snapshot shot = rbthread->iterate_commit([=](Transaction &tr){
 	    m_lsnOnDefout = tr[ *rbthread].onMessageOut().connectWeakly(
-	        shared_from_this(), &XRubyThreadConnector::onDefout, XListener::FLAG_MAIN_THREAD_CALL);
+            shared_from_this(), &XRubyThreadConnector::onDefout, Listener::FLAG_MAIN_THREAD_CALL);
 	    m_lsnOnStatusChanged = tr[ *rbthread->status()].onValueChanged().connectWeakly(
 	        shared_from_this(), &XRubyThreadConnector::onStatusChanged);
     });

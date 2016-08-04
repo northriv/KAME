@@ -251,7 +251,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			}
 	    }
 	    else {
-			m_graph->iterate_commit([=](Transaction &tr){
+            m_graph->iterate_commit([=](Transaction &tr){
 				switch(mode) {
 				case SelPlane:
 					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
@@ -291,11 +291,10 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 					break;
 				default:
 					break;
-				}
+                }
             });
-	    }
+        }
 	}
-	
 	repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );
 }
 
@@ -336,8 +335,8 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
 }
 void
 XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
-	redrawOffScreen();
-	repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );  
+    m_bIsRedrawNeeded = true;
+    repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );
 }
 void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {

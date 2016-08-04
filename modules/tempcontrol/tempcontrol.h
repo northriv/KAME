@@ -28,9 +28,9 @@ class XTempControl : public XPrimaryDriverWithThread {
 public:
 	XTempControl(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do
-	virtual ~XTempControl() {}
+    virtual ~XTempControl() = default;
 	//! show all forms belonging to driver
-	virtual void showForms();
+    virtual void showForms() override;
   
 	class XChannel : public XNode {
 	public:
@@ -73,10 +73,10 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
-	virtual void visualize(const Snapshot &shot);
+    virtual void visualize(const Snapshot &shot) override;
   
 	//! Prepares channel names in your constructor.
 	//! \param multiread if true, simultaneous reading of multi channels.
@@ -159,11 +159,11 @@ private:
 
         std::deque<xqcon_ptr> m_conUIs;
 
-		shared_ptr<XListener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
+        shared_ptr<Listener> m_lsnOnPChanged, m_lsnOnIChanged, m_lsnOnDChanged,
 			m_lsnOnTargetTempChanged, m_lsnOnManualPowerChanged, m_lsnOnHeaterModeChanged,
 			m_lsnOnPowerMaxChanged, m_lsnOnPowerMinChanged,
 			m_lsnOnPowerRangeChanged, m_lsnOnCurrentChannelChanged,
-			m_lsnOnSetupChannelChanged, m_lsnOnExtDeviceChanged;
+            m_lsnOnSetupChannelChanged, m_lsnOnExtDeviceChanged;
 
 		double m_pidAccum;
 		double m_pidLastTemp;
@@ -179,13 +179,15 @@ private:
 
 	shared_ptr<XItemNode<XChannelList, XChannel> > m_setupChannel;
 
-	shared_ptr<XListener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged;
+    shared_ptr<Listener> m_lsnOnSetupChannelChanged, m_lsnOnExcitationChanged,
+        m_lsnOnLoopUpdated;
+    Transactional::Talker<int, XString> m_tlkOnLoopUpdated;
 
 	void onSetupChannelChanged(const Snapshot &shot, XValueNodeBase *);
     void onExcitationChangedInternal(const Snapshot &shot, XValueNodeBase *);
+    void onLoopUpdated(int index, const XString &);
 
-	std::deque<shared_ptr<XScalarEntry> > m_entry_temps;
-	std::deque<shared_ptr<XScalarEntry> > m_entry_raws;
+    std::deque<shared_ptr<XScalarEntry> > m_entry_temps, m_entry_raws;
  
 	const qshared_ptr<FrmTempControl> m_form;
 	bool m_multiread;
@@ -193,7 +195,7 @@ private:
 	xqcon_ptr m_conSetupChannel,
 		m_conExcitation, m_conThermometer;
 	
-	void *execute(const atomic<bool> &);
+    virtual void *execute(const atomic<bool> &) override;
   
 };
 

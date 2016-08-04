@@ -11,8 +11,6 @@ DEFINES += USE_STD_RANDOM
 
 CONFIG += CONSOLE
 
-QT += widgets
-
 #win32: QMAKE_CXXFLAGS += -pie
 
 INCLUDEPATH += \
@@ -66,10 +64,8 @@ HEADERS += \
     xitemnode.h \
     xlistnode.h \
     xnode.h \
-    xnodeconnector_prv.h \
     xnodeconnector.h \
     xscheduler.h \
-    xsignal.h \
     icons/icon.h \
     measure.h \
     support.h \
@@ -105,7 +101,6 @@ SOURCES += icons/icon.cpp \
     xitemnode.cpp \
     xlistnode.cpp \
     xscheduler.cpp \
-    xsignal.cpp \
     math/ar.cpp \
     math/cspline.cpp \
     math/fft.cpp \

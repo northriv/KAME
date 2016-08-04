@@ -71,9 +71,9 @@ private:
 	const shared_ptr<XDoubleNode>  m_amp;
 	const shared_ptr<XDoubleNode>  m_phase;
 	const shared_ptr<XDoubleNode>  m_offset;
-	shared_ptr<XListener> m_lsnOutput, m_lsnMode, m_lsnFunction,
+	shared_ptr<Listener> m_lsnOutput, m_lsnMode, m_lsnFunction,
 		m_lsnFreq, m_lsnAmp, m_lsnPhase, m_lsnOffset;
-	shared_ptr<XListener> m_lsnTrig;
+	shared_ptr<Listener> m_lsnTrig;
 	xqcon_ptr m_conOutput, m_conTrig, m_conMode, m_conFunction,
 		m_conFreq, m_conAmp, m_conPhase, m_conOffset;
 

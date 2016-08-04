@@ -305,8 +305,8 @@ private:
 
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
     std::deque<xqcon_ptr> m_conUIs;
-	shared_ptr<XListener> m_lsnOnPulseChanged;
-	shared_ptr<XListener> m_lsnOnMoreConfigShow;
+    shared_ptr<Listener> m_lsnOnPulseChanged;
+    shared_ptr<Listener> m_lsnOnMoreConfigShow;
 	void onMoreConfigShow(const Snapshot &shot, XTouchableNode *);
 
 	const qshared_ptr<FrmPulser> m_form;

@@ -26,7 +26,6 @@
 #endif
 
 #include "kame.h"
-#include "xsignal.h"
 #include "icons/icon.h"
 #include "messagebox.h"
 #include <QFile>

@@ -19,7 +19,6 @@
 class XRawStreamRecordReader : public XRawStream {
 public:
 	XRawStreamRecordReader(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
-    virtual ~XRawStreamRecordReader() = default;
   
 	void terminate();
     void join();
@@ -36,24 +35,19 @@ private:
 	struct XRecordError : public XKameError {
         XRecordError(const XString &msg, const char *file, int line)
 			: XKameError(msg, file, line) {}
-        virtual ~XRecordError() throw() {}
 	};
 	struct XIOError : public XRecordError {
         XIOError(const char *file, int line);
         XIOError(const XString &msg, const char *file, int line);
-        virtual ~XIOError() throw() {}
 	};
 	struct XBufferOverflowError : public XIOError {
         XBufferOverflowError(const char *file, int line);
-        virtual ~XBufferOverflowError() throw() {}
 	};
 	struct XBrokenRecordError : public XRecordError {
         XBrokenRecordError(const char *file, int line);
-        virtual ~XBrokenRecordError() throw() {}
 	};
 	struct XNoDriverError : public XRecordError {
 		XNoDriverError(const XString &driver_name, const char *file, int line);
-        virtual ~XNoDriverError() throw() {}
 		XString name;
 	};
  
@@ -70,7 +64,7 @@ private:
 	void onBack(const Snapshot &shot, XTouchableNode *);
   
 	void onOpen(const Snapshot &shot, XValueNodeBase *); 
-	shared_ptr<XListener> m_lsnOnOpen;
+	shared_ptr<Listener> m_lsnOnOpen;
   
 	uint32_t m_allsize;
 	XTime m_time;
@@ -96,8 +90,8 @@ private:
 	double m_periodicTerm;
 	XMutex m_drivermutex;
   
-	shared_ptr<XListener> m_lsnStop, m_lsnFirst, m_lsnNext, m_lsnBack;
-	shared_ptr<XListener> m_lsnPlayCond;
+	shared_ptr<Listener> m_lsnStop, m_lsnFirst, m_lsnNext, m_lsnBack;
+	shared_ptr<Listener> m_lsnPlayCond;
 };
 
 #endif /*RECORDREADER_H_*/

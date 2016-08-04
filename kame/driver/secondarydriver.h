@@ -22,7 +22,6 @@ template <class T>
 class DECLSPEC_MODULE XSecondaryDriverInterface : public T {
 public:
 	XSecondaryDriverInterface(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XSecondaryDriverInterface();
 
 //!	 Shows all forms belonging to driver
 	virtual void showForms() = 0;
@@ -31,7 +30,7 @@ public:
 	private:
 		friend class XSecondaryDriverInterface<T>;
 		struct Connection {
-			shared_ptr<XListener> m_lsnOnRecord;
+			shared_ptr<Listener> m_lsnOnRecord;
 			shared_ptr<XPointerItemNode<XDriverList> > m_selecter;
 			bool operator==(const XItemNodeBase *p) const {return p == m_selecter.get();}
 		};
@@ -65,7 +64,7 @@ protected:
 	//! usually nothing to do
 	virtual void stop() {}
 private:
-	shared_ptr<XListener> m_lsnOnItemChanged;
+	shared_ptr<Listener> m_lsnOnItemChanged;
 	//! called by connected drivers,
 	//! checks dependency, takes snapshot for drivers,
 	//! and finally calls purely virtual function analyze();

@@ -30,7 +30,6 @@ class DECLSPEC_KAME XScalarEntry : public XNode {
 public:
 	XScalarEntry(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
 				 const char *format = 0L);
-    virtual ~XScalarEntry() = default;
 
 	//A condition for determining a trigger of storing.
 	//0: never
@@ -85,11 +84,10 @@ class XXYPlot;
 class XValChart : public XNode {
 public:
 	XValChart(const char *name, bool runtime, const shared_ptr<XScalarEntry> &entry);
-    virtual ~XValChart() = default;
 	void showChart();
 	const shared_ptr<XScalarEntry> &entry() const {return m_entry;}
 private:
-	shared_ptr<XListener> m_lsnOnRecord;
+    shared_ptr<Listener> m_lsnOnRecord;
 	//callback from Driver
 	void onRecord(const Snapshot &shot, XDriver *driver);
 
@@ -102,10 +100,9 @@ private:
 class XChartList : public XAliasListNode<XValChart> {
 public:
 	XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
-    virtual ~XChartList() = default;
 private:
-	shared_ptr<XListener> m_lsnOnCatchEntry;
-	shared_ptr<XListener> m_lsnOnReleaseEntry;
+    shared_ptr<Listener> m_lsnOnCatchEntry;
+    shared_ptr<Listener> m_lsnOnReleaseEntry;
     void onCatchEntry(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
     void onReleaseEntry(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
 
@@ -116,7 +113,6 @@ class XValGraph : public XNode {
 public:
 	XValGraph(const char *name, bool runtime,
 		Transaction &tr_entries, const shared_ptr<XScalarEntryList> &entries);
-    virtual ~XValGraph() = default;
 
 	void showGraph();
 	void clearAllPoints();
@@ -138,11 +134,11 @@ private:
 	qshared_ptr<FrmGraph> m_graphForm;
 
 	shared_ptr<tAxis> m_axisX, m_axisY1, m_axisZ;
-	shared_ptr<XListener> m_lsnAxisChanged;
+    shared_ptr<Listener> m_lsnAxisChanged;
 	void onAxisChanged(const Snapshot &shot, XValueNodeBase *node);
 
-	shared_ptr<XListener> m_lsnLiveChanged;
-	shared_ptr<XListener> m_lsnStoreChanged;
+    shared_ptr<Listener> m_lsnLiveChanged;
+    shared_ptr<Listener> m_lsnStoreChanged;
 	void onLiveChanged(const Snapshot &shot, XValueNodeBase *node);
 	void onStoreChanged(const Snapshot &shot, XValueNodeBase *node);
 
@@ -152,7 +148,6 @@ private:
 class XGraphList : public XCustomTypeListNode<XValGraph> {
 public:
 	XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
-    virtual ~XGraphList() = default;
 
 	virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 	const shared_ptr<XScalarEntryList> &entries() const {return m_entries;}

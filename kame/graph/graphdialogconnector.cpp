@@ -47,11 +47,11 @@ XQGraphDialogConnector::XQGraphDialogConnector
 
     m_selAxis->iterate_commit([=](Transaction &tr){
 	    m_lsnAxisChanged = tr[ *m_selAxis].onValueChanged().connectWeakly
-	        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, XListener::FLAG_MAIN_THREAD_CALL);
+	        (shared_from_this(), &XQGraphDialogConnector::onSelAxisChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
     m_selPlot->iterate_commit([=](Transaction &tr){
 	    m_lsnPlotChanged = tr[ *m_selPlot].onValueChanged().connectWeakly
-	        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, XListener::FLAG_MAIN_THREAD_CALL);
+	        (shared_from_this(), &XQGraphDialogConnector::onSelPlotChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
 
     m_pItem->showNormal();

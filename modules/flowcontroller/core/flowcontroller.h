@@ -80,7 +80,7 @@ private:
 	const shared_ptr<XBoolNode> m_alarm;
 	const shared_ptr<XBoolNode> m_control;
 
-	shared_ptr<XListener> m_lsnTarget, m_lsnOpenValve, m_lsnCloseValve, m_lsnControl, m_lsnRampTime;
+	shared_ptr<Listener> m_lsnTarget, m_lsnOpenValve, m_lsnCloseValve, m_lsnControl, m_lsnRampTime;
 	xqcon_ptr m_conFlow, m_conAlarm, m_conWarning, m_conTarget,
 		m_conRampTime, m_conValve, m_conControl, m_conOpenValve, m_conCloseValve;
 

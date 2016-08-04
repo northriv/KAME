@@ -75,7 +75,7 @@ private:
     const shared_ptr<XDoubleNode> m_tuneCycleStep;
     const shared_ptr<XComboNode> m_tuneCycleStrategy;
 
-    shared_ptr<XListener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
+    shared_ptr<Listener> m_lsnOnActiveChanged, m_lsnOnTuningChanged;
     
     std::deque<xqcon_ptr> m_conUIs;
 

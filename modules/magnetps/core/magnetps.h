@@ -130,7 +130,7 @@ private:
 
 	const shared_ptr<XDoubleNode> m_pcshWait; //!< [sec]
 
-	shared_ptr<XListener> m_lsnRate, m_lsnConfigShow;
+	shared_ptr<Listener> m_lsnRate, m_lsnConfigShow;
   
 	xqcon_ptr m_conAllowPersistent;
 	xqcon_ptr m_conTargetField, m_conSweepRate;

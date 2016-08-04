@@ -20,7 +20,6 @@
 class DECLSPEC_KAME XPrimaryDriver : public XDriver {
 public:
 	XPrimaryDriver(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XPrimaryDriver() = default;
   
 	//! Shows all forms belonging to driver
 	virtual void showForms() = 0;

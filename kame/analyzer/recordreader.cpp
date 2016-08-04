@@ -65,20 +65,20 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
             shared_from_this(), &XRawStreamRecordReader::onOpen);
 		m_lsnFirst = tr[ *m_first].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onFirst,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnBack = tr[ *m_back].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onBack,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnNext = tr[ *m_next].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onNext,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 		m_lsnStop = tr[ *m_stop].onTouch().connectWeakly(
 			shared_from_this(), &XRawStreamRecordReader::onStop,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 	    m_lsnPlayCond = tr[ *m_fastForward].onValueChanged().connectWeakly(
 			shared_from_this(),
 			&XRawStreamRecordReader::onPlayCondChanged,
-			XListener::FLAG_MAIN_THREAD_CALL | XListener::FLAG_AVOID_DUP | XListener::FLAG_DELAY_ADAPTIVE);
+			Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
 	    tr[ *m_rewind].onValueChanged().connect(m_lsnPlayCond);
 	    tr[ *m_speed].onValueChanged().connect(m_lsnPlayCond);
     });

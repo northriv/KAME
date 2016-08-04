@@ -110,7 +110,7 @@ private:
 	const shared_ptr<XTouchableNode> m_dump;
 	const shared_ptr<XStringNode> m_filename;
 
-	shared_ptr<XListener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged,
+	shared_ptr<Listener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged,
 		m_lsnOnIconChanged;
 
 	void onDumpTouched(const Snapshot &shot, XTouchableNode *);

@@ -67,11 +67,11 @@ XGraphListConnector::XGraphListConnector(const shared_ptr<XGraphList> &node, QTa
   
     m_newGraph->iterate_commit([=](Transaction &tr){
 		m_lsnNewGraph = tr[ *m_newGraph].onTouch().connectWeakly(
-			shared_from_this(), &XGraphListConnector::onNewGraph, XListener::FLAG_MAIN_THREAD_CALL);
+			shared_from_this(), &XGraphListConnector::onNewGraph, Listener::FLAG_MAIN_THREAD_CALL);
     });
     m_deleteGraph->iterate_commit([=](Transaction &tr){
 		m_lsnDeleteGraph = tr[ *m_deleteGraph].onTouch().connectWeakly(
-			shared_from_this(), &XGraphListConnector::onDeleteGraph, XListener::FLAG_MAIN_THREAD_CALL);
+			shared_from_this(), &XGraphListConnector::onDeleteGraph, Listener::FLAG_MAIN_THREAD_CALL);
     });
 }
 

@@ -33,32 +33,36 @@
 template <typename T>
 struct Vector4 {
     Vector4() : x(0), y(0), z(0), w(1) {}
-    Vector4(const Vector4 &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
-    Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {} 
-    T x, y, z, w;
+    Vector4(const Vector4 &) = default;
+    Vector4(Vector4 &&) = default;
+    Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {}
+    Vector4& operator=(const Vector4 &) = default;
+    Vector4& operator=(Vector4 &&) = default;
     //! operators below do not take weights into account.
-    bool operator==(const Vector4 &s1)  const {return ((x == s1.x) && (y == s1.y) && (z == s1.z));}
-    Vector4 &operator+=(const Vector4<T> &s1) {
+    bool operator==(const Vector4 &s1)  const noexcept {
+        return ((x == s1.x) && (y == s1.y) && (z == s1.z));
+    }
+    Vector4 &operator+=(const Vector4<T> &s1) noexcept {
         x += s1.x; y += s1.y; z += s1.z;
         return *this;
     }
-    Vector4 &operator-=(const Vector4 &s1) {
+    Vector4 &operator-=(const Vector4 &s1) noexcept {
         x -= s1.x; y -= s1.y; z -= s1.z;
         return *this;
     }
-    Vector4 &operator*=(T k) {
+    Vector4 &operator*=(T k) noexcept {
         x *= k; y *= k; z *= k;
         return *this;
     }
     //! square of distance between this and a point
-    T distance2(const Vector4 &s1) const {
+    T distance2(const Vector4 &s1) const noexcept {
 		T x1 = x - s1.x;
 		T y1 = y - s1.y;
 		T z1 = z - s1.z;
         return x1*x1 + y1*y1 + z1*z1;
     }
     //! square of distance between this and a line from s1 to s2
-    T distance2(const Vector4 &s1, const Vector4 &s2) const  {
+    T distance2(const Vector4 &s1, const Vector4 &s2) const noexcept {
 		T x1 = x - s1.x;
 		T y1 = y - s1.y;
 		T z1 = z - s1.z;
@@ -74,7 +78,7 @@ struct Vector4 {
         T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
         x *= ir; y *= ir; z *= ir;
     }
-    Vector4 &vectorProduct(const Vector4 &s1) {
+    Vector4 &vectorProduct(const Vector4 &s1) noexcept {
 		Vector4 s2;
         s2.x = y * s1.z - z * s1.y;
         s2.y = z * s1.x - x * s1.z;
@@ -82,9 +86,10 @@ struct Vector4 {
         *this = s2;
         return *this;
     }
-    T innerProduct(const Vector4 &s1) const {
+    T innerProduct(const Vector4 &s1) const noexcept {
         return x * s1.x + y * s1.y + z * s1.z;
     }
+    T x, y, z, w;
 }; 
 
 class XAxis;
@@ -101,7 +106,7 @@ typedef XAliasListNode<XPlot> XPlotList;
 class DECLSPEC_KAME XGraph : public XNode {
 public:
 	XGraph(const char *name, bool runtime);
-	virtual XString getLabel() const {return ( **label())->to_str();}
+    virtual XString getLabel() const override {return ( **label())->to_str();}
 
 	typedef float SFloat;
 	static const SFloat SFLOAT_MAX;
@@ -131,7 +136,7 @@ public:
 
 	const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
 
-	const shared_ptr<XListener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
+	const shared_ptr<Listener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
 
 	struct Payload : public XNode::Payload {
         Talker<XGraph*> &onUpdate() {return m_tlkOnUpdate;}
@@ -152,13 +157,13 @@ private:
 	const shared_ptr<XBoolNode> m_drawLegends;
 	const shared_ptr<XDoubleNode> m_persistence;
 
-	shared_ptr<XListener> m_lsnPropertyChanged;
+	shared_ptr<Listener> m_lsnPropertyChanged;
 };
 
 class DECLSPEC_KAME XPlot : public XNode {
 public:
 	XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-	virtual XString getLabel() const {return ( **label())->to_str();}
+    virtual XString getLabel() const override {return ( **label())->to_str();}
 
 	virtual void clearAllPoints(Transaction &tr) = 0;
 
@@ -214,9 +219,6 @@ public:
 
 	//! \return success or not
 	bool fixScales(const Snapshot &);
-
-	struct Payload : public XNode::Payload {
-	};
 protected:
 	const weak_ptr<XGraph> m_graph;
 	shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ, m_curAxisW;
@@ -255,7 +257,7 @@ private:
 	const shared_ptr<XDoubleNode> m_zwoAxisZ;
 	const shared_ptr<XDoubleNode> m_intensity;
   
-	shared_ptr<XListener> m_lsnClearPoints;
+	shared_ptr<Listener> m_lsnClearPoints;
   
 	void onClearPoints(const Snapshot &, XTouchableNode *);
   
@@ -280,9 +282,8 @@ public:
 
 	XAxis(const char *name, bool runtime,
 		  AxisDirection dir, bool rightOrTop, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-	virtual ~XAxis() {}
 
-	virtual XString getLabel() const {return ( **label())->to_str();}
+    virtual XString getLabel() const override {return ( **label())->to_str();}
   
     int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
 	//! obtains axis pos from value
@@ -336,18 +337,14 @@ public:
 	//! Preserves modified scale.
 	void fixScale(Transaction &tr, float resolution, bool suppressupdate = false);
 	//! fixed value
-	XGraph::VFloat fixedMin() const {return m_minFixed;}
-	XGraph::VFloat fixedMax() const {return m_maxFixed;}
+    XGraph::VFloat fixedMin() const noexcept {return m_minFixed;}
+    XGraph::VFloat fixedMax() const noexcept {return m_maxFixed;}
   
 	inline bool isIncluded(XGraph::VFloat x);
 	inline void tryInclude(XGraph::VFloat x);
 
 	const AxisDirection &direction() const {return m_direction;}
 	const XGraph::ScrPoint &dirVector() const {return m_dirVector;}
-
-	struct Payload : public XNode::Payload {
-	};
-protected:
 
 private:
 	AxisDirection m_direction;
@@ -395,7 +392,7 @@ public:
 	XXYPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
 		XPlot(name, runtime, tr_graph, graph) {}
 
-	void clearAllPoints(Transaction &tr);
+    virtual void clearAllPoints(Transaction &tr) override;
 	//! Adds one point and draws.
 	void addPoint(Transaction &tr,
 		XGraph::VFloat x, XGraph::VFloat y, XGraph::VFloat z = 0.0, XGraph::VFloat weight = 1.0);
@@ -410,22 +407,19 @@ public:
     };
 protected:
 	//! Takes a snap-shot all points for rendering
-	virtual void snapshot(const Snapshot &shot);
+    virtual void snapshot(const Snapshot &shot) override;
 };
 
 class DECLSPEC_KAME XFuncPlot : public XPlot {
 public:
 	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
     void clearAllPoints(Transaction &) {}
-	virtual int validateAutoScale(const Snapshot &) {return 0;}
+    virtual int validateAutoScale(const Snapshot &) override {return 0;}
   
 	virtual double func(double x) const = 0;
-
-	struct Payload : public XNode::Payload {
-	};
 protected:
 	//! Takes a snap-shot all points for rendering
-	virtual void snapshot(const Snapshot &shot);
+    virtual void snapshot(const Snapshot &shot) override;
 private:
 };
 //---------------------------------------------------------------------------

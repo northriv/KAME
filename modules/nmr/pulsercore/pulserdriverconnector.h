@@ -37,7 +37,7 @@ private:
 
 	void updateGraph(const Snapshot &shot, bool checkselection);
   
-	shared_ptr<XListener> m_lsnOnPulseChanged;
+	shared_ptr<Listener> m_lsnOnPulseChanged;
 	void onPulseChanged(const Snapshot &shot, XDriver*);
   
 	QTableWidget *const m_pTable;

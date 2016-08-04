@@ -20,17 +20,16 @@ class XPrimaryDriverWithThread : public XPrimaryDriver {
 public:
 	XPrimaryDriverWithThread(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 		XPrimaryDriver(name, runtime, ref(tr_meas), meas) {}
-    virtual ~XPrimaryDriverWithThread() = default;
   
 	//! Shuts down your threads, unconnects GUI, and deactivates signals.\n
 	//! This function may be called even if driver has already stopped.
 	//! This should not cause an exception.
-	virtual void stop();
+    virtual void stop() override;
 private:
 protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	//! This function should not cause an exception.
-	virtual void start();
+    virtual void start() override;
 	//! This function should not cause an exception.
 	virtual void closeInterface() = 0;
 

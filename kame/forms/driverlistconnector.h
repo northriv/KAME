@@ -41,12 +41,12 @@ private:
 	struct tcons {
 		QLabel *label;
 		shared_ptr<XDriver> driver;
-		shared_ptr<XListener> lsnOnRecord;
+		shared_ptr<Listener> lsnOnRecord;
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;
   
-	shared_ptr<XListener> m_lsnOnCreateTouched, m_lsnOnReleaseTouched;
+	shared_ptr<Listener> m_lsnOnCreateTouched, m_lsnOnReleaseTouched;
   
 	const xqcon_ptr m_conCreate, m_conRelease;
 	void onRecord(const Snapshot &shot, XDriver *);

@@ -13,26 +13,55 @@
 ***************************************************************************/
 #include "xscheduler.h"
  
-shared_ptr<XSignalBuffer> g_signalBuffer;
+using namespace Transactional;
 
-#define ADAPTIVE_DELAY_MIN 10
-#define ADAPTIVE_DELAY_MAX 100
-
-atomic<unsigned int> g_adaptiveDelay = ADAPTIVE_DELAY_MIN;
-
-void 
-registerTransactionList(XTransaction_ *transaction) {
-	g_signalBuffer->registerTransactionList(transaction);
+Listener::Listener(FLAGS flags) :
+    m_flags(flags) {
+    if(flags & FLAG_AVOID_DUP) {
+        assert(flags & FLAG_MAIN_THREAD_CALL);
+    }
+    if((flags & FLAG_DELAY_SHORT) || (flags & FLAG_DELAY_ADAPTIVE)) {
+        assert(flags & FLAG_AVOID_DUP);
+    }
 }
 
-XSignalBuffer::XSignalBuffer()
-    : m_oldest_timestamp(XTime::now()) {
+unsigned int
+Listener::delay_ms() const {
+    unsigned int delay = std::min(20u, SignalBuffer::adaptiveDelay());
+    if(m_flags & FLAG_DELAY_ADAPTIVE)
+        delay = SignalBuffer::adaptiveDelay();
+    if(m_flags & FLAG_DELAY_SHORT)
+        delay /= 4;
+    return delay;
 }
-XSignalBuffer::~XSignalBuffer() {
+
+void
+BufferedEvent::registerEvent(BufferedEvent *e) {
+    SignalBuffer::registerEvent(e);
 }
-XTransaction_ *
-XSignalBuffer::popOldest() {
-	XTransaction_ *item = 0L, *skipped_item = 0L;
+
+shared_ptr<SignalBuffer>
+SignalBuffer::s_signalBuffer;
+
+void
+SignalBuffer::initialize() {
+    s_signalBuffer.reset(new SignalBuffer());
+}
+void
+SignalBuffer::cleanup() {
+    s_signalBuffer.reset();
+}
+unsigned int
+SignalBuffer::adaptiveDelay() {
+    return s_signalBuffer->m_adaptiveDelay;
+}
+
+SignalBuffer::SignalBuffer()
+    : m_oldest_timestamp(XTime::now()), m_adaptiveDelay(ADAPTIVE_DELAY_MIN) {
+}
+BufferedEvent *
+SignalBuffer::popOldest() {
+    BufferedEvent *item = 0L, *skipped_item = 0L;
 	if(m_queue.size()) {
 		item = m_queue.front();
 		if(m_skippedQueue.size()) {
@@ -70,9 +99,14 @@ XSignalBuffer::popOldest() {
 	}
 	return skipped_item;
 }
+void
+SignalBuffer::registerEvent(Transactional::BufferedEvent *event) {
+    s_signalBuffer->register_event(event);
+}
+
 void 
-XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
-    XTime time(transaction->registered_time);
+SignalBuffer::register_event(Transactional::BufferedEvent *event) {
+    XTime time(event->registered_time);
     for(;;) {
     	for(unsigned int i = 0; i < 20; i++) {
         	if(isMainThread())
@@ -81,19 +115,19 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
 			if( !m_queue.empty()) {
                 cost += XTime::now().diff_usec(m_oldest_timestamp);
 			}
-            if(cost < (g_adaptiveDelay + 10) * 1000uL) {
+            if(cost < (m_adaptiveDelay + 10) * 1000uL) {
 				for(;;) {
-					unsigned int delay = g_adaptiveDelay;
+                    unsigned int delay = m_adaptiveDelay;
 					if(delay <= ADAPTIVE_DELAY_MIN) break;
-                    if(g_adaptiveDelay.compare_set_strong(delay, delay - 1)) {
+                    if(m_adaptiveDelay.compare_set_strong(delay, delay - 1)) {
 						break;
 					}
 				}
 				break;
 			}
             if(cost > 100uL) {
-				if(g_adaptiveDelay < ADAPTIVE_DELAY_MAX) {
-                    ++g_adaptiveDelay;
+                if(m_adaptiveDelay < ADAPTIVE_DELAY_MAX) {
+                    ++m_adaptiveDelay;
 				}
 			}
             msecsleep(std::min(cost / 1000uL, 10uL));
@@ -101,8 +135,8 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
     	}
         try {
             bool empty = m_queue.empty();
-            if(empty) m_oldest_timestamp = transaction->registered_time;
-            m_queue.push(transaction);
+            if(empty) m_oldest_timestamp = event->registered_time;
+            m_queue.push(event);
             break;
         }
         catch (Queue::nospace_error &) {
@@ -114,7 +148,11 @@ XSignalBuffer::registerTransactionList(XTransaction_ *transaction) {
     }
 }
 bool
-XSignalBuffer::synchronize() {
+SignalBuffer::synchronize() {
+    return s_signalBuffer->synchronize__();
+}
+bool
+SignalBuffer::synchronize__() {
 	bool dotalk = true;
     XTime time_stamp_start(XTime::now());
 	unsigned int skipped_cnt = 0;
@@ -124,25 +162,24 @@ XSignalBuffer::synchronize() {
 			dotalk = !m_skippedQueue.empty();
 			break;
 		}
-		XTransaction_ *transaction = popOldest();
-		if( !transaction) {
+        BufferedEvent *event = popOldest();
+        if( !event) {
 			dotalk = false;
 			break;
 		}
 		bool skip = false;
 		try {
-			skip = transaction->talkBuffered();  
+            skip = event->talkBuffered();
 		}
 		catch (XKameError &e) {
 			e.print();
 		}
 		if(skip) {
-            m_skippedQueue.emplace_back(
-                        transaction, XTime::now());
+            m_skippedQueue.emplace_back(event, XTime::now());
 			skipped_cnt++;
 		}
 		else {
-			delete transaction;
+            delete event;
 		}
         if(XTime::now().diff_msec(time_stamp_start) > 30uL) break;
 	}

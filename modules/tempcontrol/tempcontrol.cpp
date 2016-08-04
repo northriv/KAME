@@ -195,8 +195,11 @@ XTempControl::Loop::update(double temp) {
 		tr[ *m_stabilized] = sqrt(m_tempErrAvg); //stderr
 		tr[ *m_heaterPower] = power;
     });
-	tempctrl->m_form->m_toolBox->setItemText(m_idx, XString(getLabel() + formatString(": %.5g K, %.3g%s", temp, power,
-		tempctrl->m_heaterPowerUnit(m_idx))));
+    //UIs should be handled in the main thread.
+    tempctrl->m_tlkOnLoopUpdated.talk(m_idx, XString(getLabel() + formatString(": %.5g K, %.3g%s", temp, power, tempctrl->m_heaterPowerUnit(m_idx))));
+}
+void XTempControl::onLoopUpdated(int index, const XString &str) {
+    m_form->m_toolBox->setItemText(index, str);
 }
 
 double XTempControl::Loop::pid(const Snapshot &shot, XTime time, double temp) {
@@ -378,6 +381,8 @@ XTempControl::XTempControl(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
 		m_lsnOnSetupChannelChanged = tr[ *m_setupChannel].onValueChanged().connectWeakly(
 			shared_from_this(), &XTempControl::onSetupChannelChanged);
+        m_lsnOnLoopUpdated = m_tlkOnLoopUpdated.connectWeakly(shared_from_this(), &XTempControl::onLoopUpdated,
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
 
 	m_form->statusBar()->hide();

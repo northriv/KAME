@@ -41,7 +41,6 @@ private:
 class XRawStreamRecorder : public XRawStream {
 public:
 	XRawStreamRecorder(const char *name, bool runtime, const shared_ptr<XDriverList> &driverlist);
-    virtual ~XRawStreamRecorder() = default;
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
 protected:
 	virtual void onCatch(const Snapshot &shot, const XListNodeBase::Payload::CatchEvent &e);
@@ -49,11 +48,11 @@ protected:
 private:
 	void onOpen(const Snapshot &shot, XValueNodeBase *);
   
-	shared_ptr<XListener> m_lsnOnRecord;
-	shared_ptr<XListener> m_lsnOnCatch;
-	shared_ptr<XListener> m_lsnOnRelease;
-	shared_ptr<XListener> m_lsnOnFlush;
-	shared_ptr<XListener> m_lsnOnOpen;
+	shared_ptr<Listener> m_lsnOnRecord;
+	shared_ptr<Listener> m_lsnOnCatch;
+	shared_ptr<Listener> m_lsnOnRelease;
+	shared_ptr<Listener> m_lsnOnFlush;
+	shared_ptr<Listener> m_lsnOnOpen;
   
 	void onRecord(const Snapshot &shot, XDriver *driver);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
@@ -67,7 +66,6 @@ class XTextWriter : public XNode {
 public:
 	XTextWriter(const char *name, bool runtime,
 				const shared_ptr<XDriverList> &driverlist, const shared_ptr<XScalarEntryList> &entrylist);
-    virtual ~XTextWriter() = default;
 
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 	const shared_ptr<XBoolNode> &recording() const {return m_recording;}
@@ -87,14 +85,14 @@ private:
 	const shared_ptr<XStringNode> m_logFilename;
 	const shared_ptr<XBoolNode> m_logRecording;
 	const shared_ptr<XUIntNode> m_logEvery;
-	shared_ptr<XListener> m_lsnOnRecord;
-	shared_ptr<XListener> m_lsnOnFlush;
-	shared_ptr<XListener> m_lsnOnCatch;
-	shared_ptr<XListener> m_lsnOnRelease; 
-	shared_ptr<XListener> m_lsnOnLastLineChanged; 
-	shared_ptr<XListener> m_lsnOnFilenameChanged;
-	shared_ptr<XListener> m_lsnOnLogFilenameChanged;
-	shared_ptr<XListener> m_lsnOnLogRecord;
+	shared_ptr<Listener> m_lsnOnRecord;
+	shared_ptr<Listener> m_lsnOnFlush;
+	shared_ptr<Listener> m_lsnOnCatch;
+	shared_ptr<Listener> m_lsnOnRelease; 
+	shared_ptr<Listener> m_lsnOnLastLineChanged; 
+	shared_ptr<Listener> m_lsnOnFilenameChanged;
+	shared_ptr<Listener> m_lsnOnLogFilenameChanged;
+	shared_ptr<Listener> m_lsnOnLogRecord;
 	void onRecord(const Snapshot &shot, XDriver *);
 	void onFlush(const Snapshot &shot, XValueNodeBase *);
 	void onLastLineChanged(const Snapshot &shot, XValueNodeBase *);

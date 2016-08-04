@@ -31,7 +31,7 @@ public:
     //! usually nothing to do
     virtual ~XQDPPMS() = default;
     //! Shows all forms belonging to driver
-    virtual void showForms();
+    virtual void showForms() override;
 
     struct Payload : public XPrimaryDriver::Payload {
         double temp() const {return m_sampleTemp;}
@@ -49,10 +49,10 @@ protected:
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
     //! \sa analyze()
-    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
     //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
     //! This might be called even if the record is invalid (time() == false).
-    virtual void visualize(const Snapshot &shot);
+    virtual void visualize(const Snapshot &shot) override;
 
     //! driver specific part below
     const shared_ptr<XScalarEntry> &field() const {return m_field;}
@@ -108,13 +108,13 @@ private:
     const shared_ptr<XComboNode> m_tempApproachMode;
     const shared_ptr<XStringNode> m_tempStatus;
 
-    shared_ptr<XListener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
+    shared_ptr<Listener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
 
     std::deque<xqcon_ptr> m_conUIs;
 
     const qshared_ptr<FrmQDPPMS> m_form;
 
-    void *execute(const atomic<bool> &);
+    virtual void *execute(const atomic<bool> &) override;
 };
 
 #endif

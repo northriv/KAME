@@ -32,23 +32,24 @@ XThreadLocal<typename Node<XN>::FuncPayloadCreator> Node<XN>::stl_funcPayloadCre
 
 template <class XN>
 XThreadLocal<typename Node<XN>::SerialGenerator::cnt_t> Node<XN>::SerialGenerator::stl_serial;
-template <class XN>
-atomic<typename Node<XN>::ProcessCounter::cnt_t> Node<XN>::ProcessCounter::s_count = 0;
-template <class XN>
-XThreadLocal<typename Node<XN>::ProcessCounter> Node<XN>::stl_processID;
-template <class XN>
-Node<XN>::ProcessCounter::ProcessCounter() {
+
+atomic<ProcessCounter::cnt_t> ProcessCounter::s_count = ProcessCounter::MAINTHREADID - 1;
+XThreadLocal<ProcessCounter> ProcessCounter::stl_processID;
+
+ProcessCounter::ProcessCounter() {
     for(;;) {
         cnt_t oldv = s_count;
         cnt_t newv = oldv + (cnt_t)1u;
         if( !newv) ++newv;
         if(s_count.compare_set_strong(oldv, newv)) {
             //avoids zero.
+            fprintf(stderr, "Assigning a new process ID=%d\n", newv);
             m_var = newv;
             break;
         }
     }
 }
+
 template <class XN>
 void
 Node<XN>::Packet::print_() const {

@@ -25,27 +25,22 @@ class XDriver;
 class DECLSPEC_KAME XInterface : public XNode {
 public:
 	XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-	virtual ~XInterface() {}
  
     struct DECLSPEC_KAME XInterfaceError : public XKameError {
 		XInterfaceError(const XString &msg, const char *file, int line);
-        virtual ~XInterfaceError() throw() {}
 	};
     struct DECLSPEC_KAME XConvError : public XInterfaceError {
 		XConvError(const char *file, int line);
-        virtual ~XConvError() throw() {}
 	};
     struct DECLSPEC_KAME XCommError : public XInterfaceError {
 		XCommError(const XString &, const char *file, int line);
-        virtual ~XCommError() throw() {}
 	};
     struct DECLSPEC_KAME XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
-        virtual ~XOpenInterfaceError() throw() {}
 	};
  
 	void setLabel(const XString& str) {m_label = str;}
-	virtual XString getLabel() const;
+    virtual XString getLabel() const override;
  
 	shared_ptr<XDriver> driver() const {return m_driver.lock();}
 	//! type of interface or driver.
@@ -90,7 +85,7 @@ private:
 	const shared_ptr<XUIntNode> m_address;
 	const shared_ptr<XBoolNode> m_control;
 
-	shared_ptr<XListener> lsnOnControlChanged;
+	shared_ptr<Listener> lsnOnControlChanged;
       
 	XRecursiveMutex m_mutex;
   

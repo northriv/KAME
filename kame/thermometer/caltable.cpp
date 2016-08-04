@@ -59,7 +59,7 @@ XConCalTable::XConCalTable
     display()->iterate_commit([=](Transaction &tr){
 		m_lsnDisplay = tr[ *display()].onTouch().connectWeakly(
 			shared_from_this(),
-			&XConCalTable::onDisplayTouched, XListener::FLAG_MAIN_THREAD_CALL);
+			&XConCalTable::onDisplayTouched, Listener::FLAG_MAIN_THREAD_CALL);
     });
 
 	m_waveform->setWindowTitle(i18n("Thermometer Calibration"));

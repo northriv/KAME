@@ -105,11 +105,11 @@ private:
 	const qshared_ptr<FrmNetworkAnalyzer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
 
-	shared_ptr<XListener> m_lsnOnStartFreqChanged;
-	shared_ptr<XListener> m_lsnOnStopFreqChanged;
-	shared_ptr<XListener> m_lsnOnPointsChanged;
-	shared_ptr<XListener> m_lsnOnAverageChanged;
-	shared_ptr<XListener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
+	shared_ptr<Listener> m_lsnOnStartFreqChanged;
+	shared_ptr<Listener> m_lsnOnStopFreqChanged;
+	shared_ptr<Listener> m_lsnOnPointsChanged;
+	shared_ptr<Listener> m_lsnOnAverageChanged;
+	shared_ptr<Listener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
   
     std::deque<xqcon_ptr> m_conUIs;
 

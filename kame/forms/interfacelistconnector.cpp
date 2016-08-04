@@ -101,7 +101,7 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
         Snapshot shot = interface->iterate_commit([=, &con](Transaction &tr){
             con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
                 shared_from_this(), &XInterfaceListConnector::onControlChanged,
-                XListener::FLAG_MAIN_THREAD_CALL);
+                Listener::FLAG_MAIN_THREAD_CALL);
         });
         onControlChanged(shot, interface->control().get());
     }

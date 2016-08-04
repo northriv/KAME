@@ -112,13 +112,13 @@ private:
  double selectPoint(int x, int y, int dx, int dy,
 					XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy );
  
- shared_ptr<XListener> m_lsnRedraw;
+ shared_ptr<Listener> m_lsnRedraw;
  void onRedraw(const Snapshot &shot, XGraph *graph);
  
+ shared_ptr<Listener> m_lsnRepaint;
+ Transactional::TalkerSingleton<Snapshot> m_tlkRepaint;
  void repaintBuffer(int x1, int y1, int x2, int y2);
- //! do as possible as you can without screen.
- //! e.g. compile primitives, or make pixmap.
- void redrawOffScreen();
+ void onRepaint(const Snapshot &shot);
  
  //! Draws plots, axes.
 Snapshot startDrawing();

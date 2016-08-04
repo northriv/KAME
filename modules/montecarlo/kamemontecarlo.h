@@ -94,7 +94,7 @@ private:
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onGraphChanged(const Snapshot &shot, XValueNodeBase *);
 	void onStepTouched(const Snapshot &shot, XTouchableNode *);
-	shared_ptr<XListener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
+	shared_ptr<Listener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;
 };
 

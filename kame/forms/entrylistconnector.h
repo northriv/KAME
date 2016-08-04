@@ -43,7 +43,7 @@ private:
 		QLabel *label;
 		shared_ptr<XScalarEntry> entry;
 		shared_ptr<XDriver> driver;
-		shared_ptr<XListener> lsnOnRecord;
+		shared_ptr<Listener> lsnOnRecord;
 	};
 	typedef std::deque<shared_ptr<tcons> > tconslist;
 	tconslist m_cons;

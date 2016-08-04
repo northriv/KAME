@@ -66,7 +66,7 @@ private:
 	const shared_ptr<XBoolNode> m_autoScaleX;
 	const shared_ptr<XBoolNode> m_autoScaleY;
 	const shared_ptr<XDoubleNode> m_fetchFreq; //Data Acquision Frequency to Time Constant
-	shared_ptr<XListener> m_lsnOutput, m_lsnSens, m_lsnTimeConst, m_lsnFreq;
+	shared_ptr<Listener> m_lsnOutput, m_lsnSens, m_lsnTimeConst, m_lsnFreq;
 	xqcon_ptr m_conSens, m_conTimeConst, m_conOutput, m_conFreq;
 	xqcon_ptr m_conAutoScaleX, m_conAutoScaleY, m_conFetchFreq;
  

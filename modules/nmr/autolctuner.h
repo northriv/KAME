@@ -101,7 +101,7 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 
-	shared_ptr<XListener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
+    shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
 
 	const qshared_ptr<FrmAutoLCTuner> m_form;
 

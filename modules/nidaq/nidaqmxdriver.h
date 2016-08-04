@@ -212,7 +212,7 @@ protected:
 	//! This should not cause an exception.
 	virtual void closeInterface();
 private:
-	shared_ptr<XListener> m_lsnOnOpen, m_lsnOnClose;
+    shared_ptr<Listener> m_lsnOnOpen, m_lsnOnClose;
   
 	const shared_ptr<XNIDAQmxInterface> m_interface;
 };

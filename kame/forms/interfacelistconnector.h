@@ -35,7 +35,7 @@ private:
 		xqcon_ptr condev, concontrol, conport, conaddr;
 		shared_ptr<XInterface> interface;
 		QPushButton *btn;
-		shared_ptr<XListener> lsnOnControlChanged;
+		shared_ptr<Listener> lsnOnControlChanged;
 	};
 	typedef std::deque<tcons> tconslist;
 	tconslist m_cons;

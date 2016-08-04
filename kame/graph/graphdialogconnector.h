@@ -31,8 +31,8 @@ private:
   
 	shared_ptr<XItemNode<XPlotList, XPlot> > m_selPlot;
 	shared_ptr<XItemNode<XAxisList, XAxis> > m_selAxis;
-	shared_ptr<XListener> m_lsnAxisChanged;
-	shared_ptr<XListener> m_lsnPlotChanged;
+	shared_ptr<Listener> m_lsnAxisChanged;
+	shared_ptr<Listener> m_lsnPlotChanged;
 
 	xqcon_ptr m_conDrawLines, m_conDisplayMajorGrids,
 		m_conDisplayMinorGrids, m_conDrawPoints, m_conDrawBars,
