@@ -1,3 +1,8 @@
+* Thu Aug 4 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.1-1)
+- Faster graph.
+- Refactors signals.
+
 * Wed Aug 3 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.0-1)
 - Fix severe bugs regarding SSE on mingw32. adds -mstackrealign compile option.
