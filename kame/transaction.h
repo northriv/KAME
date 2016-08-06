@@ -634,7 +634,7 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
-        m_messages->clear();
+        if(m_messages) m_messages->clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
     }
