@@ -137,7 +137,7 @@ public:
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
     //! The instances have to be capable of copy-construction and be safe to be shared reading.
     struct Payload : public atomic_countable {
-        Payload() noexcept : m_serial(-1), m_tr(nullptr) {}
+        Payload() noexcept : m_node(nullptr), m_serial(-1), m_tr(nullptr) {}
         virtual ~Payload() = default;
 
         //! Points to the corresponding node.
@@ -295,7 +295,7 @@ private:
         local_shared_ptr<Packet> m_packet;
         int m_ridx;
         int64_t m_bundle_serial;
-        enum PACKET_STATE { PACKET_HAS_PRIORITY = -1};
+        enum class PACKET_STATE : int { PACKET_HAS_PRIORITY = -1};
 
         PacketWrapper(const PacketWrapper &) = delete;
     };
@@ -568,18 +568,15 @@ public:
     template <typename T, typename ...Args>
     void mark(T &talker, Args&&...args) {
         if(auto m = talker.createMessage(this->m_serial, std::forward<Args>(args)...)) {
-            if( !m_messages)
-                m_messages.reset(new MessageList);
-            m_messages->emplace_back(m);
+            m_messages.emplace_back(std::move(m));
         }
     }
     //! Cancels reserved events made toward \a x.
     //! \return # of unmarked events.
     int unmark(const shared_ptr<Listener> &x) {
         int canceled = 0;
-        if(m_messages)
-            for(auto &&msg: *m_messages)
-                canceled += msg->unmark(x);
+        for(auto &&msg: m_messages)
+            canceled += msg->unmark(x);
         return canceled;
     }
 
@@ -634,7 +631,7 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
-        if(m_messages) m_messages->clear();
+        m_messages.clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
     }
@@ -645,7 +642,7 @@ private:
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
     using MessageList = std::vector<shared_ptr<Message_<Snapshot<XN>> >>;
-    unique_ptr<MessageList> m_messages;
+    MessageList m_messages;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -677,11 +674,9 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
     m_oldpacket.reset();
     //Messaging.
-    if(m_messages) {
-        for(auto &&msg: *m_messages)
-            msg->talk( *this);
-        m_messages.reset();
-    }
+    for(auto &&msg: m_messages)
+        msg->talk( *this);
+    m_messages.clear();
 }
 
 template <class XN>

@@ -1,5 +1,6 @@
 * Thu Aug 4 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.1-1)
+- Roll backs some of buggy transaction.h from 4.1.14.
 - Faster graph.
 - Refactors signals.
 

@@ -145,7 +145,7 @@ Node<XN>::PacketWrapper::print_() const {
 }
 
 template <class XN>
-inline void
+void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
     for(int ms = 0;;) {
         auto transaction_started_time = m_transaction_started_time;
@@ -211,10 +211,10 @@ Node<XN>::insert(Transaction<XN> &tr, const shared_ptr<XN> &var, bool online_aft
     packet->subpackets()->m_serial = tr.m_serial;
     packet->m_missing = true;
     packet->subnodes() = packet->size() ? std::make_shared<NodeList>( *packet->subnodes()) : std::make_shared<NodeList>();
-    if( !packet->subpackets()->size()) {
-        packet->subpackets()->reserve(4);
-        packet->subnodes()->reserve(4);
-    }
+//    if( !packet->subpackets()->size()) {
+//        packet->subpackets()->reserve(4);
+//        packet->subnodes()->reserve(4);
+//    }
     packet->subpackets()->resize(packet->size() + 1);
     assert(std::find(packet->subnodes()->begin(), packet->subnodes()->end(), var) == packet->subnodes()->end());
     packet->subnodes()->resize(packet->subpackets()->size());
@@ -362,10 +362,10 @@ Node<XN>::release(Transaction<XN> &tr, const shared_ptr<XN> &var) {
         packet->m_missing = false;
     }
     else {
-        if(packet->subpackets()->capacity() - packet->subpackets()->size() > 8) {
-            packet->subpackets()->shrink_to_fit();
-            packet->subnodes()->shrink_to_fit();
-        }
+//        if(packet->subpackets()->capacity() - packet->subpackets()->size() > 8) {
+//            packet->subpackets()->shrink_to_fit();
+//            packet->subnodes()->shrink_to_fit();
+//        }
     }
     if(tr.m_packet->size()) {
         tr.m_packet->m_missing = true;
@@ -871,7 +871,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
             return BundledStatus::BUNDLE_DISTURBED;
         }
-        oldsuperwrapper = superwrapper;
+        oldsuperwrapper = std::move(superwrapper);
     }
 
     std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
@@ -974,7 +974,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
 
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper))
             return BundledStatus::BUNDLE_DISTURBED;
-        oldsuperwrapper = superwrapper;
+        oldsuperwrapper = std::move(superwrapper);
 
         break;
     }
