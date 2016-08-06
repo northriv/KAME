@@ -48,10 +48,6 @@ XNode::~XNode() {
 	dbgPrint(QString("xnode %1 is being deleted., addr=0x%2").arg(getLabel()).arg((uintptr_t)this, 0, 16));
 }
 XString
-XNode::getName() const {
-    return m_name;
-}
-XString
 XNode::getTypename() const {
     XString name = typeid( *this).name();
     int i = name.find('X');

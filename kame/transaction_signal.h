@@ -40,15 +40,15 @@ inline bool isMainThread() noexcept {return ProcessCounter::id() == ProcessCount
 template <int N>
 struct CallByTuple {
     template <class Func, class R, typename TPL, typename... Args>
-    CallByTuple(Func f, R &r, TPL& t, Args&...args) {
+    CallByTuple(Func f, R &r, const TPL& t, const Args&...args) {
         CallByTuple<N - 1>(f, r, t, std::get<N - 1>(t), args...);
     }
 };
 template <>
 struct CallByTuple<0> {
     template <class Func, class R, typename TPL, typename... Args>
-    CallByTuple(Func f, R &r, TPL&, Args&...args) {
-        (r.*f)(std::forward<Args>(args)...);
+    CallByTuple(Func f, R &r, const TPL&, const Args&...args) {
+        (r.*f)(args...);
     }
 };
 
@@ -138,7 +138,7 @@ struct BufferedEvent {
     virtual ~BufferedEvent() = default;
     const XTime registered_time;
     virtual bool talkBuffered() = 0;
-    static DECLSPEC_KAME void registerEvent(BufferedEvent *);
+    static DECLSPEC_KAME void registerEvent(std::unique_ptr<BufferedEvent>);
 };
 
 //! M/M Listener and Talker model
@@ -216,7 +216,7 @@ public:
     struct Message : public Message_<SS> {
         template <class...ArgRefs>
         Message(const shared_ptr<ListenerList> &l, ArgRefs&&...as) noexcept :
-            Message_<SS>(), listeners(l), args(std::forward<Args>(as)...) {}
+            Message_<SS>(), listeners(l), args(std::forward<ArgRefs>(as)...) {}
         shared_ptr<ListenerList> listeners;
         std::tuple<Args...> args;
         shared_ptr<UnmarkedListenerList> listeners_unmarked;
@@ -229,7 +229,7 @@ public:
                 if(auto listener = y.lock()) {
                     if(listener == x) {
                         if( !listeners_unmarked)
-                            listeners_unmarked.reset(new UnmarkedListenerList);
+                            listeners_unmarked = std::make_shared<UnmarkedListenerList>();
                         listeners_unmarked->push_back(x);
                         ++canceled;
                     }
@@ -249,7 +249,7 @@ public:
     shared_ptr<typename TalkerSingleton::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
         if(m_transaction_serial == tr_serial) {
             if(auto m = m_marked.lock()) {
-                m->args = std::make_tuple(std::forward<ArgRefs>(args)...);
+                m->args = std::forward_as_tuple(args...);
                 return nullptr;
             }
         }
@@ -339,7 +339,7 @@ template <class SS, typename...Args>
 void
 Talker<SS, Args...>::Message::talk(const SS &shot) {
     if( !listeners) return;
-    Event_ event(std::tuple_cat(std::tie(shot), std::move(args)));
+    Event_ event(std::tuple_cat(std::forward_as_tuple(shot), std::move(args)));
     //Writing deferred events to event pool.
     for(auto &&x: *listeners) {
         if(auto listener = x.lock()) {
@@ -351,7 +351,8 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                     atomic_unique_ptr<Event_> newevent(new Event_(event) );
                     newevent.swap(listener->event);
                     if( !newevent.get())
-                        BufferedEvent::registerEvent(new EventWrapperAvoidDup(listener));
+                        BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                        new EventWrapperAvoidDup(listener)));
                 }
                 else {
                     if(isMainThread()) {
@@ -363,7 +364,8 @@ Talker<SS, Args...>::Message::talk(const SS &shot) {
                         }
                     }
                     else {
-                        BufferedEvent::registerEvent(new EventWrapperAllowDup(listener, event));
+                        BufferedEvent::registerEvent(std::unique_ptr<BufferedEvent>(
+                                        new EventWrapperAllowDup(listener, event)));
                     }
                 }
             }

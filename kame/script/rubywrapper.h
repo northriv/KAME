@@ -41,19 +41,22 @@ public:
     template <class P, class T>
     struct Class {
         Class(std::shared_ptr<P> parent, const char *rbname, Value super = Nil);
-        //!\todo MSVC2013 cl dies with multi-definitions.
+        template<typename R = void>
+        void defineSingletonMethod(Value obj, const char *rbname); //dummy for MSVC
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineSingletonMethod(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
-        void defineSingletonMethod1(Value obj, const char *rbname);
+        void defineSingletonMethod(Value obj, const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
-        void defineSingletonMethod2(Value obj, const char *rbname);
+        void defineSingletonMethod(Value obj, const char *rbname);
+        template<typename R = void>
+        void defineMethod(const char *rbname); //dummy for MSVC
         template<Value(P::*Func)(const std::shared_ptr<T>&)>
         void defineMethod(const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value)>
-        void defineMethod1(const char *rbname);
+        void defineMethod(const char *rbname);
         template<Value(P::*Func)(const std::shared_ptr<T>&,Value,Value)>
-        void defineMethod2(const char *rbname);
+        void defineMethod(const char *rbname);
         Value rubyClassObject() const;
         Value rubyObject(const std::shared_ptr<T> &obj) const;
         static std::weak_ptr<T> unwrap(Value v) {
@@ -70,14 +73,14 @@ public:
         //! prepares a C-style function pointer to be called from Ruby.
         //! \tparam Func a pointer to a C++ member function.
         //! \return # of arguments in the ruby function.
-        template<Value(P::*Func)(const std::shared_ptr<T>&)>
-        int create_function(Value(**func)(Value)) {
-            *func = [](Value self)->Value {
+        template<class tFunc, tFunc Func, typename ...Args>
+        int create_function(Value(**func)(Value, Args...)) {
+            *func = [](Value self, Args...args)->Value {
                 char errstr[256];
                     try {
                         auto &st = unwrap_internal<Ptr>(self);
                         std::shared_ptr<P> p(st.first);
-                        return (p.get()->*Func)(std::shared_ptr<T>(st.second));
+                        return (p.get()->*Func)(std::shared_ptr<T>(st.second), args...);
                     }
                     catch(std::bad_weak_ptr &) {
                         snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
@@ -87,48 +90,9 @@ public:
                         snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
                     emit_error(errstr); return Nil;
             };
-            return 0;
+            return sizeof...(Args);
         }
-        //! \todo use Arg... arg
-        template<Value(P::*Func)(const std::shared_ptr<T>&, Value)>
-        int create_function(Value(**func)(Value, Value)) {
-            *func = [](Value self, Value x)->Value {
-                char errstr[256];
-                    try {
-                        auto &st = unwrap_internal<Ptr>(self);
-                        std::shared_ptr<P> p(st.first);
-                        return (p.get()->*Func)(std::shared_ptr<T>(st.second), x);
-                    }
-                    catch(std::bad_weak_ptr &) {
-                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
-                    catch(std::string &e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
-                    catch(const char *e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
-                    emit_error(errstr); return Nil;
-            };
-            return 1;
-        }
-        //! \todo use Arg... arg
-        template<Value(P::*Func)(const std::shared_ptr<T>&, Value, Value)>
-        int create_function(Value(**func)(Value, Value, Value)) {
-            *func = [](Value self, Value x, Value y)->Value {
-                char errstr[256];
-                    try {
-                        auto &st = unwrap_internal<Ptr>(self);
-                        std::shared_ptr<P> p(st.first);
-                        return (p.get()->*Func)(std::shared_ptr<T>(st.second), x, y);
-                    }
-                    catch(std::bad_weak_ptr &) {
-                        snprintf(errstr, sizeof(errstr) - 1, "C object no longer exists.");}
-                    catch(std::string &e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e.c_str());}
-                    catch(const char *e) {
-                        snprintf(errstr, sizeof(errstr) - 1, "%s", e);}
-                    emit_error(errstr); return Nil;
-            };
-            return 2;
-        }
+
         std::weak_ptr<P> m_parent;
         Value m_rbObj;
     };
@@ -158,25 +122,25 @@ void
 Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineMethod1(const char *rbname) {
+Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineMethod2(const char *rbname) {
+Ruby::Class<P,T>::defineMethod(const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_method(m_rbObj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>
@@ -185,25 +149,25 @@ void
 Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineSingletonMethod1(Value obj, const char *rbname) {
+Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>
 template<Ruby::Value(P::*Func)(const std::shared_ptr<T>&,Ruby::Value,Ruby::Value)>
 void
-Ruby::Class<P,T>::defineSingletonMethod2(Value obj, const char *rbname) {
+Ruby::Class<P,T>::defineSingletonMethod(Value obj, const char *rbname) {
     Value (*func)(Value,Value,Value);
     typedef Value(*fp)(...);
-    int arg_num = create_function<Func>(&func);
+    int arg_num = create_function<decltype(Func), Func>(&func);
     define_singleton_method(obj, rbname, reinterpret_cast<fp>(func), arg_num);
 }
 template <class P, class T>

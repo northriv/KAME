@@ -34,10 +34,8 @@ template <typename T>
 struct Vector4 {
     Vector4() : x(0), y(0), z(0), w(1) {}
     Vector4(const Vector4 &) = default;
-    Vector4(Vector4 &&) = default;
     Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {}
     Vector4& operator=(const Vector4 &) = default;
-    Vector4& operator=(Vector4 &&) = default;
     //! operators below do not take weights into account.
     bool operator==(const Vector4 &s1)  const noexcept {
         return ((x == s1.x) && (y == s1.y) && (z == s1.z));
@@ -413,7 +411,7 @@ protected:
 class DECLSPEC_KAME XFuncPlot : public XPlot {
 public:
 	XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-    void clearAllPoints(Transaction &) {}
+    void clearAllPoints(Transaction &) override {}
     virtual int validateAutoScale(const Snapshot &) override {return 0;}
   
 	virtual double func(double x) const = 0;

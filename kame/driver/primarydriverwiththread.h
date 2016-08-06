@@ -30,8 +30,6 @@ protected:
 	//! Starts up your threads, connects GUI, and activates signals.
 	//! This function should not cause an exception.
     virtual void start() override;
-	//! This function should not cause an exception.
-	virtual void closeInterface() = 0;
 
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 private:

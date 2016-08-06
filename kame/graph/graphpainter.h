@@ -117,7 +117,7 @@ private:
  
  shared_ptr<Listener> m_lsnRepaint;
  Transactional::TalkerSingleton<Snapshot> m_tlkRepaint;
- void repaintBuffer(int x1, int y1, int x2, int y2);
+ void requestRepaint(int x1, int y1, int x2, int y2);
  void onRepaint(const Snapshot &shot);
  
  //! Draws plots, axes.

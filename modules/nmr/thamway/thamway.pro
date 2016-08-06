@@ -1,24 +1,19 @@
 PRI_DIR = ../../
 include($${PRI_DIR}/modules.pri)
 
-QT += widgets
-
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../../kame/graph\
 
-
 HEADERS += \
     thamwayprot.h \
-    thamwaypulser.h\
-
+    thamwaypulser.h
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp \
-
+    thamwaypulser.cpp
 FORMS += \
     thamwayprotform.ui
-
-win32: { #exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
+win32: {
+#exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     HEADERS += \
         fx2fw.h\
         cusb.h\

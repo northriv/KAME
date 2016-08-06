@@ -149,14 +149,13 @@ class DECLSPEC_KAME XQLineEditConnector : public XValueQConnector {
 public:
 	XQLineEditConnector(const shared_ptr<XValueNodeBase> &node,
 		QLineEdit *item, bool forcereturn = true);
-	virtual ~XQLineEditConnector() {}
 protected slots:
 void onTextChanged(const QString &);
 void onTextChanged2(const QString &);
 void onReturnPressed();
 void onExit();
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XValueNodeBase> m_node;
 	QLineEdit *const m_pItem;
     bool m_editing;
@@ -169,10 +168,9 @@ class DECLSPEC_KAME XQTextBrowserConnector : public XValueQConnector {
 public:
 	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
         QTextBrowser *item);
-	virtual ~XQTextBrowserConnector() {}
 protected slots:
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XValueNodeBase> m_node;
     QTextBrowser *const m_pItem;
 };
@@ -184,9 +182,8 @@ class XQSpinBoxConnectorTMPL : public XValueQConnector {
 public:
     XQSpinBoxConnectorTMPL(const shared_ptr<XN> &node,
         QN *item, QSlider *slider);
-    virtual ~XQSpinBoxConnectorTMPL() {}
 protected:
-    virtual void onUIFlagsChanged(const Snapshot &shot, XNode *node);
+    virtual void onUIFlagsChanged(const Snapshot &shot, XNode *node) override;
     void onChangeTMPL(X val);
     void onSliderChangeTMPL(int val);
     void onValueChangedTMPL(const Snapshot &shot, XValueNodeBase *node);
@@ -202,12 +199,11 @@ class DECLSPEC_KAME XQSpinBoxConnector : public XQSpinBoxConnectorTMPL<QSpinBox,
 public:
     XQSpinBoxConnector(const shared_ptr<XIntNode> &node,
         QSpinBox *item, QSlider *slider = 0L);
-    virtual ~XQSpinBoxConnector() {}
 protected slots:
 void onChange(int val) {onChangeTMPL(val);}
 void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override {
         onValueChangedTMPL(shot, node); }
 };
 class DECLSPEC_KAME XQSpinBoxUnsignedConnector : public XQSpinBoxConnectorTMPL<QSpinBox, XUIntNode, int> {
@@ -215,12 +211,11 @@ class DECLSPEC_KAME XQSpinBoxUnsignedConnector : public XQSpinBoxConnectorTMPL<Q
 public:
     XQSpinBoxUnsignedConnector(const shared_ptr<XUIntNode> &node,
         QSpinBox *item, QSlider *slider = 0L);
-    virtual ~XQSpinBoxUnsignedConnector() {}
 protected slots:
     void onChange(int val) {onChangeTMPL(val);}
     void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override {
         onValueChangedTMPL(shot, node); }
 };
 
@@ -230,12 +225,11 @@ class DECLSPEC_KAME XQDoubleSpinBoxConnector : public XQSpinBoxConnectorTMPL<QDo
 public:
     XQDoubleSpinBoxConnector(const shared_ptr<XDoubleNode> &node,
         QDoubleSpinBox *item, QSlider *slider = 0L);
-    virtual ~XQDoubleSpinBoxConnector() {}
 protected slots:
     void onChange(double val) {onChangeTMPL(val);}
     void onSliderChange(int val) {onSliderChangeTMPL(val);}
 protected:
-    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override {
         onValueChangedTMPL(shot, node); }
 };
 
@@ -246,10 +240,9 @@ class DECLSPEC_KAME XQLabelConnector : public XValueQConnector {
 public:
 	XQLabelConnector(const shared_ptr<XValueNodeBase> &node, 
 		QLabel *item);
-	virtual ~XQLabelConnector() {}
 protected slots:
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XValueNodeBase> m_node;
 	QLabel *const m_pItem;
 };
@@ -261,9 +254,8 @@ class DECLSPEC_KAME XQLCDNumberConnector : public XValueQConnector {
 public:
 	XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node,
 		QLCDNumber *item);
-	virtual ~XQLCDNumberConnector() {}
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XDoubleNode> m_node;
 	QLCDNumber *const m_pItem;
 };
@@ -275,10 +267,9 @@ class DECLSPEC_KAME XQLedConnector : public XValueQConnector {
 public:
     XQLedConnector(const shared_ptr<XBoolNode> &node,
         QPushButton *item);
-    virtual ~XQLedConnector() {}
 protected slots:
 protected:
-    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
     const shared_ptr<XBoolNode> m_node;
     QPushButton *const m_pItem;
     QIcon *m_pIconOn;
@@ -290,11 +281,10 @@ class DECLSPEC_KAME XQToggleButtonConnector : public XValueQConnector {
 public:
 	XQToggleButtonConnector(const shared_ptr<XBoolNode> &node,
 		QAbstractButton *item);
-	virtual ~XQToggleButtonConnector() {}
 protected slots:
 void onClick();
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XBoolNode> m_node;
 	QAbstractButton *const m_pItem;
 };
@@ -305,11 +295,10 @@ class DECLSPEC_KAME XFilePathConnector : public XQLineEditConnector {
 public:
     XFilePathConnector(const shared_ptr<XStringNode> &node,
         QLineEdit *edit, QAbstractButton *btn, const char *filter, bool saving);
-    virtual ~XFilePathConnector() {}
 protected slots:
 void onClick();
 protected:
-    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
     QAbstractButton *const m_pBtn;
     bool m_saving;
     XString m_filter;
@@ -356,12 +345,11 @@ class DECLSPEC_KAME XQComboBoxConnector : public XItemQConnector {
 public:
 	XQComboBoxConnector(const shared_ptr<XItemNodeBase> &node,
 		QComboBox *item, const Snapshot &shot_of_list);
-	virtual ~XQComboBoxConnector() {}
 protected slots:
 virtual void onSelect(int index);
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
+    virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) override;
 	const shared_ptr<XItemNodeBase> m_node;
 	QComboBox *const m_pItem;
 	int findItem(const QString &);
@@ -379,8 +367,8 @@ public:
 protected slots:
 virtual void OnItemSelectionChanged();
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
-	virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
+    virtual void onListChanged(const Snapshot &shot, const XItemNodeBase::Payload::ListChangeEvent &e) override;
 	const shared_ptr<XItemNodeBase> m_node;
     QListWidget *const m_pItem;
 };
@@ -391,12 +379,11 @@ class DECLSPEC_KAME XColorConnector : public XValueQConnector {
 	Q_OBJECT
 public:
     XColorConnector(const shared_ptr<XHexNode> &node, QPushButton *item);
-    virtual ~XColorConnector() {}
 protected slots:
 void onClick();
 void OnColorSelected(const QColor & color);
 protected:
-	virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node);
+    virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XHexNode> m_node;
     QPushButton *const m_pItem;
     qshared_ptr<QColorDialog> m_dialog;

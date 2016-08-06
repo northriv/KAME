@@ -43,7 +43,7 @@ ProcessCounter::ProcessCounter() {
         if( !newv) ++newv;
         if(s_count.compare_set_strong(oldv, newv)) {
             //avoids zero.
-            fprintf(stderr, "Assigning a new process ID=%d\n", newv);
+//            fprintf(stderr, "Assigning a new process ID=%d\n", newv);
             m_var = newv;
             break;
         }

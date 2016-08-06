@@ -489,8 +489,8 @@ public:
     }
 
     //! Stores an event immediately from \a talker with \a arg.
-    template <typename T, typename tArgRef>
-    void talk(T &talker, tArgRef arg) const { talker.talk( *this, std::forward<tArgRef>(arg)); }
+    template <typename T, typename...Args>
+    void talk(T &talker, Args&&...arg) const { talker.talk( *this, std::forward<Args>(arg)...); }
 protected:
     friend class Node<XN>;
     //! The snapshot.
@@ -555,7 +555,7 @@ public:
             }
         }
     }
-    Transaction(Transaction&&x) noexcept = default;
+    Transaction(Transaction&&x) = default;
 
     //! \return Copy-constructed Payload instance for \a node, which will be included in the commitment.
     template <class T>
@@ -582,18 +582,15 @@ public:
     template <typename T, typename ...Args>
     void mark(T &talker, Args&&...args) {
         if(auto m = talker.createMessage(this->m_serial, std::forward<Args>(args)...)) {
-            if( !m_messages)
-                m_messages.reset(new MessageList);
-            m_messages->push_back(m);
+            m_messages.push_back(m);
         }
     }
     //! Cancels reserved events made toward \a x.
     //! \return # of unmarked events.
     int unmark(const shared_ptr<Listener> &x) {
         int canceled = 0;
-        if(m_messages)
-            for(auto &&msg: *m_messages)
-                canceled += msg->unmark(x);
+        for(auto &&msg: m_messages)
+            canceled += msg->unmark(x);
         return canceled;
     }
 
@@ -648,7 +645,7 @@ private:
             if( !time || (time > m_started_time))
                 node.m_link->m_transaction_started_time = m_started_time;
         }
-        m_messages.reset();
+        m_messages.clear();
         this->m_packet->node().snapshot( *this, m_multi_nodal);
         return *this;
     }
@@ -658,8 +655,8 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>> >, 3>;
-    unique_ptr<MessageList> m_messages;
+    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>> >, 4>;
+    MessageList m_messages;
 };
 
 //! \brief Transaction which does not care of contents (Payload) of subnodes.\n
@@ -691,11 +688,9 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
     m_oldpacket.reset();
     //Messaging.
-    if(m_messages) {
-        for(auto &&msg: *m_messages)
-            msg->talk( *this);
-        m_messages.reset();
-    }
+    for(auto &&msg: m_messages)
+        msg->talk( *this);
+    m_messages.clear();
 }
 
 template <class XN>

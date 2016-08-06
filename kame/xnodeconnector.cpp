@@ -446,6 +446,7 @@ XQLCDNumberConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node)
     if((int)buf.length() > m_pItem->digitCount())
         m_pItem->setDigitCount(buf.length());
     m_pItem->display(buf);
+    m_pItem->update(); //is this necessary?
 }
   
 XQLedConnector::XQLedConnector(const shared_ptr<XBoolNode> &node, QPushButton *item)

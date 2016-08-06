@@ -49,8 +49,8 @@
 #include "icon.h"
 #include "messagebox.h"
 
-QWidget *g_pFrmMain = 0L;
-static XMessageBox *s_pMessageBox = 0L;
+QWidget *g_pFrmMain = nullptr;
+static std::unique_ptr<XMessageBox> s_pMessageBox;
 
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
@@ -62,7 +62,7 @@ FrmKameMain::FrmKameMain()
 
 	show();
 
-	g_pFrmMain = this;
+    g_pFrmMain = this;
 
 	createActions();
 	createMenus();
@@ -133,7 +133,7 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
 
-    s_pMessageBox = new XMessageBox(this);
+    s_pMessageBox.reset(new XMessageBox(this));
     m_pViewMenu->addSeparator();
     QAction *act = new QAction( *g_pIconInfo, XMessageBox::form()->windowTitle(), this);
     connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
@@ -200,7 +200,7 @@ FrmKameMain::~FrmKameMain() {
 //	while( !g_signalBuffer->synchronize()) {}
 	m_measure.reset();
     Transactional::SignalBuffer::cleanup();
-    delete s_pMessageBox; s_pMessageBox = 0L;
+    s_pMessageBox.reset();
 }
 
 void

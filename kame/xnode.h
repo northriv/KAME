@@ -70,7 +70,7 @@ public:
     static shared_ptr<T__> createOrphan(const char *name, bool runtime, Args_&&... args);
 
     //! \return internal/scripting name. Use latin1 chars.
-    XString getName() const;
+    XString getName() const {return m_name;}
     //! \return i18n name for UI.
     virtual XString getLabel() const {return getName();}
     XString getTypename() const;
@@ -104,10 +104,8 @@ public:
     };
 
     XNode() = delete;
-protected:
 private:
     const XString m_name;
-
     static XThreadLocal<std::deque<shared_ptr<XNode> > > stl_thisCreating;
 };
 
@@ -123,7 +121,6 @@ public:
     protected:
         Talker<XTouchableNode*> m_tlkOnTouch;
     };
-protected:
 };
 
 //! Interface class containing values
@@ -201,6 +198,7 @@ public:
         virtual void str_(const XString &) override;
         double m_var;
     };
+private:
     atomic_shared_ptr<XString> m_format;
 };
 

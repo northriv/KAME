@@ -138,10 +138,10 @@ unix {
     HEADERS += \
         allocator.h \
         math/matrix.h \
-        math/freqest.h \
+        math/freqest.h
     SOURCES += \
         math/freqest.cpp \
-        math/matrix.cpp \
+        math/matrix.cpp
 }
 
 FORMS += \

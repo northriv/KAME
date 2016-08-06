@@ -114,9 +114,9 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 }
 
 void
-XQGraphPainter::repaintBuffer(int x1, int y1, int x2, int y2) {
+XQGraphPainter::requestRepaint(int x1, int y1, int x2, int y2) {
 	if((x1 != x2) || (y1 != y2)) {
-        if(m_bIsRedrawNeeded)
+        if(m_bIsRedrawNeeded || m_bIsAxisRedrawNeeded)
             m_pItem->update();
         else
             m_tlkRepaint.talk(Snapshot( *m_graph)); //defers update.
