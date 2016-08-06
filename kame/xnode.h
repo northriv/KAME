@@ -41,7 +41,7 @@ typename std::enable_if<std::is_base_of<XNode, T>::value, const SingleSnapshot<T
 template <typename...Args>
 using Talker = Transactional::Talker<Snapshot, Args...>;
 template <typename...Args>
-using TalkerSingleton = Transactional::TalkerSingleton<Snapshot, Args...>;
+using TalkerSingleton = Transactional::Talker<Snapshot, Args...>;
 
 using Listener = Transactional::Listener;
 
