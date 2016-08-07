@@ -56,7 +56,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 
         for(auto &&x: {"As is", "Await Manual Tune", "Auto Tune", "Cyclic Avg. BPSK", "Cyclic Avg. QPSK", "Cyclic Avg. QPSKxP.I"})
             tr[ *tuneCycleStrategy()].add(x);
-        tr[ *tuneCycleStrategy()] = STRATEGY_ASIS;
+        tr[ *tuneCycleStrategy()] = (int)TuneCycleStrategy::STRATEGY_ASIS;
     });
   
     m_conUIs = {
@@ -85,19 +85,19 @@ void
 XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-        switch(shot_this[ *tuneCycleStrategy()]) {
-        case STRATEGY_ASIS:
+        switch((TuneCycleStrategy)(int)shot_this[ *tuneCycleStrategy()]) {
+        case TuneCycleStrategy::STRATEGY_ASIS:
             break;
-        case STRATEGY_CYCLE_DBL:
-        case STRATEGY_CYCLE_QUAD:
-        case STRATEGY_CYCLE_OCT:
+        case TuneCycleStrategy::STRATEGY_CYCLE_DBL:
+        case TuneCycleStrategy::STRATEGY_CYCLE_QUAD:
+        case TuneCycleStrategy::STRATEGY_CYCLE_OCT:
             {
                 double x = shot_this[ *tuneCycleStep()] / shot_this[ *freqStep()];
                 if((x < 0.9) || (fabs(x - lrint(x)) > 0.003 * x))
                     gErrPrint(i18n("Invalid cyclic step."));
             }
-        case STRATEGY_TUNE_AWAIT:
-        case STRATEGY_AUTOTUNE:
+        case TuneCycleStrategy::STRATEGY_TUNE_AWAIT:
+        case TuneCycleStrategy::STRATEGY_AUTOTUNE:
             {
                 shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
                 if( !pulser__)
@@ -173,8 +173,8 @@ XNMRFSpectrum::getCurrentCenterFreq(const Snapshot &shot_this, const Snapshot &s
 }
 void
 XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
-    if((shot_this[ *tuneCycleStrategy()] != STRATEGY_AUTOTUNE) ||
-         (shot_this[ *tuneCycleStrategy()] != STRATEGY_TUNE_AWAIT))
+    if((shot_this[ *tuneCycleStrategy()] != (int)TuneCycleStrategy::STRATEGY_AUTOTUNE) &&
+         (shot_this[ *tuneCycleStrategy()] != (int)TuneCycleStrategy::STRATEGY_TUNE_AWAIT))
         return; //tuning is declined by user.
 
     if(fabs(m_tunedFreq - newf) <= shot_this[ *tuneCycleStep()] / 2 * 1e-3)
@@ -193,11 +193,11 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
     if(pulse__)
         trans( *pulse__->avgClear()).touch();
 
-    if((shot_this[ *tuneCycleStrategy()] == STRATEGY_TUNE_AWAIT)) {
+    if((shot_this[ *tuneCycleStrategy()] == (int)TuneCycleStrategy::STRATEGY_TUNE_AWAIT)) {
         g_statusPrinter->printMessage(getLabel() + " " + i18n("Tune it by yourself to") +
             formatString(" %.3f~MHz", newf) + i18n(", and turn pulse on again."), true, __FILE__, __LINE__, true);
     }
-    if((shot_this[ *tuneCycleStrategy()] == STRATEGY_AUTOTUNE)) {
+    if((shot_this[ *tuneCycleStrategy()] == (int)TuneCycleStrategy::STRATEGY_AUTOTUNE)) {
         shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
         if( !autotuner) {
             gWarnPrint(i18n("AutoTuner should be selected."));
@@ -233,15 +233,15 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 
         double freq_step = shot_this[ *tuneCycleStep()] * 1e-3; //MHz
         int num_psk_cycles = 0;
-        switch(shot_this[ *tuneCycleStrategy()]) {
+        switch((TuneCycleStrategy)(int)shot_this[ *tuneCycleStrategy()]) {
         default:
             freq_step = shot_this[ *freqStep()] * 1e-3; //MHz
             break;
-        case STRATEGY_CYCLE_DBL:
+        case TuneCycleStrategy::STRATEGY_CYCLE_DBL:
             num_psk_cycles = 2; break;
-        case STRATEGY_CYCLE_QUAD:
+        case TuneCycleStrategy::STRATEGY_CYCLE_QUAD:
             num_psk_cycles = 4; break;
-        case STRATEGY_CYCLE_OCT:
+        case TuneCycleStrategy::STRATEGY_CYCLE_OCT:
             num_psk_cycles = 8; break;
         }
         if(freq_span < freq_step * 1.5) {

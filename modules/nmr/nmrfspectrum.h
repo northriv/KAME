@@ -60,7 +60,7 @@ public:
 	//! [MHz]
     const shared_ptr<XDoubleNode> &tuneCycleStep() const {return m_tuneCycleStep;}
     const shared_ptr<XComboNode> &tuneCycleStrategy() const {return m_tuneCycleStrategy;}
-    enum TuneCycleStrategy {STRATEGY_ASIS = 0, STRATEGY_TUNE_AWAIT = 1, STRATEGY_AUTOTUNE = 2,
+    enum class TuneCycleStrategy {STRATEGY_ASIS = 0, STRATEGY_TUNE_AWAIT = 1, STRATEGY_AUTOTUNE = 2,
                             STRATEGY_CYCLE_DBL = 3, STRATEGY_CYCLE_QUAD = 4, STRATEGY_CYCLE_OCT = 5};
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
