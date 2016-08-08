@@ -30,11 +30,6 @@ XQGraphPainter::resScreen() {
 } 
 
 void
-XQGraphPainter::repaintGraph(int x1, int y1, int x2, int y2) {
-    requestRepaint(x1, y1, x2, y2);
-}
-
-void
 XQGraphPainter::posOffAxis(const XGraph::ScrPoint &dir, 
 						   XGraph::ScrPoint *src, XGraph::SFloat offset) {
 	XGraph::ScrPoint scr, dir_proj;
@@ -127,7 +122,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 	m_pointerLastPos[1] = y;
 
 	if(m_bReqHelp) {
-		if(state != SelStart) return;
+        if(state != SelectionState::SelStart) return;
 		m_bReqHelp = false;
 		return;
 	}
@@ -135,14 +130,14 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
     
 	m_selectionStateNow = state;
 	switch(state) {
-	case SelStart:
+    case SelectionState::SelStart:
 		m_selectionModeNow = mode;
 		m_selStartPos[0] = x;
 		m_selStartPos[1] = y;
 		m_tiltLastPos[0] = x;
 		m_tiltLastPos[1] = y;
 		switch(mode) {
-		case SelPlane:
+        case SelectionMode::SelPlane:
 			m_foundPlane.reset();
             z = selectPlane(x, y,
                             (int)(SELECT_WIDTH * m_pItem->width()),
@@ -152,7 +147,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 				m_foundPlane = findPlane(Snapshot( *m_graph), m_startScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
 			m_finishScrPos = m_startScrPos;
 			break;
-		case SelAxis:
+        case SelectionMode::SelAxis:
 			m_foundAxis.reset();
             z = selectAxis(x, y,
                            (int)(SELECT_WIDTH * m_pItem->width()),
@@ -165,18 +160,18 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			break;
 		}
 		break;
-	case Selecting:
+    case SelectionState::Selecting:
 		//restore mode
 		mode = m_selectionModeNow;
 		break;
-	case SelFinish:
+    case SelectionState::SelFinish:
 		//restore mode
 		mode = m_selectionModeNow;
-		m_selectionModeNow = SelNone;
+        m_selectionModeNow = SelectionMode::SelNone;
 		break;
 	}
 	switch(mode) {
-	case SelNone:
+    case SelectionMode::SelNone:
 		m_foundPlane.reset();
         z = selectPlane(x, y,
                         (int)(SELECT_WIDTH * m_pItem->width()),
@@ -185,19 +180,19 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		if(z < 1.0)
             m_foundPlane = findPlane(Snapshot( *m_graph), m_finishScrPos, &m_foundPlaneAxis1, &m_foundPlaneAxis2);
 		break;
-	case SelPlane:
+    case SelectionMode::SelPlane:
         selectPlane(x, y,
                     (int)(SELECT_WIDTH * m_pItem->width()),
                     (int)(SELECT_WIDTH * m_pItem->height()),
                     &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		break;
-	case SelAxis:
+    case SelectionMode::SelAxis:
         selectAxis(x, y,
                    (int)(SELECT_WIDTH * m_pItem->width()),
                    (int)(SELECT_WIDTH * m_pItem->height()),
                    &m_finishScrPos, &m_finishScrDX, &m_finishScrDY);
 		break;
-	case TiltTracking:
+    case SelectionMode::TiltTracking:
 	{
 		float x0 = (float)m_tiltLastPos[0] / m_pItem->width() - 0.5;
 		float y0 = (1.0f - (float)m_tiltLastPos[1] / m_pItem->height()) - 0.5;
@@ -219,12 +214,12 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 	default:
 		break;
 	}
-	if(state == SelFinish) {
+    if(state == SelectionState::SelFinish) {
 	    if((abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
 			switch(mode) {
-			case SelPlane:
+            case SelectionMode::SelPlane:
 				break;
-			case SelAxis:
+            case SelectionMode::SelAxis:
 				m_graph->iterate_commit([=](Transaction &tr){
 					if( !m_foundAxis) {
 						//Autoscales all axes
@@ -243,7 +238,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 					}
                 });
 				break;
-			case TiltTracking:
+            case SelectionMode::TiltTracking:
 				viewRotate(0.0, 0.0, 0.0, 0.0, true);
 				break;
 			default:
@@ -253,7 +248,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 	    else {
             m_graph->iterate_commit([=](Transaction &tr){
 				switch(mode) {
-				case SelPlane:
+                case SelectionMode::SelPlane:
 					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
 						XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(tr, m_startScrPos);
 						XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(tr, m_startScrPos);
@@ -275,7 +270,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 
 					}
 					break;
-				case SelAxis:
+                case SelectionMode::SelAxis:
 					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
 						XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
 						XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
@@ -295,7 +290,10 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
             });
         }
 	}
-	repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );
+    if(state ==SelectionState::Selecting)
+        requestRepaint(0, 0, m_pItem->width(), m_pItem->height()); //supresses frequent update.
+    else
+        m_pItem->update();
 }
 
 void
@@ -314,8 +312,8 @@ XQGraphPainter::wheel(int x, int y, double deg)
 		else {
 			viewRotate(30.0 * deg / fabs(deg), 0.0, 1.0, 0.0, false);
 		}
-		repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );
-	}
+        m_pItem->update();
+    }
 }
 void
 XQGraphPainter::zoom(double zoomscale, int , int ) {
@@ -336,14 +334,14 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
 void
 XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
     m_bIsRedrawNeeded = true;
-    repaintGraph(0, 0, m_pItem->width(), m_pItem->height() );
+    m_pItem->update();
 }
 void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
     QString msg = "";
 //   if(SelectionStateNow != Selecting) return;
 	switch ( m_selectionModeNow ) {
-	case SelNone:
+    case SelectionMode::SelNone:
 		if(m_foundPlane) {
 			XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(shot, m_finishScrPos);
 			XGraph::VFloat dst1dx = m_foundPlaneAxis1->screenToVal(shot, m_finishScrDX) - dst1;
@@ -362,7 +360,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			msg = i18n("R-DBL-CLICK TO SHOW HELP");
 		}
 		break;
-	case SelPlane:
+    case SelectionMode::SelPlane:
 		if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
 			XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(shot, m_startScrPos);
 			XGraph::VFloat src1dx = m_foundPlaneAxis1->screenToVal(shot, m_startScrDX) - src1;
@@ -407,7 +405,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			endQuad();
 		}
 		break;
-	case SelAxis:
+    case SelectionMode::SelAxis:
 		if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
 			XGraph::VFloat src = m_foundAxis->screenToVal(shot, m_startScrPos);
 			XGraph::VFloat srcdx = m_foundAxis->screenToVal(shot, m_startScrDX) - src;
@@ -458,7 +456,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			endLine();
 		}
 		break;
-	case TiltTracking:
+    case SelectionMode::TiltTracking:
 		break;
 	default:
 		break;
@@ -468,7 +466,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 void
 XQGraphPainter::showHelp() {
 	m_bReqHelp = true;
-	repaintGraph(0, 0, m_pItem->width(), m_pItem->height());
+    m_pItem->update();
 }
 void
 XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
@@ -486,7 +484,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	}
 	//Legends
 	if(shot[ *m_graph->drawLegends()] &&
-			(m_selectionModeNow == SelNone)) {
+            (m_selectionModeNow == SelectionMode::SelNone)) {
 		if(shot.size(m_graph->plots())) {
 			const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
             float z = 0.97;

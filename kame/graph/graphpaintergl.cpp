@@ -61,8 +61,8 @@ using std::max;
 XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	m_graph(graph),
 	m_pItem(item),
-	m_selectionStateNow(Selecting),
-	m_selectionModeNow(SelNone),
+    m_selectionStateNow(SelectionState::Selecting),
+    m_selectionModeNow(SelectionMode::SelNone),
 	m_listpoints(0),
 	m_listaxes(0),
 	m_listgrids(0),

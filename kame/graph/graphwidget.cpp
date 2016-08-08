@@ -64,31 +64,31 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
 	XQGraphPainter::SelectionMode mode;
 	switch (e->button()) {
 	case Qt::RightButton:
-		mode = XQGraphPainter::SelAxis;
+        mode = XQGraphPainter::SelectionMode::SelAxis;
 		break;
 	case Qt::LeftButton:
-		mode = XQGraphPainter::SelPlane;
+        mode = XQGraphPainter::SelectionMode::SelPlane;
 		break;
 	case Qt::MidButton:
-		mode = XQGraphPainter::TiltTracking;
+        mode = XQGraphPainter::SelectionMode::TiltTracking;
 		break;
 	default:
-		mode = XQGraphPainter::SelNone;
+        mode = XQGraphPainter::SelectionMode::SelNone;
 		break;
 	}
-	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelStart, mode);
+    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelStart, mode);
 }
 void
 XQGraph::mouseMoveEvent ( QMouseEvent* e) {
 	static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
-	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::Selecting);  
+    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting);
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 	if( !m_painter ) return;
-	m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelFinish);
+    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish);
 }
 void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {

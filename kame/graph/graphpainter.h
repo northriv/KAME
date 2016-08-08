@@ -29,16 +29,13 @@ public:
  virtual ~XQGraphPainter();
  
  //! Selections  
- enum SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
- enum SelectionState {SelStart, SelFinish, Selecting};
- void selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelNone);
+ enum class SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
+ enum class SelectionState {SelStart, SelFinish, Selecting};
+ void selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelectionMode::SelNone);
  
  void wheel(int x, int y, double deg);
  void zoom(double zoomscale, int x, int y);
  void showHelp();
- 
- //! Repaint Off-screen obj, Paint On-screen obj. 
- void repaintGraph(int x1, int y1, int x2, int y2);
  
  //! view
  //! \param angle CCW
