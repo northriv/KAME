@@ -378,9 +378,9 @@ void FrmKameMain::fileSaveAction_activated() {
     if( !filename.isEmpty()) {
         std::ofstream ofs(filename.toLocal8Bit().data(), std::ios::out);
 		if(ofs.good()) {
-			XRubyWriter writer(m_measure, ofs);
+            XRubyWriter writer(m_measure, ofs);
 			writer.write();
-		}
+        }
 	}
 }
 

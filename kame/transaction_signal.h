@@ -174,7 +174,7 @@ public:
     bool empty() const noexcept {return !m_listeners;}
 private:
     using Event_ = Event<SS, Args...>;
-    typedef std::vector<weak_ptr<ListenerBase<Event_>> > ListenerList;
+    typedef fast_vector<weak_ptr<ListenerBase<Event_>> > ListenerList;
     typedef fast_vector<shared_ptr<Listener> > UnmarkedListenerList;
     shared_ptr<ListenerList> m_listeners;
 
@@ -241,12 +241,12 @@ public:
 };
 
 template <class SS, typename...Args>
-class TalkerSingleton : public Talker<SS, Args...> {
+class TalkerOnce : public Talker<SS, Args...> {
 public:
-    TalkerSingleton() : Talker<SS, Args...>(), m_transaction_serial(0) {}
-    TalkerSingleton(const TalkerSingleton &x) : Talker<SS, Args...>(x), m_transaction_serial(0) {}
+    TalkerOnce() : Talker<SS, Args...>(), m_transaction_serial(0) {}
+    TalkerOnce(const TalkerOnce &x) : Talker<SS, Args...>(x), m_transaction_serial(0) {}
     template <typename...ArgRefs>
-    shared_ptr<typename TalkerSingleton::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
+    shared_ptr<typename TalkerOnce::Message> createMessage(int64_t tr_serial, ArgRefs&&...args) const {
         if(m_transaction_serial == tr_serial) {
             if(auto m = m_marked.lock()) {
                 m->args = std::forward_as_tuple(args...);

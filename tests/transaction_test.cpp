@@ -75,7 +75,8 @@ shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void
 start_routine(void) {
-	printf("start\n");
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    printf("start\n");
 	for(int i = 0; i < 2500; i++) {
 
         gn1->iterate_commit([=](Transaction &tr1){
@@ -114,6 +115,7 @@ start_routine(void) {
 
 int
 main(int argc, char **argv) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     for(int k = 0; k < 10; k++) {
         gn1.reset(LongNode::create<LongNode>());
         gn2.reset(LongNode::create<LongNode>());

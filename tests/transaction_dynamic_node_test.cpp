@@ -106,7 +106,8 @@ shared_ptr<LongNode> gn1, gn2, gn3, gn4;
 
 void
 start_routine(void) {
-	printf("start\n");
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    printf("start\n");
 	shared_ptr<LongNode> p1(LongNode::create<LongNode>());
 	shared_ptr<LongNode> p2(LongNode::create<LongNode>());
     for(int i = 0; i < 2500; i++) {
@@ -174,6 +175,7 @@ start_routine(void) {
 
 int
 main(int argc, char **argv) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
     for(int k = 0; k < 100; k++) {
         gn1.reset(LongNode::create<LongNode>());
         gn2.reset(LongNode::create<LongNode>());

@@ -767,7 +767,9 @@ XNIDAQmxPulser::aoVoltToRaw(const double poly_coeff[NUM_AO_CH][CAL_POLY_ORDER], 
 
 void *
 XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
- 	double dma_do_period = resolution();
+    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+
+    double dma_do_period = resolution();
  	double dma_ao_period = resolutionQAM();
  	uint64_t written_total_ao = 0, written_total_do = 0;
 

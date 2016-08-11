@@ -122,14 +122,15 @@ bool operator!=(const allocator<T1>&, const allocator<T2>&) noexcept {
     return false;
 }
 
-template <typename T, int max_fixed_size = 4>
+template <typename T>
 class fast_vector {
-public:
     using reference = T&;
     using const_reference = const T&;
     using size_type = size_t;
     using pointer = T*;
     using const_pointer = const T*;
+    static constexpr int max_fixed_size = (8 * sizeof(pointer) <= sizeof(T)) ? 1 : (8 * sizeof(pointer) / sizeof(T));
+public:
     using iterator = pointer;
     using const_iterator = const_pointer;
     fast_vector() : m_size(0) {}
@@ -252,6 +253,7 @@ public:
         if(is_fixed()) {
             if(sz > max_fixed_size) {
                 move_fixed_to_var(sz);
+                m_vector.resize(sz);
             }
             else {
                 for(size_type i = m_size; i < sz; ++i)
@@ -285,7 +287,7 @@ private:
             m_array[i].~T();
         m_size = 0;
     }
-    void move_fixed_to_var(size_type new_size) {
+    void move_fixed_to_var(size_type reserve_size) {
         std::vector<T> tmp;
         tmp.reserve(m_size);
         for(size_type i = 0; i < m_size; ++i) {
@@ -293,15 +295,14 @@ private:
             m_array[i].~T();
         }
         new (&m_vector) std::vector<T>();
-        m_vector.reserve(std::max(new_size, (size_type)(max_fixed_size * 2)));
-        assert(new_size >= m_size);
+        m_vector.reserve(std::max(reserve_size, (size_type)(max_fixed_size * 2)));
+        assert(reserve_size >= m_size);
         for(auto &&x: tmp)
             m_vector.emplace_back(std::move(x));
-        m_vector.resize(new_size);
         m_size = HAS_STD_VECTOR;
     }
     size_type m_size;
-    enum : size_type {HAS_STD_VECTOR = (size_type)-1};
+    static constexpr size_type HAS_STD_VECTOR = (size_type)-1;
     union {
         T m_array[max_fixed_size];
         std::vector<T> m_vector;

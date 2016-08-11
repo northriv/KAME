@@ -73,6 +73,9 @@ class Snapshot;
 template <class XN>
 class Transaction;
 
+enum class Priority {HIGHEST, NORMAL, UI_DEFERRABLE, LOWEST};
+void setCurrentPriorityMode(Priority pr);
+
 //! \brief This is a base class of nodes which carries data sets for itself (Payload) and for subnodes.\n
 //! See \ref stmintro for basic ideas of this STM and code examples.
 //!
@@ -165,7 +168,7 @@ public:
 
     void print_() const;
 
-    using NodeList = std::vector<shared_ptr<XN>>;
+    using NodeList = fast_vector<shared_ptr<XN>>;
     using iterator = typename NodeList::iterator;
     using const_iterator = typename NodeList::const_iterator;
 
@@ -175,9 +178,9 @@ private:
     struct Packet;
 
     struct PacketList;
-    struct PacketList : public std::vector<local_shared_ptr<Packet> > {
+    struct PacketList : public fast_vector<local_shared_ptr<Packet> > {
         shared_ptr<NodeList> m_subnodes;
-        PacketList() : std::vector<local_shared_ptr<Packet>>(), m_serial(SerialGenerator::gen()) {}
+        PacketList() : fast_vector<local_shared_ptr<Packet>>(), m_serial(SerialGenerator::gen()) {}
         ~PacketList() {this->clear();} //destroys payloads prior to nodes.
         //! Serial number of the transaction.
         int64_t m_serial;
@@ -319,6 +322,7 @@ private:
 
     void snapshot(Snapshot<XN> &target, bool multi_nodal, typename NegotiationCounter::cnt_t started_time) const;
     void snapshot(Transaction<XN> &target, bool multi_nodal) const {
+        m_link->negotiate(target.m_started_time, 4.0f);
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
         target.m_oldpacket = target.m_packet;
     }
@@ -331,7 +335,7 @@ private:
         shared_ptr<Linkage> linkage;
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
-    using CASInfoList = std::vector<CASInfo>;
+    using CASInfoList = fast_vector<CASInfo>;
     enum class SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
     static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
@@ -641,7 +645,7 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    using MessageList = std::vector<shared_ptr<Message_<Snapshot<XN>> >>;
+    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>> >>;
     MessageList m_messages;
 };
 

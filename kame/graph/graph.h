@@ -140,7 +140,7 @@ public:
         Talker<XGraph*> &onUpdate() {return m_tlkOnUpdate;}
         const Talker<XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
 	private:
-        TalkerSingleton<XGraph*> m_tlkOnUpdate;
+        TalkerOnce<XGraph*> m_tlkOnUpdate;
 	};
 
 protected:

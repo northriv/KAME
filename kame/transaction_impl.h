@@ -50,6 +50,11 @@ ProcessCounter::ProcessCounter() {
     }
 }
 
+XThreadLocal<Priority> stl_currentPriority;
+void setCurrentPriorityMode(Priority pr) {
+    *stl_currentPriority = pr;
+}
+
 template <class XN>
 void
 Node<XN>::Packet::print_() const {
@@ -152,23 +157,32 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         if( !transaction_started_time)
             break; //collision has not been detected.
         auto dt = started_time - transaction_started_time;
-        if(dt <= 0)
-            break; //This thread is the oldest.
+
+        Priority pr = *stl_currentPriority;
+        if(pr == Priority::HIGHEST)
+            break;
+        if(dt <= 0) {
+            if((pr == Priority::NORMAL) || (ms > 10))
+                break; //This thread is the oldest.
+        }
+
         auto dt2 = Node<XN>::NegotiationCounter::now() - transaction_started_time;
 
-        if(mult_wait * dt < dt2)
-            break;
+        if(pr != Priority::LOWEST) {
+            if(mult_wait * 2 * dt < dt2)
+                break;
+        }
 
 //        static XThreadLocal<unsigned int> stl_seed;
 //        if((double)rand_r( &*stl_seed) / RAND_MAX > 20 * dt / dt2) {
 //            break; //performs anyway.
 //        }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
-        if(ms > 200) {
+        if(ms > 300) {
             fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 200ms.", ms*1e-3);
+            fprintf(stderr, "Negotiating, %f sec. requested, limited to 300ms.", ms*1e-3);
             fprintf(stderr, "for BP@%p\n", this);
-            ms = 200;
+            ms = 300;
         }
         msecsleep(ms);
     }
@@ -874,7 +888,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         oldsuperwrapper = std::move(superwrapper);
     }
 
-    std::vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
+    fast_vector<local_shared_ptr<PacketWrapper> > subwrappers_org(oldsuperwrapper->packet()->subpackets()->size());
 
     for(;;) {
         local_shared_ptr<PacketWrapper> superwrapper(
@@ -929,7 +943,7 @@ Node<XN>::bundle(local_shared_ptr<PacketWrapper> &oldsuperwrapper,
         }
         newpacket->m_missing = true;
 
-        supernode.m_link->negotiate(started_time, 4.0f);
+        supernode.m_link->negotiate(started_time, 2.0f);
         //First checkpoint.
         if( !supernode.m_link->compareAndSet(oldsuperwrapper, superwrapper)) {
 //			superwrapper = *supernode.m_link;
@@ -1047,7 +1061,7 @@ Node<XN>::commit(Transaction<XN> &tr) {
 //			STRICT_TEST(fetchSubpackets(subwrappers, wrapper->packet()));
             STRICT_assert(tr.m_packet->checkConsistensy(tr.m_packet));
 
-            m_link->negotiate(tr.m_started_time, 4.0f);
+//            m_link->negotiate(tr.m_started_time, 4.0f);
             if(m_link->compareAndSet(wrapper, newwrapper)) {
 //				STRICT_TEST(if(wrapper->isBundled())
 //					for(typename std::deque<local_shared_ptr<PacketWrapper> >::const_iterator
@@ -1118,7 +1132,7 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
         return UnbundledStatus::UNBUNDLE_SUBVALUE_HAS_CHANGED;
 
     for(auto it = cas_infos.begin(); it != cas_infos.end(); ++it) {
-        it->linkage->negotiate(time_started);
+        it->linkage->negotiate(time_started, 2.0);
         if( !it->linkage->compareAndSet(it->old_wrapper, it->new_wrapper))
             return UnbundledStatus::UNBUNDLE_DISTURBED;
         if(oldsuperwrapper) {

@@ -52,7 +52,7 @@ public:
 		Talker<ReleaseEvent> &onRelease() {return m_tlkOnRelease;}
 		const Talker<ReleaseEvent> &onRelease() const {return m_tlkOnRelease;}
 	private:
-        TalkerSingleton<XListNodeBase*> m_tlkOnListChanged;
+        TalkerOnce<XListNodeBase*> m_tlkOnListChanged;
 		Talker<MoveEvent> m_tlkOnMove;
 		Talker<CatchEvent> m_tlkOnCatch;
 		Talker<ReleaseEvent> m_tlkOnRelease;

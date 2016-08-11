@@ -307,7 +307,8 @@ XRawStreamRecordReader::onBack(const Snapshot &shot, XTouchableNode *) {
 }
 
 void *XRawStreamRecordReader::execute(const atomic<bool> &terminated) {
-	while( !terminated) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::NORMAL);
+    while( !terminated) {
 		double ms = 0.0;
 		{
 			XScopedLock<XCondition> lock(m_condition);

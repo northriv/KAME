@@ -113,7 +113,7 @@ private:
  void onRedraw(const Snapshot &shot, XGraph *graph);
  
  shared_ptr<Listener> m_lsnRepaint;
- Transactional::TalkerSingleton<Snapshot> m_tlkRepaint;
+ Transactional::TalkerOnce<Snapshot> m_tlkRepaint;
  void requestRepaint(int x1, int y1, int x2, int y2);
  void onRepaint(const Snapshot &shot);
  

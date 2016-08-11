@@ -37,7 +37,7 @@ public:
         Talker<ListChangeEvent> &onListChanged() {return m_tlkOnListChanged;}
         const Talker<ListChangeEvent> &onListChanged() const {return m_tlkOnListChanged;}
     private:
-        TalkerSingleton<ListChangeEvent> m_tlkOnListChanged;
+        TalkerOnce<ListChangeEvent> m_tlkOnListChanged;
     };
 private:
     shared_ptr<Listener> m_lsnTryAutoSet;

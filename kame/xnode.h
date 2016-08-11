@@ -41,9 +41,11 @@ typename std::enable_if<std::is_base_of<XNode, T>::value, const SingleSnapshot<T
 template <typename...Args>
 using Talker = Transactional::Talker<Snapshot, Args...>;
 template <typename...Args>
-using TalkerSingleton = Transactional::Talker<Snapshot, Args...>;
+using TalkerOnce = Transactional::TalkerOnce<Snapshot, Args...>;
 
 using Listener = Transactional::Listener;
+
+using Transactional::Priority;
 
 extern template class Transactional::Node<class XNode>;
 //! XNode supports accesses from scripts/GUI and shared_from_this(),
@@ -100,7 +102,7 @@ public:
     private:
         enum FLAG : int {NODE_UI_ENABLED = 0x1, NODE_DISABLED = 0x2, NODE_RUNTIME = 0x4};
         int m_flags;
-        TalkerSingleton<XNode*> m_tlkOnUIFlagsChanged;
+        TalkerOnce<XNode*> m_tlkOnUIFlagsChanged;
     };
 
     XNode() = delete;
@@ -149,7 +151,7 @@ public:
         //! \a str_() can throw exception due to format issues.
         //! A marking to \a onValueChanged() is necessary.
         virtual void str_(const XString &) = 0;
-        TalkerSingleton<XValueNodeBase*> m_tlkOnValueChanged;
+        TalkerOnce<XValueNodeBase*> m_tlkOnValueChanged;
     };
 protected:
     Validator m_validator;

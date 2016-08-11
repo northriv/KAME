@@ -35,6 +35,8 @@ protected:
 private:
 	shared_ptr<XThread<XPrimaryDriverWithThread> > m_thread;
 	void *execute_internal(const atomic<bool> &terminated) {
+        Transactional::setCurrentPriorityMode(Priority::NORMAL);
+
 		void *ret = NULL;
 		try {
 			ret = execute(terminated);

@@ -583,7 +583,8 @@ XNIDAQmxDSO::tryReadAISuspend(const atomic<bool> &terminated) {
 }
 void *
 XNIDAQmxDSO::executeReadAI(const atomic<bool> &terminated) {
-	while( !terminated) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    while( !terminated) {
 		try {
 			acquire(terminated);
 		}

@@ -50,7 +50,8 @@ XTestDriver::visualize(const Snapshot &shot) {
 
 void *
 XTestDriver::execute(const atomic<bool> &terminated) {
-	while( !terminated) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    while( !terminated) {
 		msecsleep(10);
 		double x = randMT19937() - 0.2;
 		double y = randMT19937()- 0.2;
