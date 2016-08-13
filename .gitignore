@@ -1,0 +1,8 @@
+*~
+.autoconf*
+.settings
+.cdtproject
+.cproject
+.project
+.cvsignore
+.gdb*
