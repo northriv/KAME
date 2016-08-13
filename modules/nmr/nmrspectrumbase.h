@@ -101,7 +101,7 @@ protected:
     shared_ptr<Listener> m_lsnOnClear, m_lsnOnCondChanged;
     
 	//! \return true to be cleared.
-	virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const = 0;
+    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) = 0;
 	//! [Hz]
 	virtual double getFreqResHint(const Snapshot &shot_this) const = 0;
 	//! [Hz]

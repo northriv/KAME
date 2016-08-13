@@ -68,7 +68,7 @@ XNMRSpectrum::XNMRSpectrum(const char *name, bool runtime,
     });
 }
 bool
-XNMRSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *node) const {
+XNMRSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *node) {
     return (node == m_residualField.get()) || (node == m_fieldFactor.get()) || (node == m_resolution.get());
 }
 bool

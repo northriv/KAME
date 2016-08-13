@@ -127,7 +127,7 @@ XNMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
     	m_lsnOnTuningChanged.reset();
 }
 bool
-XNMRFSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const {
+XNMRFSpectrum::onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) {
     m_lastFreqAcquired = -1000.0;
     return false;
 }

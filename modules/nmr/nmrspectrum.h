@@ -31,7 +31,7 @@ public:
     virtual ~XNMRSpectrum() = default;
 protected:
 	//! \return true to be cleared.
-    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const override;
+    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) override;
     virtual double getFreqResHint(const Snapshot &shot_this) const override;
     virtual double getMinFreq(const Snapshot &shot_this) const override;
     virtual double getMaxFreq(const Snapshot &shot_this) const override;

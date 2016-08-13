@@ -31,7 +31,7 @@ public:
     virtual ~XNMRFSpectrum() = default;
 protected:
 	//! \return true to be cleared.
-    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) const override;
+    virtual bool onCondChangedImpl(const Snapshot &shot, XValueNodeBase *) override;
     virtual double getFreqResHint(const Snapshot &shot_this) const override;
     virtual double getMinFreq(const Snapshot &shot_this) const override;
     virtual double getMaxFreq(const Snapshot &shot_this) const override;
@@ -83,7 +83,7 @@ private:
 	void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
     void performTuning(const Snapshot &shot_this, double newf);
 
-    mutable double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
+    double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
     double m_tunedFreq;
     int m_lastCycle; //!< 0-7
 };
