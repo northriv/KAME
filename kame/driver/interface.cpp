@@ -68,7 +68,8 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XInterface::start() {
 	XScopedLock<XInterface> lock( *this);
-	try {
+    Transactional::setCurrentPriorityMode(Priority::NORMAL);
+    try {
 		if(isOpened()) {
 			gErrPrint(getLabel() + i18n("Port has already opened"));
 			return;
@@ -97,7 +98,7 @@ XInterface::start() {
 void
 XInterface::stop() {
 	XScopedLock<XInterface> lock( *this);
-  
+    Transactional::setCurrentPriorityMode(Priority::NORMAL);
 	try {
 		close();
 	}

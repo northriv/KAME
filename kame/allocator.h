@@ -122,14 +122,14 @@ bool operator!=(const allocator<T1>&, const allocator<T2>&) noexcept {
     return false;
 }
 
-template <typename T>
+template <typename T, size_t SIZE_HINT = 1>
 class fast_vector {
     using reference = T&;
     using const_reference = const T&;
     using size_type = size_t;
     using pointer = T*;
     using const_pointer = const T*;
-    static constexpr int max_fixed_size = (8 * sizeof(pointer) <= sizeof(T)) ? 1 : (8 * sizeof(pointer) / sizeof(T));
+    static constexpr size_t max_fixed_size = (8 * sizeof(pointer) <= sizeof(T) * SIZE_HINT) ? SIZE_HINT : (8 * sizeof(pointer) / sizeof(T));
 public:
     using iterator = pointer;
     using const_iterator = const_pointer;

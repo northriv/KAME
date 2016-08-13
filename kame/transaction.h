@@ -326,17 +326,17 @@ private:
         snapshot(static_cast<Snapshot<XN> &>(target), multi_nodal, target.m_started_time);
         target.m_oldpacket = target.m_packet;
     }
-    enum class SnapshotStatus {SNAPSHOT_SUCCESS = 0, SNAPSHOT_DISTURBED = 1,
-        SNAPSHOT_VOID_PACKET = 2, SNAPSHOT_NODE_MISSING = 4,
-        SNAPSHOT_COLLIDED = 8, SNAPSHOT_NODE_MISSING_AND_COLLIDED = 12};
+    enum class SnapshotStatus {SUCCESS = 0, DISTURBED = 1,
+        VOID_PACKET = 2, NODE_MISSING = 4,
+        COLLIDED = 8, NODE_MISSING_AND_COLLIDED = 12};
     struct CASInfo {
         CASInfo(const shared_ptr<Linkage> &b, const local_shared_ptr<PacketWrapper> &o,
             const local_shared_ptr<PacketWrapper> &n) : linkage(b), old_wrapper(o), new_wrapper(n) {}
         shared_ptr<Linkage> linkage;
         local_shared_ptr<PacketWrapper> old_wrapper, new_wrapper;
     };
-    using CASInfoList = fast_vector<CASInfo>;
-    enum class SnapshotMode {SNAPSHOT_FOR_UNBUNDLE, SNAPSHOT_FOR_BUNDLE};
+    using CASInfoList = fast_vector<CASInfo, 32>;
+    enum class SnapshotMode {FOR_UNBUNDLE, FOR_BUNDLE};
     static inline SnapshotStatus snapshotSupernode(const shared_ptr<Linkage> &linkage,
         local_shared_ptr<PacketWrapper> &shot, local_shared_ptr<Packet> **subpacket,
         SnapshotMode mode,
@@ -348,7 +348,7 @@ private:
     bool commit(Transaction<XN> &tr);
 //	bool commit_at_super(Transaction<XN> &tr);
 
-    enum class BundledStatus {BUNDLE_SUCCESS, BUNDLE_DISTURBED};
+    enum class BundledStatus {SUCCESS, DISTURBED};
     //! Bundles all the subpackets so that the whole packet can be treated atomically.
     //! Namely this function takes a snapshot.
     //! All the subpackets held by \a m_link at the subnodes will be
@@ -359,9 +359,7 @@ private:
     BundledStatus bundle_subpacket(local_shared_ptr<PacketWrapper> *superwrapper, const shared_ptr<Node> &subnode,
         local_shared_ptr<PacketWrapper> &subwrapper, local_shared_ptr<Packet> &subpacket_new,
         typename NegotiationCounter::cnt_t &started_time, int64_t bundle_serial);
-    enum class UnbundledStatus {UNBUNDLE_W_NEW_SUBVALUE,
-        UNBUNDLE_SUBVALUE_HAS_CHANGED,
-        UNBUNDLE_COLLIDED, UNBUNDLE_DISTURBED};
+    enum class UnbundledStatus {W_NEW_SUBVALUE, SUBVALUE_HAS_CHANGED, COLLIDED, DISTURBED};
     //! Unbundles a subpacket to \a sublinkage from a snapshot.
     //! it performs unbundling for all the super nodes.
     //! The super nodes will lose priorities against their lower nodes.
@@ -645,7 +643,7 @@ private:
     local_shared_ptr<typename Node<XN>::Packet> m_oldpacket;
     const bool m_multi_nodal;
     typename Node<XN>::NegotiationCounter::cnt_t m_started_time;
-    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>> >>;
+    using MessageList = fast_vector<shared_ptr<Message_<Snapshot<XN>>>, 16>;
     MessageList m_messages;
 };
 
