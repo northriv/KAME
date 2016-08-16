@@ -66,7 +66,7 @@ XRubyThread::gets() {
 	XScopedLock<XMutex> lock(m_lineBufferMutex);
 	if( !m_lineBuffer.size()) {
 		lineinput()->setUIEnabled(true);
-		return XString();
+        return {};
 	}
 	XString line = m_lineBuffer.front();
 	m_lineBuffer.pop_front();

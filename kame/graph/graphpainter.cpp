@@ -635,7 +635,7 @@ XQGraphPainter::drawOffScreenAxisMarkers(const Snapshot &shot) {
         for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
             auto axis = static_pointer_cast<XAxis>( *it);
             setColor(shot[ *axis->ticColor()]);
-            if((axis->direction() != XAxis::DirAxisZ) || m_bTilted) {
+            if((axis->direction() != XAxis::AxisDirection::Z) || m_bTilted) {
                 XGraph::ScrPoint s10,s11,s20,s21,vdir;
                 axis->axisToScreen(shot, 0.0, &s10);
                 axis->axisToScreen(shot, 1.0, &s20);
@@ -683,7 +683,7 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 		const auto &axes_list( *shot.list(m_graph->axes()));
 		for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
 			auto axis = static_pointer_cast<XAxis>( *it);
-			if((axis->direction() != XAxis::DirAxisZ) || m_bTilted)
+            if((axis->direction() != XAxis::AxisDirection::Z) || m_bTilted)
                 axis->drawAxis(shot, this);
 		}
 	}

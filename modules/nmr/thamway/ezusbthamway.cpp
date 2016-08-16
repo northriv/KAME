@@ -297,7 +297,7 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
         if( !c)
             break;
         if(i > 255) {
-            return XString(); //failed
+            return {}; //failed
         }
     }
     XString idn;
@@ -311,7 +311,7 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
         }
     }
     fprintf(stderr, "getIDN:%s\n", idn.c_str());
-    return idn;
+    return std::move(idn);
 }
 uint8_t
 XWinCUSBInterface::singleRead(unsigned int addr) {

@@ -202,7 +202,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *axisy->length()] = 0.90 - shot_this[ *axisy->y()];
 		if(entryz) {
 			shared_ptr<XAxis> axisz = graph->axes()->create<XAxis>(
-				tr, "Z Axis", false, XAxis::DirAxisZ, false, ref(tr), graph);
+                tr, "Z Axis", false, XAxis::AxisDirection::Z, false, ref(tr), graph);
 			tr[ *axisz->ticLabelFormat()] = entryz->value()->format();
 			tr[ *shot_this[ *this].m_livePlot->axisZ()] = axisz;
 			tr[ *shot_this[ *this].m_storePlot->axisZ()] = axisz;

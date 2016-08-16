@@ -32,10 +32,10 @@
 
 template <typename T>
 struct Vector4 {
-    Vector4() : x(0), y(0), z(0), w(1) {}
-    Vector4(const Vector4 &) = default;
-    Vector4(T nx, T ny, T nz = 0, T nw = 1) : x(nx), y(ny), z(nz), w(nw) {}
-    Vector4& operator=(const Vector4 &) = default;
+    Vector4() noexcept : x(0), y(0), z(0), w(1) {}
+    Vector4(const Vector4 &) noexcept = default;
+    Vector4(T nx, T ny, T nz = 0, T nw = 1) noexcept : x(nx), y(ny), z(nz), w(nw) {}
+    Vector4& operator=(const Vector4 &) noexcept = default;
     //! operators below do not take weights into account.
     bool operator==(const Vector4 &s1)  const noexcept {
         return ((x == s1.x) && (y == s1.y) && (z == s1.z));
@@ -72,7 +72,7 @@ struct Vector4 {
 		T zb2 = x1*x1 + y1*y1 + z1*z1;
 		return (zb2*ab2 - zbab*zbab) / ab2;
     }
-    void normalize() {
+    void normalize() noexcept {
         T ir = (T)1.0 / sqrtf(x*x + y*y + z*z);
         x *= ir; y *= ir; z *= ir;
     }
@@ -169,10 +169,10 @@ public:
 	//! if \a scr_prec > 0, value will be rounded around scr_prec
 	//! \sa XAxis::AxisToVal.
 	int screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr, XGraph::ValPoint *val,
-					XGraph::SFloat scr_prec = -1);
-	void screenToGraph(const Snapshot &shot, const XGraph::ScrPoint &pt, XGraph::GPoint *g);
-	void graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
-	void graphToVal(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ValPoint *val);
+                    XGraph::SFloat scr_prec = -1);
+    void screenToGraph(const Snapshot &shot, const XGraph::ScrPoint &pt, XGraph::GPoint *g) const;
+    void graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
+    void graphToVal(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::ValPoint *val);
 
 	const shared_ptr<XStringNode> &label() const {return m_label;}
   
@@ -261,22 +261,22 @@ private:
   
 	inline bool clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2,
 				  XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, 
-				  bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2);
-	inline bool isPtIncluded(const XGraph::GPoint &pt);
+                  bool blendcolor, unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2) const;
+    inline bool isPtIncluded(const XGraph::GPoint &pt) const;
     
 	void drawGrid(const Snapshot &shot,
 		XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
 
 	std::vector<tCanvasPoint> m_canvasPtsSnapped; 
-	inline void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr);
-	inline void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr);
-	inline unsigned int blendColor(unsigned int c1, unsigned int c2, float t);
+    inline void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const;
+    inline void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) const;
+    inline unsigned int blendColor(unsigned int c1, unsigned int c2, float t) const;
 };
 
 class DECLSPEC_KAME XAxis : public XNode {
 public:
-	enum AxisDirection {DirAxisX, DirAxisY, DirAxisZ, AxisWeight};
-	enum Tic {MajorTic, MinorTic, NoTics};  
+    enum class AxisDirection {X, Y, Z, Weight};
+    enum class Tic {Major, Minor, None};
 
 	XAxis(const char *name, bool runtime,
 		  AxisDirection dir, bool rightOrTop, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
@@ -285,20 +285,20 @@ public:
   
     int drawAxis(const Snapshot &shot, XQGraphPainter *painter);
 	//! obtains axis pos from value
-	XGraph::GFloat valToAxis(XGraph::VFloat value);
+    XGraph::GFloat valToAxis(XGraph::VFloat value);
 	//! obtains value from position on axis
 	//! \param pos normally, 0 < \a pos < 1
 	//! \param axis_prec precision on axis. if > 0, value will be rounded
-	XGraph::VFloat axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec = -1);
+    XGraph::VFloat axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec = -1) const;
 	//! obtains axis pos from screen coordinate
 	//! \return pos in axis
-	XGraph::GFloat screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr);
+    XGraph::GFloat screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) const;
 	//! obtains screen position from axis
-	void axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *scr);
-	void valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *scr);
-	XGraph::VFloat screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr);
+    void axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *scr) const;
+    void valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *scr);
+    XGraph::VFloat screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) const;
   
-	XString valToString(XGraph::VFloat val);
+    XString valToString(XGraph::VFloat val) const;
 
 	const shared_ptr<XStringNode> &label() const {return m_label;}
     
@@ -328,7 +328,7 @@ public:
 			  XGraph::GFloat center = 0.5);
 
 	//! Obtains the type of tic and rounded value from position on axis
-	Tic queryTic(int length, int pos, XGraph::VFloat *ticnum);
+    Tic queryTic(int length, int pos, XGraph::VFloat *ticnum);
 
 	//! Call this function before drawing or autoscale.
 	void startAutoscale(const Snapshot &shot, float resolution, bool clearscale = false);
@@ -338,8 +338,8 @@ public:
     XGraph::VFloat fixedMin() const noexcept {return m_minFixed;}
     XGraph::VFloat fixedMax() const noexcept {return m_maxFixed;}
   
-	inline bool isIncluded(XGraph::VFloat x);
-	inline void tryInclude(XGraph::VFloat x);
+    inline bool isIncluded(XGraph::VFloat x) const;
+    inline void tryInclude(XGraph::VFloat x);
 
 	const AxisDirection &direction() const {return m_direction;}
 	const XGraph::ScrPoint &dirVector() const {return m_dirVector;}

@@ -65,7 +65,7 @@ public:
             if(node)
                 return node->getLabel();
             else
-                return XString();
+                return {};
         }
         Payload &operator=(const shared_ptr<XNode> &t) {
             m_var = t;

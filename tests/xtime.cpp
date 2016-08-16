@@ -141,10 +141,10 @@ XTime::getTimeStr(bool subsecond) const {
         str[strlen(str) - 1] = '\0';
         if(subsecond)
             sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
-        return str;
+        return {str};
     }
     else {
-        return XString();
+        return {};
     }
 }
 XString
@@ -165,10 +165,10 @@ XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
         strftime(str, 100, fmt, &time);
         if(subsecond)
             sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);
-        return str;
+        return {str};
     }
     else {
-        return XString();
+        return {};
     }
 }
 

@@ -83,10 +83,10 @@ XGraph::XGraph(const char *name, bool runtime) :
 
 		tr[ *label()] = name;
 
-	    auto xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::DirAxisX
+        auto xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::AxisDirection::X
 							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *xaxis->label()] = i18n("X Axis");
-	    auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::DirAxisY
+        auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::AxisDirection::Y
 							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *yaxis->label()] = i18n("Y Axis");
     });
@@ -247,7 +247,7 @@ XPlot::fixScales(const Snapshot &shot) {
 }
 
 void
-XPlot::screenToGraph(const Snapshot &shot, const XGraph::ScrPoint &pt, XGraph::GPoint *g) {
+XPlot::screenToGraph(const Snapshot &shot, const XGraph::ScrPoint &pt, XGraph::GPoint *g) const {
 	shared_ptr<XAxis> axisx = shot[ *axisX()];
 	shared_ptr<XAxis> axisy = shot[ *axisY()];
 	shared_ptr<XAxis> axisz = shot[ *axisZ()];
@@ -287,14 +287,14 @@ XPlot::graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::Scr
     }
 }
 inline void
-XPlot::graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) {
+XPlot::graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const {
 	scr->x = m_scr0.x + m_len.x * pt.x;
 	scr->y = m_scr0.y + m_len.y * pt.y;
 	scr->z = m_scr0.z + m_len.z * pt.z;
 	scr->w = std::min(std::max(pt.w, (XGraph::GFloat)0.0), (XGraph::GFloat)1.0);
 }
 inline void
-XPlot::valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) {
+XPlot::valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) const {
 	gr->x = m_curAxisX->valToAxis(pt.x);
 	gr->y = m_curAxisY->valToAxis(pt.y);
 	if(m_curAxisZ)
@@ -354,7 +354,7 @@ XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis>
 							  &s2);
 			XGraph::VFloat tempx;
 			switch(axis1->queryTic(len, i, &tempx)) {
-			case XAxis::MajorTic:
+            case XAxis::Tic::Major:
 				if(disp_major) {
 					painter->setColor(major_color,
 									  max(0.0, min(intens * 0.7, 0.5)) );
@@ -362,7 +362,7 @@ XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis>
 					painter->setVertex(s2);
 				}
 				break;
-			case XAxis::MinorTic:
+            case XAxis::Tic::Minor:
 				if(disp_minor) {
 					painter->setColor(minor_color,
 									  max(0.0, min(intens * 0.5, 0.5)) );
@@ -550,7 +550,7 @@ XPlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 }
 
 inline unsigned int
-XPlot::blendColor(unsigned int c1, unsigned int c2, float t) {
+XPlot::blendColor(unsigned int c1, unsigned int c2, float t) const {
     unsigned char c1red = qRed((QRgb)c1);
     unsigned char c1green = qGreen((QRgb)c1);
     unsigned char c1blue = qBlue((QRgb)c1);
@@ -564,7 +564,7 @@ XPlot::blendColor(unsigned int c1, unsigned int c2, float t) {
 }
 
 inline bool
-XPlot::isPtIncluded(const XGraph::GPoint &pt) {
+XPlot::isPtIncluded(const XGraph::GPoint &pt) const {
 	return (pt.x >= 0) && (pt.x <= 1) &&
 		(pt.y >= 0) && (pt.y <= 1) &&
 		(pt.z >= 0) && (pt.z <= 1);
@@ -573,7 +573,7 @@ XPlot::isPtIncluded(const XGraph::GPoint &pt) {
 inline bool
 XPlot::clipLine(const tCanvasPoint &c1, const tCanvasPoint &c2,
 				XGraph::ScrPoint *s1, XGraph::ScrPoint *s2, bool blendcolor,
-				unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2) {
+                unsigned int *color1, unsigned int *color2, float *alpha1, float *alpha2) const {
 	if(c1.insidecube && c2.insidecube) {
 		*s1 = c1.scr; *s2 = c2.scr;
 		if(blendcolor) {
@@ -756,8 +756,8 @@ XAxis::XAxis(const char *name, bool runtime,
 			 AxisDirection dir, bool rightOrTop, Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
 	XNode(name, runtime),
 	m_direction(dir),
-	m_dirVector( (dir == DirAxisX) ? 1.0 : 0.0, 
-				 (dir == DirAxisY) ? 1.0 : 0.0, (dir == DirAxisZ) ? 1.0 : 0.0),
+    m_dirVector( (dir == AxisDirection::X) ? 1.0 : 0.0,
+                 (dir == AxisDirection::Y) ? 1.0 : 0.0, (dir == AxisDirection::Z) ? 1.0 : 0.0),
 	m_graph(graph),
 	m_label(create<XStringNode>("Label", true)),
 	m_x(create<XDoubleNode>("X", true)),
@@ -805,8 +805,8 @@ XAxis::XAxis(const char *name, bool runtime,
 		tr[ *ticLabelColor()] = clBlack;
 
 		if(rightOrTop) {
-			if(dir == DirAxisY) tr[ *x()] = 1.0- tr[ *x()];
-			if(dir == DirAxisX) tr[ *y()] = 1.0- tr[ *y()];
+            if(dir == AxisDirection::Y) tr[ *x()] = 1.0- tr[ *x()];
+            if(dir == AxisDirection::X) tr[ *y()] = 1.0- tr[ *y()];
 		}
 
 		startAutoscale_(tr, true);
@@ -899,9 +899,9 @@ XAxis::performAutoFreq(const Snapshot &shot, float resolution) {
 }
 
 inline bool
-XAxis::isIncluded(XGraph::VFloat x) {
+XAxis::isIncluded(XGraph::VFloat x) const {
 	return (x >= m_minFixed)
-		&& ((m_direction == AxisWeight) || (x <= m_maxFixed));
+        && ((m_direction == AxisDirection::Weight) || (x <= m_maxFixed));
 }
 inline void
 XAxis::tryInclude(XGraph::VFloat x) {
@@ -924,7 +924,7 @@ XAxis::tryInclude(XGraph::VFloat x) {
 
 void
 XAxis::zoom(bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat center) {
-	if(direction() == AxisWeight) return;
+    if(direction() == AxisDirection::Weight) return;
 	
 	if(maxchange) {
 		m_maxFixed = axisToVal(center + (XGraph::GFloat)0.5 / prop);
@@ -956,7 +956,7 @@ XAxis::valToAxis(XGraph::VFloat x) {
 }
 
 XGraph::VFloat
-XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec) {
+XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec) const {
 	XGraph::VFloat x = 0;
 	if(axis_prec <= 0) {
 		if(m_bLogscaleFixed) {
@@ -977,24 +977,24 @@ XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec) {
 }
 
 void
-XAxis::axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *scr) {
+XAxis::axisToScreen(const Snapshot &shot, XGraph::GFloat pos, XGraph::ScrPoint *scr) const {
 	XGraph::SFloat len = shot[ *length()];
 	pos *= len;
-	scr->x = shot[ *x()] + ((m_direction == DirAxisX) ? pos: (XGraph::SFloat) 0.0);
-	scr->y = shot[ *y()] + ((m_direction == DirAxisY) ? pos: (XGraph::SFloat) 0.0);
-	scr->z = shot[ *z()] + ((m_direction == DirAxisZ) ? pos: (XGraph::SFloat) 0.0);
+    scr->x = shot[ *x()] + ((m_direction == AxisDirection::X) ? pos: (XGraph::SFloat) 0.0);
+    scr->y = shot[ *y()] + ((m_direction == AxisDirection::Y) ? pos: (XGraph::SFloat) 0.0);
+    scr->z = shot[ *z()] + ((m_direction == AxisDirection::Z) ? pos: (XGraph::SFloat) 0.0);
 }
 XGraph::GFloat
-XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) {
+XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) const {
 	XGraph::SFloat _x = scr.x - shot[ *x()];
 	XGraph::SFloat _y = scr.y - shot[ *y()];
 	XGraph::SFloat _z = scr.z - shot[ *z()];
-	XGraph::GFloat pos = ((m_direction == DirAxisX) ? _x :
-						  ((m_direction == DirAxisY) ? _y : _z)) / (XGraph::SFloat)shot[ *length()];
+    XGraph::GFloat pos = ((m_direction == AxisDirection::X) ? _x :
+                          ((m_direction == AxisDirection::Y) ? _y : _z)) / (XGraph::SFloat)shot[ *length()];
 	return pos;
 }
 XGraph::VFloat
-XAxis::screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) {
+XAxis::screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) const {
     return axisToVal(screenToAxis(shot, scr));
 }
 void
@@ -1002,7 +1002,7 @@ XAxis::valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *s
     axisToScreen(shot, valToAxis(val), scr);
 }
 XString
-XAxis::valToString(XGraph::VFloat val) {
+XAxis::valToString(XGraph::VFloat val) const {
     return formatDouble(( **ticLabelFormat())->to_str().c_str(), val);
 }
 
@@ -1011,11 +1011,11 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 	XGraph::VFloat x, t;
 	if(m_bLogscaleFixed) {
 		x = axisToVal((XGraph::GFloat)pos / len);
-		if(x <= 0) return NoTics;
+        if(x <= 0) return Tic::None;
 		t = VFLOAT_POW((XGraph::VFloat)10.0, VFLOAT_RINT(VFLOAT_LOG10(x)));
 		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
 			*ticnum = t;
-			return MajorTic;
+            return Tic::Major;
 		}
 		x = x / t;
 		if(x < 1)
@@ -1024,30 +1024,30 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 			t = VFLOAT_RINT(x) * t;
 		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
 			*ticnum = t;
-			return MinorTic;
+            return Tic::Minor;
 		}
-		return NoTics;
+        return Tic::None;
 	}
 	else {
 		x = axisToVal((XGraph::GFloat)pos / len);
 		t = VFLOAT_RINT(x / m_majorFixed) * m_majorFixed;
 		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
 			*ticnum = t;
-			return MajorTic;
+            return Tic::Major;
 		}
 		t = VFLOAT_RINT(x / m_minorFixed) * m_minorFixed;
 		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
 			*ticnum = t;
-			return MinorTic;
+            return Tic::Minor;
 		}
-		return NoTics;
+        return Tic::None;
 	}
 }
 
 
 void
 XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
-    if(m_direction == AxisWeight) return;
+    if(m_direction == AxisDirection::Weight) return;
   
 	const int sizehint = 2;
 	painter->setColor(shot[ *labelColor()]);
@@ -1091,7 +1091,7 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
 
 int
 XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
-	if(m_direction == AxisWeight) return -1;
+    if(m_direction == AxisDirection::Weight) return -1;
   
 	XGraph::SFloat LenMajorTicL = 0.01;
 	XGraph::SFloat LenMinorTicL = 0.005;
@@ -1120,7 +1120,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 	for(int i = 0; i < len; ++i) {
 		XGraph::VFloat z;
 		XGraph::GFloat x = (XGraph::GFloat)i / len;
-		if(queryTic(len, i, &z) == MajorTic) {
+        if(queryTic(len, i, &z) == Tic::Major) {
 			if(mindx > x - lastg) {
 				axisToScreen(shot, x, &s1);
 				s2 = s1;
@@ -1145,7 +1145,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 		XGraph::VFloat z;
 		XGraph::GFloat x = (XGraph::GFloat)i / len;
 		switch(queryTic(len, i, &z)) {
-		case MajorTic:
+        case Tic::Major:
 			if(shot[ *displayMajorTics()]) {
 				axisToScreen(shot, x, &s1);
 				painter->posOffAxis(m_dirVector, &s1, LenMajorTicL);
@@ -1164,7 +1164,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 				painter->drawText(s1, valToString(var));
 			}
 			break;
-		case MinorTic:
+        case Tic::Minor:
 			if(shot[ *displayMinorTics()]) {
 				axisToScreen(shot, x, &s1);
 				painter->posOffAxis(m_dirVector, &s1, LenMinorTicL);
@@ -1177,7 +1177,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 				painter->endLine();
 			}
 			break;
-		case NoTics:
+        case Tic::None:
 			break;
 		}
     }

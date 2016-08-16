@@ -322,9 +322,9 @@ XNIDAQmxInterface::getNIDAQmxErrMessage()
 	char str[2048];
 	DAQmxGetExtendedErrorInfo(str, sizeof(str));
 	errno = 0;
-	return XString(str);
+    return {str};
 #else
-	return XString();
+    return {};
 #endif //HAVE_NI_DAQMX
 }
 XString
@@ -333,9 +333,9 @@ XNIDAQmxInterface::getNIDAQmxErrMessage(int status) {
 	char str[2048];
 	DAQmxGetErrorString(status, str, sizeof(str));
 	errno = 0;
-	return XString(str);
+    return {str};
 #else
-	return XString();
+    return {};
 #endif //HAVE_NI_DAQMX
 }
 int

@@ -149,7 +149,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	if(plot.colz >= 0) {
 		if( !m_axisz) {
 			m_axisz = graph->axes()->create<XAxis>(tr(), "Z Axis", true,
-				XAxis::DirAxisZ, true, ref(tr()), graph);
+                XAxis::AxisDirection::Z, true, ref(tr()), graph);
 		}
 		tr()[ *plot.xyplot->axisZ()] = m_axisz;
 		tr()[ *m_axisz->label()] = m_labels[plot.colz];
@@ -157,7 +157,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	if(plot.colweight >= 0) {
 		if( !m_axisw) {
 			m_axisw = graph->axes()->create<XAxis>(tr(), "Weight", true,
-				XAxis::AxisWeight, true, ref(tr()), graph);
+                XAxis::AxisDirection::Weight, true, ref(tr()), graph);
 		}
 		tr()[ *m_axisw->autoScale()] = false;
 		tr()[ *m_axisw->autoScale()].setUIEnabled(false);
@@ -167,7 +167,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	if(plot.coly2 >= 0) {
 		if( !m_axisy2) {
 			m_axisy2 = graph->axes()->create<XAxis>(tr(), "Y2 Axis", true,
-				XAxis::DirAxisY, true, ref(tr()), graph);
+                XAxis::AxisDirection::Y, true, ref(tr()), graph);
 		}
 		tr()[ *plot.xyplot->axisY()] = m_axisy2;
 		tr()[ *m_axisy2->label()] = m_labels[plot.coly2];

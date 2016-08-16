@@ -92,7 +92,7 @@ public:
 
 	virtual shared_ptr<XNode> createByTypename(
         const XString &, const XString &) override {
-		return shared_ptr<XNode>();
+        return {};
 	}
 };
 

@@ -53,8 +53,8 @@ private:
     XString getIDN(void *handle, int maxlen = 255) {
         XString str = getIDN(handle, maxlen, m_addrOffset);
         if(str.empty() || (str.find(m_idString,0) != 0))
-             return XString();
-        return str;
+             return {};
+        return std::move(str);
     }
     static void setLED(void *handle, uint8_t data);
     static uint8_t readDIPSW(void *handle);
