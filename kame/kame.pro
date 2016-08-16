@@ -32,7 +32,6 @@ HEADERS += \
     transaction.h \
     xthread.h \
     xtime.h \
-    atomic_list.h \
     atomic_prv_std.h \
     atomic_prv_basic.h \
     atomic_prv_mfence_x86.h \

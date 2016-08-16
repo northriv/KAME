@@ -74,7 +74,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		tr[ *tr[ *m_spectrum].plot(3)->intensity()] = 0.5;
 		{
 			shared_ptr<XXYPlot> plot = m_spectrum->graph()->plots()->template create<XXYPlot>(
-				tr, "Peaks", true, ref(tr), m_spectrum->graph());
+				tr, "Peaks", true, tr, m_spectrum->graph());
 			m_peakPlot = plot;
 			tr[ *plot->label()] = i18n("Peaks");
 			tr[ *plot->axisX()] = tr[ *m_spectrum].axisx();

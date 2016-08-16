@@ -66,7 +66,7 @@ XValChart::XValChart(const char *name, bool runtime,
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
     m_graph->iterate_commit([=](Transaction &tr){
-		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, ref(tr), m_graph);
+		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, tr, m_graph);
 		tr[ *m_graph->persistence()] = 0.0;
 		tr[ *m_chart->label()] = entry->getLabel();
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
@@ -180,11 +180,11 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 		tr[ *this].m_livePlot =
 			graph->plots()->create<XXYPlot>(tr,
-				(graph->getName() + "-Live").c_str(), false, ref(tr), graph);
+				(graph->getName() + "-Live").c_str(), false, tr, graph);
 		tr[ *shot_this[ *this].m_livePlot->label()] = graph->getLabel() + " Live";
 		tr[ *this].m_storePlot =
 			graph->plots()->create<XXYPlot>(tr,
-				(graph->getName() + "-Stored").c_str(), false, ref(tr), graph);
+				(graph->getName() + "-Stored").c_str(), false, tr, graph);
 		tr[ *shot_this[ *this].m_storePlot->label()] = graph->getLabel() + " Stored";
 
 		const XNode::NodeList &axes_list( *tr.list(graph->axes()));
@@ -202,7 +202,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *axisy->length()] = 0.90 - shot_this[ *axisy->y()];
 		if(entryz) {
 			shared_ptr<XAxis> axisz = graph->axes()->create<XAxis>(
-                tr, "Z Axis", false, XAxis::AxisDirection::Z, false, ref(tr), graph);
+                tr, "Z Axis", false, XAxis::AxisDirection::Z, false, tr, graph);
 			tr[ *axisz->ticLabelFormat()] = entryz->value()->format();
 			tr[ *shot_this[ *this].m_livePlot->axisZ()] = axisz;
 			tr[ *shot_this[ *this].m_storePlot->axisZ()] = axisz;
@@ -307,7 +307,7 @@ shared_ptr<XNode>
 XGraphList::createByTypename(const XString &, const XString& name)  {
 	shared_ptr<XValGraph> x;
     m_entries->iterate_commit([=, &x](Transaction &tr){
-		x = create<XValGraph>(name.c_str(), false, ref(tr), m_entries);
+		x = create<XValGraph>(name.c_str(), false, tr, m_entries);
     });
 	return x;
 }

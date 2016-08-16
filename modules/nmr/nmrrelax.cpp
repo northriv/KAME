@@ -103,7 +103,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
 		m_relaxFunc = create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
-						  tr, "RelaxFunc", false, ref(tr), m_relaxFuncs, true);
+						  tr, "RelaxFunc", false, tr, m_relaxFuncs, true);
     });
 
     m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
@@ -137,7 +137,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *tr[ *m_wave].plot(1)->drawLines()] = false;
 		tr[ *tr[ *m_wave].plot(1)->intensity()] = 0.6;
 		shared_ptr<XFuncPlot> plot3 = m_wave->graph()->plots()->create<XRelaxFuncPlot>(
-			tr, "FittedCurve", true, ref(tr), m_wave->graph(),
+			tr, "FittedCurve", true, tr, m_wave->graph(),
 			relaxFunc(), static_pointer_cast<XNMRT1>(shared_from_this()));
 		tr[ *plot3->label()] = i18n("Fitted Curve");
 		tr[ *plot3->axisX()] = axisx;

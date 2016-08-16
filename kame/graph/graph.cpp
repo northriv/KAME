@@ -84,10 +84,10 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *label()] = name;
 
         auto xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::AxisDirection::X
-							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
+                               , false, tr, static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *xaxis->label()] = i18n("X Axis");
         auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::AxisDirection::Y
-							   , false, ref(tr), static_pointer_cast<XGraph>(shared_from_this()));
+                               , false, tr, static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *yaxis->label()] = i18n("Y Axis");
     });
 }

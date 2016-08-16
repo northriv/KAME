@@ -48,7 +48,7 @@ XTempControl::Loop::Loop(const char *name, bool runtime, shared_ptr<XTempControl
 		m_extDCSourceChannel(create<XComboNode> ("ExtDCSourceChannel", false, true)),
 		m_extIsPositive(create<XBoolNode> ("ExtIsPositive", false)) {
 	m_currentChannel =
-		create<XItemNode<XChannelList, XChannel> >("CurrentChannel", true, ref(tr),
+		create<XItemNode<XChannelList, XChannel> >("CurrentChannel", true, tr,
 		tempctrl->m_channels);
 
     iterate_commit([=](Transaction &tr){
@@ -373,7 +373,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
 		m_setupChannel =
-			create<XItemNode<XChannelList, XChannel> >(tr, "SetupChannel", true, ref(tr), m_channels);
+			create<XItemNode<XChannelList, XChannel> >(tr, "SetupChannel", true, tr, m_channels);
     });
 	m_conSetupChannel = xqcon_create<XQComboBoxConnector> (m_setupChannel,
 		m_form->m_cmbSetupChannel, Snapshot( *m_channels));
@@ -493,7 +493,7 @@ void XTempControl::createChannels(
         iterate_commit([=, &p, &tr_meas](Transaction &tr){
 			p = create<Loop>(tr,
                 lp.c_str(), false,
-                dynamic_pointer_cast<XTempControl>(shared_from_this()), ref(tr), num_of_loops,
+                dynamic_pointer_cast<XTempControl>(shared_from_this()), tr, num_of_loops,
 				ref(tr_meas), meas);
         });
 		m_loops.push_back(p);

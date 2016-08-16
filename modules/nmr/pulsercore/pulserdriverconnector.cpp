@@ -81,7 +81,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 		m_plots.clear();
 		for(int i=0; i < XPulser::NUM_DO_PORTS; i++) {
 			shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-				tr, formatString("Port%d", i).c_str(), true, ref(tr), m_graph);
+				tr, formatString("Port%d", i).c_str(), true, tr, m_graph);
 			tr[ *plot->label()] = i18n("Port%1").arg(i);
 			tr[ *plot->axisX()] = axisx;
 			tr[ *plot->axisY()] = axisy;
@@ -92,7 +92,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
-		m_barPlot = m_graph->plots()->create<XXYPlot>(tr, "Bars", true, ref(tr), m_graph);
+		m_barPlot = m_graph->plots()->create<XXYPlot>(tr, "Bars", true, tr, m_graph);
 		tr[ *m_barPlot->label()] = i18n("Bars");
 		tr[ *m_barPlot->axisX()] = axisx;
 		tr[ *m_barPlot->axisY()] = axisy;

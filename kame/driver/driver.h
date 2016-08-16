@@ -94,7 +94,7 @@ public:
 	XDriverList(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
 
     DEFINE_TYPE_HOLDER(
-		reference_wrapper<Transaction>,
+        std::reference_wrapper<Transaction>,
 		const shared_ptr<XMeasure> &
 		)
     virtual shared_ptr<XNode> createByTypename(const XString &type, const XString& name) override;

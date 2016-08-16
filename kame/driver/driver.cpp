@@ -28,7 +28,7 @@ XDriverList::createByTypename(const XString &type, const XString& name) {
 	shared_ptr<XNode> ptr;
     measure->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
 		ptr = creator(type)
-			(name.c_str(), false, ref(tr), measure);
+            (name.c_str(), false, tr, measure);
 		if(ptr)
 			if( !insert(tr, ptr))
                 return false;

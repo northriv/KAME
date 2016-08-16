@@ -37,7 +37,7 @@ XConCalTable::XConCalTable
 
     list->iterate_commit([=](Transaction &tr){
 		m_thermometer = XNode::createOrphan<XItemNode<XThermometerList, XThermometer> >(
-						 "thermometer", false, ref(tr), list, true);
+						 "thermometer", false, tr, list, true);
     });
 
     m_conThermo = xqcon_create<XQComboBoxConnector> (m_thermometer,

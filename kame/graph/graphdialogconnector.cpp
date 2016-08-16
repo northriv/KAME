@@ -28,8 +28,8 @@ XQGraphDialogConnector::XQGraphDialogConnector
     m_pItem(item) {
 
     graph->iterate_commit([=](Transaction &tr){
-		m_selPlot = XNode::createOrphan<XItemNode<XPlotList, XPlot> >("", true, ref(tr), graph->plots(), true);
-		m_selAxis = XNode::createOrphan<XItemNode<XAxisList, XAxis> >("", true, ref(tr), graph->axes(), true);
+		m_selPlot = XNode::createOrphan<XItemNode<XPlotList, XPlot> >("", true, tr, graph->plots(), true);
+		m_selAxis = XNode::createOrphan<XItemNode<XAxisList, XAxis> >("", true, tr, graph->axes(), true);
     });
     m_pItem->m_dblIntensity->setRange(0.0, 2.0);
     m_pItem->m_dblIntensity->setSingleStep(0.1);
