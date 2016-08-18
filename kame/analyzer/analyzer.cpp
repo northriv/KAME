@@ -96,13 +96,12 @@ XValChart::XValChart(const char *name, bool runtime,
 }
 void
 XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
-	double val;
-    val = shot[ *m_entry->value()];
-    XTime time = shot[ *driver].time();
-    iterate_commit([=](Transaction &tr){
-		if(time)
-			m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
-    });
+    if(XTime time = shot[ *driver].time()) {
+        double val = shot[ *m_entry->value()];
+        iterate_commit([=](Transaction &tr){
+            m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
+        });
+    }
 }
 void
 XValChart::showChart(void) {
