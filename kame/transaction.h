@@ -126,15 +126,15 @@ public:
     //! Iterates a transaction covering the node and children.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...}
     template <typename Closure>
-    inline Snapshot<XN> iterate_commit(Closure);
+    Snapshot<XN> iterate_commit(Closure&&);
     //! Iterates a transaction covering the node and children. Skips the iteration when the closure returns false.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
-    inline Snapshot<XN> iterate_commit_if(Closure);
+    Snapshot<XN> iterate_commit_if(Closure&&);
     //! Iterates a transaction covering the node and children, as long as the closure returns true.
     //! \param Closure Typical: [=](Transaction<Node1> &tr){ somecode...; return ret; }
     template <typename Closure>
-    inline void iterate_commit_while(Closure);
+    void iterate_commit_while(Closure&&);
 
     //! Data holder and accessor for the node.
     //! Derive Node<XN>::Payload as (\a subclass)::Payload.
@@ -683,7 +683,7 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
 template <class XN>
 template <typename Closure>
-inline Snapshot<XN> Node<XN>::iterate_commit(Closure closure) {
+Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
         closure(tr);
         if(tr.commit())
@@ -692,8 +692,7 @@ inline Snapshot<XN> Node<XN>::iterate_commit(Closure closure) {
 }
 template <class XN>
 template <typename Closure>
-inline Snapshot<XN> Node<XN>::iterate_commit_if(Closure closure) {
-    //std::is_integral<std::result_of<Closure>>::type
+Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
         if( !closure(tr))
             continue; //skipping.
@@ -703,7 +702,7 @@ inline Snapshot<XN> Node<XN>::iterate_commit_if(Closure closure) {
 }
 template <class XN>
 template <typename Closure>
-inline void Node<XN>::iterate_commit_while(Closure closure) {
+void Node<XN>::iterate_commit_while(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
         if( !closure(tr))
              return;
