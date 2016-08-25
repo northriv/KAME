@@ -10,8 +10,8 @@ win32 {
         SOURCES += dwfdso.cpp
         INCLUDEPATH += "C:\Program Files\Digilent\WaveFormsSDK\inc"
         INCLUDEPATH += "C:\Program Files (x86)\Digilent\WaveFormsSDK\inc"
-    #    LIBS += -L"C:\Program Files\Digilent\WaveFormsSDK\lib\x86"
-    #    LIBS += -L"C:\Program Files (x86)\Digilent\WaveFormsSDK\lib\x64"
+        LIBS += -L"C:\Program Files\Digilent\WaveFormsSDK\lib\x86"
+        LIBS += -L"C:\Program Files (x86)\Digilent\WaveFormsSDK\lib\x64 -ldwf"
     }
     else {
         message("Missing library for Digilent WaveForms SDK")

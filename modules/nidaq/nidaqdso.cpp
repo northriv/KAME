@@ -433,8 +433,8 @@ XNIDAQmxDSO::createChannels() {
                 DAQmxGetAIDevScalingCoeff(m_task,
                       str.c_str(),
                       m_coeffAI[ch_num], CAL_POLY_ORDER));
+            ch_num++;
         }
-        ch_num++;
     }
 
 	uInt32 num_ch;
