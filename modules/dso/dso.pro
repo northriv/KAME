@@ -6,7 +6,7 @@ INCLUDEPATH += \
 
 HEADERS += \
     lecroy.h \
-    tds.h
+    tds.h \
 
 SOURCES += \
     lecroy.cpp \
@@ -21,8 +21,3 @@ win32:LIBS += -ldsocore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core
-
-win32:LIBS += -lsgcore
-
-INCLUDEPATH += $$PWD/../sg/core
-DEPENDPATH += $$PWD/../sg/core

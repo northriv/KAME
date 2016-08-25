@@ -25,44 +25,44 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XNIDAQmxDSO();
 	//! Converts raw to record
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+    virtual void open() throw (XKameError &) override;
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XKameError &);
+    virtual void close() throw (XKameError &) override;
 
-	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrace3Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrace4Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onSingleChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrigPosChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVOffset1Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVOffset2Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVOffset3Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onVOffset4Changed(const Snapshot &shot, XValueNodeBase *);
-	virtual void onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
+    virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrace3Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrace4Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onSingleChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVFullScale2Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVFullScale3Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVFullScale4Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVOffset1Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVOffset2Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVOffset3Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) override;
 
-	virtual double getTimeInterval();
+    virtual double getTimeInterval() override;
 	//! Clears count or start sequence measurement
-	virtual void startSequence();
-	virtual int acqCount(bool *seq_busy);
+    virtual void startSequence() override;
+    virtual int acqCount(bool *seq_busy) override;
 
 	//! Loads waveform and settings from instrument
-	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
+    virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) override;
 
-	virtual bool isDRFCoherentSGSupported() const {return true;}
+    virtual bool isDRFCoherentSGSupported() const override {return true;}
 private:
 	typedef int16 tRawAI;
 	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;

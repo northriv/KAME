@@ -379,6 +379,8 @@ XNIDAQmxInterface::XNIDAQmxInterface(const char *name, bool runtime, const share
 		}
     });
 #endif //HAVE_NI_DAQMX
+    address()->disable();
+    port()->disable();
 }
 XNIDAQmxInterface::XNIDAQmxRoute::XNIDAQmxRoute(const char*src, const char*dst, int *pret)
 	: m_src(src), m_dst(dst) {

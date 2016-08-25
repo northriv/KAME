@@ -310,20 +310,11 @@ XDSO::execute(const atomic<bool> &terminated) {
 			continue;
 		}
 		std::deque<XString> channels;
-		{
-			XString chstr = shot[ *trace1()].to_str();
-			if( !chstr.empty())
-				channels.push_back(chstr);
-			chstr = shot[ *trace2()].to_str();
-			if( !chstr.empty())
-				channels.push_back(chstr);
-			chstr = shot[ *trace3()].to_str();
-			if( !chstr.empty())
-				channels.push_back(chstr);
-			chstr = shot[ *trace4()].to_str();
-			if( !chstr.empty())
-				channels.push_back(chstr);
-		}
+        for(auto &&trace: {trace1(), trace2(), trace3(), trace4()}) {
+            XString chstr = shot[ *trace].to_str();
+            if( !chstr.empty())
+                channels.push_back(chstr);
+        }
 		if( !channels.size()) {
             statusPrinter()->printMessage(getLabel() + " " + i18n("Select traces!."));
             msecsleep(1000);

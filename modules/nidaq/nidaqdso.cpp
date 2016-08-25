@@ -407,80 +407,34 @@ XNIDAQmxDSO::createChannels() {
 	CHECK_DAQMX_RET(DAQmxCreateTask("", &m_task));
 	assert(m_task != TASK_UNDEF);
 
-	if(shot[ *trace1()] >= 0) {
-		CHECK_DAQMX_RET(
-			DAQmxCreateAIVoltageChan(m_task,
-									 shot[ *trace1()].to_str().c_str(),
-									 "",
-									 DAQmx_Val_Cfg_Default,
-									 -atof(shot[ *vFullScale1()].to_str().c_str()) / 2.0,
-									 atof(shot[ *vFullScale1()].to_str().c_str()) / 2.0,
-									 DAQmx_Val_Volts,
-									 NULL
-									 ));
+    auto traces =
+        {std::make_tuple(trace1(), vFullScale1(), vOffset1()), std::make_tuple(trace2(), vFullScale2(), vOffset2()),
+        std::make_tuple(trace3(), vFullScale3(), vOffset3()), std::make_tuple(trace4(), vFullScale4(), vOffset4())};
+    int ch_num = 0;
+    for(auto &&trace: traces) {
+        int ch = shot[ *std::get<0>(trace)];
+        if(ch >= 0) {
+            CHECK_DAQMX_RET(
+                DAQmxCreateAIVoltageChan(m_task,
+                     shot[ *trace()].to_str().c_str(),
+                     "",
+                     DAQmx_Val_Cfg_Default,
+                     -atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
+                     atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
+                     DAQmx_Val_Volts,
+                     NULL
+                     ));
 
-		//obtain range info.
-		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
-			m_coeffAI[0][i] = 0.0;
-		CHECK_DAQMX_RET(
-			DAQmxGetAIDevScalingCoeff(m_task,
-									  shot[ *trace1()].to_str().c_str(),
-									  m_coeffAI[0], CAL_POLY_ORDER));
-	}
-	if(shot[ *trace2()] >= 0) {
-		CHECK_DAQMX_RET(
-			DAQmxCreateAIVoltageChan(m_task,
-									 shot[ *trace2()].to_str().c_str(),
-									 "",
-									 DAQmx_Val_Cfg_Default,
-									 -atof(shot[ *vFullScale2()].to_str().c_str()) / 2.0,
-									 atof(shot[ *vFullScale2()].to_str().c_str()) / 2.0,
-									 DAQmx_Val_Volts,
-									 NULL
-									 ));
-		//obtain range info.
-		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
-			m_coeffAI[1][i] = 0.0;
-		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
-												  shot[ *trace2()].to_str().c_str(),
-												  m_coeffAI[1], CAL_POLY_ORDER));
-	}
-	if(shot[ *trace3()] >= 0) {
-		CHECK_DAQMX_RET(
-			DAQmxCreateAIVoltageChan(m_task,
-									 shot[ *trace3()].to_str().c_str(),
-									 "",
-									 DAQmx_Val_Cfg_Default,
-									 -atof(shot[ *vFullScale3()].to_str().c_str()) / 2.0,
-									 atof(shot[ *vFullScale3()].to_str().c_str()) / 2.0,
-									 DAQmx_Val_Volts,
-									 NULL
-									 ));
-		//obtain range info.
-		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
-			m_coeffAI[2][i] = 0.0;
-		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
-												  shot[ *trace3()].to_str().c_str(),
-												  m_coeffAI[2], CAL_POLY_ORDER));
-	}
-	if(shot[ *trace4()] >= 0) {
-		CHECK_DAQMX_RET(
-			DAQmxCreateAIVoltageChan(m_task,
-									 shot[ *trace4()].to_str().c_str(),
-									 "",
-									 DAQmx_Val_Cfg_Default,
-									 -atof(shot[ *vFullScale4()].to_str().c_str()) / 2.0,
-									 atof(shot[ *vFullScale4()].to_str().c_str()) / 2.0,
-									 DAQmx_Val_Volts,
-									 NULL
-									 ));
-		//obtain range info.
-		for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
-			m_coeffAI[3][i] = 0.0;
-		CHECK_DAQMX_RET(DAQmxGetAIDevScalingCoeff(m_task,
-												  shot[ *trace4()].to_str().c_str(),
-												  m_coeffAI[3], CAL_POLY_ORDER));
-	}
+            //obtain range info.
+            for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
+                m_coeffAI[ch_num][i] = 0.0;
+            CHECK_DAQMX_RET(
+                DAQmxGetAIDevScalingCoeff(m_task,
+                      shot[ *trace()].to_str().c_str(),
+                      m_coeffAI[ch_num], CAL_POLY_ORDER));
+        }
+        ch_num++;
+    }
 
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));

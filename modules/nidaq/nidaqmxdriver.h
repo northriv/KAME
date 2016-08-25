@@ -47,13 +47,12 @@ class XNIDAQmxTask;
 class XNIDAQmxInterface : public XInterface {
 public:
 	XNIDAQmxInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-	virtual ~XNIDAQmxInterface() {}
  
 	static XString getNIDAQmxErrMessage();
 	static XString getNIDAQmxErrMessage(int status);
 	static int checkDAQmxError(int ret, const char*file, int line);
 
-	virtual bool isOpened() const {return m_devname.length();}
+    virtual bool isOpened() const override {return m_devname.length();}
   
 	//! e.g. "Dev1".
 	const char*devName() const {return m_devname.c_str();}
@@ -173,9 +172,9 @@ public:
 		bool m_isPersistentCoherent;
 	};
 protected:
-	virtual void open() throw (XInterfaceError &);
+    virtual void open() throw (XInterfaceError &) override;
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
+    virtual void close() throw (XInterfaceError &) override;
 private:
 	//! \return true if an external source is detected and rounted.
 	bool routeExternalClockSource(const char *dev, const char *inp_term);
@@ -200,17 +199,16 @@ class XNIDAQmxDriver : public tDriver {
 public:
 	XNIDAQmxDriver(const char *name, bool runtime, 
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XNIDAQmxDriver() {}
 protected:
 	const shared_ptr<XNIDAQmxInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &) {this->start();}
+    virtual void open() throw (XKameError &) {this->start();}
 	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XKameError &) {interface()->stop();}
+    virtual void close() throw (XKameError &) {interface()->stop();}
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
-	virtual void closeInterface();
+    virtual void closeInterface() override;
 private:
     shared_ptr<Listener> m_lsnOnOpen, m_lsnOnClose;
   
@@ -219,7 +217,7 @@ private:
 template<class tDriver>
 XNIDAQmxDriver<tDriver>::XNIDAQmxDriver(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    tDriver(name, runtime, ref(tr_meas), meas),
+    tDriver(name, runtime, tr_meas, meas),
 	m_interface(XNode::create<XNIDAQmxInterface>("Interface", false,
 												 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interface);

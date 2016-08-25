@@ -23,6 +23,7 @@ SUBDIRS += testdriver\
     networkanalyzercore\
     networkanalyzer\
     nidaq\
+    digilentwf\
     nmrpulsercore\
     nmrpulser\
     thamway\
@@ -60,6 +61,7 @@ nmrpulser.depends += nmrpulsercore charinterface
 nmr.depends += nmrpulsercore dmmcore dsocore sgcore magnetpscore motorcore networkanalyzercore qdcore
 fourres.depends += dmmcore dcsourcecore
 nidaq.depends += nmrpulsercore dsocore
+digilentwf.depends += dsocore
 tempcontrol.depends += dcsourcecore flowcontrollercore
 thamway.file = nmr/thamway/thamway.pro
 thamway.depends += nmrpulsercore sgcore networkanalyzercore
