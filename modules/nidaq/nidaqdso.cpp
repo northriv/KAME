@@ -414,13 +414,14 @@ XNIDAQmxDSO::createChannels() {
     for(auto &&trace: traces) {
         int ch = shot[ *std::get<0>(trace)];
         if(ch >= 0) {
+            auto str = shot[ *std::get<0>(trace)].to_str();
             CHECK_DAQMX_RET(
                 DAQmxCreateAIVoltageChan(m_task,
-                     shot[ *trace()].to_str().c_str(),
+                     str.c_str(),
                      "",
                      DAQmx_Val_Cfg_Default,
-                     -atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
-                     atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
+                     -atof(str.c_str()) / 2.0,
+                     atof(str.c_str()) / 2.0,
                      DAQmx_Val_Volts,
                      NULL
                      ));
@@ -430,7 +431,7 @@ XNIDAQmxDSO::createChannels() {
                 m_coeffAI[ch_num][i] = 0.0;
             CHECK_DAQMX_RET(
                 DAQmxGetAIDevScalingCoeff(m_task,
-                      shot[ *trace()].to_str().c_str(),
+                      str.c_str(),
                       m_coeffAI[ch_num], CAL_POLY_ORDER));
         }
         ch_num++;
