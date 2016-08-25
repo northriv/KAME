@@ -150,6 +150,8 @@ XDigilentWFDSO::close() throw (XKameError &) {
         tr[ *trigSource()].clear();
     });
 
+    m_record_av.clear();
+
     interface()->stop();
 }
 void
@@ -161,7 +163,6 @@ XDigilentWFDSO::clearAcquision() {
     catch (XInterface::XInterfaceError &e) {
         e.print();
     }
-    FDwfDeviceClose(hdwf());
 }
 void
 XDigilentWFDSO::disableChannels() {
@@ -287,6 +288,10 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
 
     //RCU pattern.
     local_shared_ptr<DSORawRecord> newrec(m_accum);
+    if( !newrec) {
+        msecsleep(10);
+        return;
+    }
     newrec.reset( new DSORawRecord( *newrec));
     int num_ch = newrec->numCh();
     const unsigned int size = newrec->recordLength();
