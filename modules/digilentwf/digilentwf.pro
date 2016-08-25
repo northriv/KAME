@@ -5,7 +5,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../kame/graph\
 
 win32 {
-    exists("C:\Program Files*\Digilent\WaveFormsSDK\inc") {
+    exists("C:/Program Files*/Digilent/WaveFormsSDK/inc") {
         HEADERS += dwfdso.h
         SOURCES += dwfdso.cpp
         INCLUDEPATH += "C:\Program Files\Digilent\WaveFormsSDK\inc"
