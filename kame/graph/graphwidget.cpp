@@ -39,7 +39,7 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     format.setDepthBufferSize(16);
     format.setSamples(2);
     format.setVersion(2, 0);
-    format.setProfile(QSurfaceFormat::CoreProfile);
+//    format.setProfile(QSurfaceFormat::CoreProfile);
 
 //    QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
 //                             QGL::DepthBuffer | QGL::AccumBuffer |
