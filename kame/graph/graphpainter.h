@@ -18,12 +18,21 @@
 #include "graphwidget.h"
 
 #include <Qt>
-#include <QOpenGLFunctions>
+
+#ifdef USE_QGLWIDGET
+    #include <qgl.h>
+#else
+    #include <QOpenGLFunctions>
+#endif
 
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
-class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>, protected QOpenGLFunctions {
+class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
+#ifndef USE_QGLWIDGET
+        , protected QOpenGLFunctions
+#endif
+{
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();

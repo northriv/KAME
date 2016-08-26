@@ -19,12 +19,22 @@ class XQGraphPainter;
 
 #include "support.h"
 #include "xnodeconnector.h"
-#include <QOpenGLWidget>
+
+#ifdef USE_QGLWIDGET
+    #include <QtOpenGL> //needs +opengl
+#else
+    #include <QOpenGLWidget>
+#endif
 
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
-class DECLSPEC_KAME XQGraph : public QOpenGLWidget {
-	Q_OBJECT
+class DECLSPEC_KAME XQGraph :
+#ifdef USE_QGLWIDGET
+        public QGLWidget {
+#else
+        public QOpenGLWidget {
+#endif
+    Q_OBJECT
 public:
     XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = 0 );
 	virtual ~XQGraph();
@@ -39,6 +49,9 @@ protected:
     virtual void wheelEvent ( QWheelEvent *) override;
     virtual void showEvent ( QShowEvent * ) override;
     virtual void hideEvent ( QHideEvent * ) override;
+#ifdef USE_QGLWIDGET
+    virtual void paintEvent(QPaintEvent *event) override;
+#endif
     virtual void paintGL() override;
     //! openGL stuff
     virtual void initializeGL() override;

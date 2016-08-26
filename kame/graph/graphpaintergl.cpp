@@ -376,8 +376,9 @@ XQGraphPainter::selectPoint(int x, int y, int dx, int dy,
 }
 void
 XQGraphPainter::initializeGL () {
+#ifndef USE_QGLWIDGET
     initializeOpenGLFunctions();
-
+#endif
     glEnable(GL_MULTISAMPLE);
 
     //define display lists etc.:

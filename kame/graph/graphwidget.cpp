@@ -27,12 +27,14 @@
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
 XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
+#ifdef USE_QGLWIDGET
+    QGLWidget( QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
+                         QGL::DepthBuffer | QGL::AccumBuffer |
+                         QGL::SampleBuffers)
+               , parent, 0, Qt::WindowFlags(fl | Qt::WA_PaintOnScreen)) {
+    setAutoFillBackground(false);
+#else
     QOpenGLWidget(parent) {
-//    if( !parent->layout() ) {
-//        parent->setLayout(new QHBoxLayout(this));
-//        parent->layout()->addWidget(this);
-//    }
-    setMouseTracking(true);
 
     QSurfaceFormat format;
     format.setAlphaBufferSize(8);
@@ -41,11 +43,13 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     format.setVersion(2, 0);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 //    format.setProfile(QSurfaceFormat::CoreProfile);
-
-//    QGLFormat(QGL::AlphaChannel | QGL::DoubleBuffer | QGL::Rgba |
-//                             QGL::DepthBuffer | QGL::AccumBuffer |
-//                             QGL::SampleBuffers
     setFormat(format);
+#endif
+//    if( !parent->layout() ) {
+//        parent->setLayout(new QHBoxLayout(this));
+//        parent->layout()->addWidget(this);
+//    }
+    setMouseTracking(true);
 }
 XQGraph::~XQGraph() {
     m_painter.reset();
@@ -152,10 +156,16 @@ XQGraph::resizeGL ( int width, int height ) {
         m_painter->resizeGL(width, height);
 }
 
+#ifdef USE_QGLWIDGET
+void XQGraph::paintEvent(QPaintEvent *event) {
+    makeCurrent();
+    if(m_painter )
+        m_painter->paintGL();
+}
+#endif
+
 void
 XQGraph::paintGL() {
-    makeCurrent();
-
     if(m_painter )
         m_painter->paintGL();
 }
