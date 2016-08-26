@@ -154,6 +154,8 @@ XQGraph::resizeGL ( int width, int height ) {
 
 void
 XQGraph::paintGL() {
+    makeCurrent();
+
     if(m_painter )
         m_painter->paintGL();
 }
