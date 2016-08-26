@@ -21,16 +21,24 @@ REGISTER_TYPE(XDriverList, DigilentWFDSO, "Digilent WaveForms AIN DSO");
 //---------------------------------------------------------------------------
 XDigilentWFInterface::XDigilentWFInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XInterface(name, runtime, driver), m_hdwf(hdwfNone) {
-    int nDevice;
-    if( !FDwfEnum(enumfilterAll, &nDevice))
-        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-    for(int i = 0; i < nDevice; ++nDevice) {
-        char name[32] = {};
-        if( !FDwfEnumDeviceName(i, name))
+char szVersion[32] = {};
+    FDwfGetVersion(szVersion);
+    fprintf(stderr, "Waveform SDK ver.%s\n", szVersion);
+    try {
+        int nDevice;
+        if( !FDwfEnum(enumfilterAll, &nDevice))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-        iterate_commit([=](Transaction &tr){
-            tr[ *device()].add(name);
-        });
+        for(int i = 0; i < nDevice; ++i) {
+            char name[32] = {};
+            if( !FDwfEnumDeviceName(i, name))
+                throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+            iterate_commit([=](Transaction &tr){
+                tr[ *device()].add(name);
+            });
+        }
+    }
+    catch (XInterfaceError &e) {
+        e.print();
     }
     address()->disable();
     port()->disable();
