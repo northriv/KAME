@@ -114,13 +114,13 @@ private:
     void clearAcquision();
 
     unsigned int m_preTriggerPos;
-    double m_interval;
 
     struct DSORawRecord {
         unsigned int numCh() const {return channels.size();}
         unsigned int recordLength() const {return record.size() / numCh();}
         unsigned int accumCount;
         int acqCount;
+        double interval;
         std::vector<int> channels;
         std::vector<double> record;
     };

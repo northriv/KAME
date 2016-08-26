@@ -53,11 +53,8 @@ ProcessCounter::ProcessCounter() {
 struct Priority__ {
     Priority priority = Priority::NORMAL;
 };
-
 XThreadLocal<Priority__> stl_currentPriority;
-void setCurrentPriorityMode(Priority pr) {
-    stl_currentPriority->priority = pr;
-}
+
 inline Priority getCurrentPriorityMode() {
     return stl_currentPriority->priority;
 }
@@ -1176,6 +1173,18 @@ Node<XN>::unbundle(const int64_t *bundle_serial, typename NegotiationCounter::cn
 //	}
 
     return UnbundledStatus::W_NEW_SUBVALUE;
+}
+
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    #include <windows.h>
+#endif
+
+void setCurrentPriorityMode(Priority pr) {
+    stl_currentPriority->priority = pr;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    SetThreadPriority(GetCurrentThread(),
+        (pr == Priority::HIGHEST) ? THREAD_PRIORITY_TIME_CRITICAL : THREAD_PRIORITY_NORMAL);
+#endif
 }
 
 } //namespace Transactional

@@ -166,6 +166,7 @@ XDigilentWFDSO::clearAcquision() {
 }
 void
 XDigilentWFDSO::disableChannels() {
+    if(hdwf() == hdwfNone) return;
     int num_ch;
     if( !FDwfAnalogInChannelCount(hdwf(), &num_ch))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
@@ -174,8 +175,6 @@ XDigilentWFDSO::disableChannels() {
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     }
     m_preTriggerPos = 0;
-//    if( !FDwfAnalogInConfigure(hdwf, 0, true))
-//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     m_accum.reset();
 }
 
@@ -212,21 +211,30 @@ XDigilentWFDSO::createChannels(const Snapshot &shot) {
 void
 XDigilentWFDSO::setupTiming(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
-    unsigned int len = shot[ *recordLength()];
     int max_len;
     if( !FDwfAnalogInBufferSizeInfo(hdwf(), NULL, &max_len))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-    len = std::min(len, (unsigned int)max_len);
+    int len = shot[ *recordLength()];
+    len = std::min(len, max_len);
     if( !FDwfAnalogInBufferSizeSet(hdwf(), len))
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    if( !FDwfAnalogInBufferSizeGet(hdwf(), &len))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     local_shared_ptr<DSORawRecord> rec = m_accum;
     if( !rec) return;
     rec->record.resize(len * rec->numCh());
 
+//    if( !FDwfAnalogInRecordLengthSet(hdwf(), len))
+//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+//    if( !FDwfAnalogInRecordLengthGet(hdwf(), &len))
+//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+
     if( !FDwfAnalogInFrequencySet(hdwf(), len / shot[ *timeWidth()])) //Hz
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-
-    m_interval = shot[ *timeWidth()] / len;
+    double freq;
+    if( !FDwfAnalogInFrequencyGet(hdwf(), &freq)) //Hz
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    rec->interval = 1.0/freq;
 
     setupTrigger(shot);
 
@@ -252,7 +260,7 @@ XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
     if( !rec) return;
     unsigned int pretrig = lrint(shot[ *trigPos()] / 100.0 * rec->recordLength());
     m_preTriggerPos = pretrig;
-    double pos = (m_preTriggerPos - rec->recordLength() / 2) * m_interval;
+    double pos = (m_preTriggerPos - rec->recordLength() / 2) * rec->interval;
     if( !FDwfAnalogInTriggerPositionSet(hdwf(), pos))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
 }
@@ -292,28 +300,28 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
         msecsleep(10);
         return;
     }
+    //allocations prior to spining
     newrec.reset( new DSORawRecord( *newrec));
     int num_ch = newrec->numCh();
     const unsigned int size = newrec->recordLength();
+    std::vector<double> record_buf(size * num_ch);
 
     while( !terminated) {
         STS sts;
         if( !FDwfAnalogInStatus(hdwf(), true, &sts))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
         if(sts != DwfStateDone) {
-            double term = size * m_interval;
+            double term = size * newrec->interval;
             if((sts != DwfStateTriggered) || (term > 20e-3)) {
                 msecsleep(std::min(50.0, term / 2 * 1000.0));
                 return;
             }
-            //spinning is preferred.
+            //spining is preferred.
             msecsleep(term / 10 * 1000.0);
             continue;
         }
         break;
     }
-
-    std::vector<double> record_buf(size * num_ch);
     double *pbuf = &record_buf[0];
     for(auto &&ch : newrec->channels) {
         if( !FDwfAnalogInStatusData( hdwf(), ch, pbuf, size))
@@ -365,7 +373,6 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
         newrec->accumCount--;
     }
     m_accum = std::move(newrec);
-    // substitute the record with the working set.
     if( !sseq) {
         m_record_av.push_back(std::move(record_buf));
     }
@@ -451,7 +458,9 @@ XDigilentWFDSO::acqCount(bool *seq_busy) {
 
 double
 XDigilentWFDSO::getTimeInterval() {
-    return m_interval;
+    local_shared_ptr<DSORawRecord> rec = m_accum;
+    if( !rec) return 0.0;
+    return rec->interval;
 }
 
 void
@@ -468,7 +477,7 @@ XDigilentWFDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channe
     writer->push((uint32_t)m_preTriggerPos);
     writer->push((uint32_t)len);
     writer->push((uint32_t)rec->accumCount);
-    writer->push((double)m_interval);
+    writer->push((double)rec->interval);
     const double *p = &(rec->record[0]);
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)
@@ -486,9 +495,10 @@ XDigilentWFDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecor
 
     tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
+    const double prop = 1.0 / accumCount;
     for(unsigned int j = 0; j < num_ch; j++) {
         double *pwave = tr[ *this].waveDisp(j);
         for(unsigned int i = 0; i < len; i++)
-            *pwave++ = reader.pop<double>();
+            *pwave++ = reader.pop<double>() * prop;
     }
 }
