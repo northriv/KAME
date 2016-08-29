@@ -208,10 +208,12 @@ XDigilentWFDSO::createChannels(const Snapshot &shot) {
                 throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
             if( !FDwfAnalogInChannelOffsetSet( hdwf(), ch, shot[ *std::get<2>(trace)]))
                 throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-            if( !FDwfAnalogInChannelRangeSet(hdwf(), ch, shot[ *std::get<1>(trace)]))
+            if( !FDwfAnalogInChannelRangeSet(hdwf(), ch, atof(shot[ *std::get<1>(trace)].to_str().c_str())))
                 throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
         }
     }
+    if( !rec.numCh()) return;
+
     m_accum = make_local_shared<DSORawRecord>(std::move(rec));
 
     setupTiming(shot);
