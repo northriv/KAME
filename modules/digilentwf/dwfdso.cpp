@@ -311,7 +311,7 @@ XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
     if( !rec) return;
     unsigned int pretrig = lrint(shot[ *trigPos()] / 100.0 * rec->recordLength());
     m_preTriggerPos = pretrig;
-    double pos = m_preTriggerPos * rec->interval;
+    double pos = (-(int)m_preTriggerPos + (int)rec->recordLength()/2) * rec->interval;
     if( !FDwfAnalogInTriggerPositionSet(hdwf(), pos))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
 }
@@ -380,7 +380,7 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
             double term = size * newrec->interval;
 //            if((sts != DwfStateTriggered) || (term > 20e-3)) {
                 interface()->unlock();
-                msecsleep(std::min(50.0, term / 2 * 1000.0));
+                msecsleep(std::min(50.0, term / 4 * 1000.0));
                 interface()->lock();
                 return;
 //            }
