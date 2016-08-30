@@ -125,7 +125,7 @@ XDSO::XDSO(const char *name, bool runtime,
 		tr[ *firCenterFreq()].onValueChanged().connect(m_lsnOnCondChanged);
 		tr[ *firSharpness()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *fetchMode()].add({"Never", "Averaging", "Sequence"});
-		tr[ *fetchMode()] = FETCHMODE_SEQ;
+        tr[ *fetchMode()] = FETCHMODE_AVG;
 
          tr[ *dRFMode()].add({"OFF", "By Given Freq.", "By SG Freq.", "With Coherent SG"});
 
