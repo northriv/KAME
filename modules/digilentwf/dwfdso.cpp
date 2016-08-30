@@ -18,6 +18,11 @@
 
 REGISTER_TYPE(XDriverList, DigilentWFDSO, "Digilent WaveForms AIN DSO");
 
+static const std::map<std::string, int>c_triggers = {
+    {"None", 0}, {"PC", 1}, {"DetectorAnalogIn", 2}, {"DetectorDigitalIn", 3}, {"AnalogIn", 4},
+    {"DigitalIn", 5}, {"DigitalOut", 6}, {"AnalogOut1", 7}, {"AnalogOut2", 8}, {"AnalogOut3", 9}, {"AnalogOut4", 10},
+    {"trigsrcExternal1", 11}, {"trigsrcExternal2", 12}, {"trigsrcExternal3", 13}, {"trigsrcExternal4", 14}};
+
 //---------------------------------------------------------------------------
 XDigilentWFInterface::XDigilentWFInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XInterface(name, runtime, driver), m_hdwf(hdwfNone) {
@@ -103,33 +108,10 @@ XDigilentWFDSO::open() throw (XKameError &) {
         if( !FDwfAnalogInTriggerSourceInfo(hdwf(), &fstrigsrc))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
         iterate_commit([=](Transaction &tr){
-            tr[ *trigSource()].add("None");
-            if(IsBitSet(fstrigsrc, trigsrcPC))
-                tr[ *trigSource()].add("PC");
-            if(IsBitSet(fstrigsrc, trigsrcDetectorAnalogIn))
-                tr[ *trigSource()].add("DetectorAnalogIn");
-            if(IsBitSet(fstrigsrc, trigsrcDetectorDigitalIn))
-                tr[ *trigSource()].add("DetectorDigitalIn");
-            if(IsBitSet(fstrigsrc, trigsrcAnalogIn))
-                tr[ *trigSource()].add("AnalogIn");
-            if(IsBitSet(fstrigsrc, trigsrcDigitalIn))
-                tr[ *trigSource()].add("DigitalIn");
-            if(IsBitSet(fstrigsrc, trigsrcAnalogOut1))
-                tr[ *trigSource()].add("AnalogOut1");
-            if(IsBitSet(fstrigsrc, trigsrcAnalogOut2))
-                tr[ *trigSource()].add("AnalogOut2");
-            if(IsBitSet(fstrigsrc, trigsrcAnalogOut3))
-                tr[ *trigSource()].add("AnalogOut3");
-            if(IsBitSet(fstrigsrc, trigsrcAnalogOut4))
-                tr[ *trigSource()].add("AnalogOut4");
-            if(IsBitSet(fstrigsrc, trigsrcExternal1))
-                tr[ *trigSource()].add("External1");
-            if(IsBitSet(fstrigsrc, trigsrcExternal2))
-                tr[ *trigSource()].add("External2");
-            if(IsBitSet(fstrigsrc, trigsrcExternal3))
-                tr[ *trigSource()].add("External3");
-            if(IsBitSet(fstrigsrc, trigsrcExternal4))
-                tr[ *trigSource()].add("External4");
+            for(auto &&trig: c_triggers) {
+                if(IsBitSet(fstrigsrc, trig.second))
+                    tr[ *trigSource()].add(trig.first);
+            }
         });
     }
 
@@ -141,7 +123,7 @@ XDigilentWFDSO::open() throw (XKameError &) {
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = len;
-        tr[ *timeWidth()] = freq * len;
+        tr[ *timeWidth()] = len / freq; //sec
     });
 
     m_threadReadAI.reset(new XThread<XDigilentWFDSO>(shared_from_this(),
@@ -254,9 +236,13 @@ XDigilentWFDSO::setupTiming(const Snapshot &shot) {
 //    if( !FDwfAnalogInRecordLengthGet(hdwf(), &len))
 //        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
 
-    if( !FDwfAnalogInFrequencySet(hdwf(), len / shot[ *timeWidth()])) //Hz
+    double freq = len / shot[ *timeWidth()]; //Hz
+    double hzMin, hzMax;
+    if( !FDwfAnalogInFrequencyInfo(hdwf(), &hzMin, &hzMax))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
-    double freq;
+    freq = std::min(std::max(freq, hzMin), hzMax);
+    if( !FDwfAnalogInFrequencySet(hdwf(), freq)) //Hz
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     if( !FDwfAnalogInFrequencyGet(hdwf(), &freq)) //Hz
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     rec->interval = 1.0/freq;
@@ -268,7 +254,8 @@ XDigilentWFDSO::setupTiming(const Snapshot &shot) {
 void
 XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
-    if( !FDwfAnalogInTriggerSourceSet(hdwf(), shot[ *trigSource()]))
+    auto trig = c_triggers.find(shot[ *trigSource()].to_str().c_str());
+    if( !FDwfAnalogInTriggerSourceSet(hdwf(), (trig == c_triggers.end()) ? trigsrcNone : trig->second))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
 //    if( !FDwfAnalogInTriggerAutoTimeoutSet(hdwf(), 10.0))
 //        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
