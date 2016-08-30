@@ -335,6 +335,7 @@ XDigilentWFDSO::startSequence() {
     newrec.reset( new DSORawRecord( *newrec));
     newrec->acqCount = 0;
     newrec->accumCount = 0;
+    std::fill(newrec->record.begin(), newrec->record.end(), 0.0);
     if( !FDwfAnalogInConfigure(hdwf(), false, true))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     m_accum = std::move(newrec);
