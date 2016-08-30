@@ -141,7 +141,7 @@ XDigilentWFDSO::open() throw (XKameError &) {
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = len;
-        tr[ *timeWidth()] = freq * len
+        tr[ *timeWidth()] = freq * len;
     });
 
     m_threadReadAI.reset(new XThread<XDigilentWFDSO>(shared_from_this(),
