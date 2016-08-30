@@ -392,6 +392,8 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
     const bool sseq = shot[ *singleSequence()];
 
     if( !sseq || (newrec->accumCount < av)) {
+        if( !FDwfAnalogInConfigure(hdwf(), false, false))
+            throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
         if( !FDwfAnalogInConfigure(hdwf(), false, true))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     }
