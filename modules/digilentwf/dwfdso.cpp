@@ -307,24 +307,13 @@ XDigilentWFDSO::executeReadAI(const atomic<bool> &terminated) {
 }
 void
 XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
-    XScopedLock<XInterface> lock( *interface()); //locks for RCU as well
-
-    //RCU pattern.
-    local_shared_ptr<DSORawRecord> newrec(m_accum);
-    if( !newrec) {
-        msecsleep(10);
-        return;
-    }
-    //allocations prior to spining
-    newrec.reset( new DSORawRecord( *newrec));
-    int num_ch = newrec->numCh();
-    const unsigned int size = newrec->recordLength();
-    std::vector<double> record_buf(size * num_ch);
-
     while( !terminated) {
         STS sts;
-        if( !FDwfAnalogInStatus(hdwf(), true, &sts))
-            throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+        {
+            XScopedLock<XInterface> lock( *interface());
+            if( !FDwfAnalogInStatus(hdwf(), true, &sts))
+                throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+        }
         if(sts != DwfStateDone) {
             double term = size * newrec->interval;
             if((sts != DwfStateTriggered) || (term > 20e-3)) {
@@ -337,6 +326,20 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
         }
         break;
     }
+
+    XScopedLock<XInterface> lock( *interface()); //locks for RCU as well
+
+    //RCU pattern.
+    local_shared_ptr<DSORawRecord> newrec(m_accum);
+    if( !newrec) {
+        msecsleep(10);
+        return;
+    }
+    newrec.reset( new DSORawRecord( *newrec));
+    int num_ch = newrec->numCh();
+    const unsigned int size = newrec->recordLength();
+    std::vector<double> record_buf(size * num_ch);
+
     double *pbuf = &record_buf[0];
     for(auto &&ch : newrec->channels) {
         if( !FDwfAnalogInStatusData( hdwf(), ch, pbuf, size))
