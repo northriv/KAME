@@ -94,7 +94,7 @@ XDigilentWFDSO::open() throw (XKameError &) {
         iterate_commit([=](Transaction &tr){
             for(int i = 0; i < nSteps; ++i) {
                 for(auto &&x: {vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4()})
-                    tr[ *x].add(formatString("%f", rgVoltsStep[i]));
+                    tr[ *x].add(formatString("%g", rgVoltsStep[i]));
             }
         });
     }
@@ -132,6 +132,17 @@ XDigilentWFDSO::open() throw (XKameError &) {
                 tr[ *trigSource()].add("External4");
         });
     }
+
+    int len;
+    if( !FDwfAnalogInBufferSizeGet(hdwf(), &len))
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    double freq;
+    if( !FDwfAnalogInFrequencyGet(hdwf(), &freq)) //Hz
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    iterate_commit([=](Transaction &tr){
+        tr[ *recordLength()] = len;
+        tr[ *timeWidth()] = freq * len
+    });
 
     m_threadReadAI.reset(new XThread<XDigilentWFDSO>(shared_from_this(),
         &XDigilentWFDSO::executeReadAI));
@@ -175,6 +186,8 @@ XDigilentWFDSO::clearAcquision() {
 void
 XDigilentWFDSO::disableChannels() {
     if(hdwf() == hdwfNone) return;
+    if( !FDwfAnalogInConfigure(hdwf(), false, false)) //stops acquision
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     int num_ch;
     if( !FDwfAnalogInChannelCount(hdwf(), &num_ch))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
@@ -221,6 +234,8 @@ XDigilentWFDSO::createChannels(const Snapshot &shot) {
 void
 XDigilentWFDSO::setupTiming(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
+    if( !FDwfAnalogInConfigure(hdwf(), false, false)) //stops acquision
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     int max_len;
     if( !FDwfAnalogInBufferSizeInfo(hdwf(), NULL, &max_len))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
@@ -276,15 +291,18 @@ XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
 }
 void
 XDigilentWFDSO::startSequence() {
-    XScopedLock<XInterface> lock( *interface());
+    XScopedLock<XInterface> lock( *interface()); //locks for RCU as well
     m_record_av.clear();
-    local_shared_ptr<DSORawRecord> rec = m_accum;
-    if( !rec) return;
-    rec->acqCount = 0;
-    rec->accumCount = 0;
-    if(rec->numCh() == 0) return;
+    //RCU pattern.
+    local_shared_ptr<DSORawRecord> newrec = m_accum;
+    if( !newrec) return;
+    if(newrec->numCh() == 0) return;
+    newrec.reset( new DSORawRecord( *newrec));
+    newrec->acqCount = 0;
+    newrec->accumCount = 0;
     if( !FDwfAnalogInConfigure(hdwf(), false, true))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    m_accum = std::move(newrec);
 }
 
 void *
@@ -302,7 +320,7 @@ XDigilentWFDSO::executeReadAI(const atomic<bool> &terminated) {
 }
 void
 XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
-    XScopedLock<XInterface> lock( *interface());
+    XScopedLock<XInterface> lock( *interface()); //locks for RCU as well
 
     //RCU pattern.
     local_shared_ptr<DSORawRecord> newrec(m_accum);
@@ -398,19 +416,19 @@ XDigilentWFDSO::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XDigilentWFDSO::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTrigger(Snapshot( *this));
+    setupTiming(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTrigger(Snapshot( *this));
+    setupTiming(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTrigger(Snapshot( *this));
+    setupTiming(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTrigger(Snapshot( *this));
+    setupTiming(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
