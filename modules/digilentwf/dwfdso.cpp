@@ -298,8 +298,8 @@ XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
         if( !FDwfAnalogInTriggerSourceSet(hdwf(), trig->second))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     }
-//    if( !FDwfAnalogInTriggerAutoTimeoutSet(hdwf(), 10.0))
-//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    if( !FDwfAnalogInTriggerAutoTimeoutSet(hdwf(), 0.0)) //NORMAL
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     if( !FDwfAnalogInTriggerTypeSet(hdwf(), trigtypeEdge))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     if( !FDwfAnalogInTriggerLevelSet(hdwf(), shot[ *trigLevel()]))
@@ -311,10 +311,19 @@ XDigilentWFDSO::setupTrigger(const Snapshot &shot) {
     if( !rec) return;
     unsigned int pretrig = lrint(shot[ *trigPos()] / 100.0 * rec->recordLength());
     m_preTriggerPos = pretrig;
-    double pos = (m_preTriggerPos - rec->recordLength() / 2) * rec->interval;
+    double pos = m_preTriggerPos * rec->interval;
     if( !FDwfAnalogInTriggerPositionSet(hdwf(), pos))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
 }
+void
+XDigilentWFDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
+    XScopedLock<XInterface> lock( *interface());
+//    if( !FDwfAnalogInTriggerSourceSet(hdwf(), trigsrcPC))
+//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+    if( !FDwfDeviceTriggerPC(hdwf()))
+        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+}
+
 void
 XDigilentWFDSO::startSequence() {
     XScopedLock<XInterface> lock( *interface()); //locks for RCU as well
@@ -392,8 +401,8 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
     const bool sseq = shot[ *singleSequence()];
 
     if( !sseq || (newrec->accumCount < av)) {
-        if( !FDwfAnalogInConfigure(hdwf(), false, false))
-            throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+//        if( !FDwfAnalogInConfigure(hdwf(), false, false))
+//            throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
         if( !FDwfAnalogInConfigure(hdwf(), false, true))
             throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     }
@@ -501,10 +510,6 @@ XDigilentWFDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
 void
 XDigilentWFDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
     setupTiming(Snapshot( *this));
-}
-void
-XDigilentWFDSO::onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) {
-    createChannels(Snapshot( *this));
 }
 
 int
