@@ -235,8 +235,8 @@ XDigilentWFDSO::createChannels(const Snapshot &shot) {
 void
 XDigilentWFDSO::setupTiming(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
-    if( !FDwfAnalogInConfigure(hdwf(), false, false)) //stops acquision
-        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
+//    if( !FDwfAnalogInConfigure(hdwf(), false, false)) //stops acquision
+//        throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
     int max_len;
     if( !FDwfAnalogInBufferSizeInfo(hdwf(), NULL, &max_len))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
@@ -448,32 +448,32 @@ XDigilentWFDSO::acquire(const atomic<bool> &terminated) {
 }
 void 
 XDigilentWFDSO::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 
 void
 XDigilentWFDSO::onSingleChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigSourceChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigPosChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTrigFallingChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 void
 XDigilentWFDSO::onVFullScale1Changed(const Snapshot &shot, XValueNodeBase *) {
@@ -509,7 +509,7 @@ XDigilentWFDSO::onVOffset4Changed(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XDigilentWFDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) {
-    setupTiming(Snapshot( *this));
+    createChannels(Snapshot( *this));
 }
 
 int
