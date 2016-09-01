@@ -1,3 +1,7 @@
+* Thu Sep 1 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.2-1)
+- DSO using Digilent Waveform
+
 * Sun Aug 7 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.1-1)
 - Roll backs some of buggy transaction.h from 4.1.14.

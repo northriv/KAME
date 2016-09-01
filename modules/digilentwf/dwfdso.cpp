@@ -25,9 +25,10 @@ static const std::map<std::string, int>c_triggers = {
     {"AnalogIn", trigsrcAnalogIn},
     {"DigitalIn", trigsrcDigitalIn},
     {"DigitalOut", trigsrcDigitalOut},
-    {"AnalogOut1", trigsrcAnalogOut1}, {"AnalogOut2", trigsrcAnalogOut2}, {"AnalogOut3", trigsrcAnalogOut3}, {"AnalogOut4", trigsrcAnalogOut4},
-    {"trigsrcExternal1", trigsrcExternal1}, {"trigsrcExternal2", trigsrcExternal2},
-    {"trigsrcExternal3", trigsrcExternal3}, {"trigsrcExternal4", trigsrcExternal4}};
+    {"AnalogOut1", trigsrcAnalogOut1}, {"AnalogOut2", trigsrcAnalogOut2},
+    {"AnalogOut3", trigsrcAnalogOut3}, {"AnalogOut4", trigsrcAnalogOut4},
+    {"External1", trigsrcExternal1}, {"External2", trigsrcExternal2},
+    {"External3", trigsrcExternal3}, {"External4", trigsrcExternal4}};
 
 //---------------------------------------------------------------------------
 XDigilentWFInterface::XDigilentWFInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
