@@ -420,8 +420,8 @@ XNIDAQmxDSO::createChannels() {
                      str.c_str(),
                      "",
                      DAQmx_Val_Cfg_Default,
-                     -atof(str.c_str()) / 2.0,
-                     atof(str.c_str()) / 2.0,
+                     -atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
+                     atof(shot[ *std::get<1>(trace)].to_str().c_str()) / 2.0,
                      DAQmx_Val_Volts,
                      NULL
                      ));
