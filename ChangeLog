@@ -1,3 +1,8 @@
+* Fri Sep 2 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.3-1)
+- NIDAQDSO: Fix for changes made at 4.2.2
+- NIDAQ: can be placed directly at C:\
+
 * Thu Sep 1 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.2-1)
 - DSO using Digilent Waveform
