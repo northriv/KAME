@@ -152,8 +152,13 @@ XQGraph::resizeGL ( int width, int height ) {
     double pixel_ratio = devicePixelRatio();
     glViewport( 0, 0, (GLint)(width * pixel_ratio),
                 (GLint)(height * pixel_ratio));
-    if(m_painter )
+    if(m_painter ) {
+        if( !m_painter->m_pixel_ratio != pixel_ratio) {
+            fprintf(stderr, "DevicePixelRatio has been changed to %f\n", pixel_ratio);
+        }
+        m_painter->m_pixel_ratio = pixel_ratio;
         m_painter->resizeGL(width, height);
+    }
 }
 
 #ifdef USE_QGLWIDGET
@@ -166,6 +171,6 @@ void XQGraph::paintEvent(QPaintEvent *event) {
 
 void
 XQGraph::paintGL() {
-    if(m_painter )
-        m_painter->paintGL();
+//    if(m_painter )
+//        m_painter->paintGL();
 }
