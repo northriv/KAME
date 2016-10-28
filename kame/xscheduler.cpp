@@ -103,7 +103,7 @@ SignalBuffer::register_event(std::unique_ptr<Transactional::BufferedEvent> event
         new_delay = std::min((unsigned long)ADAPTIVE_DELAY_MAX, new_delay);
         new_delay = std::max((unsigned long)ADAPTIVE_DELAY_MIN, new_delay);
         m_adaptiveDelay = new_delay;
-//        try {
+        try {
             if(m_queue.empty()) m_oldest_timestamp = event->registered_time;
             auto *e = event.get();
             event.release();
@@ -111,9 +111,9 @@ SignalBuffer::register_event(std::unique_ptr<Transactional::BufferedEvent> event
             XScopedLock<XMutex> lock(mutex);
             m_queue.push(e);
             }
-        if(m_queue.size() > 4000) {
-//        }
-//        catch (Queue::nospace_error &) {
+//        if(m_queue.size() > 4000) {
+        }
+        catch (Queue::nospace_error &) {
             fprintf(stderr, "Queue size exceeded to %d.\n", (int)m_queue.size());
             if(isMainThread())
                 synchronize();

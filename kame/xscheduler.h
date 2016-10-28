@@ -34,8 +34,8 @@ public:
 private:
     SignalBuffer();
 
-//    typedef atomic_pointer_queue<BufferedEvent, 4000> Queue;
-    using Queue = std::queue<BufferedEvent*>;
+    using Queue = atomic_pointer_queue<BufferedEvent, 4000>;
+//    using Queue = std::queue<BufferedEvent*>;
     typedef std::queue<std::pair<std::unique_ptr<BufferedEvent>, XTime> > SkippedQueue;
     std::unique_ptr<BufferedEvent> popOldest();
 	Queue m_queue;
