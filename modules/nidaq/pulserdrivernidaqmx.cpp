@@ -537,7 +537,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	while( !m_isThreadWriterReady) {
 		if(m_threadWriter->isTerminated())
 			return;
-        msecsleep(1);
+        msecsleep(10);
 		if(XTime::now() - wait_since > 1.0)
 			throw XInterface::XInterfaceError(
 				i18n("Buffer filling encountered time out."), __FILE__, __LINE__);
