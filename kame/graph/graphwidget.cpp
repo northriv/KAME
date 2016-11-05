@@ -153,7 +153,7 @@ XQGraph::resizeGL ( int width, int height ) {
     glViewport( 0, 0, (GLint)(width * pixel_ratio),
                 (GLint)(height * pixel_ratio));
     if(m_painter ) {
-        if( !m_painter->m_pixel_ratio != pixel_ratio) {
+        if( m_painter->m_pixel_ratio != pixel_ratio) {
             fprintf(stderr, "DevicePixelRatio has been changed to %f\n", pixel_ratio);
         }
         m_painter->m_pixel_ratio = pixel_ratio;
