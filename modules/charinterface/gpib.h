@@ -20,7 +20,7 @@
 #define GPIB_NI
 #endif
 
-#ifdef HAVE_NI488
+#ifdef HAVE_NI4882
 #define GPIB_NI
 #endif
 

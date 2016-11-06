@@ -26,6 +26,7 @@ win32: {
         thamwaydso.cpp
 
     DEFINES += USE_EZUSB
+    DEFINES += USE_EZUSB_FX2FW
 }
 
 win32:LIBS += -lcharinterface

@@ -163,11 +163,9 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
         auto dt = started_time - transaction_started_time;
 
         Priority pr = getCurrentPriorityMode();
-//        if(pr == Priority::HIGHEST)
-//            break;
+        if(pr == Priority::HIGHEST)
+            break;
         if(dt <= 0) {
-            if(pr == Priority::HIGHEST)
-                break; //This thread is the oldest.
             if((pr == Priority::NORMAL) || (ms > 10))
                 break; //This thread is the oldest.
         }

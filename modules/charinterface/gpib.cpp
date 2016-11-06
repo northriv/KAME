@@ -24,14 +24,15 @@
 #include <gpib/ib.h>
 #endif
 
-#ifdef HAVE_NI488
+#ifdef HAVE_NI4882
     #if defined WINDOWS || defined __WIN32__ || defined _WIN32
         #define DIRECT_ENTRY_NI488
         static int load_ni4882dll();
         static int free_ni4882dll();
+        inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
     #endif // WINDOWS || __WIN32__ || defined _WIN32
-    inline int strerror_r(int err, char *buf, size_t len) {return strerror_s(buf,len,err); }
     #include <ni4882.h>
+    #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     extern "C" {
     static void (__stdcall *pEnableRemote)(int, const Addr4882_t*);
     #define EnableRemote (*pEnableRemote)
@@ -58,7 +59,8 @@
     unsigned long (__stdcall *pibwrt)(int, const void *, size_t);
     #define ibwrt (*pibwrt)
     }
-#endif //HAVE_NI488
+    #endif // WINDOWS || __WIN32__ || defined _WIN32
+#endif //HAVE_NI4882
 
 #define MIN_BUF_SIZE 1024
 
