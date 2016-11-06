@@ -35,7 +35,7 @@ void msecsleep(unsigned int ms) noexcept {
         unsigned int elapsed_ms = XTime::now().diff_msec(t0);
         if(elapsed_ms >= ms)
             break;
-        if(ms - elapsed_ms >= 3) {
+        if(ms - elapsed_ms >= 1) {
             QThread::msleep(ms - elapsed_ms);
         }
         else {
