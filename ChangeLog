@@ -1,3 +1,8 @@
+* Sun Nov 6 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.4-1)
+- Fixed unstability that appeared as of 4.2.1
+- Reduces CPU usgae
+
 * Fri Sep 2 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.3-1)
 - NIDAQDSO: Fix for changes made at 4.2.2
