@@ -161,16 +161,8 @@ XQGraph::resizeGL ( int width, int height ) {
     }
 }
 
-#ifdef USE_QGLWIDGET
-void XQGraph::paintEvent(QPaintEvent *event) {
-    makeCurrent();
-    if(m_painter )
-        m_painter->paintGL();
-}
-#endif
-
 void
 XQGraph::paintGL() {
-//    if(m_painter )
-//        m_painter->paintGL();
+    if(m_painter )
+        m_painter->paintGL();
 }
