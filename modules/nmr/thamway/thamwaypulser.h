@@ -63,10 +63,10 @@ private:
 
 #if defined USE_EZUSB
     #include "ezusbthamway.h"
-    class XThamwayPGCUSBInterface : public XWinCUSBInterface {
+    class XThamwayPGCUSBInterface : public XFX2FWUSBInterface {
     public:
         XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XWinCUSBInterface(name, runtime, driver, 0, "PG32") {}
+            : XFX2FWUSBInterface(name, runtime, driver, 0, "PG32") {}
         virtual ~XThamwayPGCUSBInterface() {}
     };
 

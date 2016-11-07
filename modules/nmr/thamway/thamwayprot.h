@@ -102,10 +102,10 @@ public:
 
 #ifdef USE_EZUSB
     #include "ezusbthamway.h"
-    class XThamwayMODCUSBInterface : public XWinCUSBInterface {
+    class XThamwayMODCUSBInterface : public XFX2FWUSBInterface {
     public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XWinCUSBInterface(name, runtime, driver, 0u, "") {} //DIP-SW address should be 6 (=DEV_ADDR_PROT)
+            : XFX2FWUSBInterface(name, runtime, driver, 0u, "") {} //DIP-SW address should be 6 (=DEV_ADDR_PROT)
         virtual ~XThamwayMODCUSBInterface() {}
     };
 

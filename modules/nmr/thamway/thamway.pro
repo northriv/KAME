@@ -30,23 +30,34 @@ win32: {
     DEFINES += USE_EZUSB_FX2FW
 }
 
-unix: exists("/opt/local/include/libusb-1.0/libusb.h") {
-    LIBS += -lusb-1.0
-    HEADERS += \
-        cyusb.h\
-        ezusbthamway.h\
-        thamwaydso.h
+unix {
+    exists("/opt/local/include/libusb-1.0/libusb.h") {
+        LIBS += -lusb-1.0
+        HEADERS += \
+            cyusb.h\
+            ezusbthamway.h\
+            thamwaydso.h
 
-    SOURCES += \
-        libcyusb.cpp
+        SOURCES += \
+            libcyusb.cpp
 
-#        ezusbthamway.cpp\
-#        thamwaydso.cpp
+    #        ezusbthamway.cpp\
+    #        thamwaydso.cpp
 
-#    DEFINES += USE_EZUSB
-}
-else {
-    message("Missing library for libusb-1.0")
+    #    DEFINES += USE_EZUSB
+        KAME_EZUSB = ezusbthamway
+        DEFINES += KAME_EZUSB_DIR=\"quotedefined(/$${KAME_EZUSB}/)\"
+
+        ezusbfiles.path = Contents/MacOS/$${KAME_EZUSB}
+        ezusbfiles.files += cyusb.conf
+        ezusbfiles.files += fx2fw.bix
+        ezusbfiles.files += slow_dat.bin
+        ezusbfiles.files += fullspec_dat.bin
+        QMAKE_BUNDLE_DATA += ezusbfiles
+    }
+    else {
+        message("Missing library for libusb-1.0")
+    }
 }
 
 win32:LIBS += -lcharinterface

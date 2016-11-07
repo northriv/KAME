@@ -19,12 +19,17 @@
 
 #define CUSB_BULK_WRITE_SIZE 40000
 
-#define NOMINMAX
-#include <windows.h>
-extern "C" {
-    #include "cusb.h"
-    #include "fx2fw.h"
-}
+#ifdef USE_EZUSB_FX2FW
+    #define NOMINMAX
+    #include <windows.h>
+    extern "C" {
+        #include "cusb.h"
+        #include "fx2fw.h"
+    }
+#endif
+#ifdef USE_EZUSB_CYUSB
+    #include "cyusb.h"
+#endif
 
 #define CMD_DIPSW 0x11u
 #define CMD_LED 0x12u
@@ -37,12 +42,12 @@ extern "C" {
 #define THAMWAY_USB_GPIFWAVE2_FILE "fullspec_dat.bin" //for USB2.0 burst-transfer enabled
 #define THAMWAY_USB_GPIFWAVE_SIZE 172
 
-XMutex XWinCUSBInterface::s_mutex;
-int XWinCUSBInterface::s_refcnt = 0;
-std::deque<XWinCUSBInterface::USBDevice> XWinCUSBInterface::s_devices;
+XMutex XFX2FWUSBInterface::s_mutex;
+int XFX2FWUSBInterface::s_refcnt = 0;
+std::deque<XFX2FWUSBInterface::USBDevice> XFX2FWUSBInterface::s_devices;
 
 void
-XWinCUSBInterface::openAllEZUSBdevices() {
+XFX2FWUSBInterface::openAllEZUSBdevices() {
     QDir dir(QApplication::applicationDirPath());
     auto load_firm = [&dir](char *data, int expected_size, const char *filename){
         QString path = filename;
@@ -108,7 +113,7 @@ XWinCUSBInterface::openAllEZUSBdevices() {
 }
 
 void
-XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
+XFX2FWUSBInterface::setWave(void *handle, const uint8_t *wave) {
     std::vector<uint8_t> buf;
     buf.insert(buf.end(), {CMD_MODE, MODE_GPIF | MODE_8BIT | MODE_ADDR | MODE_NOFLOW | MODE_DEBG, CMD_GPIF});
     buf.insert(buf.end(), wave, wave + 8);
@@ -126,7 +131,7 @@ XWinCUSBInterface::setWave(void *handle, const uint8_t *wave) {
     }
 }
 void
-XWinCUSBInterface::closeAllEZUSBdevices() {
+XFX2FWUSBInterface::closeAllEZUSBdevices() {
     for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
         try {
             setLED(it->handle, 0);
@@ -141,7 +146,7 @@ XWinCUSBInterface::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
+XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
     : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
@@ -172,7 +177,7 @@ XWinCUSBInterface::XWinCUSBInterface(const char *name, bool runtime, const share
     }
 }
 
-XWinCUSBInterface::~XWinCUSBInterface() {
+XFX2FWUSBInterface::~XFX2FWUSBInterface() {
     if(isOpened()) close();
 
     XScopedLock<XMutex> slock(s_mutex);
@@ -182,7 +187,7 @@ XWinCUSBInterface::~XWinCUSBInterface() {
 }
 
 void
-XWinCUSBInterface::open() throw (XInterfaceError &) {
+XFX2FWUSBInterface::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
         for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
@@ -206,41 +211,41 @@ XWinCUSBInterface::open() throw (XInterfaceError &) {
 }
 
 void
-XWinCUSBInterface::close() throw (XInterfaceError &) {
+XFX2FWUSBInterface::close() throw (XInterfaceError &) {
     m_handle = 0;
     m_mutex.reset();
 }
 
 void
-XWinCUSBInterface::resetBulkWrite() {
+XFX2FWUSBInterface::resetBulkWrite() {
     m_bBurstWrite = false;
     m_buffer.clear();
 }
 void
-XWinCUSBInterface::deferWritings() {
+XFX2FWUSBInterface::deferWritings() {
     assert(m_buffer.size() == 0);
     m_bBurstWrite = true;
 }
 void
-XWinCUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
+XFX2FWUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
     if(m_bBurstWrite) {
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
     else {
-        XScopedLock<XWinCUSBInterface> lock( *this);
+        XScopedLock<XFX2FWUSBInterface> lock( *this);
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
 }
 void
-XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
+XFX2FWUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     addr += m_addrOffset;
     assert(addr < 0x100u);
 
     if(m_bBurstWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
-            XScopedLock<XWinCUSBInterface> lock( *this);
+            XScopedLock<XFX2FWUSBInterface> lock( *this);
             bulkWriteStored();
             deferWritings();
         }
@@ -248,7 +253,7 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
         m_buffer.push_back(data);
     }
     else {
-        XScopedLock<XWinCUSBInterface> lock( *this);
+        XScopedLock<XFX2FWUSBInterface> lock( *this);
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
@@ -258,8 +263,8 @@ XWinCUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     }
 }
 void
-XWinCUSBInterface::bulkWriteStored() {
-    XScopedLock<XWinCUSBInterface> lock( *this);
+XFX2FWUSBInterface::bulkWriteStored() {
+    XScopedLock<XFX2FWUSBInterface> lock( *this);
 
     uint16_t len = m_buffer.size();
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
@@ -272,14 +277,14 @@ XWinCUSBInterface::bulkWriteStored() {
 }
 
 void
-XWinCUSBInterface::setLED(void *handle, uint8_t data) {
+XFX2FWUSBInterface::setLED(void *handle, uint8_t data) {
     uint8_t cmds[] = {CMD_LED, data};
     if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
 }
 
 uint8_t
-XWinCUSBInterface::readDIPSW(void *handle) {
+XFX2FWUSBInterface::readDIPSW(void *handle) {
     uint8_t cmds[] = {CMD_DIPSW};
     if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
@@ -290,7 +295,7 @@ XWinCUSBInterface::readDIPSW(void *handle) {
 }
 
 XString
-XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
+XFX2FWUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     //ignores till \0
     for(int i = 0; ; ++i) {
         char c = singleRead(handle, ADDR_IDN, addroffset);
@@ -314,13 +319,13 @@ XWinCUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     return std::move(idn);
 }
 uint8_t
-XWinCUSBInterface::singleRead(unsigned int addr) {
-    XScopedLock<XWinCUSBInterface> lock( *this);
+XFX2FWUSBInterface::singleRead(unsigned int addr) {
+    XScopedLock<XFX2FWUSBInterface> lock( *this);
     return singleRead(m_handle, addr, m_addrOffset);
 }
 
 uint8_t
-XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
+XFX2FWUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
     addr += addroffset;
     assert(addr < 0x100u);
     {
@@ -339,14 +344,14 @@ XWinCUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addr
     }
 }
 uint16_t
-XWinCUSBInterface::readRegister16(unsigned int addr) {
-    XScopedLock<XWinCUSBInterface> lock( *this);
+XFX2FWUSBInterface::readRegister16(unsigned int addr) {
+    XScopedLock<XFX2FWUSBInterface> lock( *this);
     return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 
 void
-XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
-    XScopedLock<XWinCUSBInterface> lock( *this);
+XFX2FWUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
+    XScopedLock<XFX2FWUSBInterface> lock( *this);
     addr += m_addrOffset;
     assert(addr < 0x100u);
     {
@@ -371,9 +376,9 @@ XWinCUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) 
 }
 
 void
-XWinCUSBInterface::send(const char *str) throw (XCommError &) {
+XFX2FWUSBInterface::send(const char *str) throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XWinCUSBInterface> lock2( *this);
+    XScopedLock<XFX2FWUSBInterface> lock2( *this);
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
@@ -387,9 +392,9 @@ XWinCUSBInterface::send(const char *str) throw (XCommError &) {
     }
 }
 void
-XWinCUSBInterface::receive() throw (XCommError &) {
+XFX2FWUSBInterface::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XWinCUSBInterface> lock2( *this);
+    XScopedLock<XFX2FWUSBInterface> lock2( *this);
     msecsleep(20);
     buffer_receive().clear();
     try {

@@ -18,10 +18,10 @@
 #define DEV_ADDR_PROT 0x6
 
 //! interfaces chameleon USB, found at http://optimize.ath.cx/cusb
-class XWinCUSBInterface : public XCustomCharInterface {
+class XFX2FWUSBInterface : public XCustomCharInterface {
 public:
-    XWinCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
-    virtual ~XWinCUSBInterface();
+    XFX2FWUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
+    virtual ~XFX2FWUSBInterface();
 
     virtual void open() throw (XInterfaceError &);
     //! This can be called even if has already closed.

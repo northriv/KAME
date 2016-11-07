@@ -20,10 +20,10 @@
 
 #define ADDR_OFFSET_DV 0x20
 
-class XThamwayDVCUSBInterface : public XWinCUSBInterface {
+class XThamwayDVCUSBInterface : public XFX2FWUSBInterface {
 public:
     XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XWinCUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
+        : XFX2FWUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
     virtual ~XThamwayDVCUSBInterface() {}
 };
 
