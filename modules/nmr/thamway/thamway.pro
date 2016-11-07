@@ -10,6 +10,7 @@ HEADERS += \
 SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp
+
 FORMS += \
     thamwayprotform.ui
 win32: {
@@ -27,6 +28,25 @@ win32: {
 
     DEFINES += USE_EZUSB
     DEFINES += USE_EZUSB_FX2FW
+}
+
+unix: exists("/opt/local/include/libusb-1.0/libusb.h") {
+    LIBS += -lusb-1.0
+    HEADERS += \
+        cyusb.h\
+        ezusbthamway.h\
+        thamwaydso.h
+
+    SOURCES += \
+        libcyusb.cpp
+
+#        ezusbthamway.cpp\
+#        thamwaydso.cpp
+
+#    DEFINES += USE_EZUSB
+}
+else {
+    message("Missing library for libusb-1.0")
 }
 
 win32:LIBS += -lcharinterface
