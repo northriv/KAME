@@ -85,12 +85,14 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 }
 XQGraphPainter::~XQGraphPainter() {
     m_pItem->makeCurrent();
-    
+
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
     if(m_listgrids) glDeleteLists(m_listgrids, 1);
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
+
+    m_pItem->doneCurrent();
 }
 
 int
@@ -274,9 +276,6 @@ XQGraphPainter::setInitView() {
 }
 void
 XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init) {
-	m_pItem->makeCurrent();
-    glGetError(); //reset error
-    
 	glMatrixMode(GL_PROJECTION);
 	if(init) {
 		glLoadIdentity();
@@ -307,11 +306,9 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 double
 XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
 						 XGraph::ScrPoint *scr, XGraph::ScrPoint *dsdx, XGraph::ScrPoint *dsdy ) {
-	m_pItem->makeCurrent();
-      
-	glGetError(); //reset error
-      
-	GLuint selections[MAX_SELECTION];
+    glGetError(); //reset error
+
+    GLuint selections[MAX_SELECTION];
 	glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
 	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
 	glGetIntegerv(GL_VIEWPORT, m_viewport);
@@ -356,6 +353,7 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
         windowToScreen(x, y + 1, zmax, dsdy);
     }
     checkGLError();
+
     return zmin;
 }
 
@@ -406,11 +404,16 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
 }
 void
 XQGraphPainter::paintGL () {
+#ifndef USE_QGLWIDGET
+//    QPainter qpainter(m_pItem);
+//    qpainter.beginNativePainting();
+#endif
     glGetError(); // flush error
-
-    GLint depth_func_org;
     //stores states
+    GLint depth_func_org;
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
+
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     m_textOverpaint.clear();
@@ -443,11 +446,11 @@ XQGraphPainter::paintGL () {
 
     Snapshot shot( *m_graph);
 
+    QColor bgc = (QRgb)shot[ *m_graph->backGround()];
+    glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
+
     if(m_bIsRedrawNeeded) {
         shot = startDrawing();
-
-        QColor bgc = (QRgb)shot[ *m_graph->backGround()];
-        glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
@@ -580,28 +583,33 @@ XQGraphPainter::paintGL () {
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
-//    glFlush();
+    //    glFlush();
 
-    {
-        //restores states
-        glShadeModel(GL_FLAT);
-        glDisable(GL_CULL_FACE);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_LIGHTING);
-        glDepthFunc(depth_func_org);
-        glMatrixMode(GL_MODELVIEW);
-        glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
 
-        QPainter qpainter(m_pItem);
-        qpainter.setRenderHint(QPainter::Antialiasing);
+    //restores states
+    glShadeModel(GL_FLAT);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glDepthFunc(depth_func_org);
+    glPopAttrib();
+
+#ifndef USE_QGLWIDGET
+    glEnd();
+//    qpainter.endNativePainting();
+#endif
+    QPainter qpainter(m_pItem);
+
+    qpainter.setRenderHint(QPainter::Antialiasing);
 //        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    drawTextOverpaint(qpainter);
+    if(m_bReqHelp) {
+        drawOnScreenHelp(shot, &qpainter);
         drawTextOverpaint(qpainter);
-        if(m_bReqHelp) {
-            drawOnScreenHelp(shot, &qpainter);
-            drawTextOverpaint(qpainter);
-        }
-        qpainter.end();
     }
+    qpainter.end();
 }
 
 void

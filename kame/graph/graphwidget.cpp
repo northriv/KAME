@@ -81,19 +81,25 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
         mode = XQGraphPainter::SelectionMode::SelNone;
 		break;
 	}
+    makeCurrent();
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelStart, mode);
+    doneCurrent();
 }
 void
 XQGraph::mouseMoveEvent ( QMouseEvent* e) {
-	static XTime lasttime = XTime::now();
+    static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
+    makeCurrent();
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting);
+    doneCurrent();
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 	if( !m_painter ) return;
+    makeCurrent();
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish);
+    doneCurrent();
 }
 void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
@@ -119,9 +125,11 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 }
 void
 XQGraph::wheelEvent ( QWheelEvent *e) {
-	e->accept();
-	if(m_painter )
+    e->accept();
+    makeCurrent();
+    if(m_painter )
 		m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
+    doneCurrent();
 }
 void
 XQGraph::showEvent ( QShowEvent *) {
@@ -161,8 +169,18 @@ XQGraph::resizeGL ( int width, int height ) {
     }
 }
 
+#ifdef USE_QGLWIDGET
+void XQGraph::paintEvent(QPaintEvent *event) {
+    //overpaint huck
+    makeCurrent();
+    if(m_painter )
+        m_painter->paintGL();
+}
+#else
 void
 XQGraph::paintGL() {
     if(m_painter )
         m_painter->paintGL();
 }
+#endif
+

@@ -306,12 +306,15 @@ XQGraphPainter::wheel(int x, int y, double deg)
 		zoom(min(1.15, max(0.85, exp(deg * 0.04))), x, y);
 	}
 	else {
-		if( (a - b) * (a + b) > 0 ) {
+        glGetError(); //reset error
+
+        if( (a - b) * (a + b) > 0 ) {
 			viewRotate(30.0 * deg / fabs(deg), -1.0, 0.0, 0.0, false);
 		}
 		else {
 			viewRotate(30.0 * deg / fabs(deg), 0.0, 1.0, 0.0, false);
 		}
+
         m_pItem->update();
     }
 }
