@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QDir>
 #include <QApplication>
+#include <QStandardPaths>
 
 #define CUSB_BULK_WRITE_SIZE 40000
 
@@ -58,7 +59,25 @@ void
 XFX2FWUSBInterface::openAllEZUSBdevices() {
     QDir dir(QApplication::applicationDirPath());
     auto load_firm = [&dir](char *data, int expected_size, const char *filename){
-        QString path = filename;
+        QString path =
+    #ifdef WITH_KDE
+            KStandardDirs::locate("appdata", filename);
+    #else
+            QStandardPaths::locate(QStandardPaths::DataLocation, filename);
+        if(path.isEmpty()) {
+            //for macosx/win
+            QDir dir(QApplication::applicationDirPath());
+    #if defined __MACOSX__ || defined __APPLE__
+            //For macosx application bundle.
+            dir.cdUp();
+    #endif
+            QString path2 = KAME_EZUSB_DIR;
+            path2 += filename;
+            dir.filePath(path2);
+            if(dir.exists())
+                path = dir.absoluteFilePath(path2);
+        }
+    #endif
         dir.filePath(path);
         if( !dir.exists())
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF/firmware file ") +
@@ -74,13 +93,13 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
     };
 
     char firmware[CUSB_DWLSIZE];
-    load_firm(firmware, CUSB_DWLSIZE, KAME_EZUSB_DIR THAMWAY_USB_FIRMWARE_FILE);
+    load_firm(firmware, CUSB_DWLSIZE, THAMWAY_USB_FIRMWARE_FILE);
     char gpifwave1[THAMWAY_USB_GPIFWAVE_SIZE];
-    load_firm(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE, KAME_EZUSB_DIR THAMWAY_USB_GPIFWAVE1_FILE);
+    load_firm(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE1_FILE);
     char gpifwave2[THAMWAY_USB_GPIFWAVE_SIZE];
     bool always_slow_usb = false;
     try {
-        load_firm(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE, KAME_EZUSB_DIR THAMWAY_USB_GPIFWAVE2_FILE);
+        load_firm(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE2_FILE);
     }
     catch (XInterface::XInterfaceError& e) {
         e.print();

@@ -48,15 +48,7 @@ unix {
 
         DEFINES += USE_EZUSB
         DEFINES += USE_EZUSB_CYUSB
-        KAME_EZUSB = ezusbthamway
-        DEFINES += KAME_EZUSB_DIR=\"quotedefined(/$${KAME_EZUSB}/)\"
-
-        ezusbfiles.path = Contents/MacOS/$${KAME_EZUSB}
-        ezusbfiles.files += cyusb.conf
-        ezusbfiles.files += fx2fw.bix
-        ezusbfiles.files += slow_dat.bin
-        ezusbfiles.files += fullspec_dat.bin
-        QMAKE_BUNDLE_DATA += ezusbfiles
+        macx: DEFINES += KAME_EZUSB_DIR=\"quotedefined(Contents/Resources/)\"
     }
     else {
         message("Missing library for libusb-1.0")

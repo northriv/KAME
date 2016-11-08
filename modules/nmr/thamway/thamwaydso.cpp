@@ -57,7 +57,7 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
         tr[ *timeWidth()] = 1e-2;
-        tr[ *average()] = 1;
+        tr[ *average()].str("Sequence");
         for(auto &&x: {vFullScale1(), vFullScale2()}) {
             tr[ *x].add({"5"});
             tr[ *x] = "5";
@@ -87,7 +87,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     double intv = getTimeInterval();
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
     iterate_commit([=](Transaction &tr){
-        tr[ *recordLength()] = smps;
+        tr[ *recordLength()] = std::max(25000, smps);
         tr[ *timeWidth()] = smps * intv;
     });
 

@@ -299,6 +299,16 @@ macx {
     tsfiles.files += ../kame_ja.qm
     tsfiles.path = Contents/MacOS/
     QMAKE_BUNDLE_DATA += tsfiles
+
+#    exists("/opt/local/include/libusb-1.0/libusb.h") {
+    exists("../modules/nmr/thamway/fx2fw.bix") {
+        ezusbfiles.path = Contents/Resources
+        ezusbfiles.files += ../modules/nmr/thamway/cyusb.conf
+        ezusbfiles.files += ../modules/nmr/thamway/fx2fw.bix
+        ezusbfiles.files += ../modules/nmr/thamway/slow_dat.bin
+        ezusbfiles.files += ../modules/nmr/thamway/fullspec_dat.bin
+        QMAKE_BUNDLE_DATA += ezusbfiles
+    }
 }
 
 

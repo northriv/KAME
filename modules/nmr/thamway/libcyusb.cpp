@@ -73,7 +73,7 @@ static void parse_configfile(void)
 	char *cp1, *cp2, *cp3;
 	int i;
 	
-    inp = fopen(KAME_EZUSB_DIR "/cyusb.conf", "r");
+    inp = fopen(KAME_EZUSB_DIR "cyusb.conf", "r");
         if (inp == NULL)
             return;
 
@@ -205,7 +205,7 @@ int cyusb_open(void)
 	int fd1;
 	int r;
 
-    fd1 = open(KAME_EZUSB_DIR "/cyusb.conf", O_RDONLY);
+    fd1 = open(KAME_EZUSB_DIR "cyusb.conf", O_RDONLY);
 	if ( fd1 < 0 ) {
        printf("cyusb.conf file not found. Exiting\n");
 	   return -1;

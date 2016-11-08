@@ -1,11 +1,11 @@
 #ifndef CSUB2LIBUSB_H
 #define CSUB2LIBUSB_H
 
-#include "cyusb.h"
+#include <libusb-1.0/libusb.h>
 
 #define	CUSB_DWLSIZE 0x2000
 
-using usb_handle = cyusb_handle*;
+using usb_handle = libusb_device_handle*;
 
 int cusblib_initialize();
 void cusblib_finalize();
