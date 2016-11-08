@@ -6,3 +6,7 @@
 .project
 .cvsignore
 .gdb*
+*.bin
+*.bix
+.DS_Store
+*.user
