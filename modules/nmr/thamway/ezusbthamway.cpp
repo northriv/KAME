@@ -32,7 +32,7 @@
     using usb_handle = HANDLE;
 #endif
 #ifdef USE_EZUSB_CYUSB
-    #include "cusb2cyusb.h"
+    #include "libusb2cusb.h"
 #endif
 #ifdef USE_EZUSB
     extern "C" {

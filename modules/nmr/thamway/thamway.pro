@@ -35,14 +35,12 @@ unix {
     exists("/opt/local/include/libusb-1.0/libusb.h") {
         LIBS += -lusb-1.0
         HEADERS += \
-            cyusb.h\
-            cusb2cyusb.h \
+            libusb2cusb.h\
             ezusbthamway.h\
             thamwaydso.h
 
         SOURCES += \
-            libcyusb.cpp \
-            cusb2cyusb.cpp \
+            libusb2cusb.cpp\
             ezusbthamway.cpp\
             thamwaydso.cpp
 

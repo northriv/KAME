@@ -1,4 +1,4 @@
-#include "cusb2cyusb.h"
+#include "libusb2cusb.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -50,6 +50,12 @@ int usb_open(int n, usb_handle *h) {
         libusb_free_device_list(devlist, 1);
         return -1;
     }
+
+    int bus_num = libusb_get_bus_number(pdev);
+    int addr = libusb_get_device_address(pdev);
+    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d.\n",
+        n, desc.idProduct, desc.idVendor, bus_num, addr);
+
     if((desc.idProduct != THAMWAY_PID) || (desc.idVendor != THAMWAY_VID)) {
         libusb_free_device_list(devlist, 1);
         return -1;
@@ -60,15 +66,15 @@ int usb_open(int n, usb_handle *h) {
         libusb_free_device_list(devlist, 1);
        return -1;
     }
-    int bus_num = libusb_get_bus_number(pdev);
-    int addr = libusb_get_device_address(pdev);
+    libusb_free_device_list(devlist, 1);
+
     unsigned char manu[256] = {}, prod[256] = {}, serial[256] = {};
     libusb_get_string_descriptor_ascii( *h, desc.iManufacturer, manu, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iProduct, prod, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iSerialNumber, serial, 255);
-    fprintf(stderr, "USB PID=%d,VID=%d,BUS#%d,ADDR=%d;%s;%s;%s sucessfully opened.\n",
-        THAMWAY_PID, THAMWAY_VID, bus_num, addr, manu, prod, serial);
-    libusb_free_device_list(devlist, 1);
+    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d;%s;%s;%s.\n",
+        n, THAMWAY_PID, THAMWAY_VID, bus_num, addr, manu, prod, serial);
+
     return 0;
 }
 
@@ -169,10 +175,12 @@ int cusb_init(int n, usb_handle *h, uint8_t* fw, signed char *str1, signed char 
         if(usb_dwnload(h,fw,CUSB_DWLSIZE)) return(-1);
         if(usb_run(h)) return(-1);
         usb_close(h);
-        for(;;){
-            usleep(2500000); //for thamway
-            if(usb_open(n, h) == 0) {
-                break;
+        sleep(1); //for thamway
+        if(usb_open(n, h)) {
+            fprintf(stderr, "Try again.\n");
+            sleep(2); //for thamway
+            if(usb_open(n, h)) {
+                return -1;
             }
         }
         fprintf(stderr, "USB: successfully downloaded\n");
