@@ -6,10 +6,11 @@ INCLUDEPATH += \
 
 HEADERS += \
     thamwayprot.h \
-    thamwaypulser.h
+    thamwaypulser.h \
+
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp
+    thamwaypulser.cpp \
 
 FORMS += \
     thamwayprotform.ui
@@ -35,16 +36,18 @@ unix {
         LIBS += -lusb-1.0
         HEADERS += \
             cyusb.h\
+            cusb2cyusb.h \
             ezusbthamway.h\
             thamwaydso.h
 
         SOURCES += \
-            libcyusb.cpp
+            libcyusb.cpp \
+            cusb2cyusb.cpp \
+            ezusbthamway.cpp\
+            thamwaydso.cpp
 
-    #        ezusbthamway.cpp\
-    #        thamwaydso.cpp
-
-    #    DEFINES += USE_EZUSB
+        DEFINES += USE_EZUSB
+        DEFINES += USE_EZUSB_CYUSB
         KAME_EZUSB = ezusbthamway
         DEFINES += KAME_EZUSB_DIR=\"quotedefined(/$${KAME_EZUSB}/)\"
 

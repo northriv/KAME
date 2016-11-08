@@ -24,11 +24,19 @@
     #include <windows.h>
     extern "C" {
         #include "cusb.h"
-        #include "fx2fw.h"
     }
+    #define KAME_EZUSB_DIR ""
+    inline int cusblib_initialize() {return 8;}
+    inline void cusblib_finalize() {}
+    using usb_handle = HANDLE;
 #endif
 #ifdef USE_EZUSB_CYUSB
-    #include "cyusb.h"
+    #include "cusb2cyusb.h"
+#endif
+#ifdef USE_EZUSB
+    extern "C" {
+        #include "fx2fw.h"
+    }
 #endif
 
 #define CMD_DIPSW 0x11u
@@ -66,13 +74,13 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
     };
 
     char firmware[CUSB_DWLSIZE];
-    load_firm(firmware, CUSB_DWLSIZE, THAMWAY_USB_FIRMWARE_FILE);
+    load_firm(firmware, CUSB_DWLSIZE, KAME_EZUSB_DIR THAMWAY_USB_FIRMWARE_FILE);
     char gpifwave1[THAMWAY_USB_GPIFWAVE_SIZE];
-    load_firm(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE1_FILE);
+    load_firm(gpifwave1, THAMWAY_USB_GPIFWAVE_SIZE, KAME_EZUSB_DIR THAMWAY_USB_GPIFWAVE1_FILE);
     char gpifwave2[THAMWAY_USB_GPIFWAVE_SIZE];
     bool always_slow_usb = false;
     try {
-        load_firm(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE, THAMWAY_USB_GPIFWAVE2_FILE);
+        load_firm(gpifwave2, THAMWAY_USB_GPIFWAVE_SIZE, KAME_EZUSB_DIR THAMWAY_USB_GPIFWAVE2_FILE);
     }
     catch (XInterface::XInterfaceError& e) {
         e.print();
@@ -80,8 +88,14 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         always_slow_usb = true;
     }
 
-    for(int i = 0; i < 8; ++i) {
-        void *handle = 0;
+    int num_devices = cusblib_initialize();
+    if(num_devices < 0) {
+        throw XInterface::XInterfaceError(i18n_noncontext("Error during initialization of libusb.")
+                                          , __FILE__, __LINE__);
+    }
+
+    for(int i = 0; i < num_devices; ++i) {
+        usb_handle handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
         if(cusb_init(i, &handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
@@ -94,7 +108,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         dev.addr = sw;
         dev.mutex.reset(new XRecursiveMutex);
         s_devices.push_back(dev);
-        fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)handle, (unsigned int)sw);
+        fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)(uintptr_t)handle, (unsigned int)sw);
         char *gpifwave = gpifwave2;
         if(always_slow_usb || (dev.addr == DEV_ADDR_PROT))
             gpifwave = gpifwave1;
@@ -119,14 +133,14 @@ XFX2FWUSBInterface::setWave(void *handle, const uint8_t *wave) {
     buf.insert(buf.end(), wave, wave + 8);
     buf.insert(buf.end(), {MODE_FLOW});
     buf.insert(buf.end(), wave + 8 + 32*4, wave + 8 + 32*4 + 36);
-    if(usb_bulk_write( &handle, CPIPE, &buf[0], buf.size()) < 0)
+    if(usb_bulk_write( (usb_handle*)&handle, CPIPE, &buf[0], buf.size()) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     const uint8_t cmdwaves[] = {CMD_WAVE0 /*SingleRead*/, CMD_WAVE1/*SingleWrite*/, CMD_WAVE2/*BurstRead*/, CMD_WAVE3/*BurstWrite*/};
     for(int i = 0; i < sizeof(cmdwaves); ++i) {
         buf.clear();
         buf.insert(buf.end(), cmdwaves + i, cmdwaves + i + 1);
         buf.insert(buf.end(), wave + 8 + 32*i, wave + 8 + 32*(i + 1));
-        if(usb_bulk_write( &handle, CPIPE, &buf[0], buf.size()) < 0)
+        if(usb_bulk_write( (usb_handle*)&handle, CPIPE, &buf[0], buf.size()) < 0)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     }
 }
@@ -141,8 +155,9 @@ XFX2FWUSBInterface::closeAllEZUSBdevices() {
         }
 
         fprintf(stderr, "cusb_close\n");
-        usb_close( &it->handle);
+        usb_close( (usb_handle*)&it->handle);
     }
+    cusblib_finalize();
     s_devices.clear();
 }
 
@@ -255,10 +270,10 @@ XFX2FWUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     else {
         XScopedLock<XFX2FWUSBInterface> lock( *this);
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
-        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        if(usb_bulk_write( (usb_handle*)&m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
         uint8_t cmds2[] = {(uint8_t)(addr), data};
-        if(usb_bulk_write( &m_handle, TFIFO, cmds2, sizeof(cmds2)) < 0)
+        if(usb_bulk_write( (usb_handle*)&m_handle, TFIFO, cmds2, sizeof(cmds2)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
 }
@@ -268,9 +283,9 @@ XFX2FWUSBInterface::bulkWriteStored() {
 
     uint16_t len = m_buffer.size();
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
-    if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    if(usb_bulk_write( (usb_handle*)&m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
-    if(usb_bulk_write( &m_handle, TFIFO, (uint8_t*) &m_buffer[0], len) < 0)
+    if(usb_bulk_write( (usb_handle*)&m_handle, TFIFO, (uint8_t*) &m_buffer[0], len) < 0)
         throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
 
     resetBulkWrite();
@@ -279,17 +294,17 @@ XFX2FWUSBInterface::bulkWriteStored() {
 void
 XFX2FWUSBInterface::setLED(void *handle, uint8_t data) {
     uint8_t cmds[] = {CMD_LED, data};
-    if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
 }
 
 uint8_t
 XFX2FWUSBInterface::readDIPSW(void *handle) {
     uint8_t cmds[] = {CMD_DIPSW};
-    if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
+    if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     uint8_t buf[10];
-    if(usb_bulk_read( &handle, RFIFO, buf, 1) != 1)
+    if(usb_bulk_read( (usb_handle*)&handle, RFIFO, buf, 1) != 1)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk reading has failed."), __FILE__, __LINE__);
     return buf[0];
 }
@@ -316,7 +331,7 @@ XFX2FWUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
         }
     }
     fprintf(stderr, "getIDN:%s\n", idn.c_str());
-    return std::move(idn);
+    return idn;
 }
 uint8_t
 XFX2FWUSBInterface::singleRead(unsigned int addr) {
@@ -330,15 +345,15 @@ XFX2FWUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int add
     assert(addr < 0x100u);
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
-        if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
     }
     {
         uint8_t cmds[] = {CMD_SREAD};
-        if(usb_bulk_write( &handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
         uint8_t buf[10];
-        if(usb_bulk_read( &handle, RFIFO, buf, 1) != 1)
+        if(usb_bulk_read( (usb_handle*)&handle, RFIFO, buf, 1) != 1)
             throw XInterface::XInterfaceError(i18n_noncontext("USB bulk reading has failed."), __FILE__, __LINE__);
         return buf[0];
     }
@@ -356,16 +371,16 @@ XFX2FWUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt)
     assert(addr < 0x100u);
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
-        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        if(usb_bulk_write( (usb_handle*)&m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
     }
     const unsigned int blocksize = 512;
     uint8_t cmds[] = {CMD_BREAD, blocksize % 0x100u, blocksize / 0x100u};
     uint8_t bbuf[blocksize];
     for(; cnt;) {
-        if(usb_bulk_write( &m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
+        if(usb_bulk_write( (usb_handle*)&m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
-        int i = usb_bulk_read( &m_handle, RFIFO, bbuf, blocksize);
+        int i = usb_bulk_read( (usb_handle*)&m_handle, RFIFO, bbuf, blocksize);
         if(i <= 0)
             throw XInterface::XInterfaceError(i18n("USB bulk reading has failed."), __FILE__, __LINE__);
         unsigned int n = std::min(cnt, (unsigned int)i);

@@ -54,7 +54,7 @@ private:
         XString str = getIDN(handle, maxlen, m_addrOffset);
         if(str.empty() || (str.find(m_idString,0) != 0))
              return {};
-        return std::move(str);
+        return str;
     }
     static void setLED(void *handle, uint8_t data);
     static uint8_t readDIPSW(void *handle);
