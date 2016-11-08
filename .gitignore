@@ -8,5 +8,5 @@
 .gdb*
 *.bin
 *.bix
-.DS_Store
+*.DS_Store
 *.user
