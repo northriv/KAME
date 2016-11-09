@@ -4,11 +4,34 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <algorithm>
+#include "fx2fw.h"
 
-#define THAMWAY_VID 0x4b4
-#define THAMWAY_PID 0x8613 //VID,PID, cypress default FX2.
+#define FX2_DEF_VID 0x4b4
+#define FX2_DEF_PID 0x8613 //cypress default FX2.
+#define THAMWAY_VID 0x547
+#define THAMWAY_PID 0x1002
 
 #define USB_TIMEOUT 3000
+
+struct USBList {
+    USBList() noexcept {
+        size = libusb_get_device_list(NULL, &list);
+        if(size < 0 ) {
+            fprintf(stderr, "Error during dev. enum. of libusb: %s\n", libusb_error_name(size));
+        }
+    }
+    ~USBList() {
+        if(size >= 0)
+            libusb_free_device_list(list, 1);
+    }
+    libusb_device *operator[](ssize_t i) const noexcept {
+        if((i >= size) || (i < 0))
+            return nullptr;
+        return list[i];
+    }
+    libusb_device **list;
+    int size;
+};
 
 int cusblib_initialize() {
     int ret = libusb_init(NULL);
@@ -16,69 +39,66 @@ int cusblib_initialize() {
         fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
         return -1;
     }
-//    libusb_device_handle *p = libusb_open_device_with_vid_pid(NULL, 0x4b4, 0x8613);
-//    if(p) {
-//        unsigned char manu[256] = {}, prod[256] = {}, serial[256] = {};
-//        libusb_get_string_descriptor(  p, 1, 27, manu, 255);
-//        fprintf(stderr, "USB PID=%d,VID=%d,%s sucessfully opened.\n",
-//            THAMWAY_PID, THAMWAY_VID, manu);
-//        libusb_close(p);
-//    }
 
-    return 32;
+    return USBList().size;
 }
 void cusblib_finalize() {
     libusb_exit(NULL);
 }
 int usb_open(int n, usb_handle *h) {
-    libusb_device **devlist;
-    int numdev = libusb_get_device_list(NULL, &devlist);
-    if(numdev < 0 ) {
-        fprintf(stderr, "Error during dev. enum. of libusb: %s\n", libusb_error_name(numdev));
-        return -1;
-    }
+    USBList devlist;
     libusb_device *pdev = devlist[n];
-    if(n >= numdev) {
-        libusb_free_device_list(devlist, 1);
-        return -1;
-    }
+    if( !pdev) return -1;
 
     libusb_device_descriptor desc;
     int ret = libusb_get_device_descriptor(pdev, &desc);
     if(ret) {
         fprintf(stderr, "Error obtaining dev. desc. in libusb: %s\n", libusb_error_name(ret));
-        libusb_free_device_list(devlist, 1);
         return -1;
     }
 
     int bus_num = libusb_get_bus_number(pdev);
     int addr = libusb_get_device_address(pdev);
-    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d.\n",
-        n, desc.idProduct, desc.idVendor, bus_num, addr);
+//    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d.\n",
+//        n, desc.idProduct, desc.idVendor, bus_num, addr);
 
-    if((desc.idProduct != THAMWAY_PID) || (desc.idVendor != THAMWAY_VID)) {
-        libusb_free_device_list(devlist, 1);
+    if(((desc.idProduct != FX2_DEF_PID) || (desc.idVendor != FX2_DEF_VID))
+        && ((desc.idProduct != THAMWAY_PID) || (desc.idVendor != THAMWAY_VID))) {
         return -1;
     }
     ret = libusb_open(pdev, h);
     if(ret) {
         fprintf(stderr, "Error opening dev. #%d in libusb: %s\n", n, libusb_error_name(ret));
-        libusb_free_device_list(devlist, 1);
        return -1;
     }
-    libusb_free_device_list(devlist, 1);
 
     unsigned char manu[256] = {}, prod[256] = {}, serial[256] = {};
     libusb_get_string_descriptor_ascii( *h, desc.iManufacturer, manu, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iProduct, prod, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iSerialNumber, serial, 255);
     fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d;%s;%s;%s.\n",
-        n, THAMWAY_PID, THAMWAY_VID, bus_num, addr, manu, prod, serial);
+        n, desc.idProduct, desc.idVendor, bus_num, addr, manu, prod, serial);
 
+//    ret = libusb_set_auto_detach_kernel_driver( *h, 1);
+//    if(ret) {
+//        fprintf(stderr, "USB %d: Warning auto detach is not supported: %s\n", n, libusb_error_name(ret));
+//    }
+//    ret = libusb_set_configuration( *h, 1);
+    ret = libusb_claim_interface( *h, 0);
+    if(ret) {
+        fprintf(stderr, "USB %d: Error claiming interface: %s\n", n, libusb_error_name(ret));
+        return -1;
+    }
+    ret = libusb_set_interface_alt_setting( *h, 0 , 0 );
+    if(ret) {
+        fprintf(stderr, "USB %d: Error ALT setting for interface: %s\n", n, libusb_error_name(ret));
+        return -1;
+    }
     return 0;
 }
 
 int usb_close(usb_handle *h) {
+    libusb_release_interface( *h,0);
     libusb_close( *h);
     return 0;
 }
@@ -123,7 +143,19 @@ int usb_dwnload(usb_handle *h, uint8_t *image, int len) {
 }
 int usb_bulk_write(usb_handle *h, int pipe, uint8_t* buf, int len) {
     int transferred;
-    int ret = libusb_bulk_transfer( *h, pipe, buf, len, &transferred, USB_TIMEOUT);
+    int ep;
+    switch(pipe) {
+    case TFIFO:
+        ep = 0x2;
+        break;
+    case CPIPE:
+        ep = 0x8;
+        break;
+    default:
+        return -1;
+    }
+
+    int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_OUT | ep, buf, len, &transferred, USB_TIMEOUT);
     if(ret) {
         fprintf(stderr, "Error during USB Bulk writing: %s\n", libusb_error_name(ret));
         return -1;
@@ -131,11 +163,19 @@ int usb_bulk_write(usb_handle *h, int pipe, uint8_t* buf, int len) {
     return 0;
 }
 int usb_bulk_read(usb_handle *h, int pipe, uint8_t *buf, int len) {
+    int ep;
+    switch(pipe) {
+    case RFIFO:
+        ep = 0x6;
+        break;
+    default:
+        return -1;
+    }
     int cnt = 0;
     for(int i = 0; len > 0;){
         int l = std::min(len, 0x8000);
         int transferred;
-        int ret = libusb_bulk_transfer( *h, pipe, buf, l, &transferred, USB_TIMEOUT);
+        int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_IN | ep, buf, l, &transferred, USB_TIMEOUT);
         if(ret) {
             fprintf(stderr, "Error during USB Bulk reading: %s\n", libusb_error_name(ret));
             return -1;

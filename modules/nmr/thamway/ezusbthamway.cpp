@@ -184,9 +184,8 @@ XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const sha
     : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
-        if( !s_refcnt)
+        if( !(s_refcnt++))
             openAllEZUSBdevices();
-        s_refcnt++;
 
         iterate_commit([=](Transaction &tr){
             for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {

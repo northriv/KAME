@@ -63,6 +63,9 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
             tr[ *x].add({"5"});
             tr[ *x] = "5";
         }
+        tr[ *trace1()] = "CH2";
+        tr[ *trace2()] = "CH1";
+        tr[ *average()] = 1;
         for(auto &&x: unnecessary_ui)
             tr[ *x].disable();
     });
@@ -78,8 +81,8 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     iterate_commit([=](Transaction &tr){
         for(auto &&x: {trace1(), trace2()})
             tr[ *x].add({"CH1", "CH2"});
-        tr[ *trace1()] = 0;
-        tr[ *trace2()] = 1;
+//        tr[ *trace1()] = 1;
+//        tr[ *trace2()] = 0;
     });
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
