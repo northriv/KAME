@@ -218,7 +218,7 @@ int cusb_init(int n, usb_handle *h, uint8_t* fw, signed char *str1, signed char 
         sleep(1); //for thamway
         if(usb_open(n, h)) {
             fprintf(stderr, "Try again.\n");
-            sleep(2); //for thamway
+            sleep(3); //for thamway
             if(usb_open(n, h)) {
                 return -1;
             }
