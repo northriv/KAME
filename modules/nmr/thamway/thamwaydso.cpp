@@ -51,13 +51,14 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
 
     std::vector<shared_ptr<XNode>> unnecessary_ui{
         vFullScale3(), vFullScale4(), vOffset1(), vOffset2(), vOffset3(), vOffset4(),
-        trigPos(), trigSource(), trigLevel(), trigFalling(), forceTrigger()
+        trigPos(), trigSource(), trigLevel(), trigFalling(), forceTrigger(),
+        fetchMode()
     };
 
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = 2000;
         tr[ *timeWidth()] = 1e-2;
-        tr[ *average()].str("Sequence");
+        tr[ *fetchMode()] = "Sequence";
         for(auto &&x: {vFullScale1(), vFullScale2()}) {
             tr[ *x].add({"5"});
             tr[ *x] = "5";
