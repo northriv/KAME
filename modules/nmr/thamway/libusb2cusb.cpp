@@ -76,8 +76,8 @@ int usb_open(int n, usb_handle *h) {
     libusb_get_string_descriptor_ascii( *h, desc.iManufacturer, manu, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iProduct, prod, 255);
     libusb_get_string_descriptor_ascii( *h, desc.iSerialNumber, serial, 255);
-    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d;%s;%s;%s.\n",
-        n, desc.idProduct, desc.idVendor, bus_num, addr, manu, prod, serial);
+    fprintf(stderr, "USB %d: VID=0x%x, PID=0x%x,BUS#%d,ADDR=%d;%s;%s;%s.\n",
+        n, desc.idVendor, desc.idProduct, bus_num, addr, manu, prod, serial);
 
 //    ret = libusb_set_auto_detach_kernel_driver( *h, 1);
 //    if(ret) {
