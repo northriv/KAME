@@ -14,7 +14,13 @@
 #include "graphpainter.h"
 #include "graphwidget.h"
 #include <QTimer>
-#include <GL/glu.h>
+#ifdef __APPLE__
+    #include <OpenGL/glu.h>
+//    #include <GLUT/glut.h>
+#else
+    #include <GL/glu.h>
+//    #include <GL/glut.h>
+#endif
 #include <QPainter>
 
 #if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
