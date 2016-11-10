@@ -83,11 +83,14 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
     ret = libusb_set_configuration( *h, 1);
     ret = libusb_claim_interface( *h, 0);
     if(ret) {
+        libusb_close( *h);
         fprintf(stderr, "USB: Error claiming interface: %s\n", libusb_error_name(ret));
         return -1;
     }
     ret = libusb_set_interface_alt_setting( *h, 0 , 0 );
     if(ret) {
+        libusb_release_interface( *h,0);
+        libusb_close( *h);
         fprintf(stderr, "USB: Error ALT setting for interface: %s\n", libusb_error_name(ret));
         return -1;
     }
@@ -233,6 +236,15 @@ int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {
         }
         usb_close(&h);
     }
+
+    libusb_exit(NULL);
+    sleep(1);
+    ret = libusb_init(NULL);
+    if(ret) {
+        fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
+        return -1;
+    }
+
     if(is_written) sleep(2); //for thamway
     return USBList().size;
 }
