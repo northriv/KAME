@@ -27,7 +27,7 @@
         #include "cusb.h"
     }
     #define KAME_EZUSB_DIR ""
-    inline int cusblib_initialize() {return 8;}
+    inline int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {return 8;}
     inline void cusblib_finalize() {}
     using usb_handle = HANDLE;
 #endif
@@ -107,7 +107,9 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         always_slow_usb = true;
     }
 
-    int num_devices = cusblib_initialize();
+    //for systems that may change addr. of USB dev. after firmware writing. i.e. libusb
+    int num_devices = cusblib_initialize((uint8_t *)firmware,
+                                         (signed char*)"F2FW", (signed char*)"20070627");
     if(num_devices < 0) {
         throw XInterface::XInterfaceError(i18n_noncontext("Error during initialization of libusb.")
                                           , __FILE__, __LINE__);
@@ -116,6 +118,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
     for(int i = 0; i < num_devices; ++i) {
         usb_handle handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
+        //For ezusb.sys, writes firmware here if needed.
         if(cusb_init(i, &handle, (uint8_t *)firmware,
             (signed char*)"F2FW", (signed char*)"20070627")) {
             //no device, or incompatible firmware.
@@ -132,7 +135,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         if(always_slow_usb || (dev.addr == DEV_ADDR_PROT))
             gpifwave = gpifwave1;
         setWave(handle, (const uint8_t*)gpifwave);
-
+        msecsleep(100);
         for(int i = 0; i < 3; ++i) {
             //blinks LED
             setLED(handle, 0x00u);

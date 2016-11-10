@@ -7,7 +7,7 @@
 
 using usb_handle = libusb_device_handle*;
 
-int cusblib_initialize();
+int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2);
 void cusblib_finalize();
 
 int usb_close(usb_handle *h);
