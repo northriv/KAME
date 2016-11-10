@@ -124,24 +124,30 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
             //no device, or incompatible firmware.
             continue;
         }
-        uint8_t sw = readDIPSW(handle);
-        USBDevice dev;
-        dev.handle = handle;
-        dev.addr = sw;
-        dev.mutex.reset(new XRecursiveMutex);
-        s_devices.push_back(dev);
-        fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)(uintptr_t)handle, (unsigned int)sw);
-        char *gpifwave = gpifwave2;
-        if(always_slow_usb || (dev.addr == DEV_ADDR_PROT))
-            gpifwave = gpifwave1;
-        setWave(handle, (const uint8_t*)gpifwave);
-        msecsleep(100);
-        for(int i = 0; i < 3; ++i) {
-            //blinks LED
-            setLED(handle, 0x00u);
-            msecsleep(70);
-            setLED(handle, 0xf0u);
-            msecsleep(60);
+        try {
+            uint8_t sw = readDIPSW(handle);
+            USBDevice dev;
+            dev.handle = handle;
+            dev.addr = sw;
+            dev.mutex.reset(new XRecursiveMutex);
+            fprintf(stderr, "Setting GPIF waves for handle 0x%x, DIPSW=%x\n", (unsigned int)(uintptr_t)handle, (unsigned int)sw);
+            char *gpifwave = gpifwave2;
+            if(always_slow_usb || (dev.addr == DEV_ADDR_PROT))
+                gpifwave = gpifwave1;
+            setWave(handle, (const uint8_t*)gpifwave);
+            msecsleep(100);
+            for(int i = 0; i < 3; ++i) {
+                //blinks LED
+                setLED(handle, 0x00u);
+                msecsleep(70);
+                setLED(handle, 0xf0u);
+                msecsleep(60);
+            }
+            s_devices.push_back(dev);
+        }
+        catch (XInterface::XInterfaceError &e) {
+            usb_close( &handle);
+            throw e;
         }
     }
     if(s_devices.empty())
@@ -176,9 +182,9 @@ XFX2FWUSBInterface::closeAllEZUSBdevices() {
             e.print();
         }
 
-        fprintf(stderr, "cusb_close\n");
         usb_close( (usb_handle*)&it->handle);
     }
+    fprintf(stderr, "cusb_close\n");
     cusblib_finalize();
     s_devices.clear();
 }
@@ -241,7 +247,7 @@ XFX2FWUSBInterface::open() throw (XInterfaceError &) {
     catch (XInterface::XInterfaceError &e) {
         m_handle = 0;
         m_mutex.reset();
-        throw;
+        throw e;
     }
     resetBulkWrite();
 }
@@ -424,7 +430,7 @@ XFX2FWUSBInterface::send(const char *str) throw (XCommError &) {
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
-        throw;
+        throw e;
     }
 }
 void
@@ -449,6 +455,6 @@ XFX2FWUSBInterface::receive() throw (XCommError &) {
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
-        throw;
+        throw e;
     }
 }

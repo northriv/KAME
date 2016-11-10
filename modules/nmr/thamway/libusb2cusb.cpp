@@ -69,6 +69,7 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
 //    }
     ret = libusb_kernel_driver_active( *h, 0);
     if(ret < 0) {
+        libusb_close( *h);
         fprintf(stderr, "USB: Error on libusb: %s\n", libusb_error_name(ret));
         return -1;
     }
@@ -76,11 +77,12 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
         fprintf(stderr, "USB: kernel driver is active, detaching...\n");
         ret = libusb_detach_kernel_driver( *h, 0);
         if(ret < 0) {
+            libusb_close( *h);
             fprintf(stderr, "USB: Error on libusb: %s\n", libusb_error_name(ret));
             return -1;
         }
     }
-    ret = libusb_set_configuration( *h, 1);
+//    ret = libusb_set_configuration( *h, 1);
     ret = libusb_claim_interface( *h, 0);
     if(ret) {
         libusb_close( *h);
@@ -99,6 +101,7 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
 
 int usb_close(usb_handle *h) {
     libusb_release_interface( *h,0);
+//    libusb_reset_device( *h);
     libusb_close( *h);
     return 0;
 }
@@ -199,7 +202,8 @@ int usb_get_string(usb_handle *h, int idx, char *s){
 int cusb_init(int n, usb_handle *h, uint8_t* fw, signed char *str1, signed char *str2) {
     USBList devlist;
     libusb_device *pdev = devlist[n];
-    return usb_open(pdev, h);
+    int ret = usb_open(pdev, h);
+    return ret;
 }
 
 
@@ -209,7 +213,7 @@ int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {
         fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
         return -1;
     }
-
+//    libusb_set_debug(NULL, 3);
     USBList devlist;
     bool is_written = false;
     for(int n = 0; n < devlist.size; ++n) {
@@ -223,26 +227,28 @@ int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {
             fprintf(stderr, "USB: Ver: %s\n", s2);
             if(s2[0] != str2[0]) {
                 fprintf(stderr, "USB: Not Thamway's device\n");
-                 continue;
+                usb_close(&h);
+                continue;
             }
         }
         unsigned int version = atoi(s2);
         if(strcmp((const char *)str1,(const char *)s1)|| (version < atoi((char*)str2)) ){
-            if(usb_halt(&h)) continue;
+            if(usb_halt(&h)) {
+                usb_close(&h);
+                continue;
+            }
             fprintf(stderr, "USB: Downloading the firmware to the device. This process takes a few seconds....\n");
-            if(usb_dwnload(&h,fw,CUSB_DWLSIZE)) return(-1);
-            if(usb_run(&h)) continue;
+            if(usb_dwnload(&h,fw,CUSB_DWLSIZE)) {
+               usb_close(&h);
+               continue;
+            }
+            if(usb_run(&h)) {
+                usb_close(&h);
+                continue;
+            }
             is_written = true;
         }
         usb_close(&h);
-    }
-
-    libusb_exit(NULL);
-    sleep(1);
-    ret = libusb_init(NULL);
-    if(ret) {
-        fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
-        return -1;
     }
 
     if(is_written) sleep(2); //for thamway
