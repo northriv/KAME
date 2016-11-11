@@ -96,15 +96,16 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
         fprintf(stderr, "USB: Error ALT setting for interface: %s\n", libusb_error_name(ret));
         return -1;
     }
-//    libusb_reset_device( *h);
-    //hacks for stability.
-    libusb_clear_halt( *h, 0x2);
-    libusb_clear_halt( *h, 0x6);
-    libusb_clear_halt( *h, 0x8);
     return 0;
 }
 
 int usb_close(usb_handle *h) {
+    //hacks for stability.
+    libusb_reset_device( *h);
+    libusb_clear_halt( *h, 0x2);
+    libusb_clear_halt( *h, 0x6);
+    libusb_clear_halt( *h, 0x8);
+    usleep(10000);
     libusb_release_interface( *h,0);
     libusb_close( *h);
     return 0;
