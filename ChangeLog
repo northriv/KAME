@@ -1,3 +1,11 @@
+* Fri Nov 11 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.6-1)
+- Enables NI488.2, and USB interfaces for thamway instruments on OSX
+- xtime.cpp: Gets rid of spin lock again.
+- thamwaydso: Fixed for channel names and init. valuse of records, timewidth.
+- Now compiles with GSL > 2.0
+- OSX: uses standard glu.h
+
 * Sun Nov 6 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.5-1)
 - Fixed unstability that appeared as of 4.2.1, regarding memory leaks of dwm
