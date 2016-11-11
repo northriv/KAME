@@ -30,27 +30,7 @@
 
 void msecsleep(unsigned int ms) noexcept {
 #ifdef USE_QTHREAD
-    XTime t0(XTime::now());
-    for(;;) {
-        unsigned int elapsed_ms = XTime::now().diff_msec(t0);
-        if(elapsed_ms >= ms)
-            break;
-        if(ms - elapsed_ms >= 1) {
-            QThread::msleep(ms - elapsed_ms);
-        }
-        else {
-            XTime t1(XTime::now());
-            QThread::yieldCurrentThread();
-            if(XTime::now().diff_msec(t1) > 1)
-                QThread::msleep(std::min(10u, ms - elapsed_ms)); //needs time slicing.
-            else {
-                pause4spin();
-                pause4spin();
-                pause4spin();
-                pause4spin();
-            }
-        }
-    }
+    QThread::msleep(ms);
 #else //USE_QTHREAD
     XTime t0(XTime::now());
 	XTime t1 =  t0;
