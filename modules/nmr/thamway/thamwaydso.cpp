@@ -63,6 +63,9 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
             tr[ *x].add({"5"});
             tr[ *x] = "5";
         }
+        for(auto &&x: {trace1(), trace2()}) {
+            tr[ *x].add({"CH1", "CH2"});
+        }
         tr[ *trace1()] = "CH2";
         tr[ *trace2()] = "CH1";
         tr[ *average()] = 1;
@@ -77,13 +80,6 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
     fprintf(stderr, "DV IDN=%s\n", idn.c_str());
-
-    iterate_commit([=](Transaction &tr){
-        for(auto &&x: {trace1(), trace2()})
-            tr[ *x].add({"CH1", "CH2"});
-//        tr[ *trace1()] = 1;
-//        tr[ *trace2()] = 0;
-    });
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);

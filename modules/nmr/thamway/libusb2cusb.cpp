@@ -100,8 +100,8 @@ int usb_open(libusb_device *pdev, usb_handle *h) {
 }
 
 int usb_close(usb_handle *h) {
+    //    libusb_reset_device( *h);
     libusb_release_interface( *h,0);
-//    libusb_reset_device( *h);
     libusb_close( *h);
     return 0;
 }
@@ -246,6 +246,7 @@ int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {
                 usb_close(&h);
                 continue;
             }
+            libusb_reset_device( &h);
             is_written = true;
         }
         usb_close(&h);
