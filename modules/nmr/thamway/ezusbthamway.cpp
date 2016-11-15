@@ -106,10 +106,11 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         gMessagePrint(i18n_noncontext("Continues with slower USB speed."));
         always_slow_usb = true;
     }
+    constexpr char Manufacturer_sym[] = "F2FW";
+    constexpr char Serial_sym[] = "20070627";
 
     //for systems that may change addr. of USB dev. after firmware writing. i.e. libusb
-    int num_devices = cusblib_initialize((uint8_t *)firmware,
-                                         (signed char*)"F2FW", (signed char*)"20070627");
+    int num_devices = cusblib_initialize((uint8_t *)firmware, (signed char*)Manufacturer_sym, (signed char*)Serial_sym);
     if(num_devices < 0) {
         throw XInterface::XInterfaceError(i18n_noncontext("Error during initialization of libusb.")
                                           , __FILE__, __LINE__);
@@ -119,11 +120,11 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         usb_handle handle = 0;
         fprintf(stderr, "cusb_init #%d\n", i);
         //For ezusb.sys, writes firmware here if needed.
-        if(cusb_init(i, &handle, (uint8_t *)firmware,
-            (signed char*)"F2FW", (signed char*)"20070627")) {
+        if(cusb_init(i, &handle, (uint8_t *)firmware, (signed char*)Manufacturer_sym, (signed char*)Serial_sym)) {
             //no device, or incompatible firmware.
             continue;
         }
+        //The device has been successfully opened.
         try {
             uint8_t sw = readDIPSW(handle);
             USBDevice dev;
@@ -139,9 +140,9 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
             for(int i = 0; i < 3; ++i) {
                 //blinks LED
                 setLED(handle, 0x00u);
-                msecsleep(70);
+                msecsleep(30);
                 setLED(handle, 0xf0u);
-                msecsleep(60);
+                msecsleep(30);
             }
             s_devices.push_back(dev);
         }
