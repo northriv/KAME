@@ -105,7 +105,7 @@ int usb_close(usb_handle *h) {
     libusb_clear_halt( *h, 0x2);
     libusb_clear_halt( *h, 0x6);
     libusb_clear_halt( *h, 0x8);
-    usleep(10000);
+    usleep(50000);
     libusb_release_interface( *h,0);
     libusb_close( *h);
     return 0;

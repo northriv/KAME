@@ -454,11 +454,11 @@ FrmKameMain::runNewScript(const XString &label, const XString &filename) {
 }
 void FrmKameMain::scriptRunAction_activated() {
     QString filename = QFileDialog::getOpenFileName (
-        this, "",
-        i18n("Open Script File"),
+        this, i18n("Open Script File"), "",
         "KAME Script files (*.seq);;"
-        "Ruby Script files (*.rb)"
-        );
+        "Ruby Script files (*.rb);;"
+        "All files (*.*);;"
+    );
 	if( !filename.isEmpty()) {
 		static unsigned int thread_no = 1;
 		runNewScript(formatString("Thread%d", thread_no), filename );
