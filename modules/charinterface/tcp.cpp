@@ -131,6 +131,7 @@ XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
 }
 void
 XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
     fd_set fs;
     FD_ZERO(&fs);
     FD_SET(m_socket , &fs);
@@ -142,7 +143,7 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
         throw XInterface::XCommError(i18n("tcp writing failed"), __FILE__, __LINE__);
     if(ret == 0)
         msecsleep(10);
-
+#endif
 	int wlen = 0;
 	do {
         int ret = ::send(m_socket, sendbuf, size - wlen, 0);
@@ -165,6 +166,7 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 }
 void
 XTCPSocketPort::receive() throw (XInterface::XCommError &) {
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
     fd_set fs;
     FD_ZERO(&fs);
     FD_SET(m_socket , &fs);
@@ -176,7 +178,7 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
         throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
     if(ret == 0)
         msecsleep(10);
-
+#endif
 	buffer().resize(MIN_BUFFER_SIZE);
    
     const char *ceos = eos().c_str();
