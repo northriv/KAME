@@ -216,7 +216,7 @@ XQLineEditConnector::onReturnPressed() {
 			tr[ *m_node].str(m_pItem->text());
 			tr.unmark(m_lsnValueChanged);
         });
-		palette.setColor(QPalette::Text, Qt::black);
+        palette.setColor(QPalette::Text, Qt::black);
     }
     catch (XKameError &e) {
         e.print();

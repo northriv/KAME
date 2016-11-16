@@ -4,8 +4,8 @@ CONFIG += sse sse2 rtti
 QT       += core gui
 
 #remove these two to use QOpenGLWidget
-DEFINES += USE_QGLWIDGET
-QT		 += opengl
+#DEFINES += USE_QGLWIDGET
+#QT		 += opengl
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
