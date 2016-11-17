@@ -28,7 +28,7 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f
 
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_ieee_utils.h>
-
+#include <gsl/gsl_version.h>
 //---------------------------------------------------------------------------
 
 class XRelaxFuncPoly : public XRelaxFunc {
@@ -471,12 +471,12 @@ do_nlls(int n, int p, double *param, double *err, double *det, void *user,
     for(i = 0; i < p; i++)
         param[i] = gsl_vector_get (s->x, i);
 
-    /* compute covariance of best fit parameters */
+//Computes covariance of best fit parameters
     gsl_matrix *covar = gsl_matrix_alloc (p, p);
 #if (GSL_MAJOR_VERSION >= 2)
     gsl_matrix *J = gsl_matrix_alloc(n, p);
-    J = gsl_multifit_fdfsolver_jac(s, J);
-    gsl_multifit_nlinear_covar (J, 0.0, covar);
+    gsl_multifit_fdfsolver_jac(s, J);
+    gsl_multifit_covar(J, 0.0, covar);
 #else
     gsl_multifit_covar (s->J, 0.0, covar);
 #endif
