@@ -56,9 +56,15 @@ const XGraph::VFloat XGraph::VFLOAT_MAX = DBL_MAX;
 
 #define PLOT_POINT_SIZE 5.0
 
-#define PLOT_POINT_INTENS 0.5
-#define PLOT_LINE_INTENS 0.7
-#define PLOT_BAR_INTENS 0.4
+#ifdef USE_QGLWIDGET
+    #define PLOT_POINT_INTENS 0.5
+    #define PLOT_LINE_INTENS 0.7
+    #define PLOT_BAR_INTENS 0.4
+#else
+    #define PLOT_POINT_INTENS 0.7
+    #define PLOT_LINE_INTENS 1.0
+    #define PLOT_BAR_INTENS 0.8
+#endif
 
 XGraph::XGraph(const char *name, bool runtime) : 
     XNode(name, runtime),

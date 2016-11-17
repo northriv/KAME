@@ -136,7 +136,7 @@ XQGraphPainter::onRepaint(const Snapshot &shot) {
 }
 void
 XQGraphPainter::beginLine(double size) {
-	glLineWidth(size);
+    glLineWidth(size * m_pixel_ratio);
     checkGLError(); 
 	glBegin(GL_LINES);
 }
@@ -148,7 +148,7 @@ XQGraphPainter::endLine() {
 
 void
 XQGraphPainter::beginPoint(double size) {
-	glPointSize(size);
+    glPointSize(size * m_pixel_ratio);
     checkGLError(); 
 	glBegin(GL_POINTS);
 }
