@@ -133,37 +133,26 @@ XQGraph::wheelEvent ( QWheelEvent *e) {
 }
 void
 XQGraph::showEvent ( QShowEvent *) {
-    shared_ptr<XGraph> graph = m_graph;
-	if(graph) { 
-		m_painter.reset();
-		// m_painter will be re-set in the constructor.
-		new XQGraphPainter(graph, this);
-//        setMouseTracking(true);
-        initializeGL();
-    }
 }
 void
 XQGraph::hideEvent ( QHideEvent * ) {
 	m_conDialog.reset();
-	m_painter.reset();
-//    setMouseTracking(false);
 }
 //! openGL stuff
 void
 XQGraph::initializeGL() {
-    if(m_painter )
-        m_painter->initializeGL();
+    shared_ptr<XGraph> graph = m_graph;
+    // m_painter will be re-set in the constructor.
+    new XQGraphPainter(graph, this);
+    m_painter->initializeGL();
 }
 void
 XQGraph::resizeGL ( int width, int height ) {
     // be aware of retina display.
     double pixel_ratio = devicePixelRatio();
-    glViewport( 0, 0, (GLint)(width * pixel_ratio),
-                (GLint)(height * pixel_ratio));
     if(m_painter ) {
-        if( m_painter->m_pixel_ratio != pixel_ratio) {
-            fprintf(stderr, "DevicePixelRatio has been changed to %f\n", pixel_ratio);
-        }
+        glViewport( 0, 0, (GLint)(width * pixel_ratio),
+                (GLint)(height * pixel_ratio));
         m_painter->m_pixel_ratio = pixel_ratio;
         m_painter->resizeGL(width, height);
     }
@@ -179,8 +168,15 @@ void XQGraph::paintEvent(QPaintEvent *event) {
 #else
 void
 XQGraph::paintGL() {
-    if(m_painter )
+    if(m_painter ) {
+        // be aware of retina display.
+        double pixel_ratio = devicePixelRatio();
+        if( m_painter->m_pixel_ratio != pixel_ratio) {
+            fprintf(stderr, "DevicePixelRatio has been changed to %f\n", pixel_ratio);
+            resizeGL(width(), height());
+        }
         m_painter->paintGL();
+    }
 }
 #endif
 

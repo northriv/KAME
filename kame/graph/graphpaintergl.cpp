@@ -142,7 +142,7 @@ XQGraphPainter::beginLine(double size) {
 }
 void
 XQGraphPainter::endLine() {
-	glEnd();
+    glEnd();
     checkGLError(); 
 }
 
