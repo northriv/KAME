@@ -125,6 +125,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
             continue;
         }
         //The device has been successfully opened.
+        readDIPSW(handle);//this may end up in timeout.
         try {
             uint8_t sw = readDIPSW(handle);
             USBDevice dev;

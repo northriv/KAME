@@ -11,7 +11,7 @@
 #define THAMWAY_VID 0x547
 #define THAMWAY_PID 0x1002
 
-#define USB_TIMEOUT 3000
+#define USB_TIMEOUT 1000
 
 struct USBList {
     USBList() noexcept {
