@@ -149,7 +149,6 @@ int usb_dwnload(usb_handle *h, uint8_t *image, int len) {
     return 0;
 }
 int usb_bulk_write(usb_handle *h, int pipe, uint8_t* buf, int len) {
-    int transferred;
     int ep;
     switch(pipe) {
     case TFIFO:
@@ -162,10 +161,17 @@ int usb_bulk_write(usb_handle *h, int pipe, uint8_t* buf, int len) {
         return -1;
     }
 
-    int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_OUT | ep, buf, len, &transferred, USB_TIMEOUT);
-    if(ret) {
-        fprintf(stderr, "Error during USB Bulk writing: %s\n", libusb_error_name(ret));
-        return -1;
+    int cnt = 0;
+    for(int i = 0; len > 0;){
+        int transferred;
+        int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_OUT | ep, buf, len, &transferred, USB_TIMEOUT);
+        if(ret) {
+            fprintf(stderr, "Error during USB Bulk writing: %s\n", libusb_error_name(ret));
+            return -1;
+        }
+        buf += transferred;
+        len -= transferred;
+        cnt += transferred;
     }
     return 0;
 }
