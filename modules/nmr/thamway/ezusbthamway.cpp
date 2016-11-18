@@ -126,9 +126,9 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
         }
         //The device has been successfully opened.
         try {
-            readDIPSW(handle);//this may end up in timeout.
+            readDIPSW(handle);//Ugly huck for OSX. May end up in timeout.
         }
-        catch (XInterface::XInterfaceError &e) {
+        catch (XInterface::XInterfaceError &) {
         }
         try {
             uint8_t sw = readDIPSW(handle);
