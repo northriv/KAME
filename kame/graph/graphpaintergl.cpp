@@ -608,8 +608,8 @@ XQGraphPainter::paintGL () {
 #endif
     QPainter qpainter(m_pItem);
 
-    qpainter.setRenderHint(QPainter::Antialiasing);
-//        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
         drawOnScreenHelp(shot, &qpainter);
