@@ -614,7 +614,7 @@ XQGraphPainter::paintGL () {
         drawOnScreenHelp(shot, &qpainter);
         drawTextOverpaint(qpainter);
     }
-    qpainter.end();
+//    qpainter.end();
 }
 
 void
