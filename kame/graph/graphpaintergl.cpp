@@ -603,7 +603,6 @@ XQGraphPainter::paintGL () {
     glPopAttrib();
 
 #ifndef USE_QGLWIDGET
-    glEnd();
 //    qpainter.endNativePainting();
 #endif
     QPainter qpainter(m_pItem);
