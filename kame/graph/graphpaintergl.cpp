@@ -603,13 +603,12 @@ XQGraphPainter::paintGL () {
     glPopAttrib();
 
 #ifndef USE_QGLWIDGET
-    glEnd();
 //    qpainter.endNativePainting();
 #endif
     QPainter qpainter(m_pItem);
 
     qpainter.setRenderHint(QPainter::Antialiasing);
-//        qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
         drawOnScreenHelp(shot, &qpainter);
