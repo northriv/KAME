@@ -160,7 +160,6 @@ XQGraphPainter::endPoint() {
 void
 XQGraphPainter::beginQuad(bool ) {
 	glBegin(GL_QUADS);
-    checkGLError(); 
 }
 void
 XQGraphPainter::endQuad() {
