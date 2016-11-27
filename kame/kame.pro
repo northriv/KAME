@@ -300,6 +300,8 @@ macx {
     tsfiles.path = Contents/MacOS/
     QMAKE_BUNDLE_DATA += tsfiles
 
+    QMAKE_INFO_PLIST = ../Info.plist
+
 #    exists("/opt/local/include/libusb-1.0/libusb.h") {
     exists("../modules/nmr/thamway/fx2fw.bix") {
         ezusbfiles.path = Contents/Resources
