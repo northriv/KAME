@@ -273,8 +273,9 @@ int main(int argc, char *argv[]) {
 	}
 
 #ifdef __APPLE__
+    //Disables App Nap
     QProcess qproc;
-    qproc.start("defaults write <com.github.northriv.kame> LSAppNapIsDisabled -bool yes");
+    qproc.start("defaults write com.github.northriv.kame NSAppSleepDisabled -bool yes");
     qproc.waitForFinished();
 #endif
 
