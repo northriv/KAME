@@ -530,7 +530,7 @@ XQGraphPainter::paintGL () {
     double persist = shot[ *m_graph->persistence()];
     if(persist > 0) {
 	#define OFFSET 0.1
-		double tau = persist / (-log(OFFSET)) * 0.4;
+        double tau = persist / (-log(OFFSET)) * 0.4;
 		double scale = exp(-(time_started - m_updatedTime)/tau);
 		double offset = -OFFSET*(1.0-scale);
 		bool update = (time_started - m_modifiedTime) < persist; 
@@ -553,7 +553,8 @@ XQGraphPainter::paintGL () {
 			}
 		}
 		else {
-			m_lastFrame.resize(m_pItem->width() * m_pItem->height() * 4);
+            m_lastFrame.resize(
+                m_pItem->width() * m_pixel_ratio * m_pItem->height() * m_pixel_ratio * 4);
 			if(update) {
 				glPixelTransferf(GL_ALPHA_SCALE, scale);
 			    checkGLError(); 
@@ -561,7 +562,8 @@ XQGraphPainter::paintGL () {
 			    checkGLError(); 
 				glRasterPos2i(0,0);
 			    checkGLError(); 
-				glDrawPixels((GLint)m_pItem->width(), (GLint)m_pItem->height(), 
+                glDrawPixels((GLint)m_pItem->width() * m_pixel_ratio,
+                             (GLint)m_pItem->height() * m_pixel_ratio,
 							 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
 			    checkGLError(); 
 				glPixelTransferf(GL_ALPHA_SCALE, 1.0);
@@ -569,7 +571,8 @@ XQGraphPainter::paintGL () {
 				glPixelTransferf(GL_ALPHA_BIAS, 0.0);
 			    checkGLError(); 
 			}
-			glReadPixels(0, 0, (GLint)m_pItem->width(), (GLint)m_pItem->height(),
+            glReadPixels(0, 0, (GLint)m_pItem->width() * m_pixel_ratio,
+                         (GLint)m_pItem->height() * m_pixel_ratio,
 						 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
 		    checkGLError();     
 		}

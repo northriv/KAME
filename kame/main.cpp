@@ -47,6 +47,10 @@
     #include <ltdl.h>
 #endif
 
+#ifdef __APPLE__
+    #include <QProcess>
+#endif
+
 #include <gsl/gsl_errno.h>
 
 void
@@ -267,6 +271,12 @@ int main(int argc, char *argv[]) {
         }
 
 	}
+
+#ifdef __APPLE__
+    QProcess qproc;
+    qproc.start("defaults write <com.yourcompany.kame> LSAppNapIsDisabled -bool yes");
+    qproc.waitForFinished();
+#endif
 
     const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
     fprintf(stderr, "%s\n", greeting);
