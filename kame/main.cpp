@@ -274,7 +274,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef __APPLE__
     QProcess qproc;
-    qproc.start("defaults write <com.yourcompany.kame> LSAppNapIsDisabled -bool yes");
+    qproc.start("defaults write <com.github.northriv.kame> LSAppNapIsDisabled -bool yes");
     qproc.waitForFinished();
 #endif
 
