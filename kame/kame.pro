@@ -254,6 +254,14 @@ win32-msvc* {
 }
 
 macx {
+    HEADERS += \
+        support_osx.h
+
+    OBJECTIVE_SOURCES += \
+        support_osx.m
+
+    LIBS += -framework Foundation
+
     coremodulefiles.files += ../modules/charinterface/libcharinterface.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/dcsource/core/libdcsourcecore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/dmm/core/libdmmcore.$${QMAKE_EXTENSION_SHLIB}
@@ -311,5 +319,6 @@ macx {
         QMAKE_BUNDLE_DATA += ezusbfiles
     }
 }
+
 
 

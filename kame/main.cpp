@@ -48,7 +48,7 @@
 #endif
 
 #ifdef __APPLE__
-    #include <QProcess>
+    #include "support_osx.h"
 #endif
 
 #include <gsl/gsl_errno.h>
@@ -274,9 +274,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef __APPLE__
     //Disables App Nap
-    QProcess qproc;
-    qproc.start("defaults write com.github.northriv.kame NSAppSleepDisabled -bool yes");
-    qproc.waitForFinished();
+    suspendLazySleeps();
 #endif
 
     const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
