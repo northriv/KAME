@@ -1,3 +1,12 @@
+* Thu Jan 19 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.8-1)
+- Lakeshore 350 temp. controller
+
+* Fri Dec 9 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (4.2.7-1)
+- ezusb: works well in OSX
+- OSX: disables AppNap and machine sleep.
+
 * Fri Nov 11 2016 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.6-1)
 - Enables NI488.2, and USB interfaces for thamway instruments on OSX

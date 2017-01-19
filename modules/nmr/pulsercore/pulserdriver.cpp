@@ -795,29 +795,29 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 			for(int k = 0; k < comb_num__; k++) {
 				const uint32_t *comb = (conserve_ste_phase__) ?
 					 ((k % 2 == 0) ? ste_p1 : ste_p2) : comb_ste_cancel;
-				patterns.insert(tpat(cpos + comb_pw__/2, qpsk[comb[j]], qpskmask));
+                patterns_cheap.insert(tpat(cpos + comb_pw__/2, qpsk[comb[j]], qpskmask));
 				cpos += combpt;
 				cpos -= comb_pw__/2;
 				if(g2_each__ || (k == 0))
 					patterns_cheap.insert(tpat(cpos - g2_setup__, g2mask, g2mask));
-				patterns.insert(tpat(cpos, ~(uint32_t)0, g1mask));
-				patterns.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
+                patterns_cheap.insert(tpat(cpos, ~(uint32_t)0, g1mask));
+                patterns_cheap.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
 				cpos += comb_pw__;
-				patterns.insert(tpat(cpos, 0 , g1mask));
-				patterns.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
+                patterns_cheap.insert(tpat(cpos, 0 , g1mask));
+                patterns_cheap.insert(tpat(cpos, 0, PAT_QAM_PULSE_IDX_MASK));
 				if(g2_each__ || (k == comb_num__ - 1))
-					patterns.insert(tpat(cpos, 0, g2mask));
+                    patterns_cheap.insert(tpat(cpos, 0, g2mask));
 				if( !qsw_pi_only__) {
-					patterns.insert(tpat(cpos + qsw_delay__, ~(uint32_t)0 , qswmask));
-					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
-					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
-					patterns.insert(tpat(cpos + (qsw_delay__ + qsw_width__), 0 , qswmask));
+                    patterns_cheap.insert(tpat(cpos + qsw_delay__, ~(uint32_t)0 , qswmask));
+                    patterns_cheap.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
+                    patterns_cheap.insert(tpat(cpos + (qsw_delay__ + qsw_width__/2 + qsw_softswoff__/2), ~(uint32_t)0 , qswmask));
+                    patterns_cheap.insert(tpat(cpos + (qsw_delay__ + qsw_width__), 0 , qswmask));
 				}
 
 				cpos -= comb_pw__/2;
 			}
-			patterns.insert(tpat(cpos + comb_pw__/2, 0, combmask));
-			patterns.insert(tpat(cpos + comb_pw__/2, ~(uint32_t)0, combfmmask));
+            patterns_cheap.insert(tpat(cpos + comb_pw__/2, 0, combmask));
+            patterns_cheap.insert(tpat(cpos + comb_pw__/2, ~(uint32_t)0, combfmmask));
 		}   
 		pos += p1__;
        
@@ -898,7 +898,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		if(g2_kept_p1p2)
 			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
-		patterns.insert(tpat(pos + tau__ + asw_hold__, 0, aswmask | trig1mask));
+        patterns_cheap.insert(tpat(pos + tau__ + asw_hold__, 0, aswmask | trig1mask));
 		//induce emission
 		if(induce_emission__) {
 			patterns.insert(tpat(pos + tau__ + asw_hold__ - induce_emission___pw/2, ~(uint32_t)0, g3mask));
