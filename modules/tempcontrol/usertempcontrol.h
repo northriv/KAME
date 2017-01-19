@@ -284,7 +284,7 @@ class XLakeShoreBridge : public XCharDeviceDriver<XTempControl> {
 public:
     XLakeShoreBridge(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XLakeShoreBridge() {}
+    virtual ~XLakeShoreBridge() = default;
 };
 
 //! LakeShore 340
@@ -292,67 +292,55 @@ class XLakeShore340 : public XLakeShoreBridge {
 public:
     XLakeShore340(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XLakeShore340() {}
+    virtual ~XLakeShore340() = default;
 protected:
     //! reads sensor value from the instrument
-    virtual double getRaw(shared_ptr<XChannel> &channel);
+    virtual double getRaw(shared_ptr<XChannel> &channel) override;
     //! reads a value in Kelvin from the instrument
-    virtual double getTemp(shared_ptr<XChannel> &channel);
+    virtual double getTemp(shared_ptr<XChannel> &channel) override;
     //! obtains current heater power
     //! \sa m_heaterPowerUnit()
-    virtual double getHeater(unsigned int loop);
+    virtual double getHeater(unsigned int loop) override;
     //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
+    virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open() throw (XKameError &) override;
 
-    virtual void onPChanged(unsigned int loop, double p);
-    virtual void onIChanged(unsigned int loop, double i);
-    virtual void onDChanged(unsigned int loop, double d);
-    virtual void onTargetTempChanged(unsigned int loop, double temp);
-    virtual void onManualPowerChanged(unsigned int loop, double pow);
-    virtual void onHeaterModeChanged(unsigned int loop, int mode);
-    virtual void onPowerRangeChanged(unsigned int loop, int range);
-    virtual void onPowerMaxChanged(unsigned int loop, double v);
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
-    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+    virtual void onPChanged(unsigned int loop, double p) override;
+    virtual void onIChanged(unsigned int loop, double i) override;
+    virtual void onDChanged(unsigned int loop, double d) override;
+    virtual void onTargetTempChanged(unsigned int loop, double temp) override;
+    virtual void onManualPowerChanged(unsigned int loop, double pow) override;
+    virtual void onHeaterModeChanged(unsigned int loop, int mode) override;
+    virtual void onPowerRangeChanged(unsigned int loop, int range) override;
+    virtual void onPowerMaxChanged(unsigned int loop, double v) override;
+    virtual void onPowerMinChanged(unsigned int loop, double v) override {}
+    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
 
-    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
 private:
 };
-//! LakeShore 340
-class XLakeShore350 : public XLakeShoreBridge {
+//! LakeShore 350
+class XLakeShore350 : public XLakeShore340 {
 public:
     XLakeShore350(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XLakeShore350() {}
+    virtual ~XLakeShore350() = default;
 protected:
-    //! reads sensor value from the instrument
-    virtual double getRaw(shared_ptr<XChannel> &channel);
-    //! reads a value in Kelvin from the instrument
-    virtual double getTemp(shared_ptr<XChannel> &channel);
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open() throw (XKameError &) override;
+
     //! obtains current heater power
     //! \sa m_heaterPowerUnit()
-    virtual double getHeater(unsigned int loop);
-    //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
+    virtual double getHeater(unsigned int loop) override;
 
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
-
-    virtual void onPChanged(unsigned int loop, double p);
-    virtual void onIChanged(unsigned int loop, double i);
-    virtual void onDChanged(unsigned int loop, double d);
-    virtual void onTargetTempChanged(unsigned int loop, double temp);
-    virtual void onManualPowerChanged(unsigned int loop, double pow);
-    virtual void onHeaterModeChanged(unsigned int loop, int mode);
-    virtual void onPowerRangeChanged(unsigned int loop, int range);
-    virtual void onPowerMaxChanged(unsigned int loop, double v);
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
-    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
-
-    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onTargetTempChanged(unsigned int loop, double temp) override;
+    virtual void onManualPowerChanged(unsigned int loop, double pow) override;
+    virtual void onHeaterModeChanged(unsigned int loop, int mode) override;
+    virtual void onPowerRangeChanged(unsigned int loop, int range) override;
+    virtual void onPowerMaxChanged(unsigned int loop, double v) override;
+    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
 private:
 };
 //! LakeShore 370
@@ -360,34 +348,34 @@ class XLakeShore370 : public XLakeShoreBridge {
 public:
     XLakeShore370(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XLakeShore370() {}
+    virtual ~XLakeShore370() = default;
 
 protected:
     //! reads sensor value from the instrument
-    virtual double getRaw(shared_ptr<XChannel> &channel);
+    virtual double getRaw(shared_ptr<XChannel> &channel) override;
     //! reads a value in Kelvin from the instrument
-    virtual double getTemp(shared_ptr<XChannel> &channel);
+    virtual double getTemp(shared_ptr<XChannel> &channel) override;
     //! obtains current heater power
     //! \sa m_heaterPowerUnit()
-    virtual double getHeater(unsigned int loop);
+    virtual double getHeater(unsigned int loop) override;
     //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
+    virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open() throw (XKameError &) override;
 
-    virtual void onPChanged(unsigned int loop, double p);
-    virtual void onIChanged(unsigned int loop, double i);
-    virtual void onDChanged(unsigned int loop, double d);
-    virtual void onTargetTempChanged(unsigned int loop, double temp);
-    virtual void onManualPowerChanged(unsigned int loop, double pow);
-    virtual void onHeaterModeChanged(unsigned int loop, int mode);
-    virtual void onPowerRangeChanged(unsigned int loop, int range);
-    virtual void onPowerMaxChanged(unsigned int loop, double v) {}
-    virtual void onPowerMinChanged(unsigned int loop, double v) {}
-    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch);
+    virtual void onPChanged(unsigned int loop, double p) override;
+    virtual void onIChanged(unsigned int loop, double i) override;
+    virtual void onDChanged(unsigned int loop, double d) override;
+    virtual void onTargetTempChanged(unsigned int loop, double temp) override;
+    virtual void onManualPowerChanged(unsigned int loop, double pow) override;
+    virtual void onHeaterModeChanged(unsigned int loop, int mode) override;
+    virtual void onPowerRangeChanged(unsigned int loop, int range) override;
+    virtual void onPowerMaxChanged(unsigned int loop, double v) override {}
+    virtual void onPowerMinChanged(unsigned int loop, double v) override {}
+    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) override;
 
-    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc);
+    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) override;
 private:
 };
 

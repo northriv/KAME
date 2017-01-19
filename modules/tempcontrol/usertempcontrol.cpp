@@ -826,7 +826,7 @@ void XLakeShore340::open() throw (XKameError &) {
 
 XLakeShore350::XLakeShore350(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
+    XLakeShore340 (name, runtime, ref(tr_meas), meas) {
 
     createChannels(ref(tr_meas), meas, true,
         {"A", "B", "C", "D"},
@@ -834,29 +834,12 @@ XLakeShore350::XLakeShore350(const char *name, bool runtime,
         {"OUT1", "OUT2", "AOUT1", "AOUT2"});
 }
 
-double XLakeShore350::getRaw(shared_ptr<XChannel> &channel) {
-    interface()->query("SRDG? " + channel->getName());
-    return interface()->toDouble();
-}
-double XLakeShore350::getTemp(shared_ptr<XChannel> &channel) {
-    interface()->query("KRDG? " + channel->getName());
-    return interface()->toDouble();
-}
 double XLakeShore350::getHeater(unsigned int loop) {
     if(loop <= 1)
         interface()->queryf("HTR? %u", loop + 1);
     else
         interface()->queryf("AOUT? %u", loop + 1);
     return interface()->toDouble();
-}
-void XLakeShore350::onPChanged(unsigned int loop, double p) {
-    interface()->sendf("PID %u,%f", loop + 1, p);
-}
-void XLakeShore350::onIChanged(unsigned int loop, double i) {
-    interface()->sendf("PID %u,,%f", loop + 1, i);
-}
-void XLakeShore350::onDChanged(unsigned int loop, double d) {
-    interface()->sendf("PID %u,,,%f", loop + 1, d);
 }
 void XLakeShore350::onTargetTempChanged(unsigned int loop, double temp) {
     Snapshot shot( *this);
@@ -865,9 +848,6 @@ void XLakeShore350::onTargetTempChanged(unsigned int loop, double temp) {
         temp = thermo->getRawValue(temp);
     }
     interface()->sendf("SETP %u,%f", loop + 1, temp);
-}
-void XLakeShore350::onManualPowerChanged(unsigned int loop, double pow) {
-    interface()->sendf("MOUT %u,%f", loop + 1, pow);
 }
 void XLakeShore350::onPowerMaxChanged(unsigned int loop, double pow) {
     if(loop == 0)
@@ -878,16 +858,11 @@ void XLakeShore350::onHeaterModeChanged(unsigned int loop, int) {
     interface()->sendf("OUTMODE %u,%d", loop + 1, (unsigned int)shot[ *heaterMode(loop)]);
 }
 void XLakeShore350::onPowerRangeChanged(unsigned int loop, int ran) {
-    interface()->sendf("RANGE %d", ran);
+    interface()->sendf("RANGE %d,%d", loop + 1, ran);
 }
 void XLakeShore350::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
     int chno = ch->getName().c_str()[0] - 'A';
     interface()->sendf("OUTMODE %u,,%d", loop + 1, chno + 1);
-}
-void XLakeShore350::onExcitationChanged(const shared_ptr<XChannel> &, int) {
-    XScopedLock<XInterface> lock( *interface());
-    if( !interface()->isOpened())
-        return;
 }
 void XLakeShore350::open() throw (XKameError &) {
     Snapshot shot( *this);
@@ -922,14 +897,14 @@ void XLakeShore350::open() throw (XKameError &) {
             if(interface()->scanf("%d,%d", &mode, &srcch) != 1)
                 throw XInterface::XConvError(__FILE__, __LINE__);
             iterate_commit([=](Transaction &tr){
-                tr[ *currentChannel(idx)] = srcch - 1;
+                tr[ *currentChannel(idx)] = shot.list( channels())->at(srcch - 1);
                 tr[ *heaterMode(idx)].clear();
                 if(idx <= 1)
                     tr[ *heaterMode(idx)].add({"Off", "PID", "ZONE", "OpenLoop"});
                 else
                     tr[ *heaterMode(idx)].add({"Off", "PID", "ZONE", "OpenLoop", "MonOut", "WarmUp"});
 
-                tr[ *currentChannel(idx)] = mode;
+                tr[ *heaterMode(idx)] = mode;
 
                 if(idx == 0)
                     tr[ *powerMax(idx)] = max_curr_loop1;
