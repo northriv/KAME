@@ -666,11 +666,11 @@ XLakeShore340::XLakeShore340(const char *name, bool runtime,
         {"Loop1", "Loop2"});
 }
 
-double XLakeShore340::getRaw(shared_ptr<XChannel> &channel) {
+double XLakeShoreBridge::getRaw(shared_ptr<XChannel> &channel) {
 	interface()->query("SRDG? " + channel->getName());
 	return interface()->toDouble();
 }
-double XLakeShore340::getTemp(shared_ptr<XChannel> &channel) {
+double XLakeShoreBridge::getTemp(shared_ptr<XChannel> &channel) {
 	interface()->query("KRDG? " + channel->getName());
 	return interface()->toDouble();
 }
@@ -689,13 +689,13 @@ double XLakeShore340::getHeater(unsigned int loop) {
 	}
 	return interface()->toDouble();
 }
-void XLakeShore340::onPChanged(unsigned int loop, double p) {
+void XLakeShoreBridge::onPChanged(unsigned int loop, double p) {
 	interface()->sendf("PID %u,%f", loop + 1, p);
 }
-void XLakeShore340::onIChanged(unsigned int loop, double i) {
+void XLakeShoreBridge::onIChanged(unsigned int loop, double i) {
 	interface()->sendf("PID %u,,%f", loop + 1, i);
 }
-void XLakeShore340::onDChanged(unsigned int loop, double d) {
+void XLakeShoreBridge::onDChanged(unsigned int loop, double d) {
 	interface()->sendf("PID %u,,,%f", loop + 1, d);
 }
 void XLakeShore340::onTargetTempChanged(unsigned int loop, double temp) {
@@ -712,7 +712,7 @@ void XLakeShore340::onTargetTempChanged(unsigned int loop, double temp) {
 	}
 	interface()->sendf("SETP %u,%f", loop + 1, temp);
 }
-void XLakeShore340::onManualPowerChanged(unsigned int loop, double pow) {
+void XLakeShoreBridge::onManualPowerChanged(unsigned int loop, double pow) {
 	interface()->sendf("MOUT %u,%f", loop + 1, pow);
 }
 void XLakeShore340::onPowerMaxChanged(unsigned int loop, double pow) {
@@ -736,7 +736,7 @@ void XLakeShore340::onPowerRangeChanged(unsigned int loop, int ran) {
 void XLakeShore340::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
 	interface()->sendf("CSET %u,%s", loop + 1, (const char *) ch->getName().c_str());
 }
-void XLakeShore340::onExcitationChanged(const shared_ptr<XChannel> &, int) {
+void XLakeShoreBridge::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	XScopedLock<XInterface> lock( *interface());
 	if( !interface()->isOpened())
 		return;
@@ -826,12 +826,12 @@ void XLakeShore340::open() throw (XKameError &) {
 
 XLakeShore350::XLakeShore350(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XLakeShore340 (name, runtime, ref(tr_meas), meas) {
+    XLakeShoreBridge (name, runtime, ref(tr_meas), meas) {
 
     createChannels(ref(tr_meas), meas, true,
         {"A", "B", "C", "D"},
         {},
-        {"OUT1", "OUT2", "AOUT1", "AOUT2"});
+        {"OUT1", "OUT2"}); //, "AOUT1", "AOUT2" widgets are up to 2
 }
 
 double XLakeShore350::getHeater(unsigned int loop) {
