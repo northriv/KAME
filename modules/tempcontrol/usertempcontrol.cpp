@@ -894,7 +894,7 @@ void XLakeShore350::open() throw (XKameError &) {
         if( !hasExtDevice(shot, idx)) {
             interface()->queryf("OUTMODE? %u", idx + 1);
             int mode, srcch;
-            if(interface()->scanf("%d,%d", &mode, &srcch) != 1)
+            if(interface()->scanf("%d,%d", &mode, &srcch) != 2)
                 throw XInterface::XConvError(__FILE__, __LINE__);
             iterate_commit([=](Transaction &tr){
                 tr[ *currentChannel(idx)] = shot.list( channels())->at(srcch - 1);
