@@ -874,7 +874,7 @@ void XLakeShore350::open() throw (XKameError &) {
     res *= 25;
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
         if(idx != 0)
-            powerMax(0)->setUIEnabled(false);
+            powerMax(idx)->setUIEnabled(false);
 
         double maxcurr = 0.1; //100mA for OUTPUT2
         if(idx == 0)
