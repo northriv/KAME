@@ -876,16 +876,23 @@ void XLakeShore350::open() throw (XKameError &) {
         if(idx != 0)
             powerMax(0)->setUIEnabled(false);
 
-        double maxcurr = sqrt(1.0 / res);
+        double maxcurr = 0.1; //100mA for OUTPUT2
         if(idx == 0)
             maxcurr = pow(2.0, maxcurr_idx / 2.0) / 2.0;
+        else
+            res = 100.0;
         iterate_commit([=](Transaction &tr){
             tr[ *powerRange(idx)].clear();
             tr[ *powerRange(idx)].add("0");
             if(idx <= 1) {
                 for(int i = 1; i < 6; i++) {
-                    tr[ *powerRange(idx)].add(formatString("%.2g W", (double) pow(10.0, i - 5.0)
-                        * pow(maxcurr, 2.0) * res));
+                    double power = pow(10.0, i - 5.0) * pow(maxcurr, 2.0) * res;
+                    if(power < 0.9e-3)
+                        tr[ *powerRange(idx)].add(formatString("%.3g uW", power * 1e6));
+                    else if (power < 0.9)
+                        tr[ *powerRange(idx)].add(formatString("%.3g mW", power * 1e3));
+                    else
+                        tr[ *powerRange(idx)].add(formatString("%.3g W", power));
                 }
             }
             else
