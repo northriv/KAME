@@ -968,10 +968,10 @@ void XLakeShore370::onPChanged(unsigned int /*loop*/, double p) {
 	interface()->sendf("PID %f", p);
 }
 void XLakeShore370::onIChanged(unsigned int /*loop*/, double i) {
-	interface()->sendf("PID ,,%f", i);
+    interface()->sendf("PID ,%f", i);
 }
 void XLakeShore370::onDChanged(unsigned int /*loop*/, double d) {
-	interface()->sendf("PID ,,,%f", d);
+    interface()->sendf("PID ,,%f", d);
 }
 void XLakeShore370::onTargetTempChanged(unsigned int /*loop*/, double temp) {
 	Snapshot shot( *this);
