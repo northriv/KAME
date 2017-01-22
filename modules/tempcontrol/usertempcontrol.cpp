@@ -831,7 +831,7 @@ XLakeShore350::XLakeShore350(const char *name, bool runtime,
     createChannels(ref(tr_meas), meas, true,
         {"A", "B", "C", "D"},
         {},
-        {"OUT1", "OUT2"}); //, "AOUT1", "AOUT2" widgets are up to 2
+        {"OUTPUT1", "OUTPUT2", "AOUT1", "AOUT2"});
 }
 
 double XLakeShore350::getHeater(unsigned int loop) {

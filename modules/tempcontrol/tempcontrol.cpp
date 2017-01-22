@@ -106,15 +106,15 @@ XTempControl::Loop::start() {
 	m_lasttime = XTime::now();
 
     iterate_commit([=](Transaction &tr){
-		m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
-		m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
-		m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
-		m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onTargetTempChanged);
-		m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onManualPowerChanged);
-		m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onHeaterModeChanged);
-		m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPowerRangeChanged);
-		m_lsnOnCurrentChannelChanged
-			= tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onCurrentChannelChanged);
+        m_lsnOnPChanged = tr[ *m_prop].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPChanged);
+        m_lsnOnIChanged = tr[ *m_int].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onIChanged);
+        m_lsnOnDChanged = tr[ *m_deriv].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onDChanged);
+        m_lsnOnTargetTempChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onTargetTempChanged);
+        m_lsnOnManualPowerChanged = tr[ *m_manualPower].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onManualPowerChanged);
+        m_lsnOnHeaterModeChanged = tr[ *m_heaterMode].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onHeaterModeChanged);
+        m_lsnOnPowerRangeChanged = tr[ *m_powerRange].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onPowerRangeChanged);
+        m_lsnOnCurrentChannelChanged
+            = tr[ *m_currentChannel].onValueChanged().connectWeakly(shared_from_this(), &XTempControl::Loop::onCurrentChannelChanged);
     });
 }
 void
@@ -499,63 +499,122 @@ void XTempControl::createChannels(
 		m_loops.push_back(p);
         num_of_loops++;
     }
-	if(num_of_loops > 1) {
-		auto lp = loop(1);
-        lp->m_conUIs = {
-            xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
-                m_form->m_cmbSourceChannel2, Snapshot( *m_channels)),
-            xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
-                m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange)),
-            xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
-                m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode)),
-            xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2),
-            xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2),
-            xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2),
-            xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater2),
-            xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax2),
-            xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin2),
-            xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp2),
-            xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater2),
-            xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp2),
-            xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice2, ref(tr_meas)),
-            xqcon_create<XQComboBoxConnector> (
-                lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel)),
-            xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive2)
-        };
 
-	}
-	else {
-		m_form->m_toolBox->removeItem(1);
-		m_form->m_pageLoop2->hide();
-	}
-	if(num_of_loops) {
-		auto lp = loop(0);
-        lp->m_conUIs = {
-            xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
-                m_form->m_cmbSourceChannel, Snapshot( *m_channels)),
-            xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
-                m_form->m_cmbPowerRange, Snapshot( *lp->m_powerRange)),
-            xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
-                m_form->m_cmbHeaterMode, Snapshot( *lp->m_heaterMode)),
-            xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP),
-            xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI),
-            xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD),
-            xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater),
-            xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax),
-            xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin),
-            xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp),
-            xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater),
-            xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp),
-            xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice, ref(tr_meas)),
-            xqcon_create<XQComboBoxConnector> (
-                lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel)),
-            xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive)
+    for(int idx = 0; idx < num_of_loops; ++idx) {
+        auto lp = loop(idx);
+        switch(idx) {
+        case 0:
+            lp->m_conUIs = {
+                xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+                    m_form->m_cmbSourceChannel, Snapshot( *m_channels)),
+                xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+                    m_form->m_cmbPowerRange, Snapshot( *lp->m_powerRange)),
+                xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+                    m_form->m_cmbHeaterMode, Snapshot( *lp->m_heaterMode)),
+                xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP),
+                xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI),
+                xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD),
+                xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin),
+                xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp),
+                xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater),
+                xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp),
+                xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice, ref(tr_meas)),
+                xqcon_create<XQComboBoxConnector> (
+                    lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh, Snapshot( *lp->m_extDCSourceChannel)),
+                xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive)
+            };
+            break;
+        case 1:
+            lp->m_conUIs = {
+                xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+                    m_form->m_cmbSourceChannel2, Snapshot( *m_channels)),
+                xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+                    m_form->m_cmbPowerRange2, Snapshot( *lp->m_powerRange)),
+                xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+                    m_form->m_cmbHeaterMode2, Snapshot( *lp->m_heaterMode)),
+                xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP2),
+                xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI2),
+                xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD2),
+                xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater2),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax2),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin2),
+                xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp2),
+                xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater2),
+                xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp2),
+                xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice2, ref(tr_meas)),
+                xqcon_create<XQComboBoxConnector> (
+                    lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh2, Snapshot( *lp->m_extDCSourceChannel)),
+                xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive2)
+            };
+            break;
+        case 2:
+            lp->m_conUIs = {
+                xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+                    m_form->m_cmbSourceChannel3, Snapshot( *m_channels)),
+                xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+                    m_form->m_cmbPowerRange3, Snapshot( *lp->m_powerRange)),
+                xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+                    m_form->m_cmbHeaterMode3, Snapshot( *lp->m_heaterMode)),
+                xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP3),
+                xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI3),
+                xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD3),
+                xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater3),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax3),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin3),
+                xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp3),
+                xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater3),
+                xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp3),
+                xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice3, ref(tr_meas)),
+                xqcon_create<XQComboBoxConnector> (
+                    lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh3, Snapshot( *lp->m_extDCSourceChannel)),
+                xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive3)
+            };
+            break;
+        case 3:
+            lp->m_conUIs = {
+                xqcon_create<XQComboBoxConnector> (lp->m_currentChannel,
+                    m_form->m_cmbSourceChannel4, Snapshot( *m_channels)),
+                xqcon_create<XQComboBoxConnector> (lp->m_powerRange,
+                    m_form->m_cmbPowerRange4, Snapshot( *lp->m_powerRange)),
+                xqcon_create<XQComboBoxConnector> (lp->m_heaterMode,
+                    m_form->m_cmbHeaterMode4, Snapshot( *lp->m_heaterMode)),
+                xqcon_create<XQLineEditConnector> (lp->m_prop, m_form->m_edP4),
+                xqcon_create<XQLineEditConnector> (lp->m_int, m_form->m_edI4),
+                xqcon_create<XQLineEditConnector> (lp->m_deriv, m_form->m_edD4),
+                xqcon_create<XQLineEditConnector> (lp->m_manualPower, m_form->m_edManHeater4),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMax, m_form->m_edPowerMax4),
+                xqcon_create<XQLineEditConnector> (lp->m_powerMin, m_form->m_edPowerMin4),
+                xqcon_create<XQLineEditConnector> (lp->m_targetTemp, m_form->m_edTargetTemp4),
+                xqcon_create<XQLCDNumberConnector> (lp->m_heaterPower, m_form->m_lcdHeater4),
+                xqcon_create<XQLCDNumberConnector> (lp->m_sourceTemp, m_form->m_lcdSourceTemp4),
+                xqcon_create<XQComboBoxConnector> (lp->m_extDevice, m_form->m_cmbExtDevice4, ref(tr_meas)),
+                xqcon_create<XQComboBoxConnector> (
+                    lp->m_extDCSourceChannel, m_form->m_cmbExtDCSrcCh4, Snapshot( *lp->m_extDCSourceChannel)),
+                xqcon_create<XQToggleButtonConnector>( lp->m_extIsPositive, m_form->m_ckbExtIsPositive4)
+            };
+            break;
+        default:
+            break;
         };
-	}
-	else {
-		m_form->m_toolBox->removeItem(0);
-		m_form->m_pageLoop1->hide();
-	}
+    }
+    if(num_of_loops < 4) {
+        m_form->m_toolBox->removeItem(3);
+        m_form->m_pageLoop4->hide();
+    }
+    if(num_of_loops < 3) {
+        m_form->m_toolBox->removeItem(2);
+        m_form->m_pageLoop3->hide();
+    }
+    if(num_of_loops < 2) {
+        m_form->m_toolBox->removeItem(1);
+        m_form->m_pageLoop2->hide();
+    }
+    if(num_of_loops < 1) {
+        m_form->m_toolBox->removeItem(0);
+        m_form->m_pageLoop1->hide();
+    }
 }
 
 void *
