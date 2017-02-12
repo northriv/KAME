@@ -24,7 +24,7 @@ class XThamwayPulser : public XPulser {
 public:
 	XThamwayPulser(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XThamwayPulser() {}
+    virtual ~XThamwayPulser() = default;
 
 	struct Payload : public XPulser::Payload {
     private:
@@ -35,25 +35,18 @@ public:
 			uint32_t term_n_cmd;
 			uint32_t data;
 		};
-		std::deque<Pulse> m_patterns;
-	};
+        std::vector<Pulse> m_patterns;
+    };
 
 	//! time resolution [ms]
-    virtual double resolution() const;
+    virtual double resolution() const override;
 protected:
-    virtual void open() throw (XKameError &) = 0;
-    //! Sends patterns to pulser or turns off.
-    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) = 0;
-
     virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) = 0;
 
     //! Converts RelPatList to native patterns
-    virtual void createNativePatterns(Transaction &tr);
-    virtual double resolutionQAM() const {return 0.0;}
+    virtual void createNativePatterns(Transaction &tr) override;
     //! minimum period of pulses [ms]
-    virtual double minPulseWidth() const;
-    //! existense of AO ports.
-    virtual bool hasQAMPorts() const {return false;}
+    virtual double minPulseWidth() const override;
 private:
 	//! Add 1 pulse pattern
 	//! \param term a period of the pattern to appear
@@ -61,13 +54,20 @@ private:
 	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
 };
 
-#if defined USE_EZUSB
+#if defined USE_THAMWAY_USB
     #include "ezusbthamway.h"
     class XThamwayPGCUSBInterface : public XFX2FWUSBInterface {
     public:
         XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
             : XFX2FWUSBInterface(name, runtime, driver, 0, "PG32") {}
-        virtual ~XThamwayPGCUSBInterface() {}
+        virtual ~XThamwayPGCUSBInterface() = default;
+    };
+    #define ADDR_OFFSET_PGQAM 0x60
+    class XThamwayPGQAMCUSBInterface : public XFX2FWUSBInterface {
+    public:
+        XThamwayPGQAMCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
+            : XFX2FWUSBInterface(name, runtime, driver, ADDR_OFFSET_PGQAM, "PG027QAM") {}
+        virtual ~XThamwayPGQAMCUSBInterface() {}
     };
 
     class XThamwayUSBPulser : public XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface> {
@@ -75,13 +75,38 @@ private:
         XThamwayUSBPulser(const char *name, bool runtime,
             Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
             XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
-        virtual ~XThamwayUSBPulser() {}
+        virtual ~XThamwayUSBPulser() = default;
     protected:
-        virtual void open() throw (XKameError &);
+        virtual void open() throw (XKameError &) override;
         //! Sends patterns to pulser or turns off.
-        virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+        virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) override;
 
-        virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L);
+        virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) override;
+
+        static constexpr uint32_t QAM_PERIOD = 10; //40ns * 10
+
+        virtual double resolutionQAM() const override {return 0.0;}
+        //! existense of AO ports.
+        virtual bool hasQAMPorts() const override {return !!interfaceQAM();}
+
+        virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const {return nullptr;}
+    private:
+    };
+
+    class XThamwayUSBPulserWithQAM : public XThamwayUSBPulser {
+    public:
+        XThamwayUSBPulserWithQAM(const char *name, bool runtime,
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        virtual ~XThamwayUSBPulserWithQAM() = default;
+    protected:
+        virtual void open() throw (XKameError &) override;
+        virtual void close() throw (XKameError &) override;
+
+        virtual double resolutionQAM() const override {return resolution() * QAM_PERIOD;}
+
+        virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const override {return m_interfaceQAM;}
+    private:
+        const shared_ptr<XThamwayPGQAMCUSBInterface> m_interfaceQAM;
     };
 #endif
 class XThamwayCharPulser : public XCharDeviceDriver<XThamwayPulser>  {
@@ -89,11 +114,15 @@ public:
     XThamwayCharPulser(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
         XCharDeviceDriver<XThamwayPulser>(name, runtime, ref(tr_meas), meas) {}
-    virtual ~XThamwayCharPulser() {}
+    virtual ~XThamwayCharPulser() = default;
 protected:
-    virtual void open() throw (XKameError &);
+    virtual void open() throw (XKameError &) override;
     //! Sends patterns to pulser or turns off.
-    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern);
+    virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) override;
 
-    virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L);
+    virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) override;
+
+    virtual double resolutionQAM() const override {return 0.0;}
+    //! existense of AO ports.
+    virtual bool hasQAMPorts() const override {return false;}
 };

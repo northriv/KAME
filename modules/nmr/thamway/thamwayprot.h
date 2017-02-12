@@ -100,7 +100,7 @@ public:
     virtual ~XThamwayCharPROT() {}
 };
 
-#ifdef USE_EZUSB
+#ifdef USE_THAMWAY_USB
     #include "ezusbthamway.h"
     class XThamwayMODCUSBInterface : public XFX2FWUSBInterface {
     public:

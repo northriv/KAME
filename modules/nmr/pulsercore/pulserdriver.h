@@ -158,7 +158,7 @@ public:
 	    //! Patterns.
 	    RelPatList m_relPatList;
 		std::vector<std::complex<double> >
-			m_qamWaveForm[XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX];
+            m_qamWaveForm[XPulser::PAT_QAM_PULSE_IDX_MASK / XPulser::PAT_QAM_PULSE_IDX];
 	};
 	
 	const shared_ptr<XBoolNode> &output() const {return m_output;}

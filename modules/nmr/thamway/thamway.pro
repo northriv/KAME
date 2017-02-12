@@ -27,8 +27,8 @@ win32: {
         ezusbthamway.cpp\
         thamwaydso.cpp
 
-    DEFINES += USE_EZUSB
-    DEFINES += USE_EZUSB_FX2FW
+    DEFINES += USE_THAMWAY_USB
+    DEFINES += USE_THAMWAY_USB_FX2FW
 }
 
 unix {
@@ -44,9 +44,9 @@ unix {
             ezusbthamway.cpp\
             thamwaydso.cpp
 
-        DEFINES += USE_EZUSB
-        DEFINES += USE_EZUSB_CYUSB
-        macx: DEFINES += KAME_EZUSB_DIR=\"quotedefined(Contents/Resources/)\"
+        DEFINES += USE_THAMWAY_USB
+        DEFINES += USE_THAMWAY_USB_LIBUSB
+        macx: DEFINES += KAME_THAMWAY_USB_DIR=\"quotedefined(Contents/Resources/)\"
     }
     else {
         message("Missing library for libusb-1.0")

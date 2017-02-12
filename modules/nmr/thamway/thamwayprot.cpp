@@ -19,7 +19,7 @@
 
 REGISTER_TYPE(XDriverList, ThamwayT300ImpedanceAnalyzer, "Thamway T300-1049A Impedance Analyzer");
 REGISTER_TYPE(XDriverList, ThamwayCharPROT, "Thamway PROT NMR.EXE TCP/IP Control");
-#ifdef USE_EZUSB
+#ifdef USE_THAMWAY_USB
     REGISTER_TYPE(XDriverList, ThamwayUSBPROT, "Thamway PROT NMR USB Control");
     XThamwayUSBPROT::XThamwayUSBPROT(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayPROT<XThamwayMODCUSBInterface>(name, runtime, ref(tr_meas), meas) {
@@ -203,7 +203,7 @@ XThamwayPROT<tInterface>::onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase 
 }
 
 template class XThamwayPROT<class XCharInterface>;
-#ifdef USE_EZUSB
+#ifdef USE_THAMWAY_USB
     template class XThamwayPROT<class XThamwayMODCUSBInterface>;
 #endif
 

@@ -20,21 +20,21 @@
 
 #define CUSB_BULK_WRITE_SIZE 40000
 
-#ifdef USE_EZUSB_FX2FW
+#ifdef USE_THAMWAY_USB_FX2FW
     #define NOMINMAX
     #include <windows.h>
     extern "C" {
         #include "cusb.h"
     }
-    #define KAME_EZUSB_DIR ""
+    #define KAME_THAMWAY_USB_DIR ""
     inline int cusblib_initialize(uint8_t *fw, signed char *str1, signed char *str2) {return 8;}
     inline void cusblib_finalize() {}
     using usb_handle = HANDLE;
 #endif
-#ifdef USE_EZUSB_CYUSB
+#ifdef USE_THAMWAY_USB_LIBUSB
     #include "libusb2cusb.h"
 #endif
-#ifdef USE_EZUSB
+#ifdef USE_THAMWAY_USB
     extern "C" {
         #include "fx2fw.h"
     }
@@ -71,7 +71,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
             //For macosx application bundle.
             dir.cdUp();
     #endif
-            QString path2 = KAME_EZUSB_DIR;
+            QString path2 = KAME_THAMWAY_USB_DIR;
             path2 += filename;
             dir.filePath(path2);
             if(dir.exists())
@@ -207,7 +207,7 @@ XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const sha
                 XString idn;
                 if(strlen(id)) {
                     //for PG and DV series.
-                    idn = getIDN(it->handle, 7);
+                    idn = getIDN(it->handle, 8);
                     if( !idn.length()) continue;
                 }
                 else {
@@ -216,7 +216,7 @@ XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const sha
                     idn = "PROT";
                 }
                 idn = formatString("%d:%s", it->addr, idn.c_str());
-                tr[ *device()].add(idn);
+                tr[ *device()].add(idn); //inserts ID name, that found with the specific address, into the list.
             }
         });
     }

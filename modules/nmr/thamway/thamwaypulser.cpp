@@ -14,8 +14,9 @@
 #include "thamwaypulser.h"
 #include "charinterface.h"
 
-#if defined USE_EZUSB
+#if defined USE_THAMWAY_USB
     REGISTER_TYPE(XDriverList, ThamwayUSBPulser, "NMR pulser Thamway N210-1026 PG32U40(USB)");
+    REGISTER_TYPE(XDriverList, ThamwayUSBPulserWithQAM, "NMR pulser Thamway N210-1026 PG027QAM(USB)");
 #endif
 REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
@@ -41,6 +42,11 @@ REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (
 #define CMD_JP 0xff20uL
 #define CMD_INT 0xff10uL
 
+#define QAM_ADDR_REG_ADDR_L 0x00
+#define QAM_ADDR_REG_ADDR_H 0x02
+#define QAM_ADDR_REG_CTRL 0x0d
+#define QAM_ADDR_REG_DATA_LSW 0x08
+#define QAM_ADDR_REG_REP_N 0x0a
 
 double XThamwayPulser::resolution() const {
 	return TIMER_PERIOD;
@@ -148,7 +154,37 @@ XThamwayCharPulser::open() throw (XKameError &) {
     this->start();
 }
 
-#if defined USE_EZUSB
+#if defined USE_THAMWAY_USB
+
+XThamwayUSBPulserWithQAM::XThamwayUSBPulserWithQAM(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XThamwayUSBPulser(name, runtime, ref(tr_meas), meas),
+    m_interfaceQAM(XNode::create<XThamwayPGQAMCUSBInterface>("SubInterface", false,
+                                                dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+    meas->interfaces()->insert(tr_meas, m_interfaceQAM);
+    m_interfaceQAM->control()->setUIEnabled(false);
+}
+
+
+void
+XThamwayUSBPulser::open() throw (XKameError &) {
+    XString idn = this->interface()->getIDN();
+    fprintf(stderr, "PG IDN=%s\n", idn.c_str());
+    this->start();
+}
+
+void
+XThamwayUSBPulserWithQAM::open() throw (XKameError &) {
+    interfaceQAM()->start();
+    if(!interfaceQAM()->isOpened())
+        throw XInterface::XInterfaceError(i18n("QAM device cannot be configured."), __FILE__, __LINE__);
+
+    XThamwayUSBPulser::open();
+}
+void
+XThamwayUSBPulserWithQAM::close() throw (XKameError &) {
+    interfaceQAM()->stop();
+    XThamwayUSBPulser::close();
+}
 
 void
 XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
@@ -164,20 +200,59 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     this->interface()->writeToRegister8(ADDR_REG_MODE, 0); //direct output off.
     this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
     this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+    int addr = 0;
+    if(hasQAMPorts()) {
+        this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
+        this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
+    }
     if(output) {
-        if(shot[ *this].m_patterns.size() >= MAX_PATTERN_SIZE) {
-            throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
-        }
         this->interface()->deferWritings();
-        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
-            this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, it->term_n_cmd % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, it->term_n_cmd / 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, it->data % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, it->data / 0x10000uL);
-            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
-        }
-        this->interface()->bulkWriteStored();
+        if(hasQAMPorts()) this->interfaceQAM()->deferWritings();
 
+        //lambda for one pulse
+        auto addPulse = [&](uint32_t term, uint32_t data, uint16_t iq) {
+            this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, term % 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, term / 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, data % 0x10000uL);
+            this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, data / 0x10000uL);
+            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
+            if(hasQAMPorts()) {
+                this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
+                this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
+            }
+            addr += 2;
+            if(addr >= MAX_PATTERN_SIZE) {
+                throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+            }
+        };
+        //lambda to determine IQ levels
+        auto qamIQ = [&](const std::complex<double> &c) -> uint16_t {
+            auto offset = std::complex<double>{ shot[ *qamOffset1()], shot[ *qamOffset2()]};
+            auto z = 127.0 * (c  + offset);
+            if(std::abs(z) > 127) z /= std::abs(z) / 127;
+            return 256 * lrint(std::real(z * (double)shot[ *qamLevel1()])) + lrint(std::imag(z * (double)shot[ *qamLevel2()])); //I * 256 + Q, abs(z) <= 127.
+        };
+        auto qam0 = qamIQ(0.0); //zero levels
+
+        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
+            unsigned int pnum = (it->data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
+            if( !hasQAMPorts() || (pnum == 0)) {
+                addPulse(it->term_n_cmd, it->data, qam0);
+            }
+            else {
+                unsigned int phase = (it->data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
+                auto z = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
+                auto &wave = shot[ *this].qamWaveForm(pnum);
+                int idx = 0;
+                for(int64_t t = it->term_n_cmd; t > 0; t -= QAM_PERIOD) {
+                    uint16_t iq = qamIQ(z * wave[idx]);
+                    addPulse(std::min((uint32_t)t, QAM_PERIOD), it->data, iq);
+                    idx++;
+                }
+            }
+        }
+
+        this->interface()->bulkWriteStored();
         this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
         this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
@@ -186,6 +261,11 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
 //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
         this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
+
+        if(hasQAMPorts()) {
+            this->interfaceQAM()->bulkWriteStored();
+            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
+        }
     }
 }
 
@@ -200,11 +280,5 @@ XThamwayUSBPulser::getStatus(bool *running, bool *extclk_det) {
     this->interface()->writeToRegister8(ADDR_REG_STS, 0);
 }
 
-void
-XThamwayUSBPulser::open() throw (XKameError &) {
-    XString idn = this->interface()->getIDN();
-    fprintf(stderr, "PG IDN=%s\n", idn.c_str());
-    this->start();
-}
 
-#endif //USE_EZUSB
+#endif //USE_THAMWAY_USB
