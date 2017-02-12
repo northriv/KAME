@@ -105,7 +105,7 @@ public:
     void unregister(const shared_ptr<SoftwareTrigger> &);
 
     using SoftwareTriggerList = std::deque<shared_ptr<SoftwareTrigger>>;
-    local_shared_ptr<SoftwareTriggerList> list() const {return m_list;}
+    const local_shared_ptr<SoftwareTriggerList> list() const {return m_list;}
     //! for changing list.
     using STRGTalker = Transactional::Talker<shared_ptr<SoftwareTrigger>>;
     STRGTalker &onListChanged() {return m_tlkListChanged;}

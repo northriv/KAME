@@ -78,6 +78,7 @@ private:
     float64 m_coeffAI[4][CAL_POLY_ORDER];
 	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
 	struct DSORawRecord {
+        DSORawRecord() { locked = false;}
 		unsigned int numCh;
 		unsigned int accumCount;
 		unsigned int recordLength;
