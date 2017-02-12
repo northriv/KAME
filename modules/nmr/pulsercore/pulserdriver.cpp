@@ -1175,11 +1175,13 @@ XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
         m_lsnOnTriggerRequested.reset();
-        m_totalSampsOfFreeRun = 0;
-        m_lastIdxFreeRun = 0;
-        m_lastPatFreeRun = blankpattern;
-        m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
-            shared_from_this(), &XPulser::onTriggerRequested);
+        if(hasSoftwareTrigger()) {
+            m_totalSampsOfFreeRun = 0;
+            m_lastIdxFreeRun = 0;
+            m_lastPatFreeRun = blankpattern;
+            m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
+                shared_from_this(), &XPulser::onTriggerRequested);
+        }
 		changeOutput(shot, shot[ *output()], blankpattern);
 	}
 	catch (XKameError &e) {

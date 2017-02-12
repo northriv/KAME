@@ -480,6 +480,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_genTotalSamps = 0;
 
 	const unsigned int cnt_prezeros = 1000;
+    setPrefillingSampsForFreeRun(cnt_prezeros);
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
 	//prefilling of the buffers.
