@@ -98,7 +98,6 @@ private:
 	GenPatternIterator m_genLastPatIt;
 
 	unsigned int m_genAOIndex; //!< Preserved index for \a m_genPulseWaveAO[], \sa fillBuffer().
-    shared_ptr<SoftwareTrigger> m_softwareTrigger;
 	unsigned int m_pausingBit; //!< Pausing bit triggers counter that stops DO/AO for a certain period.
 	unsigned int m_aswBit;
 	unsigned int m_pausingCount;

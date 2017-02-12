@@ -18,6 +18,7 @@
 #include "primarydriver.h"
 #include "xitemnode.h"
 #include "xnodeconnector.h"
+#include "softtrigger.h"
 #include <complex>
 #include "fft.h"
 
@@ -259,6 +260,11 @@ protected:
     virtual double minPulseWidth() const = 0;
     //! existence of AO ports.
     virtual bool hasQAMPorts() const = 0;
+
+    bool hasSoftwareTrigger() const {return !!softwareTrigger();}
+    shared_ptr<SoftwareTrigger> softwareTrigger() const {return m_softwareTrigger;}
+    //! \sa SoftwareTriggerManager::create()
+    shared_ptr<SoftwareTrigger> m_softwareTrigger;
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -335,6 +341,13 @@ private:
 	inline uint64_t rintSampsMilliSec(double ms) const;
 
 	void changeUIStatus(bool nmrmode, bool state);
+
+    //! \sa SoftwareTrigger::onTriggerRequested()
+    void onTriggerRequested(uint64_t threshold);
+    shared_ptr<Listener> m_lsnOnTriggerRequested;
+    int m_lastIdxFreeRun;
+    uint32_t m_lastPatFreeRun;
+    uint64_t m_totalSampsOfFreeRun;
 };
 
 inline double

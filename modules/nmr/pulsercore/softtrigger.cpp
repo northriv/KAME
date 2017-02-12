@@ -136,7 +136,7 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         XScopedLock<XMutex> lock(m_mutex);
         if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
             if((cnt < m_slowQueue.front()) || !m_slowQueueSize) {
-                cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
+                cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
                 if(cnt >= threshold)
                     return 0uLL;
                 if(m_fastQueue.atomicPop(t))
@@ -147,15 +147,19 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         if( !m_slowQueueSize)
             return 0uLL;
         cnt = m_slowQueue.front();
-        cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
+        cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
         if(cnt >= threshold)
             return 0uLL;
         m_slowQueue.pop_front();
         --m_slowQueueSize;
         return cnt;
     }
+    if(m_fastQueue.empty()) {
+        //requests a new stamp
+        onTriggerRequested().talk((threshold / (freq_rc / gcd__)) / (freq_em / gcd__));
+    }
     if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
-        cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
+        cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
         if(cnt >= threshold)
             return 0uLL;
         if(m_fastQueue.atomicPop(t))

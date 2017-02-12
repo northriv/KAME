@@ -357,7 +357,8 @@ XPulser::start() {
 }
 void
 XPulser::stop() {
-	m_lsnOnPulseChanged.reset();
+    m_lsnOnTriggerRequested.reset();
+    m_lsnOnPulseChanged.reset();
   
 	changeUIStatus(true, false);
 	pulseAnalyzerMode()->setUIEnabled(false);
@@ -416,6 +417,26 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(uienable);
     });
+}
+void
+XPulser::onTriggerRequested(uint64_t threshold) {
+    const Snapshot shot( *this);
+    auto patlist = shot[ *this].relPatList();
+    int idx = m_lastIdxFreeRun;
+    uint32_t oldpat = m_lastPatFreeRun;
+    if(idx >= patlist.size()) return;
+    auto vt = softwareTrigger();
+    while(m_totalSampsOfFreeRun < threshold) {
+        auto &pat = patlist[idx++];
+        if(idx >= patlist.size()) idx = 0;
+        m_totalSampsOfFreeRun += pat.toappear;
+        uint32_t newpat = pat.pattern;
+        bool ret = vt->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
+        oldpat = newpat;
+        if(ret) break;
+    }
+    m_lastIdxFreeRun = idx;
+    m_lastPatFreeRun = oldpat;
 }
 
 void
@@ -1153,6 +1174,12 @@ void
 XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
+        m_lsnOnTriggerRequested.reset();
+        m_totalSampsOfFreeRun = 0;
+        m_lastIdxFreeRun = 0;
+        m_lastPatFreeRun = blankpattern;
+        m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
+            shared_from_this(), &XPulser::onTriggerRequested);
 		changeOutput(shot, shot[ *output()], blankpattern);
 	}
 	catch (XKameError &e) {

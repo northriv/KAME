@@ -79,7 +79,7 @@ private:
 	inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
 	struct DSORawRecord {
         DSORawRecord() { locked = false;}
-		unsigned int numCh;
+        unsigned int numCh;
 		unsigned int accumCount;
 		unsigned int recordLength;
 		int acqCount;
@@ -95,7 +95,7 @@ private:
             locked = false;
 		}
 	};
-	DSORawRecord m_dsoRawRecordBanks[2];
+    DSORawRecord m_dsoRawRecordBanks[2];
 	int m_dsoRawRecordBankLatest;
 	//! for moving av.
 	std::deque<std::vector<tRawAI> > m_record_av; 

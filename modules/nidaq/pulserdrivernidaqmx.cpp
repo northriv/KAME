@@ -949,7 +949,7 @@ XNIDAQmxPulser::fillBuffer() {
 //				printf("p.\n");
 			}
 			tonext = it->tonext;
-			vt->changeValue(pat, it->pattern, total);
+//!\todo			vt->changeValue(pat, it->pattern, total);
 			pat = it->pattern;
 			total += tonext;
 		}
