@@ -65,10 +65,10 @@ protected:
     virtual bool isDRFCoherentSGSupported() const override {return true;}
 private:
 	typedef int16 tRawAI;
-	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> m_softwareTrigger;
+    shared_ptr<SoftwareTrigger> m_softwareTrigger;
     shared_ptr<Listener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
-    void onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
-    void onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &);
+    void onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &);
+    void onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &);
 	shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
 	void *executeReadAI(const atomic<bool> &);
 	atomic<bool> m_suspendRead;

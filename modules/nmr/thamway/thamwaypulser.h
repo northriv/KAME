@@ -67,7 +67,7 @@ private:
     public:
         XThamwayPGQAMCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
             : XFX2FWUSBInterface(name, runtime, driver, ADDR_OFFSET_PGQAM, "PG027QAM") {}
-        virtual ~XThamwayPGQAMCUSBInterface() {}
+        virtual ~XThamwayPGQAMCUSBInterface() = default;
     };
 
     class XThamwayUSBPulser : public XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface> {
@@ -83,7 +83,7 @@ private:
 
         virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) override;
 
-        static constexpr uint32_t QAM_PERIOD = 10; //40ns * 10
+        enum : uint32_t {QAM_PERIOD = 10}; //40ns * 10
 
         virtual double resolutionQAM() const override {return 0.0;}
         //! existense of AO ports.

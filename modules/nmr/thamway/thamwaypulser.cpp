@@ -246,7 +246,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 int idx = 0;
                 for(int64_t t = it->term_n_cmd; t > 0; t -= QAM_PERIOD) {
                     uint16_t iq = qamIQ(z * wave[idx]);
-                    addPulse(std::min((uint32_t)t, QAM_PERIOD), it->data, iq);
+                    addPulse(std::min(t, (int64_t)QAM_PERIOD), it->data, iq);
                     idx++;
                 }
             }

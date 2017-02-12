@@ -54,7 +54,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 		}
     });
 
-	m_softwareTrigger = XNIDAQmxInterface::SoftwareTrigger::create(name, NUM_DO_PORTS);
+    m_softwareTrigger = XNIDAQmxInterface::softwareTriggerManager().create(name, NUM_DO_PORTS);
 
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
 
@@ -68,7 +68,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 
 XNIDAQmxPulser::~XNIDAQmxPulser() {
 	clearTasks();
-	XNIDAQmxInterface::SoftwareTrigger::unregister(m_softwareTrigger);
+    XNIDAQmxInterface::softwareTriggerManager().unregister(m_softwareTrigger);
 }
 
 void
@@ -221,7 +221,7 @@ XNIDAQmxPulser::setupTasksDO(bool use_ao_clock) {
 			CHECK_DAQMX_RET(DAQmxSetDODataXferReqCond(m_taskDO, ch,
 													  DAQmx_Val_OnBrdMemNotFull));
 		}
-	}
+    }
 
 	if(m_pausingBit) {
 		m_pausingGateTerm = formatString("/%s/PFI4", intfDO()->devName());
@@ -876,7 +876,7 @@ XNIDAQmxPulser::fillBuffer() {
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
-	shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt = m_softwareTrigger;
+    shared_ptr<SoftwareTrigger> &vt = m_softwareTrigger;
 
 	tRawDO *pDO = m_patBufDO.curWritePos();
     tRawDO *pDOorg = pDO;

@@ -61,7 +61,7 @@ XNIDAQmxDSO::~XNIDAQmxDSO() {
 	clearAcquision();
 }
 void
-XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
+XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &) {
 	iterate_commit([=](Transaction &tr){
 		tr[ *trigSource()].clear();
 		XString series = interface()->productSeries();
@@ -102,10 +102,8 @@ XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<XNIDAQmxInterface::SoftwareTrigg
 				XString str(formatString("/%s/%s", interface()->devName(), *it));
 				tr[ *trigSource()].add(str);
 			}
-			local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
-				list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
-			for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-                    it = list->begin(); it != list->end(); ++it) {
+            auto list(XNIDAQmxInterface::softwareTriggerManager().list());
+            for(auto it = list->begin(); it != list->end(); ++it) {
 				for(unsigned int i = 0; i < ( *it)->bits(); i++) {
 					tr[ *trigSource()].add(
 						formatString("%s/line%d", ( *it)->label(), i));
@@ -131,7 +129,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
             }
         });
 	}
-    onSoftTrigChanged(shared_ptr<XNIDAQmxInterface::SoftwareTrigger>());
+    onSoftTrigChanged(shared_ptr<SoftwareTrigger>());
 
 	m_suspendRead = true;
 	m_threadReadAI.reset(new XThread<XNIDAQmxDSO>(shared_from_this(),
@@ -140,7 +138,8 @@ XNIDAQmxDSO::open() throw (XKameError &) {
 
 	this->start();
 
-    m_lsnOnSoftTrigChanged = XNIDAQmxInterface::SoftwareTrigger::onChange().connectWeakly(
+    m_lsnOnSoftTrigChanged =
+        XNIDAQmxInterface::softwareTriggerManager().onListChanged().connectWeakly(
 		shared_from_this(), &XNIDAQmxDSO::onSoftTrigChanged,
         Listener::FLAG_MAIN_THREAD_CALL);
 	createChannels();
@@ -300,10 +299,8 @@ XNIDAQmxDSO::setupSoftwareTrigger() {
 	Snapshot shot( *this);
 	XString src = shot[ *trigSource()].to_str();
 	//setup virtual trigger.
-	local_shared_ptr<XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList>
-		list(XNIDAQmxInterface::SoftwareTrigger::virtualTrigList());
-	for(XNIDAQmxInterface::SoftwareTrigger::SoftwareTriggerList_it
-            it = list->begin(); it != list->end(); ++it) {
+    auto list(XNIDAQmxInterface::softwareTriggerManager().list());
+    for(auto it = list->begin(); it != list->end(); ++it) {
 		for(unsigned int i = 0; i < ( *it)->bits(); i++) {
 			if(src == formatString("%s/line%d", ( *it)->label(), i)) {
 				m_softwareTrigger = *it;
@@ -465,7 +462,7 @@ XNIDAQmxDSO::clearStoredSoftwareTrigger() {
 	m_softwareTrigger->clear(total_samps, 1.0 / m_interval);
 }
 void
-XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &) {
+XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &) {
 	XScopedLock<XInterface> lock( *interface());
 	m_suspendRead = true;
 	XScopedLock<XRecursiveMutex> lock2(m_readMutex);
@@ -579,7 +576,7 @@ XNIDAQmxDSO::acquire(const atomic<bool> &terminated) {
 
 		uint64_t samplecnt_at_trigger = 0;
 		if(m_softwareTrigger) {
-			shared_ptr<XNIDAQmxInterface::SoftwareTrigger> &vt(m_softwareTrigger);
+            shared_ptr<SoftwareTrigger> &vt(m_softwareTrigger);
 
 			while( !terminated) {
 				if(tryReadAISuspend(terminated))

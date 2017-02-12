@@ -17,6 +17,7 @@
 #include "interface.h"
 #include "driver.h"
 #include "atomic_queue.h"
+#include "softtrigger.h"
 
 #ifdef HAVE_NI_DAQMX
 	#include <NIDAQmx.h>
@@ -95,82 +96,7 @@ public:
 	double maxDIRate(unsigned int /*num_scans*/) const {return m_productInfo->di_max_rate;}
 	double maxDORate(unsigned int /*num_scans*/) const {return m_productInfo->do_max_rate;}
 
-	//! Stores and reads time stamps between synchronized devices.
-	class SoftwareTrigger : public enable_shared_from_this<SoftwareTrigger> {
-	protected:
-		SoftwareTrigger(const char *label, unsigned int bits);
-	public:
-		static shared_ptr<SoftwareTrigger> create(const char *label, unsigned int bits);
-		static void unregister(const shared_ptr<SoftwareTrigger> &);
-		const char *label() const {return m_label.c_str();}
-		void setArmTerm(const char *arm_term) {m_armTerm = arm_term;}
-		const char *armTerm() const {return m_armTerm.c_str();}
-		bool isPersistentCoherentMode() const {return m_isPersistentCoherent;}
-		void setPersistentCoherentMode(bool x) {m_isPersistentCoherent = x;}
-		void start(float64 freq);
-		float64 freq() const {return m_freq;} //!< [Hz].
-		unsigned int bits() const {return m_bits;}
-		void stop();
-		void forceStamp(uint64_t now, float64 freq);
-		void stamp(uint64_t cnt);
-		//! \param time unit in 1/freq().
-		template <typename T>
-		void changeValue(T oldval, T val, uint64_t time) {
-			if(((m_risingEdgeMask & val) & (m_risingEdgeMask & ~oldval))
-			   || ((m_fallingEdgeMask & ~val) & (m_fallingEdgeMask & oldval))) {
-				if(time < m_endOfBlank) return;
-				stamp(time);
-			}
-		}
-
-		void connect(uint32_t rising_edge_mask, 
-					 uint32_t falling_edge_mask) throw (XInterface::XInterfaceError &);
-		void disconnect();
-		//! \param blankterm in seconds, not to stamp so frequently.
-		void setBlankTerm(float64 blankterm) {
-			m_blankTerm = llrint(blankterm * freq());
-			memoryBarrier();
-		}
-        using STRGTalker = Transactional::Talker<shared_ptr<SoftwareTrigger>>;
-		//! for restarting connected task.
-        STRGTalker &onStart() {return m_onStart;}
-        //! for changing list.
-        static STRGTalker &onChange() {return s_onChange;}
-		//! clears all time stamps.
-		void clear();
-		//! clears past time stamps.
-		void clear(uint64_t now, float64 freq);
-		//! \return if not, zero will be returned.
-		//! \param freq frequency of reader.
-		//! \param threshold upper bound to be pop, unit in 1/\a freq (2nd param.).
-		uint64_t tryPopFront(uint64_t threshold, float64 freq);
-			
-		typedef std::deque<shared_ptr<XNIDAQmxInterface::SoftwareTrigger> > SoftwareTriggerList;
-		typedef SoftwareTriggerList::iterator SoftwareTriggerList_it;
-		static const atomic_shared_ptr<SoftwareTriggerList> &virtualTrigList() {
-			return s_virtualTrigList;
-		}
-	private:
-		void clear_();
-		const XString m_label;
-		XString m_armTerm;
-		unsigned int m_bits;
-		uint32_t m_risingEdgeMask, m_fallingEdgeMask;
-		uint64_t m_blankTerm;
-		uint64_t m_endOfBlank; //!< next stamp must not be less than this.
-		float64 m_freq; //!< [Hz].
-		enum {QUEUE_SIZE = 8192};
-		typedef atomic_queue_reserved<uint64_t, QUEUE_SIZE> FastQueue;
-		FastQueue m_fastQueue; //!< recorded stamps.
-		typedef std::deque<uint64_t> SlowQueue;
-		SlowQueue m_slowQueue; //!< recorded stamps, when \a m_fastQueue is full.
-		atomic<unsigned int> m_slowQueueSize;
-		XMutex m_mutex; //!< for \a m_slowQueue.
-        STRGTalker m_onStart;
-        static STRGTalker s_onChange;
-		static atomic_shared_ptr<SoftwareTriggerList> s_virtualTrigList;
-		bool m_isPersistentCoherent;
-	};
+    static SoftwareTriggerManager &softwareTriggerManager() {return s_softwareTriggerManager;}
 protected:
     virtual void open() throw (XInterfaceError &) override;
 	//! This can be called even if has already closed.
@@ -188,10 +114,12 @@ private:
 	  	unsigned long di_max_rate; //!< [kHz]
 	  	unsigned long do_max_rate; //!< [kHz]
 	};
-	friend class SoftwareTrigger;
+//	friend class SoftwareTrigger;
 	XString m_devname;
 	const ProductInfo* m_productInfo;
 	static const ProductInfo sc_productInfoList[];
+
+    static SoftwareTriggerManager s_softwareTriggerManager;
 };
 
 template<class tDriver>
