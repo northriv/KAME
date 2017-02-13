@@ -296,7 +296,9 @@ XPulser::onMoreConfigShow(const Snapshot &shot, XTouchableNode *)  {
 }
 
 void
-XPulser::start() {
+XPulser::start() {    
+    m_totalSampsOfFreeRun = 0;
+
 	changeUIStatus( !***pulseAnalyzerMode(), true);
 	pulseAnalyzerMode()->setUIEnabled(true);
 
@@ -420,12 +422,16 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
 }
 void
 XPulser::onTriggerRequested(uint64_t threshold) {
+    if(m_totalSampsOfFreeRun >= threshold) return;
+    XScopedLock<XMutex> lock(m_mutexForFreeRun);
+
     const Snapshot shot( *this);
     auto patlist = shot[ *this].relPatList();
     int idx = m_lastIdxFreeRun;
     uint32_t oldpat = m_lastPatFreeRun;
     if(idx >= patlist.size()) return;
     auto vt = softwareTrigger();
+    //Caches trigger positions
     while(m_totalSampsOfFreeRun < threshold) {
         auto &pat = patlist[idx++];
         if(idx >= patlist.size()) idx = 0;
@@ -1176,14 +1182,17 @@ XPulser::visualize(const Snapshot &shot) {
 	try {
         m_lsnOnTriggerRequested.reset();
         if(hasSoftwareTrigger()) {
+            XScopedLock<XMutex> lock(m_mutexForFreeRun);
+            m_totalSampsOfFreeRun = 0;
             if(shot[ *output()]) {
-                m_totalSampsOfFreeRun = 0;
                 m_lastIdxFreeRun = 0;
                 m_lastPatFreeRun = blankpattern;
                 m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                     shared_from_this(), &XPulser::onTriggerRequested);
                 //synchronizes with the software trigger.
                 softwareTrigger()->start(1e3 / resolution());
+                //free-runs to calculate trigger positions for 0.1sec.
+                softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
             }
             else {
                 softwareTrigger()->stop();

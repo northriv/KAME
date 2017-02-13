@@ -155,8 +155,13 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         return cnt;
     }
     if(m_fastQueue.empty()) {
+        uint64_t thres_em = (threshold / (freq_rc / gcd__)) * (freq_em / gcd__);
         //requests a new stamp
-        onTriggerRequested().talk((threshold / (freq_rc / gcd__)) / (freq_em / gcd__));
+        onTriggerRequested().talk(thres_em);
+        if(m_fastQueue.empty()) {
+        //Not found. Caches trigger positions for future use within 0.2sec.
+            onTriggerRequested().talk(thres_em + lrint(0.2 / freq()));
+        }
     }
     if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
         cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);

@@ -114,7 +114,7 @@ public:
 			uint64_t toappear; //!< term between this pattern and the previous. unit of resolution().
 		};
 
-		typedef std::deque<RelPat> RelPatList;
+        using RelPatList = std::vector<RelPat>;
 		RelPatList &relPatList() {return m_relPatList;}
 		const RelPatList &relPatList() const {return m_relPatList;}
 
@@ -349,6 +349,7 @@ private:
     int m_lastIdxFreeRun;
     uint32_t m_lastPatFreeRun;
     uint64_t m_totalSampsOfFreeRun;
+    XMutex m_mutexForFreeRun;
 };
 
 inline double

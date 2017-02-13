@@ -515,9 +515,6 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	CHECK_DAQMX_RET(DAQmxSetWriteRelativeTo(m_taskDO, DAQmx_Val_CurrWritePos));
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 
-	//synchronizes with the software trigger.
-//!\todo	m_softwareTrigger->start(1e3 / resolution());
-
 	m_totalWrittenSampsDO = cnt_prezeros;
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
 
@@ -587,7 +584,6 @@ void
 XNIDAQmxPulser::abortPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-//!\todo		m_softwareTrigger->stop();
 		if(m_running) {
 			{
 				char ch[256];
@@ -729,8 +725,6 @@ void
 XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-		//clears sent software triggers.
-		m_softwareTrigger->clear();
 		stopBufWriter();
 
 		//sets position padding=150ms. after the current generating position.
@@ -740,8 +734,6 @@ XNIDAQmxPulser::stopPulseGenFreeRunning(unsigned int blankpattern) {
 }
 void
 XNIDAQmxPulser::startPulseGenFromFreeRun(const Snapshot &shot) {
-	//clears sent software triggers.
-	m_softwareTrigger->clear();
 	stopBufWriter();
 
 	//sets position padding=150ms. after the current generating position.
@@ -877,8 +869,6 @@ XNIDAQmxPulser::fillBuffer() {
 	uint64_t pausing_period = pausing_cnt + pausing_cnt_blank_before + pausing_cnt_blank_after;
 	uint64_t pausing_cost = std::max(16uLL, pausing_cnt_blank_before + pausing_cnt_blank_after);
 
-    shared_ptr<SoftwareTrigger> &vt = m_softwareTrigger;
-
 	tRawDO *pDO = m_patBufDO.curWritePos();
     tRawDO *pDOorg = pDO;
 	if( !pDO)
@@ -950,7 +940,6 @@ XNIDAQmxPulser::fillBuffer() {
 //				printf("p.\n");
 			}
 			tonext = it->tonext;
-//!\todo			vt->changeValue(pat, it->pattern, total);
 			pat = it->pattern;
 			total += tonext;
 		}
