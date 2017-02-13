@@ -1185,12 +1185,14 @@ XPulser::visualize(const Snapshot &shot) {
                 //synchronizes with the software trigger.
                 softwareTrigger()->start(1e3 / resolution());
                 softwareTrigger()->clear(); //just for ensure.
-                XScopedLock<XMutex> lock(m_mutexForFreeRun);
-                m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
-                m_lastIdxFreeRun = 0;
-                m_lastPatFreeRun = blankpattern;
-                m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
-                    shared_from_this(), &XPulser::onTriggerRequested);
+                {
+                    XScopedLock<XMutex> lock(m_mutexForFreeRun);
+                    m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
+                    m_lastIdxFreeRun = 0;
+                    m_lastPatFreeRun = blankpattern;
+                    m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
+                        shared_from_this(), &XPulser::onTriggerRequested);
+                }
                 //free-runs to calculate trigger positions for 0.1sec.
                 softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
             }
