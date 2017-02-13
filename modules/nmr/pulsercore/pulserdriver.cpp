@@ -1182,25 +1182,20 @@ XPulser::visualize(const Snapshot &shot) {
         if(hasSoftwareTrigger()) {
             softwareTrigger()->stop();
             if(shot[ *output()]) {
-                {
-                    XScopedLock<XMutex> lock(m_mutexForFreeRun);
-                    m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
-                    m_lastIdxFreeRun = 0;
-                    m_lastPatFreeRun = blankpattern;
-                }
-                m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
-                    shared_from_this(), &XPulser::onTriggerRequested);
                 //synchronizes with the software trigger.
                 softwareTrigger()->start(1e3 / resolution());
-                fprintf(stderr, "free run1\n");
+                softwareTrigger()->clear(); //just for ensure.
+                XScopedLock<XMutex> lock(m_mutexForFreeRun);
+                m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
+                m_lastIdxFreeRun = 0;
+                m_lastPatFreeRun = blankpattern;
+                m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
+                    shared_from_this(), &XPulser::onTriggerRequested);
                 //free-runs to calculate trigger positions for 0.1sec.
                 softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
-                fprintf(stderr, "fin.\n");
             }
         }
-        fprintf(stderr, "co.\n");
         changeOutput(shot, shot[ *output()], blankpattern);
-        fprintf(stderr, "fin.\n");
     }
 	catch (XKameError &e) {
 		e.print(getLabel() + i18n("Pulser Turn-On/Off Failed, because"));
