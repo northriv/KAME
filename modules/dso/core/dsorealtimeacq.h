@@ -16,19 +16,23 @@
 #define DSOREALTIMEACQ_H
 
 #include "dso.h"
+#include "softtrigger.h"
 
 //! Software DSO using continuous AD read.
 //! Trigger position is typically calculated by a synchronized pulse generator.
 //! \sa SoftwareTrigger
-class XRealTimeAcqDSO : public XDSO {
+template <class tDriver>
+class XRealTimeAcqDSO : public tDriver {
 public:
     XRealTimeAcqDSO(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XRealTimeAcqDSO();
     //! Converts raw to record
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
+    virtual void convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) throw (typename tDriver::XRecordError&) override;
 protected:
     virtual void startAcquision() = 0;
+    virtual void commitAcquision() = 0;
+    virtual void suspendAcquision() = 0;
     virtual void stopAcquision() = 0;
     virtual void clearAcquision() = 0;
     virtual void getNumOfChannels() = 0;
@@ -73,23 +77,21 @@ protected:
     virtual int acqCount(bool *seq_busy) override;
 
     //! Loads waveform and settings from instrument
-    virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) override;
-
-    virtual bool isDRFCoherentSGSupported() const override {return true;}
+    virtual void getWave(shared_ptr<typename tDriver::RawData> &writer, std::deque<XString> &channels) override;
 private:
-    typedef int16 tRawAI;
+    using tRawAI = int16_t;
     shared_ptr<SoftwareTrigger> m_softwareTrigger;
     shared_ptr<Listener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
     void onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &);
     void onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &);
-    shared_ptr<XThread<XNIDAQmxDSO> > m_threadReadAI;
+    shared_ptr<XThread<XRealTimeAcqDSO<tDriver>>> m_threadReadAI;
     void *executeReadAI(const atomic<bool> &);
     atomic<bool> m_suspendRead;
     atomic<bool> m_running;
     std::vector<tRawAI> m_recordBuf;
     enum {CAL_POLY_ORDER = 4};
-    float64 m_coeffAI[4][CAL_POLY_ORDER];
-    inline float64 aiRawToVolt(const float64 *pcoeff, float64 raw);
+    double m_coeffAI[4][CAL_POLY_ORDER];
+    inline double aiRawToVolt(const double *pcoeff, double raw);
     struct DSORawRecord {
         DSORawRecord() { locked = false;}
         unsigned int numCh;
@@ -112,10 +114,8 @@ private:
     int m_dsoRawRecordBankLatest;
     //! for moving av.
     std::deque<std::vector<tRawAI> > m_record_av;
-    TaskHandle m_task;
     double m_interval;
     unsigned int m_preTriggerPos;
-    void clearAcquision();
     void setupAcquision();
     void disableTrigger();
     void setupTrigger();
@@ -124,8 +124,6 @@ private:
     void setupTiming();
     void createChannels();
     void acquire(const atomic<bool> &terminated);
-    static int32 onTaskDone_(TaskHandle task, int32 status, void*);
-    void onTaskDone(TaskHandle task, int32 status);
 
     XRecursiveMutex m_readMutex;
 
