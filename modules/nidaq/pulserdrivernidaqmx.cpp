@@ -64,6 +64,8 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 		const void *LAST_OF_MLOCK_MEMBER = &m_lowerLimAO[NUM_AO_CH];
 		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
  	}
+
+    setPrefillingSampsBeforeArm(1000);
 }
 
 XNIDAQmxPulser::~XNIDAQmxPulser() {
@@ -479,8 +481,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	m_genTotalCount = 0;
 	m_genTotalSamps = 0;
 
-	const unsigned int cnt_prezeros = 1000;
-    setPrefillingSampsForFreeRun(cnt_prezeros);
+    const unsigned int cnt_prezeros = prefillingSampsBeforeArm();
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
 	//prefilling of the buffers.

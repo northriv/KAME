@@ -160,9 +160,9 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         onTriggerRequested().talk(thres_em);
         if(m_fastQueue.empty()) {
         //Not found. Caches trigger positions for future use within 0.2sec.
-            fprintf(stderr, "free run2\n");
+            fprintf(stderr, "2");
             onTriggerRequested().talk(thres_em + lrint(0.2 / freq()));
-            fprintf(stderr, "fin.\n");
+            fprintf(stderr, "f");
         }
     }
     if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {

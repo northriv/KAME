@@ -265,7 +265,8 @@ protected:
     shared_ptr<SoftwareTrigger> softwareTrigger() const {return m_softwareTrigger;}
     //! \sa SoftwareTriggerManager::create()
     shared_ptr<SoftwareTrigger> m_softwareTrigger;
-    void setPrefillingSampsForFreeRun(uint64_t cnt) {m_totalSampsOfFreeRun += cnt;}
+    void setPrefillingSampsBeforeArm(uint64_t cnt) {m_prefillingSampsBeforeArm = cnt;}
+    uint64_t prefillingSampsBeforeArm() const {return m_prefillingSampsBeforeArm;}
 private:
     const shared_ptr<XBoolNode> m_output;
     const shared_ptr<XComboNode> m_combMode; //!< see above definitions in header file
@@ -350,6 +351,8 @@ private:
     uint32_t m_lastPatFreeRun;
     uint64_t m_totalSampsOfFreeRun;
     XMutex m_mutexForFreeRun;
+
+    uint64_t m_prefillingSampsBeforeArm = 0;
 };
 
 inline double
