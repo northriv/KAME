@@ -6,13 +6,11 @@ INCLUDEPATH += \
 
 HEADERS += \
     pulserdriver.h\
-    pulserdriverconnector.h \
-    softtrigger.h
+    pulserdriverconnector.h
 
 SOURCES += \
     pulserdriver.cpp\
-    pulserdriverconnector.cpp \
-    softtrigger.cpp
+    pulserdriverconnector.cpp
 
 FORMS += \
     pulserdriverform.ui\

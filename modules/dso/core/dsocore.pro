@@ -7,10 +7,12 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../../kame/graph\
 
 HEADERS += \
-    dso.h
+    dso.h \
+    dsorealtimeacq.h
 
 SOURCES += \
-    dso.cpp
+    dso.cpp \
+    dsorealtimeacq.cpp
 
 FORMS += \
     dsoform.ui

@@ -46,6 +46,7 @@ HEADERS += \
     driver/primarydriverwiththread.h \
     driver/secondarydriver.h \
     driver/secondarydriverinterface.h \
+    driver/softtrigger.h \
     graph/graph.h \
     graph/graphdialogconnector.h \
     graph/graphpainter.h \
@@ -120,6 +121,7 @@ SOURCES += icons/icon.cpp \
     driver/interface.cpp \
     driver/primarydriver.cpp \
     driver/secondarydriver.cpp \
+    driver/softtrigger.cpp \
     forms/driverlistconnector.cpp \
     forms/entrylistconnector.cpp \
     forms/graphlistconnector.cpp \
