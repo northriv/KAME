@@ -1175,26 +1175,41 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 }
 
 void
+XPulser::setPrefillingSampsBeforeArm(uint64_t cnt) {
+    XScopedLock<XMutex> lock(m_mutexForFreeRun);
+    m_prefillingSampsBeforeArm = cnt;
+    softwareTrigger()->clear();
+    m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
+    m_lastIdxFreeRun = 0;
+}
+
+void
 XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
-        m_lsnOnTriggerRequested.reset();
         if(hasSoftwareTrigger()) {
-            softwareTrigger()->stop();
-            if(shot[ *output()]) {
-                //synchronizes with the software trigger.
-                softwareTrigger()->start(1e3 / resolution());
-                softwareTrigger()->clear(); //just for ensure.
-                {
-                    XScopedLock<XMutex> lock(m_mutexForFreeRun);
-                    m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
-                    m_lastIdxFreeRun = 0;
-                    m_lastPatFreeRun = blankpattern;
+            if(softwareTrigger()->isPersistentCoherentMode() &&
+                    (m_totalSampsOfFreeRun <= prefillingSampsBeforeArm())) {
+                softwareTrigger()->clear();
+            }
+            else {
+                m_lsnOnTriggerRequested.reset();
+                softwareTrigger()->stop();
+                if(shot[ *output()]) {
+                    changeOutput(shot, false, blankpattern);
+                    //synchronizes with the software trigger.
+                    softwareTrigger()->start(1e3 / resolution());
+                    //reconfigure the free-run envioronment.
+                    setPrefillingSampsBeforeArm(prefillingSampsBeforeArm());
+                    {
+                        XScopedLock<XMutex> lock(m_mutexForFreeRun);
+                        m_lastPatFreeRun = blankpattern;
+                    }
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
+                    //free-runs to calculate trigger positions for 0.1sec.
+                    softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
                 }
-                //free-runs to calculate trigger positions for 0.1sec.
-                softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
             }
         }
         changeOutput(shot, shot[ *output()], blankpattern);

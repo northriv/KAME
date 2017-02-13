@@ -692,6 +692,9 @@ XNIDAQmxPulser::rewindBufPos(double ms_from_gen_pos) {
 
 	m_genTotalCount += cnt_prezeros;
 	m_genTotalSamps += cnt_prezeros;
+
+    setPrefillingSampsBeforeArm(m_genTotalCount);
+
 	//prefilling of the buffers.
 	if(m_taskAO != TASK_UNDEF) {
 		//Pads preceding zeros.

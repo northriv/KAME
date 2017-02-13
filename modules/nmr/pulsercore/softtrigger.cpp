@@ -160,9 +160,7 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         onTriggerRequested().talk(thres_em);
         if(m_fastQueue.empty()) {
         //Not found. Caches trigger positions for future use within 0.2sec.
-            fprintf(stderr, "2");
             onTriggerRequested().talk(thres_em + lrint(0.2 / freq()));
-            fprintf(stderr, "f");
         }
     }
     if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
@@ -186,7 +184,7 @@ SoftwareTrigger::clear(uint64_t now, double freq__) {
     unsigned int freq_em = lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
-    now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
+    now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
 
     XScopedLock<XMutex> lock(m_mutex);
     uint64_t x;
@@ -206,7 +204,7 @@ SoftwareTrigger::forceStamp(uint64_t now, double freq__) {
     unsigned int freq_em = lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
-    now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
+    now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
 
     XScopedLock<XMutex> lock(m_mutex);
     ++m_slowQueueSize;

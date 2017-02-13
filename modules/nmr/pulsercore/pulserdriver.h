@@ -265,7 +265,7 @@ protected:
     shared_ptr<SoftwareTrigger> softwareTrigger() const {return m_softwareTrigger;}
     //! \sa SoftwareTriggerManager::create()
     shared_ptr<SoftwareTrigger> m_softwareTrigger;
-    void setPrefillingSampsBeforeArm(uint64_t cnt) {m_prefillingSampsBeforeArm = cnt;}
+    void setPrefillingSampsBeforeArm(uint64_t cnt);
     uint64_t prefillingSampsBeforeArm() const {return m_prefillingSampsBeforeArm;}
 private:
     const shared_ptr<XBoolNode> m_output;
