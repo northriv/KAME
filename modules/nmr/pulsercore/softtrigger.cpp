@@ -179,7 +179,7 @@ SoftwareTrigger::clear(uint64_t now, double freq__) {
     unsigned int freq_em= lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
-    now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
+    now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
 
     XScopedLock<XMutex> lock(m_mutex);
     uint64_t x;
@@ -199,7 +199,7 @@ SoftwareTrigger::forceStamp(uint64_t now, double freq__) {
     unsigned int freq_em= lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
-    now = (now * (freq_em / gcd__)) / (freq_rc / gcd__);
+    now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
 
     XScopedLock<XMutex> lock(m_mutex);
     ++m_slowQueueSize;

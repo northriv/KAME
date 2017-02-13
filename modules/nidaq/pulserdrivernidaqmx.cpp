@@ -516,7 +516,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 	CHECK_DAQMX_RET(DAQmxSetWriteOffset(m_taskDO, 0));
 
 	//synchronizes with the software trigger.
-	m_softwareTrigger->start(1e3 / resolution());
+//!\todo	m_softwareTrigger->start(1e3 / resolution());
 
 	m_totalWrittenSampsDO = cnt_prezeros;
 	m_totalWrittenSampsAO = cnt_prezeros * oversamp_ao;
@@ -587,7 +587,7 @@ void
 XNIDAQmxPulser::abortPulseGen() {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	{
-		m_softwareTrigger->stop();
+//!\todo		m_softwareTrigger->stop();
 		if(m_running) {
 			{
 				char ch[256];

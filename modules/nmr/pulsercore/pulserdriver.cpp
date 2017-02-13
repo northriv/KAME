@@ -433,7 +433,7 @@ XPulser::onTriggerRequested(uint64_t threshold) {
         uint32_t newpat = pat.pattern;
         bool ret = vt->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
         oldpat = newpat;
-        if(ret) break;
+//        if(ret) break;
     }
     m_lastIdxFreeRun = idx;
     m_lastPatFreeRun = oldpat;
@@ -1176,11 +1176,18 @@ XPulser::visualize(const Snapshot &shot) {
 	try {
         m_lsnOnTriggerRequested.reset();
         if(hasSoftwareTrigger()) {
-            m_totalSampsOfFreeRun = 0;
-            m_lastIdxFreeRun = 0;
-            m_lastPatFreeRun = blankpattern;
-            m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
-                shared_from_this(), &XPulser::onTriggerRequested);
+            if(shot[ *output()]) {
+                m_totalSampsOfFreeRun = 0;
+                m_lastIdxFreeRun = 0;
+                m_lastPatFreeRun = blankpattern;
+                m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
+                    shared_from_this(), &XPulser::onTriggerRequested);
+                //synchronizes with the software trigger.
+                softwareTrigger()->start(1e3 / resolution());
+            }
+            else {
+                softwareTrigger()->stop();
+            }
         }
 		changeOutput(shot, shot[ *output()], blankpattern);
 	}
