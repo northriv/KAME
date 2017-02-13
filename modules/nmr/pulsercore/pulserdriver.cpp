@@ -1193,15 +1193,19 @@ XPulser::visualize(const Snapshot &shot) {
                     //synchronizes with the software trigger.
                     softwareTrigger()->start(1e3 / resolution());
                 }
+                fprintf(stderr, "free run1\n");
                 //free-runs to calculate trigger positions for 0.1sec.
                 softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
+                fprintf(stderr, "fin.\n");
             }
             else {
                 softwareTrigger()->stop();
             }
         }
-		changeOutput(shot, shot[ *output()], blankpattern);
-	}
+        fprintf(stderr, "co.\n");
+        changeOutput(shot, shot[ *output()], blankpattern);
+        fprintf(stderr, "fin.\n");
+    }
 	catch (XKameError &e) {
 		e.print(getLabel() + i18n("Pulser Turn-On/Off Failed, because"));
 	}

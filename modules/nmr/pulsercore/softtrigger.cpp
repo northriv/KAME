@@ -136,7 +136,7 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         XScopedLock<XMutex> lock(m_mutex);
         if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
             if((cnt < m_slowQueue.front()) || !m_slowQueueSize) {
-                cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
+                cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
                 if(cnt >= threshold)
                     return 0uLL;
                 if(m_fastQueue.atomicPop(t))
@@ -147,7 +147,7 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         if( !m_slowQueueSize)
             return 0uLL;
         cnt = m_slowQueue.front();
-        cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
+        cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
         if(cnt >= threshold)
             return 0uLL;
         m_slowQueue.pop_front();
@@ -155,16 +155,18 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         return cnt;
     }
     if(m_fastQueue.empty()) {
-        uint64_t thres_em = (threshold / (freq_rc / gcd__)) * (freq_em / gcd__);
+        uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
         //requests a new stamp
         onTriggerRequested().talk(thres_em);
         if(m_fastQueue.empty()) {
         //Not found. Caches trigger positions for future use within 0.2sec.
+            fprintf(stderr, "free run2\n");
             onTriggerRequested().talk(thres_em + lrint(0.2 / freq()));
+            fprintf(stderr, "fin.\n");
         }
     }
     if(FastQueue::key t = m_fastQueue.atomicFront(&cnt)) {
-        cnt = (cnt / (freq_em / gcd__)) * (freq_rc / gcd__);
+        cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
         if(cnt >= threshold)
             return 0uLL;
         if(m_fastQueue.atomicPop(t))
@@ -181,7 +183,7 @@ SoftwareTrigger::clear() {
 }
 void
 SoftwareTrigger::clear(uint64_t now, double freq__) {
-    unsigned int freq_em= lrint(freq());
+    unsigned int freq_em = lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
     now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
@@ -201,7 +203,7 @@ SoftwareTrigger::clear(uint64_t now, double freq__) {
 }
 void
 SoftwareTrigger::forceStamp(uint64_t now, double freq__) {
-    unsigned int freq_em= lrint(freq());
+    unsigned int freq_em = lrint(freq());
     unsigned int freq_rc = lrint(freq__);
     unsigned int gcd__ = gcd(freq_em, freq_rc);
     now = (now  / (freq_rc / gcd__)) * (freq_em / gcd__);
