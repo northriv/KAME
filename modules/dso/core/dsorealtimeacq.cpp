@@ -90,11 +90,6 @@ XRealTimeAcqDSO<tDriver>::close() throw (XKameError &) {
         m_threadReadAI->terminate();
     }
 
-    iterate_commit([=](Transaction &tr){
-        for(auto &&x: {this->trace1(), this->trace2(), this->trace3(), this->trace4()})
-            tr[ *x].clear();
-    });
-
     m_recordBuf.clear();
     m_record_av.clear();
 
@@ -143,6 +138,9 @@ XRealTimeAcqDSO<tDriver>::setupTrigger() {
     Snapshot shot( *this);
     m_suspendRead = true;
     XScopedLock<XRecursiveMutex> lock2(m_readMutex);
+
+    unsigned int pretrig = lrint(shot[ *this->trigPos()] / 100.0 * shot[ *this->recordLength()]);
+    m_preTriggerPos = pretrig;
 
     setupHardwareTrigger();
 }
@@ -355,7 +353,8 @@ XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
                 uint64_t total_samps = getTotalSampsAcquired();
                 samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
                 if(samplecnt_at_trigger) {
-                    setReadPosition(samplecnt_at_trigger - m_preTriggerPos);
+                    if( !setReadPosition(samplecnt_at_trigger - m_preTriggerPos))
+                        continue;
                     break;
                 }
                 msecsleep(lrint(1e3 * size * m_interval / 6));

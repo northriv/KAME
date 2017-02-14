@@ -26,6 +26,11 @@ public:
 	//! Converts raw to record
     virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
 protected:
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open() throw (XKameError &) override;
+    //! Be called during stopping driver. Call interface()->stop() inside this routine.
+    virtual void close() throw (XKameError &) override;
+
     //! Changes the instrument state so that it can wait for a trigger (arm).
     virtual void startAcquision() override;
     //! Prepares the instrument state just before startAcquision().
@@ -41,7 +46,7 @@ protected:
     //! \return Trigger candidates
     virtual std::deque<XString> hardwareTriggerNames() override;
     //! Prepares instrumental setups for timing.
-    virtual void setupTimeBase() override;
+    virtual double setupTimeBase() override;
     //! Prepares instrumental setups for channels.
     virtual void setupChannels() override;
     //! Prepares instrumental setups for trigger.

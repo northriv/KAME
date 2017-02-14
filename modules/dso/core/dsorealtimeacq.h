@@ -46,7 +46,7 @@ protected:
     //! \return Trigger candidates
     virtual std::deque<XString> hardwareTriggerNames() = 0;
     //! Prepares instrumental setups for timing.
-    virtual void setupTimeBase() = 0;
+    virtual double setupTimeBase() = 0;
     //! Prepares instrumental setups for channels.
     virtual void setupChannels() = 0;
     //! Prepares instrumental setups for trigger.
@@ -101,6 +101,15 @@ protected:
 
     //! Loads waveform and settings from instrument
     virtual void getWave(shared_ptr<typename tDriver::RawData> &writer, std::deque<XString> &channels) override;
+
+    bool hasSoftwareTrigger() const {return !!m_softwareTrigger;}
+    shared_ptr<SoftwareTrigger> softwareTrigger() const {return m_softwareTrigger;}
+
+    enum {CAL_POLY_ORDER = 4};
+    double m_coeffAI[4][CAL_POLY_ORDER];
+    unsigned int m_preTriggerPos;
+
+    void suspendAcquision();
 private:
     shared_ptr<SoftwareTrigger> m_softwareTrigger;
     shared_ptr<Listener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
@@ -111,8 +120,6 @@ private:
     atomic<bool> m_suspendRead;
     atomic<bool> m_running;
     std::vector<tRawAI> m_recordBuf;
-    enum {CAL_POLY_ORDER = 4};
-    double m_coeffAI[4][CAL_POLY_ORDER];
     inline double aiRawToVolt(const double *pcoeff, double raw);
     struct DSORawRecord {
         DSORawRecord() { locked = false;}
@@ -137,9 +144,7 @@ private:
     //! for moving av.
     std::deque<std::vector<tRawAI> > m_record_av;
     double m_interval;
-    unsigned int m_preTriggerPos;
     void setupAcquision();
-    void suspendAcquision();
     void clearAll();
     void disableTrigger();
     void setupTrigger();
