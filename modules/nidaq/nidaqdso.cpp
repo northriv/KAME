@@ -32,76 +32,133 @@ REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XNIDAQmxDriver<XDSO>(name, runtime, ref(tr_meas), meas),
-	m_dsoRawRecordBankLatest(0),
+    XRealTimeAcqDSO<XNIDAQmxDriver<XDSO>>(name, runtime, ref(tr_meas), meas),
 	m_task(TASK_UNDEF) {
 
 	iterate_commit([=](Transaction &tr){
-		tr[ *recordLength()] = 2000;
-		tr[ *timeWidth()] = 1e-2;
-		tr[ *average()] = 1;
         for(auto &&x: {vFullScale1(), vFullScale2(), vFullScale3(), vFullScale4()}) {
             tr[ *x].add({"0.4", "1", "2", "4", "10", "20", "40", "84"});
             tr[ *x] = "20";
         }
     });
-    if(isMemLockAvailable()) {
-		const void *FIRST_OF_MLOCK_MEMBER = &m_recordBuf;
-		const void *LAST_OF_MLOCK_MEMBER = &m_task;
-		//Suppress swapping.
-		mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
-	}
-
 	vOffset1()->disable();
 	vOffset2()->disable();
 	vOffset3()->disable();
 	vOffset4()->disable();
 }
-XNIDAQmxDSO::~XNIDAQmxDSO() {
-	clearAcquision();
+
+void
+XNIDAQmxDSO::startAcquision() {
+
 }
+void
+XNIDAQmxDSO::commitAcquision() {
+
+}
+void
+XNIDAQmxDSO::stopAcquision() {
+
+}
+
+void
+XNIDAQmxDSO::clearAcquision() {
+
+}
+
+unsigned int
+XNIDAQmxDSO::getNumOfChannels() {
+
+}
+
+XString
+XNIDAQmxDSO::getChannelInfoStrings() {
+
+}
+
+std::deque<XString>
+XNIDAQmxDSO::hardwareTriggerNames() {
+    std::deque<XString> list;
+    XString series = interface()->productSeries();
+    char buf[2048];
+    {
+        CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
+        XNIDAQmxInterface::parseList(buf, list);
+    }
+    //M series
+    const char* sc_m[] = {
+        "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
+        "PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
+        "Ctr0InternalOutput", "Ctr1InternalOutput",
+        "Ctr0Source",
+        "Ctr0Gate",
+        "Ctr1Source",
+        "Ctr1Gate",
+        "FrequencyOutput",
+        0L};
+    //S series
+    const char* sc_s[] = {
+        "PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
+        "PFI8", "PFI9",
+        "Ctr0InternalOutput",
+        "OnboardClock",
+        "Ctr0Source",
+        "Ctr0Gate",
+        0L};
+    const char **sc = sc_m;
+    if(series == "S")
+        sc = sc_s;
+    for(const char **it = sc; *it; it++) {
+        XString str(formatString("/%s/%s", interface()->devName(), *it));
+        list.emplace_back(str);
+    }
+    return list;
+}
+
+void
+XNIDAQmxDSO::setupTimeBase() {
+
+}
+
+void
+XNIDAQmxDSO::setupChannels() {
+
+}
+
+void
+XNIDAQmxDSO::setupHardwareTrigger() {
+
+}
+
+void
+XNIDAQmxDSO::disableHardwareTriggers() {
+
+}
+
+uint64_t
+XNIDAQmxDSO::getTotalSampsAcquired() {
+
+}
+
+uint32_t
+XNIDAQmxDSO::getNumSampsToBeRead() {
+
+}
+
+bool
+XNIDAQmxDSO::setReadPosition(uint64_t pos) {
+
+}
+
+uint32_t
+XNIDAQmxDSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
+
+}
+
+
 void
 XNIDAQmxDSO::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &) {
 	iterate_commit([=](Transaction &tr){
 		tr[ *trigSource()].clear();
-		XString series = interface()->productSeries();
-		{
-			char buf[2048];
-			{
-				CHECK_DAQMX_RET(DAQmxGetDevAIPhysicalChans(interface()->devName(), buf, sizeof(buf)));
-				std::deque<XString> chans;
-				XNIDAQmxInterface::parseList(buf, chans);
-                for(std::deque<XString>::iterator it = chans.begin(); it != chans.end(); ++it) {
-					tr[ *trigSource()].add(it->c_str());
-				}
-			}
-			//M series
-			const char* sc_m[] = {
-				"PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
-				"PFI8", "PFI9", "PFI10", "PFI11", "PFI12", "PFI13", "PFI14", "PFI15",
-				"Ctr0InternalOutput", "Ctr1InternalOutput",
-				"Ctr0Source",
-				"Ctr0Gate",
-				"Ctr1Source",
-				"Ctr1Gate",
-				"FrequencyOutput",
-				0L};
-			//S series
-			const char* sc_s[] = {
-				"PFI0", "PFI1", "PFI2", "PFI3", "PFI4", "PFI5", "PFI6", "PFI7",
-				"PFI8", "PFI9",
-				"Ctr0InternalOutput",
-				"OnboardClock",
-				"Ctr0Source",
-				"Ctr0Gate",
-				0L};
-			const char **sc = sc_m;
-			if(series == "S")
-				sc = sc_s;
-			for(const char **it = sc; *it; it++) {
-				XString str(formatString("/%s/%s", interface()->devName(), *it));
-				tr[ *trigSource()].add(str);
-			}
             auto list(XNIDAQmxInterface::softwareTriggerManager().list());
             for(auto it = list->begin(); it != list->end(); ++it) {
 				for(unsigned int i = 0; i < ( *it)->bits(); i++) {
@@ -205,7 +262,7 @@ XNIDAQmxDSO::disableTrigger() {
 
 	m_preTriggerPos = 0;
 
-	//reset virtual trigger setup.
+    //reset trigger setup.
 	if(m_softwareTrigger)
 		m_softwareTrigger->disconnect();
 	m_lsnOnSoftTrigStarted.reset();
@@ -298,7 +355,7 @@ void
 XNIDAQmxDSO::setupSoftwareTrigger() {
 	Snapshot shot( *this);
 	XString src = shot[ *trigSource()].to_str();
-	//setup virtual trigger.
+    //setup trigger.
     auto list(XNIDAQmxInterface::softwareTriggerManager().list());
     for(auto it = list->begin(); it != list->end(); ++it) {
 		for(unsigned int i = 0; i < ( *it)->bits(); i++) {
@@ -474,7 +531,7 @@ XNIDAQmxDSO::onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &) {
 
 	const DSORawRecord &rec(m_dsoRawRecordBanks[m_dsoRawRecordBankLatest]);
 	m_softwareTrigger->setBlankTerm(m_interval * rec.recordLength);
-//	fprintf(stderr, "Virtual trig start.\n");
+//	fprintf(stderr, "trig start.\n");
 
 	uInt32 num_ch;
 	CHECK_DAQMX_RET(DAQmxGetTaskNumChans(m_task, &num_ch));

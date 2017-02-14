@@ -34,22 +34,22 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::XRealTimeAcqDSO(const char *n
     }
 }
 template <class tDriver> XRealTimeAcqDSO<tDriver>::~XRealTimeAcqDSO() {
-    clearAcquision();
+    clearAll();
 }
 template <class tDriver>
 void
 XRealTimeAcqDSO<tDriver>::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &) {
     iterate_commit([=](Transaction &tr){
         tr[ *this->trigSource()].clear();
-        tr[ *this->trigSource()].add(hardwareTriggerNames());
-        XString series = this->interface()->productSeries();
-        {
-            auto list(this->softwareTriggerManager().list());
-            for(auto it = list->begin(); it != list->end(); ++it) {
-                for(unsigned int i = 0; i < ( *it)->bits(); i++) {
-                    tr[ *this->trigSource()].add(
-                        formatString("%s/line%d", ( *it)->label(), i));
-                }
+        auto names = hardwareTriggerNames();
+        for(auto &&x: names) {
+            tr[ *this->trigSource()].add(x);
+        }
+        auto list(this->softwareTriggerManager().list());
+        for(auto it = list->begin(); it != list->end(); ++it) {
+            for(unsigned int i = 0; i < ( *it)->bits(); i++) {
+                tr[ *this->trigSource()].add(
+                    formatString("%s/line%d", ( *it)->label(), i));
             }
         }
         tr.unmark(this->m_lsnOnTrigSourceChanged); //avoids nested transactions.
@@ -84,7 +84,7 @@ XRealTimeAcqDSO<tDriver>::close() throw (XKameError &) {
 
     m_lsnOnSoftTrigChanged.reset();
 
-    clearAcquision();
+    clearAll();
 
     if(m_threadReadAI) {
         m_threadReadAI->terminate();
@@ -102,18 +102,18 @@ XRealTimeAcqDSO<tDriver>::close() throw (XKameError &) {
 }
 template <class tDriver>
 void
-XRealTimeAcqDSO<tDriver>::clearAcquision() {
+XRealTimeAcqDSO<tDriver>::clearAll() {
     XScopedLock<XInterface> lock( *this->interface());
     m_suspendRead = true;
     XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
     try {
         disableTrigger();
+        clearAcquision();
     }
     catch (XInterface::XInterfaceError &e) {
         e.print();
     }
-    clearAcquision();
 }
 template <class tDriver>
 void
@@ -212,7 +212,7 @@ XRealTimeAcqDSO<tDriver>::createChannels() {
     m_suspendRead = true;
     XScopedLock<XRecursiveMutex> lock2(m_readMutex);
 
-    clearAcquision();
+    clearAll();
 
     setupChannels();
 
@@ -355,15 +355,35 @@ XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
                 uint64_t total_samps = getTotalSampsAcquired();
                 samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
                 if(samplecnt_at_trigger) {
+                    setReadPosition(samplecnt_at_trigger - m_preTriggerPos);
                     break;
                 }
                 msecsleep(lrint(1e3 * size * m_interval / 6));
             }
         }
+        else {
+            setReadPosition(0);
+        }
         if(terminated)
             return;
 
-        readAcqBuffer(samplecnt_at_trigger, size, &m_recordBuf[0]);
+        const unsigned int num_samps = std::min(size, 8192u);
+        for(; cnt < size;) {
+            int samps;
+            samps = std::min(size - cnt, num_samps);
+            while( !terminated) {
+                if(tryReadAISuspend(terminated))
+                    return;
+                uint32_t space = getNumSampsToBeRead();
+                if(space >= samps)
+                    break;
+                msecsleep(lrint(1e3 * (samps - space) * m_interval));
+            }
+            if(terminated)
+                return;
+            samps = readAcqBuffer(samps, &m_recordBuf[cnt * num_ch]);
+            cnt += samps;
+        }
 
         Snapshot shot( *this);
         const unsigned int av = shot[ *this->average()];
@@ -575,9 +595,6 @@ XRealTimeAcqDSO<tDriver>::getWave(shared_ptr<typename tDriver::RawData> &writer,
     uint32_t num_ch = rec.numCh;
     uint32_t len = rec.recordLength;
 
-    char buf[2048];
-    CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
-
     if(rec.isComplex)
         num_ch *= 2;
     writer->push((uint32_t)num_ch);
@@ -596,7 +613,7 @@ XRealTimeAcqDSO<tDriver>::getWave(shared_ptr<typename tDriver::RawData> &writer,
     const unsigned int size = len * num_ch;
     for(unsigned int i = 0; i < size; i++)
         writer->push((int32_t)*p++);
-    XString str(buf);
+    XString str = getChannelInfoStrings();
     writer->insert(writer->end(), str.begin(), str.end());
     str = ""; //reserved/
     writer->insert(writer->end(), str.begin(), str.end());
@@ -614,8 +631,8 @@ XRealTimeAcqDSO<tDriver>::convertRaw(typename tDriver::RawDataReader &reader, Tr
 
     tr[ *this].setParameters(num_ch, - (double)pretrig * interval, interval, len);
 
-    double *wave[NUM_MAX_CH * 2];
-    double coeff[NUM_MAX_CH * 2][CAL_POLY_ORDER];
+    double *wave[num_ch * 2];
+    double coeff[num_ch * 2][CAL_POLY_ORDER];
     for(unsigned int j = 0; j < num_ch; j++) {
         for(unsigned int i = 0; i < CAL_POLY_ORDER; i++) {
             coeff[j][i] = reader.template pop<double>();

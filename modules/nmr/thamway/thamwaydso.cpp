@@ -84,7 +84,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
     smps--;
-    double intv = getTimeInterval();
+    double intv = std::max(0.04e-3, getTimeInterval());
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = std::max(25000, smps);

@@ -30,19 +30,42 @@ public:
     //! Converts raw to record
     virtual void convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) throw (typename tDriver::XRecordError&) override;
 protected:
+    using tRawAI = int16_t;
+    //! Changes the instrument state so that it can wait for a trigger (arm).
     virtual void startAcquision() = 0;
+    //! Prepares the instrument state just before startAcquision().
     virtual void commitAcquision() = 0;
-    virtual void suspendAcquision() = 0;
+    //! From a triggerable state to a commited state.
     virtual void stopAcquision() = 0;
+    //! From any state to unconfigured state.
     virtual void clearAcquision() = 0;
-    virtual void getNumOfChannels() = 0;
-    virtual std::initializer_list<XString> hardwareTriggerNames() = 0;
+    //! \return # of configured channels.
+    virtual unsigned int getNumOfChannels() = 0;
+    //! \return Additional informations of channels to be stored.
+    virtual XString getChannelInfoStrings() = 0;
+    //! \return Trigger candidates
+    virtual std::deque<XString> hardwareTriggerNames() = 0;
+    //! Prepares instrumental setups for timing.
     virtual void setupTimeBase() = 0;
+    //! Prepares instrumental setups for channels.
     virtual void setupChannels() = 0;
+    //! Prepares instrumental setups for trigger.
     virtual void setupHardwareTrigger() = 0;
+    //! Clears trigger settings.
     virtual void disableHardwareTriggers() = 0;
+    //! \return # of samples per channel acquired from the arm.
     virtual uint64_t getTotalSampsAcquired() = 0;
-    virtual uint32_t readAcqBuffer(uint64_t pos, uint32_t size, double *buf) = 0;
+    //! \return # of new samples per channel stored in the driver's ring buffer from the current read position.
+    virtual uint32_t getNumSampsToBeRead() = 0;
+    //! Sets the position for the next reading operated by a readAcqBuffer() function.
+    //! \arg pos position from the hardware arm, or from the first point for pre-trigger acquision.
+    //! \return true if the operation is sucessful
+    virtual bool setReadPosition(uint64_t pos) = 0;
+    //! Copies data from driver's ring buffer from the current read position.
+    //! The position for the next reading will be advanced by the return value.
+    //! \arg buf to which 16bitxChannels stream is stored, packed by channels first.
+    //! \return # of samples per channel read.
+    virtual uint32_t readAcqBuffer(uint32_t size, tRawAI *buf) = 0;
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() throw (XKameError &) override;
@@ -79,7 +102,6 @@ protected:
     //! Loads waveform and settings from instrument
     virtual void getWave(shared_ptr<typename tDriver::RawData> &writer, std::deque<XString> &channels) override;
 private:
-    using tRawAI = int16_t;
     shared_ptr<SoftwareTrigger> m_softwareTrigger;
     shared_ptr<Listener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
     void onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &);
@@ -117,6 +139,8 @@ private:
     double m_interval;
     unsigned int m_preTriggerPos;
     void setupAcquision();
+    void suspendAcquision();
+    void clearAll();
     void disableTrigger();
     void setupTrigger();
     void clearStoredSoftwareTrigger();
