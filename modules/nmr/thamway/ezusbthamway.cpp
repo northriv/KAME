@@ -434,7 +434,7 @@ XFX2FWUSBInterface::send(const char *str) throw (XCommError &) {
             writeToRegister8(ADDR_CHARINTF, (uint8_t)buf[i]);
         }
     }
-    catch (XCommError &e) {
+    catch (XInterfaceError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
         throw e;
     }
@@ -459,7 +459,7 @@ XFX2FWUSBInterface::receive() throw (XCommError &) {
         dbgPrint(driver()->getLabel() + " Received;\"" +
                  dumpCString((const char*)&buffer()[0]) + "\"");
     }
-    catch (XCommError &e) {
+    catch (XInterfaceError &e) {
         e.print(driver()->getLabel() + i18n(" ReceiveError, because "));
         throw e;
     }

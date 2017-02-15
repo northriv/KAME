@@ -424,7 +424,7 @@ XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
         unsigned int div = bufsize / 4;
         unsigned int rest = bufsize % 4;
         if(new_rec.isComplex) {
-            double ph = phaseOfRF(shot, samplecnt_at_trigger, m_interval);
+            double ph = this->phaseOfRF(shot, samplecnt_at_trigger, m_interval);
             double cosph = cos(ph);
             double sinph = sin(ph);
             //real part.
