@@ -352,6 +352,7 @@ XNIDAQmxDSO::setReadPosition(uint64_t pos) {
             CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
         }
         CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, pos));
+        return true;
     }
 }
 
