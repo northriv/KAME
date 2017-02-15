@@ -109,6 +109,8 @@ protected:
     double m_coeffAI[4][CAL_POLY_ORDER];
     unsigned int m_preTriggerPos;
 
+    unsigned int sizeofRecordBuf() const {return m_recordBuf.size();}
+
     void suspendAcquision();
 private:
     shared_ptr<SoftwareTrigger> m_softwareTrigger;

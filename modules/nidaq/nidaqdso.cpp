@@ -143,7 +143,7 @@ XNIDAQmxDSO::setupTimeBase() {
                               NULL, // internal source
                               len / shot[ *timeWidth()],
                               DAQmx_Val_Rising,
-                              !m_softwareTrigger ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
+                              !hasSoftwareTrigger() ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
                               bufsize
                               ));
 
@@ -282,7 +282,7 @@ XNIDAQmxDSO::setupHardwareTrigger() {
         CHECK_DAQMX_RET(DAQmxGetBufInputOnbrdBufSize(m_task, &bufsize));
         CHECK_DAQMX_RET(
             DAQmxSetAIDataXferReqCond(m_task, ch,
-                                      (hasSoftwareTrigger() || (bufsize/2 < m_recordBuf.size())) ? DAQmx_Val_OnBrdMemNotEmpty :
+                                      (hasSoftwareTrigger() || (bufsize/2 < sizeofRecordBuf())) ? DAQmx_Val_OnBrdMemNotEmpty :
                                       DAQmx_Val_OnBrdMemMoreThanHalfFull));
     }
 
@@ -355,14 +355,15 @@ XNIDAQmxDSO::setReadPosition(uint64_t pos) {
 
 uint32_t
 XNIDAQmxDSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
+    int32 samps;
     int32_t num_ch = getNumOfChannels();
     CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, size,
        0.0, DAQmx_Val_GroupByScanNumber,
-       buf, size * num_ch, &size, NULL
+       buf, size * num_ch, &samps, NULL
        ));
     CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
     CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-    return size;
+    return samps;
 }
 
 
