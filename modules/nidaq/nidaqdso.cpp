@@ -30,6 +30,8 @@ REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 #define TASK_UNDEF ((TaskHandle)-1)
 #define NUM_MAX_CH 4
 
+template class XRealTimeAcqDSO<XNIDAQmxDriver<XDSO>>;
+
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XRealTimeAcqDSO<XNIDAQmxDriver<XDSO>>(name, runtime, ref(tr_meas), meas),
