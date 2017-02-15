@@ -21,7 +21,7 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::XRealTimeAcqDSO(const char *n
     tDriver(name, runtime, ref(tr_meas), meas),
     m_dsoRawRecordBankLatest(0) {
 
-    iterate_commit([=](Transaction &tr){
+    this->iterate_commit([=](Transaction &tr){
         tr[ *this->recordLength()] = 2000;
         tr[ *this->timeWidth()] = 1e-2;
         tr[ *this->average()] = 1;
@@ -39,13 +39,13 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::~XRealTimeAcqDSO() {
 template <class tDriver>
 void
 XRealTimeAcqDSO<tDriver>::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &) {
-    iterate_commit([=](Transaction &tr){
+    this->iterate_commit([=](Transaction &tr){
         tr[ *this->trigSource()].clear();
         auto names = hardwareTriggerNames();
         for(auto &&x: names) {
             tr[ *this->trigSource()].add(x);
         }
-        auto list(this->softwareTriggerManager().list());
+        auto list(this->interface()->softwareTriggerManager().list());
         for(auto it = list->begin(); it != list->end(); ++it) {
             for(unsigned int i = 0; i < ( *it)->bits(); i++) {
                 tr[ *this->trigSource()].add(
@@ -72,7 +72,7 @@ XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
     this->start();
 
     m_lsnOnSoftTrigChanged =
-        this->softwareTriggerManager().onListChanged().connectWeakly(
+        this->interface()->softwareTriggerManager().onListChanged().connectWeakly(
             this->shared_from_this(), &XRealTimeAcqDSO<tDriver>::onSoftTrigChanged,
             Listener::FLAG_MAIN_THREAD_CALL);
     createChannels();
@@ -150,7 +150,7 @@ XRealTimeAcqDSO<tDriver>::setupSoftwareTrigger() {
     Snapshot shot( *this);
     XString src = shot[ *this->trigSource()].to_str();
     //setup virtual trigger.
-    auto list(this->softwareTriggerManager().list());
+    auto list(this->interface()->softwareTriggerManager().list());
     for(auto it = list->begin(); it != list->end(); ++it) {
         for(unsigned int i = 0; i < ( *it)->bits(); i++) {
             if(src == formatString("%s/line%d", ( *it)->label(), i)) {

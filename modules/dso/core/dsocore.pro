@@ -8,11 +8,11 @@ INCLUDEPATH += \
 
 HEADERS += \
     dso.h \
-    dsorealtimeacq.h
+    dsorealtimeacq.h \
+    dsorealtimeacq_impl.h
 
 SOURCES += \
-    dso.cpp \
-    dsorealtimeacq.cpp
+    dso.cpp
 
 FORMS += \
     dsoform.ui

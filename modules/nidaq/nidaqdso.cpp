@@ -14,6 +14,7 @@
 //! \todo sub-sampling rate synchronization.
 
 #include "nidaqdso.h"
+#include "dsorealtimeacq_impl.h"
 
 #ifndef HAVE_NI_DAQMX
 	#define DAQmx_Val_FallingSlope 0
@@ -29,8 +30,6 @@ REGISTER_TYPE(XDriverList, NIDAQmxDSO, "National Instruments DAQ as DSO");
 
 #define TASK_UNDEF ((TaskHandle)-1)
 #define NUM_MAX_CH 4
-
-template class XRealTimeAcqDSO<XNIDAQmxDriver<XDSO>>;
 
 XNIDAQmxDSO::XNIDAQmxDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
