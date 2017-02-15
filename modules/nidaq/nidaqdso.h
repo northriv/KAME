@@ -23,8 +23,6 @@ public:
 	XNIDAQmxDSO(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XNIDAQmxDSO() = default;
-	//! Converts raw to record
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() throw (XKameError &) override;
@@ -73,8 +71,6 @@ private:
 
 	static int32 onTaskDone_(TaskHandle task, int32 status, void*);
 	void onTaskDone(TaskHandle task, int32 status);
-
-	XRecursiveMutex m_readMutex;
 };
 
 #endif
