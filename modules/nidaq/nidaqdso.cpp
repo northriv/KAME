@@ -137,16 +137,16 @@ XNIDAQmxDSO::setupTimeBase() {
         bufsize = std::max(bufsize, (unsigned int)(onbrd_size / num_ch));
     }
 
+    //! debug!
+    //		formatString("/%s/Ctr0InternalOutput", interface()->devName()),
     CHECK_DAQMX_RET(
         DAQmxCfgSampClkTiming(m_task,
-                              //! debug!
-                              //		formatString("/%s/Ctr0InternalOutput", interface()->devName()),
-                              NULL, // internal source
-                              len / shot[ *timeWidth()],
-                              DAQmx_Val_Rising,
-                              !hasSoftwareTrigger() ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
-                              bufsize
-                              ));
+          NULL, // internal source
+          len / shot[ *timeWidth()],
+          DAQmx_Val_Rising,
+          !hasSoftwareTrigger() ? DAQmx_Val_FiniteSamps : DAQmx_Val_ContSamps,
+          bufsize
+          ));
 
     interface()->synchronizeClock(m_task);
 
@@ -316,43 +316,40 @@ XNIDAQmxDSO::getNumSampsToBeRead() {
 }
 
 bool
-XNIDAQmxDSO::setReadPosition(uint64_t pos) {
-    if(hasSoftwareTrigger()) {
-        uInt32 bufsize;
-        CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-        uint64_t total_samps = getTotalSampsAcquired();
-        if(total_samps - pos > bufsize * 4 / 5) {
-            gWarnPrint(i18n("Buffer Overflow."));
-            return false;
-        }
-        //set read pos.
-        int16 tmpbuf[NUM_MAX_CH];
-        int32 samps;
-        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
-        CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
-        CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
-                                           0, DAQmx_Val_GroupByScanNumber,
-                                           tmpbuf, NUM_MAX_CH, &samps, NULL
-                                           ));
-        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-        CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-        uInt64 curr_rdpos;
-        CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
-        int32 offset = pos - curr_rdpos;
-        CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
-        //					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
-        return true;
+XNIDAQmxDSO::setReadPositionAbsolute(uint64_t pos) {
+    uInt32 bufsize;
+    CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
+    uint64_t total_samps = getTotalSampsAcquired();
+    if(total_samps - pos > bufsize * 4 / 5) {
+        return false;
+    }
+    //set read pos.
+    int16 tmpbuf[NUM_MAX_CH];
+    int32 samps;
+    CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
+    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
+    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
+                                       0, DAQmx_Val_GroupByScanNumber,
+                                       tmpbuf, NUM_MAX_CH, &samps, NULL
+                                       ));
+    CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
+    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+    uInt64 curr_rdpos;
+    CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
+    int32 offset = pos - curr_rdpos;
+    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
+    //					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
+    return true;
+}
+void
+XNIDAQmxDSO::setReadPositionFirstPoint() {
+    if(m_preTriggerPos) {
+        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
     }
     else {
-        if(m_preTriggerPos) {
-            CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
-        }
-        else {
-            CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
-        }
-        CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, pos));
-        return true;
+        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
     }
+    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, pos));
 }
 
 uint32_t

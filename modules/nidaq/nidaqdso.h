@@ -56,9 +56,11 @@ protected:
     //! \return # of new samples per channel stored in the driver's ring buffer from the current read position.
     virtual uint32_t getNumSampsToBeRead() override;
     //! Sets the position for the next reading operated by a readAcqBuffer() function.
-    //! \arg pos position from the hardware arm, or from the first point for pre-trigger acquision.
+    //! \arg pos position from the hardware arm.
     //! \return true if the operation is sucessful
-    virtual bool setReadPosition(uint64_t pos) override;
+    virtual bool setReadPositionAbsolute(uint64_t pos) override;
+    //! Sets the position for the next reading operated by a readAcqBuffer() function.
+    virtual void setReadPositionFirstPoint() override;
     //! Copies data from driver's ring buffer from the current read position.
     //! The position for the next reading will be advanced by the return value.
     //! \arg buf to which 16bitxChannels stream is stored, packed by channels first.

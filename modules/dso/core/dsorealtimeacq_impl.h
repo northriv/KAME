@@ -353,15 +353,17 @@ XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
                 uint64_t total_samps = getTotalSampsAcquired();
                 samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
                 if(samplecnt_at_trigger) {
-                    if( !setReadPosition(samplecnt_at_trigger - m_preTriggerPos))
+                    if( !setReadPositionAbsolute(samplecnt_at_trigger - m_preTriggerPos)) {
+                        gWarnPrint(i18n("Buffer Overflow."));
                         continue;
+                    }
                     break;
                 }
                 msecsleep(lrint(1e3 * size * m_interval / 6));
             }
         }
         else {
-            setReadPosition(0);
+            setReadPositionFirstPoint();
         }
         if(terminated)
             return;
