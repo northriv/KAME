@@ -316,7 +316,7 @@ XRuby::is_main_terminated(const shared_ptr<XNode> &) {
 }
 
 void *
-XRuby::execute(const atomic<bool> &) {
+XRuby::execute(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::UI_DEFERRABLE);
     m_ruby.reset(new Ruby("KAME"));
     shared_ptr<XRuby> xruby = dynamic_pointer_cast<XRuby>(shared_from_this());
@@ -367,10 +367,13 @@ XRuby::execute(const atomic<bool> &) {
         char data[65536];
         QDataStream( &scriptfile).readRawData(data, sizeof(data));
 
-        int state = m_ruby->evalProtect(data);
-        if(state) {
-            fprintf(stderr, "Ruby, exception(s) occurred.\n");
-            m_ruby->printErrorInfo();
+        while( !terminated) {
+            int state = m_ruby->evalProtect(data);
+            if(state) {
+                fprintf(stderr, "Ruby, exception(s) occurred.\n");
+                m_ruby->printErrorInfo();
+                break;
+            }
         }
     }
 
