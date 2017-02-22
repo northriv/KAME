@@ -347,6 +347,7 @@ private:
     //! \sa SoftwareTrigger::onTriggerRequested()
     void onTriggerRequested(uint64_t threshold);
     shared_ptr<Listener> m_lsnOnTriggerRequested;
+    Payload::RelPatList m_patListFreeRun;
     int m_lastIdxFreeRun;
     uint32_t m_lastPatFreeRun;
     uint64_t m_totalSampsOfFreeRun;

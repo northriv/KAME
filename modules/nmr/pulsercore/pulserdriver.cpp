@@ -423,21 +423,23 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
 void
 XPulser::onTriggerRequested(uint64_t threshold) {
     XScopedLock<XMutex> lock(m_mutexForFreeRun);
-    const Snapshot shot( *this);
-    auto patlist = shot[ *this].relPatList();
+    auto &patlist = m_patListFreeRun;
     int idx = m_lastIdxFreeRun;
     uint32_t oldpat = m_lastPatFreeRun;
     if(idx >= patlist.size()) return;
-    auto vt = softwareTrigger();
+    auto *p = softwareTrigger().get();
+    int cnt = 0;
     //Caches trigger positions
     while(m_totalSampsOfFreeRun < threshold) {
         auto &pat = patlist[idx++];
         if(idx >= patlist.size()) idx = 0;
         m_totalSampsOfFreeRun += pat.toappear;
         uint32_t newpat = pat.pattern;
-        bool ret = vt->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
+        bool ret = p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
         oldpat = newpat;
-//        if(ret) break;
+        if(ret) {
+            if(cnt++ > 1) break;
+        }
     }
     m_lastIdxFreeRun = idx;
     m_lastPatFreeRun = oldpat;
@@ -1177,6 +1179,8 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 void
 XPulser::setPrefillingSampsBeforeArm(uint64_t cnt) {
     XScopedLock<XMutex> lock(m_mutexForFreeRun);
+    Snapshot shot( *this);
+    m_patListFreeRun = shot[ *this].relPatList();
     m_prefillingSampsBeforeArm = cnt;
     softwareTrigger()->clear();
     m_totalSampsOfFreeRun = prefillingSampsBeforeArm();
@@ -1207,8 +1211,8 @@ XPulser::visualize(const Snapshot &shot) {
                     }
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
-                    //free-runs to calculate trigger positions for 0.1sec.
-                    softwareTrigger()->onTriggerRequested().talk(lrint(0.1 * softwareTrigger()->freq()));
+                    //free-runs to calculate trigger positions for 0.3sec.
+                    softwareTrigger()->onTriggerRequested().talk(lrint(0.3 * softwareTrigger()->freq()));
                 }
             }
         }

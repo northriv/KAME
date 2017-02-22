@@ -904,7 +904,8 @@ void XLakeShore350::open() throw (XKameError &) {
             if(interface()->scanf("%d,%d", &mode, &srcch) != 2)
                 throw XInterface::XConvError(__FILE__, __LINE__);
             iterate_commit([=](Transaction &tr){
-                tr[ *currentChannel(idx)] = shot.list( channels())->at(srcch - 1);
+                if((srcch > 0) && (srcch <= shot.size( channels())))
+                    tr[ *currentChannel(idx)] = shot.list( channels())->at(srcch - 1);
                 tr[ *heaterMode(idx)].clear();
                 if(idx <= 1)
                     tr[ *heaterMode(idx)].add({"Off", "PID", "ZONE", "OpenLoop"});
