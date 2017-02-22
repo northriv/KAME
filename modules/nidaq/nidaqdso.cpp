@@ -349,7 +349,7 @@ XNIDAQmxDSO::setReadPositionFirstPoint() {
     else {
         CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
     }
-    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, pos));
+    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
 }
 
 uint32_t
