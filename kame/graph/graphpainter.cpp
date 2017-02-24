@@ -290,7 +290,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
             });
         }
 	}
-    if(state ==SelectionState::Selecting)
+    if((state !=SelectionState::Selecting) || (state ==SelectionState::SelStart))
         requestRepaint(0, 0, m_pItem->width(), m_pItem->height()); //supresses frequent update.
     else
         m_pItem->update();

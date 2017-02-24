@@ -257,7 +257,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 void
 XFlexAR::getConditions(Transaction &tr) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->diagnostics();
+    interface()->diagnostics();
 	tr[ *currentRunning()] = interface()->readHoldingTwoResistors(0x240) * 0.1;
 	tr[ *currentStopping()] = interface()->readHoldingTwoResistors(0x242) * 0.1;
 	tr[ *microStep()] = (interface()->readHoldingTwoResistors(0x1028) != 0);
