@@ -49,11 +49,10 @@ protected:
     virtual void wheelEvent ( QWheelEvent *) override;
     virtual void showEvent ( QShowEvent * ) override;
     virtual void hideEvent ( QHideEvent * ) override;
-#ifdef USE_QGLWIDGET
+#ifndef QOPENGLWIDGET_QPAINTER_ATEND
     virtual void paintEvent(QPaintEvent *event) override;
-#else
-    virtual void paintGL() override;
 #endif
+    virtual void paintGL() override;
     //! openGL stuff
     virtual void initializeGL() override;
     virtual void resizeGL ( int width, int height ) override;

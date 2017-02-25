@@ -124,7 +124,7 @@ private:
  
  shared_ptr<Listener> m_lsnRepaint;
  Transactional::TalkerOnce<Snapshot> m_tlkRepaint;
- void requestRepaint(int x1, int y1, int x2, int y2);
+ void requestRepaint();
  void onRepaint(const Snapshot &shot);
  
  //! Draws plots, axes.
@@ -166,7 +166,7 @@ Snapshot startDrawing();
  GLint m_listpoints, m_listaxes,
     m_listaxismarkers, m_listgrids, m_listplanemarkers;
  
- bool m_bIsRedrawNeeded;
+ atomic<bool> m_bIsRedrawNeeded;
  bool m_bIsAxisRedrawNeeded;
  bool m_bTilted;
  bool m_bReqHelp;

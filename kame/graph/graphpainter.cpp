@@ -290,8 +290,8 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
             });
         }
 	}
-    if((state !=SelectionState::Selecting) || (state ==SelectionState::SelStart))
-        requestRepaint(0, 0, m_pItem->width(), m_pItem->height()); //supresses frequent update.
+    if((state !=SelectionState::Selecting) && (state != SelectionState::SelStart))
+        requestRepaint(); //supresses frequent update.
     else
         m_pItem->update();
 }
@@ -337,7 +337,7 @@ XQGraphPainter::zoom(double zoomscale, int , int ) {
 void
 XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
     m_bIsRedrawNeeded = true;
-    m_pItem->update();
+    requestRepaint(); //may defer update.
 }
 void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {

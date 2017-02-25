@@ -43,7 +43,8 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     format.setVersion(2, 0);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 //    format.setProfile(QSurfaceFormat::CoreProfile);
-    setFormat(format);
+   format.setProfile(QSurfaceFormat::OpenGLContextProfile::CompatibilityProfile);
+   setFormat(format);
 #endif
 //    if( !parent->layout() ) {
 //        parent->setLayout(new QHBoxLayout(this));
@@ -158,14 +159,13 @@ XQGraph::resizeGL ( int width, int height ) {
     }
 }
 
-#ifdef USE_QGLWIDGET
+#ifndef QOPENGLWIDGET_QPAINTER_ATEND
 void XQGraph::paintEvent(QPaintEvent *event) {
     //overpaint huck
     makeCurrent();
-    if(m_painter )
-        m_painter->paintGL();
+    paintGL();
 }
-#else
+#endif
 void
 XQGraph::paintGL() {
     if(m_painter ) {
@@ -178,5 +178,4 @@ XQGraph::paintGL() {
         m_painter->paintGL();
     }
 }
-#endif
 

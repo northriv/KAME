@@ -81,8 +81,7 @@ XQGraphPainter::XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item) :
 	item->m_painter.reset(this);
     graph->iterate_commit([=](Transaction &tr){
 		m_lsnRedraw = tr[ *graph].onUpdate().connectWeakly(
-			shared_from_this(), &XQGraphPainter::onRedraw,
-            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP | Listener::FLAG_DELAY_ADAPTIVE);
+            shared_from_this(), &XQGraphPainter::onRedraw);
     });
     m_lsnRepaint = m_tlkRepaint.connectWeakly(
         shared_from_this(), &XQGraphPainter::onRepaint,
@@ -122,13 +121,8 @@ XQGraphPainter::screenToWindow(const XGraph::ScrPoint &scr, double *x, double *y
 }
 
 void
-XQGraphPainter::requestRepaint(int x1, int y1, int x2, int y2) {
-	if((x1 != x2) || (y1 != y2)) {
-        if(m_bIsRedrawNeeded || m_bIsAxisRedrawNeeded)
-            m_pItem->update();
-        else
-            m_tlkRepaint.talk(Snapshot( *m_graph)); //defers update.
-    }
+XQGraphPainter::requestRepaint() {
+    m_tlkRepaint.talk(Snapshot( *m_graph)); //defers update.
 }
 void
 XQGraphPainter::onRepaint(const Snapshot &shot) {
@@ -297,7 +291,8 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 		setInitView();
 		glMultMatrixd(m_proj_rot);
 	}
-	checkGLError();
+    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+    checkGLError();
 	bool ov = m_bTilted;
 	m_bTilted = !init;
 	if(ov != m_bTilted) m_bIsRedrawNeeded = true;
@@ -314,16 +309,13 @@ XQGraphPainter::selectGL(int x, int y, int dx, int dy, GLint list,
     glGetError(); //reset error
 
     GLuint selections[MAX_SELECTION];
-	glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
-	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
-	glGetIntegerv(GL_VIEWPORT, m_viewport);
-	glSelectBuffer(MAX_SELECTION, selections);
+    glSelectBuffer(MAX_SELECTION, selections);
 	glRenderMode(GL_SELECT);
 	glInitNames();
 	glPushName((unsigned int)-1);
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
-	//pick up small region
+    //pick up small region
 	glLoadIdentity();
     gluPickMatrix((double)(x - dx) * m_pixel_ratio, (double)m_viewport[3] - (y + dy) * m_pixel_ratio,
             2 * dx * m_pixel_ratio, 2 * dy * m_pixel_ratio, m_viewport);
@@ -382,8 +374,6 @@ XQGraphPainter::initializeGL () {
 #ifndef USE_QGLWIDGET
     initializeOpenGLFunctions();
 #endif
-    glEnable(GL_MULTISAMPLE);
-
     //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
@@ -395,24 +385,22 @@ XQGraphPainter::initializeGL () {
     m_listgrids = glGenLists(1);
     m_listaxes = glGenLists(1);
     m_listpoints = glGenLists(1);
-    glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    //save model view matrix
+    //saves model view matrix
     viewRotate(0.0, 0.0, 0.0, 0.0, true);
 }
 void
 XQGraphPainter::resizeGL ( int width  , int height ) {
-    // setup viewport, projection etc.:
-    glMatrixMode(GL_PROJECTION);
     m_bIsRedrawNeeded = true;
-//  drawLists();
 }
 void
 XQGraphPainter::paintGL () {
-#ifndef USE_QGLWIDGET
-//    QPainter qpainter(m_pItem);
-//    qpainter.beginNativePainting();
+#if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
+    QPainter qpainter(m_pItem);
+    qpainter.beginNativePainting();
 #endif
+    glMatrixMode(GL_PROJECTION);
+
     glGetError(); // flush error
     //stores states
     GLint depth_func_org;
@@ -420,21 +408,25 @@ XQGraphPainter::paintGL () {
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
 
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
+//    glPushMatrix();
+    glLoadIdentity(); //QOpenGLWidget may collapse modelview matrix?
+    glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
     m_textOverpaint.clear();
 
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glDepthFunc(GL_LEQUAL);
 
     glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+
     // be aware of retina display.
     glViewport( 0, 0, (GLint)(m_pItem->width() * m_pixel_ratio),
                 (GLint)(m_pItem->height() * m_pixel_ratio));
-    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
-	glGetDoublev(GL_MODELVIEW_MATRIX, m_model);
+    glLoadMatrixd(m_proj); //restores our projection matrix.
     glGetIntegerv(GL_VIEWPORT, m_viewport);
 
     // Set up the rendering context,
+    glEnable(GL_MULTISAMPLE);
     glEnable(GL_BLEND);
 
     checkGLError();
@@ -454,14 +446,26 @@ XQGraphPainter::paintGL () {
     QColor bgc = (QRgb)shot[ *m_graph->backGround()];
     glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
 
-    if(m_bIsRedrawNeeded || true) {
+    if(m_bIsRedrawNeeded) {
         shot = startDrawing();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         glMatrixMode(GL_MODELVIEW);
         glEnable(GL_DEPTH_TEST);
-        
+
+        //For stupid OpenGL implementations.
+//        if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
+//        if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
+//        if(m_listgrids) glDeleteLists(m_listgrids, 1);
+//        if(m_listaxes) glDeleteLists(m_listaxes, 1);
+//        if(m_listpoints) glDeleteLists(m_listpoints, 1);
+//        m_listplanemarkers = glGenLists(1);
+//        m_listaxismarkers = glGenLists(1);
+//        m_listgrids = glGenLists(1);
+//        m_listaxes = glGenLists(1);
+//        m_listpoints = glGenLists(1);
+
         checkGLError(); 
 
         glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
@@ -509,6 +513,10 @@ XQGraphPainter::paintGL () {
 //        glDisable(GL_DEPTH_TEST);
         if(1) { //renderText() have to be called every time.
 //        if(m_bIsAxisRedrawNeeded) {
+            //For stupid OpenGL implementations.
+//            if(m_listaxes) glDeleteLists(m_listaxes, 1);
+//            m_listaxes = glGenLists(1);
+
             glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
             drawOffScreenAxes(shot);
             glEndList();
@@ -522,7 +530,8 @@ XQGraphPainter::paintGL () {
     drawOnScreenObj(shot);
 
     glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
+GLdouble proj_orig[16];
+    glGetDoublev(GL_PROJECTION_MATRIX, proj_orig);
     setInitView();
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
     glMatrixMode(GL_MODELVIEW);
@@ -590,11 +599,10 @@ XQGraphPainter::paintGL () {
 
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
     //    glFlush();
-
+    glPopMatrix(); //original state for Qt.
     glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
+//    glPopMatrix(); //original state for Qt.
 
     //restores states
     glShadeModel(GL_FLAT);
@@ -604,10 +612,11 @@ XQGraphPainter::paintGL () {
     glDepthFunc(depth_func_org);
     glPopAttrib();
 
-#ifndef USE_QGLWIDGET
-//    qpainter.endNativePainting();
-#endif
+#if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
+    qpainter.endNativePainting();
+#else
     QPainter qpainter(m_pItem);
+#endif
 
     qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
     qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
@@ -617,6 +626,8 @@ XQGraphPainter::paintGL () {
         drawTextOverpaint(qpainter);
     }
     qpainter.end();
+
+    memcpy(m_proj, proj_orig, sizeof(proj_orig));
 }
 
 void
