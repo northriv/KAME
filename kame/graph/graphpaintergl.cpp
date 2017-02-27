@@ -609,6 +609,7 @@ GLdouble proj_orig[16];
     glDisable(GL_LIGHTING);
     glDepthFunc(depth_func_org);
     glDepthMask(false);
+    glDisable(GL_MULTISAMPLE);
     glPopAttrib();
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
