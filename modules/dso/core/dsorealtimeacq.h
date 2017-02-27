@@ -26,7 +26,7 @@ class XRealTimeAcqDSO : public tDriver {
 public:
     XRealTimeAcqDSO(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XRealTimeAcqDSO();
+    virtual ~XRealTimeAcqDSO() = default;
     //! Converts raw to record
     virtual void convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) throw (typename tDriver::XRecordError&) override;
 protected:

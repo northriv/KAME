@@ -33,9 +33,6 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::XRealTimeAcqDSO(const char *n
         mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
     }
 }
-template <class tDriver> XRealTimeAcqDSO<tDriver>::~XRealTimeAcqDSO() {
-    clearAll();
-}
 template <class tDriver>
 void
 XRealTimeAcqDSO<tDriver>::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &) {
