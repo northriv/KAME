@@ -232,7 +232,7 @@ XQGraphPainter::selectFont(const XString &str,
             QRect bb = fm.boundingRect(str);
             if(m_curFontSize < fontsize_org - 4) return -1;
             if((bb.width() < w ) && (bb.height() < h)) break;
-            m_curFontSize--;
+            m_curFontSize -= 2;
         }
     }
 	return 0;
@@ -446,7 +446,7 @@ XQGraphPainter::paintGL () {
     QColor bgc = (QRgb)shot[ *m_graph->backGround()];
     glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
 
-    if(m_bIsRedrawNeeded) {
+    if(m_bIsRedrawNeeded.compare_set_strong(true, false)) {
         shot = startDrawing();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -498,8 +498,6 @@ XQGraphPainter::paintGL () {
         glEndList();
 
         checkGLError();
-
-        m_bIsRedrawNeeded = false;
         m_bIsAxisRedrawNeeded = false;
     }
     else {
@@ -610,6 +608,7 @@ GLdouble proj_orig[16];
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
     glDepthFunc(depth_func_org);
+    glDepthMask(false);
     glPopAttrib();
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
@@ -618,7 +617,7 @@ GLdouble proj_orig[16];
     QPainter qpainter(m_pItem);
 #endif
 
-    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing);
     qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
@@ -633,11 +632,14 @@ GLdouble proj_orig[16];
 void
 XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
     QFont font(qpainter.font());
-    for(auto it = m_textOverpaint.begin(); it != m_textOverpaint.end(); ++it) {
-        qpainter.setPen(QColor(it->rgba));
-        font.setPointSize(it->fontsize);
-        qpainter.setFont(font);
-        qpainter.drawText(it->x, it->y, it->text);
+    for(auto &&text: m_textOverpaint) {
+        if(QColor(text.rgba) != qpainter.pen().color())
+            qpainter.setPen(QColor(text.rgba));
+        if(font.pointSize() != text.fontsize) {
+            font.setPointSize(text.fontsize);
+            qpainter.setFont(font);
+        }
+        qpainter.drawText(text.x, text.y, text.text);
     }
     m_textOverpaint.clear();
 }

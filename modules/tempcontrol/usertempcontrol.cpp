@@ -693,10 +693,17 @@ void XLakeShoreBridge::onPChanged(unsigned int loop, double p) {
 	interface()->sendf("PID %u,%f", loop + 1, p);
 }
 void XLakeShoreBridge::onIChanged(unsigned int loop, double i) {
-	interface()->sendf("PID %u,,%f", loop + 1, i);
+    interface()->queryf("PID? %u", loop + 1);
+    double p;
+    if(interface()->scanf("%lf", &p) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->sendf("PID %u,%f,%f", loop + 1, p, i);
 }
 void XLakeShoreBridge::onDChanged(unsigned int loop, double d) {
-	interface()->sendf("PID %u,,,%f", loop + 1, d);
+    interface()->queryf("PID? %u", loop + 1);
+    double p, i, d;
+    if(interface()->scanf("%lf,%lf", &p, &i) != 2)
+    interface()->sendf("PID %u,%f,%f,%f", loop + 1, p, i, d);
 }
 void XLakeShore340::onTargetTempChanged(unsigned int loop, double temp) {
 	Snapshot shot( *this);
@@ -855,14 +862,14 @@ void XLakeShore350::onPowerMaxChanged(unsigned int loop, double pow) {
 }
 void XLakeShore350::onHeaterModeChanged(unsigned int loop, int) {
     Snapshot shot( *this);
-    interface()->sendf("OUTMODE %u,%d", loop + 1, (unsigned int)shot[ *heaterMode(loop)]);
+    onCurrentChannelChanged(loop, shot[ *currentChannel()]);
 }
 void XLakeShore350::onPowerRangeChanged(unsigned int loop, int ran) {
     interface()->sendf("RANGE %d,%d", loop + 1, ran);
 }
 void XLakeShore350::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
     int chno = ch->getName().c_str()[0] - 'A';
-    interface()->sendf("OUTMODE %u,,%d", loop + 1, chno + 1);
+    interface()->sendf("OUTMODE %u,%d,%d", loop + 1, (unsigned int)shot[ *heaterMode(loop)], chno + 1);
 }
 void XLakeShore350::open() throw (XKameError &) {
     Snapshot shot( *this);
