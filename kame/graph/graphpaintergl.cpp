@@ -403,9 +403,10 @@ XQGraphPainter::paintGL () {
 
     glGetError(); // flush error
     //stores states
-    GLint depth_func_org;
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    GLint depth_func_org, blend_func_org;
+//    glPushAttrib(GL_ALL_ATTRIB_BITS);
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
 
     glMatrixMode(GL_MODELVIEW);
 //    glPushMatrix();
@@ -609,8 +610,9 @@ GLdouble proj_orig[16];
     glDisable(GL_LIGHTING);
     glDepthFunc(depth_func_org);
     glDepthMask(false);
+    glBlendFunc(GL_SRC_ALPHA,blend_func_org);
     glDisable(GL_MULTISAMPLE);
-    glPopAttrib();
+//    glPopAttrib();
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
     qpainter.endNativePainting();
