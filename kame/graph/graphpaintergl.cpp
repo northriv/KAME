@@ -621,7 +621,7 @@ GLdouble proj_orig[16];
 #endif
 
     qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing);
-    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+//    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver); //This one cause huge memory leak on intel's GPU in OSX.
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
         drawOnScreenHelp(shot, &qpainter);
