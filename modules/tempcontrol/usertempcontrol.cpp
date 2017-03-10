@@ -745,6 +745,7 @@ void XLakeShore340::onPowerRangeChanged(unsigned int loop, int ran) {
 	interface()->sendf("RANGE %d", ran);
 }
 void XLakeShore340::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
+    if( !ch) return;
 	interface()->sendf("CSET %u,%s", loop + 1, (const char *) ch->getName().c_str());
 }
 void XLakeShoreBridge::onExcitationChanged(const shared_ptr<XChannel> &, int) {
@@ -873,6 +874,7 @@ void XLakeShore350::onPowerRangeChanged(unsigned int loop, int ran) {
 }
 void XLakeShore350::onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {
     Snapshot shot( *this);
+    if( !ch) return;
     int chno = ch->getName().c_str()[0] - 'A';
     interface()->sendf("OUTMODE %u,%d,%d", loop + 1, (unsigned int)shot[ *heaterMode(loop)], chno + 1);
 }
