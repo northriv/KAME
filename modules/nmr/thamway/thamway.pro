@@ -10,21 +10,33 @@ HEADERS += \
 
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp \
+    thamwaypulser.cpp
 
 FORMS += \
     thamwayprotform.ui
 win32: {
+    exists("c:\cypress\lib\CyAPI.lib") {
+        HEADERS += \
+            cusb2.h
+
+        SOURCES += \
+            cusb2.c\
+
+    }
 #exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     HEADERS += \
         fx2fw.h\
         cusb.h\
         ezusbthamway.h\
+        cyfxusb.h\
+        thamwayfxusb.h\
         thamwaydso.h
 
     SOURCES += \
         cusb.c\
         ezusbthamway.cpp\
+        cyfxusb.cpp\
+        thamwayfxusb.cpp\
         thamwaydso.cpp
 
     DEFINES += USE_THAMWAY_USB

@@ -75,25 +75,25 @@ XH8Pulser::pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern) {
 	switch(ulen) {
 		Payload::h8ushort x;
 	case 0:
-		x.msb = llen / 0x100;
-		x.lsb = llen % 0x100;
+        x.msb = llen / 0x100u;
+        x.lsb = llen % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
-		x.msb = pattern / 0x100;
-		x.lsb = pattern % 0x100;
+        x.msb = pattern / 0x100u;
+        x.lsb = pattern % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
 		break;
 	default:
-		x.msb = (ulen % 0x8000u + 0x8000u) / 0x100;
-		x.lsb = (ulen % 0x8000u + 0x8000u) % 0x100;
+        x.msb = (ulen % 0x8000u + 0x8000u) / 0x100u;
+        x.lsb = (ulen % 0x8000u + 0x8000u) % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
-		x.msb = (ulen / 0x8000u) / 0x100;
-		x.lsb = (ulen / 0x8000u) % 0x100;
+        x.msb = (ulen / 0x8000u) / 0x100u;
+        x.lsb = (ulen / 0x8000u) % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
-		x.msb = (llen + 0x8000u) / 0x100;
-		x.lsb = (llen + 0x8000u) % 0x100;
+        x.msb = (llen + 0x8000u) / 0x100u;
+        x.lsb = (llen + 0x8000u) % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
-		x.msb = pattern / 0x100;
-		x.lsb = pattern % 0x100;
+        x.msb = pattern / 0x100u;
+        x.lsb = pattern % 0x100u;
 		tr[ *this].m_zippedPatterns.push_back(x);
 		break;
 	}
@@ -132,7 +132,7 @@ XH8Pulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpat
 					uint16_t sum = 
 						makesum((unsigned char *) &shot[ *this].m_zippedPatterns[j], pincr * 2);
 					Payload::h8ushort nsum;
-					nsum.lsb = sum % 0x100; nsum.msb = sum / 0x100;
+                    nsum.lsb = sum % 0x100u; nsum.msb = sum / 0x100u;
 					interface()->write((char *)&nsum, 2);
 				}
 				interface()->write("    \n", 5);
