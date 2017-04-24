@@ -17,6 +17,11 @@
 
 
 struct CyFXUSBDevice {
+    CyFXUSBDevice(void *h, void *d) : handle(h), device(d) {}
+    CyFXUSBDevice() : handle(nullptr), device(nullptr) {}
+    CyFXUSBDevice(CyFXUSBDevice &&x) : handle(x.h), device(x.d) {
+        h = nullptr; d = nullptr;
+    }
     ~CyFXUSBDevice();
     void open();
     void close();

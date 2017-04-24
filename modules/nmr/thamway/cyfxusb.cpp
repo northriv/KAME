@@ -11,7 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
-#include "ezusbthamway.h"
+#include "cyfxusb.h"
 #include "charinterface.h"
 #include <QFile>
 #include <QDir>
@@ -40,23 +40,14 @@
     }
 #endif
 
-#define CMD_DIPSW 0x11u
-#define CMD_LED 0x12u
 
-#define ADDR_IDN 0x1fu
-#define ADDR_CHARINTF 0xa0u
 
-#define THAMWAY_USB_FIRMWARE_FILE "fx2fw.bix"
-#define THAMWAY_USB_GPIFWAVE1_FILE "slow_dat.bin" //for USB1.1
-#define THAMWAY_USB_GPIFWAVE2_FILE "fullspec_dat.bin" //for USB2.0 burst-transfer enabled
-#define THAMWAY_USB_GPIFWAVE_SIZE 172
-
-XMutex XFX2FWUSBInterface::s_mutex;
-int XFX2FWUSBInterface::s_refcnt = 0;
-std::deque<XFX2FWUSBInterface::USBDevice> XFX2FWUSBInterface::s_devices;
+XMutex XCyFXUSBIntearce::s_mutex;
+int XCyFXUSBIntearce::s_refcnt = 0;
+std::deque<XCyFXUSBIntearce::USBDevice> XCyFXUSBIntearce::s_devices;
 
 void
-XFX2FWUSBInterface::openAllEZUSBdevices() {
+XCyFXUSBIntearce::openAllEZUSBdevices() {
     QDir dir(QApplication::applicationDirPath());
     auto load_firm = [&dir](char *data, int expected_size, const char *filename){
         QString path =
@@ -161,7 +152,7 @@ XFX2FWUSBInterface::openAllEZUSBdevices() {
 }
 
 void
-XFX2FWUSBInterface::setWave(void *handle, const uint8_t *wave) {
+XCyFXUSBIntearce::setWave(void *handle, const uint8_t *wave) {
     std::vector<uint8_t> buf;
     buf.insert(buf.end(), {CMD_MODE, MODE_GPIF | MODE_8BIT | MODE_ADDR | MODE_NOFLOW | MODE_DEBG, CMD_GPIF});
     buf.insert(buf.end(), wave, wave + 8);
@@ -179,7 +170,7 @@ XFX2FWUSBInterface::setWave(void *handle, const uint8_t *wave) {
     }
 }
 void
-XFX2FWUSBInterface::closeAllEZUSBdevices() {
+XCyFXUSBIntearce::closeAllEZUSBdevices() {
     for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
         try {
             setLED(it->handle, 0);
@@ -195,7 +186,7 @@ XFX2FWUSBInterface::closeAllEZUSBdevices() {
     s_devices.clear();
 }
 
-XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
+XCyFXUSBIntearce::XCyFXUSBIntearce(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id)
     : XCustomCharInterface(name, runtime, driver), m_handle(0), m_idString(id), m_addrOffset(addr_offset) {
     XScopedLock<XMutex> slock(s_mutex);
     try {
@@ -225,7 +216,7 @@ XFX2FWUSBInterface::XFX2FWUSBInterface(const char *name, bool runtime, const sha
     }
 }
 
-XFX2FWUSBInterface::~XFX2FWUSBInterface() {
+XCyFXUSBIntearce::~XCyFXUSBIntearce() {
     if(isOpened()) close();
 
     XScopedLock<XMutex> slock(s_mutex);
@@ -235,7 +226,7 @@ XFX2FWUSBInterface::~XFX2FWUSBInterface() {
 }
 
 void
-XFX2FWUSBInterface::open() throw (XInterfaceError &) {
+XCyFXUSBIntearce::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
     try {
         for(auto it = s_devices.begin(); it != s_devices.end(); ++it) {
@@ -259,41 +250,41 @@ XFX2FWUSBInterface::open() throw (XInterfaceError &) {
 }
 
 void
-XFX2FWUSBInterface::close() throw (XInterfaceError &) {
+XCyFXUSBIntearce::close() throw (XInterfaceError &) {
     m_handle = 0;
     m_mutex.reset();
 }
 
 void
-XFX2FWUSBInterface::resetBulkWrite() {
+XCyFXUSBIntearce::resetBulkWrite() {
     m_bBurstWrite = false;
     m_buffer.clear();
 }
 void
-XFX2FWUSBInterface::deferWritings() {
+XCyFXUSBIntearce::deferWritings() {
     assert(m_buffer.size() == 0);
     m_bBurstWrite = true;
 }
 void
-XFX2FWUSBInterface::writeToRegister16(unsigned int addr, uint16_t data) {
+XCyFXUSBIntearce::writeToRegister16(unsigned int addr, uint16_t data) {
     if(m_bBurstWrite) {
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
     else {
-        XScopedLock<XFX2FWUSBInterface> lock( *this);
+        XScopedLock<XCyFXUSBIntearce> lock( *this);
         writeToRegister8(addr, data % 0x100u);
         writeToRegister8(addr + 1, data / 0x100u);
     }
 }
 void
-XFX2FWUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
+XCyFXUSBIntearce::writeToRegister8(unsigned int addr, uint8_t data) {
     addr += m_addrOffset;
     assert(addr < 0x100u);
 
     if(m_bBurstWrite) {
         if(m_buffer.size() > CUSB_BULK_WRITE_SIZE) {
-            XScopedLock<XFX2FWUSBInterface> lock( *this);
+            XScopedLock<XCyFXUSBIntearce> lock( *this);
             bulkWriteStored();
             deferWritings();
         }
@@ -301,7 +292,7 @@ XFX2FWUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
         m_buffer.push_back(data);
     }
     else {
-        XScopedLock<XFX2FWUSBInterface> lock( *this);
+        XScopedLock<XCyFXUSBIntearce> lock( *this);
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         if(usb_bulk_write( (usb_handle*)&m_handle, CPIPE, cmds, sizeof(cmds)) < 0)
             throw XInterface::XInterfaceError(i18n("USB bulk writing has failed."), __FILE__, __LINE__);
@@ -311,8 +302,8 @@ XFX2FWUSBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     }
 }
 void
-XFX2FWUSBInterface::bulkWriteStored() {
-    XScopedLock<XFX2FWUSBInterface> lock( *this);
+XCyFXUSBIntearce::bulkWriteStored() {
+    XScopedLock<XCyFXUSBIntearce> lock( *this);
 
     uint16_t len = m_buffer.size();
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
@@ -325,14 +316,14 @@ XFX2FWUSBInterface::bulkWriteStored() {
 }
 
 void
-XFX2FWUSBInterface::setLED(void *handle, uint8_t data) {
+XCyFXUSBIntearce::setLED(void *handle, uint8_t data) {
     uint8_t cmds[] = {CMD_LED, data};
     if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
 }
 
 uint8_t
-XFX2FWUSBInterface::readDIPSW(void *handle) {
+XCyFXUSBIntearce::readDIPSW(void *handle) {
     uint8_t cmds[] = {CMD_DIPSW};
     if(usb_bulk_write( (usb_handle*)&handle, CPIPE, cmds, sizeof(cmds)) < 0)
         throw XInterface::XInterfaceError(i18n_noncontext("USB bulk writing has failed."), __FILE__, __LINE__);
@@ -343,7 +334,7 @@ XFX2FWUSBInterface::readDIPSW(void *handle) {
 }
 
 XString
-XFX2FWUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
+XCyFXUSBIntearce::getIDN(void *handle, int maxlen, int addroffset) {
     //ignores till \0
     for(int i = 0; ; ++i) {
         char c = singleRead(handle, ADDR_IDN, addroffset);
@@ -367,13 +358,13 @@ XFX2FWUSBInterface::getIDN(void *handle, int maxlen, int addroffset) {
     return idn;
 }
 uint8_t
-XFX2FWUSBInterface::singleRead(unsigned int addr) {
-    XScopedLock<XFX2FWUSBInterface> lock( *this);
+XCyFXUSBIntearce::singleRead(unsigned int addr) {
+    XScopedLock<XCyFXUSBIntearce> lock( *this);
     return singleRead(m_handle, addr, m_addrOffset);
 }
 
 uint8_t
-XFX2FWUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
+XCyFXUSBIntearce::singleRead(void *handle, unsigned int addr, unsigned int addroffset) {
     addr += addroffset;
     assert(addr < 0x100u);
     {
@@ -392,14 +383,14 @@ XFX2FWUSBInterface::singleRead(void *handle, unsigned int addr, unsigned int add
     }
 }
 uint16_t
-XFX2FWUSBInterface::readRegister16(unsigned int addr) {
-    XScopedLock<XFX2FWUSBInterface> lock( *this);
+XCyFXUSBIntearce::readRegister16(unsigned int addr) {
+    XScopedLock<XCyFXUSBIntearce> lock( *this);
     return singleRead(addr) + singleRead(addr + 1) * (uint16_t)0x100u;
 }
 
 void
-XFX2FWUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
-    XScopedLock<XFX2FWUSBInterface> lock( *this);
+XCyFXUSBIntearce::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt) {
+    XScopedLock<XCyFXUSBIntearce> lock( *this);
     addr += m_addrOffset;
     assert(addr < 0x100u);
     {
@@ -424,9 +415,9 @@ XFX2FWUSBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt)
 }
 
 void
-XFX2FWUSBInterface::send(const char *str) throw (XCommError &) {
+XCyFXUSBIntearce::send(const char *str) throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XFX2FWUSBInterface> lock2( *this);
+    XScopedLock<XCyFXUSBIntearce> lock2( *this);
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
         XString buf = str + eos();
@@ -440,9 +431,9 @@ XFX2FWUSBInterface::send(const char *str) throw (XCommError &) {
     }
 }
 void
-XFX2FWUSBInterface::receive() throw (XCommError &) {
+XCyFXUSBIntearce::receive() throw (XCommError &) {
     XScopedLock<XInterface> lock(*this);
-    XScopedLock<XFX2FWUSBInterface> lock2( *this);
+    XScopedLock<XCyFXUSBIntearce> lock2( *this);
     msecsleep(20);
     buffer_receive().clear();
     try {

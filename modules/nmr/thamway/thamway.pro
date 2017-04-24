@@ -10,7 +10,9 @@ HEADERS += \
 
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp
+    thamwaypulser.cpp \
+    cyfxusb_libusb.cpp \
+    cyfxusb_win32.cpp
 
 FORMS += \
     thamwayprotform.ui
@@ -35,6 +37,8 @@ win32: {
     SOURCES += \
         cusb.c\
         ezusbthamway.cpp\
+        cyfxusb_libusb.cpp\
+        cyfxusb_win32.cpp\
         cyfxusb.cpp\
         thamwayfxusb.cpp\
         thamwaydso.cpp
