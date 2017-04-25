@@ -7,6 +7,7 @@ INCLUDEPATH += \
 HEADERS += \
     thamwayprot.h \
     thamwaypulser.h \
+    cyfxusb_win32.h
 
 SOURCES += \
     thamwayprot.cpp \

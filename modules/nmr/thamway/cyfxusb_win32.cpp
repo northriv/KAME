@@ -229,13 +229,10 @@ CyFXUSBDevice::vendorReq() {
 
 }
 
-CyFXUSBDevice::~CyFXUSBDevice() {
-    close();
-}
 CyFXUSBDevice::List
 CyFXUSBDevice::enumerateDevices() {
     CyFXUSBDevice::List list;
-    for(int idx = 0; idx < 8; ++idx) {
+    for(int idx = 0; idx < 9; ++idx) {
         XString name = formatString("\\\\.\\Ezusb-%d",n);
         fprintf(stderr, "cusb: opening device: %s\n", name.c_str());
         HANDLE h = CreateFileA(name.c_str(),
@@ -244,22 +241,35 @@ CyFXUSBDevice::enumerateDevices() {
             0,
             OPEN_EXISTING,
             0,
-            0); //FILE_FLAG_OVERLAPPED
+            FILE_FLAG_OVERLAPPED);
         if(h == INVALID_HANDLE_VALUE) {
             int e = (int)GetLastError();
             if(e != ERROR_FILE_NOT_FOUND)
-                throw XInterfaceError(formatString("cusb: INVALID HANDLE %d for %s\n", e, name));
+                throw XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()));
             if(idx == 0) break;
-            s_ezusbActivated = true;
             return std::move(list);
         }
-        list.emprace_back({h, d});
+        list.push_back(std::make_shared<CyFXEasyUSBDevice>(h, name));
     }
-    s_ezusbActivated = false;
 
+    return std::move(list);
 }
 void
-CyFXUSBDevice::open();
+CyFXUSBDevice::open() {
+    close();
+    handle = CreateFileA(name.c_str(),
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        0,
+        OPEN_EXISTING,
+        0,
+        FILE_FLAG_OVERLAPPED);
+    if(handle == INVALID_HANDLE_VALUE) {
+        int e = (int)GetLastError();
+        throw XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()));
+    }
+}
+
 void
 CyFXUSBDevice::close() {
     CloseHandle(handle);

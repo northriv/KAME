@@ -17,29 +17,27 @@
 
 
 struct CyFXUSBDevice {
-    CyFXUSBDevice(void *h, void *d) : handle(h), device(d) {}
-    CyFXUSBDevice() : handle(nullptr), device(nullptr) {}
-    CyFXUSBDevice(CyFXUSBDevice &&x) : handle(x.h), device(x.d) {
-        h = nullptr; d = nullptr;
-    }
-    ~CyFXUSBDevice();
-    void open();
-    void close();
+    CyFXUSBDevice() = delete;
+    virtual ~CyFXUSBDevice() {close();}
 
-    static int initialize();
-    static void finalize();
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
     static List enumerateDevices();
 
-    static void halt(const USBDevice &dev);
-    static void run(const USBDevice &dev);
-    static XString getString(const USBDevice &dev, int descid);
-    static void download(const USBDevice &dev, uint8_t* image, int len);
-    int bulkWrite(int pipe, uint8_t *buf, int len);
-    int bulkRead(int pipe, const uint8_t* buf, int len);
+    virtual void open();
+    virtual void close();
 
-    unsigned int vendorID();
-    unsigned int productID();
+    virtual int initialize() = 0;
+    virtual void finalize() = 0;
+
+    virtual void halt(const USBDevice &dev) = 0;
+    virtual void run(const USBDevice &dev) = 0;
+    XString virtual getString(const USBDevice &dev, int descid) = 0;
+    virtual void download(const USBDevice &dev, uint8_t* image, int len) = 0;
+    virtual int bulkWrite(int pipe, uint8_t *buf, int len) = 0;
+    virtual int bulkRead(int pipe, const uint8_t* buf, int len) = 0;
+
+    virtual unsigned int vendorID() = 0;
+    virtual unsigned int productID() = 0;
 
     struct AsyncIO {
         AsyncIO(void *h);
@@ -50,21 +48,11 @@ struct CyFXUSBDevice {
         class Transfer;
         scoped_ptr<Transfer> m_status;
     };
-    AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len);
-    AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len);
+    virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) = 0;
+    virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) = 0;
 
     XRecursiveMutex mutex;
     XString label;
-private:
-    void *handle;
-    void *device;
-#ifndef USE_THAMWAY_USB_LIBUSB
-//! \return false if CyUSB3.sys is on service.
-    static bool isEzUSBSysActivated() {return m_ezusbActivated;}
-    static bool s_ezusbActivated;
-#endif
-    //AE18AA60-7F6A-11d4-97DD-00010229B959
-    constexpr tGUID GUID = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 };
 
 //! interfaces Cypress FX2LP/FX3 devices
