@@ -26,40 +26,7 @@ typedef struct _ISO_ADV_PARAMS{
 #define DEVICE_SPEED_HIGH           0x00000002
 #define DEVICE_SPEED_SUPER			0x00000004
 
-typedef struct _WORD_SPLIT {
-    UCHAR lowByte;
-    UCHAR hiByte;
-} WORD_SPLIT, *PWORD_SPLIT;
 
-
-
-typedef struct _SETUP_PACKET {
-
-    union {
-        BM_REQ_TYPE bmReqType;
-        UCHAR bmRequest;
-    };
-
-    UCHAR bRequest;
-
-    union {
-        WORD_SPLIT wVal;
-        USHORT wValue;
-    };
-
-    union {
-        WORD_SPLIT wIndx;
-        USHORT wIndex;
-    };
-
-    union {
-        WORD_SPLIT wLen;
-        USHORT wLength;
-    };
-
-    ULONG ulTimeOut;
-
-} SETUP_PACKET, *PSETUP_PACKET;
 
 #define USB_ISO_ID                  0x4945
 #define USB_ISO_CMD_ASAP            0x8000
@@ -82,22 +49,6 @@ typedef struct _ISO_PACKET_INFO {
 } ISO_PACKET_INFO, *PISO_PACKET_INFO;
 
 
-typedef struct _SINGLE_TRANSFER {
-    union {
-        SETUP_PACKET SetupPacket;
-        ISO_ADV_PARAMS IsoParams;
-    };
-
-    UCHAR reserved;
-
-    UCHAR ucEndpointAddress;
-    ULONG NtStatus;
-    ULONG UsbdStatus;
-    ULONG IsoPacketOffset;
-    ULONG IsoPacketLength;
-    ULONG BufferOffset;
-    ULONG BufferLength;
-} SINGLE_TRANSFER, *PSINGLE_TRANSFER;
 
 #endif // #ifndef DRIVER
 
@@ -185,47 +136,55 @@ typedef struct _SET_TRANSFER_SIZE_INFO {
 
 #define NUMBER_OF_ADAPT_IOCTLS 21 // Last IOCTL_ADAPT_INDEX + 1
 
+};
+
+using CyFXUSBDevice::AsyncIO::Transfer = OVERLAPPED;
+
+template <class tHANDLE>
+CyFXUSBDevice::AsyncIO::AsyncIO(tHANDLE h) : m_transfer(new OVERLAPPED{}), m_count_imm(-1), handle(h) {
+}
+bool
+CyFXUSBDevice::AsyncIO::hasFinished() {
+    return HasOverlappedIoCompleted(ptr());
+}
+int64_t
+CyFXUSBDevice::AsyncIO::waitFor() {
+    if(m_count_imm) return m_count_imm;
+    DWORD num;
+    GetOverlappedResult((HANDLE)handle, ptr(), &num, true);
+    finalize(num);
+    return num;
+}
+CyFXUSBDevice::ASyncIO
+CyFXWin32USBDevice::async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
+    DWORD nbyte;
+    AsyncIO async(handle);
+    if( !DeviceIoControl(handle, code, in, size_in, out, size_out, &nbyte, async.ptr())) {
+        auto e = GetLastError();
+        if(e == ERROR_IO_PENDING)
+            return std::move(async);
+        throw XInterfaceError("IOCTL error:%s.", e);
+    }
+    async.finanlize(nbyte);
+    return std::move(async);
+}
+int64_t
+CyFXWin32USBDevice::ioctl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
+    auto async = async_ioctl(code, in, size_in, out, size_out);
+    return async.waitFor();
 }
 
-int
-CyFXUSBDevice::ioControl() {
 
-}
 int
 CyFXUSBDevice::vendorReq() {
-    typedef struct _BM_REQ_TYPE {
-        UCHAR   Recipient:2;
-        UCHAR   Reserved:3;
-        UCHAR   Type:2;
-        UCHAR   Direction:1;
-    } BM_REQ_TYPE, *PBM_REQ_TYPE;
 
-        typedef struct _VENDOR_REQUEST_IN {
-            BYTE    bRequest;
-            WORD    wValue;
-            WORD    wIndex;
-            WORD    wLength;
-            BYTE    direction;
-            BYTE    bData;
-        } VENDOR_REQUEST_IN;
 
     bmRequest.Recipient = 0; // Device
     bmRequest.Type = 2; // Vendor
     bmRequest.Direction = 1; // IN command (from Device to Host)
     //bmreq = 0xc0; //vendor request in.
 
-    typedef struct _SINGLE_TRANSFER { union {
-    SETUP_PACKET SetupPacket;
-    ISO_ADV_PARAMS IsoParams; };
-    UCHAR Reserved;
-    UCHAR ucEndpointAddress;
-    ULONG NtStatus;
-    ULONG UsbdStatus;
-    uint32_t IsoPacketOffset;
-    ULONG IsoPacketLength;
-    ULONG BufferOffset;
-    ULONG BufferLength;
-    } SINGLE_TRANSFER, *PSINGLE_TRANSFER;
+
 
 }
 
@@ -240,8 +199,8 @@ CyFXUSBDevice::enumerateDevices() {
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             0,
             OPEN_EXISTING,
-            0,
-            FILE_FLAG_OVERLAPPED);
+           FILE_FLAG_OVERLAPPED,
+           NULL);
         if(h == INVALID_HANDLE_VALUE) {
             int e = (int)GetLastError();
             if(e != ERROR_FILE_NOT_FOUND)
@@ -256,23 +215,24 @@ CyFXUSBDevice::enumerateDevices() {
 }
 void
 CyFXUSBDevice::open() {
-    close();
-    handle = CreateFileA(name.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        0,
-        OPEN_EXISTING,
-        0,
-        FILE_FLAG_OVERLAPPED);
-    if(handle == INVALID_HANDLE_VALUE) {
-        int e = (int)GetLastError();
-        throw XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()));
+    if( !handle) {
+        handle = CreateFileA(name.c_str(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
+            OPEN_EXISTING,
+            FILE_FLAG_OVERLAPPED,
+            NULL);
+        if(handle == INVALID_HANDLE_VALUE) {
+            int e = (int)GetLastError();
+            throw XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()));
+        }
     }
 }
 
 void
 CyFXUSBDevice::close() {
-    CloseHandle(handle);
+    if(handle) CloseHandle(handle);
     handle = nullptr;
 }
 
@@ -281,26 +241,15 @@ CyFXUSBDevice::initialize();
 void
 CyFXUSBDevice::finalize();
 void
-CyFXUSBDevice::halt(const USBDevice &dev) {
-    unsigned long nbyte;
-    VENDOR_REQUEST_IN vreq;
-    vreq.bRequest = 0xA0;
-    vreq.wValue = 0xe600;
-    vreq.wIndex = 0x00;
-    vreq.wLength = 0x01;
-    vreq.bData = 1;
-    vreq.direction = 0x00;
-    if(devioctrl(dev.handle,
-                            IOCTL_Ezusb_VENDOR_REQUEST,
-                            &vreq,
-                            sizeof(VENDOR_REQUEST_IN),
-                            &nbyte)) {
-        throw XInterfaecError("i8051 halt err.\n");
-    }
+CyFXUSBDevice::halt() {
+    vendorRequestIn(0xA0, 0xe600, 0x00, 0x01, 1);
 }
 
 void
-CyFXUSBDevice::run(const USBDevice &dev);
+CyFXUSBDevice::run() {
+    vendorRequestIn(0xA0, 0xe600, 0x00, 0x01, 0);
+}
+
 XString
 CyFXUSBDevice::getString(const USBDevice &dev, int descid);
 void
@@ -315,12 +264,7 @@ CyFXUSBDevice::vendorID();
 unsigned int
 CyFXUSBDevice::productID();
 
-CyFXUSBDevice::AsyncIO::AsyncIO(void *h);
-CyFXUSBDevice::AsyncIO::~AsyncIO();
-void
-CyFXUSBDevice::AsyncIO::waitFor();
-void
-CyFXUSBDevice::AsyncIO::abort();
+
 CyFXUSBDevice::AsyncIO
 CyFXUSBDevice::asyncBulkWrite(int pipe, uint8_t *buf, int len);
 CyFXUSBDevice::AsyncIO

@@ -23,14 +23,14 @@ struct CyFXUSBDevice {
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
     static List enumerateDevices();
 
-    virtual void open();
-    virtual void close();
+    virtual void open() = 0;
+    virtual void close() = 0;
 
     virtual int initialize() = 0;
     virtual void finalize() = 0;
 
-    virtual void halt(const USBDevice &dev) = 0;
-    virtual void run(const USBDevice &dev) = 0;
+    void halt();
+    void run();
     XString virtual getString(const USBDevice &dev, int descid) = 0;
     virtual void download(const USBDevice &dev, uint8_t* image, int len) = 0;
     virtual int bulkWrite(int pipe, uint8_t *buf, int len) = 0;
@@ -39,14 +39,25 @@ struct CyFXUSBDevice {
     virtual unsigned int vendorID() = 0;
     virtual unsigned int productID() = 0;
 
+    virtual void vendorRequestIn(uint8_t request, uint16_t value,
+        uint16_t index, uint16_t length, uint8_t data) = 0;
+
     struct AsyncIO {
-        AsyncIO(void *h);
-        ~AsyncIO();
-        void waitFor();
-        void abort();
-    private:
+        tempalate<class tHANDLE>
+        AsyncIO(tHANDLE h);
+        AsyncIO(const &) = delete;
+        AsyncIO(AsyncIO &&) = default;
+        void finalize(int64_t count_imm) {
+            m_count_imm = count_imm;
+        }
+        bool hasFinished() const;
+        int64_t waitFor();
         class Transfer;
-        scoped_ptr<Transfer> m_status;
+        Transfer *ptr() {return m_transfer;}
+    private:
+        unique_ptr<Transfer> m_transfer;
+        int64_t m_count_imm;
+        void *handle;
     };
     virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) = 0;
     virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) = 0;
