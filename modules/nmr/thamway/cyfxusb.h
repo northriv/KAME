@@ -31,36 +31,38 @@ struct CyFXUSBDevice {
 
     void halt();
     void run();
-    XString virtual getString(const USBDevice &dev, int descid) = 0;
-    virtual void download(const USBDevice &dev, uint8_t* image, int len) = 0;
-    virtual int bulkWrite(int pipe, uint8_t *buf, int len) = 0;
-    virtual int bulkRead(int pipe, const uint8_t* buf, int len) = 0;
+    XString getString(int descid);
+
+    void downloadFX2(const uint8_t* image, int len);
+
+    int bulkWrite(int pipe, const uint8_t *buf, int len);
+    int bulkRead(int pipe, uint8_t* buf, int len);
+
+    virtual int controlWrite(uint8_t request, uint16_t value,
+                             uint16_t index, const uint8_t *buf, int len) = 0;
+    virtual int controlRead(uint8_t request, uint16_t value,
+                            uint16_t index, uint8_t *buf, int len) = 0;
 
     virtual unsigned int vendorID() = 0;
     virtual unsigned int productID() = 0;
 
-    virtual void vendorRequestIn(uint8_t request, uint16_t value,
-        uint16_t index, uint16_t length, uint8_t data) = 0;
-
     struct AsyncIO {
-        tempalate<class tHANDLE>
-        AsyncIO(tHANDLE h);
+        class Transfer;
+        AsyncIO(unique_ptr<Transfer>&& t);
         AsyncIO(const &) = delete;
         AsyncIO(AsyncIO &&) = default;
         void finalize(int64_t count_imm) {
             m_count_imm = count_imm;
         }
         bool hasFinished() const;
-        int64_t waitFor();
-        class Transfer;
+        int64_t waitFor(uint8_t *rdbuf = nullptr);
         Transfer *ptr() {return m_transfer;}
     private:
         unique_ptr<Transfer> m_transfer;
-        int64_t m_count_imm;
-        void *handle;
+        int64_t m_count_imm = -1;
     };
-    virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) = 0;
-    virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) = 0;
+    virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) = 0;
+    virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) = 0;
 
     XRecursiveMutex mutex;
     XString label;

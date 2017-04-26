@@ -14,7 +14,7 @@
 #include "cyfxusb_win32.h"
 
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
-constexpr uint32_t IOCTL_EZUSB_ANCHOR_DOWNLOAD = 0x22201c;
+//constexpr uint32_t IOCTL_EZUSB_ANCHOR_DOWNLOAD = 0x22201c;
 constexpr uint32_t IOCTL_EZUSB_VENDOR_REQUEST = 0x222014;
 constexpr uint32_t IOCTL_EZUSB_BULK_WRITE = 0x222051;
 constexpr uint32_t IOCTL_EZUSB_BULK_READ = 0x22204e;
@@ -23,28 +23,38 @@ constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
-using CyFXUSBDevice::AsyncIO::Transfer = OVERLAPPED;
+struct CyFXUSBDevice::AsyncIO::Transfer {
+    OVERLAPPED overlap;
+    HANDLE handle;
+    unique_ptr<std::vector<uint8_t>> ioctlbuf;
+    void *ioctlbuf_rdpos = nullptr;
+    uint8_t *rdbuf = nullptr;
+};
 
-template <class tHANDLE>
-CyFXUSBDevice::AsyncIO::AsyncIO(tHANDLE h) : m_transfer(new OVERLAPPED{}), m_count_imm(-1), handle(h) {
+CyFXUSBDevice::AsyncIO::AsyncIO(unique_ptr<Transfer>&& t) : m_transfer(std::forward(t)) {
 }
 bool
 CyFXUSBDevice::AsyncIO::hasFinished() {
-    return HasOverlappedIoCompleted(ptr());
+    return HasOverlappedIoCompleted( &ptr()->overlap);
 }
 int64_t
 CyFXUSBDevice::AsyncIO::waitFor() {
     if(m_count_imm) return m_count_imm;
     DWORD num;
-    GetOverlappedResult((HANDLE)handle, ptr(), &num, true);
+    GetOverlappedResult(ptr()->handle, &ptr()->overlap, &num, true);
     finalize(num);
+    if(rdbuf) {
+        std::copy(ptr()->ioctlbuf_rdpos, &ptr()->ioctlbuf->at(0) + num, rdbuf);
+    }
     return num;
 }
-CyFXUSBDevice::ASyncIO
+CyFXUSBDevice::AsyncIO
 CyFXWin32USBDevice::async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     DWORD nbyte;
-    AsyncIO async(handle);
-    if( !DeviceIoControl(handle, code, in, size_in, out, size_out, &nbyte, async.ptr())) {
+    CyFXUSBDevice::AsyncIO::Transfer tr;
+    tr.handle = handle;
+    AsyncIO async(tr);
+    if( !DeviceIoControl(handle, code, in, size_in, out, size_out, &nbyte, &async.ptr()->tr)) {
         auto e = GetLastError();
         if(e == ERROR_IO_PENDING)
             return std::move(async);
@@ -112,63 +122,156 @@ CyFXUSBDevice::initialize();
 void
 CyFXUSBDevice::finalize();
 
-void
-CyUSB3Device::vendorRequestIn(uint8_t request, uint16_t value,
-                               uint16_t index, uint16_t length, uint8_t data) {
-    uint8_t buf[sizeof(SingleTransfer) + 1];
+int
+CyUSB3Device::controlWrite(uint8_t request, uint16_t value,
+                               uint16_t index, const uint8_t *wbuf, int len) {
+    uint8_t buf[sizeof(SingleTransfer) + len];
     auto tr = reiterpret_cast<SingleTransfer *>(buf);
     *tr = SingleTransfer{}; //0 fill.
-    buf[sizeof(SingleTransfer)] = data;
+    std::copy(wbuf, wbuf + len, &buf[sizeof(SingleTransfer)]);
     tr.recipient = 0; //Device
     tr.type = 2; //Vendor Request
-    tr.direction = 1; //IN
-    assert(length == 1);
+    tr.direction = 0; //OUT, 0x40
     tr.request = request;
     tr.value = value;
     tr.index = index;
-    tr.length = length;
+    tr.length = len;
     tr.timeOut = 1; //sec?
     tr.endpointAddress = 0x00;
-    tr.bufferOffset = sizeof(tr);
+    tr.bufferOffset = sizeof(SingleTransfer);
     tr.bufferLength = length;
-    ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
+    return ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
+}
+
+int
+CyUSB3Device::controlRead(uint8_t request, uint16_t value,
+                               uint16_t index, uint8_t *rdbuf, int len) {
+    uint8_t buf[sizeof(SingleTransfer) + len];
+    auto tr = reiterpret_cast<SingleTransfer *>(buf);
+    *tr = SingleTransfer{}; //0 fill.
+    tr.recipient = 0; //Device
+    tr.type = 2; //Vendor Request
+    tr.direction = 1; //IN, 0xc0
+    tr.request = request;
+    tr.value = value;
+    tr.index = index;
+    tr.length = len;
+    tr.timeOut = 1; //sec?
+    tr.endpointAddress = 0x00;
+    tr.bufferOffset = sizeof(SingleTransfer);
+    tr.bufferLength = length;
+    int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
+    if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
+        throw XInterfaceError(i18n("Size mismatch during control transfer."));
+    std::copy(buf + sizeof(SingleTransfer), buf + ret, rdbuf);
+    return ret;
 }
 
 
 XString
 CyUSB3Device::getString(int descid) {
+    // Get the header to find-out the number of languages, size of lang ID list
+    ULONG length = sizeof(SINGLE_TRANSFER) + sizeof(USB_COMMON_DESCRIPTOR);
+    PUCHAR buf = new UCHAR[length];
+    ZeroMemory (buf, length);
+
+    USB_COMMON_DESCRIPTOR cmnDescriptor;
+    ZeroMemory (&cmnDescriptor, sizeof(USB_COMMON_DESCRIPTOR));
+
+    PSINGLE_TRANSFER pSingleTransfer = (PSINGLE_TRANSFER) buf;
+    pSingleTransfer->SetupPacket.bmReqType.Direction = DIR_DEVICE_TO_HOST;
+    pSingleTransfer->SetupPacket.bmReqType.Type      = 0;
+    pSingleTransfer->SetupPacket.bmReqType.Recipient = 0;
+    pSingleTransfer->SetupPacket.bRequest = USB_REQUEST_GET_DESCRIPTOR;
+    pSingleTransfer->SetupPacket.wVal.hiByte = USB_STRING_DESCRIPTOR_TYPE;
+    pSingleTransfer->SetupPacket.wVal.lowByte = sIndex;
+    pSingleTransfer->SetupPacket.wIndex = StrLangID;
+    pSingleTransfer->SetupPacket.wLength = sizeof(USB_COMMON_DESCRIPTOR);
+    pSingleTransfer->SetupPacket.ulTimeOut = 5;
+    pSingleTransfer->BufferLength = pSingleTransfer->SetupPacket.wLength;
+    pSingleTransfer->BufferOffset = sizeof(SINGLE_TRANSFER);
+
+    bool bRetVal = IoControl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
+    UsbdStatus = pSingleTransfer->UsbdStatus;
+    NtStatus = pSingleTransfer->NtStatus;
+
+    if (bRetVal) {
+        memcpy(&cmnDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), sizeof(USB_COMMON_DESCRIPTOR));
+
+        // Get the entire descriptor
+        length = sizeof(SINGLE_TRANSFER) + cmnDescriptor.bLength;
+        PUCHAR buf2 = new UCHAR[length];
+        ZeroMemory (buf2, length);
+
+        pSingleTransfer = (PSINGLE_TRANSFER) buf2;
+        pSingleTransfer->SetupPacket.bmReqType.Direction = DIR_DEVICE_TO_HOST;
+        pSingleTransfer->SetupPacket.bmReqType.Type      = 0;
+        pSingleTransfer->SetupPacket.bmReqType.Recipient = 0;
+        pSingleTransfer->SetupPacket.bRequest = USB_REQUEST_GET_DESCRIPTOR;
+        pSingleTransfer->SetupPacket.wVal.hiByte = USB_STRING_DESCRIPTOR_TYPE;
+        pSingleTransfer->SetupPacket.wVal.lowByte = sIndex;
+        pSingleTransfer->SetupPacket.wIndex = StrLangID;
+        pSingleTransfer->SetupPacket.wLength = cmnDescriptor.bLength;
+        pSingleTransfer->SetupPacket.ulTimeOut = 5;
+        pSingleTransfer->BufferLength = pSingleTransfer->SetupPacket.wLength;
+        pSingleTransfer->BufferOffset = sizeof(SINGLE_TRANSFER);
+
+        bRetVal = IoControl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf2, length);
+        UsbdStatus = pSingleTransfer->UsbdStatus;
+        NtStatus = pSingleTransfer->NtStatus;
+
+        UCHAR bytes = (buf2[sizeof(SINGLE_TRANSFER)]);
+        UCHAR signature = (buf2[sizeof(SINGLE_TRANSFER)+1]);
+
+        if (bRetVal && (bytes>2) && (signature == 0x03)) {
+            ZeroMemory (str, USB_STRING_MAXLEN);
+            memcpy(str, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset+2), bytes-2);
+        }
+
+        delete[] buf2;
+
+    }
+
+    delete[] buf;
+
 
 }
 
-void
-CyUSB3Device::download(uint8_t* image, int len);
-int
-CyUSB3Device::bulkWrite(int pipe, uint8_t *buf, int len) {
-    if (hDevice == INVALID_HANDLE_VALUE) return NULL;
-    int iXmitBufSize = sizeof (SINGLE_TRANSFER) + bufLen;
-    PUCHAR pXmitBuf = new UCHAR[iXmitBufSize]; ZeroMemory(pXmitBuf, iXmitBufSize);
-    PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER)pXmitBuf; pTransfer->Reserved = 0;
-    pTransfer->ucEndpointAddress = Address; pTransfer->IsoPacketLength = 0;
-    pTransfer->BufferOffset = sizeof (SINGLE_TRANSFER); pTransfer->BufferLength = bufLen;
-    // Copy buf into pXmitBuf
-    UCHAR *ptr = (PUCHAR) pTransfer + pTransfer->BufferOffset; memcpy(ptr, buf, bufLen);
-    DWORD dwReturnBytes;
-    DeviceIoControl(hDevice, IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
-    pXmitBuf, iXmitBufSize, pXmitBuf, iXmitBufSize, &dwReturnBytes, ov);
-    return pXmitBuf;
+CyFXUSBDevice::AsyncIO
+CyUSB3Device::asyncBulkWrite(int pipe, const uint8_t *buf, int len) {
+    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(SingleTransfer) + len));
+    auto tr = reiterpret_cast<SingleTransfer *>(&ioctlbuf->at(0));
+    *tr = SingleTransfer{}; //0 fill.
+    std::copy(buf, buf + len, &ioctlbuf->at(sizeof(SingleTransfer)));
+    tr.timeOut = 1; //sec?
+    tr.endpointAddress = pipe;
+    tr.bufferOffset = sizeof(SingleTransfer);
+    tr.bufferLength = len;
+    auto ret = async_ioctl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
+        &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
+    ret.ioctlbuf = std::move(ioctlbuf);
+    return std::move(ret);
 }
 
-int
-CyUSB3Device::bulkRead(int pipe, const uint8_t* buf, int len);
+CyFXUSBDevice::AsyncIO
+CyUSB3Device::asyncBulkRead(int pipe, uint8_t* buf, int len) {
+    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(SingleTransfer) + len));
+    auto tr = reiterpret_cast<SingleTransfer *>(&ioctlbuf->at(0));
+    *tr = SingleTransfer{}; //0 fill.
+    tr.timeOut = 1; //sec?
+    tr.endpointAddress = pipe;
+    tr.bufferOffset = sizeof(SingleTransfer);
+    tr.bufferLength = len;
+    auto ret = async_ioctl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
+        &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
+    ret.ioctlbuf = std::move(ioctlbuf);
+    ret.ioctlbuf_rdpos = &ioctlbuf->at(tr.bufferOffset);
+    ret.rdbuf = buf;
+    return std::move(ret);
+}
 
 unsigned int
 CyUSB3Device::vendorID();
 unsigned int
 CyUSB3Device::productID();
-
-
-CyFXUSBDevice::AsyncIO
-CyFXUSBDevice::asyncBulkWrite(int pipe, uint8_t *buf, int len);
-CyFXUSBDevice::AsyncIO
-CyFXUSBDevice::asyncBulkRead(int pipe, const uint8_t *buf, int len);
 
