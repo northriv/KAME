@@ -41,6 +41,15 @@
 #endif
 
 
+    CyFXUSBDevice::halt() {
+        vendorRequestIn(0xA0, 0xe600, 0x00, 0x01, 1);
+    }
+
+    void
+    CyFXUSBDevice::run() {
+        vendorRequestIn(0xA0, 0xe600, 0x00, 0x01, 0);
+    }
+
 
 XMutex XCyFXUSBIntearce::s_mutex;
 int XCyFXUSBIntearce::s_refcnt = 0;

@@ -66,9 +66,9 @@ private:
 };
 
 struct CyUSB3Device : public CyFXWin32USBDevice {
-    CyUSB3USBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
-    CyUSB3USBDevice() : handle(nullptr), device(nullptr) {}
-    virtual ~CyUSB3USBDevice();
+    CyUSBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
+    CyUSB3Device() : handle(nullptr), device(nullptr) {}
+    virtual ~CyUSB3Device();
 
     virtual int initialize() final;
     virtual void finalize() final;
@@ -84,21 +84,19 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
 private:
     struct SingleTransfer {
-        struct {
-            union {
-                struct {
-                    uint8_t recipient:2;
-                    uint8_t reserved:3;
-                    uint8_t type:2;
-                    uint8_t direction:1;
-                };
-                uint8_t mRequest;
+        union {
+            struct {
+                uint8_t recipient:2;
+                uint8_t reserved:3;
+                uint8_t type:2;
+                uint8_t direction:1;
             };
-            uint8_t request;
-            uint16_t value, index, length;
-            uint32_t timeOut;
-        } setupPacket;
-        uint8_t reserved, endpointAddress, ntStatus;
+            uint8_t mRequest;
+        };
+        uint8_t request;
+        uint16_t value, index, length;
+        uint32_t timeOut;
+        uint8_t reserved2, endpointAddress, ntStatus;
         uint32_t usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
     };

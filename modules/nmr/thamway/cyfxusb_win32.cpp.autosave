@@ -137,7 +137,29 @@ CyUSB3Device::vendorRequestIn(uint8_t request, uint16_t value,
 
 XString
 CyUSB3Device::getString(int descid) {
+    
 
+}
+
+void
+CyUSB3Device::download(uint8_t *image, int len) {
+    uint8_t buf[sizeof(SingleTransfer) + len];
+    auto tr = reiterpret_cast<SingleTransfer *>(buf);
+    *tr = SingleTransfer{}; //0 fill.
+    tr.recipient = 0; //Device
+    tr.type = 2; //Vendor Request
+    tr.direction = 0; //OUT
+    tr.request = 0xA0;
+    tr.value = value;
+    tr.index = index;
+    tr.length = length;
+    psingle1.bRequest = &HA0
+    psingle1.wValue = 0
+    psingle1.wIndex = 0
+    psingle1.wLength = buflen
+    psingle1.ulTimeOut = &H70007000
+    psingle1.ucEndpointAddress = &H0
+    
 }
 
 void
