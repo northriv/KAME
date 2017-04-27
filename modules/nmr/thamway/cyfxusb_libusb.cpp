@@ -14,10 +14,3 @@
 #include "cyfxusb.h"
 
 
-CyFXUSBDevice::~CyFXUSBDevice() {
-    close();
-}
-CyFXUSBDevice::List CyFXUSBDevice::enumerateDevices() {
-    CyFXUSBDevice::List list;
-
-}

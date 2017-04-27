@@ -19,13 +19,13 @@
 struct CyFXWin32USBDevice : public CyFXUSBDvice {
     CyFXWin32USBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
     CyFXWin32USBDevice() : handle(nullptr), device(nullptr) {}
-    virtual ~CyFXWin32USBDevice();
+    virtual ~CyFXWin32USBDevice()  {close();}
 
     virtual void open() final;
     virtual void close() final;
 
-    virtual int bulkWrite(int pipe, uint8_t *buf, int len) final;
-    virtual int bulkRead(int pipe, const uint8_t* buf, int len) final;
+    virtual int bulkWrite(int pipe, const uint8_t *buf, int len) final;
+    virtual int bulkRead(int pipe, uint8_t* buf, int len) final;
 private:
     HANDLE handle;
     XString name;
@@ -46,7 +46,6 @@ struct CyFXEasyUSBDevice : public CyFXWin32USBDevice {
     virtual void finalize() final;
 
     XString virtual getString(int descid) final;
-    virtual void download(uint8_t* image, int len) final;
 
     virtual unsigned int vendorID() final;
     virtual unsigned int productID() final;
@@ -54,6 +53,10 @@ struct CyFXEasyUSBDevice : public CyFXWin32USBDevice {
     virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) final;
     virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) final;
 
+    virtual int controlWrite(uint8_t request, uint16_t value,
+                             uint16_t index, const uint8_t *buf, int len) final;
+    virtual int controlRead(uint8_t request, uint16_t value,
+                            uint16_t index, uint8_t *buf, int len) final;
 private:
     struct VendorRequestIn {
         uint8_t request;
@@ -61,26 +64,27 @@ private:
         uint8_t direction;
         uint8_t data;
     };
-    virtual void vendorRequestIn(uint8_t request, uint16_t value,
-        uint16_t index, uint16_t length, uint8_t data) final;
 };
 
 struct CyUSB3Device : public CyFXWin32USBDevice {
     CyUSBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
     CyUSB3Device() : handle(nullptr), device(nullptr) {}
-    virtual ~CyUSB3Device();
 
     virtual int initialize() final;
     virtual void finalize() final;
 
     XString virtual getString(int descid) final;
-    virtual void download(uint8_t* image, int len) final;
 
     virtual unsigned int vendorID() final;
     virtual unsigned int productID() final;
 
-    virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) final;
+
+    virtual int controlWrite(uint8_t request, uint16_t value,
+                             uint16_t index, const uint8_t *buf, int len) final;
+    virtual int controlRead(uint8_t request, uint16_t value,
+                            uint16_t index, uint8_t *buf, int len) final;
 
 private:
     struct SingleTransfer {
@@ -100,8 +104,6 @@ private:
         uint32_t usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
     };
-    virtual void vendorRequestIn(uint8_t request, uint16_t value,
-        uint16_t index, uint16_t length, uint8_t data) final;
 };
 
 #endif // CYFXUSB_WIN32_H
