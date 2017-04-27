@@ -39,14 +39,15 @@ CyFXUSBDevice::AsyncIO::hasFinished() {
 }
 int64_t
 CyFXUSBDevice::AsyncIO::waitFor() {
-    if(m_count_imm) return m_count_imm;
-    DWORD num;
-    GetOverlappedResult(ptr()->handle, &ptr()->overlap, &num, true);
-    finalize(num);
-    if(rdbuf) {
-        std::copy(ptr()->ioctlbuf_rdpos, &ptr()->ioctlbuf->at(0) + num, rdbuf);
+    if( !m_count_imm) {
+        DWORD num;
+        GetOverlappedResult(ptr()->handle, &ptr()->overlap, &num, true);
+        finalize(num);
     }
-    return num;
+    if(rdbuf) {
+        std::copy(ptr()->ioctlbuf_rdpos, &ptr()->ioctlbuf->at(0) + m_count_num, rdbuf);
+    }
+    return m_count_imm;
 }
 CyFXUSBDevice::AsyncIO
 CyFXWin32USBDevice::async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
