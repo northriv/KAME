@@ -7,38 +7,30 @@ INCLUDEPATH += \
 HEADERS += \
     thamwayprot.h \
     thamwaypulser.h \
-    cyfxusb_win32.h
+    cyfxusb.h\
+    thamwaydso.h
 
 SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp \
-    cyfxusb_libusb.cpp \
-    cyfxusb_win32.cpp
+    thamwaydso.cpp
 
 FORMS += \
     thamwayprotform.ui
 win32: {
-    exists("c:\cypress\lib\CyAPI.lib") {
-        HEADERS += \
-            cusb2.h
-
-        SOURCES += \
-            cusb2.c\
-
-    }
-#exists("c:\cypress\usb\drivers\ezusbdrv\ezusbsys.h") {
     HEADERS += \
         fx2fw.h\
         cusb.h\
+        cusb2.h\
         ezusbthamway.h\
-        cyfxusb.h\
+        cyfxusb_win32.h\
         thamwayfxusb.h\
         thamwaydso.h
 
     SOURCES += \
         cusb.c\
+        cusb2.c\
         ezusbthamway.cpp\
-        cyfxusb_libusb.cpp\
         cyfxusb_win32.cpp\
         cyfxusb.cpp\
         thamwayfxusb.cpp\
@@ -53,13 +45,12 @@ unix {
         LIBS += -lusb-1.0
         HEADERS += \
             libusb2cusb.h\
-            ezusbthamway.h\
-            thamwaydso.h
+            ezusbthamway.h
 
         SOURCES += \
             libusb2cusb.cpp\
-            ezusbthamway.cpp\
-            thamwaydso.cpp
+            cyfxusb_libusb.cpp\
+            ezusbthamway.cpp
 
         DEFINES += USE_THAMWAY_USB
         DEFINES += USE_THAMWAY_USB_LIBUSB

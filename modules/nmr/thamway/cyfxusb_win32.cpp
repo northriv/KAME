@@ -171,70 +171,53 @@ CyUSB3Device::controlRead(uint8_t request, uint16_t value,
 XString
 CyUSB3Device::getString(int descid) {
     // Get the header to find-out the number of languages, size of lang ID list
-    ULONG length = sizeof(SINGLE_TRANSFER) + sizeof(USB_COMMON_DESCRIPTOR);
-    PUCHAR buf = new UCHAR[length];
-    ZeroMemory (buf, length);
+    int len = sizeof(USB_COMMON_DESCRIPTOR);
+    uint8_t buf[sizeof(SingleTransfer) + len];
+    auto tr = reiterpret_cast<SingleTransfer *>(buf);
+    *tr = SingleTransfer{}; //0 fill.
+    tr.recipient = 1; //HOST
+    tr.type = 0; //
+    tr.direction = 0; //OUT
+    tr.request = USB_REQUEST_GET_DESCRIPTOR;
+    tr.value = USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid;
+    tr.index = LANGID;
+    tr.length = len;
+    tr.timeOut = 1; //sec?
+    tr.bufferOffset = sizeof(SingleTransfer);
+    tr.bufferLength = length;
+    int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
+    if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
+        throw XInterfaceError(i18n("Size mismatch during control transfer."));
 
-    USB_COMMON_DESCRIPTOR cmnDescriptor;
-    ZeroMemory (&cmnDescriptor, sizeof(USB_COMMON_DESCRIPTOR));
+    USB_COMMON_DESCRIPTOR common_desc = {};
+    std::copy(buf + sizeof(SingleTransfer), buf + ret, common_desc);
 
-    PSINGLE_TRANSFER pSingleTransfer = (PSINGLE_TRANSFER) buf;
-    pSingleTransfer->SetupPacket.bmReqType.Direction = DIR_DEVICE_TO_HOST;
-    pSingleTransfer->SetupPacket.bmReqType.Type      = 0;
-    pSingleTransfer->SetupPacket.bmReqType.Recipient = 0;
-    pSingleTransfer->SetupPacket.bRequest = USB_REQUEST_GET_DESCRIPTOR;
-    pSingleTransfer->SetupPacket.wVal.hiByte = USB_STRING_DESCRIPTOR_TYPE;
-    pSingleTransfer->SetupPacket.wVal.lowByte = sIndex;
-    pSingleTransfer->SetupPacket.wIndex = StrLangID;
-    pSingleTransfer->SetupPacket.wLength = sizeof(USB_COMMON_DESCRIPTOR);
-    pSingleTransfer->SetupPacket.ulTimeOut = 5;
-    pSingleTransfer->BufferLength = pSingleTransfer->SetupPacket.wLength;
-    pSingleTransfer->BufferOffset = sizeof(SINGLE_TRANSFER);
-
-    bool bRetVal = IoControl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-    UsbdStatus = pSingleTransfer->UsbdStatus;
-    NtStatus = pSingleTransfer->NtStatus;
-
-    if (bRetVal) {
-        memcpy(&cmnDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), sizeof(USB_COMMON_DESCRIPTOR));
-
+    {
         // Get the entire descriptor
-        length = sizeof(SINGLE_TRANSFER) + cmnDescriptor.bLength;
-        PUCHAR buf2 = new UCHAR[length];
-        ZeroMemory (buf2, length);
-
-        pSingleTransfer = (PSINGLE_TRANSFER) buf2;
-        pSingleTransfer->SetupPacket.bmReqType.Direction = DIR_DEVICE_TO_HOST;
-        pSingleTransfer->SetupPacket.bmReqType.Type      = 0;
-        pSingleTransfer->SetupPacket.bmReqType.Recipient = 0;
-        pSingleTransfer->SetupPacket.bRequest = USB_REQUEST_GET_DESCRIPTOR;
-        pSingleTransfer->SetupPacket.wVal.hiByte = USB_STRING_DESCRIPTOR_TYPE;
-        pSingleTransfer->SetupPacket.wVal.lowByte = sIndex;
-        pSingleTransfer->SetupPacket.wIndex = StrLangID;
-        pSingleTransfer->SetupPacket.wLength = cmnDescriptor.bLength;
-        pSingleTransfer->SetupPacket.ulTimeOut = 5;
-        pSingleTransfer->BufferLength = pSingleTransfer->SetupPacket.wLength;
-        pSingleTransfer->BufferOffset = sizeof(SINGLE_TRANSFER);
-
-        bRetVal = IoControl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf2, length);
-        UsbdStatus = pSingleTransfer->UsbdStatus;
-        NtStatus = pSingleTransfer->NtStatus;
-
-        UCHAR bytes = (buf2[sizeof(SINGLE_TRANSFER)]);
-        UCHAR signature = (buf2[sizeof(SINGLE_TRANSFER)+1]);
-
-        if (bRetVal && (bytes>2) && (signature == 0x03)) {
-            ZeroMemory (str, USB_STRING_MAXLEN);
-            memcpy(str, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset+2), bytes-2);
-        }
-
-        delete[] buf2;
-
+        int len = common_desc.bLength;
+        uint8_t buf[sizeof(SingleTransfer) + len];
+        auto tr = reiterpret_cast<SingleTransfer *>(buf);
+        *tr = SingleTransfer{}; //0 fill.
+        tr.recipient = 1; //HOST
+        tr.type = 0; //
+        tr.direction = 0; //OUT
+        tr.request = USB_REQUEST_GET_DESCRIPTOR;
+        tr.value = USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid;
+        tr.index = LANGID;
+        tr.length = len;
+        tr.timeOut = 1; //sec?
+        tr.bufferOffset = sizeof(SingleTransfer);
+        tr.bufferLength = length;
+        int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
+        if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len) ||
+                (len <= 2))
+            throw XInterfaceError(i18n("Size mismatch during control transfer."));
+        uint8_t sig = buf[sizeof(SingleTransfer) + 1];
+        if(sig != 3)
+            throw XInterfaceError(i18n("Size mismatch during control transfer."));
+        buf.back() = '\0';
+        return (char*)&buf[sizeof(SingleTransfer) + 2];
     }
-
-    delete[] buf;
-
-
 }
 
 CyFXUSBDevice::AsyncIO
