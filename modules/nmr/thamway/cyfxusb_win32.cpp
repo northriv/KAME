@@ -13,6 +13,9 @@
 ***************************************************************************/
 #include "cyfxusb_win32.h"
 
+#define NOMINMAX
+#include <windows.h>
+
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
 //constexpr uint32_t IOCTL_EZUSB_ANCHOR_DOWNLOAD = 0x22201c;
 constexpr uint32_t IOCTL_EZUSB_VENDOR_REQUEST = 0x222014;
@@ -22,6 +25,40 @@ constexpr uint32_t IOCTL_EZUSB_BULK_READ = 0x22204e;
 constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
+
+typedef struct _VENDOR_OR_CLASS_REQUEST_CONTROL {
+   UCHAR direction;
+   UCHAR requestType;
+   UCHAR recepient;
+   UCHAR requestTypeReservedBits;
+   UCHAR request;
+   USHORT value;
+   USHORT index;
+} VENDOR_OR_CLASS_REQUEST_CONTROL;
+
+typedef struct _GET_STRING_DESCRIPTOR_IN {
+   UCHAR    Index;
+   USHORT   LanguageId;
+} GET_STRING_DESCRIPTOR_IN;
+
+typedef struct _VENDOR_REQUEST_IN {
+    BYTE    bRequest;
+    WORD    wValue;
+    WORD    wIndex;
+    WORD    wLength;
+    BYTE    direction;
+    BYTE    bData;
+} VENDOR_REQUEST_IN;
+
+typedef struct _BULK_TRANSFER_CONTROL {
+   ULONG pipeNum;
+} BULK_TRANSFER_CONTROL;
+
+typedef struct _BULK_LATENCY_CONTROL {
+   ULONG bulkPipeNum;
+   ULONG intPipeNum;
+   ULONG loops;
+} BULK_LATENCY_CONTROL;
 
 struct CyFXUSBDevice::AsyncIO::Transfer {
     OVERLAPPED overlap;
@@ -110,6 +147,31 @@ CyFXUSBDevice::open() {
             throw XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()));
         }
     }
+    //obtains device descriptor
+    struct DevDesc {
+        uint8_t bLength;
+        uint8_t bDescriptorType;
+        uint16_t bcdUSB;
+        uint8_t bDeviceClass;
+        uint8_t bDeviceSubClass;
+        uint8_t bDeviceProtocol;
+        uint8_t bMaxPacketSize0;
+        uint16_t idVendor;
+        uint16_t idProduct;
+        uint16_t bcdDevice;
+        uint8_t iManufacturer;
+        uint8_t iProduct;
+        uint8_t iSerialNumber;
+        uint8_t bNumConfigurations;
+    } dev_desc;
+    auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
+    //Reads common descriptor.
+    controlRead(CtrlReq::GET_DESC,
+        CtrlReqType::STD, USB_DEVICE_DESCRIPTOR_TYPE * 0x100u,
+        0, buf, sizeof(DevDesc));
+
+    m_productID = dev_desc.idProduct;
+    m_vendorID = dev_desc.idVendor;
 }
 
 void
@@ -124,41 +186,37 @@ void
 CyFXUSBDevice::finalize();
 
 int
-CyUSB3Device::controlWrite(uint8_t request, uint16_t value,
+CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
     uint8_t buf[sizeof(SingleTransfer) + len];
     auto tr = reiterpret_cast<SingleTransfer *>(buf);
     *tr = SingleTransfer{}; //0 fill.
     std::copy(wbuf, wbuf + len, &buf[sizeof(SingleTransfer)]);
-    tr.recipient = 0; //Device
-    tr.type = 2; //Vendor Request
-    tr.direction = 0; //OUT, 0x40
+    tr.bmRequest = type;
     tr.request = request;
     tr.value = value;
     tr.index = index;
     tr.length = len;
     tr.timeOut = 1; //sec?
-    tr.endpointAddress = 0x00;
+    tr.endpointAddress = 0;
     tr.bufferOffset = sizeof(SingleTransfer);
     tr.bufferLength = length;
     return ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
 }
 
 int
-CyUSB3Device::controlRead(uint8_t request, uint16_t value,
+CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
     uint8_t buf[sizeof(SingleTransfer) + len];
     auto tr = reiterpret_cast<SingleTransfer *>(buf);
     *tr = SingleTransfer{}; //0 fill.
-    tr.recipient = 0; //Device
-    tr.type = 2; //Vendor Request
-    tr.direction = 1; //IN, 0xc0
+    tr.bmRequest = 0x80u | type;
     tr.request = request;
     tr.value = value;
     tr.index = index;
     tr.length = len;
     tr.timeOut = 1; //sec?
-    tr.endpointAddress = 0x00;
+    tr.endpointAddress = 0;
     tr.bufferOffset = sizeof(SingleTransfer);
     tr.bufferLength = length;
     int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
@@ -171,53 +229,24 @@ CyUSB3Device::controlRead(uint8_t request, uint16_t value,
 
 XString
 CyUSB3Device::getString(int descid) {
-    // Get the header to find-out the number of languages, size of lang ID list
-    int len = sizeof(USB_COMMON_DESCRIPTOR);
-    uint8_t buf[sizeof(SingleTransfer) + len];
-    auto tr = reiterpret_cast<SingleTransfer *>(buf);
-    *tr = SingleTransfer{}; //0 fill.
-    tr.recipient = 1; //HOST
-    tr.type = 0; //
-    tr.direction = 0; //OUT
-    tr.request = USB_REQUEST_GET_DESCRIPTOR;
-    tr.value = USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid;
-    tr.index = LANGID;
-    tr.length = len;
-    tr.timeOut = 1; //sec?
-    tr.bufferOffset = sizeof(SingleTransfer);
-    tr.bufferLength = length;
-    int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
-    if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
-        throw XInterfaceError(i18n("Size mismatch during control transfer."));
-
-    USB_COMMON_DESCRIPTOR common_desc = {};
-    std::copy(buf + sizeof(SingleTransfer), buf + ret, common_desc);
-
+    uint8_t buf[2];
+    //Reads common descriptor.
+    controlRead(CtrlReq::GET_DESC,
+        CtrlReqType::STD, USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid,
+        LANGID, buf, sizeof(buf));
+    int len = buf[0];
     {
-        // Get the entire descriptor
-        int len = common_desc.bLength;
-        uint8_t buf[sizeof(SingleTransfer) + len];
-        auto tr = reiterpret_cast<SingleTransfer *>(buf);
-        *tr = SingleTransfer{}; //0 fill.
-        tr.recipient = 1; //HOST
-        tr.type = 0; //
-        tr.direction = 0; //OUT
-        tr.request = USB_REQUEST_GET_DESCRIPTOR;
-        tr.value = USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid;
-        tr.index = LANGID;
-        tr.length = len;
-        tr.timeOut = 1; //sec?
-        tr.bufferOffset = sizeof(SingleTransfer);
-        tr.bufferLength = length;
-        int ret = ioctl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf, sizeof(buf), &buf, sizeof(buf));
-        if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len) ||
-                (len <= 2))
+        //Reads string descriptor.
+        uint8_t buf[len] = {};
+        int ret = controlRead(CtrlReq::GET_DESC,
+            CtrlReqType::STD, USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid,
+            LANGID, buf, len);
+        if(ret <= 2)
             throw XInterfaceError(i18n("Size mismatch during control transfer."));
-        uint8_t sig = buf[sizeof(SingleTransfer) + 1];
-        if(sig != 3)
+        uint8_t desc_type = buf[1];
+        if(desc_type != USB_STRING_DESCRIPTOR_TYPE)
             throw XInterfaceError(i18n("Size mismatch during control transfer."));
-        buf.back() = '\0';
-        return (char*)&buf[sizeof(SingleTransfer) + 2];
+        return (char*)&buf[2];
     }
 }
 
@@ -254,8 +283,4 @@ CyUSB3Device::asyncBulkRead(int pipe, uint8_t* buf, int len) {
     return std::move(ret);
 }
 
-unsigned int
-CyUSB3Device::vendorID();
-unsigned int
-CyUSB3Device::productID();
 

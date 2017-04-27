@@ -47,20 +47,17 @@ struct CyFXEasyUSBDevice : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) final;
 
-    virtual unsigned int vendorID() final;
-    virtual unsigned int productID() final;
-
     virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) final;
     virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) final;
 
-    virtual int controlWrite(uint8_t request, uint16_t value,
+    virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) final;
-    virtual int controlRead(uint8_t request, uint16_t value,
+    virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) final;
 private:
     struct VendorRequestIn {
-        uint8_t request;
-        uint16_t value, index, length;
+        uint8_t bRequest;
+        uint16_t wValue, wIndex, wLength;
         uint8_t direction;
         uint8_t data;
     };
@@ -75,32 +72,21 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) final;
 
-    virtual unsigned int vendorID() final;
-    virtual unsigned int productID() final;
-
     virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) final;
     virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) final;
 
-    virtual int controlWrite(uint8_t request, uint16_t value,
+    virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) final;
-    virtual int controlRead(uint8_t request, uint16_t value,
+    virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) final;
 
 private:
     struct SingleTransfer {
-        union {
-            struct {
-                uint8_t recipient:2;
-                uint8_t reserved:3;
-                uint8_t type:2;
-                uint8_t direction:1;
-            };
-            uint8_t mRequest;
-        };
-        uint8_t request;
-        uint16_t value, index, length;
+        uint8_t bmRequest;
+        uint8_t bRequest;
+        uint16_t wValue, wIndex, wLength;
         uint32_t timeOut;
-        uint8_t reserved2, endpointAddress, ntStatus;
+        uint8_t bReserved2, bEndpointAddress, bNtStatus;
         uint32_t usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
     };

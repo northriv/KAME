@@ -44,7 +44,7 @@
 CyFXUSBDevice::halt() {
     //Writes the CPUCS register of i8051.
     uint8_t buf[1] = {1};
-    if(controlWrite(0xA0, 0xe600, 0x00, buf, 1) != 1)
+    if(controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, 0xe600, 0x00, buf, 1) != 1)
         throw XInterfaceError(i18n("i8051 halt err."));
 }
 
@@ -52,7 +52,7 @@ void
 CyFXUSBDevice::run() {
     //Writes the CPUCS register of i8051.
     uint8_t buf[1] = {0};
-    if(controlWrite(0xA0, 0xe600, 0x00, buf, 1) != 1)
+    if(controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, 0xe600, 0x00, buf, 1) != 1)
         throw XInterfaceError(i18n("i8051 run err."));
 }
 
@@ -61,7 +61,7 @@ void
 CyFXUSBDevice::downloadFX2(const uint8_t* image, int len) {
     int addr = 0;
     //A0 anchor download.
-    if(controlWrite(0xA0, addr, 0x00, image, len) != 1)
+    if(controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, addr, 0x00, image, len) != 1)
         throw XInterfaceError(i18n("Error: FX2 write to RAM failed."));
 }
 
