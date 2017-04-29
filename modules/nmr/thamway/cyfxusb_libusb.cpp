@@ -12,10 +12,29 @@
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "cyfxusb.h"
+#include "interface.h"
 #include <libusb-1.0/libusb.h>
 
+constexpr int USB_TIMEOUT = 1000; //ms
+
 struct CyFXLibUSBDevice : public CyFXUSBDevice {
-    CyFXLibUSBDevice(libusb_device_handle *h, const XString &n) : handle(h) {}
+    CyFXLibUSBDevice(libusb_device *d) : handle(nullptr), dev(d) {
+        libusb_device_descriptor desc;
+        int ret = libusb_get_device_descriptor(dev, &desc);
+        if(ret) {
+            throw XInterface::XInterfaceError(formatString("Error obtaining dev. desc. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+        }
+        m_productID = desc.idProduct;
+        m_vendorID = desc.idVendor;
+
+        libusb_ref_device(dev);
+    }
+    ~CyFXLibUSBDevice() {
+        libusb_unref_device(dev);
+    }
+
+    virtual void open() final;
+    virtual void close() final;
 
     virtual int initialize() final;
     virtual void finalize() final;
@@ -30,8 +49,6 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) final;
 
-private:
-    libusb_device_handle *handle;
     struct USBList {
         USBList() noexcept {
             size = libusb_get_device_list(NULL, &list);
@@ -51,61 +68,95 @@ private:
         libusb_device **list;
         int size;
     };
+private:
+    friend struct AsyncIO;
+    libusb_device_handle *handle;
+    libusb_device *dev;
+    static libusb_context *context;
 };
 
-struct CyFXUSBDevice::AsyncIO::Transfer {
+libusb_context *CyFXLibUSBDevice::context = nullptr;
+
+class CyFXUSBDevice::AsyncIO::Transfer {
+public:
+    Transfer() {
+        transfer = libusb_alloc_transfer(0);
+    }
+    ~Transfer() {
+        libusb_free_transfer(transfer);
+    }
+    static void cb_fn(struct libusb_transfer *transfer) {
+        switch(transfer->status) {
+            case LIBUSB_TRANSFER_COMPLETED:
+                break;
+        case LIBUSB_TRANSFER_CANCELLED:
+        case LIBUSB_TRANSFER_NO_DEVICE:
+        case LIBUSB_TRANSFER_TIMED_OUT:
+        case LIBUSB_TRANSFER_ERROR:
+        case LIBUSB_TRANSFER_STALL:
+        case LIBUSB_TRANSFER_OVERFLOW:
+        default:
+                break;
+        }
+        reinterpret_cast<Transfer*>(transfer->user_data)->completed = 1;
+    }
+    unique_ptr<std::vector<uint8_t>> buf;
+    libusb_transfer *transfer;
+    uint8_t *rdbuf = nullptr;
+    int completed = 0;
 };
 
-CyFXUSBDevice::AsyncIO::AsyncIO(unique_ptr<Transfer>&& t) :
-    m_transfer(std::forward<unique_ptr<Transfer>>(t)) {
+CyFXUSBDevice::AsyncIO::AsyncIO() :
+    m_transfer(new Transfer) {
 }
 bool
 CyFXUSBDevice::AsyncIO::hasFinished() const {
+    return ptr()->completed;
 }
 int64_t
 CyFXUSBDevice::AsyncIO::waitFor() {
+    while (!ptr()->completed) {
+        libusb_handle_events_completed(CyFXLibUSBDevice::context, &ptr()->completed);
+    }
+    if(ptr()->rdbuf) {
+        std::copy(ptr()->buf->begin(), ptr()->buf->end(), ptr()->rdbuf);
+    }
+    return ptr()->transfer->actual_length;
 }
 
 
 CyFXUSBDevice::List
 CyFXUSBDevice::enumerateDevices() {
     CyFXUSBDevice::List list;
-    for(int idx = 0; idx < 9; ++idx) {
-
-        list.push_back(std::make_shared<CyFXEasyUSBDevice>(h, name));
+    CyFXLibUSBDevice::USBList devlist;
+    for(int n = 0; n < devlist.size; ++n) {
+        list.push_back(std::make_shared<CyFXLibUSBDevice>(devlist[n]));
     }
-
-    return std::move(list);
+    return list;
 }
 void
 CyFXLibUSBDevice::open() {
     if( !handle) {
         libusb_device_descriptor desc;
-        int ret = libusb_get_device_descriptor(pdev, &desc);
+        int ret = libusb_get_device_descriptor(dev, &desc);
         if(ret) {
-            fprintf(stderr, "Error obtaining dev. desc. in libusb: %s\n", libusb_error_name(ret));
-            return -1;
+            throw XInterface::XInterfaceError(formatString("Error obtaining dev. desc. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
 
-        int bus_num = libusb_get_bus_number(pdev);
-        int addr = libusb_get_device_address(pdev);
+        int bus_num = libusb_get_bus_number(dev);
+        int addr = libusb_get_device_address(dev);
     //    fprintf(stderr, "USB %d: PID=%d,VID=%d,BUS#%d,ADDR=%d.\n",
     //        n, desc.idProduct, desc.idVendor, bus_num, addr);
 
-        if(((desc.idProduct != FX2_DEF_PID) || (desc.idVendor != FX2_DEF_VID))
-            && ((desc.idProduct != THAMWAY_PID) || (desc.idVendor != THAMWAY_VID))) {
-            return -1;
-        }
-        ret = libusb_open(pdev, h);
+        ret = libusb_open(dev, &handle);
         if(ret) {
-            fprintf(stderr, "Error opening dev. in libusb: %s\n", libusb_error_name(ret));
-           return -1;
+            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
 
         unsigned char manu[256] = {}, prod[256] = {}, serial[256] = {};
-        libusb_get_string_descriptor_ascii( *h, desc.iManufacturer, manu, 255);
-        libusb_get_string_descriptor_ascii( *h, desc.iProduct, prod, 255);
-        libusb_get_string_descriptor_ascii( *h, desc.iSerialNumber, serial, 255);
+        libusb_get_string_descriptor_ascii( handle, desc.iManufacturer, manu, 255);
+        libusb_get_string_descriptor_ascii( handle, desc.iProduct, prod, 255);
+        libusb_get_string_descriptor_ascii( handle, desc.iSerialNumber, serial, 255);
         fprintf(stderr, "USB: VID=0x%x, PID=0x%x,BUS#%d,ADDR=%d;%s;%s;%s.\n",
             desc.idVendor, desc.idProduct, bus_num, addr, manu, prod, serial);
 
@@ -113,79 +164,48 @@ CyFXLibUSBDevice::open() {
     //    if(ret) {
     //        fprintf(stderr, "USB %d: Warning auto detach is not supported: %s\n", n, libusb_error_name(ret));
     //    }
-        ret = libusb_kernel_driver_active( *h, 0);
+        ret = libusb_kernel_driver_active(handle, 0);
         if(ret < 0) {
-            libusb_close( *h);
-            fprintf(stderr, "USB: Error on libusb: %s\n", libusb_error_name(ret));
-            return -1;
+            libusb_close(handle); handle = nullptr;
+            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
         if(ret == 1) {
             fprintf(stderr, "USB: kernel driver is active, detaching...\n");
-            ret = libusb_detach_kernel_driver( *h, 0);
+            ret = libusb_detach_kernel_driver(handle, 0);
             if(ret < 0) {
-                libusb_close( *h);
-                fprintf(stderr, "USB: Error on libusb: %s\n", libusb_error_name(ret));
-                return -1;
+                libusb_close(handle); handle = nullptr;
+                throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
             }
         }
     //    ret = libusb_set_configuration( *h, 1);
-        ret = libusb_claim_interface( *h, 0);
+        ret = libusb_claim_interface(handle, 0);
         if(ret) {
-            libusb_close( *h);
-            fprintf(stderr, "USB: Error claiming interface: %s\n", libusb_error_name(ret));
-            return -1;
+            libusb_close(handle); handle = nullptr;
+            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
-        ret = libusb_set_interface_alt_setting( *h, 0 , 0 );
+        ret = libusb_set_interface_alt_setting(handle, 0 , 0 );
         if(ret) {
-            libusb_release_interface( *h,0);
-            libusb_close( *h);
-            fprintf(stderr, "USB: Error ALT setting for interface: %s\n", libusb_error_name(ret));
-            return -1;
+            libusb_release_interface(handle,0);
+            libusb_close(handle); handle = nullptr;
+            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
-        return 0;
     }
-    //obtains device descriptor
-    struct DevDesc {
-        uint8_t bLength;
-        uint8_t bDescriptorType;
-        uint16_t bcdUSB;
-        uint8_t bDeviceClass;
-        uint8_t bDeviceSubClass;
-        uint8_t bDeviceProtocol;
-        uint8_t bMaxPacketSize0;
-        uint16_t idVendor;
-        uint16_t idProduct;
-        uint16_t bcdDevice;
-        uint8_t iManufacturer;
-        uint8_t iProduct;
-        uint8_t iSerialNumber;
-        uint8_t bNumConfigurations;
-    } dev_desc;
-    auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
-    //Reads common descriptor.
-    controlRead(CtrlReq::GET_DESC,
-        CtrlReqType::STD, USB_DEVICE_DESCRIPTOR_TYPE * 0x100u,
-        0, buf, sizeof(DevDesc));
-
-    m_productID = dev_desc.idProduct;
-    m_vendorID = dev_desc.idVendor;
 }
 
 void
-CyFXUSBDevice::close() {
+CyFXLibUSBDevice::close() {
     //hacks for stability.
-    libusb_clear_halt( *h, 0x2);
-    libusb_clear_halt( *h, 0x6);
-    libusb_clear_halt( *h, 0x8);
-    libusb_reset_device( *h);
-    libusb_release_interface( *h,0);
-    libusb_close( *h);
-    handle = nullptr;
+    libusb_clear_halt(handle, 0x2);
+    libusb_clear_halt(handle, 0x6);
+    libusb_clear_halt(handle, 0x8);
+    libusb_reset_device(handle);
+    libusb_release_interface(handle,0);
+    libusb_close(handle); handle = nullptr;
 }
 
 int
 CyFXLibUSBDevice::initialize() {
-    int ret = libusb_init(NULL);
+    int ret = libusb_init( &CyFXLibUSBDevice::context);
     if(ret) {
         fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
         return -1;
@@ -195,18 +215,20 @@ CyFXLibUSBDevice::initialize() {
 
 void
 CyFXLibUSBDevice::finalize() {
-    libusb_exit(NULL);
+    libusb_exit(CyFXLibUSBDevice::context);
 }
 
 int
 CyFXLibUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
+    std::vector<uint8_t> buf(len);
+    std::copy(wbuf, wbuf + len, buf.begin());
     int ret = libusb_control_transfer(handle,
-        LIBUSB_ENDPOINT_OUT | type,
-        request,
-        value, index, wbuf, len, USB_TIMEOUT);
+        LIBUSB_ENDPOINT_OUT | (uint8_t)type,
+        (uint8_t)request,
+        value, index, &buf[0], len, USB_TIMEOUT);
     if(ret < 0) {
-        throw XInterfaceError(formatString("USB: %s.", libusb_error_name(ret)), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(formatString("USB: %s.", libusb_error_name(ret)), __FILE__, __LINE__);
     }
     return ret;
 }
@@ -215,11 +237,11 @@ int
 CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
     int ret = libusb_control_transfer(handle,
-        LIBUSB_ENDPOINT_IN | type,
-        request,
+        LIBUSB_ENDPOINT_IN | (int8_t)type,
+        (uint8_t)request,
         value, index, rdbuf, len, USB_TIMEOUT);
     if(ret < 0) {
-        throw XInterfaceError(formatString("USB: %s.", libusb_error_name(ret)), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(formatString("USB: %s.", libusb_error_name(ret)), __FILE__, __LINE__);
     }
     return ret;
 }
@@ -227,10 +249,10 @@ CyFXLibUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 
 XString
 CyFXLibUSBDevice::getString(int descid) {
-    unsigned char s[128];
-    int ret = libusb_get_string_descriptor_ascii(handle, descid, s, 127);
+    char s[128];
+    int ret = libusb_get_string_descriptor_ascii(handle, descid, (uint8_t*)s, 127);
     if(ret < 0) {
-         throw XInterfaceError(formatString("Error during USB get string desc.: %s\n", libusb_error_name(ret)));
+         throw XInterface::XInterfaceError(formatString("Error during USB get string desc.: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
     s[ret] = '\0';
     return s;
@@ -238,57 +260,32 @@ CyFXLibUSBDevice::getString(int descid) {
 
 CyFXUSBDevice::AsyncIO
 CyFXLibUSBDevice::asyncBulkWrite(int pipe, const uint8_t *buf, int len) {
-    int ep;
-    switch(pipe) {
-    case TFIFO:
-        ep = 0x2;
-        break;
-    case CPIPE:
-        ep = 0x8;
-        break;
-    default:
-        return -1;
+    AsyncIO async;
+    async.ptr()->buf.reset(new std::vector<uint8_t>(len));
+    std::copy(buf, buf + len, async.ptr()->buf->begin());
+    libusb_fill_bulk_transfer(async.ptr()->transfer, handle,
+            LIBUSB_ENDPOINT_OUT | (int8_t)pipe, &async.ptr()->buf->at(0), len,
+            &AsyncIO::Transfer::cb_fn, &async, USB_TIMEOUT);
+    int ret = libusb_submit_transfer(async.ptr()->transfer);
+    if(ret != 0) {
+         throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
-
-    int cnt = 0;
-    for(int i = 0; len > 0;){
-        int transferred;
-        int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_OUT | ep, buf, len, &transferred, USB_TIMEOUT);
-        if(ret) {
-            fprintf(stderr, "Error during USB Bulk writing: %s\n", libusb_error_name(ret));
-            return -1;
-        }
-        buf += transferred;
-        len -= transferred;
-        cnt += transferred;
-    }
-    return 0;
+    return async;
 }
 
 CyFXUSBDevice::AsyncIO
 CyFXLibUSBDevice::asyncBulkRead(int pipe, uint8_t* buf, int len) {
-    int ep;
-    switch(pipe) {
-    case RFIFO:
-        ep = 0x6;
-        break;
-    default:
-        return -1;
+    AsyncIO async;
+    async.ptr()->buf.reset(new std::vector<uint8_t>(len));
+    async.ptr()->rdbuf = buf;
+    libusb_fill_bulk_transfer(async.ptr()->transfer, handle,
+            LIBUSB_ENDPOINT_OUT | (int8_t)pipe, &async.ptr()->buf->at(0), len,
+            &AsyncIO::Transfer::cb_fn, &async, USB_TIMEOUT);
+    int ret = libusb_submit_transfer(async.ptr()->transfer);
+    if(ret != 0) {
+         throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
-    int cnt = 0;
-    for(int i = 0; len > 0;){
-        int l = std::min(len, 0x8000);
-        int transferred;
-        int ret = libusb_bulk_transfer( *h, LIBUSB_ENDPOINT_IN | ep, buf, l, &transferred, USB_TIMEOUT);
-        if(ret) {
-            fprintf(stderr, "Error during USB Bulk reading: %s\n", libusb_error_name(ret));
-            return -1;
-        }
-        buf += transferred;
-        len -= transferred;
-        cnt += transferred;
-    }
-    return cnt;
+    return async;
 }
 
 

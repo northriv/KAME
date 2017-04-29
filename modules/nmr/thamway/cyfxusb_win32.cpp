@@ -68,7 +68,7 @@ struct CyFXUSBDevice::AsyncIO::Transfer {
     uint8_t *rdbuf = nullptr;
 };
 
-CyFXUSBDevice::AsyncIO::AsyncIO(unique_ptr<Transfer>&& t) : m_transfer(std::forward(t)) {
+CyFXUSBDevice::AsyncIO::AsyncIO() : m_transfer(new Transfer) {
 }
 bool
 CyFXUSBDevice::AsyncIO::hasFinished() {
@@ -81,17 +81,17 @@ CyFXUSBDevice::AsyncIO::waitFor() {
         GetOverlappedResult(ptr()->handle, &ptr()->overlap, &num, true);
         finalize(num);
     }
-    if(rdbuf) {
-        std::copy(ptr()->ioctlbuf_rdpos, &ptr()->ioctlbuf->at(0) + m_count_num, rdbuf);
+    if(ptr()->rdbuf) {
+        std::copy(ptr()->ioctlbuf_rdpos, &ptr()->ioctlbuf->at(0) + m_count_num, ptr()->rdbuf);
     }
     return m_count_imm;
 }
 CyFXUSBDevice::AsyncIO
 CyFXWin32USBDevice::async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     DWORD nbyte;
-    CyFXUSBDevice::AsyncIO::Transfer tr;
-    tr.handle = handle;
     AsyncIO async(tr);
+    CyFXUSBDevice::AsyncIO::Transfer& tr = *async.ptr();
+    tr.handle = handle;
     if( !DeviceIoControl(handle, code, in, size_in, out, size_out, &nbyte, &async.ptr()->tr)) {
         auto e = GetLastError();
         if(e == ERROR_IO_PENDING)

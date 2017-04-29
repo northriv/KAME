@@ -17,7 +17,6 @@
 
 
 struct CyFXUSBDevice {
-    CyFXUSBDevice() = delete;
     virtual ~CyFXUSBDevice() = default;
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
@@ -63,7 +62,7 @@ struct CyFXUSBDevice {
 
     struct AsyncIO {
         class Transfer;
-        AsyncIO(unique_ptr<Transfer>&& t);
+        AsyncIO();
         AsyncIO(const AsyncIO&) = delete;
         AsyncIO(AsyncIO &&) = default;
         void finalize(int64_t count_imm) {
@@ -72,6 +71,7 @@ struct CyFXUSBDevice {
         bool hasFinished() const;
         int64_t waitFor();
         Transfer *ptr() {return m_transfer.get();}
+        const Transfer *ptr() const {return m_transfer.get();}
     private:
         unique_ptr<Transfer> m_transfer;
         int64_t m_count_imm = -1;
@@ -88,6 +88,7 @@ struct CyFXUSBDevice {
 //    //AE18AA60-7F6A-11d4-97DD-00010229B959
 //    static const std::initializer_list<uint32_t> CYPRESS_GUID = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 protected:
+    CyFXUSBDevice();
     uint16_t m_vendorID, m_productID;
 };
 
