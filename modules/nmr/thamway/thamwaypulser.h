@@ -55,18 +55,18 @@ private:
 };
 
 #if defined USE_THAMWAY_USB
-    #include "ezusbthamway.h"
-    class XThamwayPGCUSBInterface : public XFX2FWUSBInterface {
+#include "thamwayusbinterface.h"
+    class XThamwayPGCUSBInterface : public XThamwayFX2USBInterface {
     public:
         XThamwayPGCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XFX2FWUSBInterface(name, runtime, driver, 0, "PG32") {}
+            : XThamwayFX2USBInterface(name, runtime, driver, 0, "PG32") {}
         virtual ~XThamwayPGCUSBInterface() = default;
     };
     #define ADDR_OFFSET_PGQAM 0x60
-    class XThamwayPGQAMCUSBInterface : public XFX2FWUSBInterface {
+    class XThamwayPGQAMCUSBInterface : public XThamwayFX2USBInterface {
     public:
         XThamwayPGQAMCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XFX2FWUSBInterface(name, runtime, driver, ADDR_OFFSET_PGQAM, "PG027QAM") {}
+            : XThamwayFX2USBInterface(name, runtime, driver, ADDR_OFFSET_PGQAM, "PG027QAM") {}
         virtual ~XThamwayPGQAMCUSBInterface() = default;
     };
 

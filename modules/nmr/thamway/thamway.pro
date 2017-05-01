@@ -8,12 +8,15 @@ HEADERS += \
     thamwayprot.h \
     thamwaypulser.h \
     cyfxusb.h\
-    thamwaydso.h
+    thamwaydso.h \
+    thamwayusbinterface.h \
+    cyfxusbinterface_impl.h
 
 SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp \
-    thamwaydso.cpp
+    thamwaydso.cpp \
+    thamwayusbinterface.cpp
 
 FORMS += \
     thamwayprotform.ui

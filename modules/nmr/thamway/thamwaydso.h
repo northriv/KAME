@@ -16,14 +16,14 @@
 
 #include "dso.h"
 
-#include "ezusbthamway.h"
+#include "thamwayusbinterface.h"
 
 #define ADDR_OFFSET_DV 0x20
 
-class XThamwayDVCUSBInterface : public XFX2FWUSBInterface {
+class XThamwayDVCUSBInterface : public XThamwayFX2USBInterface {
 public:
     XThamwayDVCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-        : XFX2FWUSBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
+        : XThamwayFX2USBInterface(name, runtime, driver, ADDR_OFFSET_DV, "DV14") {}
     virtual ~XThamwayDVCUSBInterface() {}
 };
 

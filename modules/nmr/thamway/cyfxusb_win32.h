@@ -17,15 +17,31 @@
 #include "cyfxusb.h"
 
 struct CyFXWin32USBDevice : public CyFXUSBDvice {
-    CyFXWin32USBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
-    CyFXWin32USBDevice() : handle(nullptr), device(nullptr) {}
+    CyFXWin32USBDevice(HANDLE handle, const XString &n);
     virtual ~CyFXWin32USBDevice()  {close();}
 
     virtual void open() final;
     virtual void close() final;
 
-    virtual int bulkWrite(int pipe, const uint8_t *buf, int len) final;
-    virtual int bulkRead(int pipe, uint8_t* buf, int len) final;
+    virtual int bulkWrite(int ep, const uint8_t *buf, int len) final;
+    virtual int bulkRead(int ep, uint8_t* buf, int len) final;
+protected:
+    struct DeviceDescriptor {
+        uint8_t bLength;
+        uint8_t bDescriptorType;
+        uint16_t bcdUSB;
+        uint8_t bDeviceClass;
+        uint8_t bDeviceSubClass;
+        uint8_t bDeviceProtocol;
+        uint8_t bMaxPacketSize0;
+        uint16_t idVendor;
+        uint16_t idProduct;
+        uint16_t bcdDevice;
+        uint8_t iManufacturer;
+        uint8_t iProduct;
+        uint8_t iSerialNumber;
+        uint8_t bNumConfigurations;
+    }
 private:
     HANDLE handle;
     XString name;
@@ -37,43 +53,45 @@ private:
     constexpr tGUID GUID = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 };
 
-struct CyFXEasyUSBDevice : public CyFXWin32USBDevice {
-    CyFXEasyUSBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
-    CyFXEasyUSBDevice() : handle(nullptr), device(nullptr) {}
-    virtual ~CyFXEasyUSBDevice();
+struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
+    CyFXEzUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n)  {}
+    virtual ~CyFXEzUSBDevice();
 
-    virtual int initialize() final;
-    virtual void finalize() final;
+    virtual void finalize() final {}
 
     XString virtual getString(int descid) final;
 
-    virtual AsyncIO asyncBulkWrite(int pipe, uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int pipe, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkWrite(int ep, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkRead(int ep, uint8_t *buf, int len) final;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) final;
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) final;
 private:
-    struct VendorRequestIn {
+    struct VendorRequestCtrl {
         uint8_t bRequest;
         uint16_t wValue, wIndex, wLength;
         uint8_t direction;
-        uint8_t data;
+    };
+    struct StringDescCtrl {
+        uint8_t Index;
+        uint16_t LanguageId;
+    };
+    struct BulkTransferCtrl {
+        uint32_t pipeNum;
     };
 };
 
 struct CyUSB3Device : public CyFXWin32USBDevice {
-    CyUSBDevice(HANDLE handle, const XString &n) : handle(h), name(n) {}
-    CyUSB3Device() : handle(nullptr), device(nullptr) {}
+    CyUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
 
-    virtual int initialize() final;
     virtual void finalize() final;
 
     XString virtual getString(int descid) final;
 
-    virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkWrite(int ep, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkRead(int ep, uint8_t *buf, int len) final;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) final;

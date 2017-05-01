@@ -101,11 +101,11 @@ public:
 };
 
 #ifdef USE_THAMWAY_USB
-    #include "ezusbthamway.h"
-    class XThamwayMODCUSBInterface : public XFX2FWUSBInterface {
+    #include "thamwayusbinterface.h"
+    class XThamwayMODCUSBInterface : public XThamwayFX2USBInterface {
     public:
         XThamwayMODCUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
-            : XFX2FWUSBInterface(name, runtime, driver, 0u, "") {} //DIP-SW address should be 6 (=DEV_ADDR_PROT)
+            : XThamwayFX2USBInterface(name, runtime, driver, 0u, "") {} //DIP-SW address should be 6 (=DEV_ADDR_PROT)
         virtual ~XThamwayMODCUSBInterface() {}
     };
 

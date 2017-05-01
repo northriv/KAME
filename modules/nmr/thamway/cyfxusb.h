@@ -11,6 +11,9 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
+#ifndef CYFXUSB_H
+#define CYFXUSB_H
+
 #include "chardevicedriver.h"
 #include "charinterface.h"
 #include <vector>
@@ -20,12 +23,11 @@ struct CyFXUSBDevice {
     virtual ~CyFXUSBDevice() = default;
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
-    static List enumerateDevices();
+    static List enumerateDevices(bool initialization);
 
     virtual void open() = 0;
     virtual void close() = 0;
 
-    virtual int initialize() = 0;
     virtual void finalize() = 0;
 
     void halt();
@@ -34,8 +36,8 @@ struct CyFXUSBDevice {
 
     void downloadFX2(const uint8_t* image, int len);
 
-    int bulkWrite(int pipe, const uint8_t *buf, int len);
-    int bulkRead(int pipe, uint8_t* buf, int len);
+    int bulkWrite(int ep, const uint8_t *buf, int len);
+    int bulkRead(int ep, uint8_t* buf, int len);
 
     enum class CtrlReq : uint8_t  {
         USB_REQUEST_GET_STATUS = 0x00, USB_REQUEST_CLEAR_FEATURE = 0x01, USB_REQUEST_SET_FEATURE = 0x03, USB_REQUEST_SET_ADDRESS = 0x05,
@@ -76,8 +78,8 @@ struct CyFXUSBDevice {
         unique_ptr<Transfer> m_transfer;
         int64_t m_count_imm = -1;
     };
-    virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) = 0;
-    virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) = 0;
+    virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
+    virtual AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
 
     XRecursiveMutex mutex;
     XString label;
@@ -99,27 +101,28 @@ public:
     XCyFXUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
     virtual ~XCyFXUSBInterface();
 
-    virtual void open() throw (XInterfaceError &);
+    virtual void open() throw (XInterfaceError &) override;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &);
+    virtual void close() throw (XInterfaceError &) override;
 
-    void lock() {m_usbDevice->mutex->lock();} //!<overrides XInterface::lock().
-    void unlock() {m_usbDevice->mutex->unlock();}
-    bool isLocked() const {return m_usbDevice->isLockedByCurrentThread();}
+    void lock() {m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
+    void unlock() {m_usbDevice->mutex.unlock();}
+    bool isLocked() const {return m_usbDevice->mutex.isLockedByCurrentThread();}
 
     virtual void send(const char *) throw (XCommError &) override {}
     virtual void receive() throw (XCommError &) override {}
 
-    virtual bool isOpened() const override {return usb();}
+    virtual bool isOpened() const override {return !!usb();}
 protected:
-    //\return true if device is supported by this interface.
-    virtual bool examineDeviceBeforeFWLoad(const USBDevice &dev) = 0;
-    //\return device string to be shown in the list box, if it is supported.
-    virtual std::string examineDeviceAfterFWLoad(const USBDevice &dev) = 0;
-    //\return Relative path to the GPIB wave file.
-    virtual XString gpifWave() = 0;
-    //\return Relative path to the firmware file.
-    virtual XString firmware() = 0;
+    enum class DEVICE_STATUS {FW_NOT_LOADED, READY, UNSUPPORTED};
+    virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) = 0;
+    //! \return device string to be shown in the list box, if it is supported.
+    virtual std::string examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) = 0;
+    //! \return Relative path to the GPIB wave file.
+    virtual XString gpifWave(const shared_ptr<CyFXUSBDevice> &dev) = 0;
+    //! \return Relative path to the firmware file.
+    virtual XString firmware(const shared_ptr<CyFXUSBDevice> &dev) = 0;
+    virtual void setWave(const shared_ptr<CyFXUSBDevice> &dev, const uint8_t *wave) = 0;
 
     const shared_ptr<USBDevice> &usb() const {return m_usbDevice;}
 private:
@@ -127,8 +130,9 @@ private:
     static XMutex s_mutex;
     static typename USBDevice::List s_devices;
     static int s_refcnt;
-    static void openAllEZUSBdevices();
-    static void setWave(void *handle, const uint8_t *wave);
-    static void closeAllEZUSBdevices();
+    void openAllEZUSBdevices();
+    void closeAllEZUSBdevices();
 };
+
+#endif
 

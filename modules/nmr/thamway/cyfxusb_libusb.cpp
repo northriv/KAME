@@ -15,7 +15,7 @@
 #include "interface.h"
 #include <libusb-1.0/libusb.h>
 
-constexpr int USB_TIMEOUT = 1000; //ms
+static constexpr int USB_TIMEOUT = 1000; //ms
 
 struct CyFXLibUSBDevice : public CyFXUSBDevice {
     CyFXLibUSBDevice(libusb_device *d) : handle(nullptr), dev(d) {
@@ -33,16 +33,15 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_unref_device(dev);
     }
 
+    virtual void finalize() final;
+
     virtual void open() final;
     virtual void close() final;
 
-    virtual int initialize() final;
-    virtual void finalize() final;
-
     XString virtual getString(int descid) final;
 
-    virtual AsyncIO asyncBulkWrite(int pipe, const uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int pipe, uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) final;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) final;
@@ -68,11 +67,11 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_device **list;
         int size;
     };
+    static libusb_context *context;
 private:
     friend struct AsyncIO;
     libusb_device_handle *handle;
     libusb_device *dev;
-    static libusb_context *context;
 };
 
 libusb_context *CyFXLibUSBDevice::context = nullptr;
@@ -86,18 +85,18 @@ public:
         libusb_free_transfer(transfer);
     }
     static void cb_fn(struct libusb_transfer *transfer) {
-        switch(transfer->status) {
-            case LIBUSB_TRANSFER_COMPLETED:
-                break;
-        case LIBUSB_TRANSFER_CANCELLED:
-        case LIBUSB_TRANSFER_NO_DEVICE:
-        case LIBUSB_TRANSFER_TIMED_OUT:
-        case LIBUSB_TRANSFER_ERROR:
-        case LIBUSB_TRANSFER_STALL:
-        case LIBUSB_TRANSFER_OVERFLOW:
-        default:
-                break;
-        }
+//        switch(transfer->status) {
+//        case LIBUSB_TRANSFER_COMPLETED:
+//            break;
+//        case LIBUSB_TRANSFER_CANCELLED:
+//        case LIBUSB_TRANSFER_NO_DEVICE:
+//        case LIBUSB_TRANSFER_TIMED_OUT:
+//        case LIBUSB_TRANSFER_ERROR:
+//        case LIBUSB_TRANSFER_STALL:
+//        case LIBUSB_TRANSFER_OVERFLOW:
+//        default:
+//            break;
+//        }
         reinterpret_cast<Transfer*>(transfer->user_data)->completed = 1;
     }
     unique_ptr<std::vector<uint8_t>> buf;
@@ -115,18 +114,28 @@ CyFXUSBDevice::AsyncIO::hasFinished() const {
 }
 int64_t
 CyFXUSBDevice::AsyncIO::waitFor() {
-    while (!ptr()->completed) {
-        libusb_handle_events_completed(CyFXLibUSBDevice::context, &ptr()->completed);
+    while( !ptr()->completed) {
+        int ret = libusb_handle_events_completed(CyFXLibUSBDevice::context, &ptr()->completed);
+        if(ret)
+            throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
     }
+    if(ptr()->transfer->status != LIBUSB_TRANSFER_COMPLETED)
+        throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ptr()->transfer->status)).c_str(), __FILE__, __LINE__);
     if(ptr()->rdbuf) {
-        std::copy(ptr()->buf->begin(), ptr()->buf->end(), ptr()->rdbuf);
+        std::copy(ptr()->buf->begin(), ptr()->buf->begin() + ptr()->transfer->actual_length, ptr()->rdbuf);
     }
     return ptr()->transfer->actual_length;
 }
 
 
 CyFXUSBDevice::List
-CyFXUSBDevice::enumerateDevices() {
+CyFXUSBDevice::enumerateDevices(bool initialization) {
+    if(initialization) {
+        int ret = libusb_init( &CyFXLibUSBDevice::context);
+        if(ret) {
+            throw XInterface::XInterfaceError(formatString("Error during initialization of libusb libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+        }
+    }
     CyFXUSBDevice::List list;
     CyFXLibUSBDevice::USBList devlist;
     for(int n = 0; n < devlist.size; ++n) {
@@ -203,16 +212,6 @@ CyFXLibUSBDevice::close() {
     libusb_close(handle); handle = nullptr;
 }
 
-int
-CyFXLibUSBDevice::initialize() {
-    int ret = libusb_init( &CyFXLibUSBDevice::context);
-    if(ret) {
-        fprintf(stderr, "Error during initialization of libusb: %s\n", libusb_error_name(ret));
-        return -1;
-    }
-    return ret;
-}
-
 void
 CyFXLibUSBDevice::finalize() {
     libusb_exit(CyFXLibUSBDevice::context);
@@ -259,12 +258,12 @@ CyFXLibUSBDevice::getString(int descid) {
 }
 
 CyFXUSBDevice::AsyncIO
-CyFXLibUSBDevice::asyncBulkWrite(int pipe, const uint8_t *buf, int len) {
+CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     AsyncIO async;
     async.ptr()->buf.reset(new std::vector<uint8_t>(len));
     std::copy(buf, buf + len, async.ptr()->buf->begin());
     libusb_fill_bulk_transfer(async.ptr()->transfer, handle,
-            LIBUSB_ENDPOINT_OUT | (int8_t)pipe, &async.ptr()->buf->at(0), len,
+            LIBUSB_ENDPOINT_OUT | ep, &async.ptr()->buf->at(0), len,
             &AsyncIO::Transfer::cb_fn, &async, USB_TIMEOUT);
     int ret = libusb_submit_transfer(async.ptr()->transfer);
     if(ret != 0) {
@@ -274,12 +273,12 @@ CyFXLibUSBDevice::asyncBulkWrite(int pipe, const uint8_t *buf, int len) {
 }
 
 CyFXUSBDevice::AsyncIO
-CyFXLibUSBDevice::asyncBulkRead(int pipe, uint8_t* buf, int len) {
+CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     AsyncIO async;
     async.ptr()->buf.reset(new std::vector<uint8_t>(len));
     async.ptr()->rdbuf = buf;
     libusb_fill_bulk_transfer(async.ptr()->transfer, handle,
-            LIBUSB_ENDPOINT_OUT | (int8_t)pipe, &async.ptr()->buf->at(0), len,
+            LIBUSB_ENDPOINT_IN | ep, &async.ptr()->buf->at(0), len,
             &AsyncIO::Transfer::cb_fn, &async, USB_TIMEOUT);
     int ret = libusb_submit_transfer(async.ptr()->transfer);
     if(ret != 0) {
