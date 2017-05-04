@@ -10,13 +10,15 @@ HEADERS += \
     cyfxusb.h\
     thamwaydso.h \
     thamwayusbinterface.h \
-    cyfxusbinterface_impl.h
+    cyfxusbinterface_impl.h \
+    thamwayrealtimedso.h
 
 SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp \
     thamwaydso.cpp \
-    thamwayusbinterface.cpp
+    thamwayusbinterface.cpp \
+    thamwayrealtimedso.cpp
 
 FORMS += \
     thamwayprotform.ui

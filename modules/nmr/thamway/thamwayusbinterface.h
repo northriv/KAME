@@ -20,10 +20,10 @@
 #include "cyfxusb.h"
 #include <vector>
 
-struct ThamwayCyFXUSBDevice : public CyFXUSBDevice {};
+struct ThamwayCyFX2USBDevice : public CyFXUSBDevice {};
 
 //! Interfaces Thamway's PROT/AD/Pulser based on FX2LP device.
-class XThamwayFX2USBInterface : public XCyFXUSBInterface<ThamwayCyFXUSBDevice> {
+class XThamwayFX2USBInterface : public XCyFXUSBInterface<ThamwayCyFX2USBDevice> {
 public:
     XThamwayFX2USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
     virtual ~XThamwayFX2USBInterface();
@@ -70,6 +70,29 @@ private:
     XString m_idString;
     bool m_bBurstWrite;
     std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
+};
+
+struct ThamwayCyFX3USBDevice : public CyFXUSBDevice {};
+
+//! Interfaces Thamway's PROT data acquision device based on FX3 device.
+class XThamwayFX3USBInterface : public XCyFXUSBInterface<ThamwayCyFX3USBDevice> {
+public:
+    XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
+    virtual ~XThamwayFX3USBInterface();
+
+    virtual void open() throw (XInterfaceError &) override;
+    //! This can be called even if has already closed.
+    virtual void close() throw (XInterfaceError &) override;
+
+    virtual void send(const char *str) throw (XCommError &) override;
+    virtual void receive() throw (XCommError &) override;
+protected:
+    virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
+    virtual std::string examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
+    virtual XString gpifWave(const shared_ptr<CyFXUSBDevice> &dev) override {return {};}
+    virtual XString firmware(const shared_ptr<CyFXUSBDevice> &dev) override {return {};}
+    virtual void setWave(const shared_ptr<CyFXUSBDevice> &dev, const uint8_t *wave) override {}
+private:
 };
 
 #endif // THAMWAYUSBINTERFACE_H

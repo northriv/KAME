@@ -26,33 +26,16 @@ struct CyFXWin32USBDevice : public CyFXUSBDvice {
     virtual int bulkWrite(int ep, const uint8_t *buf, int len) final;
     virtual int bulkRead(int ep, uint8_t* buf, int len) final;
 protected:
-    struct DeviceDescriptor {
-        uint8_t bLength;
-        uint8_t bDescriptorType;
-        uint16_t bcdUSB;
-        uint8_t bDeviceClass;
-        uint8_t bDeviceSubClass;
-        uint8_t bDeviceProtocol;
-        uint8_t bMaxPacketSize0;
-        uint16_t idVendor;
-        uint16_t idProduct;
-        uint16_t bcdDevice;
-        uint8_t iManufacturer;
-        uint8_t iProduct;
-        uint8_t iSerialNumber;
-        uint8_t bNumConfigurations;
-    }
+    XString wcstoxstr(const wchar_t *);
 private:
     HANDLE handle;
     XString name;
 
     ASyncIO async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
     int ioctl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
-
-    //AE18AA60-7F6A-11d4-97DD-00010229B959
-    constexpr tGUID GUID = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 };
 
+//! FX2(LP) devices under control of ezusb.sys.
 struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
     CyFXEzUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n)  {}
     virtual ~CyFXEzUSBDevice();
@@ -83,6 +66,7 @@ private:
     };
 };
 
+//! FX3, FX2LP devices under control of CyUSB3.sys.
 struct CyUSB3Device : public CyFXWin32USBDevice {
     CyUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
 
@@ -98,6 +82,7 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) final;
 
+    XString friendlyName();
 private:
     struct SingleTransfer {
         uint8_t bmRequest;

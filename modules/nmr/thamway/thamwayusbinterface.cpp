@@ -40,11 +40,18 @@
 #define EPOUT8 8
 #define EPIN6 6
 
-template class XCyFXUSBInterface<ThamwayCyFXUSBDevice>;
+#define FX3_DEF_VID 0x4b4
+#define FX3_DEF_PID 0x00F1 //cypress default FX3 for FIFOSYNC.
+
+#define EPIN1 1
+#define EPOUT1 1
+
+template class XCyFXUSBInterface<ThamwayCyFX2USBDevice>;
+template class XCyFXUSBInterface<ThamwayCyFX3USBDevice>;
 
 XThamwayFX2USBInterface::XThamwayFX2USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
         uint8_t addr_offset, const char* id) :
-     XCyFXUSBInterface<ThamwayCyFXUSBDevice>(name, runtime, driver) {
+     XCyFXUSBInterface<ThamwayCyFX2USBDevice>(name, runtime, driver) {
 }
 
 XThamwayFX2USBInterface::DEVICE_STATUS
@@ -130,7 +137,7 @@ XThamwayFX2USBInterface::setWave(const shared_ptr<CyFXUSBDevice> &dev, const uin
 
 void
 XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
-    XCyFXUSBInterface<ThamwayCyFXUSBDevice>::open();
+    XCyFXUSBInterface<ThamwayCyFX2USBDevice>::open();
     msecsleep(100);
     for(int i = 0; i < 1; ++i) {
         //blinks LED
@@ -145,7 +152,7 @@ XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
 void
 XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
     if(isOpened()) setLED(usb(), 0);
-    XCyFXUSBInterface<ThamwayCyFXUSBDevice>::close();
+    XCyFXUSBInterface<ThamwayCyFX2USBDevice>::close();
 }
 
 XThamwayFX2USBInterface::~XThamwayFX2USBInterface() {
@@ -338,3 +345,66 @@ XThamwayFX2USBInterface::receive() throw (XCommError &) {
         throw e;
     }
 }
+
+
+XThamwayFX3USBInterface::XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id) :
+    XCyFXUSBInterface<ThamwayCyFX3USBDevice>(name, runtime, driver) {
+
+}
+
+XThamwayFX3USBInterface::~XThamwayFX3USBInterface() {
+    close();
+}
+
+void
+XThamwayFX3USBInterface::open() throw (XInterfaceError &) {
+    XCyFXUSBInterface<ThamwayCyFX3USBDevice>::open();
+}
+
+void
+XThamwayFX3USBInterface::close() throw (XInterfaceError &) {
+    XCyFXUSBInterface<ThamwayCyFX3USBDevice>::close();
+}
+
+XThamwayFX3USBInterface::DEVICE_STATUS
+XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
+    if((dev->productID() != FX3_DEF_PID) || (dev->vendorID() != FX3_DEF_VID)) {
+        return DEVICE_STATUS::UNSUPPORTED;
+    }
+    constexpr char Manufactor_sym[] = "THAMWAY";
+    constexpr char Product_sym[] = "SF,WATER=8,1227A";
+    try {
+        XString s1 = dev->getString(1);
+        XString s2 = dev->getString(2);
+        fprintf(stderr, "USB: Manu: %s, Prod: %s.\n", s1.c_str(), s2.c_str());
+        if(s1 != Manufactor_sym) {
+            fprintf(stderr, "USB: Not Thamway's device.\n");
+            return DEVICE_STATUS::UNSUPPORTED;
+        }
+        if(s2 != Product_sym) {
+            fprintf(stderr, "USB: Unsupported device.\n");
+            return DEVICE_STATUS::UNSUPPORTED;
+        }
+    }
+    catch (XInterfaceError& e) {
+        fprintf(stderr, "USB: ???\n");
+        return DEVICE_STATUS::UNSUPPORTED;
+    }
+    return DEVICE_STATUS::READY;
+}
+std::string
+XThamwayFX3USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
+    static int count = 0;
+    return formatString("FX3-%d", count++);
+}
+void
+XThamwayFX3USBInterface::send(const char *str) throw (XCommError &) {
+    usb()->bulkWrite(EPOUT1, (const uint8_t*)str, strlen(str));
+}
+void
+XThamwayFX3USBInterface::receive() throw (XCommError &) {
+    buffer_receive().resize(16*2048);
+    int ret = usb()->bulkRead(EPIN1, (uint8_t *)&buffer_receive()[0], buffer_receive().size());
+    buffer_receive().resize(ret);
+}
+

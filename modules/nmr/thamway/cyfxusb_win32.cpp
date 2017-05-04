@@ -15,6 +15,7 @@
 
 #define NOMINMAX
 #include <windows.h>
+#include <setupapi.h>
 
 constexpr uint32_t IOCTL_EZUSB_GET_DEVICE_DESCRIPTOR =  0x222004;
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
@@ -23,6 +24,7 @@ constexpr uint32_t IOCTL_EZUSB_VENDOR_REQUEST = 0x222014;
 constexpr uint32_t IOCTL_EZUSB_BULK_WRITE = 0x222051;
 constexpr uint32_t IOCTL_EZUSB_BULK_READ = 0x22204e;
 
+constexpr uint32_t IOCTL_ADAPT_GET_FRIENDLY_NAME = 0x220040;
 constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
@@ -73,6 +75,22 @@ CyFXWin32USBDevice::async_ioctl(uint64_t code, const void *in, ssize_t size_in, 
 }
 
 CyFXWin32USBDevice::CyFXWin32USBDevice(HANDLE h, const XString &n) : handle(h), name(n) {
+    struct DeviceDescriptor {
+        uint8_t bLength;
+        uint8_t bDescriptorType;
+        uint16_t bcdUSB;
+        uint8_t bDeviceClass;
+        uint8_t bDeviceSubClass;
+        uint8_t bDeviceProtocol;
+        uint8_t bMaxPacketSize0;
+        uint16_t idVendor;
+        uint16_t idProduct;
+        uint16_t bcdDevice;
+        uint8_t iManufacturer;
+        uint8_t iProduct;
+        uint8_t iSerialNumber;
+        uint8_t bNumConfigurations;
+    };
     //obtains device descriptor
     DeviceDescriptor dev_desc;
     auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
@@ -92,20 +110,27 @@ CyFXWin32USBDevice::ioctl(uint64_t code, const void *in, ssize_t size_in, void *
     return async.waitFor();
 }
 
+XString
+CyFXUSBDevice::wcstoxstr(const wchar_t *wcs) {
+    char buf[256];
+    size_t n;
+    if(wcstombs_s( &n, buf, sizeof(buf), wcs, _TRUNCATE)) {
+        return {};
+    }
+    return {buf};
+}
+
 CyFXUSBDevice::List
-CyFXUSBDevice::enumerateDevices() {
+CyFXUSBDevice::enumerateDevices(bool initialization) {
     CyFXUSBDevice::List list;
-    //Searching for ezusb.sys devices.
-    for(int idx = 0; idx < 9; ++idx) {
+    //Searching for ezusb.sys devices, having symbolic files, first.
+    for(int idx = 0; idx < 10; ++idx) {
         XString name = formatString("\\\\.\\Ezusb-%d",n);
-        fprintf(stderr, "cusb: opening device: %s\n", name.c_str());
+        fprintf(stderr, "EZUSB: opening device: %s\n", name.c_str());
         HANDLE h = CreateFileA(name.c_str(),
-            GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            0,
-            OPEN_EXISTING,
-           FILE_FLAG_OVERLAPPED,
-           NULL);
+           GENERIC_WRITE | GENERIC_READ,
+           FILE_SHARE_WRITE | FILE_SHARE_READ,	0,
+           OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         if(h == INVALID_HANDLE_VALUE) {
             int e = (int)GetLastError();
             if(e != ERROR_FILE_NOT_FOUND)
@@ -115,7 +140,46 @@ CyFXUSBDevice::enumerateDevices() {
         }
         list.push_back(std::make_shared<CyFXEzUSBDevice>(h, name));
     }
-    //CyUSB3.sys
+
+    if(initialization)
+        _tsetlocale(LC_ALL,_T(""));
+
+    //Standard scheme with CyUSB3.sys devices.
+    //GUID: AE18AA60-7F6A-11d4-97DD-00010229B959
+    constexpr GUID guid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
+
+    HDEVINFO hdev = SetupDiGetClassDevs(guid, NULL, NULL, DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
+    if(hdev == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "No CyUSB3 device: %s\n", name.c_str());
+        return list;
+    }
+    SP_INTERFACE_DEVICE_DATA info;
+    info.cbSize = sizeof(SP_INTERFACE_DEVICE_DATA);
+    for(int idx = 0; idx < 50; ++idx) {
+        if(! SetupDiEnumDeviceInterfaces(hdev, 0, guid, idx, &info))
+            break;
+        DWORD size = 0;
+        SetupDiGetDeviceInterfaceDetail(hdev, &info, NULL, 0, &size, NULL);
+        std::vector<char> buf(size, 0);
+        auto detail = reinterpret_cast<PSP_INTERFACE_DEVICE_DETAIL_DATA>(&buf[0]);
+        detail->cbSize = sizeof(SP_INTERFACE_DEVICE_DETAIL_DATA);
+        if(SetupDiGetInterfaceDeviceDetail(hdev, &info, detail, size, &len, NULL)){
+            XString name = wcstoxstr(detail->DevicePath);
+            HANDLE h = CreateFile(detail->DevicePath,
+                GENERIC_WRITE | GENERIC_READ,
+                FILE_SHARE_WRITE | FILE_SHARE_READ,	0,
+                OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+            if(h == INVALID_HANDLE_VALUE) {
+                int e = (int)GetLastError();
+                fprintf(stderr, "INVALID HANDLE %d for %s\n", e, name.c_str());
+                continue;
+            }
+            auto dev = std::make_shared<CyUSB3Device>(h, name);
+            fprintf(stderr, "CyUSB3 device found: %s\n", dev->friendlyName());
+            list.push_back(dev);
+        }
+    }
+    SetupDiDestroyDeviceInfoList(hdev);
     return std::move(list);
 }
 void
@@ -358,5 +422,11 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     return std::move(ret);
 }
 
-
+XString
+CyUSB3Device::friendlyName() {
+    char friendlyname[256] = {};
+    ioctl(IOCTL_ADAPT_GET_FRIENDLY_NAME,
+          friendlyname, sizeof(friendlyname), friendlyname, sizeof(friendlyname));
+    return friendlyname;
+}
 

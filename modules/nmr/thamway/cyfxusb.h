@@ -87,8 +87,6 @@ struct CyFXUSBDevice {
     enum {USB_DEVICE_DESCRIPTOR_TYPE = 1, USB_CONFIGURATION_DESCRIPTOR_TYPE = 2,
         USB_STRING_DESCRIPTOR_TYPE = 3, USB_INTERFACE_DESCRIPTOR_TYPE = 4,
         USB_ENDPOINT_DESCRIPTOR_TYPE = 5};
-//    //AE18AA60-7F6A-11d4-97DD-00010229B959
-//    static const std::initializer_list<uint32_t> CYPRESS_GUID = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 protected:
     CyFXUSBDevice();
     uint16_t m_vendorID, m_productID;
