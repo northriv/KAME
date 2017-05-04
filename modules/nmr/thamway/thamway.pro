@@ -7,6 +7,7 @@ INCLUDEPATH += \
 HEADERS += \
     thamwayprot.h \
     thamwaypulser.h \
+    fx2fw.h\
     cyfxusb.h\
     thamwaydso.h \
     thamwayusbinterface.h \
@@ -17,6 +18,7 @@ SOURCES += \
     thamwayprot.cpp \
     thamwaypulser.cpp \
     thamwaydso.cpp \
+    cyfxusb.cpp\
     thamwayusbinterface.cpp \
     thamwayrealtimedso.cpp
 
@@ -24,38 +26,23 @@ FORMS += \
     thamwayprotform.ui
 win32: {
     HEADERS += \
-        fx2fw.h\
-        cusb.h\
-        cusb2.h\
-        ezusbthamway.h\
         cyfxusb_win32.h\
-        thamwayfxusb.h\
-        thamwaydso.h
 
     SOURCES += \
-        cusb.c\
-        cusb2.c\
-        ezusbthamway.cpp\
         cyfxusb_win32.cpp\
-        cyfxusb.cpp\
-        thamwayfxusb.cpp\
-        thamwaydso.cpp
 
     DEFINES += USE_THAMWAY_USB
-    DEFINES += USE_THAMWAY_USB_FX2FW
+
+    LIBS += -lsetupapi
 }
 
 unix {
     exists("/opt/local/include/libusb-1.0/libusb.h") {
         LIBS += -lusb-1.0
         HEADERS += \
-            libusb2cusb.h\
-            ezusbthamway.h
 
         SOURCES += \
-            libusb2cusb.cpp\
             cyfxusb_libusb.cpp\
-            ezusbthamway.cpp
 
         DEFINES += USE_THAMWAY_USB
         DEFINES += USE_THAMWAY_USB_LIBUSB

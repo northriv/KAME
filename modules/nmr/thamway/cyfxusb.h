@@ -32,12 +32,12 @@ struct CyFXUSBDevice {
 
     void halt();
     void run();
-    XString getString(int descid);
+    virtual XString getString(int descid) = 0;
 
     void downloadFX2(const uint8_t* image, int len);
 
-    int bulkWrite(int ep, const uint8_t *buf, int len);
-    int bulkRead(int ep, uint8_t* buf, int len);
+    int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len);
+    int64_t bulkRead(uint8_t ep, uint8_t* buf, int len);
 
     enum class CtrlReq : uint8_t  {
         USB_REQUEST_GET_STATUS = 0x00, USB_REQUEST_CLEAR_FEATURE = 0x01, USB_REQUEST_SET_FEATURE = 0x03, USB_REQUEST_SET_ADDRESS = 0x05,
@@ -62,20 +62,18 @@ struct CyFXUSBDevice {
     unsigned int vendorID() const {return m_vendorID;}
     unsigned int productID() const {return m_productID;}
 
-    struct AsyncIO {
-        class Transfer;
-        AsyncIO();
+    class AsyncIO {
+    public:
+        AsyncIO() = default;
         AsyncIO(const AsyncIO&) = delete;
         AsyncIO(AsyncIO &&) = default;
+        virtual ~AsyncIO() = default;
         void finalize(int64_t count_imm) {
             m_count_imm = count_imm;
         }
-        bool hasFinished() const;
-        int64_t waitFor();
-        Transfer *ptr() {return m_transfer.get();}
-        const Transfer *ptr() const {return m_transfer.get();}
-    private:
-        unique_ptr<Transfer> m_transfer;
+        virtual bool hasFinished() const {return false;} //gcc doesn't accept pure virtual.
+        virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
+    protected:
         int64_t m_count_imm = -1;
     };
     virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
@@ -88,7 +86,7 @@ struct CyFXUSBDevice {
         USB_STRING_DESCRIPTOR_TYPE = 3, USB_INTERFACE_DESCRIPTOR_TYPE = 4,
         USB_ENDPOINT_DESCRIPTOR_TYPE = 5};
 protected:
-    CyFXUSBDevice();
+    CyFXUSBDevice() = default;
     uint16_t m_vendorID, m_productID;
 };
 

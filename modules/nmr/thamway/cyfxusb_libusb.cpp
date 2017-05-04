@@ -33,20 +33,20 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_unref_device(dev);
     }
 
-    virtual void finalize() final;
+    virtual void finalize() override;
 
-    virtual void open() final;
-    virtual void close() final;
+    virtual void open() override;
+    virtual void close() override;
 
-    XString virtual getString(int descid) final;
+    XString virtual getString(int descid) override;
 
-    virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) final;
+    virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
+    virtual AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
-                             uint16_t index, const uint8_t *buf, int len) final;
+                             uint16_t index, const uint8_t *buf, int len) override;
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
-                            uint16_t index, uint8_t *buf, int len) final;
+                            uint16_t index, uint8_t *buf, int len) override;
 
     struct USBList {
         USBList() noexcept {

@@ -16,41 +16,56 @@
 
 #include "cyfxusb.h"
 
-struct CyFXWin32USBDevice : public CyFXUSBDvice {
+#define NOMINMAX
+#include <windows.h>
+
+struct CyFXWin32USBDevice : public CyFXUSBDevice {
     CyFXWin32USBDevice(HANDLE handle, const XString &n);
     virtual ~CyFXWin32USBDevice()  {close();}
 
-    virtual void open() final;
-    virtual void close() final;
+    virtual void open() override;
+    virtual void close() override;
 
-    virtual int bulkWrite(int ep, const uint8_t *buf, int len) final;
-    virtual int bulkRead(int ep, uint8_t* buf, int len) final;
+    void setIDs();
+
+    struct AsyncIO : public CyFXUSBDevice::AsyncIO {
+        AsyncIO();
+        AsyncIO(AsyncIO&&) = default;
+        virtual ~AsyncIO() = default;
+
+        virtual bool hasFinished() const override;
+        virtual int64_t waitFor() override;
+
+        OVERLAPPED overlap;
+        HANDLE handle;
+        unique_ptr<std::vector<uint8_t>> ioctlbuf;
+        uint8_t *ioctlbuf_rdpos = nullptr;
+        uint8_t *rdbuf = nullptr;
+    };
+
 protected:
-    XString wcstoxstr(const wchar_t *);
+    AsyncIO asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
+    int64_t ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
 private:
     HANDLE handle;
     XString name;
-
-    ASyncIO async_ioctl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
-    int ioctl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
 };
 
 //! FX2(LP) devices under control of ezusb.sys.
 struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
     CyFXEzUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n)  {}
-    virtual ~CyFXEzUSBDevice();
 
     virtual void finalize() final {}
 
-    XString virtual getString(int descid) final;
+    XString virtual getString(int descid) override;
 
-    virtual AsyncIO asyncBulkWrite(int ep, const uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int ep, uint8_t *buf, int len) final;
+    virtual CyFXUSBDevice::AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
+    virtual CyFXUSBDevice::AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
-                             uint16_t index, const uint8_t *buf, int len) final;
+                             uint16_t index, const uint8_t *buf, int len) override;
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
-                            uint16_t index, uint8_t *buf, int len) final;
+                            uint16_t index, uint8_t *buf, int len) override;
 private:
     struct VendorRequestCtrl {
         uint8_t bRequest;
@@ -68,19 +83,19 @@ private:
 
 //! FX3, FX2LP devices under control of CyUSB3.sys.
 struct CyUSB3Device : public CyFXWin32USBDevice {
-    CyUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
+    CyUSB3Device(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
 
-    virtual void finalize() final;
+    virtual void finalize() override;
 
-    XString virtual getString(int descid) final;
+    XString virtual getString(int descid) override;
 
-    virtual AsyncIO asyncBulkWrite(int ep, const uint8_t *buf, int len) final;
-    virtual AsyncIO asyncBulkRead(int ep, uint8_t *buf, int len) final;
+    virtual CyFXUSBDevice::AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
+    virtual CyFXUSBDevice::AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
-                             uint16_t index, const uint8_t *buf, int len) final;
+                             uint16_t index, const uint8_t *buf, int len) override;
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
-                            uint16_t index, uint8_t *buf, int len) final;
+                            uint16_t index, uint8_t *buf, int len) override;
 
     XString friendlyName();
 private:
