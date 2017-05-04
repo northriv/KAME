@@ -254,7 +254,6 @@ XRealTimeAcqDSO<tDriver>::onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &)
 
     uint32_t num_ch = getNumOfChannels();
     if(num_ch > 0) {
-        int32_t type;
         setupTrigger();
         startAcquision();
         m_suspendRead = false;

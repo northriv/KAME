@@ -49,9 +49,12 @@
 template class XCyFXUSBInterface<ThamwayCyFX2USBDevice>;
 template class XCyFXUSBInterface<ThamwayCyFX3USBDevice>;
 
+SoftwareTriggerManager XThamwayFX3USBInterface::s_softwareTriggerManager;
+
 XThamwayFX2USBInterface::XThamwayFX2USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver,
         uint8_t addr_offset, const char* id) :
-     XCyFXUSBInterface<ThamwayCyFX2USBDevice>(name, runtime, driver) {
+     XCyFXUSBInterface<ThamwayCyFX2USBDevice>(name, runtime, driver),
+    m_addrOffset(addr_offset), m_idString(id) {
 }
 
 XThamwayFX2USBInterface::DEVICE_STATUS
@@ -347,7 +350,7 @@ XThamwayFX2USBInterface::receive() throw (XCommError &) {
 }
 
 
-XThamwayFX3USBInterface::XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id) :
+XThamwayFX3USBInterface::XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>(name, runtime, driver) {
 
 }

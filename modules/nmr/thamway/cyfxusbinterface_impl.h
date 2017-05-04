@@ -34,34 +34,12 @@ typename USBDevice::List XCyFXUSBInterface<USBDevice>::s_devices;
 template <class USBDevice>
 XCyFXUSBInterface<USBDevice>::XCyFXUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
     : XCustomCharInterface(name, runtime, driver) {
-    XScopedLock<XMutex> slock(s_mutex);
-    try {
-        if( !(s_refcnt++))
-            openAllEZUSBdevices();
 
-        iterate_commit([=](Transaction &tr){
-            for(auto &&x : s_devices) {
-                XString name = examineDeviceAfterFWLoad(x);
-                x->label = name;
-                if(name.length()) {
-                    tr[ *device()].add(name);
-                }
-            }
-        });
-    }
-    catch (XInterface::XInterfaceError &e) {
-        e.print();
-    }
 }
 
 template <class USBDevice>
 XCyFXUSBInterface<USBDevice>::~XCyFXUSBInterface() {
-    if(isOpened()) close();
 
-    XScopedLock<XMutex> slock(s_mutex);
-    s_refcnt--;
-    if( !s_refcnt)
-        closeAllEZUSBdevices();
 }
 
 template <class USBDevice>
@@ -114,7 +92,9 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 x->open();
                 switch(examineDeviceBeforeFWLoad(x)) {
                 case DEVICE_STATUS::UNSUPPORTED:
+                    x->close();
                     x.reset();
+                    continue;
                 case DEVICE_STATUS::READY:
                     x->close();
                     continue;
@@ -176,6 +156,26 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
+    XScopedLock<XMutex> slock(s_mutex);
+    try {
+        if( !(s_refcnt++))
+            openAllEZUSBdevices();
+
+        iterate_commit([=](Transaction &tr){
+            for(auto &&x : s_devices) {
+                if( !x) continue;
+                XString name = examineDeviceAfterFWLoad(x);
+                x->label = name;
+                if(name.length()) {
+                    tr[ *device()].add(name);
+                }
+            }
+        });
+    }
+    catch (XInterface::XInterfaceError &e) {
+        e.print();
+    }
+
     Snapshot shot( *this);
     try {
         for(auto &&x : s_devices) {
@@ -195,5 +195,10 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
+    XScopedLock<XMutex> slock(s_mutex);
+    s_refcnt--;
+    if( !s_refcnt)
+        closeAllEZUSBdevices();
+
     m_usbDevice.reset();
 }

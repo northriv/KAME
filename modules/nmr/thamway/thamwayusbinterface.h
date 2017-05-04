@@ -19,6 +19,7 @@
 #include "charinterface.h"
 #include "cyfxusb.h"
 #include <vector>
+#include "softtrigger.h"
 
 struct ThamwayCyFX2USBDevice : public CyFXUSBDevice {};
 
@@ -77,7 +78,7 @@ struct ThamwayCyFX3USBDevice : public CyFXUSBDevice {};
 //! Interfaces Thamway's PROT data acquision device based on FX3 device.
 class XThamwayFX3USBInterface : public XCyFXUSBInterface<ThamwayCyFX3USBDevice> {
 public:
-    XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
+    XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
     virtual ~XThamwayFX3USBInterface();
 
     virtual void open() throw (XInterfaceError &) override;
@@ -86,6 +87,8 @@ public:
 
     virtual void send(const char *str) throw (XCommError &) override;
     virtual void receive() throw (XCommError &) override;
+
+    static SoftwareTriggerManager &softwareTriggerManager() {return s_softwareTriggerManager;}
 protected:
     virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
     virtual std::string examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
@@ -93,6 +96,7 @@ protected:
     virtual XString firmware(const shared_ptr<CyFXUSBDevice> &dev) override {return {};}
     virtual void setWave(const shared_ptr<CyFXUSBDevice> &dev, const uint8_t *wave) override {}
 private:
+    static SoftwareTriggerManager s_softwareTriggerManager;
 };
 
 #endif // THAMWAYUSBINTERFACE_H

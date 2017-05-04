@@ -77,7 +77,7 @@ private:
     };
     atomic<RingBuffer> m_ringBuffer;
     std::vector<XThread<XThamwayPROT3DSO>> m_acqThreads;
-    void *execute(const atomic<bool> &);
+    void *execute(const atomic<bool> &) override;
 };
 
 #endif // THAMWAYREALTIMEDSO_H
