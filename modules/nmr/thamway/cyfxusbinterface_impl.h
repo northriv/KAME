@@ -20,6 +20,10 @@
 #define FW_DWLSIZE 0x2000
 #define GPIFWAVE_SIZE 172
 
+#ifdef KAME_THAMWAY_USB_DIR
+    #define KAME_THAMWAY_USB_DIR ""
+#endif
+
 template <class USBDevice>
 XMutex XCyFXUSBInterface<USBDevice>::s_mutex;
 template <class USBDevice>
