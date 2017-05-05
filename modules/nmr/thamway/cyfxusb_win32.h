@@ -29,6 +29,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     void setIDs();
 
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
+        AsyncIO() = default;
         AsyncIO(AsyncIO&&) = default;
         virtual ~AsyncIO() = default;
 

@@ -78,7 +78,7 @@ private:
         std::vector<tRawAI> data;
     };
     std::vector<Chunk> m_chunks;
-    std::vector<XThread<XThamwayPROT3DSO>> m_acqThreads;
+    std::vector<unique_ptr<XThread<XThamwayPROT3DSO>>> m_acqThreads;
     XMutex m_acqMutex;
     void *execute(const atomic<bool> &) override;
 };

@@ -155,18 +155,18 @@ XThamwayPROT3DSO::open() throw (XKameError &) {
     m_currRdChunk = 0;
     m_currRdPos = 0;
 
-    m_acqThreads.resize(NumThreads, {shared_from_this(), &XThamwayPROT3DSO::execute});
+    m_acqThreads.resize(NumThreads);
     for(auto &&x: m_acqThreads) {
-        x.resume();
+        x.reset(new  XThread<XThamwayPROT3DSO>(shared_from_this(), &XThamwayPROT3DSO::execute));
+        x->resume();
     }
-
 }
 void
 XThamwayPROT3DSO::close() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     for(auto &&x: m_acqThreads) {
-        x.terminate();
-        x.waitFor();
+        x->terminate();
+        x->waitFor();
     }
     m_acqThreads.clear();
     m_chunks.clear();
