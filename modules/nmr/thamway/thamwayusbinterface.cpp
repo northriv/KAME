@@ -55,6 +55,11 @@ XThamwayFX2USBInterface::XThamwayFX2USBInterface(const char *name, bool runtime,
         uint8_t addr_offset, const char* id) :
      XCyFXUSBInterface<ThamwayCyFX2USBDevice>(name, runtime, driver),
     m_addrOffset(addr_offset), m_idString(id) {
+    initialize(); //open all supported USB devices and loads firmware, writes GPIF waves.
+}
+
+XThamwayFX2USBInterface::~XThamwayFX2USBInterface() {
+    finalize();
 }
 
 XThamwayFX2USBInterface::DEVICE_STATUS
@@ -156,10 +161,6 @@ void
 XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
     if(isOpened()) setLED(usb(), 0);
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::close();
-}
-
-XThamwayFX2USBInterface::~XThamwayFX2USBInterface() {
-    close();
 }
 
 void
@@ -352,11 +353,11 @@ XThamwayFX2USBInterface::receive() throw (XCommError &) {
 
 XThamwayFX3USBInterface::XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>(name, runtime, driver) {
-
+    initialize();
 }
 
 XThamwayFX3USBInterface::~XThamwayFX3USBInterface() {
-    close();
+    finalize();
 }
 
 void
@@ -375,7 +376,7 @@ XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
         return DEVICE_STATUS::UNSUPPORTED;
     }
     constexpr char Manufactor_sym[] = "THAMWAY";
-    constexpr char Product_sym[] = "SF,WATER=8,1227A";
+    constexpr char Product_sym[] = "SF,WATER=8,1227A"; //SyncFIFO
     try {
         XString s1 = dev->getString(1);
         XString s2 = dev->getString(2);
@@ -410,4 +411,10 @@ XThamwayFX3USBInterface::receive() throw (XCommError &) {
     int ret = usb()->bulkRead(EPIN1, (uint8_t *)&buffer_receive()[0], buffer_receive().size());
     buffer_receive().resize(ret);
 }
+
+CyFXUSBDevice::AsyncIO
+XThamwayFX3USBInterface::asyncReceive(char *buf, ssize_t size) {
+    return usb()->asyncBulkRead(EPIN1, (uint8_t *)buf, size);
+}
+
 

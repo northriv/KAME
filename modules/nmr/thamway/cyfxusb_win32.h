@@ -29,14 +29,13 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     void setIDs();
 
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
-        AsyncIO();
         AsyncIO(AsyncIO&&) = default;
         virtual ~AsyncIO() = default;
 
         virtual bool hasFinished() const override;
         virtual int64_t waitFor() override;
 
-        OVERLAPPED overlap;
+        OVERLAPPED overlap = {};
         HANDLE handle;
         unique_ptr<std::vector<uint8_t>> ioctlbuf;
         uint8_t *ioctlbuf_rdpos = nullptr;

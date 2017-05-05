@@ -69,14 +69,17 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 1024*1024, NumThread = 16};
-    struct RingBuffer {
-        uint64_t totalSmps;
-        unsigned int currWrPos, currRdPos;
-        std::vector<shared_ptr<std::vector<int16_t>>> chunks;
+    enum {ChunkSize = 1024*1024, NumThreads = 8, NumChunks = 16};
+    uint64_t m_totalSmps = 0;
+    unsigned int m_wrChunkBegin = 0, m_wrChunkEnd = 0, m_currRdChunk = 0, m_currRdPos = 0;
+    struct Chunk {
+        bool ioInProgress = false;
+        uint64_t posAbs = 0;
+        std::vector<tRawAI> data;
     };
-    atomic<RingBuffer> m_ringBuffer;
+    std::vector<Chunk> m_chunks;
     std::vector<XThread<XThamwayPROT3DSO>> m_acqThreads;
+    XMutex m_acqMutex;
     void *execute(const atomic<bool> &) override;
 };
 

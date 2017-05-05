@@ -89,23 +89,22 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         for(auto &&x : s_devices) {
             if( !x) continue;
             try {
-                x->open();
                 switch(examineDeviceBeforeFWLoad(x)) {
                 case DEVICE_STATUS::UNSUPPORTED:
-                    x->close();
                     x.reset();
                     continue;
                 case DEVICE_STATUS::READY:
-                    x->close();
                     continue;
                 case DEVICE_STATUS::FW_NOT_LOADED:
                     break;
                 }
+                x->open();
                 x->halt();
                 char fw[FW_DWLSIZE];
                 load_firm(fw, sizeof(fw), firmware(x).c_str());
                 fprintf(stderr, "USB: Downloading the firmware to the device. This process takes a few seconds....\n");
                 x->downloadFX2((uint8_t*)fw, sizeof(fw));
+                x->run();
                 x->close();
                 is_written = true;
             }
@@ -127,9 +126,11 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         try {
             x->open();
 
-            char gpif[GPIFWAVE_SIZE];
-            load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
-            setWave(x, (uint8_t*)gpif);
+            if( !gpifWave(x).empty()) {
+                char gpif[GPIFWAVE_SIZE];
+                load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
+                setWave(x, (uint8_t*)gpif);
+            }
         }
         catch (XInterface::XInterfaceError &e) {
             x->close();
@@ -155,7 +156,7 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
+XCyFXUSBInterface<USBDevice>::initialize() {
     XScopedLock<XMutex> slock(s_mutex);
     try {
         if( !(s_refcnt++))
@@ -175,30 +176,32 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
     catch (XInterface::XInterfaceError &e) {
         e.print();
     }
+}
 
+template <class USBDevice>
+void
+XCyFXUSBInterface<USBDevice>::finalize() {
+    XScopedLock<XMutex> slock(s_mutex);
+    s_refcnt--;
+    if( !s_refcnt)
+        closeAllEZUSBdevices();
+}
+
+template <class USBDevice>
+void
+XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
-    try {
-        for(auto &&x : s_devices) {
-            if( !x) continue;
-            if(shot[ *device()].to_str() == x->label)
-                m_usbDevice = dynamic_pointer_cast<USBDevice>(x);
-        }
-        if( !m_usbDevice)
-            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+    for(auto &&x : s_devices) {
+        if( !x) continue;
+        if(shot[ *device()].to_str() == x->label)
+            m_usbDevice = dynamic_pointer_cast<USBDevice>(x);
     }
-    catch (XInterface::XInterfaceError &e) {
-        m_usbDevice.reset();
-        throw e;
-    }
+    if( !m_usbDevice)
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
 }
 
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
-    XScopedLock<XMutex> slock(s_mutex);
-    s_refcnt--;
-    if( !s_refcnt)
-        closeAllEZUSBdevices();
-
     m_usbDevice.reset();
 }

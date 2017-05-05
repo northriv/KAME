@@ -37,9 +37,6 @@ wcstoxstr(const wchar_t *wcs) {
     return {buf};
 }
 
-CyFXWin32USBDevice::AsyncIO::AsyncIO() {
-    overlap = {}; //0 clear.
-}
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const {
     return HasOverlappedIoCompleted( &overlap);

@@ -88,6 +88,8 @@ public:
     virtual void send(const char *str) throw (XCommError &) override;
     virtual void receive() throw (XCommError &) override;
 
+    CyFXUSBDevice::AsyncIO asyncReceive(char *buf, ssize_t size);
+
     static SoftwareTriggerManager &softwareTriggerManager() {return s_softwareTriggerManager;}
 protected:
     virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;

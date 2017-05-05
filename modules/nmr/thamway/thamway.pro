@@ -45,7 +45,6 @@ unix {
             cyfxusb_libusb.cpp\
 
         DEFINES += USE_THAMWAY_USB
-        DEFINES += USE_THAMWAY_USB_LIBUSB
         macx: DEFINES += KAME_THAMWAY_USB_DIR=\"quotedefined(Contents/Resources/)\"
     }
     else {

@@ -38,31 +38,34 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
 
 void
 XThamwayPROT3DSO::startAcquision() {
-//    CHECK_DAQMX_RET(DAQmxStartTask(m_task));
+    XScopedLock<XMutex> lock(m_acqMutex);
+    m_totalSmps = 0;
+    m_currRdChunk = m_wrChunkBegin;
+    m_currRdPos = 0;
+    for(auto &&x : m_chunks) {
+        x.data.clear();
+        x.posAbs = 0;
+    }
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
-//    CHECK_DAQMX_RET(DAQmxTaskControl(m_task, DAQmx_Val_Task_Commit));
 }
 void
 XThamwayPROT3DSO::stopAcquision() {
-//    CHECK_DAQMX_RET(DAQmxStopTask(m_task));
 }
 
 void
 XThamwayPROT3DSO::clearAcquision() {
-//        CHECK_DAQMX_RET(DAQmxClearTask(m_task));
-//    m_task = TASK_UNDEF;
 }
 
 unsigned int
 XThamwayPROT3DSO::getNumOfChannels() {
-//    CHECK_DAQMX_RET(DAQmxGetReadNumChans(m_task, &num_ch));
+    return NUM_MAX_CH;
 }
 
 XString
 XThamwayPROT3DSO::getChannelInfoStrings() {
-//    CHECK_DAQMX_RET(DAQmxGetReadChannelsToRead(m_task, buf, sizeof(buf)));
+    return {};
 }
 
 std::deque<XString>
@@ -89,76 +92,84 @@ XThamwayPROT3DSO::disableHardwareTriggers() {
 
 uint64_t
 XThamwayPROT3DSO::getTotalSampsAcquired() {
-//    uInt64 total_samps;
-//    CHECK_DAQMX_RET(DAQmxGetReadTotalSampPerChanAcquired(m_task, &total_samps));
-//    return total_samps;
+    XScopedLock<XMutex> lock(m_acqMutex);
+    return m_totalSmps;
 }
 
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
-//    uInt32 space;
-//    int ret = DAQmxGetReadAvailSampPerChan(m_task, &space);
-//    return space;
+    XScopedLock<XMutex> lock(m_acqMutex);
+    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos;
+    return m_totalSmps - rdpos_abs;
 }
 
 bool
 XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
-//    uInt32 bufsize;
-//    CHECK_DAQMX_RET(DAQmxGetBufInputBufSize(m_task, &bufsize));
-//    uint64_t total_samps = getTotalSampsAcquired();
-//    if(total_samps - pos > bufsize * 4 / 5) {
-//        return false;
-//    }
-//    //set read pos.
-//    int16 tmpbuf[NUM_MAX_CH];
-//    int32 samps;
-//    CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_MostRecentSamp));
-//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, -1));
-//    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, 1,
-//                                       0, DAQmx_Val_GroupByScanNumber,
-//                                       tmpbuf, NUM_MAX_CH, &samps, NULL
-//                                       ));
-//    CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-//    uInt64 curr_rdpos;
-//    CHECK_DAQMX_RET(DAQmxGetReadCurrReadPos(m_task, &curr_rdpos));
-//    int32 offset = pos - curr_rdpos;
-//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, offset));
-//    //					fprintf(stderr, "hit! %d %d %d\n", (int)offset, (int)lastcnt, (int)m_preTriggerPos);
-//    return true;
+    XScopedLock<XMutex> lock(m_acqMutex);
+    for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
+        uint64_t pos_abs = m_chunks[m_currRdChunk].posAbs;
+        uint64_t pos_abs_end = pos_abs + m_chunks[m_currRdChunk].data.size();
+        if((pos >= pos_abs) && (pos < pos_abs_end)) {
+            m_currRdPos = pos - pos_abs;
+            return true;
+        }
+        m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
+    }
+    return false;
 }
 void
 XThamwayPROT3DSO::setReadPositionFirstPoint() {
-//    if(m_preTriggerPos) {
-//        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstPretrigSamp));
-//    }
-//    else {
-//        CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_FirstSample));
-//    }
-//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
+    XScopedLock<XMutex> lock(m_acqMutex);
+    m_currRdChunk = 0;
+    m_currRdPos = 0;
 }
 
 uint32_t
 XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
-//    int32 samps;
-//    int32_t num_ch = getNumOfChannels();
-//    CHECK_DAQMX_RET(DAQmxReadBinaryI16(m_task, size,
-//       0.0, DAQmx_Val_GroupByScanNumber,
-//       buf, size * num_ch, &samps, NULL
-//       ));
-//    CHECK_DAQMX_RET(DAQmxSetReadRelativeTo(m_task, DAQmx_Val_CurrReadPos));
-//    CHECK_DAQMX_RET(DAQmxSetReadOffset(m_task, 0));
-//    return samps;
+    uint32_t samps_read = 0;
+    while(size) {
+        auto &chunk = m_chunks[m_currRdChunk];
+        if(m_currRdChunk == m_wrChunkBegin) {
+            break;
+        }
+        uint32_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
+        std::copy(chunk.data.begin() + m_currRdPos, chunk.data.begin() + m_currRdPos + len, buf);
+        samps_read += len;
+        buf += len;
+        size -= len;
+        m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
+        m_currRdPos = 0;
+    }
+    return samps_read;
 }
 
 
 void
 XThamwayPROT3DSO::open() throw (XKameError &) {
     XRealTimeAcqDSO<XCharDeviceDriver<XDSO, XThamwayFX3USBInterface>>::open();
+    //allocates buffers.
+    m_chunks.resize(NumChunks);
+    m_totalSmps = 0;
+    m_wrChunkEnd = 0;
+    m_wrChunkBegin = 0;
+    m_currRdChunk = 0;
+    m_currRdPos = 0;
+
+    m_acqThreads.resize(NumThreads, {shared_from_this(), &XThamwayPROT3DSO::execute});
+    for(auto &&x: m_acqThreads) {
+        x.resume();
+    }
+
 }
 void
 XThamwayPROT3DSO::close() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
+    for(auto &&x: m_acqThreads) {
+        x.terminate();
+        x.waitFor();
+    }
+    m_acqThreads.clear();
+    m_chunks.clear();
 
     iterate_commit([=](Transaction &tr){
         for(auto &&x: {trace1(), trace2(), trace3(), trace4()})
@@ -168,7 +179,72 @@ XThamwayPROT3DSO::close() throw (XKameError &) {
 }
 
 void*
-XThamwayPROT3DSO::execute(const atomic<bool> &) {
+XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
+    Transactional::setCurrentPriorityMode(Priority::HIGHEST);
+
+    enum class Collision {BufferUnderflow, IOStall};
+    while( !terminated) {
+        ssize_t wridx;
+        auto fn = [&]() -> CyFXUSBDevice::AsyncIO {
+            XScopedLock<XMutex> lock(m_acqMutex);
+            ssize_t next_idx = m_wrChunkEnd;
+            wridx = next_idx;
+            auto &chunk = m_chunks[next_idx++];
+            if(chunk.ioInProgress) {
+                throw Collision::IOStall;
+            }
+            if(next_idx == m_chunks.size()) {
+                    next_idx = 0;
+            }
+            if(next_idx == m_currRdChunk) {
+                throw Collision::BufferUnderflow;
+            }
+            m_wrChunkEnd = next_idx;
+            chunk.data.resize(ChunkSize);
+            chunk.ioInProgress = true;
+            return interface()->asyncReceive( (char*)&chunk.data[0], chunk.data.size());
+        };
+        try {
+            auto async = fn(); //issues async. IO sequentially.
+            auto count = async.waitFor();
+            auto &chunk = m_chunks[wridx];
+            {
+                XScopedLock<XMutex> lock(m_acqMutex);
+                chunk.ioInProgress = false;
+                if(count != chunk.data.size()) {
+                //Pulse generation has stopped.
+                    fprintf(stderr, "Pulse generation has stopped.\n");
+                }
+                chunk.data.resize(count);
+                if(wridx == m_wrChunkBegin) {
+                    while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
+                        m_chunks[wridx].posAbs = m_totalSmps;
+                        m_totalSmps += m_chunks[wridx].data.size();
+                        wridx++; if(wridx == m_chunks.size()) wridx = 0;
+                        m_wrChunkBegin = wridx;
+                    }
+                }
+            }
+        }
+        catch (XInterface::XInterfaceError &e) {
+            e.print();
+            m_chunks[wridx].data.clear();
+            m_chunks[wridx].ioInProgress = false;
+            msecsleep(100);
+            continue;
+        }
+        catch (Collision &c) {
+            switch (c) {
+            case Collision::IOStall:
+                msecsleep(20);
+                continue;
+            case Collision::BufferUnderflow:
+                gErrPrint(i18n("Buffer Underflow."));
+                msecsleep(20);
+                continue;
+            }
+        }
+    }
     return nullptr;
 }
 

@@ -101,6 +101,9 @@ public:
     //! This can be called even if has already closed.
     virtual void close() throw (XInterfaceError &) override;
 
+    void initialize();
+    void finalize();
+
     void lock() {m_usbDevice->mutex.lock();} //!<overrides XInterface::lock().
     void unlock() {m_usbDevice->mutex.unlock();}
     bool isLocked() const {return m_usbDevice->mutex.isLockedByCurrentThread();}
