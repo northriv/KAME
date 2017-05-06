@@ -26,6 +26,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     virtual void open() override;
     virtual void close() override;
 
+    //! retrieves vendor/product IDs.
     void setIDs();
 
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
@@ -35,12 +36,13 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
 
         virtual bool hasFinished() const override;
         virtual int64_t waitFor() override;
+        virtual bool abort() override;
 
-        OVERLAPPED overlap = {};
+        OVERLAPPED overlap = {}; //zero clear
         HANDLE handle;
-        unique_ptr<std::vector<uint8_t>> ioctlbuf;
-        uint8_t *ioctlbuf_rdpos = nullptr;
-        uint8_t *rdbuf = nullptr;
+        unique_ptr<std::vector<uint8_t>> ioctlbuf; //buffer during the transfer.
+        uint8_t *ioctlbuf_rdpos = nullptr; //location of the incoming data of concern, part of \a ioctrlbuf.
+        uint8_t *rdbuf = nullptr; //user buffer, already passed by read function.
     };
 
 protected:

@@ -69,7 +69,7 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 1024*1024, NumThreads = 8, NumChunks = 16};
+    enum {ChunkSize = 256*2048, NumThreads = 8, NumChunks = 32};
     uint64_t m_totalSmps = 0;
     unsigned int m_wrChunkBegin = 0, m_wrChunkEnd = 0, m_currRdChunk = 0, m_currRdPos = 0;
     struct Chunk {
@@ -77,7 +77,7 @@ private:
         uint64_t posAbs = 0;
         std::vector<tRawAI> data;
     };
-    std::vector<Chunk> m_chunks;
+    std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).
     std::vector<unique_ptr<XThread<XThamwayPROT3DSO>>> m_acqThreads;
     XMutex m_acqMutex;
     void *execute(const atomic<bool> &) override;

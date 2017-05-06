@@ -96,17 +96,17 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 case DEVICE_STATUS::READY:
                     continue;
                 case DEVICE_STATUS::FW_NOT_LOADED:
+                    x->open();
+                    x->halt();
+                    char fw[FW_DWLSIZE];
+                    load_firm(fw, sizeof(fw), firmware(x).c_str());
+                    fprintf(stderr, "USB: Downloading the firmware to the device. This process takes a few seconds....\n");
+                    x->downloadFX2((uint8_t*)fw, sizeof(fw));
+                    x->run();
+                    x->close();
+                    is_written = true;
                     break;
                 }
-                x->open();
-                x->halt();
-                char fw[FW_DWLSIZE];
-                load_firm(fw, sizeof(fw), firmware(x).c_str());
-                fprintf(stderr, "USB: Downloading the firmware to the device. This process takes a few seconds....\n");
-                x->downloadFX2((uint8_t*)fw, sizeof(fw));
-                x->run();
-                x->close();
-                is_written = true;
             }
             catch (XInterface::XInterfaceError &e) {
                 x->close();
@@ -199,10 +199,12 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
     }
     if( !m_usbDevice)
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+    XCustomCharInterface::open();
 }
 
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
+    XCustomCharInterface::close();
     m_usbDevice.reset();
 }

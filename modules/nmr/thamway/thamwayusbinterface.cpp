@@ -36,12 +36,12 @@
 #define THAMWAY_VID 0x547
 #define THAMWAY_PID 0x1002
 
-#define EPOUT2 2
-#define EPOUT8 8
-#define EPIN6 6
+#define EPOUT2 2 //TFIFO
+#define EPOUT8 8 //CPIPE
+#define EPIN6 6 //RFIFO
 
 #define FX3_DEF_VID 0x4b4
-#define FX3_DEF_PID 0x00F1 //cypress default FX3 for FIFOSYNC.
+#define FX3_DEF_PID 0x00f1 //cypress default FX3 for FIFOSYNC.
 
 #define EPIN1 1
 #define EPOUT1 1
@@ -398,8 +398,8 @@ XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 }
 std::string
 XThamwayFX3USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
-    static int count = 0;
-    return formatString("FX3-%d", count++);
+    static int count = 0; //\todo a certain ID.
+    return formatString("FX3-%d", count);
 }
 void
 XThamwayFX3USBInterface::send(const char *str) throw (XCommError &) {

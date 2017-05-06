@@ -23,6 +23,8 @@ struct CyFXUSBDevice {
     virtual ~CyFXUSBDevice() = default;
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
+    //! \arg initialization if true, USB library will be initialized.
+    //! \return a list of connected USB devices, perhaps including non-cypress devices.
     static List enumerateDevices(bool initialization);
 
     virtual void open() = 0;
@@ -36,7 +38,10 @@ struct CyFXUSBDevice {
 
     void downloadFX2(const uint8_t* image, int len);
 
+    //! \arg buf be sure that the user buffer stays alive during an asynchronous IO.
     int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len);
+    //! \arg ep 0x80 will be or-operated
+    //! \arg buf be sure that the user buffer stays alive during an asynchronous IO.
     int64_t bulkRead(uint8_t ep, uint8_t* buf, int len);
 
     enum class CtrlReq : uint8_t  {
@@ -73,6 +78,8 @@ struct CyFXUSBDevice {
         }
         virtual bool hasFinished() const {return false;} //gcc doesn't accept pure virtual.
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
+        //! \return true if a cancellation is successfully requested.
+        virtual bool abort() {return false;} //gcc doesn't accept pure virtual.
     protected:
         int64_t m_count_imm = -1;
     };
@@ -101,6 +108,7 @@ public:
     //! This can be called even if has already closed.
     virtual void close() throw (XInterfaceError &) override;
 
+    //! must be called during the constructor of the inherited class.
     void initialize();
     void finalize();
 

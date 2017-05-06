@@ -47,14 +47,23 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
+            if(e == ERROR_IO_INCOMPLETE)
+                return 0;
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
         finalize(num);
     }
     if(rdbuf) {
+        if(ioctlbuf_rdpos - &ioctlbuf->at(0) < m_count_imm) {
+            throw XInterface::XInterfaceError(i18n("Too short return packet during USB tranfer."), __FILE__, __LINE__);
+        }
         std::copy(ioctlbuf_rdpos, &ioctlbuf->at(0) + m_count_imm, rdbuf);
     }
     return m_count_imm;
+}
+bool
+CyFXWin32USBDevice::AsyncIO::abort() {
+    return CancelIOEx(handle, &overlap);
 }
 CyFXWin32USBDevice::AsyncIO
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
@@ -67,7 +76,7 @@ CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, 
             return std::move(async);
         throw XInterface::XInterfaceError(formatString("IOCTL error:%d.", (int)e), __FILE__, __LINE__);
     }
-    async.finalize(nbyte);
+    async.finalize(nbyte); //IO has been synchronously perfomed.
     return std::move(async);
 }
 
@@ -242,10 +251,10 @@ CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     //FX2FW specific
     switch(ep) {
     case 2:
-        tr->pipeNum = 0;
+        tr->pipeNum = TFIFO;
         break;
     case 8:
-        tr->pipeNum = 1;
+        tr->pipeNum = CPIPE;
         break;
     default:
         throw XInterface::XInterfaceError("Unknown pipe", __FILE__, __LINE__);
@@ -264,7 +273,7 @@ CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     //FX2FW specific
     switch(ep) {
     case 6:
-        tr->pipeNum = 2;
+        tr->pipeNum = RFIFO;
         break;
     default:
         throw XInterface::XInterfaceError("Unknown pipe", __FILE__, __LINE__);
@@ -414,7 +423,7 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf->at(0));
     *tr = SingleTransfer{}; //0 fill.
     tr->timeOut = 1; //sec?
-    tr->bEndpointAddress = 0x80u | (uint8_t)ep;
+    tr->bEndpointAddress = 0x80u | ep;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,

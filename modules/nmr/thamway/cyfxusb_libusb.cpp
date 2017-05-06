@@ -59,20 +59,21 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 
         virtual bool hasFinished() const override;
         virtual int64_t waitFor() override;
+        virtual bool abort() override;
 
         static void cb_fn(struct libusb_transfer *transfer) {
-    //        switch(transfer->status) {
-    //        case LIBUSB_TRANSFER_COMPLETED:
-    //            break;
-    //        case LIBUSB_TRANSFER_CANCELLED:
-    //        case LIBUSB_TRANSFER_NO_DEVICE:
-    //        case LIBUSB_TRANSFER_TIMED_OUT:
-    //        case LIBUSB_TRANSFER_ERROR:
-    //        case LIBUSB_TRANSFER_STALL:
-    //        case LIBUSB_TRANSFER_OVERFLOW:
-    //        default:
-    //            break;
-    //        }
+//            switch(transfer->status) {
+//            case LIBUSB_TRANSFER_COMPLETED:
+//                break;
+//            case LIBUSB_TRANSFER_CANCELLED:
+//            case LIBUSB_TRANSFER_NO_DEVICE:
+//            case LIBUSB_TRANSFER_TIMED_OUT:
+//            case LIBUSB_TRANSFER_ERROR:
+//            case LIBUSB_TRANSFER_STALL:
+//            case LIBUSB_TRANSFER_OVERFLOW:
+//            default:
+//                break;
+//            }
             reinterpret_cast<AsyncIO*>(transfer->user_data)->completed = 1;
         }
         unique_ptr<std::vector<uint8_t>> buf;
@@ -120,14 +121,26 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
     }
-    if(transfer->status != LIBUSB_TRANSFER_COMPLETED)
+    if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+        if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
+            return 0;
         throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+    }
     if(rdbuf) {
         std::copy(buf->begin(), buf->begin() + transfer->actual_length, rdbuf);
     }
     return transfer->actual_length;
 }
 
+bool
+CyFXLibUSBDevice::AsyncIO::abort() {
+    int ret = libusb_cancel_transfer(transfer);
+    if(ret == LIBUSB_ERROR_NOT_FOUND)
+        return false;
+    if(ret)
+        throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+    return true;
+}
 
 CyFXUSBDevice::List
 CyFXUSBDevice::enumerateDevices(bool initialization) {
