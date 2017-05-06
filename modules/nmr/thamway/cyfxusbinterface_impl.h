@@ -150,7 +150,8 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
         x->close();
         lastdev = x;
     }
-    lastdev->finalize();
+    if(lastdev)
+        lastdev->finalize();
     s_devices.clear();
 }
 
