@@ -145,7 +145,6 @@ XThamwayPROT3DSO::disableHardwareTriggers() {
 
 uint64_t
 XThamwayPROT3DSO::getTotalSampsAcquired() {
-    XScopedLock<XMutex> lock(m_acqMutex);
     return m_totalSmps;
 }
 
@@ -267,7 +266,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
                 if(count != chunk.data.size()) {
                 //Pulse generation has stopped.
                     fprintf(stderr, "Pulse generation has stopped.\n");
-                    msecsleep(20);
+                    throw Collision::IOStall;
                 }
                 chunk.data.resize(count);
                 if(wridx == m_wrChunkBegin) {

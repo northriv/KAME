@@ -199,12 +199,10 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
     }
     if( !m_usbDevice)
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
-    XCustomCharInterface::open();
 }
 
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
-    XCustomCharInterface::close();
     m_usbDevice.reset();
 }

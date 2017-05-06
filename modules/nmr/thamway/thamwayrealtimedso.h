@@ -70,7 +70,7 @@ protected:
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
     enum {ChunkSize = 256*2048, NumThreads = 8, NumChunks = 32};
-    uint64_t m_totalSmps = 0;
+    atomic<uint64_t> m_totalSmps = 0;
     unsigned int m_wrChunkBegin = 0, m_wrChunkEnd = 0, m_currRdChunk = 0, m_currRdPos = 0;
     struct Chunk {
         bool ioInProgress = false;
