@@ -52,7 +52,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         AsyncIO() {
             transfer = libusb_alloc_transfer(0);
         }
-        AsyncIO(AsyncIO&&) = default;
+        AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
             libusb_free_transfer(transfer);
         }

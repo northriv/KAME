@@ -62,10 +62,14 @@ XThamwayPROT3DSO::commitAcquision() {
         m_wrChunkBegin = 0;
         m_currRdChunk = 0;
         m_currRdPos = 0;
+        for(auto &&x: m_chunks) {
+            x.data.resize(ChunkSize);
+            x.data.shrink_to_fit();
+            x.data.clear();
+        }
         if(isMemLockAvailable()) {
             mlock(this, sizeof(XThamwayPROT3DSO));
             for(auto &&x: m_chunks) {
-                x.data.reserve(ChunkSize);
                 mlock(&x.data[0], x.data.capacity() * sizeof(tRawAI));
             }
         }
