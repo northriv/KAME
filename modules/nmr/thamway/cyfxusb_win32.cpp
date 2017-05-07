@@ -14,6 +14,7 @@
 #include "cyfxusb_win32.h"
 
 #include <setupapi.h>
+#include "fx2fw.h"
 
 constexpr uint32_t IOCTL_EZUSB_GET_DEVICE_DESCRIPTOR =  0x222004;
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
@@ -53,7 +54,8 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
 }
 bool
 CyFXWin32USBDevice::AsyncIO::abort() {
-    return CancelIOEx(handle, &overlap);
+    return CancelIo(handle);
+//    return CancelIoEx(handle, &overlap); //gcc cannot do this
 }
 CyFXWin32USBDevice::AsyncIO
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
