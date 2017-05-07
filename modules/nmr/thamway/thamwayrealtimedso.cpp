@@ -15,7 +15,7 @@
 #include "thamwayrealtimedso.h"
 #include "dsorealtimeacq_impl.h"
 
-constexpr double SMPL_PER_SEC = 5e6; //5MSmps/s
+constexpr double SMPL_PER_SEC = 5e6; //5MSmps
 
 REGISTER_TYPE(XDriverList, ThamwayPROT3DSO, "Thamway PROT3 digital streaming DSO");
 

@@ -27,16 +27,6 @@ constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
-static XString
-wcstoxstr(const wchar_t *wcs) {
-    char buf[256];
-    size_t n;
-    if(wcstombs_s( &n, buf, sizeof(buf), wcs, _TRUNCATE)) {
-        return {};
-    }
-    return {buf};
-}
-
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const {
     return HasOverlappedIoCompleted( &overlap);
@@ -48,7 +38,7 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
             if(e == ERROR_IO_INCOMPLETE)
-                return 0;
+                return 0; //IO has been canceled.
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
         finalize(num);
@@ -144,9 +134,6 @@ CyFXUSBDevice::enumerateDevices(bool initialization) {
         list.push_back(dev);
     }
 
-    if(initialization)
-        _tsetlocale(LC_ALL,_T(""));
-
     //Standard scheme with CyUSB3.sys devices.
     //GUID: AE18AA60-7F6A-11d4-97DD-00010229B959
     constexpr GUID guid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
@@ -168,7 +155,15 @@ CyFXUSBDevice::enumerateDevices(bool initialization) {
         detail->cbSize = sizeof(SP_INTERFACE_DEVICE_DETAIL_DATA);
         ULONG len;
         if(SetupDiGetInterfaceDeviceDetail(hdev, &info, detail, size, &len, NULL)){
-            XString name = wcstoxstr(detail->DevicePath);
+            char str[1024] = {};
+            int ret = WideCharToMultiByte(CP_UTF8, 0, detail->DevicePath,
+                    -1, str, sizeof(str) - 1, NULL, NULL);
+            if(ret < 0) {
+                int e = (int)GetLastError();
+                fprintf(stderr, "Unicode conversion failed: %d\n", e);
+                continue;
+            }
+            XString name(str);
             HANDLE h = CreateFile(detail->DevicePath,
                 GENERIC_WRITE | GENERIC_READ,
                 FILE_SHARE_WRITE | FILE_SHARE_READ,	0,
