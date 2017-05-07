@@ -54,8 +54,7 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
 }
 bool
 CyFXWin32USBDevice::AsyncIO::abort() {
-    return CancelIo(handle);
-//    return CancelIoEx(handle, &overlap); //gcc cannot do this
+    return CancelIoEx(handle, &overlap);
 }
 CyFXWin32USBDevice::AsyncIO
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
