@@ -71,7 +71,6 @@ private:
     XString m_idString;
     bool m_bBurstWrite;
     std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
-    uint8_t m_dipsw;
 };
 
 struct ThamwayCyFX3USBDevice : public CyFXUSBDevice {};

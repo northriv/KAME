@@ -20,6 +20,7 @@
 
 
 struct CyFXUSBDevice {
+    CyFXUSBDevice(const CyFXUSBDevice&) = default;
     virtual ~CyFXUSBDevice() = default;
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
@@ -86,7 +87,6 @@ struct CyFXUSBDevice {
     virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
 
     XRecursiveMutex mutex;
-    XString label;
 
     enum {USB_DEVICE_DESCRIPTOR_TYPE = 1, USB_CONFIGURATION_DESCRIPTOR_TYPE = 2,
         USB_STRING_DESCRIPTOR_TYPE = 3, USB_INTERFACE_DESCRIPTOR_TYPE = 4,
@@ -130,12 +130,13 @@ protected:
     virtual XString firmware(const shared_ptr<CyFXUSBDevice> &dev) = 0;
     virtual void setWave(const shared_ptr<CyFXUSBDevice> &dev, const uint8_t *wave) = 0;
 
-    const shared_ptr<USBDevice> &usb() const {return m_usbDevice;}
+    const shared_ptr<CyFXUSBDevice> &usb() const {return m_usbDevice;}
 private:
-    shared_ptr<USBDevice> m_usbDevice;
+    shared_ptr<CyFXUSBDevice> m_usbDevice;
     static XMutex s_mutex;
     static typename USBDevice::List s_devices;
     static int s_refcnt;
+    std::map<XString, shared_ptr<CyFXUSBDevice>> m_candidates;
     void openAllEZUSBdevices();
     void closeAllEZUSBdevices();
 };

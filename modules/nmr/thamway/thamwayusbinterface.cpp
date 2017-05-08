@@ -67,17 +67,17 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
     if((dev->productID() != FX2_DEF_PID) || (dev->vendorID() != FX2_DEF_VID)) {
         if((dev->productID() == THAMWAY_PID) && (dev->vendorID() == THAMWAY_VID)) {
             dev->open();
+            try {
+                readDIPSW(dev);//Ugly huck for OSX. May end up in timeout.
+            }
+            catch (XInterface::XInterfaceError &) {
+                fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
+            }
             constexpr char Manufacturer_sym[] = "F2FW";
             try {
                 XString s1 = dev->getString(1);
                 fprintf(stderr, "USB: Device: %s\n", s1.c_str());
                 if(s1 == Manufacturer_sym) {
-//                    try {
-//                        readDIPSW(dev);//Ugly huck for OSX. May end up in timeout.
-//                    }
-//                    catch (XInterface::XInterfaceError &) {
-//                        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
-//                    }
                     return DEVICE_STATUS::READY;
                 }
             }
@@ -113,6 +113,7 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 
 std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
+    uint8_t dipsw = readDIPSW(dev);
     XString idn;
     if( !m_idString.empty()) {
         //for PG and DV series.
@@ -121,19 +122,23 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     }
     else {
         //for PROT
-        if(m_dipsw != DEV_ADDR_PROT) return {};
+        if(dipsw != DEV_ADDR_PROT) return {};
         idn = "PROT";
     }
-    idn = formatString("%d:%s", m_dipsw, idn.c_str());
+    idn = formatString("%d:%s", (int)dipsw, idn.c_str());
     return idn;
 }
 
 XString
 XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
-    m_dipsw = readDIPSW(dev);
-    if(m_dipsw == DEV_ADDR_PROT)
-        return {THAMWAY_USB_GPIFWAVE1_FILE};
-    return {THAMWAY_USB_GPIFWAVE2_FILE};
+    try {
+        uint8_t dipsw = readDIPSW(dev);
+        if(dipsw != DEV_ADDR_PROT)
+            return {THAMWAY_USB_GPIFWAVE2_FILE};
+    }
+    catch (XInterfaceError &) {
+    }
+    return {THAMWAY_USB_GPIFWAVE1_FILE};
 }
 
 XString

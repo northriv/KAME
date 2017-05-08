@@ -83,9 +83,9 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
 
     s_devices = USBDevice::enumerateDevices(true);
 
+    bool is_written = false;
     {
         //loads firmware onto RAM, if needed.
-        bool is_written = false;
         for(auto &&x : s_devices) {
             if( !x) continue;
             try {
@@ -178,16 +178,16 @@ XCyFXUSBInterface<USBDevice>::initialize() {
         if( !(s_refcnt++))
             openAllEZUSBdevices();
 
-        iterate_commit([=](Transaction &tr){
-            for(auto &&x : s_devices) {
-                if( !x) continue;
-                XString name = examineDeviceAfterFWLoad(x);
-                x->label = name;
-                if(name.length()) {
+        for(auto &&x : s_devices) {
+            if( !x) continue;
+            XString name = examineDeviceAfterFWLoad(x);
+            if(name.length()) {
+                auto shot = iterate_commit([=](Transaction &tr){
                     tr[ *device()].add(name);
-                }
+                });
+                m_candidates.emplace(name, x);
             }
-        });
+        }
     }
     catch (XInterface::XInterfaceError &e) {
         e.print();
@@ -198,6 +198,8 @@ template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::finalize() {
     XScopedLock<XMutex> slock(s_mutex);
+    m_usbDevice.reset();
+    m_candidates.clear();
     s_refcnt--;
     if( !s_refcnt)
         closeAllEZUSBdevices();
@@ -207,13 +209,13 @@ template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
     Snapshot shot( *this);
-    for(auto &&x : s_devices) {
-        if( !x) continue;
-        if(shot[ *device()].to_str() == x->label)
-            m_usbDevice = dynamic_pointer_cast<USBDevice>(x);
+    auto it = m_candidates.find(shot[ *device()].to_str());
+    if(it != m_candidates.end()) {
+        m_usbDevice = it->second;
     }
-    if( !m_usbDevice)
+    else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+    }
 }
 
 template <class USBDevice>
