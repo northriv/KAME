@@ -66,22 +66,38 @@ XThamwayFX2USBInterface::DEVICE_STATUS
 XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     if((dev->productID() != FX2_DEF_PID) || (dev->vendorID() != FX2_DEF_VID)) {
         if((dev->productID() == THAMWAY_PID) && (dev->vendorID() == THAMWAY_VID)) {
+            dev->open();
             constexpr char Manufacturer_sym[] = "F2FW";
-            XString s1 = dev->getString(1);
-            fprintf(stderr, "USB: Device: %s\n", s1.c_str());
-            if(s1 != Manufacturer_sym) {
-                return DEVICE_STATUS::READY;
+            try {
+                XString s1 = dev->getString(1);
+                fprintf(stderr, "USB: Device: %s\n", s1.c_str());
+                if(s1 == Manufacturer_sym) {
+//                    try {
+//                        readDIPSW(dev);//Ugly huck for OSX. May end up in timeout.
+//                    }
+//                    catch (XInterface::XInterfaceError &) {
+//                        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
+//                    }
+                    return DEVICE_STATUS::READY;
+                }
+            }
+            catch (XInterface::XInterfaceError &) {
+                fprintf(stderr, "USB: ???\n");
+                return DEVICE_STATUS::FW_NOT_LOADED;
             }
         }
         else
             return DEVICE_STATUS::UNSUPPORTED;
     }
+    else
+        dev->open();
     constexpr char Serial_sym[] = "20070627";
     try {
         XString s2 = dev->getString(2);
         fprintf(stderr, "USB: Ver: %s\n", s2.c_str());
         if(s2[0] != Serial_sym[0]) {
             fprintf(stderr, "USB: Not Thamway's device\n");
+            dev->close();
             return DEVICE_STATUS::UNSUPPORTED;
         }
         unsigned int version = atoi(s2.c_str());
@@ -97,7 +113,6 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 
 std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
-    auto addr = readDIPSW(dev);
     XString idn;
     if( !m_idString.empty()) {
         //for PG and DV series.
@@ -106,17 +121,17 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     }
     else {
         //for PROT
-        if(addr != DEV_ADDR_PROT) return {};
+        if(m_dipsw != DEV_ADDR_PROT) return {};
         idn = "PROT";
     }
-    idn = formatString("%d:%s", addr, idn.c_str());
+    idn = formatString("%d:%s", m_dipsw, idn.c_str());
     return idn;
 }
 
 XString
 XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
-    auto addr = readDIPSW(dev);
-    if(addr == DEV_ADDR_PROT)
+    m_dipsw = readDIPSW(dev);
+    if(m_dipsw == DEV_ADDR_PROT)
         return {THAMWAY_USB_GPIFWAVE1_FILE};
     return {THAMWAY_USB_GPIFWAVE2_FILE};
 }
@@ -141,6 +156,7 @@ XThamwayFX2USBInterface::setWave(const shared_ptr<CyFXUSBDevice> &dev, const uin
         buf.insert(buf.end(), wave + 8 + 32*i, wave + 8 + 32*(i + 1));
         dev->bulkWrite(EPOUT8, &buf[0], buf.size());
     }
+    msecsleep(200);
 }
 
 void
@@ -375,6 +391,7 @@ XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
     if((dev->productID() != FX3_DEF_PID) || (dev->vendorID() != FX3_DEF_VID)) {
         return DEVICE_STATUS::UNSUPPORTED;
     }
+    dev->open();
     constexpr char Manufactor_sym[] = "THAMWAY";
     constexpr char Product_sym[] = "SF,WATER=8,1227A"; //SyncFIFO
     try {
@@ -412,7 +429,7 @@ XThamwayFX3USBInterface::receive() throw (XCommError &) {
     buffer_receive().resize(ret);
 }
 
-CyFXUSBDevice::AsyncIO
+unique_ptr<CyFXUSBDevice::AsyncIO>
 XThamwayFX3USBInterface::asyncReceive(char *buf, ssize_t size) {
     return usb()->asyncBulkRead(EPIN1, (uint8_t *)buf, size);
 }

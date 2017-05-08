@@ -71,6 +71,7 @@ private:
     XString m_idString;
     bool m_bBurstWrite;
     std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
+    uint8_t m_dipsw;
 };
 
 struct ThamwayCyFX3USBDevice : public CyFXUSBDevice {};
@@ -88,7 +89,7 @@ public:
     virtual void send(const char *str) throw (XCommError &) override;
     virtual void receive() throw (XCommError &) override;
 
-    CyFXUSBDevice::AsyncIO asyncReceive(char *buf, ssize_t size);
+    unique_ptr<CyFXUSBDevice::AsyncIO> asyncReceive(char *buf, ssize_t size);
 
     static SoftwareTriggerManager &softwareTriggerManager() {return s_softwareTriggerManager;}
 protected:

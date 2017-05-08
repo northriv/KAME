@@ -32,7 +32,6 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
 
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() = default;
-        AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() = default;
 
         virtual bool hasFinished() const override;
@@ -47,7 +46,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     };
 
 protected:
-    AsyncIO asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
+    unique_ptr<AsyncIO> asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
     int64_t ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
 private:
     HANDLE handle;

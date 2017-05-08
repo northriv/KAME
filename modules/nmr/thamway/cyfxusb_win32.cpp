@@ -56,18 +56,18 @@ bool
 CyFXWin32USBDevice::AsyncIO::abort() {
     return CancelIoEx(handle, &overlap);
 }
-CyFXWin32USBDevice::AsyncIO
+unique_ptr<CyFXWin32USBDevice::AsyncIO>
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     DWORD nbyte;
-    AsyncIO async;
+    unique_ptr<AsyncIO> async(new AsyncIO);
     async.handle = handle;
-    if( !DeviceIoControl(handle, code, (void*)in, size_in, out, size_out, &nbyte, &async.overlap)) {
+    if( !DeviceIoControl(handle, code, (void*)in, size_in, out, size_out, &nbyte, &async->overlap)) {
         auto e = GetLastError();
         if(e == ERROR_IO_PENDING)
             return std::move(async);
         throw XInterface::XInterfaceError(formatString("IOCTL error:%d.", (int)e), __FILE__, __LINE__);
     }
-    async.finalize(nbyte); //IO has been synchronously perfomed.
+    async->finalize(nbyte); //IO has been synchronously perfomed.
     return std::move(async);
 }
 
@@ -194,6 +194,7 @@ CyFXWin32USBDevice::open() {
             FILE_FLAG_OVERLAPPED,
             NULL);
         if(handle == INVALID_HANDLE_VALUE) {
+            handle = nullptr;
             int e = (int)GetLastError();
             throw XInterface::XInterfaceError(formatString("INVALID HANDLE %d for %s\n", e, name.c_str()), __FILE__, __LINE__);
         }
@@ -409,7 +410,7 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
-    ret.ioctlbuf = std::move(ioctlbuf);
+    ret->ioctlbuf = std::move(ioctlbuf);
     return std::move(ret);
 }
 
@@ -424,9 +425,9 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
-    ret.ioctlbuf = std::move(ioctlbuf);
-    ret.ioctlbuf_rdpos = &ioctlbuf->at(tr->bufferOffset);
-    ret.rdbuf = buf;
+    ret->ioctlbuf = std::move(ioctlbuf);
+    ret->ioctlbuf_rdpos = &ioctlbuf->at(tr->bufferOffset);
+    ret->rdbuf = buf;
     return std::move(ret);
 }
 

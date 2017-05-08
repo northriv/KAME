@@ -71,20 +71,19 @@ struct CyFXUSBDevice {
     public:
         AsyncIO() = default;
         AsyncIO(const AsyncIO&) = delete;
-        AsyncIO(AsyncIO &&) noexcept = default;
         virtual ~AsyncIO() = default;
         void finalize(int64_t count_imm) {
             m_count_imm = count_imm;
         }
         virtual bool hasFinished() const {return false;} //gcc doesn't accept pure virtual.
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
-        //! \return true if a cancellation is successfully requested.
+        //! \return true if a cancelation is successfully requested.
         virtual bool abort() {return false;} //gcc doesn't accept pure virtual.
     protected:
         int64_t m_count_imm = -1;
     };
-    virtual AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
-    virtual AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
+    virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
+    virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
 
     XRecursiveMutex mutex;
     XString label;

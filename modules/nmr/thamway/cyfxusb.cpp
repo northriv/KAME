@@ -16,13 +16,16 @@
 int64_t
 CyFXUSBDevice::bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     auto async = asyncBulkWrite(ep, buf, len);
-    return async.waitFor();
+    auto ret = async->waitFor();
+    if(ret != len)
+        fprintf(stderr, "Length mismatch during transfer.\n");
+    return ret;
 }
 
 int64_t
 CyFXUSBDevice::bulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto async = asyncBulkRead(ep, buf, len);
-    return async.waitFor();
+    return async->waitFor();
 }
 
 void
@@ -46,7 +49,7 @@ void
 CyFXUSBDevice::downloadFX2(const uint8_t* image, int len) {
     int addr = 0;
     //A0 anchor download.
-    if(controlWrite((CtrlReq)0xA0, CtrlReqType::USB_REQUEST_TYPE_VENDOR, addr, 0x00, image, len) != 1)
+    if(controlWrite((CtrlReq)0xA0, CtrlReqType::USB_REQUEST_TYPE_VENDOR, addr, 0x00, image, len) != len)
         throw XInterface::XInterfaceError(i18n("Error: FX2 write to RAM failed."), __FILE__, __LINE__);
 }
 

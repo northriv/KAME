@@ -238,7 +238,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
     enum class Collision {BufferUnderflow, IOStall};
     while( !terminated) {
         ssize_t wridx; //index of a chunk for async. IO.
-        auto fn = [&]() -> CyFXUSBDevice::AsyncIO {
+        auto fn = [&]() {
             XScopedLock<XMutex> lock(m_acqMutex);
             ssize_t next_idx = m_wrChunkEnd;
             wridx = next_idx;
@@ -259,10 +259,10 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
         };
         try {
             auto async = fn(); //issues async. IO sequentially.
-            while( !async.hasFinished() && !terminated)
+            while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated) break;
-            auto count = async.waitFor() / sizeof(tRawAI);
+            auto count = async->waitFor() / sizeof(tRawAI);
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);

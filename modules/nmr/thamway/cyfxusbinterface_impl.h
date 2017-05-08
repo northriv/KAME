@@ -91,12 +91,14 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
             try {
                 switch(examineDeviceBeforeFWLoad(x)) {
                 case DEVICE_STATUS::UNSUPPORTED:
+                    x->close();
                     x.reset();
                     continue;
                 case DEVICE_STATUS::READY:
+                    x->close();
                     continue;
                 case DEVICE_STATUS::FW_NOT_LOADED:
-                    x->open();
+                    //firmware is yet to be loaded.
                     x->halt();
                     char fw[FW_DWLSIZE];
                     load_firm(fw, sizeof(fw), firmware(x).c_str());
@@ -118,6 +120,31 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         if(is_written) {
             msecsleep(2000); //waits before enumeration of devices.
             s_devices = USBDevice::enumerateDevices(false); //enumerates devices again.
+            for(auto &&x : s_devices) {
+                if( !x) continue;
+                try {
+                    switch(examineDeviceBeforeFWLoad(x)) {
+                    case DEVICE_STATUS::UNSUPPORTED:
+                        x->close();
+                        x.reset();
+                        continue;
+                    case DEVICE_STATUS::READY:
+                        x->close();
+                        continue;
+                    case DEVICE_STATUS::FW_NOT_LOADED:
+                        x->close();
+                        fprintf(stderr, "USB: firmware download was failed.\n");
+                        x.reset();
+                        continue;
+                    }
+                }
+                catch (XInterface::XInterfaceError &e) {
+                    x->close();
+                    e.print();
+                    x.reset();
+                    continue;
+                }
+            }
         }
     }
 
@@ -125,7 +152,6 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         if( !x) continue;
         try {
             x->open();
-
             if( !gpifWave(x).empty()) {
                 char gpif[GPIFWAVE_SIZE];
                 load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
