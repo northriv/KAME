@@ -69,17 +69,17 @@ struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) override;
 private:
-    struct alignas(1) VendorRequestCtrl {
-        alignas(1) uint8_t bRequest, bReserve;
-        alignas(1) uint16_t wValue, wIndex, wLength;
-        alignas(1) uint8_t direction;
+    struct VendorRequestCtrl {
+        uint8_t bRequest, bReserve;
+        uint16_t wValue, wIndex, wLength;
+        uint8_t direction, bData;
     };
-    struct alignas(1) StringDescCtrl {
-        alignas(1) uint8_t Index;
-        alignas(1) uint16_t LanguageId;
+    struct StringDescCtrl {
+        uint8_t Index, bReserve;
+        uint16_t LanguageId;
     };
-    struct alignas(1) BulkTransferCtrl {
-        alignas(1) uint32_t pipeNum;
+    struct BulkTransferCtrl {
+        uint32_t pipeNum;
     };
 };
 
@@ -101,14 +101,14 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString friendlyName();
 private:
-    struct alignas(1) SingleTransfer {
-        alignas(1) uint8_t bmRequest, bRequest;
-        alignas(1) uint16_t wValue, wIndex, wLength;
+    struct SingleTransfer {
+        uint8_t bmRequest, bRequest;
+        uint16_t wValue, wIndex, wLength;
         //end of setup packet.
-        alignas(1) uint32_t timeOut;
-        alignas(1) uint8_t bReserved2, ucEndpointAddress, bReserved3[2];
-        alignas(1) uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
-        alignas(1) uint32_t bufferOffset, bufferLength;
+        uint32_t timeOut;
+        uint8_t bReserved2, ucEndpointAddress, bReserved3[2];
+        uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
+        uint32_t bufferOffset, bufferLength;
     };
 };
 

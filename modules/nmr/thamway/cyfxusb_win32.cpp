@@ -77,22 +77,23 @@ CyFXWin32USBDevice::CyFXWin32USBDevice(HANDLE h, const XString &n) : CyFXUSBDevi
 
 void
 CyFXWin32USBDevice::setIDs() {
-    struct alignas(1) DeviceDescriptor {
-        alignas(1) uint8_t bLength;
-        alignas(1) uint8_t bDescriptorType;
-        alignas(1) uint16_t bcdUSB;
-        alignas(1) uint8_t bDeviceClass;
-        alignas(1) uint8_t bDeviceSubClass;
-        alignas(1) uint8_t bDeviceProtocol;
-        alignas(1) uint8_t bMaxPacketSize0;
-        alignas(1) uint16_t idVendor;
-        alignas(1) uint16_t idProduct;
-        alignas(1) uint16_t bcdDevice;
-        alignas(1) uint8_t iManufacturer;
-        alignas(1) uint8_t iProduct;
-        alignas(1) uint8_t iSerialNumber;
-        alignas(1) uint8_t bNumConfigurations;
+    struct DeviceDescriptor {
+        uint8_t bLength;
+        uint8_t bDescriptorType;
+        uint16_t bcdUSB;
+        uint8_t bDeviceClass;
+        uint8_t bDeviceSubClass;
+        uint8_t bDeviceProtocol;
+        uint8_t bMaxPacketSize0;
+        uint16_t idVendor;
+        uint16_t idProduct;
+        uint16_t bcdDevice;
+        uint8_t iManufacturer;
+        uint8_t iProduct;
+        uint8_t iSerialNumber;
+        uint8_t bNumConfigurations;
     };
+    static_assert(sizeof(DeviceDescriptor)== 18, "");
     //obtains device descriptor
     DeviceDescriptor dev_desc;
     auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
@@ -290,10 +291,10 @@ CyFXEzUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
             return len;
         }
         else {
-            std::vector<uint8_t> buf(sizeof(VendorRequestCtrl) + len);
+            static_assert(sizeof(VendorRequestCtrl) == 10, "");
+            std::vector<uint8_t> buf(9 + len);
             auto tr = reinterpret_cast<VendorRequestCtrl *>(&buf[0]);
-            std::copy(wbuf, wbuf + len, &buf[sizeof(VendorRequestCtrl)]);
-            static_assert(sizeof(VendorRequestCtrl) == 9, "");
+            std::copy(wbuf, wbuf + len, &tr->bData);
             *tr = VendorRequestCtrl{}; //0 fill.
             tr->bRequest = (uint8_t)request;
             tr->wValue = value;
@@ -347,7 +348,7 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
     tr->wIndex = index;
     tr->wLength = len;
     tr->timeOut = 1; //sec?
-    tr->bEndpointAddress = 0;
+    tr->ucEndpointAddress = 0;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
@@ -366,7 +367,7 @@ CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
     tr->wIndex = index;
     tr->wLength = len;
     tr->timeOut = 1; //sec?
-    tr->bEndpointAddress = 0;
+    tr->ucEndpointAddress = 0;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
