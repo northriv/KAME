@@ -45,10 +45,10 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         finalize(num);
     }
     if(rdbuf) {
-        if(ioctlbuf_rdpos - &ioctlbuf->at(0) < m_count_imm) {
+        if(ioctlbuf_rdpos - &ioctlbuf[0] < m_count_imm) {
             throw XInterface::XInterfaceError(i18n("Too short return packet during USB tranfer."), __FILE__, __LINE__);
         }
-        std::copy(ioctlbuf_rdpos, &ioctlbuf->at(0) + m_count_imm, rdbuf);
+        std::copy(ioctlbuf_rdpos, &ioctlbuf[m_count_imm], rdbuf);
     }
     return m_count_imm;
 }
@@ -60,7 +60,7 @@ unique_ptr<CyFXWin32USBDevice::AsyncIO>
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     DWORD nbyte;
     unique_ptr<AsyncIO> async(new AsyncIO);
-    async.handle = handle;
+    async->handle = handle;
     if( !DeviceIoControl(handle, code, (void*)in, size_in, out, size_out, &nbyte, &async->overlap)) {
         auto e = GetLastError();
         if(e == ERROR_IO_PENDING)
@@ -109,7 +109,7 @@ CyFXWin32USBDevice::setIDs() {
 int64_t
 CyFXWin32USBDevice::ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     auto async = asyncIOCtrl(code, in, size_in, out, size_out);
-    return async.waitFor();
+    return async->waitFor();
 }
 
 CyFXUSBDevice::List
@@ -241,10 +241,10 @@ CyFXEzUSBDevice::getString(int descid) {
     }
 }
 
-CyFXUSBDevice::AsyncIO
+unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(BulkTransferCtrl)));
-    auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf->at(0));
+    std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
+    auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
     switch(ep) {
     case 2:
@@ -258,15 +258,15 @@ CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     }
 
     auto ret = asyncIOCtrl(IOCTL_EZUSB_BULK_WRITE,
-        &ioctlbuf->at(0), ioctlbuf->size(), &buf, len);
-    ret.ioctlbuf = std::move(ioctlbuf);
+        &ioctlbuf[0], ioctlbuf.size(), &buf, len);
+    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
-CyFXUSBDevice::AsyncIO
+unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(BulkTransferCtrl)));
-    auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf->at(0));
+    std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
+    auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
     switch(ep) {
     case 6:
@@ -277,8 +277,8 @@ CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     }
 
     auto ret = asyncIOCtrl(IOCTL_EZUSB_BULK_READ,
-        &ioctlbuf->at(0), ioctlbuf->size(), &buf, len);
-    ret.ioctlbuf = std::move(ioctlbuf);
+        &ioctlbuf[0], ioctlbuf.size(), &buf, len);
+    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
@@ -398,35 +398,35 @@ CyUSB3Device::getString(int descid) {
     }
 }
 
-CyFXUSBDevice::AsyncIO
+unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(SingleTransfer) + len));
-    auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf->at(0));
+    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len);
+    auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf[0]);
     *tr = SingleTransfer{}; //0 fill.
-    std::copy(buf, buf + len, &ioctlbuf->at(sizeof(SingleTransfer)));
+    std::copy(buf, buf + len, &ioctlbuf[sizeof(SingleTransfer)]);
     tr->timeOut = 1; //sec?
     tr->bEndpointAddress = ep;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
-        &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
-    ret->ioctlbuf = std::move(ioctlbuf);
+        &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
+    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
-CyFXUSBDevice::AsyncIO
+unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    unique_ptr<std::vector<uint8_t>> ioctlbuf(new std::vector<uint8_t>(sizeof(SingleTransfer) + len));
-    auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf->at(0));
+    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len);
+    auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf[0]);
     *tr = SingleTransfer{}; //0 fill.
     tr->timeOut = 1; //sec?
     tr->bEndpointAddress = 0x80u | ep;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
-        &ioctlbuf->at(0), ioctlbuf->size(), &ioctlbuf->at(0), ioctlbuf->size());
-    ret->ioctlbuf = std::move(ioctlbuf);
-    ret->ioctlbuf_rdpos = &ioctlbuf->at(tr->bufferOffset);
+        &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
+    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
+    ret->ioctlbuf_rdpos = &ioctlbuf[tr->bufferOffset];
     ret->rdbuf = buf;
     return std::move(ret);
 }

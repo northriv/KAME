@@ -40,7 +40,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
 
         OVERLAPPED overlap = {}; //zero clear
         HANDLE handle;
-        unique_ptr<std::vector<uint8_t>> ioctlbuf; //buffer during the transfer.
+        std::vector<uint8_t> ioctlbuf; //buffer during the transfer.
         uint8_t *ioctlbuf_rdpos = nullptr; //location of the incoming data of concern, part of \a ioctrlbuf.
         uint8_t *rdbuf = nullptr; //user buffer, already passed by read function.
     };
@@ -61,8 +61,8 @@ struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) override;
 
-    virtual CyFXUSBDevice::AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
-    virtual CyFXUSBDevice::AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) override;
@@ -91,8 +91,8 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) override;
 
-    virtual CyFXUSBDevice::AsyncIO asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
-    virtual CyFXUSBDevice::AsyncIO asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) override;
