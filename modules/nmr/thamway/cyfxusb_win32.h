@@ -70,16 +70,26 @@ struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
                             uint16_t index, uint8_t *buf, int len) override;
 private:
     struct VendorRequestCtrl {
-        uint8_t bRequest;
-        uint16_t wValue, wIndex, wLength;
-        uint8_t direction;
+//        uint8_t bRequest;
+//        uint16_t wValue, wIndex, wLength;
+//        uint8_t direction;
+
+            BYTE    bRequest;
+            WORD    wValue;
+            WORD    wIndex;
+            WORD    wLength;
+            BYTE    direction;
+            BYTE    bData;
     };
     struct StringDescCtrl {
-        uint8_t Index;
-        uint16_t LanguageId;
+//        uint8_t Index;
+//        uint16_t LanguageId;
+        UCHAR    Index;
+        USHORT   LanguageId;
     };
     struct BulkTransferCtrl {
-        uint32_t pipeNum;
+        ULONG pipeNum;
+//        uint32_t pipeNum;
     };
 };
 
