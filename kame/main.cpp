@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
 			if(cg_cpuSpec.verSSE < 2) {
 				fprintf(stderr, "SSE2 is needed. Aborting.");
 				return -1;
-			}
+            }
 #endif
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 

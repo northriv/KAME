@@ -6,6 +6,7 @@
 #redirect defout, deferr
 class << $stdout
   def write(str)
+    Thread.current[:logfile].puts(str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -22,6 +23,7 @@ class << $stdout
 end
 class << $stderr
   def write(str)
+    Thread.current[:logfile].puts(str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -267,13 +269,19 @@ begin
 		          begin
 		             print thread.inspect + "\n"
 					 filename.untaint
-					 $SAFE = (/\.kam/i =~ filename) ? 1 : 0
-		             load filename
+					 if /\.kam/i =~ filename then
+					    $SAFE = 1
+					 else
+					    $SAFE = 0
+						Thread.current[:logfile] = File.open(filename + ".log", "a")
+					 end
+					 load filename
 		             print thread.to_s + " Finished.\n"
 		          rescue ScriptError, StandardError, SystemExit
 	    		     $! = RuntimeError.new("unknown exception raised") unless $!
 	    		     print_exception($!)
 		     	  end
+				  Thread.current[:logfile].close() if Thread.current[:logfile]
 		       }
 		       if thread then
 		            xrbthread_threadid.value = thread.object_id
