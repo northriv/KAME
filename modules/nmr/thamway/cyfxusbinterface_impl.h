@@ -119,8 +119,13 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         }
     }
     if(is_written) {
-        msecsleep(2000); //waits before enumeration of devices.
-        s_devices = USBDevice::enumerateDevices(false); //enumerates devices again.
+        int org_count = s_devices.size();
+        for(int retry: {0,1,2}) {
+            msecsleep(1200); //waits for enumeration of reboot devices.
+            s_devices = USBDevice::enumerateDevices(false); //enumerates devices again.
+            if(s_devices.size() >= org_count)
+                break;
+        }
     }
 
     for(auto &&x : s_devices) {
