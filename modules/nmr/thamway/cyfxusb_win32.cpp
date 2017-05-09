@@ -77,21 +77,21 @@ CyFXWin32USBDevice::CyFXWin32USBDevice(HANDLE h, const XString &n) : CyFXUSBDevi
 
 void
 CyFXWin32USBDevice::setIDs() {
-    struct DeviceDescriptor {
-        uint8_t bLength;
-        uint8_t bDescriptorType;
-        uint16_t bcdUSB;
-        uint8_t bDeviceClass;
-        uint8_t bDeviceSubClass;
-        uint8_t bDeviceProtocol;
-        uint8_t bMaxPacketSize0;
-        uint16_t idVendor;
-        uint16_t idProduct;
-        uint16_t bcdDevice;
-        uint8_t iManufacturer;
-        uint8_t iProduct;
-        uint8_t iSerialNumber;
-        uint8_t bNumConfigurations;
+    struct alignas(1) DeviceDescriptor {
+        alignas(1) uint8_t bLength;
+        alignas(1) uint8_t bDescriptorType;
+        alignas(1) uint16_t bcdUSB;
+        alignas(1) uint8_t bDeviceClass;
+        alignas(1) uint8_t bDeviceSubClass;
+        alignas(1) uint8_t bDeviceProtocol;
+        alignas(1) uint8_t bMaxPacketSize0;
+        alignas(1) uint16_t idVendor;
+        alignas(1) uint16_t idProduct;
+        alignas(1) uint16_t bcdDevice;
+        alignas(1) uint8_t iManufacturer;
+        alignas(1) uint8_t iProduct;
+        alignas(1) uint8_t iSerialNumber;
+        alignas(1) uint8_t bNumConfigurations;
     };
     //obtains device descriptor
     DeviceDescriptor dev_desc;
@@ -290,15 +290,16 @@ CyFXEzUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
             return len;
         }
         else {
-            std::vector<uint8_t> buf(sizeof(VendorRequestCtrl));
+            std::vector<uint8_t> buf(sizeof(VendorRequestCtrl) + len);
             auto tr = reinterpret_cast<VendorRequestCtrl *>(&buf[0]);
+            std::copy(wbuf, wbuf + len, &buf[sizeof(VendorRequestCtrl)]);
+            static_assert(sizeof(VendorRequestCtrl) == 9, "");
             *tr = VendorRequestCtrl{}; //0 fill.
             tr->bRequest = (uint8_t)request;
             tr->wValue = value;
             tr->wIndex = index;
             tr->wLength = len;
             tr->direction = 0;
-            tr->bData = *wbuf;
             ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], sizeof(buf), NULL, 0);
             return len;
         }
@@ -411,7 +412,7 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     *tr = SingleTransfer{}; //0 fill.
     std::copy(buf, buf + len, &ioctlbuf[sizeof(SingleTransfer)]);
     tr->timeOut = 1; //sec?
-    tr->bEndpointAddress = ep;
+    tr->ucEndpointAddress = ep;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
@@ -426,7 +427,7 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf[0]);
     *tr = SingleTransfer{}; //0 fill.
     tr->timeOut = 1; //sec?
-    tr->bEndpointAddress = 0x80u | ep;
+    tr->ucEndpointAddress = 0x80u | ep;
     tr->bufferOffset = sizeof(SingleTransfer);
     tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
