@@ -27,9 +27,6 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     virtual void open() override;
     virtual void close() override;
 
-    //! retrieves vendor/product IDs.
-    void setIDs();
-
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() = default;
         virtual ~AsyncIO() = default;
@@ -58,6 +55,9 @@ struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
     CyFXEzUSBDevice(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n)  {}
 
     virtual void finalize() final {}
+
+    //! retrieves vendor/product IDs.
+    void setIDs();
 
     XString virtual getString(int descid) override;
 
@@ -88,6 +88,9 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
     CyUSB3Device(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
 
     virtual void finalize() override;
+
+    //! retrieves vendor/product IDs.
+    void setIDs();
 
     XString virtual getString(int descid) override;
 

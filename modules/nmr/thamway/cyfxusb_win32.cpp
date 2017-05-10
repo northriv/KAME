@@ -76,39 +76,6 @@ CyFXWin32USBDevice::CyFXWin32USBDevice(HANDLE h, const XString &n) : CyFXUSBDevi
     handle(h), name(n) {
 }
 
-void
-CyFXWin32USBDevice::setIDs() {
-    struct DeviceDescriptor {
-        uint8_t bLength;
-        uint8_t bDescriptorType;
-        uint16_t bcdUSB;
-        uint8_t bDeviceClass;
-        uint8_t bDeviceSubClass;
-        uint8_t bDeviceProtocol;
-        uint8_t bMaxPacketSize0;
-        uint16_t idVendor;
-        uint16_t idProduct;
-        uint16_t bcdDevice;
-        uint8_t iManufacturer;
-        uint8_t iProduct;
-        uint8_t iSerialNumber;
-        uint8_t bNumConfigurations;
-    };
-    static_assert(sizeof(DeviceDescriptor)== 18, "");
-    static_assert(sizeof(USB_DEVICE_DESCRIPTOR)== 18, "");
-    //obtains device descriptor
-    DeviceDescriptor dev_desc;
-    auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
-    //Reads common descriptor.
-    controlRead(CtrlReq::GET_DESCRIPTOR,
-        CtrlReqType::STANDARD, USB_DEVICE_DESCRIPTOR_TYPE * 0x100u,
-        0, buf, sizeof(dev_desc));
-
-    m_productID = dev_desc.idProduct;
-    m_vendorID = dev_desc.idVendor;
-}
-
-
 int64_t
 CyFXWin32USBDevice::ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
     auto async = asyncIOCtrl(code, in, size_in, out, size_out);
@@ -178,8 +145,8 @@ CyFXUSBDevice::enumerateDevices(bool initialization) {
                 continue;
             }
             auto dev = std::make_shared<CyUSB3Device>(h, name);
-            dev->setIDs();
             fprintf(stderr, "CyUSB3 device found: %s\n", dev->friendlyName().c_str());
+            dev->setIDs();
             list.push_back(dev);
         }
     }
@@ -215,6 +182,37 @@ CyUSB3Device::finalize() {
 
 }
 
+void
+CyFXEzUSBDevice::setIDs() {
+    struct DeviceDescriptor {
+        uint8_t bLength;
+        uint8_t bDescriptorType;
+        uint16_t bcdUSB;
+        uint8_t bDeviceClass;
+        uint8_t bDeviceSubClass;
+        uint8_t bDeviceProtocol;
+        uint8_t bMaxPacketSize0;
+        uint16_t idVendor;
+        uint16_t idProduct;
+        uint16_t bcdDevice;
+        uint8_t iManufacturer;
+        uint8_t iProduct;
+        uint8_t iSerialNumber;
+        uint8_t bNumConfigurations;
+    };
+    static_assert(sizeof(DeviceDescriptor)== 18, "");
+//    static_assert(sizeof(USB_DEVICE_DESCRIPTOR)== 18, "");
+    //obtains device descriptor
+    DeviceDescriptor dev_desc;
+    auto buf = reinterpret_cast<uint8_t*>( &dev_desc);
+    //Reads common descriptor.
+    controlRead(CtrlReq::GET_DESCRIPTOR,
+        CtrlReqType::STANDARD, USB_DEVICE_DESCRIPTOR_TYPE * 0x100u,
+        0, buf, sizeof(dev_desc));
+
+    m_productID = dev_desc.idProduct;
+    m_vendorID = dev_desc.idVendor;
+}
 
 XString
 CyFXEzUSBDevice::getString(int descid) {
@@ -337,22 +335,41 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
     }
 }
 
+void
+CyUSB3Device::setIDs() {
+    unsigned int vid, pid;
+    if(sscanf(name.c_str(), "USB\\VID_%x&PID_%x", &vid, &pid) != 2)
+        throw XInterface::XInterfaceError("Unknown USB handle.", __FILE__, __LINE__);
+    m_vendorID = vid;
+    m_productID = pid;
+}
+
 int
 CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
+    using SingleTransfer = SINGLE_TRANSFER;
     std::vector<uint8_t> buf(sizeof(SingleTransfer) + len);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
     *tr = SingleTransfer{}; //0 fill.
     std::copy(wbuf, wbuf + len, &buf[sizeof(SingleTransfer)]);
-    tr->bmRequest = (uint8_t)type;
-    tr->bRequest = (uint8_t)request;
-    tr->wValue = value;
-    tr->wIndex = index;
-    tr->wLength = len;
-    tr->timeOut = 1; //sec?
+    tr->SetupPacket.bmRequest = (uint8_t)type;
+    tr->SetupPacket.bRequest = (uint8_t)request;
+    tr->SetupPacket.wValue = value;
+    tr->SetupPacket.wIndex = index;
+    tr->SetupPacket.wLength = len;
+    tr->SetupPacket.ulTimeOut = 5; //sec?
     tr->ucEndpointAddress = 0;
-    tr->bufferOffset = sizeof(SingleTransfer);
-    tr->bufferLength = len;
+    tr->BufferOffset = sizeof(SingleTransfer);
+    tr->BufferLength = len;
+//    tr->bmRequest = (uint8_t)type;
+//    tr->bRequest = (uint8_t)request;
+//    tr->wValue = value;
+//    tr->wIndex = index;
+//    tr->wLength = len;
+//    tr->timeOut = 1; //sec?
+//    tr->ucEndpointAddress = 0;
+//    tr->bufferOffset = sizeof(SingleTransfer);
+//    tr->bufferLength = len;
     ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
     return len;
 }
