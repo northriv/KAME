@@ -31,9 +31,6 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 //    #include "inc/cyioctl.h"
 //}
 
-XThreadLocal<std::vector<uint8_t>>
-CyFXWin32USBDevice::AsyncIO::ioctlbuf_garbage;
-
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const {
     return HasOverlappedIoCompleted( &overlap);
@@ -43,10 +40,14 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(m_count_imm < 0) {
         ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[0]) : 0;
         DWORD num;
-        if( !GetOverlappedResult(handle, &overlap, &num, true)) {
+        while( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
             if(e == ERROR_IO_INCOMPLETE)
                 return 0; //IO has been canceled.
+            if(e == ERROR_IO_PENDING) {
+                fprintf(stderr, "!!!\n");
+                continue;
+            }
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
         if(num < offset) {
@@ -57,7 +58,6 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(rdbuf) {
         std::copy(ioctlbuf_rdpos, ioctlbuf_rdpos + m_count_imm, rdbuf);
     }
-    if(ioctlbuf.size()) *ioctlbuf_garbage = std::move(ioctlbuf);
     return m_count_imm;
 }
 bool
@@ -354,16 +354,14 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len) {
-    std::vector<uint8_t> buf;
-    buf.swap( *AsyncIO::ioctlbuf_garbage);
-    buf.resize(SIZEOF_SINGLE_TRANSFER + len);
+    std::vector<uint8_t> buf(SIZEOF_SINGLE_TRANSFER + len);
     struct SetupPacket {
         uint8_t bmRequest, bRequest;
         uint16_t wValue, wIndex, wLength;
         uint32_t timeOut;
     };//end of setup packet., 12 bytes.
     auto tr = reinterpret_cast<SetupPacket *>(&buf[0]);
-    *tr = {}; //zero clear.
+//    *tr = {}; //zero clear.
     tr->bmRequest = (uint8_t)type;
     tr->bRequest = (uint8_t)request;
     tr->wValue = value;
@@ -374,7 +372,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
         uint8_t bReserved2, ucEndpointAddress;
     };
     auto tr1 = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-    *tr1 = {}; //zero clear;
+//    *tr1 = {}; //zero clear;
     tr1->ucEndpointAddress = ep;
     struct Packet2 {
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;

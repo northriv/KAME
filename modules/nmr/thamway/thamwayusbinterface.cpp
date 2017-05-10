@@ -168,19 +168,19 @@ void
 XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::open();
     msecsleep(100);
-    for(int i = 0; i < 1; ++i) {
-        //blinks LED
-        setLED(usb(), 0x00u);
-        msecsleep(30);
-        setLED(usb(), 0xf0u);
-        msecsleep(30);
-    }
+//    for(int i = 0; i < 1; ++i) {
+//        //blinks LED
+//        setLED(usb(), 0x00u);
+//        msecsleep(30);
+//        setLED(usb(), 0xf0u);
+//        msecsleep(30);
+//    }
     resetBulkWrite();
 }
 
 void
 XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
-    if(isOpened()) setLED(usb(), 0);
+//    if(isOpened()) setLED(usb(), 0);
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::close();
 }
 
@@ -242,12 +242,14 @@ XThamwayFX2USBInterface::bulkWriteStored() {
 
 void
 XThamwayFX2USBInterface::setLED(const shared_ptr<CyFXUSBDevice> &dev, uint8_t data) {
+    XScopedLock<XRecursiveMutex> lock(dev->mutex);
     uint8_t cmds[] = {CMD_LED, data};
     dev->bulkWrite(EPOUT8, cmds, sizeof(cmds));
 }
 
 uint8_t
 XThamwayFX2USBInterface::readDIPSW(const shared_ptr<CyFXUSBDevice> &dev) {
+    XScopedLock<XRecursiveMutex> lock(dev->mutex);
     uint8_t cmds[] = {CMD_DIPSW};
     dev->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     uint8_t buf[10];
@@ -257,6 +259,7 @@ XThamwayFX2USBInterface::readDIPSW(const shared_ptr<CyFXUSBDevice> &dev) {
 
 XString
 XThamwayFX2USBInterface::getIDN(const shared_ptr<CyFXUSBDevice> &dev, int maxlen, int addroffset) {
+    XScopedLock<XRecursiveMutex> lock(dev->mutex);
     //ignores till \0
     for(int i = 0; ; ++i) {
         char c = singleRead(dev, ADDR_IDN, addroffset);
@@ -281,12 +284,12 @@ XThamwayFX2USBInterface::getIDN(const shared_ptr<CyFXUSBDevice> &dev, int maxlen
 }
 uint8_t
 XThamwayFX2USBInterface::singleRead(unsigned int addr) {
-    XScopedLock<XThamwayFX2USBInterface> lock( *this);
     return singleRead(usb(), addr, m_addrOffset);
 }
 
 uint8_t
 XThamwayFX2USBInterface::singleRead(const shared_ptr<CyFXUSBDevice> &dev, unsigned int addr, unsigned int addroffset) {
+    XScopedLock<XRecursiveMutex> lock(dev->mutex);
     addr += addroffset;
     assert(addr < 0x100u);
     {
