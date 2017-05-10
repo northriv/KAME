@@ -83,8 +83,6 @@ private:
     };
 };
 
-#include <pshpack1.h>
-
 //! FX3, FX2LP devices under control of CyUSB3.sys.
 struct CyUSB3Device : public CyFXWin32USBDevice {
     CyUSB3Device(HANDLE handle, const XString &n) : CyFXWin32USBDevice(handle, n) {}
@@ -106,17 +104,20 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString friendlyName();
 private:
-    struct SingleTransfer {
+    struct SetupPacket {
         uint8_t bmRequest, bRequest;
         uint16_t wValue, wIndex, wLength;
         uint32_t timeOut;
-        //end of setup packet.
+    };//end of setup packet., 12 bytes.
+    struct Packet1 {
         uint8_t bReserved2, ucEndpointAddress;
+    };
+    struct Packet2 {
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
-    }; //no padding.
+    };
+    //Packets have been separated to get rid of padding.
+    enum {SIZEOF_SINGLE_TRANSFER = 38};
 };
-
-#include <poppack1.h>
 
 #endif // CYFXUSB_WIN32_H
