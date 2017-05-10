@@ -51,10 +51,13 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() {
             transfer = libusb_alloc_transfer(0);
+            buf_garbage->clear();
+            buf = std::move( *buf_garbage);
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
             libusb_free_transfer(transfer);
+            if(buf.size()) *buf_garbage = std::move(buf);
         }
 
         virtual bool hasFinished() const override;
@@ -77,6 +80,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
             *reinterpret_cast<int*>(transfer->user_data) = 1;
         }
         std::vector<uint8_t> buf;
+        static XThreadLocal<std::vector<uint8_t>> buf_garbage; //recycles buffer.
         libusb_transfer *transfer;
         uint8_t *rdbuf = nullptr;
         int completed = 0;
@@ -109,6 +113,7 @@ private:
 };
 
 libusb_context *CyFXLibUSBDevice::context = nullptr;
+XThreadLocal<std::vector<uint8_t>> CyFXLibUSBDevice::AsyncIO::buf_garbage;
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const {
