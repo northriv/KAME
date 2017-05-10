@@ -265,7 +265,7 @@ CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 
     auto ret = asyncIOCtrl(IOCTL_EZUSB_BULK_WRITE,
         &ioctlbuf[0], ioctlbuf.size(), const_cast<uint8_t*>(buf), len);
-    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
+    ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
@@ -284,7 +284,7 @@ CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
 
     auto ret = asyncIOCtrl(IOCTL_EZUSB_BULK_READ,
         &ioctlbuf[0], ioctlbuf.size(), buf, len);
-    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
+    ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
@@ -354,8 +354,8 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len) {
-    ioctlbuf_garbage->clear();
-    std::vector<uint8_t> buf(std::move( *ioctlbuf_garbage));
+    std::vector<uint8_t> buf;
+    buf.swap( *AsyncIO::ioctlbuf_garbage);
     buf.resize(SIZEOF_SINGLE_TRANSFER + len);
     struct SetupPacket {
         uint8_t bmRequest, bRequest;
@@ -363,7 +363,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
         uint32_t timeOut;
     };//end of setup packet., 12 bytes.
     auto tr = reinterpret_cast<SetupPacket *>(&buf[0]);
-    *tr = SetupPacket{}; //zero clear.
+    *tr = {}; //zero clear.
     tr->bmRequest = (uint8_t)type;
     tr->bRequest = (uint8_t)request;
     tr->wValue = value;
@@ -374,7 +374,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
         uint8_t bReserved2, ucEndpointAddress;
     };
     auto tr1 = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-    *tr1 = Packet1{}; //zero clear;
+    *tr1 = {}; //zero clear;
     tr1->ucEndpointAddress = ep;
     struct Packet2 {
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
@@ -448,7 +448,7 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     std::copy(buf, buf + len, &ioctlbuf[SIZEOF_SINGLE_TRANSFER]);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
-    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
+    ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
 
@@ -457,7 +457,7 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
-    ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
+    ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     ret->rdbuf = buf;
     ret->setBufferOffset(SIZEOF_SINGLE_TRANSFER);
     return std::move(ret);
