@@ -104,19 +104,9 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString friendlyName();
 private:
-    struct SetupPacket {
-        uint8_t bmRequest, bRequest;
-        uint16_t wValue, wIndex, wLength;
-        uint32_t timeOut;
-    };//end of setup packet., 12 bytes.
-    struct Packet1 {
-        uint8_t bReserved2, ucEndpointAddress;
-    };
-    struct Packet2 {
-        uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
-        uint32_t bufferOffset, bufferLength;
-    };
-    //Packets have been separated to get rid of padding.
+    std::vector<uint8_t> setupSingleTransfer(uint8_t ep, CtrlReq request,
+        CtrlReqType type, uint16_t value,
+        uint16_t index, int len);
     enum {SIZEOF_SINGLE_TRANSFER = 38};
 };
 

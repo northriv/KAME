@@ -346,33 +346,43 @@ CyUSB3Device::setIDs() {
     m_productID = pid;
 }
 
-int
-CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
-                               uint16_t index, const uint8_t *wbuf, int len) {
+std::vector<uint8_t>
+CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
+    CtrlReqType type, uint16_t value, uint16_t index, int len) {
     std::vector<uint8_t> buf(SIZEOF_SINGLE_TRANSFER + len, 0);
-    std::copy(wbuf, wbuf + len, &buf[SIZEOF_SINGLE_TRANSFER]);
+    struct SetupPacket {
+        uint8_t bmRequest, bRequest;
+        uint16_t wValue, wIndex, wLength;
+        uint32_t timeOut;
+    };//end of setup packet., 12 bytes.
     auto tr = reinterpret_cast<SetupPacket *>(&buf[0]);
-//    using SingleTransfer = SINGLE_TRANSFER;
-//    tr->SetupPacket.bmRequest = (uint8_t)type;
-//    tr->SetupPacket.bRequest = (uint8_t)request;
-//    tr->SetupPacket.wValue = value;
-//    tr->SetupPacket.wIndex = index;
-//    tr->SetupPacket.wLength = len;
-//    tr->SetupPacket.ulTimeOut = 5; //sec?
-//    tr->ucEndpointAddress = 0;
-//    tr->BufferOffset = sizeof(SingleTransfer);
-//    tr->BufferLength = len;
     tr->bmRequest = (uint8_t)type;
     tr->bRequest = (uint8_t)request;
     tr->wValue = value;
     tr->wIndex = index;
     tr->wLength = len;
     tr->timeOut = 5; //sec?
+    struct Packet1 {
+        uint8_t bReserved2, ucEndpointAddress;
+    };
     tr = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-    tr->ucEndpointAddress = 0;
-    tr = reinterpret_cast<Packet2*>(&buf[sizeof(SetupPacket) + sizeof(Packet1)]);
-    tr->bufferOffset = SIZEOF_SINGLE_TRANSFER;
-    tr->bufferLength = len;
+    tr->ucEndpointAddress = ep;
+    struct Packet2 {
+        uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
+        uint32_t bufferOffset, bufferLength;
+    } packet2 = {0, 0, 0, 0, SIZEOF_SINGLE_TRANSFER, len};
+    std::copy( (uint8_t*)(&packet2), (uint8_t*)(&packet2 + 1),
+        &buf[sizeof(SetupPacket) + sizeof(Packet1)]); //SSE2 will crash w/ mal-alignment.
+    static_assert(sizeof(SetupPacket) + sizeof(Packet1) +
+        ((uint8_t*)(&packet2 + 1) - (uint8_t*)(&packet2)) == SIZEOF_SINGLE_TRANSFER, "");
+    return std::move(buf);
+}
+
+int
+CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
+                               uint16_t index, const uint8_t *wbuf, int len) {
+    auto buf = setupSingleTransfer(0, request, type, value, index, len);
+    std::copy(wbuf, wbuf + len, &buf[SIZEOF_SINGLE_TRANSFER]);
     ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
     return len;
 }
@@ -380,32 +390,7 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
-    std::vector<uint8_t> buf(SIZEOF_SINGLE_TRANSFER + len, 0);
-    static_assert(sizeof(SetupPacket)
-         + sizeof(Packet1) + sizeof(Packet2) == SIZEOF_SINGLE_TRANSFER, "");
-    //    using SingleTransfer = SINGLE_TRANSFER;
-//    auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
-//    tr->SetupPacket.bmRequest = 0x80u | (uint8_t)type;
-//    tr->SetupPacket.bRequest = (uint8_t)request;
-//    tr->SetupPacket.wValue = value;
-//    tr->SetupPacket.wIndex = index;
-//    tr->SetupPacket.wLength = len;
-//    tr->SetupPacket.ulTimeOut = 5; //sec?
-//    tr->ucEndpointAddress = 0;
-//    tr->BufferOffset = sizeof(SingleTransfer);
-//    tr->BufferLength = len;
-    auto tr = reinterpret_cast<SetupPacket *>(&buf[0]);
-    tr->bmRequest = 0x80u | (uint8_t)type;
-    tr->bRequest = (uint8_t)request;
-    tr->wValue = value;
-    tr->wIndex = index;
-    tr->wLength = len;
-    tr->timeOut = 5; //sec?
-    tr = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-    tr->ucEndpointAddress = 0;
-    tr = reinterpret_cast<Packet2*>(&buf[sizeof(SetupPacket) + sizeof(Packet1)]);
-    tr->bufferOffset = SIZEOF_SINGLE_TRANSFER;
-    tr->bufferLength = len;
+    auto buf = setupSingleTransfer(0, request, type, value, index, len);
     int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
     if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
         throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
@@ -444,15 +429,8 @@ CyUSB3Device::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    std::vector<uint8_t> ioctlbuf(SIZEOF_SINGLE_TRANSFER + len, 0);
+    auto ioctlbuf = setupSingleTransfer(0, 0, 0, 0, 0, len);
     std::copy(buf, buf + len, &ioctlbuf[SIZEOF_SINGLE_TRANSFER]);
-    auto tr = reinterpret_cast<SetupPacket *>(&ioctlbuf[0]);
-    tr->timeOut = 1; //sec?
-    tr = reinterpret_cast<Packet1*>(&ioctlbuf[sizeof(SetupPacket)]);
-    tr->ucEndpointAddress = ep;
-    tr = reinterpret_cast<Packet2*>(&ioctlbuf[sizeof(SetupPacket) + sizeof(Packet1)]);
-    tr->bufferOffset = SIZEOF_SINGLE_TRANSFER;
-    tr->bufferLength = len;
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
     ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
@@ -461,14 +439,7 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    std::vector<uint8_t> ioctlbuf(SIZEOF_SINGLE_TRANSFER + len, 0);
-    auto tr = reinterpret_cast<SetupPacket *>(&ioctlbuf[0]);
-    tr->timeOut = 1; //sec?
-    tr = reinterpret_cast<Packet1*>(&ioctlbuf[sizeof(SetupPacket)]);
-    tr->ucEndpointAddress = 0x80u | ep;
-    tr = reinterpret_cast<Packet2*>(&ioctlbuf[sizeof(SetupPacket) + sizeof(Packet1)]);
-    tr->bufferOffset = SIZEOF_SINGLE_TRANSFER;
-    tr->bufferLength = len;
+    auto ioctlbuf = setupSingleTransfer(0x80u | ep, 0, 0, 0, 0, len);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
     ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
