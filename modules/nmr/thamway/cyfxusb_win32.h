@@ -36,6 +36,11 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
         virtual int64_t waitFor() override;
         virtual bool abort() override;
 
+        void setBufferOffset(ssize_t offset) {
+            if(m_count_imm >= offset) m_count_imm -= offset;
+            ioctlbuf_rdpos = &ioctlbuf[offset];
+        }
+
         OVERLAPPED overlap = {}; //zero clear
         HANDLE handle;
         std::vector<uint8_t> ioctlbuf; //buffer during the transfer.

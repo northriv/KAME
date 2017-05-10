@@ -38,6 +38,7 @@ CyFXWin32USBDevice::AsyncIO::hasFinished() const {
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(m_count_imm < 0) {
+        ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[0]) : 0;
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
@@ -45,13 +46,13 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
                 return 0; //IO has been canceled.
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
-        finalize(num);
-    }
-    if(rdbuf) {
-        if(ioctlbuf_rdpos - &ioctlbuf[0] < m_count_imm) {
+        if(num < offset) {
             throw XInterface::XInterfaceError(i18n("Too short return packet during USB tranfer."), __FILE__, __LINE__);
         }
-        std::copy(ioctlbuf_rdpos, &ioctlbuf[m_count_imm], rdbuf);
+        finalize(num - offset);
+    }
+    if(rdbuf) {
+        std::copy(ioctlbuf_rdpos, ioctlbuf_rdpos + m_count_imm, rdbuf);
     }
     return m_count_imm;
 }
@@ -390,24 +391,29 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
-    auto buf = setupSingleTransfer(0, request, type, value, index, len);
+    auto buf = setupSingleTransfer(0, request, (CtrlReqType)(0x80u | (uint8_t)type), value, index, len);
     int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], buf.size(), &buf[0], buf.size());
     if((ret < SIZEOF_SINGLE_TRANSFER) || (ret > SIZEOF_SINGLE_TRANSFER + len))
         throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
     std::copy( &buf[SIZEOF_SINGLE_TRANSFER], &buf[ret], rdbuf);
-    return ret;
+    return ret - SIZEOF_SINGLE_TRANSFER;
 }
 
 
 XString
 CyUSB3Device::getString(int descid) {
-    uint8_t buf[2];
+    uint8_t buf[4];
+    //Reads supported LangID.
+    controlRead(CtrlReq::GET_DESCRIPTOR,
+        CtrlReqType::STANDARD, USB_STRING_DESCRIPTOR_TYPE * 0x100u,
+        0, buf, sizeof(buf));
+    uint16_t langid = buf[2] + buf[3] * 0x100u; //0x0409 (english)
     //Reads common descriptor.
     controlRead(CtrlReq::GET_DESCRIPTOR,
         CtrlReqType::STANDARD, USB_STRING_DESCRIPTOR_TYPE * 0x100u + descid,
-        27, buf, sizeof(buf));
+        langid, buf, 2);
     int len = buf[0];
-    {
+    if(len) {
         //Reads string descriptor.
         uint8_t buf[len] = {};
         char str[len / 2 + 1] = {};
@@ -425,6 +431,7 @@ CyUSB3Device::getString(int descid) {
         }
         return {str};
     }
+    throw XInterface::XInterfaceError(i18n("Could not obtain string desc.."), __FILE__, __LINE__);
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
@@ -443,8 +450,8 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
     ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
-    ret->ioctlbuf_rdpos = &ioctlbuf[SIZEOF_SINGLE_TRANSFER];
     ret->rdbuf = buf;
+    ret->setBufferOffset(SIZEOF_SINGLE_TRANSFER);
     return std::move(ret);
 }
 
