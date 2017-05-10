@@ -34,7 +34,7 @@ CyFXWin32USBDevice::AsyncIO::hasFinished() const {
 }
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
-    if( !m_count_imm) {
+    if(m_count_imm < 0) {
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
@@ -286,16 +286,16 @@ int
 CyFXEzUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
     if(type == CtrlReqType::USB_REQUEST_TYPE_VENDOR) {
-//        if((len > 1) && (value == 0) && (index == 0)) {
-//            ioCtrl(IOCTL_EZUSB_ANCHOR_DOWNLOAD, wbuf, len, NULL, 0);
-//            return len;
-//        }
-//        else {
+        if((len > 1) && (value == 0) && (index == 0)) {
+            ioCtrl(IOCTL_EZUSB_ANCHOR_DOWNLOAD, wbuf, len, NULL, 0);
+            return len;
+        }
+        else {
             static_assert(sizeof(VendorRequestCtrl) == 10, "");
             std::vector<uint8_t> buf(9 + len);
             auto tr = reinterpret_cast<VendorRequestCtrl *>(&buf[0]);
-            std::copy(wbuf, wbuf + len, &tr->bData);
             *tr = VendorRequestCtrl{}; //0 fill.
+            std::copy(wbuf, wbuf + len, &tr->bData);
             tr->bRequest = (uint8_t)request;
             tr->wValue = value;
             tr->wIndex = index;
@@ -303,7 +303,7 @@ CyFXEzUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
             tr->direction = 0;
             ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], sizeof(buf), NULL, 0);
             return len;
-//        }
+        }
     }
     throw XInterface::XInterfaceError("Unknown type.", __FILE__, __LINE__);
 }
@@ -338,7 +338,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
-    static_assert(sizeof(SingleTransfer) == 44, "");
+    static_assert(sizeof(SingleTransfer) == 40, "");
     std::vector<uint8_t> buf(sizeof(SingleTransfer) + len);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
     *tr = SingleTransfer{}; //0 fill.
@@ -359,7 +359,7 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
-    std::vector<uint8_t> buf(sizeof(SingleTransfer) + len);
+    std::vector<uint8_t> buf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
     *tr = SingleTransfer{}; //0 fill.
     tr->bmRequest = 0x80u | (uint8_t)type;
