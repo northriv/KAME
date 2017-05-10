@@ -30,14 +30,14 @@ void
 CyFXUSBDevice::halt() {
     //Writes the CPUCS register of i8051.
     uint8_t buf[1] = {1};
-    controlWrite((CtrlReq)0xA0, CtrlReqType::USB_REQUEST_TYPE_VENDOR, 0xe600, 0x00, buf, 1);
+    controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, 0xe600, 0x00, buf, 1);
 }
 
 void
 CyFXUSBDevice::run() {
     //Writes the CPUCS register of i8051.
     uint8_t buf[1] = {0};
-    controlWrite((CtrlReq)0xA0, CtrlReqType::USB_REQUEST_TYPE_VENDOR, 0xe600, 0x00, buf, 1);
+    controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, 0xe600, 0x00, buf, 1);
 }
 
 
@@ -45,7 +45,7 @@ void
 CyFXUSBDevice::downloadFX2(const uint8_t* image, int len) {
     int addr = 0;
     //A0 anchor download.
-    controlWrite((CtrlReq)0xA0, CtrlReqType::USB_REQUEST_TYPE_VENDOR, addr, 0x00, image, len);
+    controlWrite((CtrlReq)0xA0, CtrlReqType::VENDOR, addr, 0x00, image, len);
 }
 
 

@@ -102,11 +102,18 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
     XString friendlyName();
 private:
     struct SingleTransfer {
+        union {
+            struct{
         uint8_t bmRequest, bRequest;
         uint16_t wValue, wIndex, wLength;
-        //end of setup packet.
         uint32_t timeOut;
-        uint8_t bReserved2, ucEndpointAddress, bReserved3[2];
+            };
+            struct {
+            uint32_t res[3];
+            };
+        };
+        //end of setup packet.
+        uint8_t bReserved2, ucEndpointAddress;
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
     };
