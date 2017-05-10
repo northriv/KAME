@@ -381,7 +381,7 @@ CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 //    using SingleTransfer = SINGLE_TRANSFER;
     static_assert(sizeof(SETUP_PACKET) == 12, "");
     static_assert(sizeof(SINGLE_TRANSFER) == 38, "");
-//    static_assert(sizeof(SingleTransfer) == 38, "");
+    static_assert(sizeof(SingleTransfer) == 38, "");
     std::vector<uint8_t> buf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
 //    tr->SetupPacket.bmRequest = 0x80u | (uint8_t)type;
