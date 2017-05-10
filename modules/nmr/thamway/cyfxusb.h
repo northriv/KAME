@@ -72,6 +72,7 @@ struct CyFXUSBDevice {
     public:
         AsyncIO() = default;
         AsyncIO(const AsyncIO&) = delete;
+        AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() = default;
         void finalize(int64_t count_imm) {
             m_count_imm = count_imm;

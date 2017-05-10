@@ -303,7 +303,7 @@ CyFXEzUSBDevice::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
             tr->wIndex = index;
             tr->wLength = len;
             tr->direction = 0;
-            ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], sizeof(buf), NULL, 0);
+            ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], buf.size(), NULL, 0);
             return len;
         }
     }
@@ -324,7 +324,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
             tr->wIndex = index;
             tr->wLength = len;
             tr->direction = 1;
-            return ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], sizeof(buf), rdbuf, len);
+            return ioCtrl(IOCTL_EZUSB_VENDOR_REQUEST, &buf[0], buf.size(), rdbuf, len);
         }
     case CtrlReqType::STANDARD:
         if(request == CtrlReq::GET_DESCRIPTOR) {
@@ -365,12 +365,12 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     struct Packet1 {
         uint8_t bReserved2, ucEndpointAddress;
     };
-    tr = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-    tr->ucEndpointAddress = ep;
+    auto tr1 = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
+    tr1->ucEndpointAddress = ep;
     struct Packet2 {
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;
         uint32_t bufferOffset, bufferLength;
-    } packet2 = {0, 0, 0, 0, SIZEOF_SINGLE_TRANSFER, len};
+    } packet2 = {0, 0, 0, 0, SIZEOF_SINGLE_TRANSFER, (uint32_t)len};
     std::copy( (uint8_t*)(&packet2), (uint8_t*)(&packet2 + 1),
         &buf[sizeof(SetupPacket) + sizeof(Packet1)]); //SSE2 will crash w/ mal-alignment.
     static_assert(sizeof(SetupPacket) + sizeof(Packet1) +
@@ -383,7 +383,7 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
     auto buf = setupSingleTransfer(0, request, type, value, index, len);
     std::copy(wbuf, wbuf + len, &buf[SIZEOF_SINGLE_TRANSFER]);
-    ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
+    ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], buf.size(), &buf[0], buf.size());
     return len;
 }
 
@@ -391,8 +391,8 @@ int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
     auto buf = setupSingleTransfer(0, request, type, value, index, len);
-    int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
-    if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
+    int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], buf.size(), &buf[0], buf.size());
+    if((ret < SIZEOF_SINGLE_TRANSFER) || (ret > SIZEOF_SINGLE_TRANSFER + len))
         throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
     std::copy( &buf[SIZEOF_SINGLE_TRANSFER], &buf[ret], rdbuf);
     return ret;
@@ -429,7 +429,7 @@ CyUSB3Device::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    auto ioctlbuf = setupSingleTransfer(0, 0, 0, 0, 0, len);
+    auto ioctlbuf = setupSingleTransfer(ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
     std::copy(buf, buf + len, &ioctlbuf[SIZEOF_SINGLE_TRANSFER]);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
@@ -439,11 +439,11 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    auto ioctlbuf = setupSingleTransfer(0x80u | ep, 0, 0, 0, 0, len);
+    auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
     ret->ioctlbuf = std::move(ioctlbuf); //buffer shouldn't be freed in this scope.
-    ret->ioctlbuf_rdpos = &ioctlbuf[tr->bufferOffset];
+    ret->ioctlbuf_rdpos = &ioctlbuf[SIZEOF_SINGLE_TRANSFER];
     ret->rdbuf = buf;
     return std::move(ret);
 }

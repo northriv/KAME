@@ -120,8 +120,8 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     }
     if(is_written) {
         int org_count = s_devices.size();
-        for(int retry: {0,1,2}) {
-            msecsleep(1200); //waits for enumeration of reboot devices.
+        for(int retry: {0,1}) {
+            msecsleep(2000); //waits for enumeration of reboot devices.
             s_devices = USBDevice::enumerateDevices(false); //enumerates devices again.
             if(s_devices.size() >= org_count)
                 break;
