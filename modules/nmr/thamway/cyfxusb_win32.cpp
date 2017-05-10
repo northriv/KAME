@@ -58,6 +58,8 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(rdbuf) {
         std::copy(ioctlbuf_rdpos, ioctlbuf_rdpos + m_count_imm, rdbuf);
     }
+    if(ioctlbuf.size() > AsyncIO::s_tlBufferGarbage->size())
+        s_tlBufferGarbage->swap(ioctlbuf);
     return m_count_imm;
 }
 bool
@@ -354,14 +356,16 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len) {
-    std::vector<uint8_t> buf(SIZEOF_SINGLE_TRANSFER + len);
+    std::vector<uint8_t> buf;
+    AsyncIO::s_tlBufferGarbage->swap(buf);
+    buf.resize(SIZEOF_SINGLE_TRANSFER + len);
     struct SetupPacket {
         uint8_t bmRequest, bRequest;
         uint16_t wValue, wIndex, wLength;
         uint32_t timeOut;
     };//end of setup packet., 12 bytes.
     auto tr = reinterpret_cast<SetupPacket *>(&buf[0]);
-//    *tr = {}; //zero clear.
+    *tr = {}; //zero clear.
     tr->bmRequest = (uint8_t)type;
     tr->bRequest = (uint8_t)request;
     tr->wValue = value;
@@ -372,7 +376,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
         uint8_t bReserved2, ucEndpointAddress;
     };
     auto tr1 = reinterpret_cast<Packet1*>(&buf[sizeof(SetupPacket)]);
-//    *tr1 = {}; //zero clear;
+    *tr1 = {}; //zero clear;
     tr1->ucEndpointAddress = ep;
     struct Packet2 {
         uint32_t ntStatus, usbdStatus, isoPacketOffset, isoPacketLength;

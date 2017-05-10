@@ -13,6 +13,9 @@
 ***************************************************************************/
 #include "cyfxusb.h"
 
+XThreadLocal<std::vector<uint8_t>>
+CyFXUSBDevice::AsyncIO::s_tlBufferGarbage;
+
 int64_t
 CyFXUSBDevice::bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     auto async = asyncBulkWrite(ep, buf, len);
