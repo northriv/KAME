@@ -27,7 +27,9 @@ constexpr uint32_t IOCTL_EZUSB_BULK_READ = 0x22204e;
 //constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 //constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 //constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
-#include "inc/cyioctl.h"
+extern "C" {
+    #include "inc/cyioctl.h"
+}
 
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const {
@@ -338,7 +340,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 void
 CyUSB3Device::setIDs() {
     unsigned int vid, pid;
-    if(sscanf(name.c_str(), "USB\\VID_%x&PID_%x", &vid, &pid) != 2)
+    if(sscanf(name.c_str(), "\\\\?\\usb#vid_%x&pid_%x", &vid, &pid) != 2)
         throw XInterface::XInterfaceError("Unknown USB handle.", __FILE__, __LINE__);
     m_vendorID = vid;
     m_productID = pid;
@@ -347,29 +349,28 @@ CyUSB3Device::setIDs() {
 int
 CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
-    using SingleTransfer = SINGLE_TRANSFER;
-    std::vector<uint8_t> buf(sizeof(SingleTransfer) + len);
+//    using SingleTransfer = SINGLE_TRANSFER;
+    std::vector<uint8_t> buf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
-    *tr = SingleTransfer{}; //0 fill.
     std::copy(wbuf, wbuf + len, &buf[sizeof(SingleTransfer)]);
-    tr->SetupPacket.bmRequest = (uint8_t)type;
-    tr->SetupPacket.bRequest = (uint8_t)request;
-    tr->SetupPacket.wValue = value;
-    tr->SetupPacket.wIndex = index;
-    tr->SetupPacket.wLength = len;
-    tr->SetupPacket.ulTimeOut = 5; //sec?
-    tr->ucEndpointAddress = 0;
-    tr->BufferOffset = sizeof(SingleTransfer);
-    tr->BufferLength = len;
-//    tr->bmRequest = (uint8_t)type;
-//    tr->bRequest = (uint8_t)request;
-//    tr->wValue = value;
-//    tr->wIndex = index;
-//    tr->wLength = len;
-//    tr->timeOut = 1; //sec?
+//    tr->SetupPacket.bmRequest = (uint8_t)type;
+//    tr->SetupPacket.bRequest = (uint8_t)request;
+//    tr->SetupPacket.wValue = value;
+//    tr->SetupPacket.wIndex = index;
+//    tr->SetupPacket.wLength = len;
+//    tr->SetupPacket.ulTimeOut = 5; //sec?
 //    tr->ucEndpointAddress = 0;
-//    tr->bufferOffset = sizeof(SingleTransfer);
-//    tr->bufferLength = len;
+//    tr->BufferOffset = sizeof(SingleTransfer);
+//    tr->BufferLength = len;
+    tr->bmRequest = (uint8_t)type;
+    tr->bRequest = (uint8_t)request;
+    tr->wValue = value;
+    tr->wIndex = index;
+    tr->wLength = len;
+    tr->timeOut = 5; //sec?
+    tr->ucEndpointAddress = 0;
+    tr->bufferOffset = sizeof(SingleTransfer);
+    tr->bufferLength = len;
     ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
     return len;
 }
@@ -377,22 +378,30 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
-    using SingleTransfer = SINGLE_TRANSFER;
+//    using SingleTransfer = SINGLE_TRANSFER;
     static_assert(sizeof(SETUP_PACKET) == 12, "");
     static_assert(sizeof(SINGLE_TRANSFER) == 38, "");
-    static_assert(sizeof(SingleTransfer) == 38, "");
+//    static_assert(sizeof(SingleTransfer) == 38, "");
     std::vector<uint8_t> buf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&buf[0]);
-    *tr = SingleTransfer{}; //0 fill.
-    tr->SetupPacket.bmRequest = 0x80u | (uint8_t)type;
-    tr->SetupPacket.bRequest = (uint8_t)request;
-    tr->SetupPacket.wValue = value;
-    tr->SetupPacket.wIndex = index;
-    tr->SetupPacket.wLength = len;
-    tr->SetupPacket.ulTimeOut = 5; //sec?
+//    tr->SetupPacket.bmRequest = 0x80u | (uint8_t)type;
+//    tr->SetupPacket.bRequest = (uint8_t)request;
+//    tr->SetupPacket.wValue = value;
+//    tr->SetupPacket.wIndex = index;
+//    tr->SetupPacket.wLength = len;
+//    tr->SetupPacket.ulTimeOut = 5; //sec?
+//    tr->ucEndpointAddress = 0;
+//    tr->BufferOffset = sizeof(SingleTransfer);
+//    tr->BufferLength = len;
+    tr->bmRequest = 0x80u | (uint8_t)type;
+    tr->bRequest = (uint8_t)request;
+    tr->wValue = value;
+    tr->wIndex = index;
+    tr->wLength = len;
+    tr->timeOut = 5; //sec?
     tr->ucEndpointAddress = 0;
-    tr->BufferOffset = sizeof(SingleTransfer);
-    tr->BufferLength = len;
+    tr->bufferOffset = sizeof(SingleTransfer);
+    tr->bufferLength = len;
     int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], sizeof(buf), &buf[0], sizeof(buf));
     if((ret < sizeof(SingleTransfer)) || (ret > sizeof(SingleTransfer) + len))
         throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);
@@ -431,9 +440,8 @@ CyUSB3Device::getString(int descid) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len);
+    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf[0]);
-    *tr = SingleTransfer{}; //0 fill.
     std::copy(buf, buf + len, &ioctlbuf[sizeof(SingleTransfer)]);
     tr->timeOut = 1; //sec?
     tr->ucEndpointAddress = ep;
@@ -447,9 +455,8 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len);
+    std::vector<uint8_t> ioctlbuf(sizeof(SingleTransfer) + len, 0);
     auto tr = reinterpret_cast<SingleTransfer *>(&ioctlbuf[0]);
-    *tr = SingleTransfer{}; //0 fill.
     tr->timeOut = 1; //sec?
     tr->ucEndpointAddress = 0x80u | ep;
     tr->bufferOffset = sizeof(SingleTransfer);

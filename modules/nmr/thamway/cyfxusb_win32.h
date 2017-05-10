@@ -45,9 +45,9 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
 protected:
     unique_ptr<AsyncIO> asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
     int64_t ioCtrl(uint64_t code, const void *in, ssize_t size_in, void *out = NULL, ssize_t size_out = 0);
+    XString name;
 private:
     HANDLE handle;
-    XString name;
 };
 
 //! FX2(LP) devices under control of ezusb.sys.
