@@ -81,9 +81,10 @@ struct CyFXUSBDevice {
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
         //! \return true if a cancelation is successfully requested.
         virtual bool abort() {return false;} //gcc doesn't accept pure virtual.
+
+        static XThreadLocal<std::vector<uint8_t>> s_tlBufferGarbage;
     protected:
         int64_t m_count_imm = -1;
-        static XThreadLocal<std::vector<uint8_t>> s_tlBufferGarbage;
     };
     virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
     virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
