@@ -9,4 +9,4 @@
 *.bin
 *.bix
 *.DS_Store
-*.user
+*.pro.user*
