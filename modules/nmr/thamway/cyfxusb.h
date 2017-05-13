@@ -24,14 +24,11 @@ struct CyFXUSBDevice {
     virtual ~CyFXUSBDevice() = default;
 
     using List = std::vector<shared_ptr<CyFXUSBDevice>>;
-    //! \arg initialization if true, USB library will be initialized.
     //! \return a list of connected USB devices, perhaps including non-cypress devices.
-    static List enumerateDevices(bool initialization);
+    static List enumerateDevices();
 
     virtual void open() = 0;
     virtual void close() = 0;
-
-    virtual void finalize() = 0;
 
     void halt();
     void run();

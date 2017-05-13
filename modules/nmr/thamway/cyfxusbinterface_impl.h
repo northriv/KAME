@@ -81,7 +81,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 filename + i18n_noncontext(" is not proper."), __FILE__, __LINE__);
     };
 
-    s_devices = USBDevice::enumerateDevices(true);
+    s_devices = USBDevice::enumerateDevices();
 
     bool is_written = false;
     {
@@ -122,7 +122,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         int org_count = s_devices.size();
         for(int retry: {0,1}) {
             msecsleep(2000); //waits for enumeration of reboot devices.
-            s_devices = USBDevice::enumerateDevices(false); //enumerates devices again.
+            s_devices = USBDevice::enumerateDevices(); //enumerates devices again.
             if(s_devices.size() >= org_count)
                 break;
         }
@@ -164,14 +164,10 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
-    shared_ptr<CyFXUSBDevice> lastdev;
     for(auto &&x : s_devices) {
         if( !x) continue;
         x->close();
-        lastdev = x;
     }
-    if(lastdev)
-        lastdev->finalize();
     s_devices.clear();
 }
 

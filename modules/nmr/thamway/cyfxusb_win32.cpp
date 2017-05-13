@@ -40,14 +40,10 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(m_count_imm < 0) {
         ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[0]) : 0;
         DWORD num;
-        while( !GetOverlappedResult(handle, &overlap, &num, true)) {
+        if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
             if(e == ERROR_IO_INCOMPLETE)
                 return 0; //IO has been canceled.
-            if(e == ERROR_IO_PENDING) {
-                fprintf(stderr, "!!!\n");
-                continue;
-            }
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
         if(num < offset) {
@@ -124,7 +120,7 @@ CyFXWin32USBDevice::setIDs() {
 }
 
 CyFXUSBDevice::List
-CyFXUSBDevice::enumerateDevices(bool initialization) {
+CyFXUSBDevice::enumerateDevices() {
     CyFXUSBDevice::List list;
     //Searching for ezusb.sys devices, having symbolic files, first.
     for(int idx = 0; idx < 10; ++idx) {
@@ -216,11 +212,6 @@ void
 CyFXWin32USBDevice::close() {
     if(handle) CloseHandle(handle);
     handle = nullptr;
-}
-
-void
-CyUSB3Device::finalize() {
-
 }
 
 XString

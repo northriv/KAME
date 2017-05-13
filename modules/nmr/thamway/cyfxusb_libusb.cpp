@@ -33,8 +33,6 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_unref_device(dev);
     }
 
-    virtual void finalize() override;
-
     virtual void open() override;
     virtual void close() override;
 
@@ -104,14 +102,25 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         libusb_device **list;
         int size;
     };
-    static libusb_context *context;
 private:
+    static struct Context {
+        Context() {
+            int ret = libusb_init( &context);
+            if(ret)
+                fprintf(stderr, "Error during initialization of libusb libusb: %s\n", libusb_error_name(ret));
+        }
+        ~Context() {
+            libusb_exit(context);
+        }
+        libusb_context *context;
+    } s_context;
+
     friend struct AsyncIO;
     libusb_device_handle *handle;
     libusb_device *dev;
 };
 
-libusb_context *CyFXLibUSBDevice::context = nullptr;
+CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const {
@@ -123,7 +132,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     tv.tv_sec = USB_TIMEOUT / 1000;
     tv.tv_usec = 0;
     while( !completed) {
-        int ret = libusb_handle_events_timeout_completed(CyFXLibUSBDevice::context, &tv, &completed);
+        int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
@@ -149,13 +158,7 @@ CyFXLibUSBDevice::AsyncIO::abort() {
 }
 
 CyFXUSBDevice::List
-CyFXUSBDevice::enumerateDevices(bool initialization) {
-    if(initialization) {
-        int ret = libusb_init( &CyFXLibUSBDevice::context);
-        if(ret) {
-            throw XInterface::XInterfaceError(formatString("Error during initialization of libusb libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-        }
-    }
+CyFXUSBDevice::enumerateDevices() {
     CyFXUSBDevice::List list;
     CyFXLibUSBDevice::USBList devlist;
     for(int n = 0; n < devlist.size; ++n) {
@@ -234,11 +237,6 @@ CyFXLibUSBDevice::close() {
         libusb_close(handle);
     }
     handle = nullptr;
-}
-
-void
-CyFXLibUSBDevice::finalize() {
-    libusb_exit(CyFXLibUSBDevice::context);
 }
 
 int
