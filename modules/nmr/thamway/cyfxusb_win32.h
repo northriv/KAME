@@ -39,14 +39,17 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
         virtual int64_t waitFor() override;
         virtual bool abort() override;
 
-        void setBufferOffset(ssize_t offset) {
+        void setBufferOffset(uint8_t *ioctlbufrdpos, ssize_t prepad) {
+            ssize_t offset = ioctlbufrdpos - &ioctlbuf[prepad];
             if(m_count_imm >= offset) m_count_imm -= offset;
-            ioctlbuf_rdpos = &ioctlbuf[offset];
+            prepadding = prepad;
+            ioctlbuf_rdpos = ioctlbufrdpos;
         }
 
         OVERLAPPED overlap = {}; //zero clear
         HANDLE handle;
         std::vector<uint8_t> ioctlbuf; //buffer during the transfer.
+        ssize_t prepadding = 0;
         uint8_t *ioctlbuf_rdpos = nullptr; //location of the incoming data of concern, part of \a ioctrlbuf.
         uint8_t *rdbuf = nullptr; //user buffer, already passed by read function.
     };
@@ -106,7 +109,7 @@ private:
     std::vector<uint8_t> setupSingleTransfer(uint8_t ep, CtrlReq request,
         CtrlReqType type, uint16_t value,
         uint16_t index, int len);
-    enum {SIZEOF_SINGLE_TRANSFER = 38};
+    enum {SIZEOF_SINGLE_TRANSFER = 38, PAD_BEFORE = 40 - SIZEOF_SINGLE_TRANSFER};
 };
 
 #endif // CYFXUSB_WIN32_H

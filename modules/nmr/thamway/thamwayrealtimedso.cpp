@@ -203,7 +203,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             }
         }
         else {
-            std::copy(chunk.data.begin() + m_currRdPos, chunk.data.begin() + m_currRdPos + len, buf);
+            std::memcpy(buf, &chunk.data[m_currRdPos], len);
             buf += len;
         }
         samps_read += len;
