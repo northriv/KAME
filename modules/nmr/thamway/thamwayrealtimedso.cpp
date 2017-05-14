@@ -154,7 +154,7 @@ XThamwayPROT3DSO::getTotalSampsAcquired() {
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
     XScopedLock<XMutex> lock(m_acqMutex);
-    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos;
+    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos / getNumOfChannels();
     return m_totalSmps - rdpos_abs;
 }
 
@@ -164,9 +164,10 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
     //searching for corresponding chunk.
     for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
         uint64_t pos_abs = m_chunks[m_currRdChunk].posAbs;
-        uint64_t pos_abs_end = pos_abs + m_chunks[m_currRdChunk].data.size();
+        uint64_t pos_abs_end = pos_abs +
+            m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
         if((pos >= pos_abs) && (pos < pos_abs_end)) {
-            m_currRdPos = pos - pos_abs;
+            m_currRdPos = (pos - pos_abs) * getNumOfChannels();
             return true;
         }
         m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
@@ -185,6 +186,8 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     Snapshot shot( *this);
     bool swap_traces = (shot[ *trace1()].to_str() == "CH2");
     uint32_t samps_read = 0;
+
+    size *= getNumOfChannels();
     while(size) {
         auto &chunk = m_chunks[m_currRdChunk];
         if(m_currRdChunk == m_wrChunkBegin) {
@@ -195,7 +198,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             tRawAI *rdpos = &chunk.data[m_currRdPos];
             if(((uintptr_t)buf % 8 == 0) && (sizeof(tRawAI) == 2)) {
                 tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 15) / 16 * 16);
-                for(;rdpos < rdpos_end;) {
+                while(rdpos < rdpos_end) {
                     tRawAI ch1, ch2;
                     ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
                 }
@@ -204,8 +207,8 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
                 assert((uintptr_t)rdpos % 16 == 0);
                 uint64_t *rdpos64 = reinterpret_cast<uint64_t*>(rdpos);
                 uint64_t *buf64 = reinterpret_cast<uint64_t*>(buf);
-                //test results i7 2.5GHz, OSX10.12, 4GB/s
-                for(;rdpos64 < rdpos_end64;) {
+                //test results i7 2.5GHz, OSX10.12, 3.7GB/s
+                while(rdpos64 < rdpos_end64) {
 //                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
 //                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
 //                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
@@ -225,13 +228,13 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
                 buf = (tRawAI*)buf64;
             }
             tRawAI *rdpos_end = &chunk.data[m_currRdPos + len];
-            for(;rdpos < rdpos_end;) {
+            while(rdpos < rdpos_end) {
                 tRawAI ch1, ch2;
                 ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
             }
         }
         else {
-            //test results i7 2.5GHz, OSX10.12, 8GB/s
+            //test results i7 2.5GHz, OSX10.12, 4.5GB/s
             std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
             buf += len;
         }
@@ -240,7 +243,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
         m_currRdPos = 0;
     }
-    return samps_read;
+    return samps_read / getNumOfChannels();
 }
 
 
@@ -284,7 +287,8 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
             m_wrChunkEnd = next_idx;
             chunk.data.resize(ChunkSize);
             chunk.ioInProgress = true;
-            return interface()->asyncReceive( (char*)&chunk.data[0], chunk.data.size() * sizeof(tRawAI));
+            return interface()->asyncReceive( (char*)&chunk.data[0],
+                    chunk.data.size() * sizeof(tRawAI));
         };
         try {
             auto async = fn(); //issues async. IO sequentially.
@@ -305,7 +309,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
                 if(wridx == m_wrChunkBegin) {
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
                         m_chunks[wridx].posAbs = m_totalSmps;
-                        m_totalSmps += m_chunks[wridx].data.size();
+                        m_totalSmps += m_chunks[wridx].data.size() / getNumOfChannels();
                         wridx++; if(wridx == m_chunks.size()) wridx = 0;
                         m_wrChunkBegin = wridx;
                     }
