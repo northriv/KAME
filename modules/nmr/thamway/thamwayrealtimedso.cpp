@@ -193,27 +193,24 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(swap_traces) {
             tRawAI *rdpos = &chunk.data[m_currRdPos];
-            if(((uintptr_t)buf % 4 == 0) && (sizeof(tRawAI) == 2)) {
-                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 7) / 8 * 8);
+            if(((uintptr_t)buf % 8 == 0) && (sizeof(tRawAI) == 2)) {
+                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 15) / 16 * 16);
                 for(;rdpos < rdpos_end;) {
                     tRawAI ch1, ch2;
                     ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
                 }
                 //unrolls loop.
-                auto rdpos_end64 = reinterpret_cast<uint64_t*>((uintptr_t)&chunk.data[m_currRdPos + len]/ 8 * 8);
-                assert((uintptr_t)rdpos % 8 == 0);
+                auto rdpos_end64 = reinterpret_cast<uint64_t*>((uintptr_t)&chunk.data[m_currRdPos + len]/ 16 * 16);
+                assert((uintptr_t)rdpos % 16 == 0);
                 uint64_t *rdpos64 = reinterpret_cast<uint64_t*>(rdpos);
                 uint64_t *buf64 = reinterpret_cast<uint64_t*>(buf);
+                //test results i7 2.5GHz, OSX10.12, 4GB/s
                 for(;rdpos64 < rdpos_end64;) {
-//                    tRawAI ch1, ch2;
-    //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-    //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-    //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-    //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
                     //equiv to above.
-//                    auto llw_swapped =
-//                        ((llw << (sizeof(tRawAI) * 8)) & 0xffff0000ffff0000uLL)
-//                        | ((llw >> (sizeof(tRawAI) * 8)) & 0xffff0000ffffuLL);
                     uint64_t f = 0xffff0000ffffuLL;
                     auto llw_swapped =
                         ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
@@ -234,7 +231,8 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             }
         }
         else {
-            std::memcpy(buf, &chunk.data[m_currRdPos], len);
+            //test results i7 2.5GHz, OSX10.12, 8GB/s
+            std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
             buf += len;
         }
         samps_read += len;
