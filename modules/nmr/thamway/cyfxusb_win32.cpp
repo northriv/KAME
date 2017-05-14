@@ -15,6 +15,7 @@
 
 #include <setupapi.h>
 #include "fx2fw.h"
+#include <cstring>
 
 constexpr uint32_t IOCTL_EZUSB_GET_DEVICE_DESCRIPTOR =  0x222004;
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
@@ -27,9 +28,6 @@ constexpr uint32_t IOCTL_ADAPT_GET_FRIENDLY_NAME = 0x220040;
 constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
-//extern "C" {
-//    #include "inc/cyioctl.h"
-//}
 
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const {
@@ -38,7 +36,7 @@ CyFXWin32USBDevice::AsyncIO::hasFinished() const {
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(m_count_imm < 0) {
-        ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[0]) : 0;
+        ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[prepadding]) : 0;
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
@@ -52,7 +50,7 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         finalize(num - offset);
     }
     if(rdbuf) {
-        std::copy(ioctlbuf_rdpos, ioctlbuf_rdpos + m_count_imm, rdbuf);
+        std::memcpy(rdbuf, ioctlbuf_rdpos, m_count_imm);
     }
     if(ioctlbuf.size() > AsyncIO::s_tlBufferGarbage->size())
         s_tlBufferGarbage->swap(ioctlbuf);
@@ -438,9 +436,13 @@ CyUSB3Device::getString(int descid) {
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     auto ioctlbuf = setupSingleTransfer(ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
-    std::copy(buf, buf + len, &ioctlbuf[SIZEOF_SINGLE_TRANSFER]);
+    //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
+    ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
+    std::copy_backward(&ioctlbuf[0], &ioctlbuf[SIZEOF_SINGLE_TRANSFER], &ioctlbuf[PAD_BEFORE]);
+    std::memcpy(&ioctlbuf[SIZEOF_SINGLE_TRANSFER + PAD_BEFORE], buf, len);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
-        &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
+       &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE,
+       &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE);
     ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     return std::move(ret);
 }
@@ -448,11 +450,15 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 unique_ptr<CyFXUSBDevice::AsyncIO>
 CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
+    //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
+    ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
+    std::copy_backward(&ioctlbuf[0], &ioctlbuf[SIZEOF_SINGLE_TRANSFER], &ioctlbuf[PAD_BEFORE]);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
-        &ioctlbuf[0], ioctlbuf.size(), &ioctlbuf[0], ioctlbuf.size());
+        &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE,
+        &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE);
     ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     ret->rdbuf = buf;
-    ret->setBufferOffset(SIZEOF_SINGLE_TRANSFER);
+    ret->setBufferOffset( &ioctlbuf[SIZEOF_SINGLE_TRANSFER + PAD_BEFORE], PAD_BEFORE);
     return std::move(ret);
 }
 

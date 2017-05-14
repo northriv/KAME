@@ -14,6 +14,7 @@
 #include "cyfxusb.h"
 #include "interface.h"
 #include <libusb-1.0/libusb.h>
+#include <cstring>
 
 static constexpr int USB_TIMEOUT = 1000; //ms
 
@@ -142,7 +143,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         }
     }
     if(rdbuf) {
-        std::copy(buf.begin(), buf.begin() + transfer->actual_length, rdbuf);
+        std::memcpy(rdbuf, &buf[0], transfer->actual_length);
     }
     return transfer->actual_length;
 }
@@ -283,7 +284,7 @@ unique_ptr<CyFXUSBDevice::AsyncIO>
 CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
-    std::copy(buf, buf + len, async->buf.begin());
+    std::memcpy( &async->buf[0], buf, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_OUT | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, USB_TIMEOUT);
