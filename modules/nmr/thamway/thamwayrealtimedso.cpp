@@ -194,29 +194,38 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         if(swap_traces) {
             tRawAI *rdpos = &chunk.data[m_currRdPos];
             if(((uintptr_t)buf % 4 == 0) && (sizeof(tRawAI) == 2)) {
-                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 3) / 4 * 4);
+                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 7) / 8 * 8);
                 for(;rdpos < rdpos_end;) {
                     tRawAI ch1, ch2;
                     ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
                 }
                 //unrolls loop.
-                rdpos_end = (tRawAI*)((uintptr_t)&chunk.data[m_currRdPos + len]/ 4 * 4);
-                assert((uintptr_t)rdpos % 4 == 0);
-                for(;rdpos < rdpos_end;) {
+                auto rdpos_end64 = reinterpret_cast<uint64_t*>((uintptr_t)&chunk.data[m_currRdPos + len]/ 8 * 8);
+                assert((uintptr_t)rdpos % 8 == 0);
+                uint64_t *rdpos64 = reinterpret_cast<uint64_t*>(rdpos);
+                uint64_t *buf64 = reinterpret_cast<uint64_t*>(buf);
+                for(;rdpos64 < rdpos_end64;) {
 //                    tRawAI ch1, ch2;
     //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
     //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
     //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
     //                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
                     //equiv to above.
-                    auto llw = *reinterpret_cast<uint64_t*>(*rdpos);
+//                    auto llw_swapped =
+//                        ((llw << (sizeof(tRawAI) * 8)) & 0xffff0000ffff0000uLL)
+//                        | ((llw >> (sizeof(tRawAI) * 8)) & 0xffff0000ffffuLL);
+                    uint64_t f = 0xffff0000ffffuLL;
                     auto llw_swapped =
-                        ((llw << (sizeof(tRawAI) * 8)) & 0xffff0000ffff0000uLL)
-                        | ((llw >> (sizeof(tRawAI) * 8)) & 0xffff0000ffffuLL);
-                    *reinterpret_cast<uint64_t*>(*buf) = llw_swapped;
-                    rdpos += 4;
-                    buf += 4;
+                        ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
+                    *buf64++ = llw_swapped;
+                    rdpos64++;
+                    llw_swapped =
+                            ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
+                    *buf64++ = llw_swapped;
+                    rdpos64++;
                 }
+                rdpos = (tRawAI*)rdpos64;
+                buf = (tRawAI*)buf64;
             }
             tRawAI *rdpos_end = &chunk.data[m_currRdPos + len];
             for(;rdpos < rdpos_end;) {
