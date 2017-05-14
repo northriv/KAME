@@ -14,7 +14,6 @@
 
 #include "thamwayrealtimedso.h"
 #include "dsorealtimeacq_impl.h"
-#include <cstring>
 
 constexpr double SMPL_PER_SEC = 5e6; //5MSmps
 
@@ -131,10 +130,12 @@ XThamwayPROT3DSO::setupTimeBase() {
 
 void
 XThamwayPROT3DSO::setupChannels() {
-    for(int ch_num: {0,1,2,3}) {
+    int ch_num = 0;
+    for(auto &&trace: {trace1(), trace2(), trace3(), trace4()}) {
         for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
             m_coeffAI[ch_num][i] = 0.0;
         m_coeffAI[ch_num][1] = 1.0 / 32768.0; //+-1V F.S.
+        ch_num++;
     }
 }
 
@@ -154,7 +155,7 @@ XThamwayPROT3DSO::getTotalSampsAcquired() {
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
     XScopedLock<XMutex> lock(m_acqMutex);
-    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos / getNumOfChannels();
+    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos;
     return m_totalSmps - rdpos_abs;
 }
 
@@ -164,10 +165,9 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
     //searching for corresponding chunk.
     for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
         uint64_t pos_abs = m_chunks[m_currRdChunk].posAbs;
-        uint64_t pos_abs_end = pos_abs +
-            m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
+        uint64_t pos_abs_end = pos_abs + m_chunks[m_currRdChunk].data.size();
         if((pos >= pos_abs) && (pos < pos_abs_end)) {
-            m_currRdPos = (pos - pos_abs) * getNumOfChannels();
+            m_currRdPos = pos - pos_abs;
             return true;
         }
         m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
@@ -186,56 +186,24 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     Snapshot shot( *this);
     bool swap_traces = (shot[ *trace1()].to_str() == "CH2");
     uint32_t samps_read = 0;
-
-    size *= getNumOfChannels();
     while(size) {
         auto &chunk = m_chunks[m_currRdChunk];
         if(m_currRdChunk == m_wrChunkBegin) {
             break;
         }
-        ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
+        uint32_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(swap_traces) {
-            tRawAI *rdpos = &chunk.data[m_currRdPos];
-            if(((uintptr_t)buf % 8 == 0) && (sizeof(tRawAI) == 2)) {
-                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 15) / 16 * 16);
-                while(rdpos < rdpos_end) {
-                    tRawAI ch1, ch2;
-                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-                }
-                //unrolls loop.
-                auto rdpos_end64 = reinterpret_cast<uint64_t*>((uintptr_t)&chunk.data[m_currRdPos + len]/ 16 * 16);
-                assert((uintptr_t)rdpos % 16 == 0);
-                uint64_t *rdpos64 = reinterpret_cast<uint64_t*>(rdpos);
-                uint64_t *buf64 = reinterpret_cast<uint64_t*>(buf);
-                //test results i7 2.5GHz, OSX10.12, 3.7GB/s
-                while(rdpos64 < rdpos_end64) {
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-                    //equiv to above.
-                    uint64_t f = 0xffff0000ffffuLL;
-                    auto llw_swapped =
-                        ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
-                    *buf64++ = llw_swapped;
-                    rdpos64++;
-                    llw_swapped =
-                            ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
-                    *buf64++ = llw_swapped;
-                    rdpos64++;
-                }
-                rdpos = (tRawAI*)rdpos64;
-                buf = (tRawAI*)buf64;
-            }
-            tRawAI *rdpos_end = &chunk.data[m_currRdPos + len];
-            while(rdpos < rdpos_end) {
-                tRawAI ch1, ch2;
-                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+            tRawAI *rdpos = &chunk.data[0] + m_currRdPos;
+            tRawAI *rdpos_end = rdpos + len;
+            for(;rdpos < rdpos_end;) {
+                tRawAI ch2 = *rdpos++;
+                tRawAI ch1 = *rdpos++;
+                *buf++ = ch1;
+                *buf++ = ch2;
             }
         }
         else {
-            //test results i7 2.5GHz, OSX10.12, 4.5GB/s
-            std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
+            std::copy(chunk.data.begin() + m_currRdPos, chunk.data.begin() + m_currRdPos + len, buf);
             buf += len;
         }
         samps_read += len;
@@ -243,7 +211,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
         m_currRdPos = 0;
     }
-    return samps_read / getNumOfChannels();
+    return samps_read;
 }
 
 
@@ -287,8 +255,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
             m_wrChunkEnd = next_idx;
             chunk.data.resize(ChunkSize);
             chunk.ioInProgress = true;
-            return interface()->asyncReceive( (char*)&chunk.data[0],
-                    chunk.data.size() * sizeof(tRawAI));
+            return interface()->asyncReceive( (char*)&chunk.data[0], chunk.data.size() * sizeof(tRawAI));
         };
         try {
             auto async = fn(); //issues async. IO sequentially.
@@ -309,7 +276,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
                 if(wridx == m_wrChunkBegin) {
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
                         m_chunks[wridx].posAbs = m_totalSmps;
-                        m_totalSmps += m_chunks[wridx].data.size() / getNumOfChannels();
+                        m_totalSmps += m_chunks[wridx].data.size();
                         wridx++; if(wridx == m_chunks.size()) wridx = 0;
                         m_wrChunkBegin = wridx;
                     }
