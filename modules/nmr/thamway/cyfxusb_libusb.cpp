@@ -14,6 +14,7 @@
 #include "cyfxusb.h"
 #include "interface.h"
 #include <libusb-1.0/libusb.h>
+#include <cstring>
 
 static constexpr int USB_TIMEOUT = 1000; //ms
 

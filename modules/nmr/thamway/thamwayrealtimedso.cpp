@@ -14,6 +14,7 @@
 
 #include "thamwayrealtimedso.h"
 #include "dsorealtimeacq_impl.h"
+#include <cstring>
 
 constexpr double SMPL_PER_SEC = 5e6; //5MSmps
 
@@ -191,15 +192,27 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         if(m_currRdChunk == m_wrChunkBegin) {
             break;
         }
-        uint32_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
+        ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(swap_traces) {
-            tRawAI *rdpos = &chunk.data[0] + m_currRdPos;
-            tRawAI *rdpos_end = rdpos + len;
+            tRawAI *rdpos = &chunk.data[m_currRdPos];
+            tRawAI *rdpos_end = &chunk.data[(m_currRdPos + 3) / 4 * 4];
             for(;rdpos < rdpos_end;) {
-                tRawAI ch2 = *rdpos++;
-                tRawAI ch1 = *rdpos++;
-                *buf++ = ch1;
-                *buf++ = ch2;
+                tRawAI ch1, ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+            }
+            //unrolls loop.
+            rdpos_end = &chunk.data[(m_currRdPos + len) / 4 * 4];
+            for(;rdpos < rdpos_end;) {
+                tRawAI ch1, ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+            }
+            rdpos_end = &chunk.data[m_currRdPos + len];
+            for(;rdpos < rdpos_end;) {
+                tRawAI ch1, ch2;
+                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
             }
         }
         else {
