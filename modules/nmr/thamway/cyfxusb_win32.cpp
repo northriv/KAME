@@ -458,7 +458,7 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
         &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE);
     ret->ioctlbuf.swap(ioctlbuf); //buffer shouldn't be freed in this scope.
     ret->rdbuf = buf;
-    ret->setBufferOffset( &rec->ioctlbuf[SIZEOF_SINGLE_TRANSFER + PAD_BEFORE], PAD_BEFORE);
+    ret->setBufferOffset( &ret->ioctlbuf[SIZEOF_SINGLE_TRANSFER + PAD_BEFORE], PAD_BEFORE);
     return std::move(ret);
 }
 
