@@ -115,9 +115,9 @@ public:
     XCryoconCharInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver)
         : XCharInterface(name, runtime, driver) {}
     virtual ~XCryoconCharInterface() {}
-    virtual void send(const XString &str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
-    virtual void send(const char *str) throw (XCommError &) { ::msecsleep(20); XCharInterface::send(str);}
-    virtual void write(const char *sendbuf, int size) throw (XCommError &)  { ::msecsleep(20); XCharInterface::write(sendbuf, size);}
+    virtual void send(const XString &str) { ::msecsleep(20); XCharInterface::send(str);}
+    virtual void send(const char *str) { ::msecsleep(20); XCharInterface::send(str);}
+    virtual void write(const char *sendbuf, int size)  { ::msecsleep(20); XCharInterface::write(sendbuf, size);}
 };
 
 //! Cryo-con base class

@@ -20,11 +20,11 @@ XOxfordInterface::XOxfordInterface
     setGPIBWaitBeforeSPoll(10);
 }
 void
-XOxfordInterface::send(const XString &str) throw (XCommError &) {
+XOxfordInterface::send(const XString &str) {
     this->send(str.c_str());
 }
 void
-XOxfordInterface::send(const char *str) throw (XInterface::XCommError &) {
+XOxfordInterface::send(const char *str) {
 	assert(strlen(str));
 	if(str[0] == '$') {
 		XCharInterface::send(str);
@@ -35,11 +35,11 @@ XOxfordInterface::send(const char *str) throw (XInterface::XCommError &) {
 	}
 }
 void
-XOxfordInterface::query(const XString &str) throw (XCommError &) {
+XOxfordInterface::query(const XString &str) {
     query(str.c_str());
 }
 void
-XOxfordInterface::query(const char *str) throw (XInterface::XCommError &) {
+XOxfordInterface::query(const char *str) {
 	lock();
 	try {
 		for(int i = 0; i < 30; i++) {
@@ -84,11 +84,11 @@ XOxfordInterface::close() throw (XInterfaceError &) {
 	XCharInterface::close();
 }
 void
-XOxfordInterface::receive() throw (XCommError &) {
+XOxfordInterface::receive() {
     XCharInterface::receive();
 }
 void
-XOxfordInterface::receive(unsigned int length) throw (XCommError &) {
+XOxfordInterface::receive(unsigned int length) {
     XCharInterface::receive(length);
 }
 

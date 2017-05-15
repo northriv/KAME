@@ -115,8 +115,8 @@ public:
     void unlock() {m_usbDevice->mutex.unlock();}
     bool isLocked() const {return m_usbDevice->mutex.isLockedByCurrentThread();}
 
-    virtual void send(const char *) throw (XCommError &) override {}
-    virtual void receive() throw (XCommError &) override {}
+    virtual void send(const char *) override {}
+    virtual void receive() override {}
 
     virtual bool isOpened() const override {return !!usb();}
 protected:

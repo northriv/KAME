@@ -57,10 +57,10 @@ public:
     void setEOS(const char *str);
     const XString &eos() const {return m_eos;}
 
-    void query(const XString &str) throw (XCommError &);
-    virtual void query(const char *str) throw (XCommError &);
-    virtual void send(const char *str) throw (XCommError &) = 0;
-    virtual void receive() throw (XCommError &) = 0;
+    void query(const XString &str);
+    virtual void query(const char *str);
+    virtual void send(const char *str) = 0;
+    virtual void receive() = 0;
 
     virtual bool isOpened() const = 0;
 
@@ -115,11 +115,11 @@ public:
 	const XString &serialEOS() const {return m_serialEOS;}
 	bool serialHasEchoBack() const {return m_serialHasEchoBack;}
 
-    virtual void send(const XString &str) throw (XCommError &);
-    virtual void send(const char *str) throw (XCommError &);
-    virtual void write(const char *sendbuf, int size) throw (XCommError &);
-    virtual void receive() throw (XCommError &);
-    virtual void receive(unsigned int length) throw (XCommError &);
+    virtual void send(const XString &str);
+    virtual void send(const char *str);
+    virtual void write(const char *sendbuf, int size);
+    virtual void receive();
+    virtual void receive(unsigned int length);
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
 	virtual void open() throw (XInterfaceError &);

@@ -46,8 +46,8 @@ public:
 
     XString getIDN(int maxlen = 255) {return getIDN(usb(), maxlen); }
 
-    virtual void send(const char *str) throw (XCommError &) override;
-    virtual void receive() throw (XCommError &) override;
+    virtual void send(const char *str) override;
+    virtual void receive() override;
 protected:
     virtual DEVICE_STATUS examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
     virtual std::string examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) override;
@@ -85,8 +85,8 @@ public:
     //! This can be called even if has already closed.
     virtual void close() throw (XInterfaceError &) override;
 
-    virtual void send(const char *str) throw (XCommError &) override;
-    virtual void receive() throw (XCommError &) override;
+    virtual void send(const char *str) override;
+    virtual void receive() override;
 
     unique_ptr<CyFXUSBDevice::AsyncIO> asyncReceive(char *buf, ssize_t size);
 

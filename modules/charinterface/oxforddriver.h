@@ -25,16 +25,16 @@ public:
     virtual void open() throw (XInterfaceError &);
 	virtual void close() throw (XInterfaceError &);
   
-	void send(const XString &str) throw (XCommError &);
-	virtual void send(const char *str) throw (XCommError &);
+	void send(const XString &str);
+	virtual void send(const char *str);
 	//! don't use me
-	virtual void write(const char *, int) throw (XCommError &) {
+	virtual void write(const char *, int) {
 		assert(false);
 	}
-	virtual void receive() throw (XCommError &);
-	virtual void receive(unsigned int length) throw (XCommError &);
-	void query(const XString &str) throw (XCommError &);
-	virtual void query(const char *str) throw (XCommError &);
+	virtual void receive();
+	virtual void receive(unsigned int length);
+	void query(const XString &str);
+	virtual void query(const char *str);
 };
 
 template <class tDriver>

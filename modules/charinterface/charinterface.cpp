@@ -94,7 +94,7 @@ XCustomCharInterface::toStrSimplified() const {
     return QString( &buffer()[0]).simplified();
 }
 void
-XCustomCharInterface::query(const XString &str) throw (XCommError &) {
+XCustomCharInterface::query(const XString &str) {
     query(str.c_str());
 }
 
@@ -123,7 +123,7 @@ XCustomCharInterface::sendf(const char *fmt, ...) throw (XInterfaceError &) {
 }
 
 void
-XCustomCharInterface::query(const char *str) throw (XCommError &) {
+XCustomCharInterface::query(const char *str) {
     XScopedLock<XInterface> lock(*this);
     send(str);
     receive();
@@ -233,12 +233,12 @@ XCharInterface::close() throw (XInterfaceError &) {
 }
 
 void
-XCharInterface::send(const XString &str) throw (XCommError &) {
+XCharInterface::send(const XString &str) {
     this->send(str.c_str());
 }
 
 void
-XCharInterface::send(const char *str) throw (XCommError &) {
+XCharInterface::send(const char *str) {
     XScopedLock<XCharInterface> lock(*this);
     try {
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
@@ -250,7 +250,7 @@ XCharInterface::send(const char *str) throw (XCommError &) {
     }
 }
 void
-XCharInterface::write(const char *sendbuf, int size) throw (XCommError &) {
+XCharInterface::write(const char *sendbuf, int size) {
     XScopedLock<XCharInterface> lock(*this);
     try {
         dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
@@ -262,7 +262,7 @@ XCharInterface::write(const char *sendbuf, int size) throw (XCommError &) {
     }
 }
 void
-XCharInterface::receive() throw (XCommError &) {
+XCharInterface::receive() {
     XScopedLock<XCharInterface> lock(*this);
     try {
         dbgPrint(driver()->getLabel() + " Receiving...");
@@ -277,7 +277,7 @@ XCharInterface::receive() throw (XCommError &) {
     }
 }
 void
-XCharInterface::receive(unsigned int length) throw (XCommError &) {
+XCharInterface::receive(unsigned int length) {
     XScopedLock<XCharInterface> lock(*this);
     try {
         dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));

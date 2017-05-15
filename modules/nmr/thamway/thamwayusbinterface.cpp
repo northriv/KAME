@@ -327,7 +327,7 @@ XThamwayFX2USBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int
 }
 
 void
-XThamwayFX2USBInterface::send(const char *str) throw (XCommError &) {
+XThamwayFX2USBInterface::send(const char *str) {
     XScopedLock<XInterface> lock(*this);
     XScopedLock<XThamwayFX2USBInterface> lock2( *this);
     try {
@@ -343,7 +343,7 @@ XThamwayFX2USBInterface::send(const char *str) throw (XCommError &) {
     }
 }
 void
-XThamwayFX2USBInterface::receive() throw (XCommError &) {
+XThamwayFX2USBInterface::receive() {
     XScopedLock<XInterface> lock(*this);
     XScopedLock<XThamwayFX2USBInterface> lock2( *this);
     msecsleep(20);
@@ -421,11 +421,11 @@ XThamwayFX3USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     return formatString("FX3-%d", count);
 }
 void
-XThamwayFX3USBInterface::send(const char *str) throw (XCommError &) {
+XThamwayFX3USBInterface::send(const char *str) {
     usb()->bulkWrite(EPOUT1, (const uint8_t*)str, strlen(str));
 }
 void
-XThamwayFX3USBInterface::receive() throw (XCommError &) {
+XThamwayFX3USBInterface::receive() {
     buffer_receive().resize(16*2048);
     int ret = usb()->bulkRead(EPIN1, (uint8_t *)&buffer_receive()[0], buffer_receive().size());
     buffer_receive().resize(ret);
