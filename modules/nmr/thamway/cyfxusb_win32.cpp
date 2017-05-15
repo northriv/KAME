@@ -40,8 +40,10 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
-            if(e == ERROR_IO_INCOMPLETE)
+            if(e == ERROR_OPERATION_ABORTED)
                 return 0; //IO has been canceled.
+            if(e == ERROR_BUSY)
+                throw XInterface::XInterfaceError(i18n("USB device is busy."), __FILE__, __LINE__);
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
         }
         if(num < offset) {
@@ -68,10 +70,10 @@ CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, 
     if( !DeviceIoControl(handle, code, (void*)in, size_in, out, size_out, &nbyte, &async->overlap)) {
         auto e = GetLastError();
         if(e == ERROR_IO_PENDING)
-            return std::move(async);
+            return std::move(async); //async IO has been submitted.
         throw XInterface::XInterfaceError(formatString("IOCTL error:%d.", (int)e), __FILE__, __LINE__);
     }
-    async->finalize(nbyte); //IO has been synchronously perfomed.
+    async->finalize(nbyte); //IO has been synchronously performed.
     return std::move(async);
 }
 
