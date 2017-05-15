@@ -438,7 +438,7 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     auto ioctlbuf = setupSingleTransfer(ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
     //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
     ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
-    std::copy_backward(&ioctlbuf[0], &ioctlbuf[SIZEOF_SINGLE_TRANSFER], &ioctlbuf[PAD_BEFORE]);
+    std::memmove( &ioctlbuf[PAD_BEFORE], &ioctlbuf[0], SIZEOF_SINGLE_TRANSFER);
     std::memcpy(&ioctlbuf[SIZEOF_SINGLE_TRANSFER + PAD_BEFORE], buf, len);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
        &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE,
@@ -452,7 +452,7 @@ CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
     //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
     ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
-    std::copy_backward(&ioctlbuf[0], &ioctlbuf[SIZEOF_SINGLE_TRANSFER], &ioctlbuf[PAD_BEFORE]);
+    std::memmove( &ioctlbuf[PAD_BEFORE], &ioctlbuf[0], SIZEOF_SINGLE_TRANSFER);
     auto ret = asyncIOCtrl(IOCTL_ADAPT_SEND_NON_EP0_TRANSFER,
         &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE,
         &ioctlbuf[PAD_BEFORE], ioctlbuf.size() - PAD_BEFORE);

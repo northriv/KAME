@@ -109,7 +109,7 @@ private:
     std::vector<uint8_t> setupSingleTransfer(uint8_t ep, CtrlReq request,
         CtrlReqType type, uint16_t value,
         uint16_t index, int len);
-    enum {SIZEOF_SINGLE_TRANSFER = 38, PAD_BEFORE = 40 - SIZEOF_SINGLE_TRANSFER};
+    enum {SIZEOF_SINGLE_TRANSFER = 38, PAD_BEFORE = 2};
 };
 
 #endif // CYFXUSB_WIN32_H
