@@ -346,7 +346,7 @@ CyFXEzUSBDevice::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
 
 std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
-    CtrlReqType type, uint16_t value, uint16_t index, int len) {
+    CtrlReqType type, uint16_t value, uint16_t index, int len, uint32_t timeout_ms) {
     std::vector<uint8_t> buf;
     AsyncIO::s_tlBufferGarbage->swap(buf);
     buf.resize(SIZEOF_SINGLE_TRANSFER + len);
@@ -362,7 +362,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     tr->wValue = value;
     tr->wIndex = index;
     tr->wLength = len;
-    tr->timeOut = 5; //sec?
+    tr->timeOut = timeout_ms ? timeout_ms / 1000u : 0xffffffffu; //infinite
     struct Packet1 {
         uint8_t bReserved2, ucEndpointAddress;
     };
@@ -383,7 +383,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
 int
 CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, const uint8_t *wbuf, int len) {
-    auto buf = setupSingleTransfer(0, request, type, value, index, len);
+    auto buf = setupSingleTransfer(0, request, type, value, index, len, 1000);
     std::copy(wbuf, wbuf + len, &buf[SIZEOF_SINGLE_TRANSFER]);
     ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], buf.size(), &buf[0], buf.size());
     return len;
@@ -392,7 +392,7 @@ CyUSB3Device::controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
 int
 CyUSB3Device::controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                                uint16_t index, uint8_t *rdbuf, int len) {
-    auto buf = setupSingleTransfer(0, request, (CtrlReqType)(0x80u | (uint8_t)type), value, index, len);
+    auto buf = setupSingleTransfer(0, request, (CtrlReqType)(0x80u | (uint8_t)type), value, index, len, 1000);
     int ret = ioCtrl(IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, &buf[0], buf.size(), &buf[0], buf.size());
     if((ret < SIZEOF_SINGLE_TRANSFER) || (ret > SIZEOF_SINGLE_TRANSFER + len))
         throw XInterface::XInterfaceError(i18n("Size mismatch during control transfer."), __FILE__, __LINE__);

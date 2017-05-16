@@ -282,7 +282,7 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
     std::memcpy( &async->buf[0], buf, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_OUT | ep, &async->buf.at(0), len,
-            &AsyncIO::cb_fn, &async->completed, USB_TIMEOUT);
+            &AsyncIO::cb_fn, &async->completed, 0); //no timeout
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
@@ -297,7 +297,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
     async->rdbuf = buf;
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
-            &AsyncIO::cb_fn, &async->completed, USB_TIMEOUT);
+            &AsyncIO::cb_fn, &async->completed, 0); //no timeout
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
