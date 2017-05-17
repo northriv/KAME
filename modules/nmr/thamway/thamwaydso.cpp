@@ -87,7 +87,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
 //    smps--;
 //    smps = std::min(1000, std::max(25000, smps));
     int smps = 25000;
-    double intv = 0.04e-3; //std::max(0.04e-3, getTimeInterval());
+    double intv = 1.0 / INTERNAL_CLOCK; //std::max(0.04e-3, getTimeInterval());
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = smps;
@@ -97,7 +97,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     m_pending = true;
     Snapshot shot( *this);
 //    onTimeWidthChanged(shot, 0);
-//    onRecordLengthChanged(shot, 0);
+    onRecordLengthChanged(shot, 0);
     onAverageChanged(shot, 0);
     interface()->writeToRegister8(ADDR_FRAMESM1, 0); //1 frame.
     m_pending = false;
