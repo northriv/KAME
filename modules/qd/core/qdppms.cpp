@@ -253,18 +253,28 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
             //Field control for slow ramp rate by software, every 10 sec..
             switch ((status >> 4) & 0xf) {
+            case 4: //"Holding"
             case 6: //"Charging"
             case 7: //"Disharging"
                 if(XTime::now() - setfield_prevtime > 10) {
+                    setfield_prevtime = XTime::now();
                     double sweeprate = fabs(shot[ *fieldSweepRate()] / 60.0); //T/s
                     if( shot[ *targetField()] < field_by_hardware)
                         sweeprate *= -1;
                     double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate;
-                    setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                    if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
+                        ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
+                        if(fabs(newfield - magnet_field) > 5 * sweeprate) {
+                            fprintf(stderr, "Magnet field approached to the set point.");
+                            setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
+                        }
+                    }
+                    else {
+                        setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                        break;
+                    }
                 }
                 break;
-            case 4: //"Holding"
-                setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
             default:
                 field_by_hardware = magnet_field;
                 field_by_hardware_time = XTime::now();
