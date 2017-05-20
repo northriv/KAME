@@ -15,7 +15,7 @@
 #include "analyzer.h"
 #include "ui_qdppmsform.h"
 
-constexpr double MIN_MODEL6700_SWEEPRATE = (0.01 * 60 / 10000); //T/min
+constexpr double MIN_MODEL6700_SWEEPRATE = (1.0 / 10000); //T/s
 
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -248,6 +248,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         }
         catch (std::out_of_range &) {
             gErrPrint(i18n("PPMS: unknown status has been returned."));
+            continue;
         }
         try {
             Snapshot shot( *this);
@@ -259,10 +260,10 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                 case 7: //"Disharging"
                     if(XTime::now() - setfield_prevtime > 10) {
                         setfield_prevtime = XTime::now();
-                        double sweeprate = fabs(shot[ *fieldSweepRate()] / 60.0); //T/s
+                        double sweeprate = fabs(shot[ *fieldSweepRate()]); //T/s
                         if( shot[ *targetField()] < field_by_hardware)
                             sweeprate *= -1;
-                        double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate;
+                        double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate; //expected field 10 sec after.
                         if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
                             ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
                             if(fabs(newfield - magnet_field) > 5 * sweeprate) {

@@ -44,8 +44,8 @@ XQDPPMS6000::open() throw (XKameError &) {
     if(interface()->scanf("%lf,%lf,%d;", &temp, &temp_rate, &temp_approach_mode) != 3)
         throw XInterface::XConvError(__FILE__, __LINE__);
     iterate_commit([=](Transaction &tr){
-       tr[ *fieldSweepRate()] = field_rate;
-       tr[ *targetField()] = field;
+       tr[ *fieldSweepRate()] = field_rate * 1e-4;
+       tr[ *targetField()] = field * 1e-4;
        tr[ *fieldApproachMode()] = field_approach_mode;
        tr[ *tempSweepRate()] = temp_rate;
        tr[ *targetTemp()] = temp;
@@ -60,7 +60,7 @@ XQDPPMS6000::open() throw (XKameError &) {
 
 void
 XQDPPMS6000::setField(double field, double rate, int approach_mode, int magnet_mode){
-    interface()->sendf("FIELD %f %f %d %d", field * 1e4, rate / 60.0 * 1e4, approach_mode, magnet_mode);
+    interface()->sendf("FIELD %f %f %d %d", field * 1e4, rate * 1e4, approach_mode, magnet_mode);
 }
 
 void
