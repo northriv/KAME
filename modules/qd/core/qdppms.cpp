@@ -267,19 +267,18 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                         if( shot[ *targetField()] < field_by_hardware)
                             sweeprate *= -1;
                         double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate; //expected field 10 sec after.
-                        if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
-                            ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
-                            if(fabs(newfield - magnet_field) > 5 * sweeprate) {
+                        if(fabs(newfield - magnet_field) > std::max(5 * sweeprate, 2e-4)) {
+                            if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
+                                ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
                                 fprintf(stderr, "Magnet field now approaching to the set point.");
                                 setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
-                                break;
                             }
-                            //Real holding state.
-                        }
-                        else {
-                            setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                            else {
+                                setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                            }
                             break;
                         }
+                        //Real holding state. Go to default:
                     }
                 default:
                     field_by_hardware = magnet_field;
