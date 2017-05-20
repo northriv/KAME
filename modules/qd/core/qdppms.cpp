@@ -15,6 +15,8 @@
 #include "analyzer.h"
 #include "ui_qdppmsform.h"
 
+constexpr double MIN_MODEL6700_SWEEPRATE = (0.1 * 60 / 10000); //T/min
+
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
@@ -107,10 +109,15 @@ XQDPPMS::visualize(const Snapshot &shot) {
 
 
 void
-XQDPPMS::onFieldChanged(const Snapshot &shot,  XValueNodeBase *){
-    double sweepRate = ***fieldSweepRate();
-    int approachMode = ***fieldApproachMode();
-    int magnetMode = ***fieldMagnetMode();
+XQDPPMS::onFieldChanged(const Snapshot &,  XValueNodeBase *){
+    Snapshot shot( *this);
+    double sweepRate = shot[ *fieldSweepRate()]; //T/s
+    if(sweepRate < 1e-7)
+        throw XInterface::XInterfaceError(i18n("Too slow sweep rate."), __FILE__, __LINE__);
+    int approachMode = shot[ *fieldApproachMode()];
+    int magnetMode = shot[ *fieldMagnetMode()];
+    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (magnetMode != 0))
+        throw XInterface::XInterfaceError(i18n("Slow ramp rate is only allowed for linear approach."), __FILE__, __LINE__);
     try {
         setField(shot[ *targetField()], sweepRate,
                 approachMode, magnetMode);
@@ -121,9 +128,10 @@ XQDPPMS::onFieldChanged(const Snapshot &shot,  XValueNodeBase *){
 }
 
 void
-XQDPPMS::onPositionChanged(const Snapshot &shot,  XValueNodeBase *){
-    int approachMode = ***positionApproachMode();
-    int slowDownCode = ***positionSlowDownCode();
+XQDPPMS::onPositionChanged(const Snapshot &,  XValueNodeBase *){
+    Snapshot shot( *this);
+    int approachMode = shot[ *positionApproachMode()];
+    int slowDownCode = shot[ *positionSlowDownCode()];
     try {
         setPosition(shot[ *targetPosition()], approachMode, slowDownCode);
     }
@@ -133,9 +141,12 @@ XQDPPMS::onPositionChanged(const Snapshot &shot,  XValueNodeBase *){
 }
 
 void
-XQDPPMS::onTempChanged(const Snapshot &shot,  XValueNodeBase *){
-    double sweepRate = ***tempSweepRate();
-    int approachMode = ***tempApproachMode();
+XQDPPMS::onTempChanged(const Snapshot &,  XValueNodeBase *){
+    Snapshot shot( *this);
+    double sweepRate = shot[ *tempSweepRate()]; //K/min
+    if(sweepRate < 0.01)
+        throw XInterface::XInterfaceError(i18n("Too slow sweep rate."), __FILE__, __LINE__);
+    int approachMode = shot[ *tempApproachMode()];
     try {
         setTemp(shot[ *targetTemp()], sweepRate, approachMode);
     }
@@ -157,12 +168,17 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
 
         m_lsnFieldSet = tr[ *targetField()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onFieldChanged);
+//        tr[ *fieldSweepRate()].onValueChanged().connect(m_lsnFieldSet);
         m_lsnTempSet = tr[ *targetTemp()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onTempChanged);
+//        tr[ *tempSweepRate()].onValueChanged().connect(m_lsnTempSet);
         m_lsnPositionSet = tr[ *targetPosition()].onValueChanged().connectWeakly(
                     shared_from_this(), &XQDPPMS::onPositionChanged);
     });
 
+    auto setfield_prevtime = XTime::now();
+    double field_by_hardware = 0.0;
+    auto field_by_hardware_time = XTime::now();
     while( !terminated) {
         msecsleep(100);
         double magnet_field;
@@ -208,6 +224,14 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                     {0xe,"Cannot Complete"},
                     {0xf,"Failure"}
                 }.at(status & 0xf);
+                tr[ *positionStatus()] = std::map<int,std::string>{
+                    {0x0,"Unknown"},
+                    {0x1,"Stopped"},
+                    {0x5,"Moving"},
+                    {0x8,"Limit"},
+                    {0x9,"Index"},
+                    {0xf,"Failure"}
+                }.at((status >> 12) & 0xf);
                 tr[ *fieldStatus()] = std::map<int,std::string>{
                     {0x0,"Unknown"},
                     {0x1,"Persistent"},
@@ -220,18 +244,32 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                     {0x8,"CurrentError"},
                     {0xf,"Failure"}
                 }.at((status >> 4) & 0xf);
-                tr[ *positionStatus()] = std::map<int,std::string>{
-                    {0x0,"Unknown"},
-                    {0x1,"Stopped"},
-                    {0x5,"Moving"},
-                    {0x8,"Limit"},
-                    {0x9,"Index"},
-                    {0xf,"Failure"}
-                }.at((status >> 12) & 0xf);
             });
         }
         catch (std::out_of_range &) {
             gErrPrint(i18n("PPMS: unknown status has been returned."));
+        }
+        Snapshot shot( *this);
+        if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
+            //Field control for slow ramp rate by software, every 10 sec..
+            switch ((status >> 4) & 0xf) {
+            case 6: //"Charging"
+            case 7: //"Disharging"
+                if(XTime::now() - setfield_prevtime > 10) {
+                    double sweeprate = fabs(shot[ *fieldSweepRate()] / 60.0); //T/s
+                    if( shot[ *targetField()] < field_by_hardware)
+                        sweeprate *= -1;
+                    double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate;
+                    setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                }
+                break;
+            case 4: //"Holding"
+                setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
+            default:
+                field_by_hardware = magnet_field;
+                field_by_hardware_time = XTime::now();
+                break;
+            }
         }
     }
 
