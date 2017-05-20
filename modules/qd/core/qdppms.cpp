@@ -15,7 +15,7 @@
 #include "analyzer.h"
 #include "ui_qdppmsform.h"
 
-constexpr double MIN_MODEL6700_SWEEPRATE = (10.0 / 10000); //T/s, 9.3 Oe/s is an actual value.
+constexpr double MIN_MODEL6700_SWEEPRATE = (10.0 / 10000); //T/s, 9.3 Oe/s is the actual limit.
 
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -113,11 +113,11 @@ XQDPPMS::onFieldChanged(const Snapshot &,  XValueNodeBase *){
     Snapshot shot( *this);
     double sweepRate = shot[ *fieldSweepRate()]; //T/s
     if(sweepRate < 1e-7)
-        throw XInterface::XInterfaceError(i18n("Too slow sweep rate."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n("Too small sweep rate."), __FILE__, __LINE__);
     int approachMode = shot[ *fieldApproachMode()];
     int magnetMode = shot[ *fieldMagnetMode()];
     if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (magnetMode != 0))
-        throw XInterface::XInterfaceError(i18n("Slow ramp rate is only allowed for linear approach."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n("Slow ramp is only allowed for linear approach."), __FILE__, __LINE__);
     try {
         setField(shot[ *targetField()], sweepRate,
                 approachMode, magnetMode);
@@ -145,7 +145,7 @@ XQDPPMS::onTempChanged(const Snapshot &,  XValueNodeBase *){
     Snapshot shot( *this);
     double sweepRate = shot[ *tempSweepRate()]; //K/min
     if(sweepRate < 0.01)
-        throw XInterface::XInterfaceError(i18n("Too slow sweep rate."), __FILE__, __LINE__);
+        throw XInterface::XInterfaceError(i18n("Too small sweep rate."), __FILE__, __LINE__);
     int approachMode = shot[ *tempApproachMode()];
     try {
         setTemp(shot[ *targetTemp()], sweepRate, approachMode);
@@ -210,6 +210,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         finishWritingRaw(writer, XTime::now(), XTime::now());
 
         try{
+            //displays status strings.
             iterate_commit([=](Transaction &tr){
                 tr[ *heliumLevel()] = helium_level;
                 tr[ *tempStatus()] = std::map<int,std::string>{
@@ -253,12 +254,14 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         try {
             Snapshot shot( *this);
             if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
-                //Field control for slow ramp rate by software, every 10 sec..
+                //Field sweep control for slow ramp by software
+                //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
                 switch ((status >> 4) & 0xf) {
                 case 4: //"Holding"
                 case 6: //"Charging"
                 case 7: //"Disharging"
                     if(XTime::now() - setfield_prevtime > 10) {
+                        //every 10 sec..
                         setfield_prevtime = XTime::now();
                         double sweeprate = fabs(shot[ *fieldSweepRate()]); //T/s
                         if( shot[ *targetField()] < field_by_hardware)
@@ -267,16 +270,17 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                         if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
                             ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
                             if(fabs(newfield - magnet_field) > 5 * sweeprate) {
-                                fprintf(stderr, "Magnet field approached to the set point.");
+                                fprintf(stderr, "Magnet field now approaching to the set point.");
                                 setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
+                                break;
                             }
+                            //Real holding state.
                         }
                         else {
                             setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
                             break;
                         }
                     }
-                    break;
                 default:
                     field_by_hardware = magnet_field;
                     field_by_hardware_time = XTime::now();
