@@ -15,7 +15,7 @@
 #include "analyzer.h"
 #include "ui_qdppmsform.h"
 
-constexpr double MIN_MODEL6700_SWEEPRATE = (1.0 / 10000); //T/s
+constexpr double MIN_MODEL6700_SWEEPRATE = (10.0 / 10000); //T/s, 9.3 Oe/s is an actual value.
 
 XQDPPMS::XQDPPMS(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
