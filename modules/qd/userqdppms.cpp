@@ -25,8 +25,42 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
 }
 
 void
+XQDPPMS6000::open() throw (XKameError &) {
+    interface()->query("FIELD?");
+    double field, field_rate;
+    int field_approach_mode, magnet_mode;
+    if(interface()->scanf("%lf,%lf,%d,%d;", &field, &field_rate, &field_approach_mode, &magnet_mode) != 4)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    double position;
+    int mode;
+    int slow_down_code;
+    interface()->query("MOVE?");
+    if(interface()->scanf("%lf,%d,%d;", &position, &mode, &slow_down_code) != 3)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    double temp;
+    double temp_rate;
+    int temp_approach_mode;
+    interface()->query("TEMP?");
+    if(interface()->scanf("%lf,%lf,%d;", &temp, &temp_rate, &temp_approach_mode) != 3)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    iterate_commit([=](Transaction &tr){
+       tr[ *fieldSweepRate()] = field_rate;
+       tr[ *targetField()] = field;
+       tr[ *fieldApproachMode()] = field_approach_mode;
+       tr[ *tempSweepRate()] = temp_rate;
+       tr[ *targetTemp()] = temp;
+       tr[ *tempApproachMode()] = temp_approach_mode;
+       tr[ *targetPosition()] = position;
+       tr[ *positionApproachMode()] = mode;
+       tr[ *positionSlowDownCode()] = slow_down_code;
+    });
+
+    start();
+}
+
+void
 XQDPPMS6000::setField(double field, double rate, int approach_mode, int magnet_mode){
-    interface()->sendf("FIELD %f %f %d %d", field*1e4, rate*1e4, approach_mode, magnet_mode);
+    interface()->sendf("FIELD %f %f %d %d", field * 1e4, rate / 60.0 * 1e4, approach_mode, magnet_mode);
 }
 
 void
@@ -36,7 +70,7 @@ XQDPPMS6000::setPosition(double position, int mode, int slow_down_code){
 
 void
 XQDPPMS6000::setTemp(double temp, double rate, int approach_mode){
-    if(temp>0){
+    if(temp > 0.0){
         interface()->sendf("TEMP %f %f %d", temp, rate, approach_mode);
     }
     else{
