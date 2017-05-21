@@ -70,11 +70,14 @@ protected:
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
     enum {ChunkSize = 256*2048, NumThreads = 8, NumChunks = 32};
-    atomic<uint64_t> m_totalSmps = 0; //per channel
-    unsigned int m_wrChunkBegin = 0, m_wrChunkEnd = 0, m_currRdChunk = 0, m_currRdPos = 0;
+    atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
+    unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
+        m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.
+        m_currRdChunk = 0, //Index for the current reading position.
+        m_currRdPos = 0; //Position of data inside the current reading chunk.
     struct Chunk {
         bool ioInProgress = false;
-        uint64_t posAbs = 0; //per channel
+        uint64_t posAbsPerCh = 0; //# of samples per channel at data[0] from the origin.
         std::vector<tRawAI> data;
     };
     std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).

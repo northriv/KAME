@@ -20,7 +20,7 @@ constexpr double SMPL_PER_SEC = 5e6; //5MSmps
 
 REGISTER_TYPE(XDriverList, ThamwayPROT3DSO, "Thamway PROT3 digital streaming DSO");
 
-#define NUM_MAX_CH 2
+constexpr unsigned int NUM_MAX_CH = 2;
 
 XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -58,7 +58,7 @@ XThamwayPROT3DSO::commitAcquision() {
         XScopedLock<XMutex> lock(m_acqMutex);
         //allocates buffers.
         m_chunks.resize(NumChunks);
-        m_totalSmps = 0;
+        m_totalSmpsPerCh = 0;
         m_wrChunkEnd = 0;
         m_wrChunkBegin = 0;
         m_currRdChunk = 0;
@@ -148,14 +148,14 @@ XThamwayPROT3DSO::disableHardwareTriggers() {
 
 uint64_t
 XThamwayPROT3DSO::getTotalSampsAcquired() {
-    return m_totalSmps;
+    return m_totalSmpsPerCh;
 }
 
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
     XScopedLock<XMutex> lock(m_acqMutex);
-    uint64_t rdpos_abs = m_chunks[m_currRdChunk].posAbs + m_currRdPos / getNumOfChannels();
-    return m_totalSmps - rdpos_abs;
+    uint64_t rdpos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh + m_currRdPos / getNumOfChannels();
+    return m_totalSmpsPerCh - rdpos_abs_per_ch;
 }
 
 bool
@@ -163,14 +163,15 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
     XScopedLock<XMutex> lock(m_acqMutex);
     //searching for corresponding chunk.
     for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
-        uint64_t pos_abs = m_chunks[m_currRdChunk].posAbs;
-        uint64_t pos_abs_end = pos_abs +
+        uint64_t pos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh;
+        uint64_t pos_abs_per_ch_end = pos_abs_per_ch +
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
-        if((pos >= pos_abs) && (pos < pos_abs_end)) {
-            m_currRdPos = (pos - pos_abs) * getNumOfChannels();
+        if((pos >= pos_abs_per_ch) && (pos < pos_abs_per_ch_end)) {
+            m_currRdPos = (pos - pos_abs_per_ch) * getNumOfChannels();
             return true;
         }
-        m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
+        m_currRdChunk++;
+        if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
     }
     return false;
 }
@@ -189,12 +190,15 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
     size *= getNumOfChannels();
     while(size) {
-        auto &chunk = m_chunks[m_currRdChunk];
         if(m_currRdChunk == m_wrChunkBegin) {
-            break;
+            break; //nothing to read.
         }
+        readBarrier();
+        auto &chunk = m_chunks[m_currRdChunk];
+        assert(chunk.ioInProgress == false);
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(swap_traces) {
+            //copies data with word swapping.
             tRawAI *rdpos = &chunk.data[m_currRdPos];
             if(((uintptr_t)buf % 8 == 0) && (sizeof(tRawAI) == 2)) {
                 tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 15) / 16 * 16);
@@ -234,14 +238,19 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             }
         }
         else {
+            //Simple copy without swap.
             //test results i7 2.5GHz, OSX10.12, 4.5GB/s
             std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
             buf += len;
         }
         samps_read += len;
         size -= len;
-        m_currRdChunk++; if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
-        m_currRdPos = 0;
+        {
+            XScopedLock<XMutex> lock(m_acqMutex);
+            m_currRdChunk++;
+            if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
+            m_currRdPos = 0;
+        }
     }
     return samps_read / getNumOfChannels();
 }
@@ -271,19 +280,17 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
     while( !terminated) {
         ssize_t wridx; //index of a chunk for async. IO.
         auto fn = [&]() {
+            //Lambda fn to issue async IO and reserves a chunk atomically.
             XScopedLock<XMutex> lock(m_acqMutex);
             ssize_t next_idx = m_wrChunkEnd;
             wridx = next_idx;
             auto &chunk = m_chunks[next_idx++];
-            if(chunk.ioInProgress) {
+            if(chunk.ioInProgress)
                 throw Collision::IOStall;
-            }
-            if(next_idx == m_chunks.size()) {
-                    next_idx = 0;
-            }
-            if(next_idx == m_currRdChunk) {
+            if(next_idx == m_chunks.size())
+                next_idx = 0;
+            if(next_idx == m_currRdChunk)
                 throw Collision::BufferUnderflow;
-            }
             m_wrChunkEnd = next_idx;
             chunk.data.resize(ChunkSize);
             chunk.ioInProgress = true;
@@ -300,19 +307,22 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
                 chunk.ioInProgress = false;
-                if(count != chunk.data.size()) {
+                auto expected = chunk.data.size();
+                chunk.data.resize(count);
+                if(wridx == m_wrChunkBegin) {
+                    //rearranges indices to indicate ready for read.
+                    while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
+                        m_chunks[wridx].posAbsPerCh = m_totalSmpsPerCh;
+                        m_totalSmpsPerCh += m_chunks[wridx].data.size() / getNumOfChannels();
+                        wridx++;
+                        if(wridx == m_chunks.size()) wridx = 0;
+                        m_wrChunkBegin = wridx;
+                    }
+                }
+                if(count != expected) {
                 //Pulse generation has stopped.
                     fprintf(stderr, "Pulse generation has stopped.\n");
                     throw Collision::IOStall;
-                }
-                chunk.data.resize(count);
-                if(wridx == m_wrChunkBegin) {
-                    while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
-                        m_chunks[wridx].posAbs = m_totalSmps;
-                        m_totalSmps += m_chunks[wridx].data.size() / getNumOfChannels();
-                        wridx++; if(wridx == m_chunks.size()) wridx = 0;
-                        m_wrChunkBegin = wridx;
-                    }
                 }
             }
         }

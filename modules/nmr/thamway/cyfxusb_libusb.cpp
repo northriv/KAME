@@ -50,13 +50,13 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() {
             transfer = libusb_alloc_transfer(0);
-            s_tlBufferGarbage->swap(buf);
+            stl_bufferGarbage->swap(buf);
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
             libusb_free_transfer(transfer);
-            if(buf.size() > s_tlBufferGarbage->size())
-                s_tlBufferGarbage->swap(buf);
+            if(buf.size() > stl_bufferGarbage->size())
+                stl_bufferGarbage->swap(buf);
         }
 
         virtual bool hasFinished() const override;

@@ -54,8 +54,8 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     if(rdbuf) {
         std::memcpy(rdbuf, ioctlbuf_rdpos, m_count_imm);
     }
-    if(ioctlbuf.size() > AsyncIO::s_tlBufferGarbage->size())
-        s_tlBufferGarbage->swap(ioctlbuf);
+    if(ioctlbuf.size() > AsyncIO::stl_bufferGarbage->size())
+        stl_bufferGarbage->swap(ioctlbuf);
     return m_count_imm;
 }
 bool
@@ -348,7 +348,8 @@ std::vector<uint8_t>
 CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     CtrlReqType type, uint16_t value, uint16_t index, int len, uint32_t timeout_ms) {
     std::vector<uint8_t> buf;
-    AsyncIO::s_tlBufferGarbage->swap(buf);
+    AsyncIO::stl_bufferGarbage->swap(buf); //recycles large vector from TLS.
+    buf.reserve(SIZEOF_SINGLE_TRANSFER + len + PAD_BEFORE); //for async. transfer to prevent size doubling.
     buf.resize(SIZEOF_SINGLE_TRANSFER + len);
     struct SetupPacket {
         uint8_t bmRequest, bRequest;
@@ -362,7 +363,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     tr->wValue = value;
     tr->wIndex = index;
     tr->wLength = len;
-    tr->timeOut = timeout_ms ? timeout_ms / 1000u : 0xffffffffu; //infinite
+    tr->timeOut = timeout_ms ? timeout_ms / 1000u : 0xffffffffu; //sec. or infinite
     struct Packet1 {
         uint8_t bReserved2, ucEndpointAddress;
     };

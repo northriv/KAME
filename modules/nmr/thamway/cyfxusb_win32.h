@@ -16,7 +16,7 @@
 
 #include "cyfxusb.h"
 
-#define _WIN32_WINNT 0x0600 //vista or later
+#define _WIN32_WINNT 0x0600 //vista or later is required for CancelIoEx
 #define NOMINMAX
 #include <windows.h>
 

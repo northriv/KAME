@@ -79,9 +79,9 @@ struct CyFXUSBDevice {
         //! \return true if a cancelation is successfully requested.
         virtual bool abort() {return false;} //gcc doesn't accept pure virtual.
 
-        static XThreadLocal<std::vector<uint8_t>> s_tlBufferGarbage;
+        static XThreadLocal<std::vector<uint8_t>> stl_bufferGarbage;
     protected:
-        int64_t m_count_imm = -1;
+        int64_t m_count_imm = -1; //byte count of received user data, not incl. header.
     };
     virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
     virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
