@@ -64,8 +64,7 @@ XThamwayPROT3DSO::commitAcquision() {
         m_currRdChunk = 0;
         m_currRdPos = 0;
         for(auto &&x: m_chunks) {
-            x.data.resize(ChunkSize);
-            x.data.shrink_to_fit();
+            x.data.reserve(ChunkSize);
             x.data.clear();
         }
         if(isMemLockAvailable()) {
