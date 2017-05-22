@@ -114,6 +114,7 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
 	dstaddr.sin_family = AF_INET;
 	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
 
+    //\todo non-blocking connect.
 	if(connect(m_socket, (struct sockaddr *) &dstaddr, sizeof(dstaddr)) == -1) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
             errno = WSAGetLastError();

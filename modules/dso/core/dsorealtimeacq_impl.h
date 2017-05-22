@@ -27,10 +27,8 @@ template <class tDriver> XRealTimeAcqDSO<tDriver>::XRealTimeAcqDSO(const char *n
         tr[ *this->average()] = 1;
     });
     if(isMemLockAvailable()) {
-        const void *FIRST_OF_MLOCK_MEMBER = this;
-        const void *LAST_OF_MLOCK_MEMBER = &m_readMutex;
         //Suppress swapping.
-        mlock(FIRST_OF_MLOCK_MEMBER, (size_t)LAST_OF_MLOCK_MEMBER - (size_t)FIRST_OF_MLOCK_MEMBER);
+        mlock(this, sizeof(this));
     }
 }
 template <class tDriver>
