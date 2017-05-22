@@ -75,8 +75,6 @@ XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
 
 void
 XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
-	struct sockaddr_in dstaddr;
-
     std::string ipaddr = portString();
 	int colpos = ipaddr.find_first_of(':');
 	if(colpos == std::string::npos)
@@ -111,7 +109,7 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
 //    if(setsockopt(m_socket, SOL_SOCKET, SO_SNDBUF, (char*)&opt, sizeof(opt)))
 //        throw XInterface::XCommError(i18n("tcp socket setting options failed"), __FILE__, __LINE__);
 
-	memset( &dstaddr, 0, sizeof(dstaddr));
+    struct sockaddr_in dstaddr = {}; //zero clear.
 	dstaddr.sin_port = htons(port);
 	dstaddr.sin_family = AF_INET;
 	dstaddr.sin_addr.s_addr = inet_addr(ipaddr.c_str());
