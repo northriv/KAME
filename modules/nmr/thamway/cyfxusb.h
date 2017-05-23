@@ -83,8 +83,8 @@ struct CyFXUSBDevice {
     protected:
         int64_t m_count_imm = -1; //byte count of received user data, not incl. header.
     };
-    virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) = 0;
-    virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) = 0;
+    virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms = 0) = 0;
+    virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len, unsigned int timeout_ms = 0) = 0;
 
     XRecursiveMutex mutex;
 

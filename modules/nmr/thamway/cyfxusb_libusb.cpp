@@ -16,7 +16,7 @@
 #include <libusb-1.0/libusb.h>
 #include <cstring>
 
-static constexpr int USB_TIMEOUT = 1000; //ms
+static constexpr int USB_TIMEOUT = 2000; //ms
 
 struct CyFXLibUSBDevice : public CyFXUSBDevice {
     CyFXLibUSBDevice(libusb_device *d) : handle(nullptr), dev(d) {
@@ -44,8 +44,8 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,
                             uint16_t index, uint8_t *buf, int len) override;
 
-    virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
-    virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
+    virtual unique_ptr<AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
+    virtual unique_ptr<AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
 
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() {
@@ -284,13 +284,13 @@ CyFXLibUSBDevice::getString(int descid) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
+CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_OUT | ep, &async->buf.at(0), len,
-            &AsyncIO::cb_fn, &async->completed, 0); //no timeout
+            &AsyncIO::cb_fn, &async->completed, timeout_ms);
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
@@ -299,13 +299,13 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
+CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
-            &AsyncIO::cb_fn, &async->completed, 0); //no timeout
+            &AsyncIO::cb_fn, &async->completed, timeout_ms);
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);

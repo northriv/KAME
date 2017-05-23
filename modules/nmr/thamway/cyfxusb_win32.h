@@ -68,8 +68,8 @@ struct CyFXEzUSBDevice : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) override;
 
-    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
-    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) override;
@@ -96,8 +96,8 @@ struct CyUSB3Device : public CyFXWin32USBDevice {
 
     XString virtual getString(int descid) override;
 
-    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) override;
-    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
+    virtual unique_ptr<CyFXUSBDevice::AsyncIO> asyncBulkRead(uint8_t ep, uint8_t *buf, int len, unsigned int timeout_ms = 0) override;
 
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) override;

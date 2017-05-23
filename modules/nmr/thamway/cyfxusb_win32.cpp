@@ -241,7 +241,7 @@ CyFXEzUSBDevice::getString(int descid) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
+CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
     std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
     auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
@@ -263,7 +263,7 @@ CyFXEzUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
+CyFXEzUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
     std::vector<uint8_t> ioctlbuf(sizeof(BulkTransferCtrl));
     auto tr = reinterpret_cast<BulkTransferCtrl *>(&ioctlbuf[0]);
     //FX2FW specific
@@ -437,8 +437,8 @@ CyUSB3Device::getString(int descid) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    auto ioctlbuf = setupSingleTransfer(ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
+CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsigned int timeout_ms) {
+    auto ioctlbuf = setupSingleTransfer(ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len, timeout_ms);
     //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
     ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
     std::memmove( &ioctlbuf[PAD_BEFORE], &ioctlbuf[0], SIZEOF_SINGLE_TRANSFER);
@@ -451,8 +451,8 @@ CyUSB3Device::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len) {
 }
 
 unique_ptr<CyFXUSBDevice::AsyncIO>
-CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len) {
-    auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len);
+CyUSB3Device::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int timeout_ms) {
+    auto ioctlbuf = setupSingleTransfer(0x80u | ep, (CtrlReq)0, (CtrlReqType)0, 0, 0, len, timeout_ms);
     //shifts by PAD_BEFORE=2 to align the user data with 8bytes.
     ioctlbuf.resize(len + SIZEOF_SINGLE_TRANSFER + PAD_BEFORE);
     std::memmove( &ioctlbuf[PAD_BEFORE], &ioctlbuf[0], SIZEOF_SINGLE_TRANSFER);

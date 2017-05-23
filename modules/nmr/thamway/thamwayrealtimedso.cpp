@@ -300,8 +300,11 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
             auto async = fn(); //issues async. IO sequentially.
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
-            if(terminated) break;
+            if(terminated)
+                async->abort();
             auto count = async->waitFor() / sizeof(tRawAI);
+            if(terminated)
+                break;
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);

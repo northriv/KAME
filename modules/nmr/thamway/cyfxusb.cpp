@@ -13,19 +13,21 @@
 ***************************************************************************/
 #include "cyfxusb.h"
 
+constexpr unsigned int TIMEOUT_MS = 500;
+
 XThreadLocal<std::vector<uint8_t>>
 CyFXUSBDevice::AsyncIO::stl_bufferGarbage;
 
 int64_t
 CyFXUSBDevice::bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
-    auto async = asyncBulkWrite(ep, buf, len);
+    auto async = asyncBulkWrite(ep, buf, len, TIMEOUT_MS);
     auto ret = async->waitFor();
     return ret;
 }
 
 int64_t
 CyFXUSBDevice::bulkRead(uint8_t ep, uint8_t* buf, int len) {
-    auto async = asyncBulkRead(ep, buf, len);
+    auto async = asyncBulkRead(ep, buf, len, TIMEOUT_MS);
     return async->waitFor();
 }
 
