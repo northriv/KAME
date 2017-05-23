@@ -58,7 +58,7 @@ protected:
 private:
     XString getIDN(const shared_ptr<CyFXUSBDevice> &dev, int maxlen = 255) {
         XString str = getIDN(dev, maxlen, m_addrOffset);
-        if(str.empty() || (str.find(m_idString,0) != 0))
+        if(str.empty() || (str.find(m_idString,0) != 0) || m_idString.empty())
              return {};
         return str;
     }

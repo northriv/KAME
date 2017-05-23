@@ -109,15 +109,14 @@ std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     uint8_t dipsw = readDIPSW(dev);
     XString idn;
-    if( !m_idString.empty()) {
+    if(dipsw == DEV_ADDR_PROT) {
+        if( !m_idString.empty()) return {};
+        idn = "PROT";
+    }
+    else {
         //for PG and DV series.
         idn = getIDN(dev, 8);
         if( !idn.length()) return {};
-    }
-    else {
-        //for PROT
-        if(dipsw != DEV_ADDR_PROT) return {};
-        idn = "PROT";
     }
     idn = formatString("%d:%s", (int)dipsw, idn.c_str());
     return idn;
@@ -125,18 +124,19 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
 
 XString
 XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
-    try {
-        readDIPSW(dev);//Ugly huck for OSX. May end up in timeout.
-    }
-    catch (XInterface::XInterfaceError &) {
-        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
-    }
+//    try {
+//        readDIPSW(dev);//Ugly huck for OSX. May end up in timeout.
+//    }
+//    catch (XInterface::XInterfaceError &) {
+//        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
+//    }
     try {
         uint8_t dipsw = readDIPSW(dev);
         if(dipsw != DEV_ADDR_PROT)
             return {THAMWAY_USB_GPIFWAVE2_FILE};
     }
     catch (XInterfaceError &) {
+        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
     }
     return {THAMWAY_USB_GPIFWAVE1_FILE};
 }
