@@ -74,7 +74,7 @@ struct CyFXUSBDevice {
         void finalize(int64_t count_imm) {
             m_count_imm = count_imm;
         }
-        virtual bool hasFinished() const {return false;} //gcc doesn't accept pure virtual.
+        virtual bool hasFinished() const noexcept {return false;} //gcc doesn't accept pure virtual.
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
         //! \return true if a cancelation is successfully requested.
         virtual bool abort() noexcept {return false;} //gcc doesn't accept pure virtual.

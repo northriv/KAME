@@ -29,8 +29,13 @@ constexpr uint32_t IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER = 0x220020;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
+CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
+    if( !hasFinished())
+        abort();
+}
+
 bool
-CyFXWin32USBDevice::AsyncIO::hasFinished() const {
+CyFXWin32USBDevice::AsyncIO::hasFinished() const noexcept {
     return HasOverlappedIoCompleted( &overlap);
 }
 int64_t

@@ -54,12 +54,22 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
+            if( !hasFinished()) {
+                abort();
+                try {
+                    waitFor();
+                }
+                catch(XInterface::XInterfaceError &) {
+                }
+            }
             libusb_free_transfer(transfer);
             if(buf.size() > stl_bufferGarbage->size())
                 stl_bufferGarbage->swap(buf);
         }
 
-        virtual bool hasFinished() const override;
+        virtual bool hasFinished() const noexcept override {
+            return completed;
+        }
         virtual int64_t waitFor() override;
         virtual bool abort() noexcept override;
 
@@ -123,10 +133,6 @@ private:
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
-bool
-CyFXLibUSBDevice::AsyncIO::hasFinished() const {
-    return completed;
-}
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
     struct timeval tv;

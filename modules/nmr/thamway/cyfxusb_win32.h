@@ -33,9 +33,9 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
     struct AsyncIO : public CyFXUSBDevice::AsyncIO {
         AsyncIO() = default;
         AsyncIO(AsyncIO&&) noexcept = default;
-        virtual ~AsyncIO() = default;
+        virtual ~AsyncIO();
 
-        virtual bool hasFinished() const override;
+        virtual bool hasFinished() const noexcept override;
         virtual int64_t waitFor() override;
         virtual bool abort() noexcept override;
 
