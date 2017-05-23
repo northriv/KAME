@@ -332,10 +332,13 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
         }
         catch (XInterface::XInterfaceError &e) {
             e.print();
-            m_chunks[wridx].data.clear();
-            m_chunks[wridx].ioInProgress = false;
-            msecsleep(100);
-            continue;
+            XScopedLock<XMutex> lock(m_acqMutex);
+            for(auto &&x: m_acqThreads) {
+                x->terminate();
+            }
+            m_acqThreads.clear();
+            m_chunks.clear();
+            break;
         }
         catch (Collision &c) {
             switch (c) {
