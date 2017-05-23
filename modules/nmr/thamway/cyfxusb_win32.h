@@ -37,7 +37,7 @@ struct CyFXWin32USBDevice : public CyFXUSBDevice {
 
         virtual bool hasFinished() const override;
         virtual int64_t waitFor() override;
-        virtual bool abort() override;
+        virtual bool abort() noexcept override;
 
         void setBufferOffset(uint8_t *ioctlbufrdpos, ssize_t prepad) {
             ssize_t offset = ioctlbufrdpos - &ioctlbuf[prepad];

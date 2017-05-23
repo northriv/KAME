@@ -77,7 +77,7 @@ struct CyFXUSBDevice {
         virtual bool hasFinished() const {return false;} //gcc doesn't accept pure virtual.
         virtual int64_t waitFor() {return 0;} //gcc doesn't accept pure virtual.
         //! \return true if a cancelation is successfully requested.
-        virtual bool abort() {return false;} //gcc doesn't accept pure virtual.
+        virtual bool abort() noexcept {return false;} //gcc doesn't accept pure virtual.
 
         static XThreadLocal<std::vector<uint8_t>> stl_bufferGarbage;
     protected:

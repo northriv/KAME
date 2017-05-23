@@ -40,7 +40,7 @@ public:
         double position() const {return m_samplePosition;}
     private:
         friend class XQDPPMS;
-        double m_magnetField;
+        double m_magnetField; //Oe
         double m_samplePosition;
         double m_sampleTemp;
         double m_sampleUserTemp;
@@ -55,7 +55,7 @@ protected:
     virtual void visualize(const Snapshot &shot) override;
 
     //! driver specific part below
-    const shared_ptr<XScalarEntry> &field() const {return m_field;}
+    const shared_ptr<XScalarEntry> &field() const {return m_field;} //Oe
     const shared_ptr<XScalarEntry> &position() const {return m_position;}
     const shared_ptr<XScalarEntry> &temp() const {return m_temp;}
     const shared_ptr<XScalarEntry> &user_temp() const {return m_user_temp;}
@@ -77,10 +77,10 @@ protected:
     const shared_ptr<XComboNode> &tempApproachMode() const {return m_tempApproachMode;}
     const shared_ptr<XStringNode> &tempStatus() const {return m_tempStatus;}
 protected:
-    virtual void setField(double field, double rate, int approach_mode, int magnet_mode) = 0;
+    virtual void setField(double field, double rate, int approach_mode, int magnet_mode) = 0; //T
     virtual void setPosition(double position, int mode, int slow_down_code) = 0;
     virtual void setTemp(double temp, double rate, int approach_mode) = 0;
-    virtual double getField() = 0;
+    virtual double getField() = 0; //Oe
     virtual double getPosition() = 0;
     virtual double getTemp() = 0;
     virtual double getUserTemp() = 0;

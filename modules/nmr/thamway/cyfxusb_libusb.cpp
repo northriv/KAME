@@ -61,7 +61,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 
         virtual bool hasFinished() const override;
         virtual int64_t waitFor() override;
-        virtual bool abort() override;
+        virtual bool abort() noexcept override;
 
         static void cb_fn(struct libusb_transfer *transfer) {
 //            switch(transfer->status) {
@@ -132,14 +132,18 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     struct timeval tv;
     tv.tv_sec = USB_TIMEOUT / 1000;
     tv.tv_usec = 0;
+    auto start = XTime::now();
     while( !completed) {
         int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
-                return 0;
+//            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
+//                return 0;
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+        }
+        if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
+            abort();
         }
     }
     if(rdbuf) {
@@ -149,12 +153,12 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 }
 
 bool
-CyFXLibUSBDevice::AsyncIO::abort() {
+CyFXLibUSBDevice::AsyncIO::abort() noexcept {
     int ret = libusb_cancel_transfer(transfer);
-    if(ret == LIBUSB_ERROR_NOT_FOUND)
+    if(ret) {
+        gMessagePrint(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
-    if(ret)
-        throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+    }
     return true;
 }
 
@@ -229,6 +233,10 @@ CyFXLibUSBDevice::open() {
 void
 CyFXLibUSBDevice::close() {
     if(handle) {
+//        libusb_clear_halt(handle, 0x2);
+//        libusb_clear_halt(handle, 0x6);
+//        libusb_clear_halt(handle, 0x8);
+        libusb_reset_device(handle);
         libusb_release_interface(handle,0);
         libusb_close(handle);
     }

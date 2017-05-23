@@ -116,7 +116,7 @@ XQDPPMS::onFieldChanged(const Snapshot &,  XValueNodeBase *){
         throw XInterface::XInterfaceError(i18n("Too small sweep rate."), __FILE__, __LINE__);
     int approachMode = shot[ *fieldApproachMode()];
     int magnetMode = shot[ *fieldMagnetMode()];
-    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (magnetMode != 0))
+    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (approachMode != 0))
         throw XInterface::XInterfaceError(i18n("Slow ramp is only allowed for linear approach."), __FILE__, __LINE__);
     try {
         setField(shot[ *targetField()], sweepRate,
@@ -181,7 +181,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
     auto field_by_hardware_time = XTime::now();
     while( !terminated) {
         msecsleep(100);
-        double magnet_field;
+        double magnet_field; //Oe
         double sample_temp;
         double sample_user_temp;
         double sample_position;
@@ -258,16 +258,17 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                 //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
                 switch ((status >> 4) & 0xf) {
                 case 4: //"Holding"
+                case 5: //"Iterate"
                 case 6: //"Charging"
                 case 7: //"Disharging"
-                    if(XTime::now() - setfield_prevtime > 10) {
-                        //every 10 sec..
+                    if(XTime::now() - setfield_prevtime > 4) {
+                        //every 4 sec..
                         setfield_prevtime = XTime::now();
                         double sweeprate = fabs(shot[ *fieldSweepRate()]); //T/s
                         if( shot[ *targetField()] < field_by_hardware)
                             sweeprate *= -1;
-                        double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 10) * sweeprate; //expected field 10 sec after.
-                        if(fabs(newfield - magnet_field) > std::max(5 * sweeprate, 2e-4)) {
+                        double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 4) * sweeprate; //expected field 10 sec after.
+                        if(fabs(shot[ *targetField()] - magnet_field) > std::max(4 * sweeprate, 2e-4)) {
                             if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
                                 ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
                                 fprintf(stderr, "Magnet field now approaching to the set point.");
@@ -281,7 +282,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                         //Real holding state. Go to default:
                     }
                 default:
-                    field_by_hardware = magnet_field;
+                    field_by_hardware = magnet_field * 1e-4; //T
                     field_by_hardware_time = XTime::now();
                     break;
                 }

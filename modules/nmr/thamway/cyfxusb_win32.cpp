@@ -40,8 +40,8 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
         DWORD num;
         if( !GetOverlappedResult(handle, &overlap, &num, true)) {
             auto e = GetLastError();
-            if(e == ERROR_OPERATION_ABORTED)
-                return 0; //IO has been canceled.
+//            if(e == ERROR_OPERATION_ABORTED)
+//                return 0; //IO has been canceled.
             if(e == ERROR_BUSY)
                 throw XInterface::XInterfaceError(i18n("USB device is busy."), __FILE__, __LINE__);
             throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
@@ -59,7 +59,7 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
     return m_count_imm;
 }
 bool
-CyFXWin32USBDevice::AsyncIO::abort() {
+CyFXWin32USBDevice::AsyncIO::abort() noexcept {
     return CancelIoEx(handle, &overlap);
 }
 unique_ptr<CyFXWin32USBDevice::AsyncIO>
