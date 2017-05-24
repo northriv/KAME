@@ -363,7 +363,7 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     tr->wValue = value;
     tr->wIndex = index;
     tr->wLength = len;
-    tr->timeOut = timeout_ms ? timeout_ms / 1000u : 0xffffffffu; //sec. or infinite
+    tr->timeOut = timeout_ms ? std::max(timeout_ms / 1000u, 1u) : 0xffffffffu; //sec. or infinite
     struct Packet1 {
         uint8_t bReserved2, ucEndpointAddress;
     };
