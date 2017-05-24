@@ -301,7 +301,8 @@ XRealTimeAcqDSO<tDriver>::executeReadAI(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
     while( !terminated) {
         try {
-            acquire(terminated);
+            Snapshot shot( *this);
+            acquire(shot, terminated);
         }
         catch (XInterface::XInterfaceError &e) {
             e.print(this->getLabel());
@@ -312,7 +313,7 @@ XRealTimeAcqDSO<tDriver>::executeReadAI(const atomic<bool> &terminated) {
 }
 template <class tDriver>
 void
-XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
+XRealTimeAcqDSO<tDriver>::acquire(const Snapshot &shot, const atomic<bool> &terminated) {
     XScopedLock<XRecursiveMutex> lock(m_readMutex);
     while( !terminated) {
 
@@ -380,7 +381,6 @@ XRealTimeAcqDSO<tDriver>::acquire(const atomic<bool> &terminated) {
             cnt += samps;
         }
 
-        Snapshot shot( *this);
         const unsigned int av = shot[ *this->average()];
         const bool sseq = shot[ *this->singleSequence()];
         //obtain unlocked bank.

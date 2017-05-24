@@ -156,7 +156,7 @@ private:
     void setupSoftwareTrigger();
     void setupTiming();
     void createChannels();
-    void acquire(const atomic<bool> &terminated);
+    void acquire(const Snapshot &shot, const atomic<bool> &terminated);
 
     XRecursiveMutex m_readMutex;
 
