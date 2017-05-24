@@ -336,8 +336,6 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
             for(auto &&x: m_acqThreads) {
                 x->terminate();
             }
-            m_acqThreads.clear();
-            m_chunks.clear();
             break;
         }
         catch (Collision &c) {

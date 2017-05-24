@@ -264,7 +264,6 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
 
         if(hasQAMPorts()) {
             this->interfaceQAM()->bulkWriteStored();
-            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
         }
     }
 }

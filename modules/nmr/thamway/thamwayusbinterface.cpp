@@ -109,8 +109,7 @@ std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     uint8_t dipsw = readDIPSW(dev);
     XString idn;
-    if(dipsw == DEV_ADDR_PROT) {
-        if( !m_idString.empty()) return {};
+    if(m_idString.empty()) {
         idn = "PROT";
     }
     else {
@@ -133,7 +132,8 @@ XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
     try {
         uint8_t dipsw = readDIPSW(dev);
         if(dipsw != DEV_ADDR_PROT)
-            return {THAMWAY_USB_GPIFWAVE2_FILE};
+//           return {THAMWAY_USB_GPIFWAVE2_FILE};
+            return {THAMWAY_USB_GPIFWAVE1_FILE}; //Thamway recommends slow_dat.bin always.
     }
     catch (XInterfaceError &) {
         fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");

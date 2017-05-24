@@ -83,7 +83,7 @@ private:
 
         virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) override;
 
-        enum : uint32_t {QAM_PERIOD = 10}; //40ns * 10
+        enum : uint32_t {QAM_PERIOD = 5}; //40ns * 5, 5MSPS
 
         virtual double resolutionQAM() const override {return 0.0;}
         //! existense of AO ports.
