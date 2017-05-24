@@ -75,4 +75,5 @@ protected:
 private:
     void acquire(const atomic<bool> &terminated);
     bool m_pending;
+    unsigned int m_adConvBits;
 };

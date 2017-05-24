@@ -80,6 +80,11 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
     fprintf(stderr, "DV IDN=%s\n", idn.c_str());
+    auto pos = idn.find("BIT=");
+    if(pos == std::string::npos)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(sscanf(idn.c_str() + pos, "BIT=%u", &m_adConvBits) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
 
 // Initial states after powerup are undefined.
 //    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
@@ -197,7 +202,8 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     std::vector<uint8_t> buf(smps * sizeof(uint32_t));
     for(auto it = adds.begin(); it != adds.end(); ++it) {
         interface()->burstRead( *it, &buf[0], buf.size());
-        writer->push((double)1.0/3276.8); //[V/bit]
+        double res = 2.5 / pow(2, m_adConvBits - 1);
+        writer->push(res); //[V/bit]
         writer->push((double)-2.5); //offset[V]
         writer->insert(writer->end(), buf.begin(), buf.end());
     }

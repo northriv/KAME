@@ -307,6 +307,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             this->interfaceQAM()->bulkWriteStored();
         }
 
+        //this readout procedure is necessary for unknown reasons!
         for(int i = 0; i < addr; i++) {
             auto x = this->interface()->readRegister16(ADDR_REG_DATA_LSW)
                 * 0x10000uL + this->interface()->readRegister16(ADDR_REG_DATA_MSW);
