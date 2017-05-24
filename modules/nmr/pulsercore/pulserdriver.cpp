@@ -1158,7 +1158,7 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 	double dx = dma_ao_period / pw;
 	double dp = 2*M_PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);
-	const int FAC_ANTIALIAS = 3;
+    const int FAC_ANTIALIAS = std::min(3L, lrint(dma_ao_period / resolution()));
 	p.resize(to_center * 2);
 	std::fill(p.begin(), p.end(), std::complex<double>(0.0));
 	std::vector<std::complex<double> > wave(p.size() * FAC_ANTIALIAS, 0.0);

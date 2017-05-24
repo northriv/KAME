@@ -83,7 +83,7 @@ private:
     std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).
     std::vector<unique_ptr<XThread<XThamwayPROT3DSO>>> m_acqThreads;
     XMutex m_acqMutex;
-    void *execute(const atomic<bool> &) override;
+    void *executeAsyncRead(const atomic<bool> &);
 };
 
 #endif // THAMWAYREALTIMEDSO_H

@@ -77,7 +77,7 @@ XThamwayPROT3DSO::commitAcquision() {
 
     m_acqThreads.resize(NumThreads);
     for(auto &&x: m_acqThreads) {
-        x.reset(new  XThread<XThamwayPROT3DSO>(shared_from_this(), &XThamwayPROT3DSO::execute));
+        x.reset(new  XThread<XThamwayPROT3DSO>(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead));
         x->resume();
     }
 
@@ -276,7 +276,7 @@ XThamwayPROT3DSO::close() throw (XKameError &) {
 }
 
 void*
-XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
+XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Priority::HIGHEST);
 
     enum class Collision {BufferUnderflow, IOStall};

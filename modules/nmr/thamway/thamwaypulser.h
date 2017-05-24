@@ -51,7 +51,7 @@ private:
 	//! Add 1 pulse pattern
 	//! \param term a period of the pattern to appear
 	//! \param pattern a pattern for digital, to appear
-	int pulseAdd(Transaction &tr, uint64_t term, uint16_t pattern);
+    int pulseAdd(Transaction &tr, uint64_t term, uint32_t pattern);
 };
 
 #if defined USE_THAMWAY_USB
@@ -73,9 +73,8 @@ private:
     class XThamwayUSBPulser : public XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface> {
     public:
         XThamwayUSBPulser(const char *name, bool runtime,
-            Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-            XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {}
-        virtual ~XThamwayUSBPulser() = default;
+            Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        virtual ~XThamwayUSBPulser();
     protected:
         virtual void open() throw (XKameError &) override;
         //! Sends patterns to pulser or turns off.
@@ -83,14 +82,17 @@ private:
 
         virtual void getStatus(bool *running = 0L, bool *extclk_det = 0L) override;
 
-        enum : uint32_t {QAM_PERIOD = 5}; //40ns * 5, 5MSPS
-
+        //! time resolution [ms]
+        virtual double resolution() const override {return m_resolution;}
         virtual double resolutionQAM() const override {return 0.0;}
         //! existense of AO ports.
         virtual bool hasQAMPorts() const override {return !!interfaceQAM();}
 
         virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const {return nullptr;}
+
+        unsigned int m_qamPeriod; //would be 20
     private:
+        double m_resolution;
     };
 
     class XThamwayUSBPulserWithQAM : public XThamwayUSBPulser {
@@ -102,7 +104,7 @@ private:
         virtual void open() throw (XKameError &) override;
         virtual void close() throw (XKameError &) override;
 
-        virtual double resolutionQAM() const override {return resolution() * QAM_PERIOD;}
+        virtual double resolutionQAM() const override {return resolution();} //decimation by 20 is performed within changeOutput().
 
         virtual shared_ptr<XThamwayPGQAMCUSBInterface> interfaceQAM() const override {return m_interfaceQAM;}
     private:
