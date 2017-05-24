@@ -80,6 +80,7 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
 XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
  : XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
+    //!\todo this may cause nested transaction via onSoftTrigChanged().
     m_softwareTrigger = XThamwayFX3USBInterface::softwareTriggerManager().create(name, NUM_DO_PORTS);
 }
 XThamwayUSBPulser::~XThamwayUSBPulser() {

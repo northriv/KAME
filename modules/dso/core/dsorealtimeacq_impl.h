@@ -69,7 +69,7 @@ XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
     m_lsnOnSoftTrigChanged =
         this->interface()->softwareTriggerManager().onListChanged().connectWeakly(
             this->shared_from_this(), &XRealTimeAcqDSO<tDriver>::onSoftTrigChanged,
-            Listener::FLAG_MAIN_THREAD_CALL);
+            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_DELAY_ADAPTIVE | Listener::FLAG_AVOID_DUP);
     createChannels();
 }
 template <class tDriver>

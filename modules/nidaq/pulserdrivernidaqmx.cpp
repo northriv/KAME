@@ -54,6 +54,7 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 		}
     });
 
+    //!\todo this may cause nested transaction via onSoftTrigChanged().
     m_softwareTrigger = XNIDAQmxInterface::softwareTriggerManager().create(name, NUM_DO_PORTS);
 
 	m_pausingCount = (PAUSING_BLANK_BEFORE + PAUSING_BLANK_AFTER) * 47;
