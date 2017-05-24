@@ -54,12 +54,22 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
+            if( !hasFinished()) {
+                abort();
+                try {
+                    waitFor(); //wait for cb_fn() completion.
+                }
+                catch(XInterface::XInterfaceError &) {
+                }
+            }
             libusb_free_transfer(transfer);
             if(buf.size() > stl_bufferGarbage->size())
                 stl_bufferGarbage->swap(buf);
         }
 
-        virtual bool hasFinished() const override;
+        virtual bool hasFinished() const noexcept override {
+            return completed;
+        }
         virtual int64_t waitFor() override;
         virtual bool abort() noexcept override;
 
@@ -123,10 +133,6 @@ private:
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
-bool
-CyFXLibUSBDevice::AsyncIO::hasFinished() const {
-    return completed;
-}
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
     struct timeval tv;
@@ -138,6 +144,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+            completed = true; //not to abort() in the destructor.
 //            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
 //                return 0;
             throw XInterface::XInterfaceError(formatString("Error during transfer in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
@@ -293,6 +300,7 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
+         async->completed = true; //not to abort() in the destructor.
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
     return std::move(async);
@@ -308,6 +316,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
+         async->completed = true; //not to abort() in the destructor.
          throw XInterface::XInterfaceError(formatString("USB Error during submitting a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
     }
     return std::move(async);

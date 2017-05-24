@@ -186,8 +186,47 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     Snapshot shot( *this);
     bool swap_traces = (shot[ *trace1()].to_str() == "CH2");
     uint32_t samps_read = 0;
-
     size *= getNumOfChannels();
+
+    auto memcpy_wordswap = [](tRawAI *dst, const tRawAI *src, size_t byte_size) {
+        size_t len = byte_size / sizeof(tRawAI);
+        if(((uintptr_t)dst % 8 == 0) && (sizeof(tRawAI) == 2)) {
+            tRawAI *src_end = (tRawAI*)(((uintptr_t)src + 15) / 16 * 16);
+            while(src < src_end) {
+                tRawAI ch1, ch2;
+                ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
+            }
+            //unrolls loop.
+            auto src_end64 = reinterpret_cast<uint64_t*>((uintptr_t)(src + len)/ 16 * 16);
+            assert((uintptr_t)src % 16 == 0);
+            auto *src64 = reinterpret_cast<const uint64_t*>(src);
+            auto *dst64 = reinterpret_cast<uint64_t*>(dst);
+            while(src64 < src_end64) {
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
+                //equiv to above.
+                uint64_t f = 0xffff0000ffffuLL;
+                auto llw_swapped =
+                    ((*src64 & f) * 0x10000u) + ((*src64 / 0x10000u) & f);
+                *dst64++ = llw_swapped;
+                src64++;
+                llw_swapped =
+                        ((*src64 & f) * 0x10000u) + ((*src64 / 0x10000u) & f);
+                *dst64++ = llw_swapped;
+                src64++;
+            }
+            src = (const tRawAI*)src64;
+            dst = (tRawAI*)dst64;
+        }
+        const tRawAI *src_end = src + len;
+        while(src < src_end) {
+            tRawAI ch1, ch2;
+            ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
+        }
+    };
+
     while(size) {
         if(m_currRdChunk == m_wrChunkBegin) {
             break; //nothing to read.
@@ -198,50 +237,15 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(swap_traces) {
             //copies data with word swapping.
-            tRawAI *rdpos = &chunk.data[m_currRdPos];
-            if(((uintptr_t)buf % 8 == 0) && (sizeof(tRawAI) == 2)) {
-                tRawAI *rdpos_end = (tRawAI*)(((uintptr_t)rdpos + 15) / 16 * 16);
-                while(rdpos < rdpos_end) {
-                    tRawAI ch1, ch2;
-                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-                }
-                //unrolls loop.
-                auto rdpos_end64 = reinterpret_cast<uint64_t*>((uintptr_t)&chunk.data[m_currRdPos + len]/ 16 * 16);
-                assert((uintptr_t)rdpos % 16 == 0);
-                uint64_t *rdpos64 = reinterpret_cast<uint64_t*>(rdpos);
-                uint64_t *buf64 = reinterpret_cast<uint64_t*>(buf);
-                //test results i7 2.5GHz, OSX10.12, 3.7GB/s
-                while(rdpos64 < rdpos_end64) {
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-//                    ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-                    //equiv to above.
-                    uint64_t f = 0xffff0000ffffuLL;
-                    auto llw_swapped =
-                        ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
-                    *buf64++ = llw_swapped;
-                    rdpos64++;
-                    llw_swapped =
-                            ((*rdpos64 & f) * 0x10000u) + ((*rdpos64 / 0x10000u) & f);
-                    *buf64++ = llw_swapped;
-                    rdpos64++;
-                }
-                rdpos = (tRawAI*)rdpos64;
-                buf = (tRawAI*)buf64;
-            }
-            tRawAI *rdpos_end = &chunk.data[m_currRdPos + len];
-            while(rdpos < rdpos_end) {
-                tRawAI ch1, ch2;
-                ch2 = *rdpos++; ch1 = *rdpos++; *buf++ = ch1; *buf++ = ch2;
-            }
+            //test results i7 2.5GHz, OSX10.12, 3.7GB/s
+            memcpy_wordswap(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
         }
         else {
             //Simple copy without swap.
             //test results i7 2.5GHz, OSX10.12, 4.5GB/s
             std::memcpy(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
-            buf += len;
         }
+        buf += len;
         samps_read += len;
         size -= len;
         {
@@ -278,7 +282,7 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
     enum class Collision {BufferUnderflow, IOStall};
     while( !terminated) {
         ssize_t wridx; //index of a chunk for async. IO.
-        auto fn = [&]() {
+        auto issue_async_read = [&]() {
             //Lambda fn to issue async IO and reserves a chunk atomically.
             XScopedLock<XMutex> lock(m_acqMutex);
             ssize_t next_idx = m_wrChunkEnd;
@@ -297,14 +301,12 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
                     chunk.data.size() * sizeof(tRawAI));
         };
         try {
-            auto async = fn(); //issues async. IO sequentially.
+            auto async = issue_async_read();
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated)
-                async->abort();
-            auto count = async->waitFor() / sizeof(tRawAI);
-            if(terminated)
                 break;
+            auto count = async->waitFor() / sizeof(tRawAI);
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
@@ -330,10 +332,13 @@ XThamwayPROT3DSO::execute(const atomic<bool> &terminated) {
         }
         catch (XInterface::XInterfaceError &e) {
             e.print();
-            m_chunks[wridx].data.clear();
-            m_chunks[wridx].ioInProgress = false;
-            msecsleep(100);
-            continue;
+            XScopedLock<XMutex> lock(m_acqMutex);
+            for(auto &&x: m_acqThreads) {
+                x->terminate();
+            }
+            m_acqThreads.clear();
+            m_chunks.clear();
+            break;
         }
         catch (Collision &c) {
             switch (c) {
