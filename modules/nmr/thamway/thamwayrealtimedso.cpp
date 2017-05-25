@@ -176,6 +176,7 @@ XThamwayPROT3DSO::getTotalSampsAcquired() {
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
     uint64_t rdpos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh + m_currRdPos / getNumOfChannels();
+    assert(m_totalSmpsPerCh >= rdpos_abs_per_ch);
     auto x = m_totalSmpsPerCh - rdpos_abs_per_ch;
     if(x > 0) x--; //-1, not to proceed m_currRdChunk.
     return x;
@@ -249,10 +250,14 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     };
 
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
-        if(chunk.ioInProgress)
+        if(chunk.ioInProgress) {
+            fprintf(stderr, "Unexpected collision\n");
             break; //collision.
-        if(m_currRdChunk == m_wrChunkBegin)
+        }
+        if(m_currRdChunk == m_wrChunkBegin) {
+            fprintf(stderr, "Unexpected collision\n");
             break; //nothing to read.
+        }
         assert(chunk.data.size() > m_currRdPos);
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(m_swapTraces) {
