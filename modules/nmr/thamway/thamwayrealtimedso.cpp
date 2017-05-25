@@ -82,6 +82,7 @@ XThamwayPROT3DSO::commitAcquision() {
         for(auto &&x: m_chunks) {
             x.data.reserve(ChunkSize);
             x.data.clear();
+            x.ioInProgress = false;
         }
         if(isMemLockAvailable()) {
             mlock(this, sizeof(XThamwayPROT3DSO));
@@ -198,6 +199,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
     auto memcpy_wordswap = [](tRawAI *dst, const tRawAI *src, size_t byte_size) {
         size_t len = byte_size / sizeof(tRawAI);
+        const tRawAI *src_end = src + len;
         if(((uintptr_t)dst % 8 == 0) && (sizeof(tRawAI) == 2)) {
             tRawAI *src_end = (tRawAI*)(((uintptr_t)src + 15) / 16 * 16);
             while(src < src_end) {
@@ -228,7 +230,6 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             src = (const tRawAI*)src64;
             dst = (tRawAI*)dst64;
         }
-        const tRawAI *src_end = src + len;
         while(src < src_end) {
             tRawAI ch1, ch2;
             ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
