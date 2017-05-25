@@ -191,6 +191,7 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
         if((pos >= pos_abs_per_ch) && (pos < pos_abs_per_ch_end)) {
             m_currRdPos = (pos - pos_abs_per_ch) * getNumOfChannels();
+            fprintf(stderr, "Set readpos at %u, chunk %u, rpos %u.\n", (unsigned int)pos, (unsigned int)m_currRdChunk, (unsigned int)m_currRdPos);
             return true;
         }
         m_currRdChunk++;

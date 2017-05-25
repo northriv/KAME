@@ -373,6 +373,7 @@ XRealTimeAcqDSO<tDriver>::acquire(const Snapshot &shot, const atomic<bool> &term
                 uint32_t space = getNumSampsToBeRead();
                 if(space >= samps)
                     break;
+                fprintf(stderr, "Wait for enough space > %u, available = %u.\n", (unsigned int)samps, (unsigned int)space);
                 msecsleep(lrint(1e3 * (samps - space) * m_interval));
             }
             if(terminated)
