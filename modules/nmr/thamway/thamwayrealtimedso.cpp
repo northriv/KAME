@@ -111,7 +111,6 @@ XThamwayPROT3DSO::commitAcquision() {
 void
 XThamwayPROT3DSO::stopAcquision() {
     fprintf(stderr, "stop acq.\n");
-    XScopedLock<XMutex> lock(m_acqMutex);
     for(auto &&x: m_acqThreads) {
         x->terminate();
     }
@@ -350,7 +349,6 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         }
         catch (XInterface::XInterfaceError &e) {
             e.print();
-            XScopedLock<XMutex> lock(m_acqMutex);
             for(auto &&x: m_acqThreads) {
                 x->terminate();
             }
