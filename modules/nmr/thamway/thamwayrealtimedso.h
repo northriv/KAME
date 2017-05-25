@@ -64,7 +64,7 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 1024*2048, NumThreads = 8, NumChunks = 32};
+    enum {ChunkSize = 128*2048, NumThreads = 4, NumChunks = 64};
     atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
     unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
         m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.
@@ -78,6 +78,7 @@ private:
     std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).
     std::vector<unique_ptr<XThread<XThamwayPROT3DSO>>> m_acqThreads;
     XMutex m_acqMutex;
+    bool m_swapTraces;
     void *executeAsyncRead(const atomic<bool> &);
 };
 

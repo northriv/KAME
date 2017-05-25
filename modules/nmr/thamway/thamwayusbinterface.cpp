@@ -423,8 +423,7 @@ XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 }
 std::string
 XThamwayFX3USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
-    static int count = 0; //\todo a certain ID.
-    return formatString("FX3-%d", count);
+    return {"FX3"};
 }
 void
 XThamwayFX3USBInterface::send(const char *str) {

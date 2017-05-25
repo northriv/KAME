@@ -156,6 +156,8 @@ XThamwayPROT3DSO::setupChannels() {
             m_coeffAI[ch_num][i] = 0.0;
         m_coeffAI[ch_num][1] = 1.0 / 32768.0; //+-1V F.S.
     }
+    Snapshot shot( *this);
+    m_swapTraces = (shot[ *trace1()].to_str() == "CH2");
 }
 
 void
@@ -173,9 +175,10 @@ XThamwayPROT3DSO::getTotalSampsAcquired() {
 
 uint32_t
 XThamwayPROT3DSO::getNumSampsToBeRead() {
-    XScopedLock<XMutex> lock(m_acqMutex);
     uint64_t rdpos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh + m_currRdPos / getNumOfChannels();
-    return m_totalSmpsPerCh - rdpos_abs_per_ch;
+    auto x = m_totalSmpsPerCh - rdpos_abs_per_ch;
+    if(x > 0) x--; //-1, not to proceed m_currRdChunk.
+    return x;
 }
 
 bool
@@ -204,8 +207,6 @@ XThamwayPROT3DSO::setReadPositionFirstPoint() {
 
 uint32_t
 XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
-    Snapshot shot( *this);
-    bool swap_traces = (shot[ *trace1()].to_str() == "CH2");
     uint32_t samps_read = 0;
     size *= getNumOfChannels();
 
@@ -247,15 +248,14 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         }
     };
 
-    while(size) {
-        if(m_currRdChunk == m_wrChunkBegin) {
+    for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
+        if(chunk.ioInProgress)
+            break; //collision.
+        if(m_currRdChunk == m_wrChunkBegin)
             break; //nothing to read.
-        }
-        readBarrier();
-        auto &chunk = m_chunks[m_currRdChunk];
-        assert(chunk.ioInProgress == false);
+        assert(chunk.data.size() > m_currRdPos);
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
-        if(swap_traces) {
+        if(m_swapTraces) {
             //copies data with word swapping.
             //test results i7 2.5GHz, OSX10.12, 3.7GB/s
             memcpy_wordswap(buf, &chunk.data[m_currRdPos], len * sizeof(tRawAI));
@@ -268,11 +268,15 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         buf += len;
         samps_read += len;
         size -= len;
-        {
+        m_currRdPos += len;
+        assert(m_currRdPos <= chunk.data.size());
+        if(m_currRdPos == chunk.data.size()) {
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
+            chunk = m_chunks[m_currRdChunk];
             m_currRdPos = 0;
+            assert(m_currRdChunk != m_wrChunkBegin);
         }
     }
     return samps_read / getNumOfChannels();
@@ -283,7 +287,7 @@ void*
 XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Priority::HIGHEST);
 
-    enum class Collision {BufferUnderflow, IOStall};
+    enum class Collision {IOStall, Stopped};
     while( !terminated) {
         ssize_t wridx; //index of a chunk for async. IO.
         auto issue_async_read = [&]() {
@@ -296,10 +300,8 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 throw Collision::IOStall;
             if(next_idx == m_chunks.size())
                 next_idx = 0;
-            if(next_idx == m_currRdChunk)
-                throw Collision::BufferUnderflow;
             m_wrChunkEnd = next_idx;
-            chunk.data.resize(ChunkSize);
+            chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
             return interface()->asyncReceive( (char*)&chunk.data[0],
                     chunk.data.size() * sizeof(tRawAI));
@@ -320,10 +322,10 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 chunk.ioInProgress = false;
 //                auto expected = chunk.data.size();
                 chunk.data.resize(count);
-//                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
-//                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
-//                if(std::max(maxv, (short)-minv) > 0x7000)
-//                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)minv);
+                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
+                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
+                if(std::max(maxv, (short)-minv) > 0x7000)
+                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)minv);
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
@@ -337,8 +339,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 }
                 if(count == 0) {
                 //Pulse generation has stopped.
-                    fprintf(stderr, "Pulse generation has stopped.\n");
-                    throw Collision::IOStall;
+                    throw Collision::Stopped;
                 }
             }
         }
@@ -356,9 +357,9 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 fprintf(stderr, "IO stall.\n");
                 msecsleep(20);
                 continue;
-            case Collision::BufferUnderflow:
-                gErrPrint(i18n("Buffer Underflow."));
-                msecsleep(20);
+            case Collision::Stopped:
+                fprintf(stderr, "Pulse generation has stopped.\n");
+                msecsleep(200);
                 continue;
             }
         }
