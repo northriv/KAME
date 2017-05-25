@@ -54,7 +54,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
-            if( !hasFinished()) {
+            if( !completed) {
                 abort();
                 try {
                     waitFor(); //wait for cb_fn() completion.
@@ -67,9 +67,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
                 stl_bufferGarbage->swap(buf);
         }
 
-        virtual bool hasFinished() const noexcept override {
-            return completed;
-        }
+        virtual bool hasFinished() const noexcept override;
         virtual int64_t waitFor() override;
         virtual bool abort() noexcept override;
 
@@ -133,6 +131,15 @@ private:
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
+bool
+CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
+    struct timeval tv = {};
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, const_cast<int*>( &completed)); //returns immediately.
+    if(ret)
+        fprintf(stderr, "Error during transfer in libusb: %s\n", libusb_error_name(ret));
+    return completed;
+}
+
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
     struct timeval tv;
@@ -161,6 +168,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 
 bool
 CyFXLibUSBDevice::AsyncIO::abort() noexcept {
+    fprintf(stderr, "Libusb async transfer aborted.\n");
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
         gMessagePrint(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
