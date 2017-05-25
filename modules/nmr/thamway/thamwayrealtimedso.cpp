@@ -49,6 +49,7 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
 
 void
 XThamwayPROT3DSO::startAcquision() {
+    fprintf(stderr, "start acq.\n");
     if(m_acqThreads.empty()) {
         commitAcquision();
     }
@@ -76,6 +77,7 @@ XThamwayPROT3DSO::startAcquision() {
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
+    fprintf(stderr, "commit acq.\n");
 
     stopAcquision();
     {
@@ -108,6 +110,7 @@ XThamwayPROT3DSO::commitAcquision() {
 }
 void
 XThamwayPROT3DSO::stopAcquision() {
+    fprintf(stderr, "stop acq.\n");
     XScopedLock<XMutex> lock(m_acqMutex);
     for(auto &&x: m_acqThreads) {
         x->terminate();
@@ -333,6 +336,10 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 chunk.ioInProgress = false;
 //                auto expected = chunk.data.size();
                 chunk.data.resize(count);
+                auto v = std::max( *std::max_element(chunk.data.begin(), chunk.data.end()),
+                         (short)- *std::min_element(chunk.data.begin(), chunk.data.end()));
+                if(v > 0x7000)
+                    fprintf(stderr, "max=%x\n", (unsigned int)v);
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
