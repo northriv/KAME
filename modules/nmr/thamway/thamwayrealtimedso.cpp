@@ -198,15 +198,15 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
     auto memcpy_wordswap = [](tRawAI *dst, const tRawAI *src, size_t byte_size) {
         size_t len = byte_size / sizeof(tRawAI);
+        const tRawAI *src_end = src + len;
+        auto *src_end_pre = (const tRawAI*)(((uintptr_t)src + 15) / 16 * 16);
+        while(src < src_end_pre) {
+            tRawAI ch1, ch2;
+            ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
+        }
         if(((uintptr_t)dst % 8 == 0) && (sizeof(tRawAI) == 2)) {
-            tRawAI *src_end = (tRawAI*)(((uintptr_t)src + 15) / 16 * 16);
-            while(src < src_end) {
-                tRawAI ch1, ch2;
-                ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
-            }
             //unrolls loop.
             auto src_end64 = reinterpret_cast<uint64_t*>((uintptr_t)(src + len)/ 16 * 16);
-            assert((uintptr_t)src % 16 == 0);
             auto *src64 = reinterpret_cast<const uint64_t*>(src);
             auto *dst64 = reinterpret_cast<uint64_t*>(dst);
             while(src64 < src_end64) {
@@ -221,14 +221,13 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
                 *dst64++ = llw_swapped;
                 src64++;
                 llw_swapped =
-                        ((*src64 & f) * 0x10000u) + ((*src64 / 0x10000u) & f);
+                    ((*src64 & f) * 0x10000u) + ((*src64 / 0x10000u) & f);
                 *dst64++ = llw_swapped;
                 src64++;
             }
             src = (const tRawAI*)src64;
             dst = (tRawAI*)dst64;
         }
-        const tRawAI *src_end = src + len;
         while(src < src_end) {
             tRawAI ch1, ch2;
             ch2 = *src++; ch1 = *src++; *dst++ = ch1; *dst++ = ch2;
