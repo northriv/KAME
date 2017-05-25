@@ -49,11 +49,27 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
 
 void
 XThamwayPROT3DSO::startAcquision() {
-    if(m_acqThreads.empty())
+    if(m_acqThreads.empty()) {
         commitAcquision();
+
+        for(auto &&x: m_acqThreads) {
+            x->resume();
+        }
+        //waits until async IOs have been submitted.
+        for(;;) {
+            msecsleep(10);
+            {
+                XScopedLock<XMutex> lock(m_acqMutex);
+                if(m_wrChunkEnd >= NumThreads)
+                    break;
+            }
+        }
+    }
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
+
+    stopAcquision();
     {
         XScopedLock<XMutex> lock(m_acqMutex);
         //allocates buffers.
@@ -78,17 +94,6 @@ XThamwayPROT3DSO::commitAcquision() {
     m_acqThreads.resize(NumThreads);
     for(auto &&x: m_acqThreads) {
         x.reset(new  XThread<XThamwayPROT3DSO>(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead));
-        x->resume();
-    }
-
-    //waits until async IOs have been submitted.
-    for(;;) {
-        msecsleep(10);
-        {
-            XScopedLock<XMutex> lock(m_acqMutex);
-            if(m_wrChunkEnd >= NumThreads)
-                break;
-        }
     }
 }
 void
@@ -101,11 +106,14 @@ XThamwayPROT3DSO::stopAcquision() {
         x->waitFor();
     }
     m_acqThreads.clear();
-    m_chunks.clear();
+    for(auto &&x: m_chunks) {
+        x.data.clear();
+    }
 }
 
 void
 XThamwayPROT3DSO::clearAcquision() {
+    stopAcquision();
 }
 
 unsigned int
