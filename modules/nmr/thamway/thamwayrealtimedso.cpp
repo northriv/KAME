@@ -330,7 +330,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
                 short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
                 if(std::max(maxv, (short)-minv) > 0x7000)
-                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)minv);
+                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {

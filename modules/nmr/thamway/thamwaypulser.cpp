@@ -85,7 +85,7 @@ XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction
     //!\todo this may cause nested transaction via onSoftTrigChanged().
     m_softwareTrigger = XThamwayFX3USBInterface::softwareTriggerManager().create(name, NUM_DO_PORTS);
 
-    setPrefillingSampsBeforeArm( - LEADING_BLANKS);
+//    setPrefillingSampsBeforeArm( -(int)LEADING_BLANKS);
 }
 XThamwayUSBPulser::~XThamwayUSBPulser() {
     XThamwayFX3USBInterface::softwareTriggerManager().unregister(m_softwareTrigger);

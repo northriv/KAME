@@ -64,7 +64,7 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 16*2048, NumThreads = 4, NumChunks = (1024*1024*32/ChunkSize)};
+    enum {ChunkSize = 1024*2048, NumThreads = 4, NumChunks = (1024*1024*32/ChunkSize)};
     atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
     unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
         m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.
