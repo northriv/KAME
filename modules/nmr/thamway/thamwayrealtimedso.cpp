@@ -279,22 +279,6 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 }
 
 
-void
-XThamwayPROT3DSO::open() throw (XKameError &) {
-    XRealTimeAcqDSO<XCharDeviceDriver<XDSO, XThamwayFX3USBInterface>>::open();
-}
-void
-XThamwayPROT3DSO::close() throw (XKameError &) {
-    XScopedLock<XInterface> lock( *interface());
-    stopAcquision();
-
-    iterate_commit([=](Transaction &tr){
-        for(auto &&x: {trace1(), trace2(), trace3(), trace4()})
-            tr[ *x].clear();
-    });
-    XRealTimeAcqDSO<XCharDeviceDriver<XDSO, XThamwayFX3USBInterface>>::close();
-}
-
 void*
 XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
     Transactional::setCurrentPriorityMode(Priority::HIGHEST);
@@ -336,10 +320,10 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 chunk.ioInProgress = false;
 //                auto expected = chunk.data.size();
                 chunk.data.resize(count);
-                auto v = std::max( *std::max_element(chunk.data.begin(), chunk.data.end()),
-                         (short)- *std::min_element(chunk.data.begin(), chunk.data.end()));
-                if(v > 0x7000)
-                    fprintf(stderr, "max=%x\n", (unsigned int)v);
+//                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
+//                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
+//                if(std::max(maxv, (short)-minv) > 0x7000)
+//                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)minv);
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {

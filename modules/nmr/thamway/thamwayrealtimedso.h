@@ -24,11 +24,6 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XThamwayPROT3DSO() = default;
 protected:
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
-    //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) override;
-
     //! Changes the instrument state so that it can wait for a trigger (arm).
     virtual void startAcquision() override;
     //! Prepares the instrument state just before startAcquision().
@@ -69,7 +64,7 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 256*2048, NumThreads = 4, NumChunks = 32};
+    enum {ChunkSize = 1024*2048, NumThreads = 8, NumChunks = 32};
     atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
     unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
         m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.
