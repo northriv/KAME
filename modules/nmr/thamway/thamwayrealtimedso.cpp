@@ -51,24 +51,26 @@ void
 XThamwayPROT3DSO::startAcquision() {
     if(m_acqThreads.empty()) {
         commitAcquision();
+    }
 
+    if((m_wrChunkEnd == m_wrChunkBegin) && (m_totalSmpsPerCh == 0)) {
         for(auto &&x: m_acqThreads) {
             x->resume();
         }
-        //waits until async IOs have been submitted.
-        for(;;) {
-            msecsleep(10);
-            for(auto &&x: m_acqThreads) {
-                if(x->isTerminated()) {
-                    stopAcquision();
-                    throw XInterface::XInterfaceError(i18n("Starting acquision has failed."), __FILE__, __LINE__);
-                }
+    }
+    //waits until async IOs have been submitted.
+    for(;;) {
+        msecsleep(10);
+        for(auto &&x: m_acqThreads) {
+            if(x->isTerminated()) {
+                stopAcquision();
+                throw XInterface::XInterfaceError(i18n("Starting acquision has failed."), __FILE__, __LINE__);
             }
-            {
-                XScopedLock<XMutex> lock(m_acqMutex);
-                if(m_wrChunkEnd >= NumThreads)
-                    break;
-            }
+        }
+        {
+            XScopedLock<XMutex> lock(m_acqMutex);
+            if((m_wrChunkEnd - m_wrChunkBegin + m_chunks.size()) % m_chunks.size() >= NumThreads)
+                break;
         }
     }
 }
