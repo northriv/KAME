@@ -51,6 +51,8 @@ REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (
 
 #define CHAR_TIMER_PERIOD (1.0/(40.0e3))
 
+constexpr unsigned int LEADING_BLANKS = 20;
+
 double XThamwayPulser::resolution() const {
     return CHAR_TIMER_PERIOD; //25MSPS
 }
@@ -82,6 +84,8 @@ XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction
 
     //!\todo this may cause nested transaction via onSoftTrigChanged().
     m_softwareTrigger = XThamwayFX3USBInterface::softwareTriggerManager().create(name, NUM_DO_PORTS);
+
+    setPrefillingSampsBeforeArm( - LEADING_BLANKS);
 }
 XThamwayUSBPulser::~XThamwayUSBPulser() {
     XThamwayFX3USBInterface::softwareTriggerManager().unregister(m_softwareTrigger);
@@ -92,8 +96,8 @@ XThamwayPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
 	tr[ *this].m_patterns.clear();
     auto pat = shot[ *this].relPatList().back().pattern;
-    pulseAdd(tr, 10, pat); //leading blanks
-    pulseAdd(tr, 10, pat);
+    pulseAdd(tr, LEADING_BLANKS / 2, pat); //leading blanks
+    pulseAdd(tr, LEADING_BLANKS / 2, pat);
     uint32_t startaddr = 2;
     for(auto it = shot[ *this].relPatList().begin();
 		it != shot[ *this].relPatList().end(); it++) {

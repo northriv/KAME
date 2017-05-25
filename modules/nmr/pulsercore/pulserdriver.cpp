@@ -1177,7 +1177,7 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 }
 
 void
-XPulser::setPrefillingSampsBeforeArm(uint64_t cnt) {
+XPulser::setPrefillingSampsBeforeArm(int64_t cnt) {
     XScopedLock<XMutex> lock(m_mutexForFreeRun);
     Snapshot shot( *this);
     m_patListFreeRun = shot[ *this].relPatList();
