@@ -58,6 +58,12 @@ XThamwayPROT3DSO::startAcquision() {
         //waits until async IOs have been submitted.
         for(;;) {
             msecsleep(10);
+            for(auto &&x: m_acqThreads) {
+                if(x->isTerminated()) {
+                    stopAcquision();
+                    throw XInterface::XInterfaceError(i18n("Starting acquision has failed."), __FILE__, __LINE__);
+                }
+            }
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
                 if(m_wrChunkEnd >= NumThreads)
@@ -82,6 +88,8 @@ XThamwayPROT3DSO::commitAcquision() {
         for(auto &&x: m_chunks) {
             x.data.reserve(ChunkSize);
             x.data.clear();
+            x.ioInProgress = false;
+            x.posAbsPerCh = 0;
         }
         if(isMemLockAvailable()) {
             mlock(this, sizeof(XThamwayPROT3DSO));
@@ -312,8 +320,9 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
-            if(terminated)
+            if(terminated) {
                 break;
+            }
             auto count = async->waitFor() / sizeof(tRawAI);
             fprintf(stderr, "read for %u count=%u\n", (unsigned int)wridx, (unsigned int)count);
             auto &chunk = m_chunks[wridx];
