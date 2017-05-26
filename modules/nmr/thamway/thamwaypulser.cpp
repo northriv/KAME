@@ -261,27 +261,32 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
             }
         };
+        auto qam_offset = std::complex<double>{ shot[ *qamOffset1()], shot[ *qamOffset2()]};
+        double qam_lvl1 = shot[ *qamLevel1()], qam_lvl2 = shot[ *qamLevel2()];
         //lambda to determine IQ levels
         auto qamIQ = [&](const std::complex<double> &c) -> uint16_t {
-            auto offset = std::complex<double>{ shot[ *qamOffset1()], shot[ *qamOffset2()]};
-            auto z = 127.0 * (c  + offset);
-            if(std::abs(z) > 127) z /= std::abs(z) / 127;
-            uint8_t i = lrint(std::real(z) * (double)shot[ *qamLevel1()]);
-            uint8_t q = lrint(std::imag(z) * (double)shot[ *qamLevel2()]);
+            auto z = 127.0 * (c  + qam_offset);
+            auto x = std::real(z) * qam_lvl1;
+            auto y = std::imag(z) * qam_lvl2;
+            auto max_iq = std::max(std::abs(x), std::abs(y));
+            if(max_iq > 127.0) {
+                x *= 127.0 / max_iq; y *= 127.0 / max_iq;
+            }
+            uint8_t i = lrint(x), q = lrint(y);
             return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
         };
-        for(auto it = shot[ *this].m_patterns.begin(); it != shot[ *this].m_patterns.end(); ++it) {
-            addPulse(it->term_n_cmd, it->data & PAT_DO_MASK);
+        for(auto &&pat: shot[ *this].m_patterns) {
+            addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
             if(hasQAMPorts()) {
-                unsigned int pnum = (it->data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
-                if(pnum && !(it->term_n_cmd & CMD_MASK)) {
-                    unsigned int phase = (it->data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
+                unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
+                if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
+                    unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
                     auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
                     z0 /= m_qamPeriod;
                     auto &wave = shot[ *this].qamWaveForm(pnum - 1);
-                    assert(wave.size() >= it->term_n_cmd);
+                    assert(wave.size() >= pat.term_n_cmd);
                     auto z = std::polar(0.0, 0.0);
-                    for(int idx = 0; idx < it->term_n_cmd; ++idx) {
+                    for(int idx = 0; idx < pat.term_n_cmd; ++idx) {
                         z += wave[idx];
                         addr_qam++;
                         if(addr_qam % m_qamPeriod == 0) { //decimation.

@@ -110,7 +110,7 @@ XThamwayPROT3DSO::commitAcquision() {
 }
 void
 XThamwayPROT3DSO::stopAcquision() {
-    fprintf(stderr, "stop acq.\n");
+    fprintf(stderr, "stop ac");
     for(auto &&x: m_acqThreads) {
         x->terminate();
     }
@@ -121,6 +121,7 @@ XThamwayPROT3DSO::stopAcquision() {
     for(auto &&x: m_chunks) {
         x.data.clear();
     }
+    fprintf(stderr, "q.\n");
 }
 
 void
