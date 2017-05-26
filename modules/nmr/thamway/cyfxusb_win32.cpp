@@ -36,7 +36,7 @@ CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
 
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const noexcept {
-    return HasOverlappedIoCompleted( &overlap);
+    return (m_count_imm >= 0) || HasOverlappedIoCompleted( &overlap);
 }
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
