@@ -217,7 +217,7 @@ XPulser::XPulser(const char *name, bool runtime,
     m_form->m_dblP2Level->setSingleStep(1.0);
     m_form->m_dblCombLevel->setRange(-20.0, 3.0);
     m_form->m_dblCombLevel->setSingleStep(1.0);
-    m_form->m_dblMasterLevel->setRange(-30.0, 0.0);
+    m_form->m_dblMasterLevel->setRange(-30.0, 3.0);
     m_form->m_dblMasterLevel->setSingleStep(1.0);
 
     m_conUIs = {
