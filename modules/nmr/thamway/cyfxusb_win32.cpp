@@ -30,7 +30,7 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
 CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
-    if(handle) {
+    if(handle && (m_count_imm < 0)) {
         if(abort()) {
             try {
                 waitFor(); //wait for cb_fn() completion.
@@ -47,9 +47,10 @@ CyFXWin32USBDevice::AsyncIO::getResult(bool immediate) {
         return true;
     ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[prepadding]) : 0;
     DWORD num;
-    if( !GetOverlappedResult(handle, &overlap, &num, immediate)) {
+    if( !GetOverlappedResult(handle, &overlap, &num, !immediate)) {
         auto e = GetLastError();
         switch(e) {
+        case ERROR_IO_INCOMPLETE:
         case ERROR_IO_PENDING:
             return false;
         case ERROR_OPERATION_ABORTED: //IO has been canceled.
@@ -73,12 +74,13 @@ CyFXWin32USBDevice::AsyncIO::getResult(bool immediate) {
 
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const noexcept {
-    return getResult(true); //HasOverlappedIoCompleted( &overlap);
+    return const_cast<AsyncIO*>(this)->getResult(true); //HasOverlappedIoCompleted( &overlap);
 }
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
-    getResult(false);
+    auto ret = getResult(false);
     handle = nullptr; //not to cancelIoEx() in destructor.
+    if( !ret) return 0; //aborted.
     if(rdbuf) {
         std::memcpy(rdbuf, ioctlbuf_rdpos, m_count_imm);
     }
