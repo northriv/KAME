@@ -30,8 +30,9 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
 CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
-    if( handle && (m_count_imm < 0) && !hasFinished())
+    if( handle && (m_count_imm < 0) && !hasFinished()) {
         abort();
+    }
 }
 
 bool
@@ -67,6 +68,7 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
 }
 bool
 CyFXWin32USBDevice::AsyncIO::abort() noexcept {
+    fprintf(stderr, "Async aborting\n");
     bool ret = CancelIoEx(handle, &overlap);
     handle = nullptr;  //not to cancelIoEx() in destructor.
     return ret;
