@@ -51,7 +51,8 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
 
 	m_conFlow = xqcon_create<XQLCDNumberConnector>(m_flow->value(), m_form->m_lcdFlow);
 	m_conValve = xqcon_create<XQLCDNumberConnector>(m_valve, m_form->m_lcdValve);
-	m_form->m_dblTarget->setRange(0.0, 1000.0);
+    //Ranges should be preset in prior to connectors.
+    m_form->m_dblTarget->setRange(0.0, 1000.0);
 	m_form->m_dblTarget->setSingleStep(0.1);
     m_conTarget = xqcon_create<XQDoubleSpinBoxConnector>(m_target, m_form->m_dblTarget, m_form->m_slTarget);
     m_conRampTime = xqcon_create<XQLineEditConnector>(m_rampTime, m_form->m_edRampTime);

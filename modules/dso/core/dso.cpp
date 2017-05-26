@@ -69,6 +69,7 @@ XDSO::XDSO(const char *name, bool runtime,
 	   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tlDump, m_form->m_btnDump)),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())) {
     m_form->m_btnForceTrigger->setIcon(QApplication::style()->standardIcon(QStyle::SP_BrowserReload));
+    //Ranges should be preset in prior to connectors.
     m_form->m_dblTrigPos->setRange(0.0, 100.0);
     m_form->m_dblTrigPos->setSingleStep(1.0);
     m_form->tabifyDockWidget(m_form->m_dockTrace1, m_form->m_dockTrace2);

@@ -76,6 +76,8 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
             tr[ *XPulser::portSel(i)] = ports[i];
 		}
+        tr[ *masterLevel()] = 0.0;
+        tr[ *aswSetup()] = 0.2;
     });
 }
 

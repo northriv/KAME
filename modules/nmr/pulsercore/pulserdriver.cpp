@@ -210,6 +210,16 @@ XPulser::XPulser(const char *name, bool runtime,
             Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
     });
 
+    //Ranges should be preset in prior to connectors.
+    m_form->m_dblP1Level->setRange(-20.0, 3.0);
+    m_form->m_dblP1Level->setSingleStep(1.0);
+    m_form->m_dblP2Level->setRange(-20.0, 3.0);
+    m_form->m_dblP2Level->setSingleStep(1.0);
+    m_form->m_dblCombLevel->setRange(-20.0, 3.0);
+    m_form->m_dblCombLevel->setSingleStep(1.0);
+    m_form->m_dblMasterLevel->setRange(-30.0, 0.0);
+    m_form->m_dblMasterLevel->setSingleStep(1.0);
+
     m_conUIs = {
         xqcon_create<XQButtonConnector>(m_moreConfigShow, m_form->m_btnMoreConfig),
         xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput),
@@ -269,15 +279,6 @@ XPulser::XPulser(const char *name, bool runtime,
     for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
         m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot));
     }
-
-    m_form->m_dblP1Level->setRange(-20.0, 3.0);
-    m_form->m_dblP1Level->setSingleStep(1.0);
-    m_form->m_dblP2Level->setRange(-20.0, 3.0);
-    m_form->m_dblP2Level->setSingleStep(1.0);
-    m_form->m_dblCombLevel->setRange(-20.0, 3.0);
-    m_form->m_dblCombLevel->setSingleStep(1.0);
-    m_form->m_dblMasterLevel->setRange(-30.0, 0.0);
-    m_form->m_dblMasterLevel->setSingleStep(1.0);
 
 	changeUIStatus(true, false);
 
@@ -1169,7 +1170,7 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 		double y = z * func(i2 * dx) * sin(i2 * dp + M_PI/4 + phase);
 		wave[i] = std::complex<double>(x, y) / (double)FAC_ANTIALIAS;
 	}
-	//Moving average for antialiasing.
+    //Decimation for antialiasing.
 	for(int i = 0; i < (int)wave.size(); ++i) {
 		int j = i / FAC_ANTIALIAS;
 		p[j] += wave[i];

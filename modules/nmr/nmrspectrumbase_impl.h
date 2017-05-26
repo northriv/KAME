@@ -102,6 +102,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		tr[ *windowWidth()] = 100.0;
     });
   
+    //Ranges should be preset in prior to connectors.
     m_form->m_dblPhase->setRange(-360.0, 360.0);
     m_form->m_dblPhase->setSingleStep(10.0);
     m_form->m_dblWindowWidth->setRange(0.1, 200.0);
