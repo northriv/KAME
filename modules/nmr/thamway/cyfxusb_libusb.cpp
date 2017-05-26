@@ -55,11 +55,12 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
             if( !completed) {
-                abort();
-                try {
-                    waitFor(); //wait for cb_fn() completion.
-                }
-                catch(XInterface::XInterfaceError &) {
+                if(abort()) {
+                    try {
+                        waitFor(); //wait for cb_fn() completion.
+                    }
+                    catch(XInterface::XInterfaceError &) {
+                    }
                 }
             }
             libusb_free_transfer(transfer);
@@ -171,7 +172,7 @@ CyFXLibUSBDevice::AsyncIO::abort() noexcept {
     fprintf(stderr, "Libusb async transfer aborted.\n");
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
-        gMessagePrint(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
+        gErrPrint(formatString("Error during transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
     return true;

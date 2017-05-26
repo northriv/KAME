@@ -30,35 +30,55 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
 CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
-    if( handle && (m_count_imm < 0) && !hasFinished()) {
-        abort();
+    if(handle) {
+        if(abort()) {
+            try {
+                waitFor(); //wait for cb_fn() completion.
+            }
+            catch(XInterface::XInterfaceError &) {
+            }
+        }
     }
 }
 
 bool
+CyFXWin32USBDevice::AsyncIO::getResult(bool immediate) {
+    if(m_count_imm >= 0)
+        return true;
+    ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[prepadding]) : 0;
+    DWORD num;
+    if( !GetOverlappedResult(handle, &overlap, &num, immediate)) {
+        auto e = GetLastError();
+        switch(e) {
+        case ERROR_IO_PENDING:
+            return false;
+        case ERROR_OPERATION_ABORTED: //IO has been canceled.
+            handle = nullptr; //not to cancelIoEx() in destructor.
+            return false;
+        case ERROR_BUSY:
+            handle = nullptr; //not to cancelIoEx() in destructor.
+            throw XInterface::XInterfaceError(i18n("USB device is busy."), __FILE__, __LINE__);
+        default:
+            handle = nullptr; //not to cancelIoEx() in destructor.
+            throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
+        }
+    }
+    if(num < offset) {
+        handle = nullptr; //not to cancelIoEx() in destructor.
+        throw XInterface::XInterfaceError(i18n("Too short return packet during USB tranfer."), __FILE__, __LINE__);
+    }
+    finalize(num - offset);
+    return true;
+}
+
+bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const noexcept {
-    return (m_count_imm >= 0) || HasOverlappedIoCompleted( &overlap);
+    return getResult(true); //HasOverlappedIoCompleted( &overlap);
 }
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
-    if(m_count_imm < 0) {
-        ssize_t offset = ioctlbuf_rdpos ? (ioctlbuf_rdpos - &ioctlbuf[prepadding]) : 0;
-        DWORD num;
-        if( !GetOverlappedResult(handle, &overlap, &num, true)) {
-            handle = nullptr; //not to cancelIoEx() in destructor.
-            auto e = GetLastError();
-//            if(e == ERROR_OPERATION_ABORTED)
-//                return 0; //IO has been canceled.
-            if(e == ERROR_BUSY)
-                throw XInterface::XInterfaceError(i18n("USB device is busy."), __FILE__, __LINE__);
-            throw XInterface::XInterfaceError(formatString("Error during USB tranfer:%d.", (int)e), __FILE__, __LINE__);
-        }
-        if(num < offset) {
-            handle = nullptr; //not to cancelIoEx() in destructor.
-            throw XInterface::XInterfaceError(i18n("Too short return packet during USB tranfer."), __FILE__, __LINE__);
-        }
-        finalize(num - offset);
-    }
+    getResult(false);
+    handle = nullptr; //not to cancelIoEx() in destructor.
     if(rdbuf) {
         std::memcpy(rdbuf, ioctlbuf_rdpos, m_count_imm);
     }
@@ -69,9 +89,16 @@ CyFXWin32USBDevice::AsyncIO::waitFor() {
 bool
 CyFXWin32USBDevice::AsyncIO::abort() noexcept {
     fprintf(stderr, "Async aborting\n");
-    bool ret = CancelIoEx(handle, &overlap);
-    handle = nullptr;  //not to cancelIoEx() in destructor.
-    return ret;
+    auto ret = CancelIoEx(handle, &overlap);
+    if( !ret) {
+        auto e = GetLastError();
+        if(e == ERROR_NOT_FOUND) {
+            gErrPrint(formatString("Error during USB cancelation: %d.", (int)e));
+            handle = nullptr;  //not to cancelIoEx() in destructor.
+            return false;
+        }
+    }
+    return true;
 }
 unique_ptr<CyFXWin32USBDevice::AsyncIO>
 CyFXWin32USBDevice::asyncIOCtrl(uint64_t code, const void *in, ssize_t size_in, void *out, ssize_t size_out) {
