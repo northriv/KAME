@@ -153,7 +153,7 @@ XThamwayPROT3DSO::setupChannels() {
     for(int ch_num: {0,1,2,3}) {
         for(unsigned int i = 0; i < CAL_POLY_ORDER; i++)
             m_coeffAI[ch_num][i] = 0.0;
-        m_coeffAI[ch_num][1] = 1.0 / 32768.0; //+-1V F.S.
+        m_coeffAI[ch_num][1] = 2.5 / 32768.0; //+-5V F.S.
     }
     Snapshot shot( *this);
     m_swapTraces = (shot[ *trace1()].to_str() == "CH2");
