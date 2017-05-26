@@ -51,7 +51,7 @@ REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (
 
 #define CHAR_TIMER_PERIOD (1.0/(40.0e3))
 
-constexpr unsigned int LEADING_BLANKS = 20;
+constexpr unsigned int LEADING_BLANKS = 40;
 
 double XThamwayPulser::resolution() const {
     return CHAR_TIMER_PERIOD; //25MSPS
