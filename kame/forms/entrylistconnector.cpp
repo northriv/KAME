@@ -110,7 +110,8 @@ XEntryListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload:
 	m_cons.back()->constore = xqcon_create<XQToggleButtonConnector>(entry->store(), ckbStore);
 	m_pItem->setCellWidget(i, 2, ckbStore);
 	QDoubleSpinBox *numDelta = new QDoubleSpinBox(m_pItem);
-	numDelta->setRange(-1, 1e4);
+    //Ranges should be preset in prior to connectors.
+    numDelta->setRange(-1, 1e4);
 	numDelta->setSingleStep(1);
 	numDelta->setValue(0);
 	numDelta->setDecimals(5);

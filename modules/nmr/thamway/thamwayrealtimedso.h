@@ -77,7 +77,7 @@ private:
         std::vector<tRawAI> data;
     };
     std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).
-    std::vector<unique_ptr<XThread<XThamwayPROT3DSO>>> m_acqThreads;
+    std::vector<XThread<XThamwayPROT3DSO>> m_acqThreads;
     XMutex m_acqMutex;
     bool m_swapTraces;
     void *executeAsyncRead(const atomic<bool> &);

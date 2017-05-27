@@ -52,6 +52,7 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     m_form->statusBar()->hide();
     m_form->setWindowTitle(i18n("Thamway PROT Control - ") + this->getLabel() );
 
+    //Ranges should be preset in prior to connectors.
     m_form->m_dblOutput->setRange(0, 1023);
     m_form->m_dblOutput->setSingleStep(1);
     m_form->m_dblRXGain->setRange(0, 95);

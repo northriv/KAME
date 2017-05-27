@@ -88,6 +88,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 
 	m_spectrumForm->setWindowTitle(i18n("NMR-Spectrum - ") + getLabel() );
 
+    //Ranges should be preset in prior to connectors.
     m_form->m_dblWindowWidth->setRange(3.0, 200.0);
     m_form->m_dblWindowWidth->setSingleStep(1.0);
     m_form->m_numExtraAvg->setRange(0, 100000);

@@ -31,6 +31,7 @@ XQGraphDialogConnector::XQGraphDialogConnector
 		m_selPlot = XNode::createOrphan<XItemNode<XPlotList, XPlot> >("", true, tr, graph->plots(), true);
 		m_selAxis = XNode::createOrphan<XItemNode<XAxisList, XAxis> >("", true, tr, graph->axes(), true);
     });
+    //Ranges should be preset in prior to connectors.
     m_pItem->m_dblIntensity->setRange(0.0, 2.0);
     m_pItem->m_dblIntensity->setSingleStep(0.1);
     m_pItem->m_dblPersistence->setRange(0.0, 1.0);

@@ -169,6 +169,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *smoothSamples()] = 40;
     });
 
+    //Ranges should be preset in prior to connectors.
     m_form->m_dblPhase->setRange( -360.0, 360.0);
     m_form->m_dblPhase->setSingleStep(10.0);
 

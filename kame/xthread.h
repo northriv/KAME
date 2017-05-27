@@ -45,6 +45,8 @@ struct XScopedLock {
     ~XScopedLock() {
         m_mutex.unlock();
     }
+    XScopedLock(const XScopedLock &) = delete;
+    XScopedLock& operator=(const XScopedLock &) = delete;
 private:
     Mutex &m_mutex;
 };
@@ -64,6 +66,8 @@ struct XScopedTryLock {
     operator bool() const {
         return m_bLocking;
     }
+    XScopedTryLock(const XScopedTryLock &) = delete;
+    XScopedTryLock& operator=(const XScopedTryLock &) = delete;
 private:
     Mutex &m_mutex;
     bool m_bLocking;
@@ -77,6 +81,8 @@ class DECLSPEC_KAME XMutex {
 public:
     XMutex();
     ~XMutex();
+    XMutex(const XMutex &) = delete;
+    XMutex& operator=(const XMutex &) = delete;
 
     void lock();
     void unlock();
@@ -96,6 +102,8 @@ class DECLSPEC_KAME XCondition : public XMutex
 public:
     XCondition();
     ~XCondition();
+    XCondition(const XCondition &) = delete;
+    XCondition& operator=(const XCondition &) = delete;
     //! Lock me before calling me.
     //! go asleep until signal is emitted.
     //! \param usec if non-zero, timeout occurs after \a usec.
@@ -122,6 +130,8 @@ public:
 		m_lockingthread = (threadid_t)-1;
 	}
 	~XRecursiveMutex() {}
+    XRecursiveMutex(const XRecursiveMutex &) = delete;
+    XRecursiveMutex &operator=(const XRecursiveMutex &) = delete;
 
 	void lock() {
         if(!is_thread_equal(m_lockingthread, threadID())) {
@@ -169,13 +179,18 @@ private:
 template <class T>
 class XThread {
 public:
+    XThread() = default;
 	/*! use resume() to start a thread.
 	 * \p X must be super class of \p T.
 	 */
 	template <class X>
 	XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &));
     ~XThread();
-	//! resume a new thread.
+    XThread(const XThread &) = delete;
+    XThread& operator=(const XThread &) = delete;
+    XThread(XThread &&) = default;
+
+    //! resume a new thread.
 	void resume();
 	/*! join a running thread.
 	 * should be called before destruction.
@@ -216,10 +231,12 @@ XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> 
 
 template <class T>
 XThread<T>::~XThread() {
+    if( !m_startarg) return;
     terminate();
 #if defined USE_STD_THREAD
     if(m_thread.joinable()) {
-        m_thread.detach();
+        fprintf(stderr, "Join.\n");
+        m_thread.join();
     }
 #endif
 }
