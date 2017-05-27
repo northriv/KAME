@@ -30,7 +30,7 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
 CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
-    if(handle && (m_count_imm < 0)) {
+    if(handle && (m_count_imm < 0)) {// !HasOverlappedIoCompleted( &overlap);
         if(abort()) {
             try {
                 waitFor(); //wait for cb_fn() completion.
@@ -74,7 +74,7 @@ CyFXWin32USBDevice::AsyncIO::getResult(bool immediate) {
 
 bool
 CyFXWin32USBDevice::AsyncIO::hasFinished() const noexcept {
-    return const_cast<AsyncIO*>(this)->getResult(true); //HasOverlappedIoCompleted( &overlap);
+    return const_cast<AsyncIO*>(this)->getResult(true);
 }
 int64_t
 CyFXWin32USBDevice::AsyncIO::waitFor() {
