@@ -33,11 +33,22 @@ public:
     //! This can be called even if has already closed.
     virtual void close() throw (XInterfaceError &) override;
 
-    void deferWritings();
+    struct ScopedBulkWriter{
+        ScopedBulkWriter() = default;
+        ScopedBulkWriter(const shared_ptr<XThamwayFX2USBInterface> intf) : m_intf(intf) {
+            if(m_intf) m_intf->deferWritings();
+        }
+        ~ScopedBulkWriter() {if(m_intf) m_intf->resetBulkWrite();}
+        ScopedBulkWriter(const ScopedBulkWriter&) = delete;
+        ScopedBulkWriter(ScopedBulkWriter&&) = default;
+        void flush() {m_intf->bulkWriteStored();}
+    private:
+        shared_ptr<XThamwayFX2USBInterface> m_intf;
+    };
+    void resetBulkWrite() noexcept;
+
     void writeToRegister8(unsigned int addr, uint8_t data);
     void writeToRegister16(unsigned int addr, uint16_t data);
-    void bulkWriteStored();
-    void resetBulkWrite();
 
     void burstRead(unsigned int addr, uint8_t *buf, unsigned int cnt);
     uint8_t singleRead(unsigned int addr);
@@ -54,7 +65,8 @@ protected:
     virtual XString gpifWave(const shared_ptr<CyFXUSBDevice> &dev) override;
     virtual XString firmware(const shared_ptr<CyFXUSBDevice> &dev) override;
     virtual void setWave(const shared_ptr<CyFXUSBDevice> &dev, const uint8_t *wave) override;
-
+    void deferWritings();
+    void bulkWriteStored();
 private:
     XString getIDN(const shared_ptr<CyFXUSBDevice> &dev, int maxlen = 255) {
         XString str = getIDN(dev, maxlen, m_addrOffset);

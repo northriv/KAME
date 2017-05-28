@@ -186,7 +186,7 @@ private:
 	//! Converts voltage to an internal value for DAC and compensates it.
 	inline tRawAOSet aoVoltToRaw(const double poly_coeff[NUM_AO_CH][CAL_POLY_ORDER], const std::complex<double> &volt);
 
-	shared_ptr<XThread<XNIDAQmxPulser> > m_threadWriter;
+    unique_ptr<XThread> m_threadWriter;
 	bool m_isThreadWriterReady; //!< indicates DAQmx lib. has been (partially) filled with generated patterns.
 	//! \return Succeeded or not.
 	template <bool UseAO>

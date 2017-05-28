@@ -134,3 +134,12 @@ void XCondition::broadcast() {
     }
     #endif // USE_PTHREAD
 #endif // USE_QTHREAD
+
+XThread::~XThread() {
+    terminate();
+    if(m_thread.joinable()) {
+        fprintf(stderr, "Join.\n");
+        m_thread.join();
+    }
+}
+

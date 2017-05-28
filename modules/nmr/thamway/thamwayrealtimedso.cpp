@@ -53,12 +53,9 @@ XThamwayPROT3DSO::startAcquision() {
     if(m_acqThreads.empty()) {
         commitAcquision();
     }
+    for(int i = 0; i < NumThreads; ++i)
+        m_acqThreads.emplace_back(this, &XThamwayPROT3DSO::executeAsyncRead);
 
-    if((m_wrChunkEnd == m_wrChunkBegin) && (m_totalSmpsPerCh == 0)) {
-        for(auto &&x: m_acqThreads) {
-            x.resume();
-        }
-    }
     //waits until async IOs have been submitted.
     for(;;) {
         msecsleep(10);
@@ -78,11 +75,14 @@ XThamwayPROT3DSO::startAcquision() {
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
-    fprintf(stderr, "commit acq.\n");
-
     stopAcquision();
+}
+void
+XThamwayPROT3DSO::stopAcquision() {
+    clearAcquision();
     {
         XScopedLock<XMutex> lock(m_acqMutex);
+        fprintf(stderr, "stop acq.\n");
         //allocates buffers.
         m_chunks.resize(NumChunks);
         m_totalSmpsPerCh = 0;
@@ -103,30 +103,22 @@ XThamwayPROT3DSO::commitAcquision() {
             }
         }
     }
-
-    assert(m_acqThreads.empty());
-    for(int i = 0; i < NumThreads; ++i)
-        m_acqThreads.emplace_back(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead);
 }
+
 void
-XThamwayPROT3DSO::stopAcquision() {
-    fprintf(stderr, "stop ac");
+XThamwayPROT3DSO::clearAcquision() {
+    fprintf(stderr, "clear ac");
     for(auto &&x: m_acqThreads) {
         x.terminate();
     }
     for(auto &&x: m_acqThreads) {
-        x.waitFor();
+        x.join();
     }
     m_acqThreads.clear();
     for(auto &&x: m_chunks) {
         x.data.clear();
     }
     fprintf(stderr, "q.\n");
-}
-
-void
-XThamwayPROT3DSO::clearAcquision() {
-    stopAcquision();
 }
 
 unsigned int
@@ -351,6 +343,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         }
         catch (XInterface::XInterfaceError &e) {
             e.print();
+            XScopedLock<XMutex> lock(m_acqMutex);
             for(auto &&x: m_acqThreads) {
                 x.terminate();
             }

@@ -185,7 +185,7 @@ XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
 }
 
 void
-XThamwayFX2USBInterface::resetBulkWrite() {
+XThamwayFX2USBInterface::resetBulkWrite() noexcept {
     m_bBurstWrite = false;
     m_buffer.clear();
 }

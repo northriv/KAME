@@ -107,7 +107,7 @@ private:
     void setupTiming(const Snapshot &);
     void setupTrigger(const Snapshot &);
 
-    shared_ptr<XThread<XDigilentWFDSO>> m_threadReadAI;
+    unique_ptr<XThread> m_threadReadAI;
     void *executeReadAI(const atomic<bool> &);
     void acquire(const atomic<bool> &);
 

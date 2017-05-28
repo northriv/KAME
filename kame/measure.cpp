@@ -120,8 +120,6 @@ m_conNodeBrowser(xqcon_create<XNodeBrowser>(
 	m_ruby = createOrphan<XRuby>("RubySupport", true,
 		dynamic_pointer_cast<XMeasure>(shared_from_this()));
 
-	m_ruby->resume();
-
 	initialize();
 }
 

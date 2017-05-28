@@ -243,13 +243,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
     size_t addr = 0, addr_qam = 0;
     if(hasQAMPorts()) {
+        this->interfaceQAM()->resetBulkWrite();
         this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
         this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
     }
     msecsleep(20);
     if(output) {
-        this->interface()->deferWritings();
-        if(hasQAMPorts()) this->interfaceQAM()->deferWritings();
+        XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
+        XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
 
         //lambda for one pulse
         auto addPulse = [&](uint32_t term, uint32_t data) {
@@ -306,7 +307,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             }
         }
 
-        this->interface()->bulkWriteStored();
+        writer.flush();
         this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
         this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
         //mimics PULBOAD.BAS:StartBrd(0)
@@ -316,7 +317,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
 
         if(hasQAMPorts()) {
             this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
-            this->interfaceQAM()->bulkWriteStored();
+            writerQAM.flush();
         }
 
         //this readout procedure is necessary for unknown reasons!

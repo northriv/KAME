@@ -30,10 +30,11 @@ constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_TRANSFER = 0x220024;
 constexpr uint32_t IOCTL_ADAPT_SEND_NON_EP0_DIRECT = 0x22004b;
 
 CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
-    if(handle && (m_count_imm < 0)) {// !HasOverlappedIoCompleted( &overlap);
+    if(handle && (m_count_imm < 0)) {
+        assert( !HasOverlappedIoCompleted( &overlap));
         if(abort()) {
             try {
-                waitFor(); //wait for cb_fn() completion.
+                waitFor(); //wait for ERROR_OPERATION_ABORTED.
             }
             catch(XInterface::XInterfaceError &) {
             }

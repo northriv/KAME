@@ -83,11 +83,8 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
 	    tr[ *m_speed].onValueChanged().connect(m_lsnPlayCond);
     });
     
-    m_threads.resize(RECORD_READER_NUM_THREADS);
-    for(auto it = m_threads.begin(); it != m_threads.end(); it++) {
-        it->reset(new XThread<XRawStreamRecordReader>(shared_from_this(),
-													  &XRawStreamRecordReader::execute));
-        ( *it)->resume();
+    for(int i = 0; i < RECORD_READER_NUM_THREADS; ++i) {
+        m_threads.emplace_back(this, &XRawStreamRecordReader::execute);
     }
 }
 void
@@ -224,7 +221,7 @@ void
 XRawStreamRecordReader::terminate() {
     m_periodicTerm = 0;
     for(auto &&x: m_threads) {
-        x->terminate();
+        x.terminate();
     }
     XScopedLock<XCondition> lock(m_condition);
     m_condition.broadcast();
@@ -232,7 +229,7 @@ XRawStreamRecordReader::terminate() {
 void
 XRawStreamRecordReader::join() {
     for(auto &&x: m_threads) {
-        x->waitFor();
+        x.join();
     }
 }
 

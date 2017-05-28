@@ -64,8 +64,8 @@ protected:
 
     virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
-    enum {ChunkSize = 2048*1024,//4MB transfer each. Be >64kB for libusb.
-          NumThreads = 4, NumChunks = (1024*1024*16/ChunkSize)};
+    enum {ChunkSize = 512*1024,//1MB transfer each. >64kB is fine with libusb. <=4MB for CyUSB3.sys.
+          NumThreads = 8, NumChunks = (1024*1024*16/ChunkSize)}; //32MB ring buffer.
     atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
     unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
         m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.
@@ -77,7 +77,7 @@ private:
         std::vector<tRawAI> data;
     };
     std::vector<Chunk> m_chunks; //Ring buffer, Chunksize * NumChunks * sizeof(tRawAI).
-    std::vector<XThread<XThamwayPROT3DSO>> m_acqThreads;
+    std::vector<XThread> m_acqThreads;
     XMutex m_acqMutex;
     bool m_swapTraces;
     void *executeAsyncRead(const atomic<bool> &);

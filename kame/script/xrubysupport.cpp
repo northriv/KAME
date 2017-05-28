@@ -23,12 +23,12 @@
 
 XRuby::XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure)
 : XAliasListNode<XRubyThread>(name, runtime),
-m_measure(measure), 
-m_thread(shared_from_this(), &XRuby::execute) {
+m_measure(measure) {
     iterate_commit([=](Transaction &tr){
 		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
             &XRuby::onChildCreated, Listener::FLAG_MAIN_THREAD_CALL);
     });
+    m_thread.reset(new XThread(this, &XRuby::execute));
 }
 XRuby::~XRuby() {
 }
@@ -312,7 +312,7 @@ XRuby::my_rbdefin(const shared_ptr<XNode> &node, Ruby::Value threadid) {
 }
 Ruby::Value
 XRuby::is_main_terminated(const shared_ptr<XNode> &) {
-    return Ruby::convertToRuby(m_thread.isTerminated());
+    return Ruby::convertToRuby(m_thread->isTerminated());
 }
 
 void *

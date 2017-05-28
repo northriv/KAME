@@ -25,13 +25,12 @@
     #include <QMutex>
     #include <QWaitCondition>
     #include <QThread>
-#elif defined USE_PTHREAD
-    #define threadid_t pthread_t
-    inline threadid_t threadID() {return pthread_self();}
-    #define is_thread_equal(x,y) (pthread_equal(x,y))
-    #include <sys/mman.h>
 #else
-    #error
+    #include <thread>
+    using threadid_t = std::thread::id;
+    inline threadid_t threadID() noexcept {return std::this_thread::get_id();}
+    inline bool is_thread_equal(threadid_t x, threadid_t y) noexcept {return x == y;}
+    #include <sys/mman.h>
 #endif
 
 #include "threadlocal.h"
@@ -126,9 +125,7 @@ private:
 //! recursive mutex.
 class DECLSPEC_KAME XRecursiveMutex {
 public:
-	XRecursiveMutex() {
-		m_lockingthread = (threadid_t)-1;
-	}
+    XRecursiveMutex() {}
 	~XRecursiveMutex() {}
     XRecursiveMutex(const XRecursiveMutex &) = delete;
     XRecursiveMutex &operator=(const XRecursiveMutex &) = delete;
@@ -146,7 +143,7 @@ public:
 	void unlock() {
 		m_lockcount--;
 		if(m_lockcount == 0) {
-			m_lockingthread = (threadid_t)-1;
+            m_lockingthread = threadid_t{};
 			m_mutex.unlock();
 		}
 	}
@@ -155,7 +152,7 @@ public:
         if(!is_thread_equal(m_lockingthread, threadID())) {
 			if(m_mutex.trylock()) {
 				m_lockcount = 1;
-				m_lockingthread = threadID();
+                m_lockingthread = threadID();
 			}
 			else
 				return false;
@@ -170,120 +167,38 @@ public:
 	}
 private:
 	XMutex m_mutex;
-	threadid_t m_lockingthread;
+    threadid_t m_lockingthread = {};
 	int m_lockcount;
 };
 
 
-//! create a new thread.
-template <class T>
+//! Guard pattern for a thread object.
 class XThread {
 public:
-    XThread() = default;
-	/*! use resume() to start a thread.
-	 * \p X must be super class of \p T.
-	 */
-	template <class X>
-	XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &));
+    //! Starts up a new thread.
+    //! \param f a member function of an object \p *r, r->*f(const atomic<bool>& terminated, args...)
+    template <class PTR, class Function, class... Args>
+    explicit XThread(PTR r, Function &&f, Args&&...args);
+    //! Joins a thread here if it is still running.
     ~XThread();
     XThread(const XThread &) = delete;
     XThread& operator=(const XThread &) = delete;
-    XThread(XThread &&) = default;
+    XThread(XThread &&) noexcept = default;
 
-    //! resume a new thread.
-	void resume();
-	/*! join a running thread.
-	 * should be called before destruction.
-	 * \param retval a pointer to return value from a thread.
-	 */
-	void waitFor(void **retval = 0L);
-	//! set termination flag.
-	void terminate();
-	//! fetch termination flag.
-	bool isTerminated() const {return m_startarg->is_terminated;}
+    //! joins a running thread.
+    void join() {m_thread.join();}
+    //! sets termination flag.
+    void terminate() { m_isTerminated = true;}
+    //! fetches termination flag.
+    bool isTerminated() const noexcept {return m_isTerminated;}
 private:
-	struct targ{
-		shared_ptr<targ> this_ptr;
-		shared_ptr<T> obj;
-		void *(T::*func)(const atomic<bool> &);
-		atomic<bool> is_terminated;
-	};
-	shared_ptr<targ> m_startarg;
-	static void * xthread_start_routine(void *);
-#ifdef USE_PTHREAD
-    pthread_t m_threadid;
-#elif defined USE_STD_THREAD
+    atomic<bool> m_isTerminated = false;
     std::thread m_thread;
-#else
-    #error
-#endif
 };
 
-template <class T>
-template <class X>
-XThread<T>::XThread(const shared_ptr<X> &t, void *(T::*func)(const atomic<bool> &))
-    : m_startarg(std::make_shared<targ>()) {
-	m_startarg->obj = dynamic_pointer_cast<T>(t);
-	assert(m_startarg->obj);
-	m_startarg->func = func;
-	m_startarg->is_terminated = false;
-}
-
-template <class T>
-XThread<T>::~XThread() {
-    if( !m_startarg) return;
-    terminate();
-#if defined USE_STD_THREAD
-    if(m_thread.joinable()) {
-        fprintf(stderr, "Join.\n");
-        m_thread.join();
-    }
-#endif
-}
-
-template <class T>
-void
-XThread<T>::resume() {
-	m_startarg->this_ptr = m_startarg;
-#ifdef USE_PTHREAD
-    int ret =
-		pthread_create((pthread_t*)&m_threadid, NULL,
-					   &XThread<T>::xthread_start_routine , m_startarg.get());
-	assert( !ret);
-#elif defined USE_STD_THREAD
-    std::thread th(&XThread<T>::xthread_start_routine , m_startarg.get());
-    m_thread.swap(th);
-#endif
-}
-template <class T>
-void *
-XThread<T>::xthread_start_routine(void *x) {
-	shared_ptr<targ> arg = ((targ *)x)->this_ptr;
-    if(isMemLockAvailable())
-		mlock(&arg, 8192uL); //reserve stack.
-
-	arg->this_ptr.reset();
-	void *p = ((arg->obj.get())->*(arg->func))(arg->is_terminated);
-	arg->obj.reset();
-
-	return p;
-}
-
-#include <system_error>
-
-template <class T>
-void 
-XThread<T>::waitFor(void **retval) {
-#ifdef USE_PTHREAD
-	pthread_join(m_threadid, retval);
-#elif defined USE_STD_THREAD
-    m_thread.join();
-#endif
-}
-template <class T>
-void 
-XThread<T>::terminate() {
-    m_startarg->is_terminated = true;
+template <class PTR, class Function, class... Args>
+XThread::XThread(PTR r, Function &&f, Args&&...args) :
+    m_thread(std::forward<Function>(f), r, std::cref(m_isTerminated), std::forward<Args>(args)...) {
 }
 
 #endif

@@ -81,10 +81,7 @@ private:
 
 	void gzgetline(void*fd, unsigned char*buf, unsigned int len, int del) throw (XIOError &);
   
-	typedef shared_ptr<XThread<XRawStreamRecordReader> > tThread;
-    typedef std::vector<tThread> tThreadList;
-	typedef tThreadList::iterator tThreadIt;
-	tThreadList m_threads;  
+    std::vector<XThread> m_threads;
 	void *execute(const atomic<bool> &);      
 	XCondition m_condition;
 	double m_periodicTerm;

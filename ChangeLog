@@ -1,8 +1,10 @@
 * Wed May 10 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.3.0-1)
 - stdout/err log into a file during execution of script.
-- Thamway USB devices operated with cyusb3.sys
-- (experimental) support for Thamway QAM pulser and real-time DSO for digital demodulation.
+- nmrpulsercore: Fix initial values for spin boxes.
+- Thamway USB devices operated also with cyusb3.sys
+- Thamway QAM pulser.
+- (experimental) Real-time DSO for digital demodulation.
 
 * Thu Jan 19 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.2.8-1)

@@ -31,9 +31,8 @@ public:
 	XRuby(const char *name, bool runtime, const shared_ptr<XMeasure> &measure);
 	virtual ~XRuby();
   
-	void resume() {m_thread.resume();}
-	void terminate() {m_thread.terminate();}
-    void join() {m_thread.waitFor();}
+    void terminate() {m_thread->terminate();}
+    void join() {m_thread->join();}
 
 	struct Payload : public XAliasListNode<XRubyThread>::Payload {
 		struct tCreateChild {
@@ -79,7 +78,7 @@ private:
 	void onChildCreated(const Snapshot &shot, const shared_ptr<Payload::tCreateChild> &x);
   
 	const weak_ptr<XMeasure> m_measure;
-	XThread<XRuby> m_thread;
+    unique_ptr<XThread> m_thread;
 
     unique_ptr<Ruby> m_ruby;
     unique_ptr<Ruby::Class<XRuby,XNode>> m_rubyClassNode;

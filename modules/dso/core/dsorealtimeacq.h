@@ -119,7 +119,7 @@ private:
     shared_ptr<Listener> m_lsnOnSoftTrigStarted, m_lsnOnSoftTrigChanged;
     void onSoftTrigStarted(const shared_ptr<SoftwareTrigger> &);
     void onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &);
-    shared_ptr<XThread<XRealTimeAcqDSO<tDriver>>> m_threadReadAI;
+    unique_ptr<XThread> m_threadReadAI;
     void *executeReadAI(const atomic<bool> &);
     atomic<bool> m_suspendRead;
     atomic<bool> m_running;

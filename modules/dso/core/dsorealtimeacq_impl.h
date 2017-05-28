@@ -59,10 +59,8 @@ XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
     onSoftTrigChanged(shared_ptr<SoftwareTrigger>());
 
     m_suspendRead = true;
-    m_threadReadAI.reset(new XThread<XRealTimeAcqDSO<tDriver>>(
-        this->shared_from_this(),
-        &XRealTimeAcqDSO<tDriver>::executeReadAI));
-    m_threadReadAI->resume();
+    m_threadReadAI.reset(new XThread(
+        this, &XRealTimeAcqDSO<tDriver>::executeReadAI));
 
     this->start();
 

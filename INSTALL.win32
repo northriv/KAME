@@ -1,6 +1,6 @@
 KAME instllation notes on Windows systems.
 
-Qt 5.3 with mignw32 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
+Qt 5.7 with mignw32 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
 
 To build kame:
 

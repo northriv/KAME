@@ -33,7 +33,7 @@ protected:
 
 	virtual void *execute(const atomic<bool> &terminated) = 0;
 private:
-	shared_ptr<XThread<XPrimaryDriverWithThread> > m_thread;
+    unique_ptr<XThread> m_thread;
 	void *execute_internal(const atomic<bool> &terminated) {
         Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
@@ -51,17 +51,14 @@ private:
 
 inline void
 XPrimaryDriverWithThread::start() {
-    auto th = std::make_shared<XThread<XPrimaryDriverWithThread> >(
-        shared_from_this(),
-       &XPrimaryDriverWithThread::execute_internal);
-    th->resume();
-    m_thread = th;
+    m_thread.reset(new XThread(this, &XPrimaryDriverWithThread::execute_internal));
 }
 
 inline void
 XPrimaryDriverWithThread::stop() {
-    if(auto th = m_thread)
-        th->terminate();
+    if(m_thread) {
+        m_thread->terminate();
+    }
 	else
 		closeInterface(); //closes interface if any.
 }

@@ -135,8 +135,7 @@ dbgPrint_redirected(const XString &str, const char *file, int line, bool force_d
     if( !force_dump && !g_bLogDbgPrint) return;
 	XScopedLock<XMutex> lock(g_debug_mutex);
 	g_debugofs
-		<< (QString("0x%1:%2:%3:%4 %5")
-						 .arg((uintptr_t)threadID(), 0, 16)
+        << threadID() << (const char*)(QString(":%1:%2:%3 %4")
 						 .arg(XTime::now().getTimeStr())
 						 .arg(file)
 						 .arg(line)
@@ -153,13 +152,12 @@ gErrPrint_redirected(const XString &str, const char *file, int line) {
 		XScopedLock<XMutex> lock(g_debug_mutex);
         fprintf(stderr, "err:%s:%d %s\n", file, line, (const char*)QString(str).toLocal8Bit().data());
 		g_debugofs
-			<< (const char*)(QString("Err:0x%1:%2:%3:%4 %5")
-							 .arg((uintptr_t)threadID(), 0, 16)
-							 .arg(XTime::now().getTimeStr())
-							 .arg(file)
-							 .arg(line)
-							 .arg(str)).toUtf8().data()
-			<< std::endl;
+            << threadID() << (const char*)(QString(":%1:%2:%3 %4")
+                             .arg(XTime::now().getTimeStr())
+                             .arg(file)
+                             .arg(line)
+                             .arg(str)).toUtf8().data()
+            << std::endl;
 #if !defined __WIN32__ && !defined WINDOWS && !defined _WIN32
         sync(); //ensures disk writing.
 #endif
@@ -173,13 +171,12 @@ gWarnPrint_redirected(const XString &str, const char *file, int line) {
 		XScopedLock<XMutex> lock(g_debug_mutex);
         fprintf(stderr, "warn:%s:%d %s\n", file, line, (const char*)QString(str).toLocal8Bit().data());
 		g_debugofs
-			<< (const char*)(QString("Warn:0x%1:%2:%3:%4 %5")
-							 .arg((uintptr_t)threadID(), 0, 16)
-							 .arg(XTime::now().getTimeStr())
-							 .arg(file)
-							 .arg(line)
-							 .arg(str)).toUtf8().data()
-			<< std::endl;
+            << threadID() << (const char*)(QString(":%1:%2:%3 %4")
+                             .arg(XTime::now().getTimeStr())
+                             .arg(file)
+                             .arg(line)
+                             .arg(str)).toUtf8().data()
+            << std::endl;
 	}
 	shared_ptr<XStatusPrinter> statusprinter = g_statusPrinter;
     if(statusprinter) statusprinter->printWarning(str, false, file, line);
