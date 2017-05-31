@@ -229,7 +229,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         return;
 
     //mimics PULBOAD.BAS:StopBrd(0)
-    this->interface()->resetBulkWrite();
+    this->interface()->resetBulkWrite(); //redundant.
     bool ext_clock = false;
     //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
     this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
@@ -243,7 +243,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
     size_t addr = 0, addr_qam = 0;
     if(hasQAMPorts()) {
-        this->interfaceQAM()->resetBulkWrite();
+        this->interfaceQAM()->resetBulkWrite(); //redundant.
         this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
         this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
     }
@@ -271,9 +271,9 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             auto z = 127.0 * (c  + qam_offset);
             auto x = std::real(z) * qam_lvl1;
             auto y = std::imag(z) * qam_lvl2;
-            auto max_iq = std::max(std::abs(x), std::abs(y));
-            if(max_iq > 127.0) {
-                x *= 127.0 / max_iq; y *= 127.0 / max_iq;
+            if(std::abs(z) > 127.0) {
+                x *= 127.0 / std::abs(z);
+                y *= 127.0 / std::abs(z);
             }
             uint8_t i = lrint(x), q = lrint(y);
             return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
@@ -307,7 +307,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             }
         }
 
-        writer.flush();
+        writer.flush(); //sends above commands here.
         this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
         this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
         //mimics PULBOAD.BAS:StartBrd(0)
@@ -317,7 +317,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
 
         if(hasQAMPorts()) {
             this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
-            writerQAM.flush();
+            writerQAM.flush(); //sends above commands here.
         }
 
         //this readout procedure is necessary for unknown reasons!
