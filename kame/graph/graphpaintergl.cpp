@@ -644,5 +644,5 @@ XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
         }
         qpainter.drawText(text.x, text.y, text.text);
     }
-    m_textOverpaint.clear();
+//    m_textOverpaint.clear();
 }
