@@ -226,7 +226,7 @@ XString formatDouble(const char *fmt, double var) {
 	char cbuf[SNPRINT_BUF_SIZE];
 	if(strlen(fmt) == 0) {
 		snprintf(cbuf, sizeof(cbuf), "%.12g", var);
-		return XString(cbuf);
+        return {cbuf};
 	}
 
 	if(!strncmp(fmt, "TIME:", 5)) {
@@ -242,7 +242,7 @@ XString formatDouble(const char *fmt, double var) {
 			return time.getTimeStr(false);
 	}
 	snprintf(cbuf, sizeof(cbuf), fmt, var);
-	return XString(cbuf);
+    return {cbuf};
 }
 void formatDoubleValidator(XString &fmt) {
 	if(fmt.empty()) return;

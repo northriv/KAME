@@ -25,6 +25,8 @@
     #include <QOpenGLFunctions>
 #endif
 
+//#define USE_PBO
+
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
@@ -77,8 +79,11 @@ public:
  void beginQuad(bool fill = false);
  void endQuad();
 
- void drawText(const XGraph::ScrPoint &p, const XString &str);
- 
+ void drawText(const XGraph::ScrPoint &p, QString &&str);
+ void drawText(const XGraph::ScrPoint &p, const XString &str) {
+     drawText(p, QString(str));
+ }
+
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
  void posOffAxis(const XGraph::ScrPoint &dir, XGraph::ScrPoint *src, XGraph::SFloat offset);
@@ -177,12 +182,16 @@ Snapshot startDrawing();
  GLint m_viewport[4]; // Current Viewport
 	
 	//! ghost stuff
-	std::vector<GLubyte> m_lastFrame;
 	XTime m_modifiedTime;
 	XTime m_updatedTime;
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
 	int m_curFontSize;
 	int m_curAlign;
+#ifdef USE_PBO
+    GLuint m_persistentPBO = 0;
+#else
+    std::vector<GLubyte> m_persistentFrame;
+#endif
 
     struct Text {
         QString text;

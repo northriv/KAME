@@ -38,12 +38,16 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
 
     QSurfaceFormat format;
     format.setAlphaBufferSize(8);
-    format.setDepthBufferSize(16);
-    format.setSamples(2);
+    format.setDepthBufferSize(24);
+    format.setSamples(4);
+#ifdef USE_PBO
+    format.setVersion(3, 0);
+#else
     format.setVersion(2, 0);
+#endif
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-//    format.setProfile(QSurfaceFormat::CoreProfile);
-   format.setProfile(QSurfaceFormat::OpenGLContextProfile::CompatibilityProfile);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+//   format.setProfile(QSurfaceFormat::OpenGLContextProfile::CompatibilityProfile);
    setFormat(format);
 #endif
 //    if( !parent->layout() ) {

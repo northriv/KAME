@@ -1146,7 +1146,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 			lastg = x;
 		}
 	}
-  
+
 	for(int i = 0; i < len; ++i) {
 		XGraph::VFloat z;
 		XGraph::GFloat x = (XGraph::GFloat)i / len;
@@ -1167,7 +1167,8 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 				axisToScreen(shot, x, &s1);
 				painter->posOffAxis(m_dirVector, &s1, AxisToTicLabel);
 				double var = setprec(z, m_bLogscaleFixed ? (XGraph::VFloat)z : m_minorFixed);
-				painter->drawText(s1, valToString(var));
+                painter->drawText(s1,
+                    formatDouble(shot[ *ticLabelFormat()].to_str().c_str(), var)); //valToString(var)
 			}
 			break;
         case Tic::Minor:

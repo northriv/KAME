@@ -34,7 +34,7 @@ XQGraphDialogConnector::XQGraphDialogConnector
     //Ranges should be preset in prior to connectors.
     m_pItem->m_dblIntensity->setRange(0.0, 2.0);
     m_pItem->m_dblIntensity->setSingleStep(0.1);
-    m_pItem->m_dblPersistence->setRange(0.0, 1.0);
+    m_pItem->m_dblPersistence->setRange(0.0, 1.5);
     m_pItem->m_dblPersistence->setSingleStep(0.1);
 
     m_conBackGround = xqcon_create<XColorConnector>

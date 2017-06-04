@@ -97,6 +97,11 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
 
+#ifdef USE_PBO
+    glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
+    glDeleteBuffers(1, &m_persistentPBO);
+#endif
+
     m_pItem->doneCurrent();
 }
 
@@ -238,30 +243,28 @@ XQGraphPainter::selectFont(const XString &str,
 	return 0;
 }
 void
-XQGraphPainter::drawText(const XGraph::ScrPoint &p, const XString &str) {
-    {
-        double x,y,z;
-        screenToWindow(p, &x, &y, &z);
+XQGraphPainter::drawText(const XGraph::ScrPoint &p, QString &&str) {
+    double x,y,z;
+    screenToWindow(p, &x, &y, &z);
 
-        QFont font(m_pItem->font());
-		font.setPointSize(m_curFontSize);
-		QFontMetrics fm(font);
-		QRect bb = fm.boundingRect(str);
-		if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
-		if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
-		if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
-		if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
-		if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
+    QFont font(m_pItem->font());
+    font.setPointSize(m_curFontSize);
+    QFontMetrics fm(font);
+    QRect bb = fm.boundingRect(str);
+    if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
+    if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
+    if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
+    if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
+    if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
 
-        //draws texts later.
-        Text txt;
-        txt.text = str;
-        txt.x = lrint(x);
-        txt.y = lrint(y);
-        txt.fontsize = m_curFontSize;
-        txt.rgba = m_curTextColor;
-        m_textOverpaint.push_back(txt);
-    }
+    //draws texts later.
+    Text txt;
+    txt.text = std::move(str);
+    txt.x = lrint(x);
+    txt.y = lrint(y);
+    txt.fontsize = m_curFontSize;
+    txt.rgba = m_curTextColor;
+    m_textOverpaint.push_back(std::move(txt));
 }
 
 #define VIEW_NEAR -1.5
@@ -392,13 +395,36 @@ XQGraphPainter::initializeGL () {
 void
 XQGraphPainter::resizeGL ( int width  , int height ) {
     m_bIsRedrawNeeded = true;
+
+#ifdef USE_PBO
+    if(m_persistentPBO) {
+        glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
+        glDeleteBuffers(1, &m_persistentPBO);
+    }
+    glGenBuffers(1, &m_persistentPBO);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB,
+        m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio
+        * 4, 0, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+#endif
+
 }
 void
 XQGraphPainter::paintGL () {
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
+//    QOpenGLPaintDevice fboPaintDev(width(), height());
     QPainter qpainter(m_pItem);
+    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing);
+//    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver); //This might cause huge memory leak on intel's GPU in OSX.
     qpainter.beginNativePainting();
 #endif
+    Snapshot shot( *m_graph);
+
+    QColor bgc = (QRgb)shot[ *m_graph->backGround()];
+    glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     glMatrixMode(GL_PROJECTION);
 
     glGetError(); // flush error
@@ -427,8 +453,9 @@ XQGraphPainter::paintGL () {
     glGetIntegerv(GL_VIEWPORT, m_viewport);
 
     // Set up the rendering context,
-    glEnable(GL_MULTISAMPLE);
+//    glEnable(GL_MULTISAMPLE);
     glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 
     checkGLError();
 
@@ -436,24 +463,55 @@ XQGraphPainter::paintGL () {
 	XTime time_started = XTime::now();
     if(m_bIsRedrawNeeded || m_bIsAxisRedrawNeeded) {
 		m_modifiedTime = time_started;    
-		if(m_lastFrame.size())
-			m_updatedTime = time_started;
-		else
-			m_updatedTime = XTime();
     }
+#ifdef USE_PBO
+    if(m_bIsAxisRedrawNeeded) {
+        m_persistentFBO->bind();
+        glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
+        glClear(GL_COLOR_BUFFER_BIT);
+        m_persistentFBO->release();
+    }
+#endif
 
-    Snapshot shot( *m_graph);
+    double persist = shot[ *m_graph->persistence()]; //sec.
+    double persist_scale = 0.0;
+    if((persist > 0.02) && !m_bIsAxisRedrawNeeded) {
+        glPushMatrix();
+        glLoadIdentity();
+        glPixelZoom(1,1);
+        glRasterPos2i(-1, -1);
+        double tau = persist / (-log(0.1)) * 2.0;
+        persist_scale = std::max(0.2, exp(-(time_started - m_updatedTime)/tau));
+    #ifdef USE_PBO
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
+    #else
+        m_persistentFrame.resize(m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 4);
+    #endif
+        glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGRA, GL_UNSIGNED_BYTE,
+    #ifdef USE_PBO
+                    nullptr); //from PBO
+                    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    #else
+                    &m_persistentFrame[0]);
+    #endif
+        glPopMatrix();
+        setColor(shot[ *m_graph->backGround()], 1.0 - persist_scale);
+        beginQuad(true);
+        float z = 0.999;
+        setVertex({0, 0, z});
+        setVertex({1.0, 0, z});
+        setVertex({1.0, 1.0, z});
+        setVertex({0, 1.0, z});
+        endQuad();
+        glClear(GL_DEPTH_BUFFER_BIT);
+    }
+    m_updatedTime = time_started;
 
-    QColor bgc = (QRgb)shot[ *m_graph->backGround()];
-    glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
+    glMatrixMode(GL_MODELVIEW);
 
     if(m_bIsRedrawNeeded.compare_set_strong(true, false)) {
         shot = startDrawing();
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glEnable(GL_DEPTH_TEST);
 
         //For stupid OpenGL implementations.
 //        if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
@@ -501,12 +559,7 @@ XQGraphPainter::paintGL () {
         checkGLError();
         m_bIsAxisRedrawNeeded = false;
     }
-    else {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glEnable(GL_DEPTH_TEST);
-        
+    else {        
         glCallList(m_listgrids);
         glCallList(m_listpoints);
 //        glDisable(GL_DEPTH_TEST);
@@ -526,6 +579,25 @@ XQGraphPainter::paintGL () {
         }
     }
 
+    if(persist_scale > 0.0) {
+        glFlush();
+    #ifdef USE_PBO
+        glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
+    #endif
+        glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGRA, GL_UNSIGNED_BYTE,
+    #ifdef USE_PBO
+                     nullptr); //to PBO
+                     glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
+    #else
+                     &m_persistentFrame[0]);
+//        fprintf(stderr, "%x\n", *(unsigned int*)&m_persistentFrame[0]);
+    #endif
+        if(time_started - m_modifiedTime < persist) {
+            QTimer::singleShot(50, m_pItem, SLOT(update()));
+        }
+    }
+
     drawOnScreenObj(shot);
 
     glMatrixMode(GL_PROJECTION);
@@ -535,65 +607,6 @@ GLdouble proj_orig[16];
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
     glMatrixMode(GL_MODELVIEW);
     
-    double persist = shot[ *m_graph->persistence()];
-    if(persist > 0) {
-	#define OFFSET 0.1
-        double tau = persist / (-log(OFFSET)) * 0.4;
-		double scale = exp(-(time_started - m_updatedTime)/tau);
-		double offset = -OFFSET*(1.0-scale);
-		bool update = (time_started - m_modifiedTime) < persist; 
-		GLint accum;
-		glGetIntegerv(GL_ACCUM_ALPHA_BITS, &accum);
-		checkGLError();
-		//! \todo QGLContext might clear accumration buffer.
-		if(0) {
-			if(update) {
-				glAccum(GL_MULT, scale);
-			    checkGLError(); 
-				glAccum(GL_ACCUM, 1.0 - scale);
-			    checkGLError(); 
-				glAccum(GL_RETURN, 1.0);
-			    checkGLError(); 
-			}
-			else {
-				glAccum(GL_LOAD, 1.0);
-			    checkGLError(); 
-			}
-		}
-		else {
-            m_lastFrame.resize(
-                m_pItem->width() * m_pixel_ratio * m_pItem->height() * m_pixel_ratio * 4);
-			if(update) {
-				glPixelTransferf(GL_ALPHA_SCALE, scale);
-			    checkGLError(); 
-				glPixelTransferf(GL_ALPHA_BIAS, offset);
-			    checkGLError(); 
-				glRasterPos2i(0,0);
-			    checkGLError(); 
-                glDrawPixels((GLint)m_pItem->width() * m_pixel_ratio,
-                             (GLint)m_pItem->height() * m_pixel_ratio,
-							 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
-			    checkGLError(); 
-				glPixelTransferf(GL_ALPHA_SCALE, 1.0);
-			    checkGLError(); 
-				glPixelTransferf(GL_ALPHA_BIAS, 0.0);
-			    checkGLError(); 
-			}
-            glReadPixels(0, 0, (GLint)m_pItem->width() * m_pixel_ratio,
-                         (GLint)m_pItem->height() * m_pixel_ratio,
-						 GL_RGBA, GL_UNSIGNED_BYTE, &m_lastFrame[0]);
-		    checkGLError();     
-		}
-		m_updatedTime = time_started;
-		if(update) {
-			QTimer::singleShot(50, m_pItem, SLOT(update()));
-		}
-    }
-    else {
-    	m_lastFrame.clear();
-		m_updatedTime = XTime();
-    }
-
     drawOnScreenViewObj(shot);
 
     glDisable(GL_DEPTH_TEST);
@@ -611,7 +624,6 @@ GLdouble proj_orig[16];
     glDepthFunc(depth_func_org);
     glDepthMask(false);
     glBlendFunc(GL_SRC_ALPHA,blend_func_org);
-    glDisable(GL_MULTISAMPLE);
 //    glPopAttrib();
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
@@ -620,8 +632,6 @@ GLdouble proj_orig[16];
     QPainter qpainter(m_pItem);
 #endif
 
-    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing);
-//    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver); //This one cause huge memory leak on intel's GPU in OSX.
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
         drawOnScreenHelp(shot, &qpainter);
@@ -635,14 +645,16 @@ GLdouble proj_orig[16];
 void
 XQGraphPainter::drawTextOverpaint(QPainter &qpainter) {
     QFont font(qpainter.font());
+    bool firsttime = true;
     for(auto &&text: m_textOverpaint) {
-        if(QColor(text.rgba) != qpainter.pen().color())
+        if((QColor(text.rgba) != qpainter.pen().color()) || firsttime)
             qpainter.setPen(QColor(text.rgba));
-        if(font.pointSize() != text.fontsize) {
+        if((font.pointSize() != text.fontsize) || firsttime) {
             font.setPointSize(text.fontsize);
             qpainter.setFont(font);
         }
+        firsttime = false;
         qpainter.drawText(text.x, text.y, text.text);
     }
-//    m_textOverpaint.clear();
+    m_textOverpaint.clear();
 }

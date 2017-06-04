@@ -298,6 +298,7 @@ public:
     void valToScreen(const Snapshot &shot, XGraph::VFloat val, XGraph::ScrPoint *scr);
     XGraph::VFloat screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) const;
   
+    //! use formatDouble(fmt, val) for frequent usage.
     XString valToString(XGraph::VFloat val) const;
 
 	const shared_ptr<XStringNode> &label() const {return m_label;}
