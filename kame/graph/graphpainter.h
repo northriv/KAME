@@ -25,7 +25,9 @@
     #include <QOpenGLFunctions>
 #endif
 
-//#define USE_PBO
+#ifdef __APPLE__
+    #define USE_PBO
+#endif
 
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw

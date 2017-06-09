@@ -407,6 +407,7 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
         m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio
         * 4, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    checkGLError();
 #endif
 
 }
@@ -464,18 +465,10 @@ XQGraphPainter::paintGL () {
     if(m_bIsRedrawNeeded || m_bIsAxisRedrawNeeded) {
 		m_modifiedTime = time_started;    
     }
-#ifdef USE_PBO
-    if(m_bIsAxisRedrawNeeded) {
-        m_persistentFBO->bind();
-        glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
-        glClear(GL_COLOR_BUFFER_BIT);
-        m_persistentFBO->release();
-    }
-#endif
 
     double persist = shot[ *m_graph->persistence()]; //sec.
     double persist_scale = 0.0;
-    if((persist > 0.02) && !m_bIsAxisRedrawNeeded) {
+    if(persist > 0.02) {
         glPushMatrix();
         glLoadIdentity();
         glPixelZoom(1,1);
@@ -484,21 +477,24 @@ XQGraphPainter::paintGL () {
         persist_scale = std::max(0.2, exp(-(time_started - m_updatedTime)/tau));
     #ifdef USE_PBO
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
+        checkGLError();
     #else
         m_persistentFrame.resize(m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 4);
     #endif
         glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                     GL_BGRA, GL_UNSIGNED_BYTE,
     #ifdef USE_PBO
+                    GL_BGRA, GL_UNSIGNED_BYTE,
                     nullptr); //from PBO
                     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
     #else
+                    GL_BGRA, GL_UNSIGNED_BYTE,
                     &m_persistentFrame[0]);
     #endif
+        checkGLError();
         glPopMatrix();
         setColor(shot[ *m_graph->backGround()], 1.0 - persist_scale);
         beginQuad(true);
-        float z = 0.999;
+        float z = 0.99;
         setVertex({0, 0, z});
         setVertex({1.0, 0, z});
         setVertex({1.0, 1.0, z});
@@ -580,19 +576,24 @@ XQGraphPainter::paintGL () {
     }
 
     if(persist_scale > 0.0) {
-        glFlush();
     #ifdef USE_PBO
         glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
+    #else
+        GLint buf;
+        glGetIntegerv(GL_DRAW_BUFFER, &buf);
+        glReadBuffer(buf);
     #endif
+        checkGLError();
         glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                     GL_BGRA, GL_UNSIGNED_BYTE,
     #ifdef USE_PBO
+                     GL_BGRA, GL_UNSIGNED_BYTE,
                      nullptr); //to PBO
                      glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
     #else
+                     GL_BGRA, GL_UNSIGNED_BYTE,
                      &m_persistentFrame[0]);
-//        fprintf(stderr, "%x\n", *(unsigned int*)&m_persistentFrame[0]);
     #endif
+        checkGLError();
         if(time_started - m_modifiedTime < persist) {
             QTimer::singleShot(50, m_pItem, SLOT(update()));
         }

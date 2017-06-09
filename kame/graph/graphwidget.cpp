@@ -39,14 +39,16 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     QSurfaceFormat format;
     format.setAlphaBufferSize(8);
     format.setDepthBufferSize(24);
-    format.setSamples(4);
+#ifndef __APPLE__
+    format.setSamples(4); //osx retina cannot handle this properly.
+#endif
 #ifdef USE_PBO
-    format.setVersion(3, 0);
+    format.setVersion(3, 3);
 #else
     format.setVersion(2, 0);
 #endif
-    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-    format.setProfile(QSurfaceFormat::CoreProfile);
+//    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+//    format.setProfile(QSurfaceFormat::CoreProfile);
 //   format.setProfile(QSurfaceFormat::OpenGLContextProfile::CompatibilityProfile);
    setFormat(format);
 #endif
