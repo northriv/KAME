@@ -208,9 +208,9 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 			tr[ *axisz->label()] = entryz->getLabel();
 		}
 
-		tr[ *shot_this[ *this].m_storePlot->pointColor()] = clGreen;
-		tr[ *shot_this[ *this].m_storePlot->lineColor()] = clGreen;
-		tr[ *shot_this[ *this].m_storePlot->barColor()] = clGreen;
+        tr[ *shot_this[ *this].m_storePlot->pointColor()] = clBlue; //oldstyle: clGreen;
+        tr[ *shot_this[ *this].m_storePlot->lineColor()] = clBlue; //oldstyle: clGreen;
+        tr[ *shot_this[ *this].m_storePlot->barColor()] = clBlue; //oldstyle: clGreen;
 		tr[ *shot_this[ *this].m_storePlot->displayMajorGrid()] = false;
         tr[ *shot_this[ *this].m_livePlot->maxCount()] = 10000;
         tr[ *shot_this[ *this].m_storePlot->maxCount()] = 10000;

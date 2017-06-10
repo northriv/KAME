@@ -489,37 +489,41 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	if(shot[ *m_graph->drawLegends()] &&
             (m_selectionModeNow == SelectionMode::SelNone)) {
 		if(shot.size(m_graph->plots())) {
-			const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+            const XNode::NodeList &plots_list( *shot.list(m_graph->plots()));
+            XString longest_label;
+            for(auto &&x: plots_list) {
+                auto plot = static_pointer_cast<XPlot>(x);
+                if(XString(shot[ *plot->label()]).length() > longest_label.length())
+                    longest_label = shot[ *plot->label()];
+            }
+            float text_width = 0.15;
+            float dy = 0.05;
             float z = 0.97;
-			float dy = 0.04;
-			float x1 = 0.75;
+
+            float x1 = 0.77;
 			float y1 = 0.81;
 			if(m_pointerLastPos[0] > m_pItem->width() / 2)
-				x1 = 1.06f - x1;
+                x1 = 1.08f - x1;
 			if(m_pointerLastPos[1] < m_pItem->height() / 2)
 				y1 = 1.0f - y1 + plots_list.size() * dy;
-			float x2 = x1 - 0.01;
+            float x2 = x1 - 0.01;
+            defaultFont();
+            m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
+            selectFont(longest_label, XGraph::ScrPoint(text_width * 0.9, y1, z), XGraph::ScrPoint(-1, 0, 0), XGraph::ScrPoint(0, dy * 0.85, 0), 0);
 			float x3 = x1 + 0.08;
-			defaultFont();
-			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
-			float y2 = y1;
-			for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
-				auto plot = static_pointer_cast<XPlot>( *it);
-				selectFont(shot[ *plot->label()], XGraph::ScrPoint(x2,y2,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
-				y2 -= dy;
-			}
-			setColor(shot[ *m_graph->backGround()], 0.7);
+            float y2 = y1 - plots_list.size() * dy;
+            setColor(shot[ *m_graph->backGround()], 0.85);
 			beginQuad(true);
-			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
+            setVertex(XGraph::ScrPoint(x1 - text_width, y1 + dy/2, z));
+            setVertex(XGraph::ScrPoint(x1 - text_width, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
 			endQuad();
 			setColor(shot[ *m_graph->titleColor()], 0.05);
             z = 0.98;
             beginQuad(true);
-			setVertex(XGraph::ScrPoint(x1, y1 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x1, y2 + dy/2, z));
+            setVertex(XGraph::ScrPoint(x1 - text_width, y1 + dy/2, z));
+            setVertex(XGraph::ScrPoint(x1 - text_width, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
 			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
 			endQuad();
