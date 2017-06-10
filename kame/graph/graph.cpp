@@ -86,7 +86,7 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *backGround()] = clWhite;
 		tr[ *titleColor()] = clBlack;
 		tr[ *drawLegends()] = true;
-        tr[ *persistence()] = 0.1;
+        tr[ *persistence()] = 0.3;
 
 		tr[ *label()] = name;
 

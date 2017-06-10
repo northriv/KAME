@@ -399,8 +399,6 @@ XQGraphPainter::initializeGL () {
 void
 XQGraphPainter::resizeGL ( int width  , int height ) {
     m_bIsRedrawNeeded = true;
-    m_persistentFrame.clear();
-    m_persistentFrame.shrink_to_fit();
     m_updatedTime = {};
 
 #ifdef USE_PBO
@@ -415,6 +413,9 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
         * 4, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
     checkGLError();
+#else
+    m_persistentFrame.clear();
+    m_persistentFrame.shrink_to_fit();
 #endif
 
 }

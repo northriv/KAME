@@ -67,7 +67,6 @@ XValChart::XValChart(const char *name, bool runtime,
     
     m_graph->iterate_commit([=](Transaction &tr){
 		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, tr, m_graph);
-		tr[ *m_graph->persistence()] = 0.0;
 		tr[ *m_chart->label()] = entry->getLabel();
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
 		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
