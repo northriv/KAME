@@ -377,6 +377,10 @@ XQGraphPainter::initializeGL () {
 #ifndef USE_QGLWIDGET
     initializeOpenGLFunctions();
 #endif
+    if(m_pixel_ratio > 1)
+        glEnable(GL_MULTISAMPLE);
+    else
+        glDisable(GL_MULTISAMPLE);
     //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
@@ -395,6 +399,9 @@ XQGraphPainter::initializeGL () {
 void
 XQGraphPainter::resizeGL ( int width  , int height ) {
     m_bIsRedrawNeeded = true;
+    m_persistentFrame.clear();
+    m_persistentFrame.shrink_to_fit();
+    m_updatedTime = {};
 
 #ifdef USE_PBO
     if(m_persistentPBO) {
@@ -454,6 +461,7 @@ XQGraphPainter::paintGL () {
     glGetIntegerv(GL_VIEWPORT, m_viewport);
 
     // Set up the rendering context,
+
 //    glEnable(GL_MULTISAMPLE);
     glEnable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
@@ -474,7 +482,7 @@ XQGraphPainter::paintGL () {
         glPixelZoom(1,1);
         glRasterPos2i(-1, -1);
         double tau = persist / (-log(0.1)) * 2.0;
-        persist_scale = std::max(0.2, exp(-(time_started - m_updatedTime)/tau));
+        persist_scale = exp(-(time_started - m_updatedTime)/tau);
     #ifdef USE_PBO
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
         checkGLError();
