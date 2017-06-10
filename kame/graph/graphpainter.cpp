@@ -399,8 +399,15 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			ss1 -= ss2;
 			ss1 += m_startScrPos;
 
-			beginQuad(true);
-            setColor(clBlue, 0.2);
+            beginQuad(true);
+            setColor(shot[ *m_graph->backGround()], 0.1);
+            setVertex(m_startScrPos);
+            setVertex(sd1);
+            setVertex(m_finishScrPos);
+            setVertex(ss1);
+            endQuad();
+            beginQuad(true);
+            setColor(clBlue, 0.3);
 			setVertex(m_startScrPos);
 			setVertex(sd1);
 			setVertex(m_finishScrPos);
@@ -497,7 +504,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
                     longest_label = shot[ *plot->label()];
             }
             float text_width = 0.15;
-            float dy = 0.05;
+            float dy = 0.05; //height of each legend.
             float z = 0.97;
 
             float x1 = 0.77;
@@ -506,7 +513,7 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
                 x1 = 1.08f - x1;
 			if(m_pointerLastPos[1] < m_pItem->height() / 2)
 				y1 = 1.0f - y1 + plots_list.size() * dy;
-            float x2 = x1 - 0.01;
+            float x2 = x1 - 0.01; //right edge of text field.
             defaultFont();
             m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
             selectFont(longest_label, XGraph::ScrPoint(text_width * 0.9, y1, z), XGraph::ScrPoint(-1, 0, 0), XGraph::ScrPoint(0, dy * 0.85, 0), 0);
