@@ -189,11 +189,8 @@ Snapshot startDrawing();
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
 	int m_curFontSize;
 	int m_curAlign;
-#ifdef USE_PBO
     GLuint m_persistentPBO = 0;
-#else
     std::vector<GLubyte> m_persistentFrame;
-#endif
 
     struct Text {
         QString text;

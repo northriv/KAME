@@ -83,8 +83,8 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *titleColor()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *drawLegends()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *persistence()].onValueChanged().connect(lsnPropertyChanged());
-		tr[ *backGround()] = clWhite;
-		tr[ *titleColor()] = clBlack;
+        tr[ *backGround()] = QColor(0x0A, 0x05, 0x45).rgb(); //oldstyle: clWhite;
+        tr[ *titleColor()] = clWhite; //oldstyle: clBlack;
 		tr[ *drawLegends()] = true;
         tr[ *persistence()] = 0.3;
 
@@ -192,13 +192,13 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 		tr[ *drawPoints()] = true;
 		tr[ *majorGridColor()] = clAqua;
 		tr[ *minorGridColor()] = clLime;
-		tr[ *lineColor()] = clRed;
-		tr[ *pointColor()] = clRed;
-		tr[ *barColor()] = clRed;
+        tr[ *lineColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
+        tr[ *pointColor()] = QColor(0xff, 0xf1, 0x2c).rgb(); //oldstyle: clRed;
+        tr[ *barColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
 		tr[ *displayMajorGrid()] = true;
 		tr[ *displayMinorGrid()] = false;
 		intensity()->setFormat("%.2f");
-		tr[ *intensity()] = 1.0;
+        tr[ *intensity()] = 0.6;
 		tr[ *colorPlot()] = false;
 		tr[ *colorPlotColorHigh()] = clRed;
 		tr[ *colorPlotColorLow()] = clBlue;
@@ -807,9 +807,9 @@ XAxis::XAxis(const char *name, bool runtime,
 		tr[ *rightOrTopSided()] = rightOrTop;
 		tr[ *majorTicScale()] = 10;
 		tr[ *minorTicScale()] = 1;
-		tr[ *labelColor()] = clBlack;
-		tr[ *ticColor()] = clBlack;
-		tr[ *ticLabelColor()] = clBlack;
+        tr[ *labelColor()] = clWhite; //oldstyle: clBlack;
+        tr[ *ticColor()] = clWhite; //oldstyle: clBlack;
+        tr[ *ticLabelColor()] = clWhite; //oldstyle: clBlack;
 
 		if(rightOrTop) {
             if(dir == AxisDirection::Y) tr[ *x()] = 1.0- tr[ *x()];

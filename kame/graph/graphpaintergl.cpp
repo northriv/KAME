@@ -377,10 +377,11 @@ XQGraphPainter::initializeGL () {
 #ifndef USE_QGLWIDGET
     initializeOpenGLFunctions();
 #endif
-    if(m_pixel_ratio > 1)
+    if(m_pixel_ratio < 2)
         glEnable(GL_MULTISAMPLE);
     else
         glDisable(GL_MULTISAMPLE);
+
     //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
     if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
@@ -401,23 +402,29 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
     m_bIsRedrawNeeded = true;
     m_updatedTime = {};
 
+    //readPixels may exceed the boundary.
+    size_t bufsize = m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 3 + 1024;
 #ifdef USE_PBO
     if(m_persistentPBO) {
         glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
         glDeleteBuffers(1, &m_persistentPBO);
+        m_persistentPBO = 0;
     }
     glGenBuffers(1, &m_persistentPBO);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB,
-        m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio
-        * 4, 0, GL_DYNAMIC_DRAW);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, bufsize, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-    checkGLError();
-#else
-    m_persistentFrame.clear();
-    m_persistentFrame.shrink_to_fit();
+    if(glGetError() != GL_NO_ERROR) {
+        glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
+        glDeleteBuffers(1, &m_persistentPBO);
+        m_persistentPBO = 0;
+    }
 #endif
-
+    if( !m_persistentPBO) {
+        m_persistentFrame.clear();
+        m_persistentFrame.resize(bufsize);
+        m_persistentFrame.shrink_to_fit();
+    }
 }
 void
 XQGraphPainter::paintGL () {
@@ -449,7 +456,6 @@ XQGraphPainter::paintGL () {
     glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
     m_textOverpaint.clear();
 
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glDepthFunc(GL_LEQUAL);
 
     glMatrixMode(GL_PROJECTION);
@@ -476,43 +482,41 @@ XQGraphPainter::paintGL () {
     }
 
     double persist = shot[ *m_graph->persistence()]; //sec.
-    double persist_scale = 0.0;
-    if(persist > 0.02) {
-        glPushMatrix();
-        glLoadIdentity();
-        glPixelZoom(1,1);
-        glRasterPos2i(-1, -1);
-        double tau = persist / (-log(0.1)) * 2.0;
-        persist_scale = exp(-(time_started - m_updatedTime)/tau);
-    #ifdef USE_PBO
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
-        checkGLError();
-    #else
-        m_persistentFrame.resize(m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 4);
-    #endif
-        glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-    #ifdef USE_PBO
-                    GL_BGRA, GL_UNSIGNED_BYTE,
-                    nullptr); //from PBO
-                    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-    #else
-                    GL_BGRA, GL_UNSIGNED_BYTE,
-                    &m_persistentFrame[0]);
-    #endif
-        checkGLError();
-        glPopMatrix();
-        setColor(shot[ *m_graph->backGround()], 1.0 - persist_scale);
-        beginQuad(true);
-        float z = 0.99;
-        setVertex({0, 0, z});
-        setVertex({1.0, 0, z});
-        setVertex({1.0, 1.0, z});
-        setVertex({0, 1.0, z});
-        endQuad();
-        glClear(GL_DEPTH_BUFFER_BIT);
+    if(persist > 0.0) {
+        if(m_updatedTime) {
+            glDepthMask(GL_FALSE);
+            glPushMatrix();
+            glLoadIdentity();
+            glPixelZoom(1,1);
+            glRasterPos2i(-1, -1);
+            double tau = persist / (-log(0.1)) * 2.0;
+            double persist_scale = exp(-(time_started - m_updatedTime)/tau);
+            glBlendColor(0, 0, 0, persist_scale);
+            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+            if(m_persistentPBO) {
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
+                checkGLError();
+                glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                             GL_BGR, GL_UNSIGNED_BYTE,
+                            nullptr); //from PBO
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+            }
+            else {
+                glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                             GL_BGR, GL_UNSIGNED_BYTE,
+                             &m_persistentFrame[0]);
+            }
+            checkGLError();
+            glPopMatrix();
+            glDepthMask(GL_TRUE);
+        }
+        m_updatedTime = time_started;
     }
-    m_updatedTime = time_started;
+    else {
+        m_updatedTime = {};
+    }
 
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_MODELVIEW);
 
     if(m_bIsRedrawNeeded.compare_set_strong(true, false)) {
@@ -584,24 +588,24 @@ XQGraphPainter::paintGL () {
         }
     }
 
-    if(persist_scale > 0.0) {
-    #ifdef USE_PBO
-        glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
-    #else
-        GLint buf;
-        glGetIntegerv(GL_DRAW_BUFFER, &buf);
-        glReadBuffer(buf);
-    #endif
-        checkGLError();
-        glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-    #ifdef USE_PBO
-                     GL_BGRA, GL_UNSIGNED_BYTE,
-                     nullptr); //to PBO
-                     glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
-    #else
-                     GL_BGRA, GL_UNSIGNED_BYTE,
-                     &m_persistentFrame[0]);
-    #endif
+    if(persist > 0.0) {
+        if(m_persistentPBO) {
+            glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
+            checkGLError();
+            glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                         GL_BGR, GL_UNSIGNED_BYTE,
+                         nullptr); //to PBO
+            glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
+        }
+        else {
+            GLint buf;
+            glGetIntegerv(GL_DRAW_BUFFER, &buf);
+            glReadBuffer(buf);
+            checkGLError();
+            glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                         GL_BGR, GL_UNSIGNED_BYTE,
+                         &m_persistentFrame[0]);
+        }
         checkGLError();
         if(time_started - m_modifiedTime < persist) {
             QTimer::singleShot(50, m_pItem, SLOT(update()));

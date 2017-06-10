@@ -59,7 +59,7 @@ void XWaveNGraph::init() {
 		tr.mark(tr[ *this].onIconChanged(), false);
 
 		tr[ *dump()].setUIEnabled(false);
-		tr[ *m_graph->persistence()] = 0.0;
+        tr[ *m_graph->persistence()] = 0.4;
 		tr[ *this].clearPlots();
     });
 }

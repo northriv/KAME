@@ -155,10 +155,12 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
 		tr[ *tr[ *ftWaveGraph()].axisy()->label()] = i18n("Intens. [V]");
 		tr[ *tr[ *ftWaveGraph()].plot(0)->label()] = i18n("abs.");
-		tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
+        tr[ *tr[ *ftWaveGraph()].plot(0)->lineColor()] = clRed;
+        tr[ *tr[ *ftWaveGraph()].plot(0)->barColor()] = QColor(0xa0, 0x00, 0x00).rgb();
+        tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawLines()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawPoints()] = false;
-		tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.5;
+        tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.3;
 		tr[ *tr[ *ftWaveGraph()].plot(1)->label()] = i18n("phase");
 		tr[ *tr[ *ftWaveGraph()].plot(1)->drawPoints()] = false;
 		tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.3;
@@ -167,7 +169,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
-		tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 0.5;
+        tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 1.0;
 		{
 			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
 				tr, "Peaks", true, tr, ftWaveGraph()->graph());
