@@ -377,10 +377,10 @@ XQGraphPainter::initializeGL () {
 #ifndef USE_QGLWIDGET
     initializeOpenGLFunctions();
 #endif
-    if(m_pixel_ratio < 2)
-        glEnable(GL_MULTISAMPLE);
-    else
-        glDisable(GL_MULTISAMPLE);
+//    if(m_pixel_ratio < 2)
+//        glEnable(GL_MULTISAMPLE);
+//    else
+//        glDisable(GL_MULTISAMPLE);
 
     //define display lists etc.:
     if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
@@ -403,7 +403,7 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
     m_updatedTime = {};
 
     //readPixels may exceed the boundary.
-    size_t bufsize = m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 3 + 1024;
+    size_t bufsize = m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 3 + 512 * 3;
 #ifdef USE_PBO
     if(m_persistentPBO) {
         glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
@@ -491,8 +491,12 @@ XQGraphPainter::paintGL () {
             glRasterPos2i(-1, -1);
             double tau = persist / (-log(0.1)) * 2.0;
             double persist_scale = exp(-(time_started - m_updatedTime)/tau);
-            glBlendColor(0, 0, 0, persist_scale);
-            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+            glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_DST_ALPHA);
+            glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), 1.0f - persist_scale);
+            glClear(GL_COLOR_BUFFER_BIT);
+            //Foolish Windows does not comply GL_CONSTANT_ALPHA
+//            glBlendColor(0, 0, 0, persist_scale);
+//            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
             if(m_persistentPBO) {
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
                 checkGLError();
