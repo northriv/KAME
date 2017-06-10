@@ -491,8 +491,9 @@ XQGraphPainter::paintGL () {
             glRasterPos2i(-1, -1);
             double tau = persist / (-log(0.1)) * 2.0;
             double persist_scale = exp(-(time_started - m_updatedTime)/tau);
-            glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_DST_ALPHA);
-            glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), 1.0f - persist_scale);
+            glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE);
+            glClearColor(bgc.redF() * (1.0f - persist_scale), bgc.greenF() * (1.0f - persist_scale), bgc.blueF() * (1.0f - persist_scale),
+                         1.0f - persist_scale);
             glClear(GL_COLOR_BUFFER_BIT);
             //Foolish Windows does not comply GL_CONSTANT_ALPHA
 //            glBlendColor(0, 0, 0, persist_scale);

@@ -151,7 +151,6 @@ XDSO::XDSO(const char *name, bool runtime,
 
     m_waveForm->iterate_commit([=](Transaction &tr){
         tr[ *m_waveForm].setColCount(5, s_trace_names);
-		tr[ *m_waveForm->graph()->persistence()] = 0;
 		tr[ *m_waveForm].clearPoints();
     });
 }
