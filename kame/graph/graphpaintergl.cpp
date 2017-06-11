@@ -403,7 +403,8 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
     m_updatedTime = {};
 
     //readPixels may exceed the boundary.
-    size_t bufsize = m_pItem->width() * m_pItem->height() * m_pixel_ratio * m_pixel_ratio * 3 + 512 * 3;
+    size_t bufsize = (m_pItem->width() + 1) * (m_pItem->height() + 1)
+            * m_pixel_ratio * m_pixel_ratio * 3;
 #ifdef USE_PBO
     if(m_persistentPBO) {
         glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
@@ -415,6 +416,7 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
     glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB, bufsize, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
     if(glGetError() != GL_NO_ERROR) {
+        //Sometimes binding to PBO fails.
         glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
         glDeleteBuffers(1, &m_persistentPBO);
         m_persistentPBO = 0;
@@ -426,6 +428,60 @@ XQGraphPainter::resizeGL ( int width  , int height ) {
         m_persistentFrame.shrink_to_fit();
     }
 }
+void
+XQGraphPainter::drawPersistentFrame(double persist_scale, const QColor &bgc) {
+    glDepthMask(GL_FALSE);
+    glPushMatrix();
+    glLoadIdentity();
+    glPixelZoom(1,1);
+    glRasterPos2i(-1, -1);
+    glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE);
+    glClearColor(bgc.redF() * (1.0f - persist_scale), bgc.greenF() * (1.0f - persist_scale), bgc.blueF() * (1.0f - persist_scale),
+                 1.0f - persist_scale);
+    glClear(GL_COLOR_BUFFER_BIT);
+    //Foolish Windows does not comply GL_CONSTANT_ALPHA
+//            glBlendColor(0, 0, 0, persist_scale);
+//            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+    if(m_persistentPBO) {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
+        checkGLError();
+        glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGR, GL_UNSIGNED_BYTE,
+                    nullptr); //from PBO
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    }
+    else {
+        glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGR, GL_UNSIGNED_BYTE,
+                     &m_persistentFrame[0]);
+    }
+    checkGLError();
+    glPopMatrix();
+    glDepthMask(GL_TRUE);
+}
+
+void
+XQGraphPainter::readPersistentFrame() {
+    if(m_persistentPBO) {
+        glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
+        checkGLError();
+        glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGR, GL_UNSIGNED_BYTE,
+                     nullptr); //to PBO
+        glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
+    }
+    else {
+        GLint buf;
+        glGetIntegerv(GL_DRAW_BUFFER, &buf);
+        glReadBuffer(buf);
+        checkGLError();
+        glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
+                     GL_BGR, GL_UNSIGNED_BYTE,
+                     &m_persistentFrame[0]);
+    }
+    checkGLError();
+}
+
 void
 XQGraphPainter::paintGL () {
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
@@ -484,36 +540,9 @@ XQGraphPainter::paintGL () {
     double persist = shot[ *m_graph->persistence()]; //sec.
     if(persist > 0.0) {
         if(m_updatedTime) {
-            glDepthMask(GL_FALSE);
-            glPushMatrix();
-            glLoadIdentity();
-            glPixelZoom(1,1);
-            glRasterPos2i(-1, -1);
             double tau = persist / (-log(0.1)) * 2.0;
             double persist_scale = exp(-(time_started - m_updatedTime)/tau);
-            glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE);
-            glClearColor(bgc.redF() * (1.0f - persist_scale), bgc.greenF() * (1.0f - persist_scale), bgc.blueF() * (1.0f - persist_scale),
-                         1.0f - persist_scale);
-            glClear(GL_COLOR_BUFFER_BIT);
-            //Foolish Windows does not comply GL_CONSTANT_ALPHA
-//            glBlendColor(0, 0, 0, persist_scale);
-//            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
-            if(m_persistentPBO) {
-                glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, m_persistentPBO);
-                checkGLError();
-                glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                             GL_BGR, GL_UNSIGNED_BYTE,
-                            nullptr); //from PBO
-                glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-            }
-            else {
-                glDrawPixels(m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                             GL_BGR, GL_UNSIGNED_BYTE,
-                             &m_persistentFrame[0]);
-            }
-            checkGLError();
-            glPopMatrix();
-            glDepthMask(GL_TRUE);
+            drawPersistentFrame(persist_scale, bgc);
         }
         m_updatedTime = time_started;
     }
@@ -553,6 +582,9 @@ XQGraphPainter::paintGL () {
         
         checkGLError(); 
 
+        if(persist > 0.0)
+            readPersistentFrame();
+
 //        glDisable(GL_DEPTH_TEST);
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
         drawOffScreenAxes(shot);
@@ -574,6 +606,8 @@ XQGraphPainter::paintGL () {
         m_bIsAxisRedrawNeeded = false;
     }
     else {        
+        if(persist > 0.0)
+            readPersistentFrame();
         glCallList(m_listgrids);
         glCallList(m_listpoints);
 //        glDisable(GL_DEPTH_TEST);
@@ -593,28 +627,8 @@ XQGraphPainter::paintGL () {
         }
     }
 
-    if(persist > 0.0) {
-        if(m_persistentPBO) {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
-            checkGLError();
-            glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                         GL_BGR, GL_UNSIGNED_BYTE,
-                         nullptr); //to PBO
-            glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, 0);
-        }
-        else {
-            GLint buf;
-            glGetIntegerv(GL_DRAW_BUFFER, &buf);
-            glReadBuffer(buf);
-            checkGLError();
-            glReadPixels(0, 0, m_pItem->width() * m_pixel_ratio, m_pItem->height() * m_pixel_ratio,
-                         GL_BGR, GL_UNSIGNED_BYTE,
-                         &m_persistentFrame[0]);
-        }
-        checkGLError();
-        if(time_started - m_modifiedTime < persist) {
-            QTimer::singleShot(50, m_pItem, SLOT(update()));
-        }
+    if(time_started - m_modifiedTime < persist) {
+        QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
     drawOnScreenObj(shot);

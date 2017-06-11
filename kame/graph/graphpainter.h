@@ -184,7 +184,9 @@ Snapshot startDrawing();
  GLint m_viewport[4]; // Current Viewport
 	
 	//! ghost stuff
-	XTime m_modifiedTime;
+    void drawPersistentFrame(double persist_scale, const QColor &bgc);
+    void readPersistentFrame();
+    XTime m_modifiedTime;
 	XTime m_updatedTime;
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
 	int m_curFontSize;
