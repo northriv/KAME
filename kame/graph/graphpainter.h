@@ -185,7 +185,7 @@ Snapshot startDrawing();
 	
 	//! ghost stuff
     void drawPersistentFrame(double persist_scale, const QColor &bgc);
-    void readPersistentFrame();
+    void storePersistentFrame();
     XTime m_modifiedTime;
 	XTime m_updatedTime;
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.

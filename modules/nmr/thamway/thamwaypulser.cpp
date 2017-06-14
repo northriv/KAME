@@ -318,17 +318,27 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         if(hasQAMPorts()) {
             this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
             writerQAM.flush(); //sends above commands here.
+            //this readout procedure is necessary for unknown reasons!
+            //mimics modQAM.bas:dump_qam
+            uint8_t buf[MAX_QAM_PATTERN_SIZE * 2];
+            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, buf, addr_qam / m_qamPeriod * 2);
         }
 
         //this readout procedure is necessary for unknown reasons!
-        for(int i = 0; i < addr; i++) {
-            auto x = this->interface()->readRegister16(ADDR_REG_DATA_LSW)
-                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_DATA_MSW);
-            auto y = this->interface()->readRegister16(ADDR_REG_TIME_LSW)
-                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_TIME_MSW);
-//            fprintf(stderr, "%x,%x\n", x, y);
-            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
-        }
+//        for(int i = 0; i < addr; i++) {
+//            auto x = this->interface()->readRegister16(ADDR_REG_DATA_LSW)
+//                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_DATA_MSW);
+//            auto y = this->interface()->readRegister16(ADDR_REG_TIME_LSW)
+//                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_TIME_MSW);
+////            fprintf(stderr, "%x,%x\n", x, y);
+//            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
+//        }
+        uint8_t buf[MAX_PATTERN_SIZE];
+        this->interface()->burstRead(ADDR_REG_TIME_LSW, buf, addr);
+        this->interface()->burstRead(ADDR_REG_TIME_MSW, buf, addr);
+        this->interface()->burstRead(ADDR_REG_DATA_LSW, buf, addr);
+        this->interface()->burstRead(ADDR_REG_DATA_MSW, buf, addr);
+
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
 

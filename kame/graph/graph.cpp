@@ -190,7 +190,7 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 		tr[ *drawLines()] = true;
 		tr[ *drawBars()] = false;
 		tr[ *drawPoints()] = true;
-		tr[ *majorGridColor()] = clAqua;
+        tr[ *majorGridColor()] = QColor(0, 0x80, 0x80).rgb(); //oldstyle: clAqua
 		tr[ *minorGridColor()] = clLime;
         tr[ *lineColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
         tr[ *pointColor()] = QColor(0xff, 0xf1, 0x2c).rgb(); //oldstyle: clRed;

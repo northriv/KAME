@@ -139,11 +139,12 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
 		tr[ *tr[ *waveGraph()].plot(2)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(2)->lineColor()] = QColor(0xff, 0xa0, 0x00).rgb();
-		tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.3;
+        tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.25;
 		tr[ *tr[ *waveGraph()].plot(3)->label()] = i18n("DSO CH2");
 		tr[ *tr[ *waveGraph()].plot(3)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x00, 0xa0, 0xff).rgb();
-		tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.3;
+        tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.25;
+        tr[ *waveGraph()->graph()->persistence()] = 0.0;
 		tr[ *waveGraph()].clearPoints();
     });
     ftWaveGraph()->iterate_commit([=](Transaction &tr){
@@ -170,7 +171,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
         tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 1.0;
-		{
+        tr[ *ftWaveGraph()->graph()->persistence()] = 0.0;
+        {
 			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
 				tr, "Peaks", true, tr, ftWaveGraph()->graph());
 			m_peakPlot = plot;

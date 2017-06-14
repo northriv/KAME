@@ -326,7 +326,7 @@ XThamwayFX2USBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
         int i = usb()->bulkRead(EPIN6, bbuf, blocksize);
         unsigned int n = std::min(cnt, (unsigned int)i);
-        std::copy(bbuf, bbuf + n, buf);
+        memcpy(buf, bbuf, n);
         buf += n;
         cnt -= n;
     }

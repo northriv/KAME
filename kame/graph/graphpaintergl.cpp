@@ -461,7 +461,7 @@ XQGraphPainter::drawPersistentFrame(double persist_scale, const QColor &bgc) {
 }
 
 void
-XQGraphPainter::readPersistentFrame() {
+XQGraphPainter::storePersistentFrame() {
     if(m_persistentPBO) {
         glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, m_persistentPBO);
         checkGLError();
@@ -570,12 +570,6 @@ XQGraphPainter::paintGL () {
 
         checkGLError(); 
 
-        glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
-        drawOffScreenGrids(shot);
-        glEndList();
-        
-        checkGLError(); 
-
         glNewList(m_listpoints, GL_COMPILE_AND_EXECUTE);
         drawOffScreenPoints(shot);
         glEndList();
@@ -583,7 +577,13 @@ XQGraphPainter::paintGL () {
         checkGLError(); 
 
         if(persist > 0.0)
-            readPersistentFrame();
+            storePersistentFrame();
+
+        glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
+        drawOffScreenGrids(shot);
+        glEndList();
+
+        checkGLError();
 
 //        glDisable(GL_DEPTH_TEST);
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
@@ -607,7 +607,7 @@ XQGraphPainter::paintGL () {
     }
     else {        
         if(persist > 0.0)
-            readPersistentFrame();
+            storePersistentFrame();
         glCallList(m_listgrids);
         glCallList(m_listpoints);
 //        glDisable(GL_DEPTH_TEST);
