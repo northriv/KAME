@@ -222,6 +222,7 @@ XThamwayFX2USBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     }
     else {
         XScopedLock<XThamwayFX2USBInterface> lock( *this);
+        dbgPrint(driver()->getLabel() + formatString(" SingleWriting @ %x; %x", addr, (unsigned int)data));
         uint8_t cmds[] = {CMD_BWRITE, 2, 0}; //2bytes to be written.
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
         uint8_t cmds2[] = {(uint8_t)(addr), data};
@@ -233,6 +234,7 @@ XThamwayFX2USBInterface::bulkWriteStored() {
     XScopedLock<XThamwayFX2USBInterface> lock( *this);
 
     uint16_t len = m_buffer.size();
+    dbgPrint(driver()->getLabel() + formatString(" BurstWriting for %x bytes", (unsigned int)len));
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
     usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     usb()->bulkWrite(EPOUT2, (uint8_t*) &m_buffer[0], len);
@@ -292,6 +294,7 @@ XThamwayFX2USBInterface::singleRead(const shared_ptr<CyFXUSBDevice> &dev, unsign
     XScopedLock<XRecursiveMutex> lock(dev->mutex);
     addr += addroffset;
     assert(addr < 0x100u);
+    dbgPrint(formatString("FX2USB: SingleReading @ %x", addr));
     {
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
         dev->bulkWrite(EPOUT8, cmds, sizeof(cmds));
@@ -301,6 +304,7 @@ XThamwayFX2USBInterface::singleRead(const shared_ptr<CyFXUSBDevice> &dev, unsign
         dev->bulkWrite(EPOUT8, cmds, sizeof(cmds));
         uint8_t buf[10];
         dev->bulkRead(EPIN6, buf, 1);
+        dbgPrint(formatString(" Received; %x", (unsigned int)buf[0]));
         return buf[0];
     }
 }
@@ -319,14 +323,17 @@ XThamwayFX2USBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     }
-    const unsigned int blocksize = 512;
+    constexpr unsigned int blocksize = 512;
     uint8_t cmds[] = {CMD_BREAD, blocksize % 0x100u, blocksize / 0x100u};
     uint8_t bbuf[blocksize];
+    dbgPrint(driver()->getLabel() + formatString(" BurstReading @%x for %u bytes", addr, cnt));
     for(; cnt;) {
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
+        msecsleep(1);
         int i = usb()->bulkRead(EPIN6, bbuf, blocksize);
+        msecsleep(1);
         unsigned int n = std::min(cnt, (unsigned int)i);
-        memcpy(buf, bbuf, n);
+        std::memcpy(buf, bbuf, n);
         buf += n;
         cnt -= n;
     }

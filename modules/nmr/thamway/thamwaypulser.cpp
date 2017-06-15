@@ -224,6 +224,7 @@ XThamwayUSBPulserWithQAM::close() throw (XKameError &) {
 
 void
 XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
+    fprintf(stderr, "CO");
     XScopedLock<XInterface> lock( *this->interface());
     if( !this->interface()->isOpened())
         return;
@@ -247,7 +248,6 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
         this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
     }
-    msecsleep(20);
     if(output) {
         XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
         XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());

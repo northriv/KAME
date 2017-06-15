@@ -162,6 +162,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         }
     }
     if(rdbuf) {
+        assert(buf.size() >= transfer->actual_length);
         std::memcpy(rdbuf, &buf[0], transfer->actual_length);
     }
     return transfer->actual_length;
