@@ -21,7 +21,7 @@
 REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
 #define MAX_PATTERN_SIZE 256*1024u
-#define MAX_QAM_PATTERN_SIZE 8192u
+#define MAX_QAM_PATTERN_SIZE 32*8192u
 //[ms]
 #define MIN_PULSE_WIDTH 0.0001 //100ns, perhaps 50ns is enough?
 
@@ -324,15 +324,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, buf, addr_qam / m_qamPeriod * 2);
         }
 
-        //this readout procedure is necessary for unknown reasons!
-//        for(int i = 0; i < addr; i++) {
-//            auto x = this->interface()->readRegister16(ADDR_REG_DATA_LSW)
-//                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_DATA_MSW);
-//            auto y = this->interface()->readRegister16(ADDR_REG_TIME_LSW)
-//                * 0x10000uL + this->interface()->readRegister16(ADDR_REG_TIME_MSW);
-////            fprintf(stderr, "%x,%x\n", x, y);
-//            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
-//        }
+        //For PROT3, this readout procedure is necessary for unknown reasons!
         uint8_t buf[MAX_PATTERN_SIZE];
         this->interface()->burstRead(ADDR_REG_TIME_LSW, buf, addr);
         this->interface()->burstRead(ADDR_REG_TIME_MSW, buf, addr);

@@ -50,9 +50,10 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
 void
 XThamwayPROT3DSO::startAcquision() {
     fprintf(stderr, "start acq.\n");
-    if(m_acqThreads.empty()) {
-        commitAcquision();
-    }
+    if(m_acqThreads.size())
+        return;
+
+    commitAcquision();
     for(int i = 0; i < NumThreads; ++i)
         m_acqThreads.emplace_back(this, &XThamwayPROT3DSO::executeAsyncRead);
 
