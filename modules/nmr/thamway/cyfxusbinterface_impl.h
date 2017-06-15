@@ -102,7 +102,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                     x->halt();
                     char fw[FW_DWLSIZE];
                     load_firm(fw, sizeof(fw), firmware(x).c_str());
-                    fprintf(stderr, "USB: Downloading the firmware to the device. This process takes a few seconds....\n");
+                    gMessagePrint("USB FX: Downloading the firmware to the device.\nThis process takes a few seconds....");
                     x->downloadFX2((uint8_t*)fw, sizeof(fw));
                     x->run();
                     x->close();
@@ -139,7 +139,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 case DEVICE_STATUS::READY:
                     break;
                 case DEVICE_STATUS::FW_NOT_LOADED:
-                    fprintf(stderr, "USB: firmware download was failed.\n");
+                    gErrPrint("USB FX: firmware download was failed.");
                     x.reset();
                     continue;
                 }
@@ -174,25 +174,27 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::initialize() {
-    XScopedLock<XMutex> slock(s_mutex);
-    try {
-        if( !(s_refcnt++))
-            openAllEZUSBdevices();
+    std::thread([&]() {
+        XScopedLock<XMutex> slock(s_mutex);
+        try {
+            if( !(s_refcnt++))
+                openAllEZUSBdevices();
 
-        for(auto &&x : s_devices) {
-            if( !x) continue;
-            XString name = examineDeviceAfterFWLoad(x);
-            if(name.length()) {
-                auto shot = iterate_commit([=](Transaction &tr){
-                    tr[ *device()].add(name);
-                });
-                m_candidates.emplace(name, x);
+            for(auto &&x : s_devices) {
+                if( !x) continue;
+                XString name = examineDeviceAfterFWLoad(x);
+                if(name.length()) {
+                    auto shot = iterate_commit([=](Transaction &tr){
+                        tr[ *device()].add(name);
+                    });
+                    m_candidates.emplace(name, x);
+                }
             }
         }
-    }
-    catch (XInterface::XInterfaceError &e) {
-        e.print();
-    }
+        catch (XInterface::XInterfaceError &e) {
+            e.print();
+        }
+    });
 }
 
 template <class USBDevice>

@@ -70,13 +70,13 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
             constexpr char Manufacturer_sym[] = "F2FW";
             try {
                 XString s1 = dev->getString(1);
-                fprintf(stderr, "USB: Device: %s\n", s1.c_str());
+                dbgPrint(formatString("USB: Device: %s", s1.c_str()));
                 if(s1 == Manufacturer_sym) {
                     return DEVICE_STATUS::READY;
                 }
             }
             catch (XInterface::XInterfaceError &) {
-                fprintf(stderr, "USB: ???\n");
+                dbgPrint("USB: ???");
                 return DEVICE_STATUS::FW_NOT_LOADED;
             }
         }
@@ -88,9 +88,9 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
     constexpr char Serial_sym[] = "20070627";
     try {
         XString s2 = dev->getString(2);
-        fprintf(stderr, "USB: Ver: %s\n", s2.c_str());
+        dbgPrint(formatString("USB: Ver: %s\n", s2.c_str()));
         if(s2[0] != Serial_sym[0]) {
-            fprintf(stderr, "USB: Not Thamway's device\n");
+            dbgPrint("USB: Not Thamway's device");
             dev->close();
             return DEVICE_STATUS::UNSUPPORTED;
         }
@@ -100,7 +100,7 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
         return DEVICE_STATUS::UNSUPPORTED;
     }
     catch (XInterfaceError& e) {
-        fprintf(stderr, "USB: ???\n");
+        dbgPrint("USB: ???");
         return DEVICE_STATUS::FW_NOT_LOADED;
     }
 }
@@ -136,7 +136,7 @@ XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
             return {THAMWAY_USB_GPIFWAVE1_FILE}; //Thamway recommends slow_dat.bin always.
     }
     catch (XInterfaceError &) {
-        fprintf(stderr, "Reading DIPSW value resulted in failure, continuing...\n");
+        gWarnPrint("Reading DIPSW value resulted in failure, continuing...");
     }
     return {THAMWAY_USB_GPIFWAVE1_FILE};
 }
@@ -329,9 +329,7 @@ XThamwayFX2USBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int
     dbgPrint(driver()->getLabel() + formatString(" BurstReading @%x for %u bytes", addr, cnt));
     for(; cnt;) {
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
-        msecsleep(1);
         int i = usb()->bulkRead(EPIN6, bbuf, blocksize);
-        msecsleep(1);
         unsigned int n = std::min(cnt, (unsigned int)i);
         std::memcpy(buf, bbuf, n);
         buf += n;

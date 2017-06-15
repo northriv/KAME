@@ -39,6 +39,23 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 
     XString virtual getString(int descid) override;
 
+    virtual int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
+        int actual_length;
+        int ret = libusb_bulk_transfer(handle,
+                                       LIBUSB_ENDPOINT_OUT | ep, const_cast<uint8_t*>(buf), len, &actual_length, USB_TIMEOUT);
+        if(ret != 0)
+            throw XInterface::XInterfaceError(formatString("USB Error during a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
+        return actual_length;
+    }
+    virtual int64_t bulkRead(uint8_t ep, uint8_t* buf, int len) {
+        int actual_length;
+        int ret = libusb_bulk_transfer(handle,
+                                       LIBUSB_ENDPOINT_IN | ep, buf, len, &actual_length, USB_TIMEOUT);
+        if(ret != 0)
+            throw XInterface::XInterfaceError(formatString("USB Error during a transfer: %s\n", libusb_error_name(ret)), __FILE__, __LINE__);
+        return actual_length;
+    }
+
     virtual int controlWrite(CtrlReq request, CtrlReqType type, uint16_t value,
                              uint16_t index, const uint8_t *buf, int len) override;
     virtual int controlRead(CtrlReq request, CtrlReqType type, uint16_t value,

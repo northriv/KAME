@@ -224,7 +224,6 @@ XThamwayUSBPulserWithQAM::close() throw (XKameError &) {
 
 void
 XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) {
-    fprintf(stderr, "CO");
     XScopedLock<XInterface> lock( *this->interface());
     if( !this->interface()->isOpened())
         return;
@@ -320,16 +319,16 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             writerQAM.flush(); //sends above commands here.
             //this readout procedure is necessary for unknown reasons!
             //mimics modQAM.bas:dump_qam
-            std::vector<uint8_t> buf(MAX_QAM_PATTERN_SIZE * 2);
-            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], addr_qam / m_qamPeriod * 2);
+            std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
+            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
         }
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
-        std::vector<uint8_t> buf(MAX_PATTERN_SIZE);
-        this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], addr);
-        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], addr);
-        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], addr);
-        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], addr);
+        std::vector<uint8_t> buf(addr);
+        this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], buf.size());
+        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], buf.size());
+        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], buf.size());
+        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], buf.size());
 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
