@@ -121,6 +121,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     if(is_written) {
         int org_count = s_devices.size();
         for(int retry: {0,1}) {
+            QApplication::processEvents();
             msecsleep(2000); //waits for enumeration of reboot devices.
             s_devices = USBDevice::enumerateDevices(); //enumerates devices again.
             if(s_devices.size() >= org_count)
