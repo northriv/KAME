@@ -307,14 +307,14 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         };
         try {
             auto async = issue_async_read();
-            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
+            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated) {
                 break;
             }
             auto count = async->waitFor() / sizeof(tRawAI);
-            fprintf(stderr, "read for %u count=%u\n", (unsigned int)wridx, (unsigned int)count);
+            dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
@@ -324,7 +324,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
                 short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
                 if(std::max(maxv, (short)-minv) > 0x7000)
-                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
+                    dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
@@ -334,7 +334,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                         if(wridx == m_chunks.size()) wridx = 0;
                         m_wrChunkBegin = wridx;
                     }
-                    fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
+                    dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
                 }
                 if(count == 0) {
                 //Pulse generation has stopped.
@@ -353,10 +353,11 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         catch (Collision &c) {
             switch (c) {
             case Collision::IOStall:
-                fprintf(stderr, "IO stall.\n");
+                dbgPrint("IO stall.");
                 msecsleep(20);
                 continue;
             case Collision::Stopped:
+                dbgPrint("Pulse generation has stopped.");
                 fprintf(stderr, "Pulse generation has stopped.\n");
                 msecsleep(200);
                 continue;

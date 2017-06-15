@@ -412,18 +412,18 @@ XThamwayFX3USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
     try {
         XString s1 = dev->getString(1);
         XString s2 = dev->getString(2);
-        fprintf(stderr, "USB: Manu: %s, Prod: %s.\n", s1.c_str(), s2.c_str());
+        dbgPrint(formatString("USB: Manu: %s, Prod: %s.", s1.c_str(), s2.c_str()));
         if(s1 != Manufactor_sym) {
-            fprintf(stderr, "USB: Not Thamway's device.\n");
+            dbgPrint("USB: Not Thamway's device.");
             return DEVICE_STATUS::UNSUPPORTED;
         }
         if(s2 != Product_sym) {
-            fprintf(stderr, "USB: Unsupported device.\n");
+            dbgPrint("USB: Unsupported device.");
             return DEVICE_STATUS::UNSUPPORTED;
         }
     }
     catch (XInterfaceError& e) {
-        fprintf(stderr, "USB: ???\n");
+        dbgPrint("USB: ???");
         return DEVICE_STATUS::UNSUPPORTED;
     }
     return DEVICE_STATUS::READY;

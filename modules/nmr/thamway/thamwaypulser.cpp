@@ -20,8 +20,8 @@
 #endif
 REGISTER_TYPE(XDriverList, ThamwayCharPulser, "NMR pulser Thamway N210-1026S/T (GPIB/TCP)");
 
-#define MAX_PATTERN_SIZE 256*1024u
-#define MAX_QAM_PATTERN_SIZE 32*8192u
+constexpr size_t MAX_PATTERN_SIZE = 256*1024u;
+constexpr size_t MAX_QAM_PATTERN_SIZE = 32*8192u;
 //[ms]
 #define MIN_PULSE_WIDTH 0.0001 //100ns, perhaps 50ns is enough?
 
@@ -320,16 +320,16 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             writerQAM.flush(); //sends above commands here.
             //this readout procedure is necessary for unknown reasons!
             //mimics modQAM.bas:dump_qam
-            uint8_t buf[MAX_QAM_PATTERN_SIZE * 2];
-            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, buf, addr_qam / m_qamPeriod * 2);
+            std::vector<uint8_t> buf(MAX_QAM_PATTERN_SIZE * 2);
+            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], addr_qam / m_qamPeriod * 2);
         }
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
-        uint8_t buf[MAX_PATTERN_SIZE];
-        this->interface()->burstRead(ADDR_REG_TIME_LSW, buf, addr);
-        this->interface()->burstRead(ADDR_REG_TIME_MSW, buf, addr);
-        this->interface()->burstRead(ADDR_REG_DATA_LSW, buf, addr);
-        this->interface()->burstRead(ADDR_REG_DATA_MSW, buf, addr);
+        std::vector<uint8_t> buf(MAX_PATTERN_SIZE);
+        this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], addr);
+        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], addr);
+        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], addr);
+        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], addr);
 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
