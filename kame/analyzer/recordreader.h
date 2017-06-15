@@ -81,7 +81,7 @@ private:
 
 	void gzgetline(void*fd, unsigned char*buf, unsigned int len, int del) throw (XIOError &);
   
-    std::vector<XThread> m_threads;
+    std::vector<unique_ptr<XThread>> m_threads;
 	void *execute(const atomic<bool> &);      
 	XCondition m_condition;
 	double m_periodicTerm;
