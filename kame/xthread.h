@@ -183,7 +183,7 @@ public:
     ~XThread();
     XThread(const XThread &) = delete;
     XThread& operator=(const XThread &) = delete;
-    XThread(XThread &&) noexcept = default;
+    XThread(XThread &&) noexcept = delete;
 
     //! joins a running thread.
     void join() {m_thread.join();}
@@ -198,7 +198,7 @@ private:
 
 template <class PTR, class Function, class... Args>
 XThread::XThread(PTR r, Function &&f, Args&&...args) :
-    m_thread(std::forward<Function>(f), r, std::cref(m_isTerminated), std::forward<Args>(args)...) {
+    m_thread(std::forward<Function>(f), r, std::ref(m_isTerminated), std::forward<Args>(args)...) {
 }
 
 #endif

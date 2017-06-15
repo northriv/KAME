@@ -55,13 +55,13 @@ XThamwayPROT3DSO::startAcquision() {
 
     commitAcquision();
     for(int i = 0; i < NumThreads; ++i)
-        m_acqThreads.emplace_back(this, &XThamwayPROT3DSO::executeAsyncRead);
+        m_acqThreads.emplace_back(new XThread(this, &XThamwayPROT3DSO::executeAsyncRead));
 
     //waits until async IOs have been submitted.
-    for(;;) {
+    for(unsigned int retry = 0;; ++retry) {
         msecsleep(10);
         for(auto &&x: m_acqThreads) {
-            if(x.isTerminated()) {
+            if((retry > 20) || x->isTerminated()) {
                 fprintf(stderr, "Starting failed.\n");
                 stopAcquision();
                 throw XInterface::XInterfaceError(i18n("Starting acquision has failed."), __FILE__, __LINE__);
@@ -110,10 +110,10 @@ void
 XThamwayPROT3DSO::clearAcquision() {
     fprintf(stderr, "clear ac");
     for(auto &&x: m_acqThreads) {
-        x.terminate();
+        x->terminate();
     }
     for(auto &&x: m_acqThreads) {
-        x.join();
+        x->join();
     }
     m_acqThreads.clear();
     for(auto &&x: m_chunks) {
@@ -346,7 +346,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             e.print();
             XScopedLock<XMutex> lock(m_acqMutex);
             for(auto &&x: m_acqThreads) {
-                x.terminate();
+                x->terminate();
             }
             break;
         }
