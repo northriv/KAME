@@ -136,6 +136,7 @@ void XMeasure::initialize() {
 }
 void XMeasure::terminate() {
 	interfaces()->releaseAll();
+    stop();
 	drivers()->releaseAll();
 	thermometers()->releaseAll();
     Snapshot shot( *this);
