@@ -33,9 +33,12 @@
 void msecsleep(unsigned int ms) noexcept {
     using namespace std::chrono;
     auto start = steady_clock::now();
+#ifdef __WIN32__
+    unsigned int retry = 0;
+#endif
     for(duration<double, std::milli> rest((double)ms); rest > duration<double, std::milli>(0.0) ;) {
     #ifdef __WIN32__
-        if(rest > duration<double, std::milli>(15.6))
+        if((rest > duration<double, std::milli>(10.0)) || (retry++ < 4))
             std::this_thread::sleep_for(rest);
         else
             std::this_thread::yield();
