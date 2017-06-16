@@ -30,36 +30,19 @@
 #endif
 
 void msecsleep(unsigned int ms) noexcept {
-#ifdef __WIN32__
     using namespace std::chrono;
     auto start = steady_clock::now();
-    for(milliseconds rest(ms); rest > milliseconds(0) ; rest -= duration_cast<milliseconds>(steady_clock::now() - start)) {
+    for(milliseconds rest(ms); rest > milliseconds(0) ;) {
+    #ifdef __WIN32__
         if(rest > milliseconds(15))
             std::this_thread::sleep_for(rest);
         else
             std::this_thread::yield();
+    #else
+        std::this_thread::sleep_for(rest);
+    #endif
+        rest -= duration_cast<milliseconds>(steady_clock::now() - start);
     }
-#elif defined USE_QTHREAD
-    QThread::msleep(ms);
-#else //USE_QTHREAD
-    XTime t0(XTime::now());
-	XTime t1 =  t0;
-    t0 += ms * 1e-3;
-	while(t1 < t0) {
-		struct timespec req;
-		req.tv_sec = (int)(t0 - t1);
-		req.tv_nsec = lrint((t0 - t1 - req.tv_sec) * 1e9);
-		if( !nanosleep(&req, NULL))
-			break;
-		t1 = XTime::now();
-		switch(errno) {
-		case EINTR:
-			continue;
-		default:
-			abort();
-		}
-	}
-#endif //USE_QTHREAD
 }
 
 timestamp_t timeStamp() noexcept {
