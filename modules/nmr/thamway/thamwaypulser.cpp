@@ -1,15 +1,15 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
-                           kitagawa@phys.s.u-tokyo.ac.jp
-
-        This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU Library General Public
-        License as published by the Free Software Foundation; either
-        version 2 of the License, or (at your option) any later version.
-
-        You should have received a copy of the GNU Library General
-        Public License and a list of authors along with this program;
-        see the files COPYING and AUTHORS.
+		Copyright (C) 2002-2015 Kentaro Kitagawa
+		                   kitagawa@phys.s.u-tokyo.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "thamwaypulser.h"
 #include "charinterface.h"
@@ -58,12 +58,12 @@ double XThamwayPulser::resolution() const {
 }
 
 double XThamwayPulser::minPulseWidth() const {
-    return MIN_PULSE_WIDTH;
+	return MIN_PULSE_WIDTH;
 }
 
 
 XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPulser(name, runtime, ref(tr_meas), meas) {
 
     const int ports[] = {
@@ -72,10 +72,10 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
         XPulser::PORTSEL_PULSE1, XPulser::PORTSEL_ASW, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL,
         XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL, XPulser::PORTSEL_UNSEL
     };
-    iterate_commit([=](Transaction &tr){
-        for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
+	iterate_commit([=](Transaction &tr){
+	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
             tr[ *XPulser::portSel(i)] = ports[i];
-        }
+		}
         tr[ *masterLevel()] = 3.0; //Use of the maximum power (45deg.) in IQ space.
         tr[ *aswSetup()] = 0.2;
     });
@@ -95,24 +95,24 @@ XThamwayUSBPulser::~XThamwayUSBPulser() {
 
 void
 XThamwayPulser::createNativePatterns(Transaction &tr) {
-    const Snapshot &shot(tr);
-    tr[ *this].m_patterns.clear();
+	const Snapshot &shot(tr);
+	tr[ *this].m_patterns.clear();
     auto pat = shot[ *this].relPatList().back().pattern;
     pulseAdd(tr, LEADING_BLANKS / 2, pat); //leading blanks
     pulseAdd(tr, LEADING_BLANKS / 2, pat);
     uint32_t startaddr = 2;
     for(auto it = shot[ *this].relPatList().begin();
-        it != shot[ *this].relPatList().end(); it++) {
-        pulseAdd(tr, it->toappear, pat);
+		it != shot[ *this].relPatList().end(); it++) {
+		pulseAdd(tr, it->toappear, pat);
         pat = it->pattern;
-    }
+	}
 //    if(tr[ *this].m_patterns.back().term_n_cmd < 2) {
 //        pulseAdd(tr, lrint(2 * minPulseWidth() / resolution()), pat);
 //    }
     Payload::Pulse p;
     p.term_n_cmd = CMD_JP * 0x10000uL + startaddr;
-    p.data = 0;
-    tr[ *this].m_patterns.push_back(p);
+	p.data = 0;
+	tr[ *this].m_patterns.push_back(p);
     p.term_n_cmd = CMD_STOP * 0x10000uL;
     p.data = 0;
     tr[ *this].m_patterns.push_back(p);
@@ -121,15 +121,15 @@ XThamwayPulser::createNativePatterns(Transaction &tr) {
 int
 XThamwayPulser::pulseAdd(Transaction &tr, uint64_t term, uint32_t pattern) {
     term = std::max(term, (uint64_t)lrint(MIN_PULSE_WIDTH / CHAR_TIMER_PERIOD));
-    for(; term;) {
+	for(; term;) {
         uint64_t t = std::min((uint64_t)term, (uint64_t)0xfe000000uL);
-        term -= t;
+		term -= t;
         Payload::Pulse p;
-        p.term_n_cmd = t;
-        p.data = pattern;
-        tr[ *this].m_patterns.push_back(p);
-    }
-    return 0;
+		p.term_n_cmd = t;
+		p.data = pattern;
+		tr[ *this].m_patterns.push_back(p);
+	}
+	return 0;
 }
 
 void
