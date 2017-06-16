@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "atomic.h"
+#include <chrono>
 
 #ifdef USE_QTHREAD
     #include <QThread>
@@ -29,7 +30,16 @@
 #endif
 
 void msecsleep(unsigned int ms) noexcept {
-#ifdef USE_QTHREAD
+#ifdef __WIN32__
+    using namespace std::chrono;
+    auto start = steady_clock::now();
+    for(milliseconds rest(ms); rest > milliseconds(0) ; rest -= duration_cast<milliseconds>(steady_clock::now() - start)) {
+        if(rest > milliseconds(15))
+            std::this_thread::sleep_for(rest);
+        else
+            std::this_thread::yield();
+    }
+#elif defined USE_QTHREAD
     QThread::msleep(ms);
 #else //USE_QTHREAD
     XTime t0(XTime::now());

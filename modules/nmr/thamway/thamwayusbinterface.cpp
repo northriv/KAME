@@ -15,6 +15,7 @@
 #include "thamwayusbinterface.h"
 #include "charinterface.h"
 #include "fx2fw.h"
+#include <cstring>
 
 #define CUSB_BULK_WRITE_SIZE 40000
 
