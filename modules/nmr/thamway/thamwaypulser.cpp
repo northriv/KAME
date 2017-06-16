@@ -231,10 +231,10 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     //mimics PULBOAD.BAS:StopBrd(0)
     bool ext_clock = false;
     //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
+    this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
     {
         XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
         XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
-        this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
         this->interface()->writeToRegister8(ADDR_REG_MODE, 2 | (ext_clock ? 4 : 0)); //direct output on.
         this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
         this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
@@ -244,10 +244,11 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
         if(hasQAMPorts()) {
-            this->interfaceQAM()->resetBulkWrite(); //redundant.
             this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
             this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
+            writerQAM.flush();
         }
+        writer.flush();
     }
     size_t addr = 0, addr_qam = 0;
     if(output) {
@@ -316,12 +317,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
             this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
 
+            writer.flush();
             if(hasQAMPorts()) {
                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
 //                //this readout procedure is necessary for unknown reasons!
 //                //mimics modQAM.bas:dump_qam
 //                std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
 //                this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
+                writerQAM.flush();
             }
         } //sends above commands here.
 
