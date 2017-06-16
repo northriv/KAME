@@ -229,99 +229,101 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         return;
 
     //mimics PULBOAD.BAS:StopBrd(0)
-    this->interface()->resetBulkWrite(); //redundant.
     bool ext_clock = false;
     //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
-    this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
-    this->interface()->writeToRegister8(ADDR_REG_MODE, 2 | (ext_clock ? 4 : 0)); //direct output on.
-    this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
-    this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
-    this->interface()->writeToRegister8(ADDR_REG_MODE, 0 | (ext_clock ? 4 : 0)); //direct output off.
-
-    //mimics PULBOAD.BAS:TransBrd2Mem(0)
-    this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
-    this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-    size_t addr = 0, addr_qam = 0;
-    if(hasQAMPorts()) {
-        this->interfaceQAM()->resetBulkWrite(); //redundant.
-        this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
-        this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
-    }
-    if(output) {
+    {
         XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
         XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
+        this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
+        this->interface()->writeToRegister8(ADDR_REG_MODE, 2 | (ext_clock ? 4 : 0)); //direct output on.
+        this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
+        this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
+        this->interface()->writeToRegister8(ADDR_REG_MODE, 0 | (ext_clock ? 4 : 0)); //direct output off.
 
-        //lambda for one pulse
-        auto addPulse = [&](uint32_t term, uint32_t data) {
-            this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, term % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, term / 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, data % 0x10000uL);
-            this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, data / 0x10000uL);
-            this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
-            addr += 2;
-            if(addr >= MAX_PATTERN_SIZE) {
-                throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
-            }
-        };
-        auto qam_offset = std::complex<double>{ shot[ *qamOffset1()], shot[ *qamOffset2()]};
-        double qam_lvl1 = shot[ *qamLevel1()], qam_lvl2 = shot[ *qamLevel2()];
-        //lambda to determine IQ levels
-        auto qamIQ = [&](const std::complex<double> &c) -> uint16_t {
-            auto z = 127.0 * (c  + qam_offset);
-            auto x = std::real(z) * qam_lvl1;
-            auto y = std::imag(z) * qam_lvl2;
-            if(std::abs(z) > 127.0) {
-                x *= 127.0 / std::abs(z);
-                y *= 127.0 / std::abs(z);
-            }
-            uint8_t i = lrint(x), q = lrint(y);
-            return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
-        };
-        for(auto &&pat: shot[ *this].m_patterns) {
-            addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
-            if(hasQAMPorts()) {
-                unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
-                if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
-                    unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
-                    auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
-                    z0 /= m_qamPeriod;
-                    auto &wave = shot[ *this].qamWaveForm(pnum - 1);
-                    assert(wave.size() >= pat.term_n_cmd);
-                    auto z = std::polar(0.0, 0.0);
-                    for(int idx = 0; idx < pat.term_n_cmd; ++idx) {
-                        z += wave[idx];
-                        addr_qam++;
-                        if(addr_qam % m_qamPeriod == 0) { //decimation.
-                            uint16_t iq = qamIQ(z0 * z);
-                            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
-                            this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
-                            this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
-                            z = 0.0;
+        //mimics PULBOAD.BAS:TransBrd2Mem(0)
+        this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
+        this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+        if(hasQAMPorts()) {
+            this->interfaceQAM()->resetBulkWrite(); //redundant.
+            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
+            this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
+        }
+    }
+    size_t addr = 0, addr_qam = 0;
+    if(output) {
+        {
+            XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
+            XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
+
+            //lambda for one pulse
+            auto addPulse = [&](uint32_t term, uint32_t data) {
+                this->interface()->writeToRegister16(ADDR_REG_TIME_LSW, term % 0x10000uL);
+                this->interface()->writeToRegister16(ADDR_REG_TIME_MSW, term / 0x10000uL);
+                this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, data % 0x10000uL);
+                this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, data / 0x10000uL);
+                this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
+                addr += 2;
+                if(addr >= MAX_PATTERN_SIZE) {
+                    throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
+                }
+            };
+            auto qam_offset = std::complex<double>{ shot[ *qamOffset1()], shot[ *qamOffset2()]};
+            double qam_lvl1 = shot[ *qamLevel1()], qam_lvl2 = shot[ *qamLevel2()];
+            //lambda to determine IQ levels
+            auto qamIQ = [&](const std::complex<double> &c) -> uint16_t {
+                auto z = 127.0 * (c  + qam_offset);
+                auto x = std::real(z) * qam_lvl1;
+                auto y = std::imag(z) * qam_lvl2;
+                if(std::abs(z) > 127.0) {
+                    x *= 127.0 / std::abs(z);
+                    y *= 127.0 / std::abs(z);
+                }
+                uint8_t i = lrint(x), q = lrint(y);
+                return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
+            };
+            for(auto &&pat: shot[ *this].m_patterns) {
+                addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
+                if(hasQAMPorts()) {
+                    unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
+                    if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
+                        unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
+                        auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
+                        z0 /= m_qamPeriod;
+                        auto &wave = shot[ *this].qamWaveForm(pnum - 1);
+                        assert(wave.size() >= pat.term_n_cmd);
+                        auto z = std::polar(0.0, 0.0);
+                        for(int idx = 0; idx < pat.term_n_cmd; ++idx) {
+                            z += wave[idx];
+                            addr_qam++;
+                            if(addr_qam % m_qamPeriod == 0) { //decimation.
+                                uint16_t iq = qamIQ(z0 * z);
+                                this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
+                                this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
+                                this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
+                                z = 0.0;
+                            }
                         }
-                    }
-                    if(addr_qam / m_qamPeriod >= MAX_QAM_PATTERN_SIZE) {
-                        throw XInterface::XInterfaceError(i18n("Number of QAM patterns exceeded the size limit."), __FILE__, __LINE__);
+                        if(addr_qam / m_qamPeriod >= MAX_QAM_PATTERN_SIZE) {
+                            throw XInterface::XInterfaceError(i18n("Number of QAM patterns exceeded the size limit."), __FILE__, __LINE__);
+                        }
                     }
                 }
             }
-        }
+            this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
+            this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
+            //mimics PULBOAD.BAS:StartBrd(0)
+            this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
+            this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
+            this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
 
-        writer.flush(); //sends above commands here.
-        this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
-        this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
-        //mimics PULBOAD.BAS:StartBrd(0)
-        this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
-        this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
-        this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
-
-        if(hasQAMPorts()) {
-            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
-            writerQAM.flush(); //sends above commands here.
-            //this readout procedure is necessary for unknown reasons!
-            //mimics modQAM.bas:dump_qam
-            std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
-            this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
-        }
+            if(hasQAMPorts()) {
+                this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
+//                //this readout procedure is necessary for unknown reasons!
+//                //mimics modQAM.bas:dump_qam
+//                std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
+//                this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
+            }
+        } //sends above commands here.
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
         std::vector<uint8_t> buf(addr);
