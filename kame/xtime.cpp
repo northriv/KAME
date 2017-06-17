@@ -31,6 +31,9 @@
 #endif
 
 void msecsleep(unsigned int ms) noexcept {
+#if defined USE_QTHREAD
+    QThread::msleep(ms);
+#else
     using namespace std::chrono;
     auto start = steady_clock::now();
 #ifdef __WIN32__
@@ -47,6 +50,7 @@ void msecsleep(unsigned int ms) noexcept {
     #endif
         rest -= duration_cast<duration<double, std::milli>>(steady_clock::now() - start);
     }
+#endif
 }
 
 timestamp_t timeStamp() noexcept {
