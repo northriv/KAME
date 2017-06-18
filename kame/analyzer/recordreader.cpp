@@ -84,7 +84,7 @@ XRawStreamRecordReader::XRawStreamRecordReader(const char *name, bool runtime, c
     });
     
     for(int i = 0; i < RECORD_READER_NUM_THREADS; ++i) {
-        m_threads.emplace_back(new XThread(this, &XRawStreamRecordReader::execute));
+        m_threads.emplace_back(new XThread(shared_from_this(), &XRawStreamRecordReader::execute));
     }
 }
 void

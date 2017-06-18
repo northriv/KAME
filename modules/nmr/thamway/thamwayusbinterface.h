@@ -23,7 +23,7 @@
 
 struct ThamwayCyFX2USBDevice : public CyFXUSBDevice {};
 
-//! Interfaces Thamway's PROT/AD/Pulser based on FX2LP device.
+//! Interfaces Thamway's PROT/AD/Pulser based on FX2LP device and FX2FW firmware.
 class XThamwayFX2USBInterface : public XCyFXUSBInterface<ThamwayCyFX2USBDevice> {
 public:
     XThamwayFX2USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
@@ -81,7 +81,8 @@ private:
 
     uint8_t m_addrOffset;
     XString m_idString;
-    bool m_bBurstWrite;
+    bool m_isDeferredWritingOn;
+    size_t m_maxBurstRWSize; //depending on whether the connection is on USB2/1.1.
     std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
 };
 

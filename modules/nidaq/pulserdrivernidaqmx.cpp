@@ -563,7 +563,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
 void
 XNIDAQmxPulser::startBufWriter() {
 	//Starting threads that writing buffers concurrently.
-    m_threadWriter.reset(new XThread(this, &XNIDAQmxPulser::executeWriter));
+    m_threadWriter.reset(new XThread(shared_from_this(), &XNIDAQmxPulser::executeWriter));
 }
 void
 XNIDAQmxPulser::stopBufWriter() {
@@ -770,7 +770,7 @@ XNIDAQmxPulser::executeWriter(const atomic<bool> &terminating) {
  	uint64_t written_total_ao = 0, written_total_do = 0;
 
  	//Starting a child thread generating patterns concurrently.
-    XThread th_genbuf(this, &XNIDAQmxPulser::executeFillBuffer);
+    XThread th_genbuf(shared_from_this(), &XNIDAQmxPulser::executeFillBuffer);
 	while( !terminating) {
 		const tRawDO *pDO = m_patBufDO.curReadPos();
         ssize_t samps_do = m_patBufDO.writtenSize();

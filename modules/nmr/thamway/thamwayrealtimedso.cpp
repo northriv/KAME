@@ -55,7 +55,7 @@ XThamwayPROT3DSO::startAcquision() {
 
     commitAcquision();
     for(int i = 0; i < NumThreads; ++i)
-        m_acqThreads.emplace_back(new XThread(this, &XThamwayPROT3DSO::executeAsyncRead));
+        m_acqThreads.emplace_back(new XThread(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead));
 
     //waits until async IOs have been submitted.
     for(unsigned int retry = 0;; ++retry) {

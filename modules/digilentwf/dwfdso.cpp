@@ -146,7 +146,7 @@ XDigilentWFDSO::open() throw (XKameError &) {
         tr[ *timeWidth()] = len / freq; //sec
     });
 
-    m_threadReadAI.reset(new XThread(this, &XDigilentWFDSO::executeReadAI));
+    m_threadReadAI.reset(new XThread(shared_from_this(), &XDigilentWFDSO::executeReadAI));
 
 	start();
 

@@ -28,7 +28,7 @@ m_measure(measure) {
 		m_lsnChildCreated = tr[ *this].onChildCreated().connectWeakly(shared_from_this(),
             &XRuby::onChildCreated, Listener::FLAG_MAIN_THREAD_CALL);
     });
-    m_thread.reset(new XThread(this, &XRuby::execute));
+    m_thread.reset(new XThread(shared_from_this(), &XRuby::execute));
 }
 XRuby::~XRuby() {
 }

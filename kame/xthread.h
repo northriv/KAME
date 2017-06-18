@@ -176,9 +176,9 @@ private:
 class XThread {
 public:
     //! Starts up a new thread.
-    //! \param f a member function of an object \p *r, r->*f(const atomic<bool>& terminated, args...)
-    template <class PTR, class Function, class... Args>
-    explicit XThread(PTR r, Function &&f, Args&&...args);
+    //! \param f a member function of an object \p r, r->f(const atomic<bool>& terminated, args...)
+    template <class X, class T, class... Args>
+    XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, Args...), Args&&...args);
     //! Joins a thread here if it is still running.
     ~XThread();
     XThread(const XThread &) = delete;
@@ -196,9 +196,13 @@ private:
     std::thread m_thread;
 };
 
-template <class PTR, class Function, class... Args>
-XThread::XThread(PTR r, Function &&f, Args&&...args) :
-    m_thread(std::forward<Function>(f), r, std::ref(m_isTerminated), std::forward<Args>(args)...) {
+template <class X, class T, class... Args>
+XThread::XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, Args...), Args&&...args) :
+    m_thread(
+        [r, func, this](Args&&...args) {
+            auto obj = dynamic_pointer_cast<T>(r);
+            (obj.get()->*func)(std::ref(m_isTerminated), std::forward<Args>(args)...);
+        }, std::forward<Args>(args)...) {
 }
 
 #endif

@@ -60,7 +60,7 @@ XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
 
     m_suspendRead = true;
     m_threadReadAI.reset(new XThread(
-        this, &XRealTimeAcqDSO<tDriver>::executeReadAI));
+        this->shared_from_this(), &XRealTimeAcqDSO<tDriver>::executeReadAI));
 
     this->start();
 

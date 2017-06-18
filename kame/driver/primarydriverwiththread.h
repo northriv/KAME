@@ -51,7 +51,8 @@ private:
 
 inline void
 XPrimaryDriverWithThread::start() {
-    m_thread.reset(new XThread(this, &XPrimaryDriverWithThread::execute_internal));
+    m_thread.reset(new XThread(shared_from_this(),
+        &XPrimaryDriverWithThread::execute_internal));
 }
 
 inline void
