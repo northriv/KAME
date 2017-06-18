@@ -54,12 +54,12 @@ XInterface::getLabel() const {
 
 void
 XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
-	if(shot[ *control()]) {
+    control()->setUIEnabled(false);
+    if(shot[ *control()]) {
         g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
 		start();
 	}
 	else {
-        control()->setUIEnabled(false);
         Snapshot shot( *this);
 		shot.talk(shot[ *this].onClose(), this);
 	}
@@ -80,6 +80,7 @@ XInterface::start() {
         catch (XInterfaceError &e) {
             e.print(getLabel() + i18n(": Opening interface failed, because "));
             iterate_commit([=](Transaction &tr){
+                tr[ *control()].setUIEnabled(true);
                 tr[ *control()] = false;
                 tr.unmark(lsnOnControlChanged);
             });
@@ -90,10 +91,10 @@ XInterface::start() {
             tr[ *device()].setUIEnabled(false);
             tr[ *port()].setUIEnabled(false);
             tr[ *address()].setUIEnabled(false);
-
-            tr[ *control()] = true;
+            tr[ *control()] = true; //to set a proper icon before enabling UI.
             tr.unmark(lsnOnControlChanged);
         });
+        control()->setUIEnabled(true);
         shot.talk(shot[ *this].onOpen(), this);
     }});
 }

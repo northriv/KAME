@@ -14,6 +14,7 @@
 //---------------------------------------------------------------------------
 #include "interfacelistconnector.h"
 #include "driver.h"
+#include "icon.h"
 
 #include <QLineEdit>
 #include <QComboBox>
@@ -30,7 +31,7 @@ XInterfaceListConnector::XInterfaceListConnector(
 	item->setColumnCount(5);
 	double def = 45;
 	item->setColumnWidth(0, (int)(def * 1.5));
-	item->setColumnWidth(1, (int)(def * 1.2));
+    item->setColumnWidth(1, (int)(def * 1.5));
 	item->setColumnWidth(2, (int)(def * 2));
 	item->setColumnWidth(3, (int)(def * 2));
 	item->setColumnWidth(4, (int)(def * 1));
@@ -58,10 +59,15 @@ void
 XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *node) {
 	for(auto it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(it->interface->control().get() == node) {
-			if(shot[ *it->interface->control()]) {
-                it->btn->setIcon(
-                    QApplication::style()->standardIcon(QStyle::SP_MediaStop));
-				it->btn->setText(i18n("&STOP"));
+            if(shot[ *it->interface->control()]) {
+                if(shot[ *node].isUIEnabled()) {
+                    it->btn->setIcon( QIcon( *g_pIconRotate) );
+                    it->btn->setText(i18n("&STOP"));
+                }
+                else {
+                    it->btn->setIcon(QApplication::style()->standardIcon(QStyle::SP_MediaStop));
+                    it->btn->setText(i18n("&STOP"));
+                }
 			}
 			else {
                 it->btn->setIcon(

@@ -26,6 +26,7 @@ QPixmap *g_pIconKame;
 QPixmap *g_pIconWarn;
 QPixmap *g_pIconError;
 QPixmap *g_pIconInfo;
+QPixmap *g_pIconRotate;
 QPixmap *g_pIconStop;
 QPixmap *g_pIconClose;
 QPixmap *g_pIconInterface;
@@ -72,4 +73,6 @@ void makeIcons()
     g_pIconGraph = new QPixmap(":/icons/graph.png");;
 
     g_pIconScript = new QPixmap(":/icons/ruby.png");
+
+    g_pIconRotate = new QPixmap(":/icons/rotate.svg");
 }
