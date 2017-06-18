@@ -175,30 +175,33 @@ XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::initialize() {
-    XScopedLock<XMutex> slock(s_mutex);
-    try {
-        if( !(s_refcnt++))
-            openAllEZUSBdevices();
+    m_threadInit.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
+        XScopedLock<XMutex> slock(s_mutex);
+        try {
+            if( !(s_refcnt++))
+                openAllEZUSBdevices();
 
-        for(auto &&x : s_devices) {
-            if( !x) continue;
-            XString name = examineDeviceAfterFWLoad(x);
-            if(name.length()) {
-                auto shot = iterate_commit([=](Transaction &tr){
-                    tr[ *device()].add(name);
-                });
-                m_candidates.emplace(name, x);
+            for(auto &&x : s_devices) {
+                if( !x) continue;
+                XString name = examineDeviceAfterFWLoad(x);
+                if(name.length()) {
+                    auto shot = iterate_commit([=](Transaction &tr){
+                        tr[ *device()].add(name);
+                    });
+                    m_candidates.emplace(name, x);
+                }
             }
         }
-    }
-    catch (XInterface::XInterfaceError &e) {
-        e.print();
-    }
+        catch (XInterface::XInterfaceError &e) {
+            e.print();
+        }
+    }});
 }
 
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::finalize() {
+    this->m_threadInit.reset();
     XScopedLock<XMutex> slock(s_mutex);
     m_usbDevice.reset();
     m_candidates.clear();

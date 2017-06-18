@@ -136,8 +136,8 @@ void XMeasure::initialize() {
 }
 void XMeasure::terminate() {
 	interfaces()->releaseAll();
-    stop();
-	drivers()->releaseAll();
+    stop(); //notifies running threads of termination.
+    drivers()->releaseAll(); //still threads may hold their shared pointers.
 	thermometers()->releaseAll();
     Snapshot shot( *this);
 	initialize();

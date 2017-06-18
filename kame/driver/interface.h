@@ -88,7 +88,7 @@ private:
 	shared_ptr<Listener> lsnOnControlChanged;
       
 	XRecursiveMutex m_mutex;
-  
+    unique_ptr<XThread> m_threadStart;
 	XString m_label;
 };
 

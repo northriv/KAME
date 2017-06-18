@@ -136,6 +136,7 @@ private:
     static XMutex s_mutex;
     static typename USBDevice::List s_devices;
     static int s_refcnt;
+    unique_ptr<XThread> m_threadInit;
     std::map<XString, shared_ptr<CyFXUSBDevice>> m_candidates;
     void openAllEZUSBdevices();
     void closeAllEZUSBdevices();

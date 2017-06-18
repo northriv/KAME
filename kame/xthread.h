@@ -179,7 +179,9 @@ public:
     //! \param f a member function of an object \p r, r->f(const atomic<bool>& terminated, args...)
     template <class X, class T, class... Args>
     XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, Args...), Args&&...args);
-    //! Joins a thread here if it is still running.
+    template <class X, class Function, class... Args>
+    XThread(const shared_ptr<X> &r, Function &&func, Args&&...args);
+    //! Joins a thread here if it is still un-joined (joinable).
     ~XThread();
     XThread(const XThread &) = delete;
     XThread& operator=(const XThread &) = delete;
@@ -203,6 +205,14 @@ XThread::XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, 
             auto obj = dynamic_pointer_cast<T>(r);
             (obj.get()->*func)(std::ref(m_isTerminated), std::forward<Args>(args)...);
         }, std::forward<Args>(args)...) {
+}
+
+template <class X, class Function, class... Args>
+XThread::XThread(const shared_ptr<X> &r, Function &&func, Args&&...args) :
+    m_thread(
+        [r, this](Function &&func, Args&&...args) {
+            func(std::ref(m_isTerminated), std::forward<Args>(args)...);
+        }, std::forward<Function>(func), std::forward<Args>(args)...) {
 }
 
 #endif

@@ -55,7 +55,7 @@ XInterface::getLabel() const {
 void
 XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 	if(shot[ *control()]) {
-	    g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
+        g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
 		start();
 	}
 	else {
@@ -67,36 +67,39 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XInterface::start() {
-	XScopedLock<XInterface> lock( *this);
-    Transactional::setCurrentPriorityMode(Priority::NORMAL);
-    try {
-		if(isOpened()) {
-			gErrPrint(getLabel() + i18n("Port has already opened"));
-			return;
-		}
-		open();
-	}
-	catch (XInterfaceError &e) {
-        e.print(getLabel() + i18n(": Opening interface failed, because "));
-    	iterate_commit([=](Transaction &tr){
-    		tr[ *control()] = false;
-    		tr.unmark(lsnOnControlChanged);
+    m_threadStart.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
+        XScopedLock<XInterface> lock( *this);
+        Transactional::setCurrentPriorityMode(Priority::NORMAL);
+        try {
+            if(isOpened()) {
+                gErrPrint(getLabel() + i18n("Port has already opened"));
+                return;
+            }
+            open();
+        }
+        catch (XInterfaceError &e) {
+            e.print(getLabel() + i18n(": Opening interface failed, because "));
+            iterate_commit([=](Transaction &tr){
+                tr[ *control()] = false;
+                tr.unmark(lsnOnControlChanged);
+            });
+            return;
+        }
+
+        Snapshot shot = iterate_commit([=](Transaction &tr){
+            tr[ *device()].setUIEnabled(false);
+            tr[ *port()].setUIEnabled(false);
+            tr[ *address()].setUIEnabled(false);
+
+            tr[ *control()] = true;
+            tr.unmark(lsnOnControlChanged);
         });
-		return;
-	}
-
-    Snapshot shot = iterate_commit([=](Transaction &tr){
-		tr[ *device()].setUIEnabled(false);
-		tr[ *port()].setUIEnabled(false);
-		tr[ *address()].setUIEnabled(false);
-
-		tr[ *control()] = true;
-		tr.unmark(lsnOnControlChanged);
-    });
-    shot.talk(shot[ *this].onOpen(), this);
+        shot.talk(shot[ *this].onOpen(), this);
+    }});
 }
 void
 XInterface::stop() {
+    m_threadStart.reset();
 	XScopedLock<XInterface> lock( *this);
     Transactional::setCurrentPriorityMode(Priority::NORMAL);
 	try {
