@@ -202,7 +202,7 @@ void
 XThamwayUSBPulserWithQAM::open() throw (XKameError &) {
     interfaceQAM()->start();
     XString idn = this->interfaceQAM()->getIDN();
-    fprintf(stderr, "QAM IDN=%s\n", idn.c_str());
+    gMessagePrint(formatString_tr(I18N_NOOP("%s successfully opened\n"), idn.c_str()));
     auto pos = idn.find("SPS=");
     if(pos == std::string::npos)
         throw XInterface::XConvError(__FILE__, __LINE__);

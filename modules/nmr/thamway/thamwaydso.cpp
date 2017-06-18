@@ -79,7 +79,7 @@ void
 XThamwayDVUSBDSO::open() throw (XKameError &) {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
-    fprintf(stderr, "DV IDN=%s\n", idn.c_str());
+    gMessagePrint(formatString_tr(I18N_NOOP("%s successfully opened\n"), idn.c_str()));
     auto pos = idn.find("BIT=");
     if(pos == std::string::npos)
         throw XInterface::XConvError(__FILE__, __LINE__);
