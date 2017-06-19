@@ -570,6 +570,12 @@ XQGraphPainter::paintGL () {
 
         checkGLError(); 
 
+        glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
+        drawOffScreenGrids(shot);
+        glEndList();
+
+        checkGLError();
+
         glNewList(m_listpoints, GL_COMPILE_AND_EXECUTE);
         drawOffScreenPoints(shot);
         glEndList();
@@ -578,12 +584,6 @@ XQGraphPainter::paintGL () {
 
         if(persist > 0.0)
             storePersistentFrame();
-
-        glNewList(m_listgrids, GL_COMPILE_AND_EXECUTE);
-        drawOffScreenGrids(shot);
-        glEndList();
-
-        checkGLError();
 
 //        glDisable(GL_DEPTH_TEST);
         glNewList(m_listaxes, GL_COMPILE_AND_EXECUTE);
