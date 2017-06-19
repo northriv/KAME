@@ -140,9 +140,9 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	tr()[ *plot.xyplot->clearPoints()].setUIEnabled(false);
 	tr()[ *plot.xyplot->intensity()] = 1.0;
 	if(m_plots.size()) {
-		tr()[ *plot.xyplot->pointColor()] = clGreen;
-		tr()[ *plot.xyplot->lineColor()] = clGreen;
-		tr()[ *plot.xyplot->barColor()] = clGreen;
+        tr()[ *plot.xyplot->pointColor()] = clAqua; //Green;
+        tr()[ *plot.xyplot->lineColor()] = clAqua; //Green;
+        tr()[ *plot.xyplot->barColor()] = clAqua; //Green;
 		tr()[ *plot.xyplot->displayMajorGrid()] = false;
 	}
 
