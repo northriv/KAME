@@ -81,6 +81,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                 filename + i18n_noncontext(" is not proper."), __FILE__, __LINE__);
     };
 
+    gMessagePrint("USB FX: Initializing/opening all the devices");
     s_devices = USBDevice::enumerateDevices();
 
     bool is_written = false;
@@ -121,7 +122,6 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     if(is_written) {
         int org_count = s_devices.size();
         for(int retry: {0,1}) {
-            QApplication::processEvents();
             msecsleep(2000); //waits for enumeration of reboot devices.
             s_devices = USBDevice::enumerateDevices(); //enumerates devices again.
             if(s_devices.size() >= org_count)
@@ -178,8 +178,17 @@ XCyFXUSBInterface<USBDevice>::initialize() {
     m_threadInit.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
         XScopedLock<XMutex> slock(s_mutex);
         try {
-            if( !(s_refcnt++))
+            if( !(s_refcnt++)) {
+                control()->iterate_commit([=](Transaction &tr){
+                    tr[ *control()] = false;
+                    });
                 openAllEZUSBdevices();
+                control()->iterate_commit([=](Transaction &tr){
+                   tr[ *control()].setUIEnabled(false);
+                   tr[ *control()] = false;
+                   });
+                control()->setUIEnabled(true);
+            }
 
             for(auto &&x : s_devices) {
                 if( !x) continue;

@@ -48,7 +48,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         return actual_length;
     }
     virtual int64_t bulkRead(uint8_t ep, uint8_t* buf, int len) {
-        msecsleep(5);
+        msecsleep(3);
         int actual_length;
         int ret = libusb_bulk_transfer(handle,
                                        LIBUSB_ENDPOINT_IN | ep, buf, len, &actual_length, USB_TIMEOUT);

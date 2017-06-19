@@ -57,7 +57,9 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
     control()->setUIEnabled(false);
     if(shot[ *control()]) {
         g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
-		start();
+        m_threadStart.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
+            start();
+            }});
 	}
 	else {
         Snapshot shot( *this);
@@ -67,36 +69,34 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XInterface::start() {
-    m_threadStart.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
-        XScopedLock<XInterface> lock( *this);
-        Transactional::setCurrentPriorityMode(Priority::NORMAL);
-        try {
-            if(isOpened()) {
-                gErrPrint(getLabel() + i18n("Port has already opened"));
-                return;
-            }
-            open();
-        }
-        catch (XInterfaceError &e) {
-            e.print(getLabel() + i18n(": Opening interface failed, because "));
-            iterate_commit([=](Transaction &tr){
-                tr[ *control()].setUIEnabled(true);
-                tr[ *control()] = false;
-                tr.unmark(lsnOnControlChanged);
-            });
+    XScopedLock<XInterface> lock( *this);
+    Transactional::setCurrentPriorityMode(Priority::NORMAL);
+    try {
+        if(isOpened()) {
+            gErrPrint(getLabel() + i18n("Port has already opened"));
             return;
         }
-
-        Snapshot shot = iterate_commit([=](Transaction &tr){
-            tr[ *device()].setUIEnabled(false);
-            tr[ *port()].setUIEnabled(false);
-            tr[ *address()].setUIEnabled(false);
-            tr[ *control()] = true; //to set a proper icon before enabling UI.
+        open();
+    }
+    catch (XInterfaceError &e) {
+        e.print(getLabel() + i18n(": Opening interface failed, because "));
+        iterate_commit([=](Transaction &tr){
+            tr[ *control()] = false;
             tr.unmark(lsnOnControlChanged);
         });
-        control()->setUIEnabled(true);
-        shot.talk(shot[ *this].onOpen(), this);
-    }});
+        control()->setUIEnabled(true); //to set a proper icon before enabling UI.
+        return;
+    }
+
+    Snapshot shot = iterate_commit([=](Transaction &tr){
+        tr[ *device()].setUIEnabled(false);
+        tr[ *port()].setUIEnabled(false);
+        tr[ *address()].setUIEnabled(false);
+        tr[ *control()] = true; //to set a proper icon before enabling UI.
+        tr.unmark(lsnOnControlChanged);
+    });
+    control()->setUIEnabled(true);
+    shot.talk(shot[ *this].onOpen(), this);
 }
 void
 XInterface::stop() {
@@ -114,10 +114,9 @@ XInterface::stop() {
 		tr[ *device()].setUIEnabled(true);
 		tr[ *port()].setUIEnabled(true);
 		tr[ *address()].setUIEnabled(true);
-        tr[ *control()].setUIEnabled(true);
-
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
     });
-	//g_statusPrinter->clear();
+    control()->setUIEnabled(true); //to set a proper icon before enabling UI.
+    //g_statusPrinter->clear();
 }

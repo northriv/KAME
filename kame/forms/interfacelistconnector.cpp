@@ -70,9 +70,15 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
                 }
 			}
 			else {
-                it->btn->setIcon(
-                    QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
-				it->btn->setText(i18n("&RUN"));
+                if(shot[ *node].isUIEnabled()) {
+                    it->btn->setIcon( QIcon( *g_pIconRotate) );
+                    it->btn->setText(i18n("&RUN"));
+                }
+                else {
+                    it->btn->setIcon(
+                        QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+                    it->btn->setText(i18n("&RUN"));
+                }
 			}
 		}
 	}
@@ -105,12 +111,14 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
     con.conaddr = xqcon_create<XQSpinBoxUnsignedConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
     {
+        interface->control()->setUIEnabled(false);
         Snapshot shot = interface->iterate_commit([=, &con](Transaction &tr){
             con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
                 shared_from_this(), &XInterfaceListConnector::onControlChanged,
                 Listener::FLAG_MAIN_THREAD_CALL);
         });
         onControlChanged(shot, interface->control().get());
+        interface->control()->setUIEnabled(true);
     }
 }
 void

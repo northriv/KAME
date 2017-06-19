@@ -331,9 +331,9 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         //For PROT3, this readout procedure is necessary for unknown reasons!
         std::vector<uint8_t> buf(addr);
         this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], buf.size());
-        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], buf.size());
-        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], buf.size());
-        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], buf.size());
+//        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], buf.size());
+//        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], buf.size());
+//        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], buf.size());
 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);

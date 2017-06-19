@@ -169,6 +169,7 @@ XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
 //        setLED(usb(), 0xf0u);
 //        msecsleep(30);
 //    }
+    resetBulkWrite();
 
     uint8_t cmds[] = {CMD_USBCS};
     usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
