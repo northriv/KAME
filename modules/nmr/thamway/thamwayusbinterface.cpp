@@ -18,7 +18,7 @@
 #include <cstring>
 
 constexpr size_t FX2FW_MAX_BURST_SIZE_USB2 = 512; //Thamway's value was 40000(WR)/512(RD).
-constexpr size_t FX2FW_MAX_BURST_SIZE_USB1_1 = 64; //Thamway's value was 40000(WR)/512(RD).
+constexpr size_t FX2FW_MAX_BURST_SIZE_USB1_1 = 512; //64 //Thamway's value was 40000(WR)/512(RD).
 
 #define CMD_DIPSW 0x11u
 #define CMD_LED 0x12u
