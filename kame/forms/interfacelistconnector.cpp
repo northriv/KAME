@@ -105,14 +105,12 @@ XInterfaceListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payl
     con.conaddr = xqcon_create<XQSpinBoxUnsignedConnector>(interface->address(), numAddr);
 	m_pItem->setCellWidget(i, 4, numAddr);
     {
-        interface->control()->setUIEnabled(false);
         Snapshot shot = interface->iterate_commit([=, &con](Transaction &tr){
             con.lsnOnControlChanged = tr[ *interface->control()].onValueChanged().connectWeakly(
                 shared_from_this(), &XInterfaceListConnector::onControlChanged,
                 Listener::FLAG_MAIN_THREAD_CALL);
         });
         onControlChanged(shot, interface->control().get());
-        interface->control()->setUIEnabled(true);
     }
 }
 void
