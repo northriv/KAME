@@ -127,6 +127,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
             if(s_devices.size() >= org_count)
                 break;
         }
+        gMessagePrint("USB FX: Done.");
     }
 
     for(auto &&x : s_devices) {
@@ -179,15 +180,7 @@ XCyFXUSBInterface<USBDevice>::initialize() {
         XScopedLock<XMutex> slock(s_mutex);
         try {
             if( !(s_refcnt++)) {
-                control()->iterate_commit([=](Transaction &tr){
-                    tr[ *control()] = false;
-                    });
                 openAllEZUSBdevices();
-                control()->iterate_commit([=](Transaction &tr){
-                   tr[ *control()].setUIEnabled(false);
-                   tr[ *control()] = false;
-                   });
-                control()->setUIEnabled(true);
             }
 
             for(auto &&x : s_devices) {

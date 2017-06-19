@@ -59,12 +59,14 @@ XInterface::onControlChanged(const Snapshot &shot, XValueNodeBase *) {
         g_statusPrinter->printMessage(driver()->getLabel() + i18n(": Starting..."));
         m_threadStart.reset(new XThread{shared_from_this(), [this](const atomic<bool>&) {
             start();
+            control()->setUIEnabled(true);
             }});
 	}
 	else {
         Snapshot shot( *this);
-		shot.talk(shot[ *this].onClose(), this);
-	}
+        shot.talk(shot[ *this].onClose(), this); //stop() will be called here.
+        control()->setUIEnabled(true);
+    }
 }
 
 void
@@ -84,7 +86,6 @@ XInterface::start() {
             tr[ *control()] = false;
             tr.unmark(lsnOnControlChanged);
         });
-        control()->setUIEnabled(true); //to set a proper icon before enabling UI.
         return;
     }
 
@@ -95,7 +96,6 @@ XInterface::start() {
         tr[ *control()] = true; //to set a proper icon before enabling UI.
         tr.unmark(lsnOnControlChanged);
     });
-    control()->setUIEnabled(true);
     shot.talk(shot[ *this].onOpen(), this);
 }
 void
@@ -117,6 +117,5 @@ XInterface::stop() {
 		tr[ *control()] = false;
 		tr.unmark(lsnOnControlChanged);
     });
-    control()->setUIEnabled(true); //to set a proper icon before enabling UI.
     //g_statusPrinter->clear();
 }

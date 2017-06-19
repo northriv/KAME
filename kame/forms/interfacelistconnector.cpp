@@ -70,15 +70,9 @@ XInterfaceListConnector::onControlChanged(const Snapshot &shot, XValueNodeBase *
                 }
 			}
 			else {
-                if(shot[ *node].isUIEnabled()) {
-                    it->btn->setIcon( QIcon( *g_pIconRotate) );
-                    it->btn->setText(i18n("&RUN"));
-                }
-                else {
-                    it->btn->setIcon(
-                        QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
-                    it->btn->setText(i18n("&RUN"));
-                }
+                it->btn->setIcon(
+                    QApplication::style()->standardIcon(QStyle::SP_MediaPlay));
+                it->btn->setText(i18n("&RUN"));
 			}
 		}
 	}
