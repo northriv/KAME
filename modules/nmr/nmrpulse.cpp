@@ -185,7 +185,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->intensity()] = 0.5;
 			tr[ *plot->displayMajorGrid()] = false;
             tr[ *plot->pointColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
-            tr[ *plot->barColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
+            tr[ *plot->barColor()] = QColor(0xf0, 0xf0, 0xc0).rgb(); //QColor(0x40, 0x40, 0xa0).rgb();
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
