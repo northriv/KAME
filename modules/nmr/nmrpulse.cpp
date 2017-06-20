@@ -156,8 +156,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
 		tr[ *tr[ *ftWaveGraph()].axisy()->label()] = i18n("Intens. [V]");
 		tr[ *tr[ *ftWaveGraph()].plot(0)->label()] = i18n("abs.");
-        tr[ *tr[ *ftWaveGraph()].plot(0)->lineColor()] = clRed;
-        tr[ *tr[ *ftWaveGraph()].plot(0)->barColor()] = QColor(0xa0, 0x00, 0x00).rgb();
+//        tr[ *tr[ *ftWaveGraph()].plot(0)->lineColor()] = clRed;
+//        tr[ *tr[ *ftWaveGraph()].plot(0)->barColor()] = QColor(0xa0, 0x00, 0x00).rgb();
         tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawLines()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawPoints()] = false;
@@ -168,7 +168,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *tr[ *ftWaveGraph()].plot(2)->label()] = i18n("dark");
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawBars()] = false;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;
-		tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
+        tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
         tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 1.0;
         tr[ *ftWaveGraph()->graph()->persistence()] = 0.0;
@@ -184,8 +184,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->drawBars()] = true;
 			tr[ *plot->intensity()] = 0.5;
 			tr[ *plot->displayMajorGrid()] = false;
-			tr[ *plot->pointColor()] = QColor(0x40, 0x40, 0xa0).rgb();
-			tr[ *plot->barColor()] = QColor(0x40, 0x40, 0xa0).rgb();
+            tr[ *plot->pointColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
+            tr[ *plot->barColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}

@@ -135,7 +135,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *axisy->label()] = i18n("Relaxation");
 		tr[ *tr[ *m_wave].plot(0)->drawLines()] = false;
 		tr[ *tr[ *m_wave].plot(1)->drawLines()] = false;
-		tr[ *tr[ *m_wave].plot(1)->intensity()] = 0.6;
+        tr[ *tr[ *m_wave].plot(1)->intensity()] = 1.0;
 		shared_ptr<XFuncPlot> plot3 = m_wave->graph()->plots()->create<XRelaxFuncPlot>(
 			tr, "FittedCurve", true, tr, m_wave->graph(),
 			relaxFunc(), static_pointer_cast<XNMRT1>(shared_from_this()));

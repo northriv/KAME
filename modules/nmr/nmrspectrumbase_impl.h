@@ -63,13 +63,13 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		tr[ *tr[ *m_spectrum].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_spectrum].plot(0)->drawLines()] = true;
 		tr[ *tr[ *m_spectrum].plot(0)->drawBars()] = true;
-		tr[ *tr[ *m_spectrum].plot(0)->barColor()] = QColor(0x60, 0x60, 0xc0).rgb();
-		tr[ *tr[ *m_spectrum].plot(0)->lineColor()] = QColor(0x60, 0x60, 0xc0).rgb();
+//		tr[ *tr[ *m_spectrum].plot(0)->barColor()] = QColor(0x60, 0x60, 0xc0).rgb();
+//		tr[ *tr[ *m_spectrum].plot(0)->lineColor()] = QColor(0x60, 0x60, 0xc0).rgb();
 		tr[ *tr[ *m_spectrum].plot(0)->intensity()] = 0.5;
 		tr[ *tr[ *m_spectrum].plot(3)->label()] = i18n("dark");
 		tr[ *tr[ *m_spectrum].plot(3)->drawBars()] = false;
 		tr[ *tr[ *m_spectrum].plot(3)->drawLines()] = true;
-		tr[ *tr[ *m_spectrum].plot(3)->lineColor()] = QColor(0xa0, 0xa0, 0x00).rgb();
+        tr[ *tr[ *m_spectrum].plot(3)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
 		tr[ *tr[ *m_spectrum].plot(3)->drawPoints()] = false;
 		tr[ *tr[ *m_spectrum].plot(3)->intensity()] = 0.5;
 		{
@@ -84,8 +84,8 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 			tr[ *plot->drawBars()] = true;
 			tr[ *plot->intensity()] = 2.0;
 			tr[ *plot->displayMajorGrid()] = false;
-			tr[ *plot->pointColor()] = QColor(0xa0, 0x00, 0xa0).rgb();
-			tr[ *plot->barColor()] = QColor(0xa0, 0x00, 0xa0).rgb();
+            tr[ *plot->pointColor()] = clWhite; //QColor(0xa0, 0x00, 0xa0).rgb();
+            tr[ *plot->barColor()] = clWhite; //QColor(0xa0, 0x00, 0xa0).rgb();
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
