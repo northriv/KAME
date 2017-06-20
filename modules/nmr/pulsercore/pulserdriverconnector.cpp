@@ -88,7 +88,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 			m_plots.push_back(plot);
 			tr[ *plot->drawPoints()] = false;
 			tr[ *plot->displayMajorGrid()] = false;
-			tr[ *plot->lineColor()] = QColor(0x4e, 0xff, 0x10).rgb();
+//			tr[ *plot->lineColor()] = QColor(0x4e, 0xff, 0x10).rgb();
 			tr[ *plot->clearPoints()].setUIEnabled(false);
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}

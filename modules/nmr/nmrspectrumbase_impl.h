@@ -55,10 +55,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens. [V]");
 		tr[ *tr[ *m_spectrum].plot(1)->label()] = i18n("real part");
 		tr[ *tr[ *m_spectrum].plot(1)->drawPoints()] = false;
-		tr[ *tr[ *m_spectrum].plot(1)->lineColor()] = clRed;
+//		tr[ *tr[ *m_spectrum].plot(1)->lineColor()] = clRed;
 		tr[ *tr[ *m_spectrum].plot(2)->label()] = i18n("imag. part");
 		tr[ *tr[ *m_spectrum].plot(2)->drawPoints()] = false;
-		tr[ *tr[ *m_spectrum].plot(2)->lineColor()] = clGreen;
+//		tr[ *tr[ *m_spectrum].plot(2)->lineColor()] = clGreen;
 		tr[ *tr[ *m_spectrum].plot(0)->label()] = i18n("abs.");
 		tr[ *tr[ *m_spectrum].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_spectrum].plot(0)->drawLines()] = true;

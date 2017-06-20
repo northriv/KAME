@@ -139,11 +139,11 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
 		tr[ *tr[ *waveGraph()].plot(2)->drawPoints()] = false;
 		tr[ *tr[ *waveGraph()].plot(2)->lineColor()] = QColor(0xff, 0xa0, 0x00).rgb();
-        tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.25;
+        tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.4;
 		tr[ *tr[ *waveGraph()].plot(3)->label()] = i18n("DSO CH2");
 		tr[ *tr[ *waveGraph()].plot(3)->drawPoints()] = false;
         tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x9a, 0x68, 0xff).rgb();
-        tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.25;
+        tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.4;
         tr[ *waveGraph()->graph()->persistence()] = 0.0;
 		tr[ *waveGraph()].clearPoints();
     });
@@ -161,10 +161,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawLines()] = true;
 		tr[ *tr[ *ftWaveGraph()].plot(0)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.3;
+        tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.8;
 		tr[ *tr[ *ftWaveGraph()].plot(1)->label()] = i18n("phase");
 		tr[ *tr[ *ftWaveGraph()].plot(1)->drawPoints()] = false;
-		tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.3;
+        tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.3;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->label()] = i18n("dark");
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawBars()] = false;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;

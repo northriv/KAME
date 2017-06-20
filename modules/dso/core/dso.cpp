@@ -27,9 +27,9 @@
 const char *XDSO::s_trace_names[] = {
     "Time [sec]", "Trace1 [V]", "Trace2 [V]", "Trace3 [V]", "Trace4 [V]"
 };
-const unsigned int XDSO::s_trace_colors[] = {
-    QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen
-};
+//const unsigned int XDSO::s_trace_colors[] = {
+//    QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen
+//};
     
 XDSO::XDSO(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -208,9 +208,9 @@ XDSO::visualize(const Snapshot &shot) {
 		}
 		for(unsigned int i = 0; i < num_channels; i++) {
 			tr[ *tr[ *m_waveForm].plot(i)->drawPoints()] = false;
-			tr[ *tr[ *m_waveForm].plot(i)->lineColor()] = s_trace_colors[i];
-			tr[ *tr[ *m_waveForm].plot(i)->pointColor()] = s_trace_colors[i];
-			tr[ *tr[ *m_waveForm].plot(i)->barColor()] = s_trace_colors[i];
+//			tr[ *tr[ *m_waveForm].plot(i)->lineColor()] = s_trace_colors[i];
+//			tr[ *tr[ *m_waveForm].plot(i)->pointColor()] = s_trace_colors[i];
+//			tr[ *tr[ *m_waveForm].plot(i)->barColor()] = s_trace_colors[i];
 		}
 
 		tr[ *m_waveForm].setRowCount(length);

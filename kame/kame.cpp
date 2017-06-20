@@ -540,24 +540,24 @@ void FrmKameMain::fileLogAction_toggled( bool var) {
 }
 
 static void
-applyGraphThemeToAll(Transaction &tr, const shared_ptr<XNode> &parent, XGraph::Theme theme) {
-    if(tr.size(parent)) {
-        auto list = tr.list(parent);
+applyGraphThemeToAll(const Snapshot &shot, const shared_ptr<XNode> &parent, XGraph::Theme theme) {
+    if(shot.size(parent)) {
+        auto list = shot.list(parent);
         for(auto &&node: *list) {
             if(auto graph = dynamic_pointer_cast<XGraph>(node)) {
-                graph->applyTheme(tr, false, theme);
+                graph->iterate_commit([=](Transaction &tr){
+                    graph->applyTheme(tr, false, theme);
+                });
             }
             else
-                applyGraphThemeToAll(tr, node, theme);
+                applyGraphThemeToAll(shot, node, theme);
         }
     }
 };
 
 void FrmKameMain::graphThemeNightAction_toggled( bool var ) {
     auto theme = var ? XGraph::Theme::Night : XGraph::Theme::DayLight;
-    m_measure->iterate_commit([=](Transaction &tr){
-        applyGraphThemeToAll(tr, m_measure, theme);
-    });
+    applyGraphThemeToAll(Snapshot( *m_measure), m_measure, theme);
     XGraph::setCurrentTheme(theme);
 }
 
