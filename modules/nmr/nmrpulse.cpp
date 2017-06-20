@@ -182,7 +182,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 			tr[ *plot->drawPoints()] = false;
 			tr[ *plot->drawLines()] = false;
 			tr[ *plot->drawBars()] = true;
-			tr[ *plot->intensity()] = 0.5;
+            tr[ *plot->intensity()] = 1.0;
 			tr[ *plot->displayMajorGrid()] = false;
             tr[ *plot->pointColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
             tr[ *plot->barColor()] = QColor(0xf0, 0xf0, 0xc0).rgb(); //QColor(0x40, 0x40, 0xa0).rgb();
