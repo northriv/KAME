@@ -36,6 +36,7 @@ class Ui_FrmNodeBrowser;
 typedef QForm<QWidget, Ui_FrmNodeBrowser> FrmNodeBrowser;
 class QTimer;
 class QAction;
+class QActionGroup;
 class QMenu;
 class XMeasure;
 class XRubyThread;
@@ -56,6 +57,7 @@ public:
 	QMenu *m_pMeasureMenu;
 	QMenu *m_pScriptMenu;
 	QMenu *m_pViewMenu;
+    QMenu *m_pGraphThemeMenu;
 	QMenu *m_pHelpMenu;
 	QAction* m_pFileOpenAction;
 	QAction* m_pFileSaveAction;
@@ -70,6 +72,9 @@ public:
 	QAction* m_pScriptLineShellAction;
 	QAction* m_pScriptDotSaveAction;
 	QAction* m_pFileCloseAction;
+    QAction* m_pGraphThemeNightAction;
+    QAction* m_pGraphThemeDaylightAction;
+    QActionGroup *m_pGraphThemeActionGroup;
 
 	FrmRecordReader *m_pFrmRecordReader;
 	FrmGraphList *m_pFrmGraphList;
@@ -81,22 +86,24 @@ public:
 
 	int openMes(const XString &filename);
 public slots:
-virtual void fileCloseAction_activated();
-virtual void fileExitAction_activated();
-virtual void fileOpenAction_activated();
-virtual void fileSaveAction_activated();
-virtual void helpAboutAction_activated();
-virtual void helpContentsAction_activated();
-virtual void helpIndexAction_activated();
-//    virtual void mesRunAction_activated();
-virtual void mesStopAction_activated();
-virtual void scriptRunAction_activated();
-virtual void scriptLineShellAction_activated();
-virtual void scriptDotSaveAction_activated();
-virtual void fileLogAction_toggled( bool var );
+    virtual void fileCloseAction_activated();
+    virtual void fileExitAction_activated();
+    virtual void fileOpenAction_activated();
+    virtual void fileSaveAction_activated();
+    virtual void helpAboutAction_activated();
+    virtual void helpContentsAction_activated();
+    virtual void helpIndexAction_activated();
+    //    virtual void mesRunAction_activated();
+    virtual void mesStopAction_activated();
+    virtual void scriptRunAction_activated();
+    virtual void scriptLineShellAction_activated();
+    virtual void scriptDotSaveAction_activated();
+    virtual void fileLogAction_toggled( bool var );
+    virtual void graphThemeNightAction_toggled( bool var );
+//    virtual void graphThemeDayightAction_toggled( bool var );
 protected slots:
-virtual void aboutToQuit();
-virtual void processSignals();
+    virtual void aboutToQuit();
+    virtual void processSignals();
 private:
 	void createActions();
 	void createMenus();

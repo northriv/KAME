@@ -123,6 +123,11 @@ public:
 	void zoomAxes(Transaction &tr, float resolution, XGraph::SFloat zoomscale,
 				  const XGraph::ScrPoint &zoomcenter);
 
+    enum class Theme {Night, DayLight, Current};
+    void applyTheme(Transaction &tr, bool reset_to_default = false, Theme theme = Theme::Current);
+    static Theme currentTheme() {return s_theme;}
+    static void setCurrentTheme(Theme theme) {s_theme = theme;}
+
 	const shared_ptr<XAxisList> &axes() const {return m_axes;}
 	const shared_ptr<XPlotList> &plots() const {return m_plots;} 
 
@@ -156,6 +161,8 @@ private:
 	const shared_ptr<XDoubleNode> m_persistence;
 
 	shared_ptr<Listener> m_lsnPropertyChanged;
+
+    static Theme s_theme;
 };
 
 class DECLSPEC_KAME XPlot : public XNode {

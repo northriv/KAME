@@ -86,6 +86,8 @@ XValChart::XValChart(const char *name, bool runtime,
 		tr[ *axisx->autoScale()].setUIEnabled(false);
 		tr[ *axisx->logScale()].setUIEnabled(false);
 		tr[ *m_graph->label()] = entry->getLabel();
+
+        m_graph->applyTheme(tr, true);
     });
 
     entry->driver()->iterate_commit([=](Transaction &tr){
@@ -208,15 +210,14 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 			tr[ *axisz->label()] = entryz->getLabel();
 		}
 
-        tr[ *shot_this[ *this].m_storePlot->pointColor()] = clBlue; //oldstyle: clGreen;
-        tr[ *shot_this[ *this].m_storePlot->lineColor()] = clBlue; //oldstyle: clGreen;
-        tr[ *shot_this[ *this].m_storePlot->barColor()] = clBlue; //oldstyle: clGreen;
 		tr[ *shot_this[ *this].m_storePlot->displayMajorGrid()] = false;
         tr[ *shot_this[ *this].m_livePlot->maxCount()] = 10000;
         tr[ *shot_this[ *this].m_storePlot->maxCount()] = 10000;
 		tr[ *axisx->label()] = entryx->getLabel();
 		tr[ *axisy->label()] = entryy1->getLabel();
 		tr[ *graph->label()] = getLabel();
+
+        graph->applyTheme(tr, true);
     });
     m_graphForm.reset(new FrmGraph(g_pFrmMain, Qt::Window));
     m_graphForm->m_graphwidget->setGraph(graph);

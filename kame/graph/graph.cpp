@@ -66,6 +66,8 @@ const XGraph::VFloat XGraph::VFLOAT_MAX = DBL_MAX;
     #define PLOT_BAR_INTENS 0.8
 #endif
 
+XGraph::Theme XGraph::s_theme = XGraph::Theme::Night;
+
 XGraph::XGraph(const char *name, bool runtime) : 
     XNode(name, runtime),
     m_label(create<XStringNode>("Label", true)),
@@ -83,8 +85,6 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *titleColor()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *drawLegends()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *persistence()].onValueChanged().connect(lsnPropertyChanged());
-        tr[ *backGround()] = QColor(0x0A, 0x05, 0x45).rgb(); //oldstyle: clWhite;
-        tr[ *titleColor()] = clWhite; //oldstyle: clBlack;
 		tr[ *drawLegends()] = true;
         tr[ *persistence()] = 0.3;
 
@@ -96,7 +96,62 @@ XGraph::XGraph(const char *name, bool runtime) :
         auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::AxisDirection::Y
                                , false, tr, static_pointer_cast<XGraph>(shared_from_this()));
 	    tr[ *yaxis->label()] = i18n("Y Axis");
+
+        applyTheme(tr, true);
     });
+}
+
+void
+XGraph::applyTheme(Transaction &tr, bool reset_to_default, Theme theme) {
+    if(theme == Theme::Current)
+        theme = currentTheme();
+
+    auto reset_or_complement = [&](const shared_ptr<XHexNode> &node, unsigned int default_color) {
+        if(reset_to_default)
+            tr[ *node] = default_color;
+        else if(currentTheme() != theme)
+            tr[ *node] = 0xffffffu - tr[ *node];
+    };
+
+    tr[ *backGround()] = (theme == Theme::Night) ?
+        QColor(0x0A, 0x05, 0x45).rgb() : clWhite;
+    auto textcolor = (theme == Theme::Night) ? clWhite : clBlack;
+    tr[ *titleColor()] = textcolor;
+
+    unsigned int night_colors[] = {QColor(0xff, 0xff, 0x12).rgb(), clAqua, clRed, clGreen};
+    unsigned int night_point_colors[] = {QColor(0xff, 0xf1, 0x2c).rgb(), clAqua, clRed, clGreen};
+    unsigned int daylight_colors[] = {clRed, clGreen, clLime, clAqua};
+    unsigned int daylight_pointcolors[] = {clRed, clGreen, clLime, clAqua};
+    auto barline_colors = (theme == Theme::Night) ? night_colors : daylight_colors;
+    auto point_colors = (theme == Theme::Night) ? night_point_colors : daylight_pointcolors;
+    unsigned int major_grid_color = (theme == Theme::Night) ?
+        QColor(0x00, 0x60, 0xa0).rgb() : clAqua;
+    unsigned int minor_grid_color = (theme == Theme::Night) ?
+        QColor(0x60, 0x00, 0x60).rgb() : clLime;
+    const Snapshot &shot(tr);
+    if(shot.size(plots())) {
+        const XNode::NodeList &axes_list( *shot.list(axes()));
+        for(unsigned int i = 0; i < axes_list.size(); ++i) {
+            auto axis = static_pointer_cast<XAxis>(axes_list[i]);
+            reset_or_complement(axis->labelColor(), textcolor);
+            reset_or_complement(axis->ticColor(), textcolor);
+            reset_or_complement(axis->ticLabelColor(), textcolor);
+        }
+    }
+    if(shot.size(plots())) {
+        const XNode::NodeList &plots_list( *shot.list(plots()));
+        for(unsigned int i = 0; i < plots_list.size(); ++i) {
+            auto plot = static_pointer_cast<XPlot>(plots_list[i]);
+            auto k = i % 4;
+            tr[ *plot->majorGridColor()] = major_grid_color;
+            tr[ *plot->minorGridColor()] = minor_grid_color;
+            reset_or_complement(plot->lineColor(), barline_colors[k]);
+            reset_or_complement(plot->pointColor(), point_colors[k]);
+            reset_or_complement(plot->barColor(), barline_colors[k]);
+            if((i > 0) && reset_to_default)
+                tr[ *plot->displayMajorGrid()] = false;
+        }
+    }
 }
 
 void
@@ -190,17 +245,17 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 		tr[ *drawLines()] = true;
 		tr[ *drawBars()] = false;
 		tr[ *drawPoints()] = true;
-        tr[ *majorGridColor()] = QColor(0x00, 0x60, 0xa0).rgb(); //oldstyle: clAqua
-        tr[ *minorGridColor()] = QColor(0x60, 0x00, 0x60).rgb(); //oldstyle: clLime;
-        tr[ *lineColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
-        tr[ *pointColor()] = QColor(0xff, 0xf1, 0x2c).rgb(); //oldstyle: clRed;
-        tr[ *barColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
 		tr[ *displayMajorGrid()] = true;
 		tr[ *displayMinorGrid()] = false;
 		intensity()->setFormat("%.2f");
         tr[ *intensity()] = 0.6;
 		tr[ *colorPlot()] = false;
-		tr[ *colorPlotColorHigh()] = clRed;
+        tr[ *majorGridColor()] = QColor(0x00, 0x60, 0xa0).rgb(); //oldstyle: clAqua
+        tr[ *minorGridColor()] = QColor(0x60, 0x00, 0x60).rgb(); //oldstyle: clLime;
+        tr[ *lineColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
+        tr[ *pointColor()] = QColor(0xff, 0xf1, 0x2c).rgb(); //oldstyle: clRed;
+        tr[ *barColor()] = QColor(0xff, 0xff, 0x12).rgb(); //oldstyle: clRed;
+        tr[ *colorPlotColorHigh()] = clRed;
 		tr[ *colorPlotColorLow()] = clBlue;
 
 		m_lsnClearPoints = tr[ *clearPoints()].onTouch().connect(

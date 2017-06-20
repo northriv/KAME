@@ -48,6 +48,7 @@
 #include "ui_scalarentrytool.h"
 #include "icon.h"
 #include "messagebox.h"
+#include "graph.h"
 
 QWidget *g_pFrmMain = nullptr;
 static std::unique_ptr<XMessageBox> s_pMessageBox;
@@ -134,6 +135,12 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
 
     s_pMessageBox.reset(new XMessageBox(this));
+
+    m_pViewMenu->addSeparator();
+    m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
+    m_pGraphThemeMenu->setIcon( QIcon( *g_pIconGraph));
+    m_pGraphThemeMenu->addAction(m_pGraphThemeNightAction);
+    m_pGraphThemeMenu->addAction(m_pGraphThemeDaylightAction);
     m_pViewMenu->addSeparator();
     QAction *act = new QAction( *g_pIconInfo, XMessageBox::form()->windowTitle(), this);
     connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
@@ -158,6 +165,8 @@ FrmKameMain::FrmKameMain()
     connect( m_pScriptLineShellAction, SIGNAL( triggered() ), this, SLOT( scriptLineShellAction_activated() ) );
     connect( m_pScriptDotSaveAction, SIGNAL( triggered() ), this, SLOT( scriptDotSaveAction_activated() ) );
     connect( m_pFileLogAction, SIGNAL( toggled(bool) ), this, SLOT( fileLogAction_toggled(bool) ) );
+    connect( m_pGraphThemeNightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeNightAction_toggled(bool) ) );
+//    connect( m_pGraphThemeDaylightAction, SIGNAL( toggled(bool) ), this, SLOT( graphThemeDaylightAction_toggled(bool) ) );
 
 	connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()));
 	connect(qApp, SIGNAL( lastWindowClosed() ), qApp, SLOT( quit() ) );
@@ -246,6 +255,17 @@ FrmKameMain::createActions() {
     m_pScriptDotSaveAction = new QAction( this );
     m_pScriptDotSaveAction->setEnabled( true );
     m_pScriptDotSaveAction->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton));
+    m_pGraphThemeNightAction = new QAction( this);
+    m_pGraphThemeNightAction->setEnabled( true );
+    m_pGraphThemeNightAction->setCheckable( true );
+    m_pGraphThemeNightAction->setChecked( true );
+    m_pGraphThemeDaylightAction = new QAction( this);
+    m_pGraphThemeDaylightAction->setEnabled( true );
+    m_pGraphThemeDaylightAction->setCheckable( true );
+    m_pGraphThemeActionGroup = new QActionGroup(this);
+    m_pGraphThemeActionGroup->setExclusive( true );
+    m_pGraphThemeActionGroup->addAction(m_pGraphThemeNightAction);
+    m_pGraphThemeActionGroup->addAction(m_pGraphThemeDaylightAction);
 
     m_pFileOpenAction->setText( i18n( "&Open..." ) );
     m_pFileOpenAction->setShortcut( i18n( "Ctrl+O" ) );
@@ -260,7 +280,9 @@ FrmKameMain::createActions() {
     m_pScriptRunAction->setText( i18n( "&Run..." ) );
     m_pScriptLineShellAction->setText( i18n( "&New Line Shell" ) );
     m_pScriptDotSaveAction->setText( i18n( "&Graphviz Save .dot..." ) );
-    m_pFileCloseAction->setText( i18n( "&Close" ) );
+    m_pFileCloseAction->setText( i18n( "&Close" ) );    
+    m_pGraphThemeNightAction->setText( i18n( "&Night") );
+    m_pGraphThemeDaylightAction->setText( i18n( "&Daylight") );
 }
 void
 FrmKameMain::createMenus() {
@@ -515,5 +537,27 @@ void FrmKameMain::scriptDotSaveAction_activated() {
 
 void FrmKameMain::fileLogAction_toggled( bool var) {
 	g_bLogDbgPrint = var;
+}
+
+static void
+applyGraphThemeToAll(Transaction &tr, const shared_ptr<XNode> &parent, XGraph::Theme theme) {
+    if(tr.size(parent)) {
+        auto list = tr.list(parent);
+        for(auto &&node: *list) {
+            if(auto graph = dynamic_pointer_cast<XGraph>(node)) {
+                graph->applyTheme(tr, false, theme);
+            }
+            else
+                applyGraphThemeToAll(tr, node, theme);
+        }
+    }
+};
+
+void FrmKameMain::graphThemeNightAction_toggled( bool var ) {
+    auto theme = var ? XGraph::Theme::Night : XGraph::Theme::DayLight;
+    m_measure->iterate_commit([=](Transaction &tr){
+        applyGraphThemeToAll(tr, m_measure, theme);
+    });
+    XGraph::setCurrentTheme(theme);
 }
 
