@@ -56,6 +56,23 @@ class Mystdin
 end
 $stdin = Mystdin.new
 
+alias :_orig_sleep :sleep
+# Redefinition of sleep to show status
+def sleep(sec)
+	if sec < 1 then
+		_orig_sleep(sec)
+		return
+	end
+	start = Time.now()
+	while (Time.now() - start < sec)
+		rest = Integer(sec - (Time.now() - start))
+		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller.first
+			Thread.current[:statusstring] = ": #{rest} s @line #{$2} in #{$3}"
+	    end
+ 		_orig_sleep(0.7)
+ 	end
+end
+
 #function to dump exception info
 def print_exception(exc)
 	$stderr.print "Exception:", exc.message
@@ -248,9 +265,11 @@ begin
 	     if action != "" then
 		     xrbthread_action.set("")
 		 end
-	     if thread.status then
-	       if xrbthread_status.value != thread.status then
-		       xrbthread_status.value = thread.status
+		  status = thread.status
+	     if status then
+		   status += thread[:statusstring] if thread[:statusstring] && (status == "sleep")
+	       if xrbthread_status.value != status then
+			 xrbthread_status.value = status
 		   end
 	     else
 	       if xrbthread_status.value != "" then
@@ -286,7 +305,7 @@ begin
 		       }
 		       if thread then
 		            xrbthread_threadid.value = thread.object_id
-		            xrbthread_status.value = thread.status
+			        xrbthread_status.value = thread.status
 		       else
 		            xrbthread_action.value = "failure"
 		            xrbthread_status.value = ""
