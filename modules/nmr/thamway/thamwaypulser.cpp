@@ -76,7 +76,8 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
             tr[ *XPulser::portSel(i)] = ports[i];
 		}
-        tr[ *masterLevel()] = 3.0; //Use of the maximum power (45deg.) in IQ space.
+//        tr[ *masterLevel()] = 3.0; //Use of the maximum power (45deg.) in IQ space.
+        tr[ *masterLevel()] = -3.0;
         tr[ *aswSetup()] = 0.2;
     });
 }
