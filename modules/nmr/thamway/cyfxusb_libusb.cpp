@@ -40,6 +40,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     XString virtual getString(int descid) override;
 
     virtual int64_t bulkWrite(uint8_t ep, const uint8_t *buf, int len) {
+        msecsleep(5);
         int actual_length;
         int ret = libusb_bulk_transfer(handle,
                                        LIBUSB_ENDPOINT_OUT | ep, const_cast<uint8_t*>(buf), len, &actual_length, USB_TIMEOUT);
