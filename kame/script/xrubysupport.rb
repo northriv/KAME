@@ -6,7 +6,7 @@
 #redirect defout, deferr
 class << $stdout
   def write(str)
-    Thread.current[:logfile].puts(str) if Thread.current[:logfile]
+    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -23,7 +23,7 @@ class << $stdout
 end
 class << $stderr
   def write(str)
-    Thread.current[:logfile].puts(str) if Thread.current[:logfile]
+    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -68,10 +68,14 @@ def sleep(sec)
 	while (Time.now() - start < sec)
 		rest = Integer(sec - (Time.now() - start))
 		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller.first
-			Thread.current[:statusstring] = ": #{rest} s @line #{$2} in #{$3}"
+			Thread.current[:statusstring] = ": #{rest} s @#{$3}:#{$2}"
 	    end
- 		_orig_sleep(0.7)
+		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller[1]
+			Thread.current[:statusstring] += " < #{$3}:#{$2}"
+	    end
+ 		_orig_sleep(0.5)
  	end
+	Thread.current[:statusstring] = nil
 end
 
 #function to dump exception info
@@ -295,6 +299,7 @@ begin
 					 else
 					    $SAFE = 0
 						Thread.current[:logfile] = File.open(filename + ".log", "a")
+						Thread.current[:logfile].puts("Started @#{Time.now()} \n")
 					 end
 					 load filename
 		             print thread.to_s + " Finished.\n"
