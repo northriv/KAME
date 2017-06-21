@@ -68,7 +68,7 @@ def sleep(sec)
 	while (Time.now() - start < sec)
 		rest = Integer(sec - (Time.now() - start))
 		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller.first
-			Thread.current[:statusstring] = ": #{rest} s @#{$3}:#{$2}"
+			Thread.current[:statusstring] = " #{rest}s @#{$3}:#{$2}"
 	    end
 		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller[1]
 			Thread.current[:statusstring] += " < #{$3}:#{$2}"
