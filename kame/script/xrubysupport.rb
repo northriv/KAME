@@ -60,6 +60,7 @@ alias :_orig_sleep :sleep
 # Redefinition of sleep to show status
 def sleep(sec)
 	if sec < 1 then
+		Thread.current[:statusstring] = nil
 		_orig_sleep(sec)
 		return
 	end
