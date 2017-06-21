@@ -164,13 +164,13 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.8;
 		tr[ *tr[ *ftWaveGraph()].plot(1)->label()] = i18n("phase");
 		tr[ *tr[ *ftWaveGraph()].plot(1)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.3;
+        tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.8;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->label()] = i18n("dark");
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawBars()] = false;
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;
         tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
 		tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 1.0;
+        tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 0.8;
         tr[ *ftWaveGraph()->graph()->persistence()] = 0.0;
         {
 			shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(

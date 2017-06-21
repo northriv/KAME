@@ -77,7 +77,7 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
             tr[ *XPulser::portSel(i)] = ports[i];
 		}
 //        tr[ *masterLevel()] = 3.0; //Use of the maximum power (45deg.) in IQ space.
-        tr[ *masterLevel()] = -3.0;
+        tr[ *masterLevel()] = -6.0;
         tr[ *aswSetup()] = 0.2;
     });
 }
@@ -277,6 +277,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
                 if(std::abs(z) > 127.0) {
+                    fprintf(stderr, "Clip!");
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
                 }

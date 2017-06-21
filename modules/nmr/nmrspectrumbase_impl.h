@@ -84,7 +84,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 			tr[ *plot->drawPoints()] = false;
 			tr[ *plot->drawLines()] = false;
 			tr[ *plot->drawBars()] = true;
-			tr[ *plot->intensity()] = 2.0;
+            tr[ *plot->intensity()] = 0.3;
 			tr[ *plot->displayMajorGrid()] = false;
             tr[ *plot->pointColor()] = clWhite; //QColor(0xa0, 0x00, 0xa0).rgb();
             tr[ *plot->barColor()] = clWhite; //QColor(0xa0, 0x00, 0xa0).rgb();

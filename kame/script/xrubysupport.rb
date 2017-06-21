@@ -121,7 +121,7 @@ class XNode
 		return ary
 	end
 	def [](key)
-		if $SAFE != 0 then
+		if Thread.current[:load_kam] then
 			begin
 				self.child(key)
 		    rescue RuntimeError
@@ -145,7 +145,7 @@ class XValueNode
 		return self.get()
 	end
 	def set(value)
-		if $SAFE != 0 then
+		if Thread.current[:load_kam] then
 			begin
 				self.internal_load(value)
 		    rescue RuntimeError
@@ -158,7 +158,7 @@ class XValueNode
 		 end
 	end
 	def get
-		if $SAFE != 0 then
+		if Thread.current[:load_kam] then
 			begin
 				self.internal_get()
 		    rescue RuntimeError
@@ -171,7 +171,7 @@ class XValueNode
 		 end
 	end
 	def load(value)
-		if $SAFE != 0 then
+		if Thread.current[:load_kam] then
 			begin
 				self.internal_load(value)
 		    rescue RuntimeError
@@ -202,7 +202,7 @@ class XListNode
 		name = ""
 		type = arg[0] if arg.size >= 1
 		name = arg[1] if arg.size >= 2
-		if $SAFE != 0 then
+		if Thread.current[:load_kam] then
 			begin
 				self.internal_create(type, name)
 		    rescue RuntimeError
@@ -270,7 +270,8 @@ begin
 		             print thread.inspect + "\n"
 					 filename.untaint
 					 if /\.kam/i =~ filename then
-					    $SAFE = 1
+					    $SAFE = 0
+					    Thread.current[:load_kam] = true
 					 else
 					    $SAFE = 0
 						Thread.current[:logfile] = File.open(filename + ".log", "a")
