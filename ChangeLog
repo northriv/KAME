@@ -8,6 +8,7 @@
 - nmr: fix for clear behavior.
 - Thamway: many fixes for PROT3.
 - Thamway USB: init. of FX devices are deferred.
+- thamwaypuler: fix for startup behavior
 - ruby: displays sleeping status
 - ruby: timestamp of stdout/err.
 - ruby: SAFE=1 is abondoned due to 777 permission folders. 
