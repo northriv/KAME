@@ -87,12 +87,12 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
         throw XInterface::XConvError(__FILE__, __LINE__);
 
 // Initial states after powerup are undefined.
-//    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
-//    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
+    int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
+    smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
 //    smps--;
-//    smps = std::min(1000, std::max(25000, smps));
-    int smps = 25000;
-    double intv = 1.0 / INTERNAL_CLOCK; //std::max(0.04e-3, getTimeInterval());
+    smps = std::min((int)MAX_SMPL, std::max(10000, smps));
+//    int smps = 25000;
+    double intv = std::max(2.0 / INTERNAL_CLOCK, getTimeInterval());
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
     iterate_commit([=](Transaction &tr){
         tr[ *recordLength()] = smps;
@@ -179,7 +179,7 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-    smps--;
+//    smps--;
 //    fprintf(stderr, "samps%d\n", smps);
     Snapshot shot( *this);
 //    smps = shot[ *recordLength()];
@@ -265,7 +265,7 @@ XThamwayDVUSBDSO::onTimeWidthChanged(const Snapshot &shot, XValueNodeBase *) {
     int smps = Snapshot( *this)[ *recordLength()];
 
     double interval = shot[ *timeWidth()] / smps;
-    int div = std::max(1L, lrint(INTERNAL_CLOCK * interval));
+    int div = std::max(2L, lrint(INTERNAL_CLOCK * interval));
     int pres = std::min(7, std::max(0, (int)floor(log(div / 256.0) / log(2.0)) + 1));
 
     div = std::max(1L, lrint(div / pow(2.0, pres)));
