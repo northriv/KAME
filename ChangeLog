@@ -1,7 +1,22 @@
+* Thu Jun 22 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.0.0-1)
+- interface: starting is handled by thread.
+- graph: theme colors, night, daylight. Night is default.
+- graph: rewrote persistent view.
+- ppms: software slow ramp rate for field. fix for units.
+- usb: async. transfer is default for bulk transfers.
+- nmr: fix for clear behavior.
+- Thamway: many fixes for PROT3.
+- Thamway USB: init. of FX devices are deferred.
+- ruby: displays sleeping status
+- ruby: timestamp of stdout/err.
+- ruby: SAFE=1 is abondoned due to 777 permission folders. 
+
 * Wed May 10 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (4.3.0-1)
 - stdout/err log into a file during execution of script.
 - nmrpulsercore: Fix initial values for spin boxes.
+- Thamway PROT3 compatibility (experimental)
 - Thamway USB devices operated also with cyusb3.sys
 - Thamway QAM pulser.
 - (experimental) Real-time DSO for digital demodulation.

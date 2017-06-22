@@ -451,7 +451,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
 	}
 	tr[ *this].m_waveWidth = length;
-	bool skip = (shot_this[ *this].m_timeClearRequested > shot_dso[ *dso__].timeAwared());
+    bool skip = (shot_this[ *this].m_timeClearRequested);
+    tr[ *this].m_timeClearRequested = {};
 	bool avgclear = skip;
 
 	if(interval != shot_this[ *this].m_interval) {

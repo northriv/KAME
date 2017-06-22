@@ -566,8 +566,9 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 	tr[ *this].m_sumpts.clear();
 
-	if(shot_this[ *this].m_timeClearRequested > shot_pulse1[ *pulse1__].timeAwared()) {
-		tr[ *this].m_pts.clear();
+    if(shot_this[ *this].m_timeClearRequested) {
+        tr[ *this].m_timeClearRequested = {};
+        tr[ *this].m_pts.clear();
 		tr[ *m_wave].clearPoints();
 		tr[ *m_fitStatus] = "";
 		trans( *pulse1__->avgClear()).touch();
