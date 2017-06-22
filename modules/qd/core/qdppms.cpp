@@ -271,7 +271,7 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                         if(fabs(shot[ *targetField()] - magnet_field) > std::max(4 * sweeprate, 2e-4)) {
                             if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
                                 ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
-                                fprintf(stderr, "Magnet field now approaching to the set point.");
+                                dbgPrint( "Magnet field now approaching to the set point.");
                                 setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
                             }
                             else {
