@@ -293,13 +293,11 @@ begin
 		          begin
 		             print thread.inspect + "\n"
 					 filename.untaint
-					 if /\.kam/i =~ filename then
-					    $SAFE = 0
-					    Thread.current[:load_kam] = true
+					 if /\.seq/i =~ filename then
+					    Thread.current[:logfile] = File.open(filename + ".log", "a")
+					    Thread.current[:logfile].puts("Started @#{Time.now()} \n")
 					 else
-					    $SAFE = 0
-						Thread.current[:logfile] = File.open(filename + ".log", "a")
-						Thread.current[:logfile].puts("Started @#{Time.now()} \n")
+					    Thread.current[:load_kam] = true
 					 end
 					 load filename
 		             print thread.to_s + " Finished.\n"

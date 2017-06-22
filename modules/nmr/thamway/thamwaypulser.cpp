@@ -276,7 +276,6 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
                 if(std::abs(z) > 127.0) {
-                    fprintf(stderr, "Clip!");
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
                 }
