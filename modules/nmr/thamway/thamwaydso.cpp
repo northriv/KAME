@@ -44,6 +44,7 @@ REGISTER_TYPE(XDriverList, ThamwayDVUSBDSO, "Thamway DV14U25 A/D conversion boar
 //#define ADDR_CH2_GET_MEM_ADDR_MSW 0x12
 
 #define MAX_SMPL 0x80000u //512kwords
+#define EXTRA_SMPL 1000u
 
 XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -89,8 +90,8 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
 // Initial states after powerup are undefined.
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-//    smps--;
-    smps = std::min((int)MAX_SMPL, std::max(10000, smps));
+    smps = std::min((int)MAX_SMPL, std::max(10000 + (int)EXTRA_SMPL, smps));
+    smps -= EXTRA_SMPL;
 //    int smps = 25000;
     double intv = std::max(2.0 / INTERNAL_CLOCK, getTimeInterval());
 //    fprintf(stderr, "smps%u,avg%u,intv%g\n",smps,avg,intv);
@@ -179,7 +180,7 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
 
     int smps = interface()->readRegister16(ADDR_SAMPLES_MSW);
     smps = smps * 0x10000L + interface()->readRegister16(ADDR_SAMPLES_LSW);
-//    smps--;
+    smps -= EXTRA_SMPL;
 //    fprintf(stderr, "samps%d\n", smps);
     Snapshot shot( *this);
 //    smps = shot[ *recordLength()];
@@ -287,6 +288,7 @@ XThamwayDVUSBDSO::onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *) 
     interface()->writeToRegister8(ADDR_CTRL, 0); //stops.
 
     unsigned int smps = shot[ *recordLength()];
+    smps += EXTRA_SMPL;
     interface()->writeToRegister16(ADDR_SAMPLES_LSW, smps % 0x10000uL);
     interface()->writeToRegister16(ADDR_SAMPLES_MSW, smps / 0x10000uL);
 
