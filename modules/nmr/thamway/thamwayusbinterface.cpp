@@ -111,6 +111,9 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     uint8_t dipsw = readDIPSW(dev);
     XString idn;
     if(m_idString.empty()) {
+        Snapshot shot( *this);
+        if((dipsw == DEV_ADDR_PROT) && (device()->itemStrings(shot).size()))
+            trans( *device()).clear();
         idn = "PROT";
     }
     else {
