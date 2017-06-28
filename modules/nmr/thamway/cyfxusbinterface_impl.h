@@ -127,7 +127,6 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
             if(s_devices.size() >= org_count)
                 break;
         }
-        gMessagePrint("USB FX: Done.");
     }
 
     for(auto &&x : s_devices) {
@@ -161,6 +160,7 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
             continue;
         }
     }
+    gMessagePrint("USB FX: initialization done.");
 }
 
 template <class USBDevice>
