@@ -26,16 +26,14 @@ static FrmMessage *s_pFrmMessage = 0L;
 static QTimer *s_timer = 0L;
 
 XMessageBox::XMessageBox(QWidget *parent) {
-    s_pFrmMessage = new FrmMessage((QWidget*)0, Qt::Tool | Qt::WindowStaysOnBottomHint);
+    s_pFrmMessage = new FrmMessage((QWidget*)0, Qt::Tool | Qt::WindowStaysOnBottomHint |
+        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     s_pFrmMessage->show();
 
     s_pFrmMessage->m_widget->hide();
 
     QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
-    int y = rect.bottom() - s_pFrmMessage->height();
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    y -= 50; //for taskbar, due to a bug of availableGeometry.
-#endif
+    int y = rect.bottom() - s_pFrmMessage->frameSize().height();
     s_pFrmMessage->move(0, y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.
 

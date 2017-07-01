@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>310</width>
-    <height>270</height>
+    <height>297</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -84,6 +84,35 @@
      </layout>
     </widget>
    </item>
+   <item row="2" column="1">
+    <widget class="QPushButton" name="m_btnNew">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>New Driver</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QPushButton" name="m_btnDelete">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>Delete Driver</string>
+     </property>
+    </widget>
+   </item>
    <item row="1" column="0" colspan="3">
     <widget class="QTableWidget" name="m_tblDrivers"/>
    </item>
@@ -103,24 +132,11 @@
      </property>
     </spacer>
    </item>
-   <item row="2" column="1">
-    <widget class="QPushButton" name="m_btnNew">
-     <property name="text">
-      <string>New Driver</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="2">
-    <widget class="QPushButton" name="m_btnDelete">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="text">
-      <string>Delete Driver</string>
-     </property>
-    </widget>
-   </item>
   </layout>
+  <zorder>groupBox1</zorder>
+  <zorder>m_tblDrivers</zorder>
+  <zorder>m_btnDelete</zorder>
+  <zorder>m_btnNew</zorder>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>

@@ -61,7 +61,9 @@ FrmKameMain::FrmKameMain()
 
 	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
-	show();
+    s_pMessageBox.reset(new XMessageBox(this));
+
+    show();
 
     g_pFrmMain = this;
 
@@ -76,26 +78,29 @@ FrmKameMain::FrmKameMain()
 
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
-    QDockWidget* dock = new QDockWidget(i18n("KAME Toolbox West"), this);
-    dock->setFeatures(QDockWidget::DockWidgetFloatable);
-    dock->setWindowIcon(*g_pIconDriver);
+    QDockWidget* dockLeft = new QDockWidget(i18n("KAME Toolbox West"), this);
+    dockLeft->setFeatures(QDockWidget::DockWidgetFloatable);
+    dockLeft->setWindowIcon(*g_pIconDriver);
     m_pMdiLeft = new QMdiArea( this );
     m_pMdiLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
     m_pMdiLeft->setTabPosition(QTabWidget::West);
-    dock->setWidget(m_pMdiLeft);
-    addDockWidget(Qt::LeftDockWidgetArea, dock);
+//    m_pMdiLeft->setTabPosition(QTabWidget::North);
+    dockLeft->setWidget(m_pMdiLeft);
+    addDockWidget(Qt::LeftDockWidgetArea, dockLeft);
 
     //Right MDI area.
-    dock = new QDockWidget(i18n("KAME Toolbox East"), this);
-    dock->setFeatures(QDockWidget::DockWidgetFloatable);
-    dock->setWindowIcon(*g_pIconInterface);
+    QDockWidget* dockRight = new QDockWidget(i18n("KAME Toolbox East"), this);
+    dockRight->setFeatures(QDockWidget::DockWidgetFloatable);
+    dockRight->setWindowIcon(*g_pIconInterface);
     m_pMdiRight= new QMdiArea( this );
     m_pMdiRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiRight->setViewMode(QMdiArea::TabbedView);
     m_pMdiRight->setTabPosition(QTabWidget::East);
-    dock->setWidget(m_pMdiRight);
-    addDockWidget(Qt::RightDockWidgetArea, dock);
+//    m_pMdiRight->setTabPosition(QTabWidget::North);
+    dockRight->setWidget(m_pMdiRight);
+    addDockWidget(Qt::RightDockWidgetArea, dockRight);
+//    addDockWidget(Qt::TopDockWidgetArea, dockRight);
 
     Transactional::SignalBuffer::initialize();
 
@@ -134,8 +139,6 @@ FrmKameMain::FrmKameMain()
     m_pMdiRight->activatePreviousSubWindow();
     m_pMdiRight->activatePreviousSubWindow();
 
-    s_pMessageBox.reset(new XMessageBox(this));
-
     m_pViewMenu->addSeparator();
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
     m_pGraphThemeMenu->setIcon( QIcon( *g_pIconGraph));
@@ -146,8 +149,20 @@ FrmKameMain::FrmKameMain()
     connect(act, SIGNAL(triggered()), XMessageBox::form(), SLOT(showNormal()));
     m_pViewMenu->addAction(act);
 
-	resize(QSize(std::min(1280, width()), 560));
-   
+//	resize(QSize(std::min(1280, width()), 560));
+    //rearranges window positions, sizes.
+    QRect rect = QApplication::desktop()->availableGeometry(dockLeft);
+    dockLeft->setFloating(true);
+    dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+    dockRight->setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+    dockLeft->setWindowOpacity(0.8);
+    dockLeft->resize(XMessageBox::form()->width() + 16, height());
+    dockLeft->move(0, rect.top());
+    adjustSize();
+    resize(QSize(width(), dockLeft->height()));
+    move(dockLeft->frameSize().width(), rect.top());
+
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);
 

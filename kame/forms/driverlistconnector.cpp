@@ -128,7 +128,7 @@ XDriverListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 }
 void
 XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
-	qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(g_pFrmMain));
+    qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(m_pItem));
 	dlg->setModal(true);
 	static int num = 0;
 	num++;
