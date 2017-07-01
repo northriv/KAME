@@ -363,7 +363,7 @@ FrmKameMain::closeEvent( QCloseEvent* ce ) {
         }
     }
 	if(opened) {
-		QMessageBox::warning( this, "KAME", i18n("Stop running first.") );
+        gWarnPrint(i18n("Stop running first.") );
 		ce->ignore();
 	}
     else {

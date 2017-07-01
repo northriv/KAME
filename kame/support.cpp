@@ -90,10 +90,7 @@ XKameError::print(const XString &msg, const char *file, int line, int errno_) {
         #else
             strerror_r(errno_, buf, sizeof(buf));
         #endif
-		if( !errno_)
-			gErrPrint_redirected(msg + " " + buf, file, line);
-		else
-			gErrPrint_redirected(msg + " (strerror failed)", file, line);
+        gErrPrint_redirected(msg + " " + buf, file, line);
 	#endif
 		errno = 0;
 	}
