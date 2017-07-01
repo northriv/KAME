@@ -20,6 +20,20 @@
 #include <QLineEdit>
 #include "ui_rubythreadtool.h"
 #include "icons/icon.h"
+#include <QCloseEvent>
+
+FrmRubyThread::FrmRubyThread(QWidget *w) :
+    QForm<QWidget, Ui_FrmRubyThread>(w), m_closable(false) {
+
+}
+
+void
+FrmRubyThread::closeEvent(QCloseEvent* ce) {
+    if( !m_closable) {
+        ce->ignore();
+        gWarnPrint(i18n("Ruby thread is still running."));
+    }
+}
 
 XRubyThreadConnector::XRubyThreadConnector(
     const shared_ptr<XRubyThread> &rbthread, FrmRubyThread *form,
@@ -79,6 +93,9 @@ XRubyThreadConnector::~XRubyThreadConnector() {
 void
 XRubyThreadConnector::onStatusChanged(const Snapshot &shot, XValueNodeBase *) {
     bool alive = m_rubyThread->isAlive();
+    if(isItemAlive()) {
+        m_pForm->m_closable = !alive;
+    }
     m_kill->setUIEnabled(alive);
     bool running = m_rubyThread->isRunning();
     m_resume->setUIEnabled(alive && !running);

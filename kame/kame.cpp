@@ -38,7 +38,6 @@
 #include "xrubywriter.h"
 #include "xdotwriter.h"
 #include "xrubythreadconnector.h"
-#include "ui_rubythreadtool.h"
 #include "ui_caltableform.h"
 #include "ui_recordreaderform.h"
 #include "ui_nodebrowserform.h"
@@ -73,6 +72,7 @@ FrmKameMain::FrmKameMain()
     setCentralWidget( m_pMdiCentral );
     m_pMdiCentral->setViewMode(QMdiArea::TabbedView);
     m_pMdiCentral->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_pMdiCentral->setTabsClosable(true);
 
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
@@ -154,15 +154,16 @@ FrmKameMain::FrmKameMain()
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     dockLeft->setWindowOpacity(0.8);
-    dockLeft->resize(XMessageBox::form()->width() + 64, 360);
+    dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 64),
+        std::max(rect.height() / 2, 360));
     dockLeft->move(0, rect.top());
     dockRight->setFloating(true);
     dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     dockRight->setWindowOpacity(0.8);
-    dockRight->resize(400, dockLeft->height());
-    dockRight->move(rect.right() - dockRight->frameSize().width(), rect.top());
-    resize(QSize(400, minimumHeight()));
+    dockRight->resize(std::max(rect.width() / 5, 400), dockLeft->height());
+    dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
+    resize(QSize(std::max(rect.width() / 5, 400), minimumHeight()));
     move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.

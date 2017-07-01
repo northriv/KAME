@@ -15,11 +15,11 @@
 #define XRUBYTHREADCONNECTOR_H_
 
 #include "xnodeconnector.h"
+#include "ui_rubythreadtool.h"
 
 class XRubyThread;
 class XRuby;
-class Ui_FrmRubyThread;
-typedef QForm<QWidget, Ui_FrmRubyThread> FrmRubyThread;
+class FrmRubyThread;
 
 class XRubyThreadConnector : public XQConnector {
 	Q_OBJECT
@@ -45,6 +45,17 @@ private:
     const shared_ptr<XRubyThread> m_rubyThread;
     const shared_ptr<XRuby> m_rubySupport;
     xqcon_ptr m_conFilename, m_conStatus, m_conResume, m_conKill, m_conLineinput;
+};
+
+class QCloseEvent;
+class FrmRubyThread : public QForm<QWidget, Ui_FrmRubyThread> {
+public:
+    FrmRubyThread(QWidget *w);
+protected:
+    void closeEvent(QCloseEvent* ce);
+private:
+    friend class XRubyThreadConnector;
+    bool m_closable;
 };
 
 #endif /*XRUBYTHREADCONNECTOR_H_*/
