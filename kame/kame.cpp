@@ -55,9 +55,7 @@ static std::unique_ptr<XMessageBox> s_pMessageBox;
 
 FrmKameMain::FrmKameMain()
     :QMainWindow(NULL) {
-	resize(QSize(
-            std::min(1280, QApplication::desktop()->width()),
-			height()).expandedTo(sizeHint()) );
+    resize(0,0);
 
 	setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
@@ -155,13 +153,17 @@ FrmKameMain::FrmKameMain()
     dockLeft->setFloating(true);
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    dockRight->setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     dockLeft->setWindowOpacity(0.8);
-    dockLeft->resize(XMessageBox::form()->width() + 16, height());
+    dockLeft->resize(XMessageBox::form()->width() + 64, 360);
     dockLeft->move(0, rect.top());
-    adjustSize();
-    resize(QSize(width(), dockLeft->height()));
-    move(dockLeft->frameSize().width(), rect.top());
+    dockRight->setFloating(true);
+    dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+    dockRight->setWindowOpacity(0.8);
+    dockRight->resize(400, dockLeft->height());
+    dockRight->move(rect.right() - dockRight->frameSize().width(), rect.top());
+    resize(QSize(400, minimumHeight()));
+    move((rect.width() - frameSize().width()) / 2, rect.top());
 
     // The root for all nodes.
     m_measure = XNode::createOrphan<XMeasure>("Measurement", false);

@@ -739,11 +739,11 @@ XColorConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 
 XStatusPrinter::XStatusPrinter(QMainWindow *window) {
-    if( !window) window = dynamic_cast<QMainWindow*>(g_pFrmMain);
-    m_pWindow = (window);
-    m_pBar = (window->statusBar());
+    if( !window)
+        m_pWindow = dynamic_cast<QMainWindow*>(g_pFrmMain);
+    m_pBar = window ? (window->statusBar()) : nullptr;
     s_statusPrinterCreating.push_back(shared_ptr<XStatusPrinter>(this));
-	m_pBar->hide();
+    if(m_pBar) m_pBar->hide();
     m_lsn = m_tlkTalker.connectWeakly(
         shared_from_this(), &XStatusPrinter::print,
         Listener::FLAG_MAIN_THREAD_CALL);
@@ -803,12 +803,14 @@ XStatusPrinter::print(const tstatus &status) {
 	bool popup = status.popup;
     QString str = std::move(status.str);
 	if(status.ms) {
-		m_pBar->show();
-		m_pBar->showMessage(str, status.ms);
+        if(m_pBar) {
+            m_pBar->show();
+            m_pBar->showMessage(str, status.ms);
+        }
         if(status.beep)
             QApplication::beep();
     }
-	else {
+    else if(m_pBar) {
 		m_pBar->hide();
 		m_pBar->clearMessage();
 	}
