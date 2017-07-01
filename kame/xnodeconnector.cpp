@@ -809,24 +809,25 @@ XStatusPrinter::print(const tstatus &status) {
         }
         if(status.beep)
             QApplication::beep();
+
+        QPixmap *icon;
+        switch(status.type) {
+        case tstatus::Normal:
+        default:
+            icon = g_pIconInfo;
+            break;
+        case tstatus::Warning:
+            icon = g_pIconWarn;
+            break;
+        case tstatus::Error:
+            icon = g_pIconError;
+            break;
+        }
+        if(popup | !m_pBar)
+            XMessageBox::post(str, QIcon( *icon), popup, status.ms, status.tooltip);
     }
     else if(m_pBar) {
 		m_pBar->hide();
 		m_pBar->clearMessage();
 	}
-    QPixmap *icon;
-    switch(status.type) {
-    case tstatus::Normal:
-    default:
-        icon = g_pIconInfo;
-        break;
-    case tstatus::Warning:
-        icon = g_pIconWarn;
-        break;
-    case tstatus::Error:
-        icon = g_pIconError;
-        break;
-    }
-    if(popup)
-        XMessageBox::post(str, QIcon( *icon), popup, status.ms, status.tooltip);
 }
