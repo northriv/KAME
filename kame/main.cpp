@@ -208,21 +208,21 @@ int main(int argc, char *argv[]) {
 	//Overrides GSL's error handler.
 	gsl_set_error_handler(&my_gsl_err_handler);
 
-	fprintf(stderr, "Start processing events.\n");
+    fprintf(stderr, "Start processing events.\n");
 
     app.processEvents(); //displays a main window.
 
 #ifdef USE_LIBTOOL
-	fprintf(stderr, "Initializing LTDL.\n");
-	lt_dlinit();
+    fprintf(stderr, "Initializing LTDL.\n");
+    lt_dlinit();
     #ifdef __linux__
         LTDL_SET_PRELOADED_SYMBOLS();
     #endif
 #endif
-	if(module_dir.isEmpty())
+    if(module_dir.isEmpty())
         module_dir = app.libraryPaths();
     std::deque<XString> modules;
-	for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
+    for(auto it = module_dir.begin(); it != module_dir.end(); it++) {
         QStringList paths;
 #if defined KAME_COREMODULE_DIR_SURFIX
         paths += *it + KAME_COREMODULE_DIR_SURFIX;
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
         }
     }
     //loads modules.
-	for(auto it = modules.begin(); it != modules.end(); it++) {
+    for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
             XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
         }
 
-	}
+    }
 
 #ifdef __APPLE__
     //Disables App Nap

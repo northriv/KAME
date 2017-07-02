@@ -5,7 +5,8 @@
 static id activity;
 
 void suspendLazySleeps() {
-    NSActivityOptions options = NSActivityUserInitiated | NSActivityLatencyCritical | NSActivityAutomaticTerminationDisabled | NSActivityIdleSystemSleepDisabled;
+    // | NSActivityLatencyCritical
+    NSActivityOptions options = NSActivityUserInitiated | NSActivityAutomaticTerminationDisabled | NSActivityIdleSystemSleepDisabled;
     activity = [[NSProcessInfo processInfo] beginActivityWithOptions:options reason:@"realtime measurements"];
 }
 
