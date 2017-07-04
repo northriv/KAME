@@ -68,9 +68,8 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         m_c2 = params[3];
         m_l1 = params[4];
 
-        int i = 0;
         double freq = fstart;
-        for(auto &&v : s11) {
+        for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             auto jomega = std::complex<double>(0.0, omega);
             auto zLCR = r1() + jomega * l1() + 1.0 / c1() / jomega;
@@ -78,7 +77,7 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             auto rl0 = (zl0 - 50.0) / (zl0 + 50.0);
             double rl0_abs = std::abs(rl0);
             if(f) {
-                f[i] = rl0_abs - v;
+                f[i] = rl0_abs - s11[i];
             }
             auto nom = 1.0 / 50 + 1.0 / zl0;
             nom = ( -2.0 / 50.0) / (nom * nom);
@@ -89,7 +88,6 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             df[2][i] = std::real(nom2 * (-1.0) / c1() / c1() / jomega);
             df[3][i] = std::real(nom * jomega);
             df[4][i] = std::real(nom2 * jomega);
-            i++;
             freq += fstep;
         }
         return true;
