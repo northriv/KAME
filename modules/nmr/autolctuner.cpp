@@ -88,6 +88,27 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             df[2][i] = std::real(nom2 * (-1.0) / c1() / c1() / jomega);
             df[3][i] = std::real(nom * jomega);
             df[4][i] = std::real(nom2 * jomega);
+
+            auto rl00 = rl0;
+            zl0 = 1.0 / (1.0 / (0.1 + r2()) + jomega * c2() + 1.0 / zLCR);
+            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            df[1][i] = (std::abs(rl0) - std::abs(rl00)) / 0.1;
+            zl0 = 1.0 / (1.0 / r2() + jomega * (c2() + 1e-14) + 1.0 / zLCR);
+            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            df[3][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-14;
+            zLCR = r1() + 0.1 + jomega * l1() + 1.0 / c1() / jomega;
+            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
+            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            df[0][i] = (std::abs(rl0) - std::abs(rl00)) / 0.1;
+            zLCR = r1() + jomega * l1() + 1.0 / (c1() + 1e-14) / jomega;
+            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
+            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            df[2][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-14;
+            zLCR = r1() + jomega * (l1() + 1e-11) + 1.0 / (c1()) / jomega;
+            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
+            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            df[4][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-11;
+
             freq += fstep;
         }
         return true;
