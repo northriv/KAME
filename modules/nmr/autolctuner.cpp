@@ -31,34 +31,58 @@ static const double TUNE_DROT_MUL_APPROACH = 3.5;
 
 #include "nllsfit.h"
 
+//! Series LCR circuit. Additional R in series with a port.
 class LCRFit {
 public:
     //std::abs(s11) < 1.0
-    LCRFit(const std::vector<double> &s11, double fstart, double fstep, double fintended, double init_f0 = -1.0);
+    LCRFit(const std::vector<double> &s11, double fstart, double fstep, double init_f0 = -1.0);
     LCRFit(const LCRFit &) = default;
-    double r1() const {return m_r1;}
-    double r2() const {return m_r2;}
-    double c1() const {return m_c1;}
-    double c2() const {return m_c2;}
+    double r1() const {return m_r1;} //!< R of LCR circuit
+    double r2() const {return m_r2;} //!< R in series with a port.
+    double c1() const {return m_c1;} //!< C of LCR circuit
+    double c2() const {return m_c2;} //!< C in parallel to a port.
+    constexpr double l1() const {return 1e-6;} //!< Fixed value for L.
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
-    double l1() const {return m_l1;}
-    double f0() const {return m_f0;}
-    double rl0() const {return m_rl0;}
-    double dRLdC2() const {return m_dRLdC2;}
+    //! Resonance freq.
+    double f0() const {
+        double f = 1.0 / 2 / M_PI / sqrt(l1() * c1());
+        for(int it = 0; it < 5; ++it)
+            f = 1.0 / 2 / M_PI / sqrt(l1() * c1() -
+                c1() * c2() / (1.0/pow(50.0 + r2(), 2.0) + pow(2 * M_PI * f * c2(), 2.0)));
+        return f;
+    }
+    //! Reflection
+    std::complex<double> rl(double omega) const {
+        auto zlcr = std::complex<double>(r1(),
+            omega * l1() - 1.0 / (omega * c1()));
+        auto zL =  1.0 / (std::complex<double>(0.0, omega * c2())
+            + 1.0 / zlcr) + r2();
+        return (zL - 50.0) / (zL + 50.0);
+    }
+    std::pair<double, double> tuneCaps(double target_freq) const; //!< Obtains expected C1 and C2.
 private:
-    double m_r1 = 50.0, m_r2 = 1000.0;
-    double m_c1 = 10e-12, m_c2 = 10e-12, m_l1 = 1e-6, m_f0 = 0.0;
+    double m_r1 = 50.0, m_r2 = 1.0;
+    double m_c1 = 10e-12, m_c2 = 10e-12;
     double m_c1_err, m_c2_err;
-    double m_dRLdC2;
-    double m_rl0;
+
+
 };
 
-LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double fintended, double init_f0) {
+std::pair<double, double> LCRFit::tuneCaps(double f1) const {
+    double nc1 = c1(), nc2 = c2();
+    double omega = 2 * M_PI * f1;
+    double omegasq = pow(2 * M_PI * f1, 2.0);
+    for(int it = 0; it < 20; ++it) {
+        nc2 = (l1() - 1 / omegasq / nc1) / (r1() * r1() + pow(omega * l1() - 1.0/(omegasq * nc1), 2.0));
+        nc1 = 1.0 / omegasq / (l1() - nc2 /  (1/ pow(50.0 + r2(), 2.0) + omegasq * nc2 * nc2));
+    }
+    return {nc1, nc2};
+}
+
+LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double init_f0) {
     if(init_f0 > 0) {
-        m_l1 = 50.0 / 2 / M_PI / init_f0;
-        m_c1 = 1.0 / 50.0 / 2 / M_PI / init_f0;
-        m_c2 = m_c1 * 0.05;
+        std::tie(m_c1, m_c2) = tuneCaps(init_f0);
     }
     auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
@@ -66,73 +90,39 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         m_r2 = params[1];
         m_c1 = params[2];
         m_c2 = params[3];
-        m_l1 = params[4];
 
+        constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-16, DC2 = 1e-16;
+        LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
+        plusDR1.m_r1 += DR1;
+        plusDR2.m_r2 += DR2;
+        plusDC1.m_c1 += DC1;
+        plusDC2.m_c2 += DC2;
         double freq = fstart;
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
-            auto jomega = std::complex<double>(0.0, omega);
-            auto zLCR = r1() + jomega * l1() + 1.0 / c1() / jomega;
-            auto zl0 = 1.0 / (1.0 / r2() + jomega * c2() + 1.0 / zLCR);
-            auto rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            double rl0_abs = std::abs(rl0);
+            double rl0_abs = std::abs(rl(omega));
             if(f) {
                 f[i] = rl0_abs - s11[i];
             }
-            auto nom = 1.0 / 50 + 1.0 / zl0;
-            nom = ( -2.0 / 50.0) / (nom * nom);
-            nom *= std::conj(rl0) / rl0_abs;
-            auto nom2 = -nom / (zLCR * zLCR);
-            df[0][i] = std::real(nom2);
-            df[1][i] = std::real(nom * (-1.0 / (r2() * r2())));
-            df[2][i] = std::real(nom2 * (-1.0) / c1() / c1() / jomega);
-            df[3][i] = std::real(nom * jomega);
-            df[4][i] = std::real(nom2 * jomega);
-
-            auto rl00 = rl0;
-            zl0 = 1.0 / (1.0 / (0.1 + r2()) + jomega * c2() + 1.0 / zLCR);
-            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            df[1][i] = (std::abs(rl0) - std::abs(rl00)) / 0.1;
-            zl0 = 1.0 / (1.0 / r2() + jomega * (c2() + 1e-14) + 1.0 / zLCR);
-            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            df[3][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-14;
-            zLCR = r1() + 0.1 + jomega * l1() + 1.0 / c1() / jomega;
-            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
-            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            df[0][i] = (std::abs(rl0) - std::abs(rl00)) / 0.1;
-            zLCR = r1() + jomega * l1() + 1.0 / (c1() + 1e-14) / jomega;
-            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
-            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            df[2][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-14;
-            zLCR = r1() + jomega * (l1() + 1e-11) + 1.0 / (c1()) / jomega;
-            zl0 = 1.0 / (1.0 / r2() + jomega * (c2()) + 1.0 / zLCR);
-            rl0 = (zl0 - 50.0) / (zl0 + 50.0);
-            df[4][i] = (std::abs(rl0) - std::abs(rl00)) / 1e-11;
-
+            df[0][i] = (std::abs(plusDR1.rl(omega)) - rl0_abs) / DR1;
+            df[1][i] = (std::abs(plusDR2.rl(omega)) - rl0_abs) / DR2;
+            df[2][i] = (std::abs(plusDC1.rl(omega)) - rl0_abs) / DC1;
+            df[3][i] = (std::abs(plusDC2.rl(omega)) - rl0_abs) / DC2;
             freq += fstep;
         }
         return true;
     };
-    auto nlls = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2, m_l1}, s11.size());
+    auto nlls = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
     m_r1 = nlls.params()[0];
     m_r2 = nlls.params()[1];
     m_c1 = nlls.params()[2];
     m_c2 = nlls.params()[3];
-    m_l1 = nlls.params()[4];
     m_c1_err = nlls.errors()[2];
     m_c2_err = nlls.errors()[3];
-    m_f0 = 1.0 / 2.0 / M_PI / sqrt(m_l1 * m_c1); //Im(zLCR) = 0
-    //Im(nom) = 0
-    fstart = fintended;
-    double dummy;
-    std::vector<double *> df0 = { &dummy, &dummy, &dummy, &m_dRLdC2, &dummy};
-    func( &nlls.params()[0], 1, 5, &m_rl0, df0);
     fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), sqrt(nlls.chiSquare() / s11.size()));
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
             r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
             c1(), c1err(), c2(), c2err());
-    fprintf(stderr, "f0:%.3g, DC1=%.3g\n", f0(), 1.0 / pow(2.0 * M_PI * fintended, 2.0) / l1() - f0());
-    fprintf(stderr, "RL=%.3g, DC2=%.3g\n", m_rl0, m_rl0/m_dRLdC2);
 }
 
 //---------------------------------------------------------------------------
@@ -447,7 +437,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0, f0);
+        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0);
+        fprintf(stderr, "f0:%.3g, RL=%.3g\n", lcr.f0(), std::abs(lcr.rl(2.0 * M_PI * f0)));
+        auto newcaps = lcr.tuneCaps(f0);
+        fprintf(stderr, "Suggest: C1=%.3g, C2=%.3g\n", newcaps.first, newcaps.second);
 
 		tr[ *this].trace.clear();
 	}
