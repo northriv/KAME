@@ -111,6 +111,7 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, f0:%g\n",
             r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
             c1(), c1err(), c2(), c2err(), f0());
+    fprintf(stderr, "RL=%.3g, DC2=%.3g\n", m_rl0, m_rl0/m_dRLdC2);
 }
 
 //---------------------------------------------------------------------------
@@ -421,6 +422,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		reff0_sigma = ref_sigma * sqrt(wsqsum / wsum * wsum);
 		fprintf(stderr, "LCtuner: fmin=%.4f+-%.4f, reffmin=%.3f+-%.3f, reff0=%.3f+-%.3f\n",
 				fmin, fmin_err, std::abs(reffmin), reffmin_sigma, std::abs(reff0), reff0_sigma);
+
+        std::vector<double> rl(trace_len);
+        for(int i = 0; i < trace_len; ++i)
+            rl[i] = std::abs(trace[i]);
+        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0, f0);
 
 		tr[ *this].trace.clear();
 	}
