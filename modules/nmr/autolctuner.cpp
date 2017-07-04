@@ -106,9 +106,11 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
     double dummy;
     std::vector<double *> df0 = { &dummy, &dummy, &dummy, &m_dRLdC2, &dummy};
     func( &nlls.params()[0], 1, 5, &m_rl0, df0);
-    fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, f0:%g\n",
+    fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), sqrt(nlls.chiSquare() / s11.size()));
+    fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
             r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
-            c1(), c1err(), c2(), c2err(), f0());
+            c1(), c1err(), c2(), c2err());
+    fprintf(stderr, "f0:%.3g, DC1=%.3g\n", f0(), 1.0 / pow(2.0 * M_PI * fintended, 2.0) / l1() - f0());
     fprintf(stderr, "RL=%.3g, DC2=%.3g\n", m_rl0, m_rl0/m_dRLdC2);
 }
 
