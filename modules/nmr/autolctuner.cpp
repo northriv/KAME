@@ -29,6 +29,90 @@ static const double SOR_FACTOR_MIN = 0.3;
 static const double TUNE_DROT_MUL_FINETUNE = 2.5;
 static const double TUNE_DROT_MUL_APPROACH = 3.5;
 
+#include "nllsfit.h"
+
+class LCRFit {
+public:
+    //std::abs(s11) < 1.0
+    LCRFit(const std::vector<double> &s11, double fstart, double fstep, double fintended, double init_f0 = -1.0);
+    LCRFit(const LCRFit &) = default;
+    double r1() const {return m_r1;}
+    double r2() const {return m_r2;}
+    double c1() const {return m_c1;}
+    double c2() const {return m_c2;}
+    double c1err() const {return m_c1_err;}
+    double c2err() const {return m_c2_err;}
+    double l1() const {return m_l1;}
+    double f0() const {return m_f0;}
+    double rl0() const {return m_rl0;}
+    double dRLdC2() const {return m_dRLdC2;}
+private:
+    double m_r1 = 50.0, m_r2 = 1000.0;
+    double m_c1 = 10e-12, m_c2 = 10e-12, m_l1 = 1e-6, m_f0 = 0.0;
+    double m_c1_err, m_c2_err;
+    double m_dRLdC2;
+    double m_rl0;
+};
+
+LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double fintended, double init_f0) {
+    if(init_f0 > 0) {
+        m_l1 = 50.0 / 2 / M_PI / init_f0;
+        m_c1 = 1.0 / 50.0 / 2 / M_PI / init_f0;
+        m_c2 = m_c1 * 0.05;
+    }
+    auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
+            double *f, std::vector<double *> &df) -> bool {
+        m_r1 = params[0];
+        m_r2 = params[1];
+        m_c1 = params[2];
+        m_c2 = params[3];
+        m_l1 = params[4];
+
+        int i = 0;
+        double freq = fstart;
+        for(auto &&v : s11) {
+            double omega = 2 * M_PI * freq;
+            auto jomega = std::complex<double>(0.0, omega);
+            auto zLCR = r1() + jomega * l1() + 1.0 / c1() / jomega;
+            auto zl0 = 1.0 / (1.0 / r2() + jomega * c2() + 1.0 / zLCR);
+            auto rl0 = (zl0 - 50.0) / (zl0 + 50.0);
+            double rl0_abs = std::abs(rl0);
+            if(f) {
+                f[i] = rl0_abs - v;
+            }
+            auto nom = 1.0 / 50 + 1.0 / zl0;
+            nom = ( -2.0 / 50.0) / (nom * nom);
+            nom *= std::conj(rl0) / rl0_abs;
+            auto nom2 = -nom / (zLCR * zLCR);
+            df[0][i] = std::real(nom2);
+            df[1][i] = std::real(nom * (-1.0 / (r2() * r2())));
+            df[2][i] = std::real(nom2 * (-1.0) / c1() / c1() / jomega);
+            df[3][i] = std::real(nom * jomega);
+            df[4][i] = std::real(nom2 * jomega);
+            i++;
+            freq += fstep;
+        }
+        return true;
+    };
+    auto nlls = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2, m_l1}, s11.size());
+    m_r1 = nlls.params()[0];
+    m_r2 = nlls.params()[1];
+    m_c1 = nlls.params()[2];
+    m_c2 = nlls.params()[3];
+    m_l1 = nlls.params()[4];
+    m_c1_err = nlls.errors()[2];
+    m_c2_err = nlls.errors()[3];
+    m_f0 = 1.0 / 2.0 / M_PI / sqrt(m_l1 * m_c1); //Im(zLCR) = 0
+    //Im(nom) = 0
+    fstart = fintended;
+    double dummy;
+    std::vector<double *> df0 = { &dummy, &dummy, &dummy, &m_dRLdC2, &dummy};
+    func( &nlls.params()[0], 1, 5, &m_rl0, df0);
+    fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, f0:%g\n",
+            r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
+            c1(), c1err(), c2(), c2err(), f0());
+}
+
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :

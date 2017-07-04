@@ -84,7 +84,8 @@ HEADERS += \
     forms/interfacelistconnector.h \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
-    messagebox.h
+    messagebox.h \
+    math/nllsfit.h
 
 SOURCES += icons/icon.cpp \
     xthread.cpp \

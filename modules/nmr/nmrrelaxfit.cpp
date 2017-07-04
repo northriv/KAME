@@ -15,20 +15,7 @@
 #include "nmrrelaxfit.h"
 #include "rand.h"
 
-
-#include <gsl/gsl_multifit_nlin.h>
-
-typedef int (exp_f) (const gsl_vector * X, void * PARAMS, gsl_vector * F);
-typedef int (exp_df) (const gsl_vector * X, void * PARAMS, gsl_matrix * J);
-typedef int (exp_fdf) (const gsl_vector * X, void * PARAMS, gsl_vector * F, gsl_matrix * J);
-
-static int
-do_nlls(int n, int p, double *param, double *err, double *det, void *user, exp_f  *ef, exp_df *edf, exp_fdf *efdf
-        , int itercnt);
-
-#include <gsl/gsl_blas.h>
-#include <gsl/gsl_ieee_utils.h>
-#include <gsl/gsl_version.h>
+#include "nllsfit.h"
 //---------------------------------------------------------------------------
 
 class XRelaxFuncPoly : public XRelaxFunc {
@@ -273,84 +260,6 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
     create<XRelaxFuncPowExp>("Exp.: exp(-t)", true, 1.0);
 }
 
-int
-XRelaxFunc::relax_f (const gsl_vector * x, void *params,
-                     gsl_vector * f) {
-    XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-    double iT1 = gsl_vector_get (x, 0);
-    double c = gsl_vector_get (x, 1);
-
-    double a;
-    if(data->is_minftyfit)
-        a = gsl_vector_get (x, 2);
-    else
-        a = data->fixed_minfty - c;
-
-    int i = 0;
-    for(auto it = data->pts->begin(); it != data->pts->end(); it++) {
-        if(it->isigma == 0) continue;
-        double t = it->p1;
-        double yi = 0, dydt = 0;
-        data->func->relax(&yi, &dydt, t, iT1);
-        double y = it->var;
-        gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
-        i++;
-    }
-    return GSL_SUCCESS;
-}
-int
-XRelaxFunc::relax_df (const gsl_vector * x, void *params,
-                      gsl_matrix * J) {
-
-    XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-    double iT1 = gsl_vector_get (x, 0);
-    double c = gsl_vector_get (x, 1);
-
-    int i = 0;
-    for(auto it = data->pts->begin();
-        it != data->pts->end(); it++) {
-        if(it->isigma == 0) continue;
-        double t = it->p1;
-        double yi = 0, dydt = 0;
-        data->func->relax(&yi, &dydt, t, iT1);
-        gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
-        gsl_matrix_set (J, i, 1, yi * it->isigma);
-        if(data->is_minftyfit)
-            gsl_matrix_set (J, i, 2, it->isigma);
-        i++;
-    }
-    return GSL_SUCCESS;
-}
-int
-XRelaxFunc::relax_fdf (const gsl_vector * x, void *params,
-                       gsl_vector * f, gsl_matrix * J) {
-    XNMRT1::NLLS *data = ((XNMRT1::NLLS *)params);
-    double iT1 = gsl_vector_get (x, 0);
-
-    double c = gsl_vector_get (x, 1);
-    double a;
-    if(data->is_minftyfit)
-        a = gsl_vector_get (x, 2);
-    else
-        a = data->fixed_minfty - c;
-
-    int i = 0;
-    for(auto it = data->pts->begin();
-        it != data->pts->end(); it++) {
-        if(it->isigma == 0) continue;
-        double t = it->p1;
-        double yi = 0, dydt = 0;
-        data->func->relax(&yi, &dydt, t, iT1);
-        double y = it->var;
-        gsl_vector_set (f, i, (c * yi + a - y) * it->isigma);
-        gsl_matrix_set (J, i, 0, (c * dydt) * it->isigma);
-        gsl_matrix_set (J, i, 1, yi * it->isigma);
-        if(data->is_minftyfit)
-            gsl_matrix_set (J, i, 2, it->isigma);
-        i++;
-    }
-    return GSL_SUCCESS;
-}
 XString
 XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
     const Snapshot &shot_this(tr);
@@ -362,22 +271,47 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
         max_var = std::max(max_var, it->var);
         min_var = std::min(min_var, it->var);
     }
-    struct NLLS nlls = {
-        &tr[ *this].m_sumpts,
-        func,
-        shot_this[ *mInftyFit()],
-        0.0, //m_params[1] + m_params[2],
-    };
     //# of indep. params.
-    int p = nlls.is_minftyfit ? 3 : 2;
+    int p = shot_this[ *mInftyFit()] ? 3 : 2;
     if(n <= p) return formatString("%d",n) + i18n(" points, more points needed.");
-    int status;
-    double norm = 0;
+
+    const auto &values = tr[ *this].m_sumpts;
+    auto relax_f = [&values, &func](const double*params, size_t n, size_t p,
+            double *f, std::vector<double *> &df) -> bool {
+        double iT1 = params[0];
+        double c = params[1];
+        double a = (p == 3) ? params[2] : -c;
+
+        int i = 0;
+        for(auto &&pt : values) {
+            if(pt.isigma == 0) continue;
+            double t = pt.p1;
+            double yi = 0, dydt = 0;
+            func->relax(&yi, &dydt, t, iT1);
+            if(f) {
+                f[i] = (c * yi + a - pt.var) * pt.isigma;
+            }
+            df[0][i] = (c * dydt) * pt.isigma;
+            df[1][i] = yi * pt.isigma;
+            if(p == 3)
+                df[2][i] = pt.isigma;
+            i++;
+        }
+        return true;
+    };
+
     XTime firsttime = XTime::now();
+    NonLinearLeastSquare nlls;
     for(;;) {
-        status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
-             &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
-        if( !status && (fabs(tr[ *this].m_params[1]) < (max_var - min_var) * 10))
+        std::valarray<double> init_params(p);
+        for(int i = 0; i < p; ++i)
+            init_params[i] = tr[ *this].m_params[i];
+        nlls = NonLinearLeastSquare(relax_f, init_params, n, itercnt);
+        for(int i = 0; i < p; ++i) {
+            tr[ *this].m_params[i] = nlls.params()[i];
+            tr[ *this].m_errors[i] = nlls.errors()[i];
+        }
+        if(nlls.isSuccessful() && (fabs(tr[ *this].m_params[1]) < (max_var - min_var) * 10))
             break;
         if(XTime::now() - firsttime < 0.02) continue;
         if(XTime::now() - firsttime > 0.07) break;
@@ -386,15 +320,13 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
         tr[ *this].m_params[0] = 1.0 / exp(log(p1max/p1min) * randMT19937() + log(p1min));
         tr[ *this].m_params[1] = (max_var - min_var) * (randMT19937() * 2.0 + 0.9) * ((randMT19937() < 0.5) ? 1 :  -1);
         tr[ *this].m_params[2] = 0.0;
-        status = do_nlls(n, p, tr[ *this].m_params, tr[ *this].m_errors, &norm,
-             &nlls, &XRelaxFunc::relax_f, &XRelaxFunc::relax_df, &XRelaxFunc::relax_fdf, itercnt);
     }
-    tr[ *this].m_errors[0] *= norm / sqrt((double)n);
-    tr[ *this].m_errors[1] *= norm / sqrt((double)n);
-    tr[ *this].m_errors[2] *= norm / sqrt((double)n);
+    tr[ *this].m_errors[0] *= sqrt(nlls.chiSquare() / n);
+    tr[ *this].m_errors[1] *= sqrt(nlls.chiSquare() / n);
+    tr[ *this].m_errors[2] *= sqrt(nlls.chiSquare() / n);
 
-    if( !nlls.is_minftyfit)
-        tr[ *this].m_params[2] = nlls.fixed_minfty - tr[ *this].m_params[1];
+    if( !shot_this[ *mInftyFit()])
+        tr[ *this].m_params[2] = -tr[ *this].m_params[1];
 
     double t1 = 0.001 / shot_this[ *this].m_params[0];
     double t1err = 0.001 / pow(shot_this[ *this].m_params[0], 2.0) * shot_this[ *this].m_errors[0];
@@ -424,73 +356,9 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
     buf += formatString("a[V] = %.5g +- %.3g(%.3f%%)\n",
         shot_this[ *this].m_params[2], shot_this[ *this].m_errors[2],
         fabs(100.0 * shot_this[ *this].m_errors[2]/shot_this[ *this].m_params[2]));
-    buf += formatString("status = %s\n", gsl_strerror (status));
-    buf += formatString("rms of residuals = %.3g\n", norm / sqrt((double)n));
+    buf += formatString("status = %s\n", nlls.status().c_str());
+    buf += formatString("rms of residuals = %.3g\n", sqrt(nlls.chiSquare() / n));
     buf += formatString("elapsed time = %.2f ms\n", 1000.0 * (XTime::now() - firsttime));
     return buf;
-}
-
-int
-do_nlls(int n, int p, double *param, double *err, double *det, void *user,
-    exp_f *ef, exp_df *edf, exp_fdf *efdf, int itercnt) {
-    const gsl_multifit_fdfsolver_type *T;
-    T = gsl_multifit_fdfsolver_lmsder;
-    gsl_multifit_fdfsolver *s;
-    int iter = 0;
-    int status;
-    int i;
-    double c;
-    gsl_multifit_function_fdf f;
-
-    gsl_ieee_env_setup ();
-
-    f.f = ef;
-    f.df = edf;
-    f.fdf = efdf;
-    f.n = n;
-    f.p = p;
-    f.params = user;
-    s = gsl_multifit_fdfsolver_alloc (T, n, p);
-    gsl_vector_view x = gsl_vector_view_array (param, p);
-    gsl_multifit_fdfsolver_set (s, &f, &x.vector);
-
-
-    do {
-        iter++;
-        status = gsl_multifit_fdfsolver_iterate (s);
-
-        if (status)
-            break;
-
-        status = gsl_multifit_test_delta (s->dx, s->x,
-                                          1e-4, 1e-4);
-    }
-    while (status == GSL_CONTINUE && iter < itercnt);
-
-    if(det) *det = gsl_blas_dnrm2 (s->f);
-    for(i = 0; i < p; i++)
-        param[i] = gsl_vector_get (s->x, i);
-
-//Computes covariance of best fit parameters
-    gsl_matrix *covar = gsl_matrix_alloc (p, p);
-#if (GSL_MAJOR_VERSION >= 2)
-    gsl_matrix *J = gsl_matrix_alloc(n, p);
-    gsl_multifit_fdfsolver_jac(s, J);
-    gsl_multifit_covar(J, 0.0, covar);
-#else
-    gsl_multifit_covar (s->J, 0.0, covar);
-#endif
-    for(i = 0; i < p; i++) {
-        c = gsl_matrix_get(covar,i,i);
-
-        err[i] = (c > 0) ? sqrt(c) : -1.0;
-    }
-    gsl_matrix_free(covar);
-#if (GSL_MAJOR_VERSION >= 2)
-    gsl_matrix_free(J);
-#endif
-    gsl_multifit_fdfsolver_free (s);
-
-    return status;
 }
 
