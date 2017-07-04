@@ -52,6 +52,9 @@ public:
                 c1() * c2() / (1.0/pow(50.0 + r2(), 2.0) + pow(2 * M_PI * f * c2(), 2.0)));
         return f;
     }
+    double qValue() const {
+        return 2 * M_PI * f0() / l1();
+    }
     //! Reflection
     std::complex<double> rl(double omega) const {
         auto zlcr = std::complex<double>(r1(),
@@ -65,8 +68,6 @@ private:
     double m_r1 = 50.0, m_r2 = 1.0;
     double m_c1 = 10e-12, m_c2 = 10e-12;
     double m_c1_err, m_c2_err;
-
-
 };
 
 std::pair<double, double> LCRFit::tuneCaps(double f1) const {
@@ -82,6 +83,7 @@ std::pair<double, double> LCRFit::tuneCaps(double f1) const {
 
 LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double init_f0) {
     if(init_f0 > 0) {
+        m_r1 = 2.0 * M_PI * init_f0 * l1() / 3; //Q = 3
         std::tie(m_c1, m_c2) = tuneCaps(init_f0);
     }
     auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
@@ -437,9 +439,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0);
-        fprintf(stderr, "f0:%.3g, RL=%.3g\n", lcr.f0(), std::abs(lcr.rl(2.0 * M_PI * f0)));
-        auto newcaps = lcr.tuneCaps(f0);
+        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0 * 1e6);
+        fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr.f0() * 1e-6, std::abs(lcr.rl(2.0 * M_PI * f0 * 1e6)), lcr.qValue());
+        auto newcaps = lcr.tuneCaps(f0 * 1e6);
         fprintf(stderr, "Suggest: C1=%.3g, C2=%.3g\n", newcaps.first, newcaps.second);
 
 		tr[ *this].trace.clear();
