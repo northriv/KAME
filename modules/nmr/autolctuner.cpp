@@ -13,6 +13,7 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "analyzer.h"
+#include "graph.h"
 #include "autolctuner.h"
 #include "ui_autolctunerform.h"
 
@@ -158,6 +159,26 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             c1(), c1err(), c2(), c2err());
 }
 
+class XLCRPlot : public XFuncPlot {
+public:
+    XLCRPlot(const char *name, bool runtime, Transaction &tr, const shared_ptr<XGraph> &graph)
+        : XFuncPlot(name, runtime, tr, graph), m_graph(graph)
+    {}
+    void setLCR(const shared_ptr<LCRFit> &lcr) {
+        m_lcr = lcr;
+        if(auto graph = m_graph.lock()) {
+            Snapshot shot( *graph);
+            shot.talk(shot[ *graph].onUpdate(), graph.get());
+        }
+    }
+    virtual double func(double mhz) const {
+        if( !m_lcr) return 0.0;
+        return 20.0 * log10(std::abs(m_lcr->rl(mhz * 1e6)));
+    }
+private:
+    shared_ptr<LCRFit> m_lcr;
+    weak_ptr<XGraph> m_graph;
+};
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -243,6 +264,21 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 		tr[ *this].dCb = 0.0;
 		tr[ *this].started = XTime::now();
 		tr[ *this].isTargetAbondoned = false;
+    });
+
+
+    shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    if(na__)
+        na__->graph()->iterate_commit([=](Transaction &tr){
+        m_lcrPlot = na__->graph()->plots()->create<XLCRPlot>(
+            tr, "FittedCurve", true, tr, na__->graph());
+        tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
+        tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
+        tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
+        tr[ *m_lcrPlot->drawPoints()] = false;
+        tr[ *m_lcrPlot->drawBars()].setUIEnabled(false);
+        tr[ *m_lcrPlot->barColor()].setUIEnabled(false);
+        tr[ *m_lcrPlot->clearPoints()].setUIEnabled(false);
     });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
@@ -470,10 +506,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        auto lcr = LCRFit(rl, trace_start, trace_dfreq, f0 * 1e6);
-        fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr.f0() * 1e-6, std::abs(lcr.rl(2.0 * M_PI * f0 * 1e6)), lcr.qValue());
-        auto newcaps = lcr.tuneCaps(f0 * 1e6);
+        auto lcr = std::make_shared<LCRFit>(rl, trace_start, trace_dfreq, f0 * 1e6);
+        fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr->f0() * 1e-6, std::abs(lcr->rl(2.0 * M_PI * f0 * 1e6)), lcr->qValue());
+        auto newcaps = lcr->tuneCaps(f0 * 1e6);
         fprintf(stderr, "Suggest: C1=%.3g, C2=%.3g\n", newcaps.first, newcaps.second);
+        m_lcrPlot->setLCR(lcr);
 
 		tr[ *this].trace.clear();
 	}
@@ -779,6 +816,17 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 			trans( *tuning()) = false; //finishes tuning successfully.
 		}
 	}
+    else {
+        const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+        if(na__ && m_lcrPlot) {
+            try {
+                na__->graph()->release(m_lcrPlot);
+            }
+            catch (NodeNotFoundError &) {
+            }
+            m_lcrPlot.reset();
+        }
+    }
 	if(shot_this[ *this].isSTMChanged) {
 		if(stm1__) {
             stm1__->iterate_commit_while([=](Transaction &tr)->bool{

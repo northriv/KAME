@@ -39,6 +39,8 @@ public:
 	//! Shows all forms belonging to driver.
 	virtual void showForms();
 
+    const shared_ptr<XGraph> &graph() const {return m_graph;}
+
 	struct Payload : public XPrimaryDriver::Payload {
 		double startFreq() const {return m_startFreq;} //! [MHz]
 		double freqInterval() const {return m_freqInterval;} //! [MHz]

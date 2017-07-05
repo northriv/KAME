@@ -142,12 +142,6 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *plot3->label()] = i18n("Fitted Curve");
 		tr[ *plot3->axisX()] = axisx;
 		tr[ *plot3->axisY()] = axisy;
-		tr[ *plot3->drawPoints()] = false;
-//		tr[ *plot3->pointColor()] = clBlue;
-//		tr[ *plot3->lineColor()] = clBlue;
-		tr[ *plot3->drawBars()].setUIEnabled(false);
-		tr[ *plot3->barColor()].setUIEnabled(false);
-		tr[ *plot3->clearPoints()].setUIEnabled(false);
 		tr[ *m_wave].clearPoints();
 
         tr[ *mode()].add({"T1 Measurement", "T2 Measurement", "St.E. Measurement"});

@@ -1250,6 +1250,12 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 XFuncPlot::XFuncPlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph)
 	: XPlot(name, runtime, tr_graph, graph) {
 	trans( *maxCount()) = 300;
+    iterate_commit([=](Transaction &tr){
+        tr[ *drawPoints()] = false;
+        tr[ *drawBars()].setUIEnabled(false);
+        tr[ *barColor()].setUIEnabled(false);
+        tr[ *clearPoints()].setUIEnabled(false);
+    });
 }
 
 void

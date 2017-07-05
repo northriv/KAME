@@ -21,6 +21,7 @@
 class Ui_FrmAutoLCTuner;
 typedef QForm<QMainWindow, Ui_FrmAutoLCTuner> FrmAutoLCTuner;
 
+class XLCRPlot;
 /*
 * Tunes the reflection at the target frequency to zero.
 */
@@ -102,6 +103,7 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
     shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
+    shared_ptr<XLCRPlot> m_lcrPlot;
 
 	const qshared_ptr<FrmAutoLCTuner> m_form;
 
@@ -113,7 +115,7 @@ private:
 		double y, double y_err,
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2);
-	void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
+    void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
 	void rollBack(Transaction &tr);
 };
 
