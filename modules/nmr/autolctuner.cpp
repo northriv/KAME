@@ -30,6 +30,7 @@ static const double TUNE_DROT_MUL_FINETUNE = 2.5;
 static const double TUNE_DROT_MUL_APPROACH = 3.5;
 
 #include "nllsfit.h"
+#include "rand.h"
 
 //! Series LCR circuit. Additional R in series with a port.
 class LCRFit {
@@ -86,11 +87,6 @@ std::pair<double, double> LCRFit::tuneCaps(double f1) const {
 }
 
 LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double init_f0) {
-    if(init_f0 > 0) {
-        m_l1 = 50.0 / (2.0 * M_PI * init_f0);
-        m_r1 = 2.0 * M_PI * init_f0 * l1() / 4; //Q = 4
-        std::tie(m_c1, m_c2) = tuneCaps(init_f0);
-    }
     auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_c2 = params[0];
@@ -123,16 +119,35 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         }
         return true;
     };
-    NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
-    NonLinearLeastSquare(func, {m_c2}, s11.size());
-    auto nlls = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+
+    double residualerr = 1.0;
+    NonLinearLeastSquare nlls;
+    for(auto start = XTime::now(); XTime::now() - start > 0.05;) {
+        if(init_f0 > 0) {
+            double f0 = init_f0 * (0.3 + 3 * randMT19937());
+            m_l1 = 50.0 / (2.0 * M_PI * f0);
+            double q = randMT19937() * 100 + 2;
+            m_r1 = 2.0 * M_PI * f0 * l1() / q;
+            std::tie(m_c1, m_c2) = tuneCaps(f0);
+        }
+        NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+        NonLinearLeastSquare(func, {m_c2}, s11.size());
+        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+        double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
+        if(re < residualerr) {
+            residualerr = re;
+            nlls = std::move(nlls1);
+        }
+        if((XTime::now() - start > 0.01) && (residualerr < 1e-5))
+            break;
+    }
     m_c2 = nlls.params()[0];
     m_c1 = nlls.params()[1];
     m_r1 = fabs(nlls.params()[2]);
     m_r2 = nlls.params()[3];
     m_c2_err = nlls.errors()[0];
     m_c1_err = nlls.errors()[1];
-    fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), pow(sqrt(nlls.chiSquare() / s11.size()), 1.0 / POW_ON_FIT));
+    fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), residualerr);
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
             r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
             c1(), c1err(), c2(), c2err());
