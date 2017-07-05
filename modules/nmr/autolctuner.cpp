@@ -41,7 +41,7 @@ public:
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
     double c2() const {return m_c2;} //!< C in parallel to a port.
-    constexpr double l1() const {return 1e-6;} //!< Fixed value for L.
+    double l1() const {return m_l1;} //!< Fixed value for L.
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
     //! Resonance freq.
@@ -53,7 +53,7 @@ public:
         return f;
     }
     double qValue() const {
-        return 2 * M_PI * f0() / l1();
+        return 2 * M_PI * f0() * l1() / r1();
     }
     //! Reflection
     std::complex<double> rl(double omega) const {
@@ -65,7 +65,11 @@ public:
     }
     std::pair<double, double> tuneCaps(double target_freq) const; //!< Obtains expected C1 and C2.
 private:
-    double m_r1 = 50.0, m_r2 = 1.0;
+    static constexpr double POW_ON_FIT = 0.2; //exaggarates small values during the fit.
+    double rlpow(double omega) const {
+        return pow(std::norm(rl(omega)), POW_ON_FIT / 2.0);
+    }
+    double m_r1 = 50.0, m_r2 = 1.0, m_l1 = 1e-7;
     double m_c1 = 10e-12, m_c2 = 10e-12;
     double m_c1_err, m_c2_err;
 };
@@ -75,23 +79,26 @@ std::pair<double, double> LCRFit::tuneCaps(double f1) const {
     double omega = 2 * M_PI * f1;
     double omegasq = pow(2 * M_PI * f1, 2.0);
     for(int it = 0; it < 20; ++it) {
-        nc2 = (l1() - 1 / omegasq / nc1) / (r1() * r1() + pow(omega * l1() - 1.0/(omegasq * nc1), 2.0));
         nc1 = 1.0 / omegasq / (l1() - nc2 /  (1/ pow(50.0 + r2(), 2.0) + omegasq * nc2 * nc2));
+        nc2 = (l1() - 1 / omegasq / nc1) / (r1() * r1() + pow(omega * l1() - 1.0/(omegasq * nc1), 2.0));
     }
     return {nc1, nc2};
 }
 
 LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, double init_f0) {
     if(init_f0 > 0) {
-        m_r1 = 2.0 * M_PI * init_f0 * l1() / 3; //Q = 3
+        m_l1 = 50.0 / (2.0 * M_PI * init_f0);
+        m_r1 = 2.0 * M_PI * init_f0 * l1() / 4; //Q = 4
         std::tie(m_c1, m_c2) = tuneCaps(init_f0);
     }
     auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
-        m_r1 = params[0];
-        m_r2 = params[1];
-        m_c1 = params[2];
-        m_c2 = params[3];
+        m_c2 = params[0];
+        if(p == 4) {
+            m_c1 = params[1];
+            m_r1 = fabs(params[2]);
+            m_r2 = params[3];
+        }
 
         constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-16, DC2 = 1e-16;
         LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
@@ -102,26 +109,30 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         double freq = fstart;
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
-            double rl0_abs = std::abs(rl(omega));
+            double rlpow0 = rlpow(omega);
             if(f) {
-                f[i] = rl0_abs - s11[i];
+                f[i] = rlpow0 - pow(s11[i], POW_ON_FIT);
             }
-            df[0][i] = (std::abs(plusDR1.rl(omega)) - rl0_abs) / DR1;
-            df[1][i] = (std::abs(plusDR2.rl(omega)) - rl0_abs) / DR2;
-            df[2][i] = (std::abs(plusDC1.rl(omega)) - rl0_abs) / DC1;
-            df[3][i] = (std::abs(plusDC2.rl(omega)) - rl0_abs) / DC2;
+            df[0][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2;
+            if(p == 4) {
+                df[1][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1;
+                df[2][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1;
+                df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2;
+            }
             freq += fstep;
         }
         return true;
     };
+    NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+    NonLinearLeastSquare(func, {m_c2}, s11.size());
     auto nlls = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
-    m_r1 = nlls.params()[0];
-    m_r2 = nlls.params()[1];
-    m_c1 = nlls.params()[2];
-    m_c2 = nlls.params()[3];
-    m_c1_err = nlls.errors()[2];
-    m_c2_err = nlls.errors()[3];
-    fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), sqrt(nlls.chiSquare() / s11.size()));
+    m_c2 = nlls.params()[0];
+    m_c1 = nlls.params()[1];
+    m_r1 = fabs(nlls.params()[2]);
+    m_r2 = nlls.params()[3];
+    m_c2_err = nlls.errors()[0];
+    m_c1_err = nlls.errors()[1];
+    fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), pow(sqrt(nlls.chiSquare() / s11.size()), 1.0 / POW_ON_FIT));
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
             r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
             c1(), c1err(), c2(), c2err());
