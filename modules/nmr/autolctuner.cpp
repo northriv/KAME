@@ -89,13 +89,11 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
     auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_c2 = params[0];
-        if(p == 4) {
-            m_c1 = params[1];
-            m_r1 = fabs(params[2]);
-            m_r2 = params[3];
-        }
+        if(p >= 2) m_c1 = params[1];
+        if(p >= 3) m_r1 = fabs(params[2]);
+        if(p >= 4) m_r2 = params[3];
 
-        constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-16, DC2 = 1e-16;
+        constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-15, DC2 = 1e-15;
         LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
         plusDR1.m_r1 += DR1;
         plusDR2.m_r2 += DR2;
@@ -108,11 +106,11 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             if(f) {
                 f[i] = rlpow0 - pow(s11[i], POW_ON_FIT);
             }
-            df[0][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2;
-            if(p == 4) {
-                df[1][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1;
-                df[2][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1;
-                df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2;
+            else {
+                df[0][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2;
+                if(p >= 2) df[1][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1;
+                if(p >= 3) df[2][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1;
+                if(p >= 4) df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2;
             }
             freq += fstep;
         }
@@ -121,26 +119,41 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
 
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
-    for(auto start = XTime::now(); XTime::now() - start < 0.05;) {
+    for(auto start = XTime::now(); XTime::now() - start < 0.5;) {
         if(init_f0 > 0) {
-            double f0 = init_f0 * (0.3 + 3 * randMT19937());
+            double f0 = init_f0 * (0.3 + 2 * randMT19937());
             m_l1 = 50.0 / (2.0 * M_PI * f0);
-            double q = randMT19937() * 100 + 2;
+            double q = 2.0 * pow(10.0, randMT19937() * 2);
             m_r1 = 2.0 * M_PI * f0 * l1() / q;
+            m_r2 = 1.0;
             std::tie(m_c1, m_c2) = tuneCaps(f0);
+            fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g\n",
+                    r1(), r2(), l1(), c1(), c2());
         }
-        NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size(), 100);
-        m_c2 = nlls.params()[0];
-        m_c1 = nlls.params()[1];
-        m_r1 = fabs(nlls.params()[2]);
-        m_r2 = nlls.params()[3];
-        NonLinearLeastSquare(func, {m_c2}, s11.size());
-        m_c2 = nlls.params()[0];
-        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
-        m_c2 = nlls.params()[0];
-        m_c1 = nlls.params()[1];
-        m_r1 = fabs(nlls.params()[2]);
-        m_r2 = nlls.params()[3];
+        auto nlls1 = NonLinearLeastSquare(func, {m_c2, m_c1, m_r1}, s11.size(), 100);
+        m_c2 = nlls1.params()[0];
+        m_c1 = nlls1.params()[1];
+        m_r1 = fabs(nlls1.params()[2]);
+//        m_r2 = nlls1.params()[3];
+        if((c1() < 0) || (c2() < 0) || (qValue() > 1e4)) //(fabs(r2()) > 10) ||
+            continue;
+        {
+            double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
+            fprintf(stderr, "rms of residuals = %.3g\n", re);
+        }
+        nlls1 = NonLinearLeastSquare(func, {m_c2}, s11.size());
+        m_c2 = nlls1.params()[0];
+        {
+            double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
+            fprintf(stderr, "rms of residuals = %.3g\n", re);
+        }
+        nlls1 = NonLinearLeastSquare(func, {m_c2, m_c1, m_r1, m_r2}, s11.size());
+        m_c2 = nlls1.params()[0];
+        m_c1 = nlls1.params()[1];
+        m_r1 = fabs(nlls1.params()[2]);
+        m_r2 = nlls1.params()[3];
+        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > 1e4))
+            continue;
         double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
         fprintf(stderr, "rms of residuals = %.3g\n", re);
         if(re < residualerr) {
@@ -150,11 +163,13 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         if((XTime::now() - start > 0.01) && (residualerr < 1e-5))
             break;
     }
+    if(nlls.errors().size() < 4)
+        return;
     m_c2_err = nlls.errors()[0];
     m_c1_err = nlls.errors()[1];
     fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), residualerr);
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
-            r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(),
+            r1(), nlls.errors()[2], r2(), nlls.errors()[3], l1(),
             c1(), c1err(), c2(), c2err());
 }
 
