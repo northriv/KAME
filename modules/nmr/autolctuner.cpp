@@ -122,7 +122,7 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
 
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
-    for(auto start = XTime::now(); XTime::now() - start > 0.05;) {
+    for(auto start = XTime::now(); XTime::now() - start < 0.05;) {
         if(init_f0 > 0) {
             double f0 = init_f0 * (0.3 + 3 * randMT19937());
             m_l1 = 50.0 / (2.0 * M_PI * f0);
@@ -131,8 +131,17 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             std::tie(m_c1, m_c2) = tuneCaps(f0);
         }
         NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+        m_c2 = nlls.params()[0];
+        m_c1 = nlls.params()[1];
+        m_r1 = fabs(nlls.params()[2]);
+        m_r2 = nlls.params()[3];
         NonLinearLeastSquare(func, {m_c2}, s11.size());
+        m_c2 = nlls.params()[0];
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+        m_c2 = nlls.params()[0];
+        m_c1 = nlls.params()[1];
+        m_r1 = fabs(nlls.params()[2]);
+        m_r2 = nlls.params()[3];
         double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
         if(re < residualerr) {
             residualerr = re;
@@ -141,15 +150,11 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         if((XTime::now() - start > 0.01) && (residualerr < 1e-5))
             break;
     }
-    m_c2 = nlls.params()[0];
-    m_c1 = nlls.params()[1];
-    m_r1 = fabs(nlls.params()[2]);
-    m_r2 = nlls.params()[3];
     m_c2_err = nlls.errors()[0];
     m_c1_err = nlls.errors()[1];
     fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), residualerr);
-    fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g+-%.2g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
-            r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(), nlls.errors()[4],
+    fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
+            r1(), nlls.errors()[0], r2(), nlls.errors()[1], l1(),
             c1(), c1err(), c2(), c2err());
 }
 
