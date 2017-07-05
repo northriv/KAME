@@ -59,10 +59,8 @@ public:
     }
     //! Reflection
     std::complex<double> rl(double omega) const {
-        auto zlcr = std::complex<double>(r1(),
-            omega * l1() - 1.0 / (omega * c1()));
-        auto zL =  1.0 / (std::complex<double>(0.0, omega * c2())
-            + 1.0 / zlcr) + r2();
+        auto zlcr = std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
+        auto zL =  1.0 / (std::complex<double>(0.0, omega * c2()) + 1.0 / zlcr) + r2();
         return (zL - 50.0) / (zL + 50.0);
     }
     std::pair<double, double> tuneCaps(double target_freq) const; //!< Obtains expected C1 and C2.
@@ -131,7 +129,7 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
             m_r1 = 2.0 * M_PI * f0 * l1() / q;
             std::tie(m_c1, m_c2) = tuneCaps(f0);
         }
-        NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size());
+        NonLinearLeastSquare(func, {m_r1, m_r2, m_c1, m_c2}, s11.size(), 100);
         m_c2 = nlls.params()[0];
         m_c1 = nlls.params()[1];
         m_r1 = fabs(nlls.params()[2]);
@@ -144,6 +142,7 @@ LCRFit::LCRFit(const std::vector<double> &s11, double fstart, double fstep, doub
         m_r1 = fabs(nlls.params()[2]);
         m_r2 = nlls.params()[3];
         double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
+        fprintf(stderr, "rms of residuals = %.3g\n", re);
         if(re < residualerr) {
             residualerr = re;
             nlls = std::move(nlls1);
@@ -275,10 +274,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
         tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
         tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
-        tr[ *m_lcrPlot->drawPoints()] = false;
-        tr[ *m_lcrPlot->drawBars()].setUIEnabled(false);
-        tr[ *m_lcrPlot->barColor()].setUIEnabled(false);
-        tr[ *m_lcrPlot->clearPoints()].setUIEnabled(false);
+        tr[ *m_lcrPlot->lineColor()] = clGreen;
     });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
@@ -506,7 +502,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        auto lcr = std::make_shared<LCRFit>(rl, trace_start, trace_dfreq, f0 * 1e6);
+        auto lcr = std::make_shared<LCRFit>(rl, trace_start * 1e6, trace_dfreq * 1e6, f0 * 1e6);
         fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr->f0() * 1e-6, std::abs(lcr->rl(2.0 * M_PI * f0 * 1e6)), lcr->qValue());
         auto newcaps = lcr->tuneCaps(f0 * 1e6);
         fprintf(stderr, "Suggest: C1=%.3g, C2=%.3g\n", newcaps.first, newcaps.second);
@@ -820,7 +816,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
         const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
         if(na__ && m_lcrPlot) {
             try {
-                na__->graph()->release(m_lcrPlot);
+                na__->graph()->plots()->release(m_lcrPlot);
             }
             catch (NodeNotFoundError &) {
             }
