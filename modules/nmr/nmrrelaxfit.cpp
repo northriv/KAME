@@ -321,9 +321,6 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
         tr[ *this].m_params[1] = (max_var - min_var) * (randMT19937() * 2.0 + 0.9) * ((randMT19937() < 0.5) ? 1 :  -1);
         tr[ *this].m_params[2] = 0.0;
     }
-    tr[ *this].m_errors[0] *= sqrt(nlls.chiSquare() / n);
-    tr[ *this].m_errors[1] *= sqrt(nlls.chiSquare() / n);
-    tr[ *this].m_errors[2] *= sqrt(nlls.chiSquare() / n);
 
     if( !shot_this[ *mInftyFit()])
         tr[ *this].m_params[2] = -tr[ *this].m_params[1];

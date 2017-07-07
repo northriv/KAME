@@ -135,7 +135,7 @@ NonLinearLeastSquare::NonLinearLeastSquare(Func func,
     for(int i = 0; i < init_params.size(); i++) {
         double c = gsl_matrix_get(covar,i,i);
 
-        m_errors[i] = (c > 0) ? sqrt(c) : -1.0;
+        m_errors[i] = (c > 0) ? sqrt(c * m_chisq / n) : -1.0;
     }
     gsl_matrix_free(covar);
 #if (GSL_MAJOR_VERSION >= 2)
