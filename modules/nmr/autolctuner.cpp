@@ -36,7 +36,7 @@ static const double TUNE_DROT_MUL_APPROACH = 3.5;
 //! Series LCR circuit. Additional R in series with a port.
 class LCRFit {
 public:
-    LCRFit(double f0, double rl);
+    LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
     void fit(const std::vector<double> &s11, double fstart, double fstep);
     double r1() const {return m_r1;} //!< R of LCR circuit
@@ -46,6 +46,7 @@ public:
     double l1() const {return m_l1;} //!< Fixed value for L.
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
+    double residualError() const {return m_resErr;}
 
     //! Resonance freq.
     double f0() const {
@@ -59,44 +60,58 @@ public:
         return 2 * M_PI * f0() * l1() / r1();
     }
     //! Reflection
-    std::complex<double> rl(double omega) const {
-        auto zlcr = std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
-        auto zL =  1.0 / (std::complex<double>(0.0, omega * c2()) + 1.0 / zlcr) + r2();
+    std::complex<double> rl(double omega, std::complex<double> zlcr1_inv) const {
+        auto zL =  1.0 / (std::complex<double>(0.0, omega * c2()) + zlcr1_inv) + r2();
         return (zL - 50.0) / (zL + 50.0);
     }
-    std::pair<double, double> tuneCaps(double target_freq, std::complex<double> target_rl = 0.0) const; //!< Obtains expected C1 and C2.
+    std::complex<double> rl(double omega) const {
+        return rl(omega, 1.0 / zlcr1(omega));
+    }
+    std::pair<double, double> tuneCaps(double target_freq, double target_rl = 0.0, bool tight_couple = true) const; //!< Obtains expected C1 and C2.
 private:
     static constexpr double POW_ON_FIT = 0.2; //exaggarates small values during the fit.
     double rlpow(double omega) const {
         return pow(std::norm(rl(omega)), POW_ON_FIT / 2.0);
     }
+    std::complex<double> zlcr1(double omega) const {
+        return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
+    }
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
     double m_c1_err, m_c2_err;
+    double m_resErr;
 };
 
-std::pair<double, double> LCRFit::tuneCaps(double f1, std::complex<double> target_rl) const {
-    double nc1 = c1(), nc2 = c2();
+std::pair<double, double> LCRFit::tuneCaps(double f1, double target_rl, bool tight_couple) const {
+    LCRFit nlcr( *this);
     double omega = 2 * M_PI * f1;
     double omegasq = pow(2 * M_PI * f1, 2.0);
-    auto target_zlinv = 1.0 / (100.0 / (1.0 - target_rl) - 50.0 - r2());
-    for(int it = 0; it < 20; ++it) {
+    for(int it = 0; it < 100; ++it) {
          //self-consistent eq. to fix resonant freq.
-        nc1 = 1.0 / omegasq / (l1() - nc2 /  (1/ pow(50.0 + r2(), 2.0) + omegasq * nc2 * nc2));
-//        nc2 = (l1() - 1 / omegasq / nc1) / (r1() * r1() + pow(omega * l1() - 1.0/(omegasq * nc1), 2.0)); //for target_rl = 0.
+        nlcr.m_c1 = 1.0 / omegasq / (nlcr.l1() - nlcr.c2() /  (1/ pow(50.0 + nlcr.r2(), 2.0) + omegasq * nlcr.c2() * nlcr.c2()));
+        if(it < 10)
+            nlcr.m_c2 = (l1() - 1 / omegasq / nlcr.c1()) / (nlcr.r1() * nlcr.r1() + pow(omega * nlcr.l1() - 1.0/(omegasq * nlcr.c1()), 2.0)); //for target_rl = 0.
          //self-consistent eq. to fix rl.
-        nc2 = std::real((target_zlinv - 1.0 / (std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1())))) / std::complex<double>(0, omega));
+        auto zlcr1_inv = 1.0 / nlcr.zlcr1(omega);
+        auto rl1 = nlcr.rl(omega, zlcr1_inv);
+        rl1 = target_rl * rl1 / std::abs(rl1); //determines a phase of RL.
+        if((tight_couple ? 1 : -1) * std::imag(rl1) > 0)
+            rl1 = std::conj(rl1); //forces to select tight or coarse coupling.
+        auto target_zlinv = 1.0 / (100.0 / (1.0 - rl1) - 50.0 - r2());
+        nlcr.m_c2 = std::imag(target_zlinv - zlcr1_inv) / omega;
     }
-    return {nc1, nc2};
+    fprintf(stderr, "Target (%.4g, %.2g) -> (%.4g, %.2g)\n", f1, target_rl, nlcr.f0(), std::abs(nlcr.rl(f1)));
+    return {nlcr.m_c1, nlcr.m_c2};
 }
 
-LCRFit::LCRFit(double init_f0, double init_rl) {
+LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     m_l1 = 50.0 / (2.0 * M_PI * init_f0);
     m_c1 = 1.0 / 50.0 / (2.0 * M_PI * init_f0);
     m_c2 = m_c1 * 10;
-    m_r1 = 2.0 * M_PI * init_f0 * l1() / 10;
+    double q = randMT19937() * 100 + 2;
+    m_r1 = 2.0 * M_PI * init_f0 * l1() / q;
     m_r2 = 1.0;
-    std::tie{m_c1, m_c2} = tuneCaps(init_f0, std::polar(init_rl, 2.0 * M_PI * randMT19937()));
+    std::tie(m_c1, m_c2) = tuneCaps(init_f0, init_rl, tight_couple);
 }
 
 void
@@ -132,20 +147,15 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         return true;
     };
 
+    LCRFit lcr_orig( *this);
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
     int retry = 0;
     for(auto start = XTime::now(); XTime::now() - start < 0.5;) {
         retry++;
-        if((init_f0 > 0) && (retry % 4 == 1)) {
-            double f0 = init_f0 * (0.3 + 2 * randMT19937());
-            m_l1 = 50.0 / (2.0 * M_PI * f0);
-            double q = 2.0 * pow(10.0, randMT19937() * 2);
-            m_r1 = 2.0 * M_PI * f0 * l1() / q;
-            m_r2 = 1.0;
-            std::tie(m_c1, m_c2) = tuneCaps(f0);
-            fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g\n",
-                    r1(), r2(), l1(), c1(), c2());
+        if(retry % 4 == 1) {
+            double f0org = lcr_orig.f0();
+            *this = LCRFit(f0org, std::abs(lcr_orig.rl(2.0 * M_PI * f0org)), retry % 8 == 0);
         }
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size());
         if((c1() < 0) || (c2() < 0) || (qValue() > 1e4) || (fabs(r2()) > 10)) {
@@ -183,13 +193,18 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         if((XTime::now() - start > 0.01) && (residualerr < 1e-5))
             break;
     }
+    m_resErr = residualerr;
+    if(residualerr > 0.01) {
+        *this = lcr_orig;
+        return;
+    }
     if(nlls.errors().size() < 4)
         return;
-    m_c2_err = nlls.errors()[0];
+    m_c2_err = nlls.errors()[2];
     m_c1_err = nlls.errors()[1];
     fprintf(stderr, "%s, rms of residuals = %.3g\n", nlls.status().c_str(), residualerr);
     fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
-            r1(), nlls.errors()[2], r2(), nlls.errors()[3], l1(),
+            r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
             c1(), c1err(), c2(), c2err());
 }
 
@@ -537,11 +552,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        auto lcr = std::make_shared<LCRFit>(rl, trace_start * 1e6, trace_dfreq * 1e6, f0 * 1e6);
-        fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr->f0() * 1e-6, std::abs(lcr->rl(2.0 * M_PI * f0 * 1e6)), lcr->qValue());
-        auto newcaps = lcr->tuneCaps(f0 * 1e6);
+        auto lcr1 = std::make_shared<LCRFit>(fmin * 1e6, std::abs(reffmin_peak), false);
+        lcr1->fit(rl, trace_start * 1e6, trace_dfreq * 1e6);
+        fprintf(stderr, "fres=%.3g MHz, RL=%.3g, Q=%.2g\n", lcr1->f0() * 1e-6, std::abs(lcr1->rl(2.0 * M_PI * f0 * 1e6)), lcr1->qValue());
+        auto newcaps = lcr1->tuneCaps(f0 * 1e6);
         fprintf(stderr, "Suggest: C1=%.3g, C2=%.3g\n", newcaps.first, newcaps.second);
-        m_lcrPlot->setLCR(lcr);
+        m_lcrPlot->setLCR(lcr1);
 
 		tr[ *this].trace.clear();
 	}
