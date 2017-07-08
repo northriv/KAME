@@ -90,7 +90,7 @@ public:
     }
     std::pair<double, double> tuneCaps(double target_freq, double target_rl = 0.0, bool tight_couple = true) const; //!< Obtains expected C1 and C2.
 private:
-    static constexpr double POW_ON_FIT = 1.0; //exaggarates small values during the fit.
+    static constexpr double POW_ON_FIT = 0.2; //exaggarates small values during the fit.
     double rlpow(double omega) const {
         return pow(std::norm(rl(omega)), POW_ON_FIT / 2.0);
     }
@@ -126,15 +126,12 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     m_l1 = 50.0 / (2.0 * M_PI * init_f0);
     m_c1 = 1.0 / 50.0 / (2.0 * M_PI * init_f0);
     m_c2 = m_c1 * 10;
-    double q = randMT19937() * 100 + 2;
+    double q = pow(10.0, randMT19937() * 3) + 2;
     m_r1 = 2.0 * M_PI * init_f0 * l1() / q;
     m_r2 = 1.0;
     std::tie(m_c1, m_c2) = tuneCaps(init_f0, init_rl, tight_couple);
     double omega = 2 * M_PI * init_f0;
 //    fprintf(stderr, "Target (%.4g, %.2g) -> (%.4g, %.2g)\n", init_f0, init_rl, f0(), std::abs(rl(omega)));
-    m_resErr = 1.0;
-    if((fabs(init_f0 - f0()) / f0() < 1e-3) && (fabs(init_rl - std::abs(rl(omega))) < 0.1))
-        m_resErr = 0.01;
 }
 
 void
@@ -183,14 +180,18 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
     };
 
     LCRFit lcr_orig( *this);
+    double f0org = lcr_orig.f0();
+    double rl_orig = std::abs(lcr_orig.rl(2.0 * M_PI * f0org));
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
-    int retry = 0;
-    for(auto start = XTime::now(); XTime::now() - start < 0.5;) {
-        retry++;
-        if(retry % 4 == 1) {
-            double f0org = lcr_orig.f0();
-            *this = LCRFit(f0org, std::abs(lcr_orig.rl(2.0 * M_PI * f0org)), retry % 8 == 0);
+    auto start = XTime::now();
+    for(int retry = 0; ; retry++) {
+        if((retry > 24) && (XTime::now() - start > 0.6))
+            break;
+        if((XTime::now() - start > 0.01) && (residualerr < 1e-3))
+            break;
+        if(retry % 4 == 3) {
+            *this = LCRFit(f0org, rl_orig, retry % 8 == 0);
             computeResidualError(s11, fstart, fstep);
             if(residualError() < residualerr) {
                 residualerr  = residualError();
@@ -210,25 +211,12 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
             residualerr = re;
             nlls = std::move(nlls1);
         }
-//        {
-//            double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
-//            fprintf(stderr, "%d: rms of residuals = %.3g;", retry, re);
-//        }
-//        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
-//        m_r1 = fabs(nlls1.params()[0]);
-//        {
-//            double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
-//            fprintf(stderr, " %.3g;", re);
-//        }
-//        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
-//        m_r1 = fabs(nlls1.params()[0]);
-//        m_c2 = nlls1.params()[1];
-//        {
-//            double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
-//            fprintf(stderr, " %.3g;", re);
-//        }
-        if((XTime::now() - start > 0.01) && (residualerr < 1e-5))
-            break;
+        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
+        m_r1 = fabs(nlls1.params()[0]);
+        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
+        m_r1 = fabs(nlls1.params()[0]);
+        m_c2 = nlls1.params()[1];
+//        std::tie(m_c1, m_c2) = tuneCaps(f0org, rl_orig, retry % 8 == 0);
     }
     if(lcr_orig.residualError() == residualerr) {
         *this = lcr_orig; //Fitting was worse than the initial value.
