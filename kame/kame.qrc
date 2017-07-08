@@ -8,5 +8,6 @@
         <file>icons/kame.png</file>
         <file>script/xrubysupport.rb</file>
         <file>icons/rotate.svg</file>
+        <file>forms/autolctunerlcr.png</file>
     </qresource>
 </RCC>

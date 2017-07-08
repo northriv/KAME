@@ -21,6 +21,7 @@
 class Ui_FrmAutoLCTuner;
 typedef QForm<QMainWindow, Ui_FrmAutoLCTuner> FrmAutoLCTuner;
 
+class LCRFit;
 class XLCRPlot;
 /*
 * Tunes the reflection at the target frequency to zero.
@@ -65,27 +66,31 @@ public:
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
-		enum STAGE {STAGE_FIRST, STAGE_DCA, STAGE_DCB};
-		STAGE stage;
+        void resetToFirstStage() {
+            fitOrig.reset();
+            fitRotated.reset();
+            for(int i: {0,1})
+                stmDelta[i] = lastDirection(i) * 1e-10;
+            deltaC1perDeltaSTM.fill(0.0);
+            deltaC2perDeltaSTM.fill(0.0);
+        }
+        shared_ptr<LCRFit> fitOrig, fitRotated;
+        std::array<double, 2> stmBacklash; //[deg]
+        bool isSTMChanged; //STM positions will move to \a targetSTMValues.
+        std::array<double, 2> targetSTMValues; //[deg]
+        double smallestRLAtF0; //0 < RL < 1
+        std::array<double, 2> bestSTMValues; //[deg]
+        static constexpr double TestDeltaFirst = 20; //[deg]
+        static constexpr double TestDeltaMultFactor = 2;
+        static constexpr double TestDeltaMax = 720; //[deg]
+        static constexpr double DeltaMax = 6 * 360; //[deg]
+        std::array<double, 2> stmDelta; //[deg], +:CW, -:CCW.
+        int lastDirection(size_t i) const {return (stmDelta[i] > 0) ? 1 : -1;} //+:CW, -:CCW.
+        std::array<double, 2> deltaC1perDeltaSTM; //[F/deg.]
+        std::array<double, 2> deltaC2perDeltaSTM; //[F/deg.]
 
-		std::complex<double> ref_first, ref_plus_dCa;
-		double fmin_first, fmin_plus_dCa;
-		double dCa, dCb;
-
-		std::complex<double> dref_dCa, dref_dCb;
-		double dfmin_dCa, dfmin_dCb;
-
-		std::vector<std::complex<double> > trace;
-		double stm1, stm2;
-		double sor_factor;
-		int iteration_count;
-		double stm1_best, stm2_best;
-		std::complex<double> ref_f0_best;
-		double fmin_best;
-		enum MODE {TUNE_APPROACHING, TUNE_FINETUNE};
-		MODE mode;
-		bool isSTMChanged;
 		XTime started;
+        int iterationCount;
 		bool isTargetAbondoned;
 	};
 private:
@@ -99,25 +104,28 @@ private:
 	const shared_ptr<XDoubleNode> m_reflectionRequired;
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
+    const shared_ptr<XStringNode> m_status;
+    const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
     std::deque<xqcon_ptr> m_conUIs;
 
-    shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched;
+    shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched, m_lsnOnStatusOut;
     shared_ptr<XLCRPlot> m_lcrPlot;
 
 	const qshared_ptr<FrmAutoLCTuner> m_form;
 
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onAbortTuningTouched(const Snapshot &shot, XTouchableNode *);
+    void onStatusChanged(const Snapshot &shot, XValueNodeBase *);
 
 	void determineNextC(double &deltaC1, double &deltaC2,
 		double x, double x_err,
 		double y, double y_err,
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2);
-    void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
-	void rollBack(Transaction &tr);
-    void clearFitPlot(const Snapshot &shot_this);
+    void abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message);
+    void rollBack(Transaction &tr, XString &&message);
+    void clearUIAndPlot(Transaction &tr);
 };
 
 
