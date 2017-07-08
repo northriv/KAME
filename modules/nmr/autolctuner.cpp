@@ -39,7 +39,7 @@ public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
     void fit(const std::vector<double> &s11, double fstart, double fstep);
-    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep);
+    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
@@ -97,8 +97,10 @@ private:
     std::complex<double> zlcr1(double omega) const {
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
     }
-    double isigma(double rlpow0) const {
-        return 1.0/(rlpow0 + 0.1); //a weight square during the fit.
+    double isigma(double domega, double omega_trust) const {
+//        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
+        double omega_sigma = omega_trust * 1.0;
+        return sqrt(exp( -std::norm(domega / omega_sigma) / 2.0) / (sqrt(2 * M_PI)  * omega_sigma)); //a weight during the fit.
     }
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
@@ -129,7 +131,7 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     m_l1 = 50.0 / (2.0 * M_PI * init_f0);
     m_c1 = 1.0 / 50.0 / (2.0 * M_PI * init_f0);
     m_c2 = m_c1 * 10;
-    double q = pow(10.0, randMT19937() * 3) + 2;
+    double q = 30;
     m_r1 = 2.0 * M_PI * init_f0 * l1() / q;
     m_r2 = 1.0;
     std::tie(m_c1, m_c2) = tuneCaps(init_f0, init_rl, tight_couple);
@@ -138,12 +140,12 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
 }
 
 void
-LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep) {
+LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust) {
     double x;
     double freq = fstart;
     for(size_t i = 0; i < s11.size(); ++i) {
         double omega = 2 * M_PI * freq;
-        x += std::norm(pow(s11[i], POW_ON_FIT) - rlpow(omega));
+        x += std::norm((pow(s11[i], POW_ON_FIT) - rlpow(omega)) * isigma(omega - omega0, omega_trust) * sqrt(2.0 * M_PI * fstep));
         freq += fstep;
     }
     m_resErr = sqrt(x / s11.size()) / POW_ON_FIT;
@@ -151,7 +153,18 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
 
 void
 LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
-    auto func = [&s11, this, fstart, fstep](const double*params, size_t n, size_t p,
+    LCRFit lcr_orig( *this);
+    double f0org = lcr_orig.f0();
+    double omega0org = 2.0 * M_PI * f0org;
+    double rl_orig = std::abs(lcr_orig.rl(omega0org));
+    double omega_trust;
+    auto eval_omega_trust = [&](double q){
+        double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * s11.size() - f0org);
+        return std::min(omega0org / q * 2, omega_avail / 2);
+    };
+    double max_q = f0org / fstep;
+
+    auto func = [&s11, this, fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
@@ -168,7 +181,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             double rlpow0 = rlpow(omega);
-            double wsqrt = isigma(rlpow0);
+            double wsqrt = isigma(omega - omega0org, omega_trust) * sqrt(2.0 * M_PI * fstep);
             if(f) {
                 f[i] = (rlpow0 - pow(s11[i], POW_ON_FIT)) * wsqrt;
             }
@@ -183,50 +196,42 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         return true;
     };
 
-    LCRFit lcr_orig( *this);
-    double f0org = lcr_orig.f0();
-    double rl_orig = std::abs(lcr_orig.rl(2.0 * M_PI * f0org));
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0; ; retry++) {
-        if((retry > 24) && (XTime::now() - start > 0.6))
+        if((retry > 24) && (XTime::now() - start > 0.2))
             break;
-        if((XTime::now() - start > 0.01) && (residualerr < 1e-3))
+        if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
         if(retry % 4 == 3) {
-            *this = LCRFit(f0org, rl_orig, retry % 8 == 0);
-            computeResidualError(s11, fstart, fstep);
+            *this = LCRFit(f0org, rl_orig, retry % 8 < 4);
+            double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
+            m_r1 = 2.0 * M_PI * f0org * l1() / q;
+            omega_trust = eval_omega_trust(q);
+            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
             if(residualError() < residualerr) {
                 residualerr  = residualError();
                 lcr_orig = *this;
                 fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
             }
         }
-        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > 1e4))
+        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
             continue;
+        omega_trust = eval_omega_trust(qValue());
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size());
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
-        double re = sqrt(nlls1.chiSquare() / s11.size()) / POW_ON_FIT;
-        if(re < residualerr) {
-            residualerr = re;
+        computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+        if(nlls1.isSuccessful() && (residualError() < residualerr)) {
+            residualerr  = residualError();
             nlls = std::move(nlls1);
+            lcr_orig = *this;
         }
-//        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
-//        m_r1 = fabs(nlls1.params()[0]);
-//        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
-//        m_r1 = fabs(nlls1.params()[0]);
-//        m_c2 = nlls1.params()[1];
-//        std::tie(m_c1, m_c2) = tuneCaps(f0org, rl_orig, retry % 8 == 0);
     }
-    if(lcr_orig.residualError() == residualerr) {
-        *this = lcr_orig; //Fitting was worse than the initial value.
-        fprintf(stderr, "Fitting was worse than the initial value.\n");
-    }
-    computeResidualError(s11, fstart, fstep);
+    *this = lcr_orig;
     if(nlls.errors().size() == 4) {
         m_c2_err = nlls.errors()[1];
         m_c1_err = nlls.errors()[2];
@@ -234,7 +239,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err());
     }
-    fprintf(stderr, "rms of residuals = %.3g\n", residualError());
+    fprintf(stderr, "rms of residuals = %.3g, elapsed = %f ms\n", residualError(), 1000.0 * (XTime::now() - start));
 }
 
 class XLCRPlot : public XFuncPlot {
@@ -307,6 +312,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
     });
 }
 XAutoLCTuner::~XAutoLCTuner() {
+    Snapshot shot_this( *this);
+    clearFitPlot(shot_this);
 }
 void XAutoLCTuner::showForms() {
     m_form->showNormal();
@@ -345,6 +352,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     });
 
 
+    clearFitPlot(shot_this);
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
     if(na__)
         na__->graph()->iterate_commit([=](Transaction &tr){
@@ -425,6 +433,19 @@ XAutoLCTuner::rollBack(Transaction &tr) {
 	tr[ *this].stm2 = tr[ *this].stm2_best;
 	tr[ *this].ref_f0_best = 1e10; //resets the best pos.
 	throw XSkippedRecordError(__FILE__, __LINE__);
+}
+void
+XAutoLCTuner::clearFitPlot(const Snapshot &shot_this) {
+    const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    if(na__ && m_lcrPlot) {
+        try {
+            na__->graph()->plots()->release(m_lcrPlot);
+        }
+        catch (NodeNotFoundError &) {
+        }
+        m_lcrPlot.reset();
+    }
+
 }
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0) {
@@ -839,15 +860,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
 		}
 	}
     else {
-        const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-        if(na__ && m_lcrPlot) {
-            try {
-                na__->graph()->plots()->release(m_lcrPlot);
-            }
-            catch (NodeNotFoundError &) {
-            }
-            m_lcrPlot.reset();
-        }
+        clearFitPlot(shot_this);
     }
 	if(shot_this[ *this].isSTMChanged) {
 		if(stm1__) {

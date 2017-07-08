@@ -117,6 +117,7 @@ private:
 		double dydC1, double dydC2);
     void abortTuningFromAnalyze(Transaction &tr, std::complex<double> reff0);
 	void rollBack(Transaction &tr);
+    void clearFitPlot(const Snapshot &shot_this);
 };
 
 
