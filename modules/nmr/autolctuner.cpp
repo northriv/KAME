@@ -90,12 +90,15 @@ public:
     }
     std::pair<double, double> tuneCaps(double target_freq, double target_rl = 0.0, bool tight_couple = true) const; //!< Obtains expected C1 and C2.
 private:
-    static constexpr double POW_ON_FIT = 0.2; //exaggarates small values during the fit.
+    static constexpr double POW_ON_FIT = 1.0;
     double rlpow(double omega) const {
         return pow(std::norm(rl(omega)), POW_ON_FIT / 2.0);
     }
     std::complex<double> zlcr1(double omega) const {
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
+    }
+    double isigma(double rlpow0) const {
+        return 1.0/(rlpow0 + 0.1); //a weight square during the fit.
     }
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
@@ -165,14 +168,15 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             double rlpow0 = rlpow(omega);
+            double wsqrt = isigma(rlpow0);
             if(f) {
-                f[i] = rlpow0 - pow(s11[i], POW_ON_FIT);
+                f[i] = (rlpow0 - pow(s11[i], POW_ON_FIT)) * wsqrt;
             }
             else {
-                df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1;
-                if(p >= 2) df[1][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2;
-                if(p >= 3) df[2][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1;
-                if(p >= 4) df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2;
+                df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
+                if(p >= 2) df[1][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2 * wsqrt;
+                if(p >= 3) df[2][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1 * wsqrt;
+                if(p >= 4) df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2 * wsqrt;
             }
             freq += fstep;
         }
@@ -211,11 +215,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
             residualerr = re;
             nlls = std::move(nlls1);
         }
-        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
-        m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
-        m_r1 = fabs(nlls1.params()[0]);
-        m_c2 = nlls1.params()[1];
+//        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
+//        m_r1 = fabs(nlls1.params()[0]);
+//        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
+//        m_r1 = fabs(nlls1.params()[0]);
+//        m_c2 = nlls1.params()[1];
 //        std::tie(m_c1, m_c2) = tuneCaps(f0org, rl_orig, retry % 8 == 0);
     }
     if(lcr_orig.residualError() == residualerr) {
