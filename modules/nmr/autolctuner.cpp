@@ -418,7 +418,8 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
 	tr[ *this].isSTMChanged = true;
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
-	throw XSkippedRecordError(__FILE__, __LINE__);
+    tr[ *this].resetToFirstStage();
+    throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
 XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
