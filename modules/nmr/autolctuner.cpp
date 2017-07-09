@@ -392,21 +392,6 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
     });
 }
 
-bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
-	const Snapshot &shot_emitter, const Snapshot &shot_others,
-	XDriver *emitter) const {
-	const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-	const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-	if( !na__)
-		return false;
-	if(stm1__ == stm2__)
-		return false;
-	if(emitter != na__.get())
-		return false;
-
-	return true;
-}
 void
 XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     tr[ *m_status] = message + "Rolls back.";
@@ -459,6 +444,25 @@ XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &
 	}
 	throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked."), __FILE__, __LINE__);
 }
+
+bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
+    const Snapshot &shot_emitter, const Snapshot &shot_others,
+    XDriver *emitter) const {
+    const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+    const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    if( !na__)
+        return false;
+    if(stm1__ == stm2__)
+        return false;
+    if(emitter != na__.get())
+        return false;
+    if(shot_others[ *stm1__].time() > shot_emitter[ *na__].timeAwared())
+        return false; //trace acquired before motor starts.
+    if(shot_others[ *stm2__].time() > shot_emitter[ *na__].timeAwared())
+        return false; //trace acquired before motor starts.
+    return true;
+}
 void
 XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
@@ -480,6 +484,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
             ( stm2__  && !shot_others[ *stm2__->ready()]))
         throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
+
     if( shot_this[ *this].isSTMChanged) {
         tr[ *this].isSTMChanged = false;
         throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one before STM was moved. reload.
