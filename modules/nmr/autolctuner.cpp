@@ -608,8 +608,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
         tr[ *this].iterationCount++;
-        if((shot_this[ *this].iterationCount > 1) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
-            message += "The last iteration made situation worse.";
+        if((shot_this[ *this].iterationCount > 2) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
+            message += "The last 2 iterations made situation worse.";
             rollBack(tr, std::move(message));
         }
         tr[ *this].fitOrig = lcrfit;
