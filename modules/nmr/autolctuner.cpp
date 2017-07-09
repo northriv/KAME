@@ -378,14 +378,15 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
         tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
         tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
-        tr[ *m_lcrPlot->lineColor()] = clGreen;
+        tr[ *m_lcrPlot->lineColor()] = clLime;
     });
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
     iterate_commit_while([=](Transaction &tr)->bool{
 		if( !tr[ *m_tuning])
             return false;
-		tr[ *m_tuning] = false;
+        clearUIAndPlot(tr);
+        tr[ *m_tuning] = false;
 		tr[ *this].isSTMChanged = false;
         return true;
     });
@@ -611,9 +612,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
             double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0) + pow(lcrfit->c1err(), 2.0)
                     + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
-            double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / fabs(testdelta);
+            double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
             double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0) + pow(lcrfit->c2err(), 2.0)
-                    + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / testdelta;
+                    + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / fabs(testdelta);
             double dc1dtest_minus_backlash =
                 (lcrfit->c1() - shot_this[ *this].fitRotated->c1()) / (-testdelta);
             double dc2dtest_minus_backlash =
@@ -624,7 +625,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
             if(((fabs(dc1dtest) < dc1dtest_err * 2) && (fabs(dc2dtest) < dc2dtest_err * 2)) ||
-                    (fabs(backlash / testdelta) > 0.2)) {
+                    (fabs(backlash / testdelta) > 0.2) || isnan(backlash)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
                 testdelta *= Payload::TestDeltaMultFactor;
                if(fabs(testdelta) > Payload::TestDeltaMax) {

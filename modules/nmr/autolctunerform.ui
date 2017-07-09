@@ -306,7 +306,7 @@
        <item>
         <widget class="QLabel" name="label">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -314,7 +314,7 @@
          <property name="minimumSize">
           <size>
            <width>225</width>
-           <height>125</height>
+           <height>110</height>
           </size>
          </property>
          <property name="text">
@@ -575,10 +575,6 @@
      </layout>
     </item>
    </layout>
-   <zorder>m_btnAbortTuning</zorder>
-   <zorder>m_txtStatus</zorder>
-   <zorder>frame</zorder>
-   <zorder>m_ckbUseSTM1</zorder>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
