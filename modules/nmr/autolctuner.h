@@ -69,10 +69,13 @@ public:
         void resetToFirstStage() {
             fitOrig.reset();
             fitRotated.reset();
-            for(int i: {0,1})
-                stmDelta[i] = lastDirection(i) * 1e-10;
+            clearSTMDelta();
             deltaC1perDeltaSTM.fill(0.0);
             deltaC2perDeltaSTM.fill(0.0);
+        }
+        void clearSTMDelta() {
+            for(int i: {0,1})
+                stmDelta[i] = lastDirection(i) * 1e-10;
         }
         shared_ptr<LCRFit> fitOrig, fitRotated;
         std::array<double, 2> stmBacklash; //[deg]

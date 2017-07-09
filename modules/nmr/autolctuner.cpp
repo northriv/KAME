@@ -99,7 +99,7 @@ private:
     }
     double isigma(double domega, double omega_trust) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        double omega_sigma = omega_trust * 4.0;
+        double omega_sigma = omega_trust * 6.0;
         return sqrt(exp( -std::norm(domega / omega_sigma) / 2.0) / (sqrt(2 * M_PI)  * omega_sigma)); //a weight during the fit.
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
@@ -138,6 +138,7 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     m_r2 = 1.0;
     setTunedCaps(init_f0, init_rl, tight_couple);
     double omega = 2 * M_PI * init_f0;
+    m_c1_err = 0.0; m_c2_err = 0.0;
 //    fprintf(stderr, "Target (%.4g, %.2g) -> (%.4g, %.2g)\n", init_f0, init_rl, f0(), std::abs(rl(omega)));
 }
 
@@ -210,13 +211,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             *this = LCRFit(f0org, rl_orig, retry % 8 < 4);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-//            omega_trust = eval_omega_trust(q);
-//            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-//            if(residualError() < residualerr) {
-//                residualerr  = residualError();
-//                lcr_orig = *this;
-//                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
-//            }
+            omega_trust = eval_omega_trust(q);
+            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+            if(residualError() < residualerr) {
+                residualerr  = residualError();
+                lcr_orig = *this;
+                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
+            }
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
             continue;
@@ -230,13 +231,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         if(nlls1.isSuccessful() && (residualError() < residualerr)) {
             residualerr  = residualError();
             nlls = std::move(nlls1);
+            m_c2_err = nlls.errors()[1];
+            m_c1_err = nlls.errors()[2];
             lcr_orig = *this;
         }
     }
     *this = lcr_orig;
     if(nlls.errors().size() == 4) {
-        m_c2_err = nlls.errors()[1];
-        m_c1_err = nlls.errors()[2];
         fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err());
@@ -390,7 +391,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *m_lcrPlot->label()] = i18n("Fitted Curve");
         tr[ *m_lcrPlot->axisX()] = tr.list(na__->graph()->axes())->at(0);
         tr[ *m_lcrPlot->axisY()] = tr.list(na__->graph()->axes())->at(1);
-        tr[ *m_lcrPlot->lineColor()] = clRed;
+        tr[ *m_lcrPlot->lineColor()] = (unsigned int)tr[ *na__->graph()->titleColor()];
         tr[ *m_lcrPlot->intensity()] = 2.0;
     });
 }
@@ -548,8 +549,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6,
-             !shot_this[ *this].fitRotated && !shot_this[ *this].fitOrig);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
         fmin = lcrfit->f0() * 1e-6;
         fmin_err = lcrfit->f0err() * 1e-6;
         rlmin = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
@@ -568,8 +568,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *m_c1].str(formatString("C1=%.2f\n  +-%.2f pF", lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12));
         tr[ *m_c2].str(formatString("C2=%.2f\n  +-%.2f pF", lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12));
         auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
-        message +=
-            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
+//        message +=
+//            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
         if(auto plot = m_lcrPlot)
             plot->setLCR(lcrfit);
 
@@ -641,7 +641,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             double backlash =
                     testdelta - (dc1dtest_minus_backlash + dc2dtest_minus_backlash) / (dc1dtest + dc2dtest) * testdelta;
             message +=
-                formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.",
+                formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
             if(((fabs(dc1dtest) < dc1dtest_err * 2) && (fabs(dc2dtest) < dc2dtest_err * 2)) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
@@ -652,7 +652,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                    return;
                }
                message +=
-                    formatString("\nIncreasing test angle to %.1f, Testing +Delta.", (double)testdelta);
+                    formatString("Increasing test angle to %.1f, Testing +Delta.", (double)testdelta);
                //rotates C more and try again.
                tr[ *this].fitOrig = lcrfit;
                tr[ *this].fitRotated.reset();
@@ -666,18 +666,21 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             tr[ *this].stmBacklash[target_stm] = backlash;
             tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
             tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
+            tr[ *this].clearSTMDelta();
             if(stm1__ && stm2__) {
-            //go to next test for another STM.
-                target_stm = 1 - target_stm;
-                tr[ *this].fitOrig = lcrfit;
-                tr[ *this].fitRotated.reset();
-                //follows the last rotation direction.
-                tr[ *this].stmDelta[target_stm] =
-                        Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
-                tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-                tr[ *this].isSTMChanged = true;
-                tr[ *m_status] = message;
-                throw XSkippedRecordError(__FILE__, __LINE__);
+                target_stm = 1 - target_stm; //STM1
+                if(tr[ *this].deltaC1perDeltaSTM[target_stm] == 0.0) {
+                    //go to next test for another STM.
+                    tr[ *this].fitOrig = lcrfit;
+                    tr[ *this].fitRotated.reset();
+                    //follows the last rotation direction.
+                    tr[ *this].stmDelta[target_stm] =
+                            Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
+                    tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
+                    tr[ *this].isSTMChanged = true;
+                    tr[ *m_status] = message + formatString("STM%d: Testing +Delta", target_stm + 1);
+                    throw XSkippedRecordError(__FILE__, __LINE__);
+                }
             }
         }
     }
@@ -685,6 +688,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     std::array<double, 2> drot{{0.0, 0.0}}; //rotations.
     double c1, c2;
     std::tie(c1, c2) = lcrfit->tuneCaps(f0 * 1e6); //suggests capacitances.
+    message +=
+        formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", c1 * 1e12, c2 * 1e12);
     double dc1 = c1 - lcrfit->c1();
     double dc2 = c2 - lcrfit->c2();
     if(stm1__ && stm2__) {
