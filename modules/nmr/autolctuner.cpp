@@ -210,13 +210,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust = eval_omega_trust(q);
-            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-            if(residualError() < residualerr) {
-                residualerr  = residualError();
-                lcr_orig = *this;
-                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
-            }
+//            omega_trust = eval_omega_trust(q);
+//            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+//            if(residualError() < residualerr) {
+//                residualerr  = residualError();
+//                lcr_orig = *this;
+//                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
+//            }
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
             continue;
@@ -235,6 +235,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             m_c1_err = nlls.errors()[2];
             lcr_orig = *this;
         }
+        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
+        m_r1 = fabs(nlls1.params()[0]);
+        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
+        m_r1 = fabs(nlls1.params()[0]);
+        m_c2 = nlls1.params()[1];
     }
     *this = lcr_orig;
     if(nlls.errors().size() == 4) {
@@ -584,7 +589,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		return;
 	}
 
-    tr[ *this].iterationCount++;
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         tr[ *this].iterationCount = 0;
 		//remembers good positions.
@@ -594,7 +598,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
 	bool timeout = (XTime::now() - shot_this[ *this].started > 360); //6min.
 	if(timeout) {
-        tr[ *m_status] = message + "Time out.";
+        message += "Time out.";
         abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//Aborts.
 		return;
 	}
@@ -603,6 +607,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
+        tr[ *this].iterationCount++;
+        if((shot_this[ *this].iterationCount > 1) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
+            message += "The last iteration made situation worse.";
+            rollBack(tr, std::move(message));
+        }
         tr[ *this].fitOrig = lcrfit;
         //follows the last rotation direction.
         tr[ *this].stmDelta[target_stm] =
@@ -648,8 +657,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
             double sigma_per_change = std::min(w1, w2);
-            if((sigma_per_change > 1.5) ||
-                    (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
+            if((sigma_per_change > 5) ||
+                    (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
                 testdelta *= 2; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
                 testdelta *= -1; //polarity for +Delta
