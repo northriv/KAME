@@ -218,8 +218,10 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
 //                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
 //            }
         }
-        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
+        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
+            randomize = true; //fitting diverged.
             continue;
+        }
         omega_trust = eval_omega_trust(qValue());
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size(), 200);
         m_r1 = fabs(nlls1.params()[0]);
