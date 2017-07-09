@@ -549,7 +549,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6); //, !shot_this[ *this].fitOrig);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
         fmin = lcrfit->f0() * 1e-6;
         fmin_err = lcrfit->f0err() * 1e-6;
         rlmin = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
@@ -627,7 +627,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         //The stage just after -Delta rotation.
             //calculate capacitance change and backlash.
             double testdelta = shot_this[ *this].stmDelta[target_stm];
-            testdelta *= -1;
+            testdelta *= -1; //polarity for +Delta
             double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
             double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0) + pow(lcrfit->c1err(), 2.0)
                     + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
@@ -643,10 +643,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            if(((fabs(dc1dtest) < dc1dtest_err * 2) && (fabs(dc2dtest) < dc2dtest_err * 2)) ||
+            double sigma_per_change = std::min(dc1dtest_err / fabs(dc1dtest), dc2dtest_err / fabs(dc2dtest));
+            if((sigma_per_change > 1.0) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= Payload::TestDeltaMultFactor;
+                testdelta *= std::min(5.0, 1.0 / sigma_per_change);
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
                    return;
@@ -656,7 +657,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                //rotates C more and try again.
                tr[ *this].fitOrig = lcrfit;
                tr[ *this].fitRotated.reset();
-               tr[ *this].stmDelta[target_stm] = testdelta * shot_this[ *this].lastDirection(target_stm);
+               tr[ *this].stmDelta[target_stm] = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm);
                tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
                tr[ *this].isSTMChanged = true;
                tr[ *m_status] = message;

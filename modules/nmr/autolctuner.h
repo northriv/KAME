@@ -84,7 +84,6 @@ public:
         double smallestRLAtF0; //0 < RL < 1
         std::array<double, 2> bestSTMValues; //[deg]
         static constexpr double TestDeltaFirst = 20; //[deg]
-        static constexpr double TestDeltaMultFactor = 2;
         static constexpr double TestDeltaMax = 720; //[deg]
         static constexpr double DeltaMax = 6 * 360; //[deg]
         std::array<double, 2> stmDelta; //[deg], +:CW, -:CCW.
