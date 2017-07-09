@@ -210,18 +210,18 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust = eval_omega_trust(q);
-            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-            if(residualError() < residualerr) {
-                residualerr  = residualError();
-                lcr_orig = *this;
-                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
-            }
+//            omega_trust = eval_omega_trust(q);
+//            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+//            if(residualError() < residualerr) {
+//                residualerr  = residualError();
+//                lcr_orig = *this;
+//                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
+//            }
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
             continue;
         omega_trust = eval_omega_trust(qValue());
-        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size());
+        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size(), 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -549,7 +549,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6); //, !shot_this[ *this].fitOrig);
         fmin = lcrfit->f0() * 1e-6;
         fmin_err = lcrfit->f0err() * 1e-6;
         rlmin = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
