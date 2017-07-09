@@ -27,7 +27,7 @@ class LCRFit {
 public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
-    void fit(const std::vector<double> &s11, double fstart, double fstep);
+    void fit(const std::vector<double> &s11, double fstart, double fstep, bool randomize = true);
     void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
@@ -88,7 +88,7 @@ private:
     }
     double isigma(double domega, double omega_trust) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        double omega_sigma = omega_trust * 1.0;
+        double omega_sigma = omega_trust * 4.0;
         return sqrt(exp( -std::norm(domega / omega_sigma) / 2.0) / (sqrt(2 * M_PI)  * omega_sigma)); //a weight during the fit.
     }
     double m_r1, m_r2, m_l1;
@@ -141,7 +141,7 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
 }
 
 void
-LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
+LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool randomize) {
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
     double omega0org = 2.0 * M_PI * f0org;
@@ -185,15 +185,17 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep) {
         return true;
     };
 
-    double residualerr = 1.0;
+    omega_trust = eval_omega_trust(qValue());
+    computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+    double residualerr = residualError();
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0; ; retry++) {
-        if((retry > 24) && (XTime::now() - start > 0.2))
+        if((retry > 24) && ((XTime::now() - start > 0.2) || !randomize))
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
-        if(retry % 4 == 3) {
+        if((retry % 4 == 3) && randomize) {
             *this = LCRFit(f0org, rl_orig, retry % 8 < 4);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
@@ -306,7 +308,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
 		tr[ *m_reflectionRequired] = -7.0;
 		tr[ *m_useSTM1] = true;
 		tr[ *m_useSTM2] = true;
-		m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
+        tr[ *abortTuning()].setUIEnabled(false);
+        m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onTargetChanged);
 		m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
 			shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
@@ -357,6 +360,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *m_useSTM2].setUIEnabled(false);
         tr[ *stm1()].setUIEnabled(false);
         tr[ *stm2()].setUIEnabled(false);
+        tr[ *abortTuning()].setUIEnabled(true);
 
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
@@ -417,6 +421,7 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
     tr[ *m_useSTM2].setUIEnabled(true);
     tr[ *stm1()].setUIEnabled(true);
     tr[ *stm2()].setUIEnabled(true);
+    tr[ *abortTuning()].setUIEnabled(false);
 
     const shared_ptr<XNetworkAnalyzer> na__ = tr[ *netana()];
     auto plot = m_lcrPlot;
@@ -431,9 +436,10 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
 }
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message) {
+    message += "\n";
 	double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
     if(tune_approach_goal2 > tr[ *this].smallestRLAtF0) {
-        tr[ *m_status] = message + "Softens target value. ";
+        message += "Softens target value.\n";
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
         tr[ *this].iterationCount = 0;
@@ -515,21 +521,27 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
-        lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6);
+
+        if(shot_this[ *this].fitRotated)
+            lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitRotated);
+        else if(shot_this[ *this].fitOrig)
+            lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
+        else
+            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6,
+            !shot_this[ *this].fitRotated && !shot_this[ *this].fitOrig);
         fmin = lcrfit->f0() * 1e-6;
         fmin_err = lcrfit->f0err() * 1e-6;
         rlmin = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
         rl_at_f0 = std::abs(lcrfit->rl(2.0 * M_PI * f0 * 1e6));
         rl_at_f0_sigma = lcrfit->rlerr(2.0 * M_PI * f0 * 1e6);
         message =
-            formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g\n",
+            formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g",
                 fmin, fmin_err,
                 log10(rlmin) * 20.0, lcrfit->qValue());
-//        message +=
-//            formatString("Fit: R1=%.2f, R2=%.2f Ohms, L=%.3g H, C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
-//                         , lcrfit->r2(), lcrfit->l1(),
-//                         lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
+        message +=
+            formatString(", C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
+                         lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
         tr[ *m_l1].str(formatString("L1=%.2f nH", lcrfit->l1() * 1e9));
         tr[ *m_r1].str(formatString("R1=%.2f Ohm", lcrfit->r1()));
         tr[ *m_r2].str(formatString("R2=%.2f Ohm", lcrfit->r2()));
@@ -597,14 +609,22 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             double testdelta = shot_this[ *this].stmDelta[target_stm];
             testdelta *= -1;
             double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
-            double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
+            double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0) + pow(lcrfit->c1err(), 2.0)
+                    + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
+            double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / fabs(testdelta);
+            double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0) + pow(lcrfit->c2err(), 2.0)
+                    + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / testdelta;
             double dc1dtest_minus_backlash =
                 (lcrfit->c1() - shot_this[ *this].fitRotated->c1()) / (-testdelta);
             double dc2dtest_minus_backlash =
                 (lcrfit->c2() - shot_this[ *this].fitRotated->c2()) / (-testdelta);
             double backlash =
                     testdelta - (dc1dtest_minus_backlash + dc2dtest_minus_backlash) / (dc1dtest + dc2dtest) * testdelta;
-            if(fabs(backlash / testdelta) > 0.2) {
+            message +=
+                formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.",
+                    target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
+            if(((fabs(dc1dtest) < dc1dtest_err * 2) && (fabs(dc2dtest) < dc2dtest_err * 2)) ||
+                    (fabs(backlash / testdelta) > 0.2)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
                 testdelta *= Payload::TestDeltaMultFactor;
                if(fabs(testdelta) > Payload::TestDeltaMax) {
@@ -612,7 +632,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                    return;
                }
                message +=
-                    formatString("Increasing test angle to %.1f", (double)testdelta);
+                    formatString("\nIncreasing test angle to %.1f", (double)testdelta);
                //rotates C more and try again.
                tr[ *this].fitOrig = lcrfit;
                tr[ *this].fitRotated.reset();
@@ -622,9 +642,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                tr[ *m_status] = message;
                throw XSkippedRecordError(__FILE__, __LINE__);
             }
-            message +=
-                formatString("STM%d: dC1/dx = %.2g pF/deg., dC2/dx = %.2g pF/deg., backlash = %.1f deg.",
-                    target_stm + 1, dc1dtest * 1e12, dc2dtest * 1e12, backlash);
             if(backlash < 0) backlash = 0; //unphysical
             tr[ *this].stmBacklash[target_stm] = backlash;
             tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
