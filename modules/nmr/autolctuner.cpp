@@ -206,7 +206,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
-        if((retry % 2 == 1) && (randomize || (residualerr > 1e-2))) {
+        if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
@@ -647,7 +647,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if((sigma_per_change > 1.0) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(5L, 1L + lrint(1.0 / sigma_per_change));
+                testdelta *= 3; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
                 testdelta *= -1; //polarity for +Delta
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
