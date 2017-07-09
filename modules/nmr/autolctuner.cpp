@@ -210,13 +210,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-//            omega_trust = eval_omega_trust(q);
-//            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-//            if(residualError() < residualerr) {
-//                residualerr  = residualError();
-//                lcr_orig = *this;
-//                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
-//            }
+            omega_trust = eval_omega_trust(q);
+            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+            if(residualError() < residualerr) {
+                residualerr  = residualError();
+                lcr_orig = *this;
+                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
+            }
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2))
             continue;
@@ -638,13 +638,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 (lcrfit->c1() - shot_this[ *this].fitRotated->c1()) / (-testdelta);
             double dc2dtest_minus_backlash =
                 (lcrfit->c2() - shot_this[ *this].fitRotated->c2()) / (-testdelta);
-            double backlash =
-                    testdelta - (dc1dtest_minus_backlash + dc2dtest_minus_backlash) / (dc1dtest + dc2dtest) * testdelta;
+            double backlash1 = testdelta - dc1dtest_minus_backlash / dc1dtest * testdelta;
+            double backlash2 = testdelta - dc2dtest_minus_backlash / dc2dtest * testdelta;
+            double w1 = dc2dtest_err / fabs(dc2dtest);
+            double w2 = dc1dtest_err / fabs(dc1dtest);
+            double backlash = w1 * w1 * backlash1 + w2 * w2 * backlash2;
+            backlash /= w1 * w1 + w2 * w2;
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            double sigma_per_change = std::min(dc1dtest_err / fabs(dc1dtest), dc2dtest_err / fabs(dc2dtest));
-            if((sigma_per_change > 1.0) ||
+            double sigma_per_change = std::min(w1, w2);
+            if((sigma_per_change > 1.5) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
                 testdelta *= 3; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
