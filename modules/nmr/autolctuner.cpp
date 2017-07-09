@@ -90,16 +90,15 @@ public:
         m_tightCouple = tight_couple;
     }
 private:
-    static constexpr double POW_ON_FIT = 1.0;
     double rlpow(double omega) const {
-        return pow(std::norm(rl(omega)), POW_ON_FIT / 2.0);
+        return std::abs(rl(omega));
     }
     std::complex<double> zlcr1(double omega) const {
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
     }
     double isigma(double domega, double omega_trust) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        double omega_sigma = omega_trust * 6.0;
+        double omega_sigma = omega_trust * 1.5;
         return sqrt(exp( -std::norm(domega / omega_sigma) / 2.0) / (sqrt(2 * M_PI)  * omega_sigma)); //a weight during the fit.
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
@@ -148,10 +147,10 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
     double freq = fstart;
     for(size_t i = 0; i < s11.size(); ++i) {
         double omega = 2 * M_PI * freq;
-        x += std::norm((pow(s11[i], POW_ON_FIT) - rlpow(omega)) * isigma(omega - omega0, omega_trust) * sqrt(2.0 * M_PI * fstep));
+        x += std::norm((s11[i] - rlpow(omega)) * isigma(omega - omega0, omega_trust) * sqrt(2.0 * M_PI * fstep));
         freq += fstep;
     }
-    m_resErr = sqrt(x / s11.size()) / POW_ON_FIT;
+    m_resErr = sqrt(x / s11.size());
 }
 
 void
@@ -186,7 +185,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             double rlpow0 = rlpow(omega);
             double wsqrt = isigma(omega - omega0org, omega_trust) * sqrt(2.0 * M_PI * fstep);
             if(f) {
-                f[i] = (rlpow0 - pow(s11[i], POW_ON_FIT)) * wsqrt;
+                f[i] = (rlpow0 - s11[i]) * wsqrt;
             }
             else {
                 df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
@@ -207,8 +206,8 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
-        if((retry % 4 == 3) && (randomize || (residualerr > 1e-2))) {
-            *this = LCRFit(f0org, rl_orig, retry % 8 < 4);
+        if((retry % 2 == 1) && (randomize || (residualerr > 1e-2))) {
+            *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust = eval_omega_trust(q);
@@ -227,6 +226,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
+        omega_trust = eval_omega_trust(qValue());
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
         if(nlls1.isSuccessful() && (residualError() < residualerr)) {
             residualerr  = residualError();
