@@ -137,7 +137,7 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     m_r2 = 1.0;
     setTunedCaps(init_f0, init_rl, tight_couple);
     double omega = 2 * M_PI * init_f0;
-    m_c1_err = 0.0; m_c2_err = 0.0;
+    m_c1_err = m_c1 * 0.1; m_c2_err = m_c2 * 0.1;
 //    fprintf(stderr, "Target (%.4g, %.2g) -> (%.4g, %.2g)\n", init_f0, init_rl, f0(), std::abs(rl(omega)));
 }
 
@@ -578,14 +578,14 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
 	if(shot_this[ *this].isTargetAbondoned)
 		tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
-    if(rl_at_f0 < tune_approach_goal) {
+    if(rl_at_f0 + rl_at_f0_sigma < tune_approach_goal) {
         tr[ *m_status] = message + "Tuning done satisfactorily.";
 		tr[ *succeeded()] = true;
 		return;
 	}
 
     tr[ *this].iterationCount++;
-    if(shot_this[ *this].smallestRLAtF0 > rl_at_f0) {
+    if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         tr[ *this].iterationCount = 0;
 		//remembers good positions.
         tr[ *this].bestSTMValues = tr[ *this].targetSTMValues;
@@ -651,7 +651,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if((sigma_per_change > 1.5) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.5)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= 3; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
+                testdelta *= 2; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
                 testdelta *= -1; //polarity for +Delta
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
