@@ -33,6 +33,9 @@ public:
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
     double c2() const {return m_c2;} //!< C in parallel to a port.
+    void setCaps(double c1, double c2) {
+        m_c1 = c1; m_c2 = c2;
+    }
     double l1() const {return m_l1;} //!< Fixed value for L.
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
@@ -203,7 +206,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
-        if((retry % 4 == 3) && randomize) {
+        if((retry % 4 == 3) && (randomize || (residualerr > 1e-2))) {
             *this = LCRFit(f0org, rl_orig, retry % 8 < 4);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
@@ -531,24 +534,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 fmin = trace_start + i * trace_dfreq;
             }
         }
-        message +=
-            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB\n",
-                fmin, 20.0 * log10(rlmin));
+//        message +=
+//            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB\n",
+//                fmin, 20.0 * log10(rlmin));
 
         //Fits to LCR circuit.
         std::vector<double> rl(trace_len);
         for(int i = 0; i < trace_len; ++i)
             rl[i] = std::abs(trace[i]);
 
-        if(shot_this[ *this].fitRotated)
-            lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitRotated);
-        else {
-            if(shot_this[ *this].fitOrig)
-                lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
-            else {
-                lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
-            }
-        }
+        if(shot_this[ *this].fitOrig)
+            lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
+        else
+            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin);
         lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6,
              !shot_this[ *this].fitRotated && !shot_this[ *this].fitOrig);
@@ -684,13 +682,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
     //Final stage.
+    std::array<double, 2> drot{{0.0, 0.0}}; //rotations.
     double c1, c2;
     std::tie(c1, c2) = lcrfit->tuneCaps(f0 * 1e6); //suggests capacitances.
     double dc1 = c1 - lcrfit->c1();
     double dc2 = c2 - lcrfit->c2();
-    std::array<double, 2> drot{{0.0, 0.0}}; //rotations.
     if(stm1__ && stm2__) {
-    double a,b,c,d;
+        double a,b,c,d;
         a = shot_this[ *this].deltaC1perDeltaSTM[0];
         b = shot_this[ *this].deltaC1perDeltaSTM[1];
         c = shot_this[ *this].deltaC2perDeltaSTM[0];
@@ -700,9 +698,23 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         drot[1] = (-c * dc1 + a * dc2) / det;
     }
     else {
-        drot[target_stm] = (dc1 + dc2) / (
-            shot_this[ *this].deltaC1perDeltaSTM[target_stm] +
-            shot_this[ *this].deltaC2perDeltaSTM[target_stm]);
+        double minrl = 1.0;
+        double k1 = dc1 / shot_this[ *this].deltaC1perDeltaSTM[target_stm];
+        double k2 = dc2 / shot_this[ *this].deltaC2perDeltaSTM[target_stm];
+        LCRFit newlcr( *lcrfit);
+        c1 = newlcr.c1();
+        c2 = newlcr.c2();
+        //searches for minimum.
+        for(double coeff = -1; coeff < 2; coeff += 0.1) {
+            double k = k1 * coeff + k2 * (1.0 - coeff);
+            newlcr.setCaps(c1 + k *  shot_this[ *this].deltaC1perDeltaSTM[target_stm],
+                    c2 + k * shot_this[ *this].deltaC2perDeltaSTM[target_stm]);
+            double rl = std::abs(newlcr.rl(2.0 * M_PI * f0 * 1e6));
+            if(minrl > rl) {
+                minrl = rl;
+                drot[target_stm] = k;
+            }
+        }
     }
     //Subtracts backlashes
     for(int i: {0, 1}) {
