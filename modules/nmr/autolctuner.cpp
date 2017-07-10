@@ -232,7 +232,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
-        omega_trust = eval_omega_trust(qValue());
+        omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
         if(nlls1.isSuccessful() && (residualError() < residualerr)) {
             residualerr  = residualError();
@@ -539,12 +539,16 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//analyzes trace.
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
-        //searches for minimum in reflection.
+        double rl_eval_min = 1e10;
+        //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
-            if(rlmin > z) {
+            double f = trace_start + i * trace_dfreq;
+            double y = 1.0 - ((1.0 - z) * exp( -std::norm((f0 - f) / f0)) / (2.0 * 1.0 * 1.0));
+            if(y < rl_eval_min) {
+                rl_eval_min = y;
                 rlmin = z;
-                fmin = trace_start + i * trace_dfreq;
+                fmin = f;
             }
         }
 //        message +=
