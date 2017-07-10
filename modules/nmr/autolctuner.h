@@ -125,8 +125,8 @@ private:
 		double y, double y_err,
 		double dxdC1, double dxdC2,
 		double dydC1, double dydC2);
-    void abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message);
-    void rollBack(Transaction &tr, XString &&message);
+    [[noreturn]] void abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message);
+    [[noreturn]] void rollBack(Transaction &tr, XString &&message);
     void clearUIAndPlot(Transaction &tr);
 };
 

@@ -98,8 +98,7 @@ private:
     }
     double isigma(double domega, double omega_trust) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        double omega_sigma = omega_trust * 1.5;
-        return sqrt(exp( -std::norm(domega / omega_sigma) / 2.0) / (sqrt(2 * M_PI)  * omega_sigma)); //a weight during the fit.
+        return sqrt(exp( -std::norm(domega / omega_trust) / 2.0) / (sqrt(2 * M_PI)  * omega_trust)); //a weight during the fit.
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
@@ -155,6 +154,7 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
 
 void
 LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool randomize) {
+    m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
     double omega0org = 2.0 * M_PI * f0org;
@@ -198,18 +198,22 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         return true;
     };
 
+    double omega_trust_scale = 1.5;
     double residualerr = 1.0;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0; ; retry++) {
-        if((retry > 24) && ((XTime::now() - start > 0.2) || !randomize))
+        if((retry > 24) && (XTime::now() - start > 0.2))
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
+        if(retry > 10)
+            randomize = true;
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
+            omega_trust_scale = randMT19937() * 3.0 + 1.0;
 //            omega_trust = eval_omega_trust(q);
 //            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
 //            if(residualError() < residualerr) {
@@ -222,7 +226,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             randomize = true; //fitting diverged.
             continue;
         }
-        omega_trust = eval_omega_trust(qValue());
+        omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size(), 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
@@ -581,7 +585,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if(auto plot = m_lcrPlot)
             plot->setLCR(lcrfit);
 
-	}
+        if(lcrfit->residualError() > 0.1) {
+            message += "Fitting has been failed.\n";
+            rollBack(tr, std::move(message));
+        }
+    }
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
 	if(shot_this[ *this].isTargetAbondoned)
@@ -611,6 +619,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
         tr[ *this].iterationCount++;
+        tr[ *m_status] = message + formatString("Iteration %d.\n", tr[ *this].iterationCount);
         if((shot_this[ *this].iterationCount > 2) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
             message += "The last 2 iterations made situation worse.";
             rollBack(tr, std::move(message));
