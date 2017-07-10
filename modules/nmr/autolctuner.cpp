@@ -420,6 +420,12 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
 void
 XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     tr[ *m_status] = message + "Rolls back.";
+    if(20.0 * log10(tr[ *this].smallestRLAtF0) < -3.0) {
+        abortTuningFromAnalyze(tr, 0.0, std::move(message));
+    }
+    if((tr[ *this].iterationCount == 0) || (tr[ *this].iterationCount > 5)) {
+        abortTuningFromAnalyze(tr, 1.0, std::move(message));
+    }
 	//rolls back to good positions.
 	tr[ *this].isSTMChanged = true;
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
@@ -450,7 +456,7 @@ void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message) {
     message += "\n";
 	double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
-    if(tune_approach_goal2 > tr[ *this].smallestRLAtF0) {
+    if((tune_approach_goal2 > tr[ *this].smallestRLAtF0) && !tr[ *this].isTargetAbondoned) {
         message += "Softens target value.\n";
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
@@ -566,15 +572,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, false);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin);
         lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
-        fmin = lcrfit->f0() * 1e-6;
-        fmin_err = lcrfit->f0err() * 1e-6;
-        rlmin = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
+        double fmin_fit = lcrfit->f0() * 1e-6;
+        double fmin_fit_err = lcrfit->f0err() * 1e-6;
+        double rlmin_fit = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
         rl_at_f0 = std::abs(lcrfit->rl(2.0 * M_PI * f0 * 1e6));
         rl_at_f0_sigma = lcrfit->rlerr(2.0 * M_PI * f0 * 1e6);
         message +=
             formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g, %s",
-                fmin, fmin_err,
-                log10(rlmin) * 20.0, lcrfit->qValue(), lcrfit->tightCouple() ? "Tight" : "Loose");
+                fmin_fit, fmin_fit_err,
+                log10(rlmin_fit) * 20.0, lcrfit->qValue(), lcrfit->tightCouple() ? "Tight" : "Loose");
         message +=
             formatString(", C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
                          lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
@@ -584,15 +590,20 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *m_c1].str(formatString("C1=%.2f\n  +-%.2f pF", lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12));
         tr[ *m_c2].str(formatString("C2=%.2f\n  +-%.2f pF", lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12));
         auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
-//        message +=
-//            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
+        message +=
+            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
         if(auto plot = m_lcrPlot)
             plot->setLCR(lcrfit);
 
-        if(lcrfit->residualError() > 0.1) {
-            message += "Fitting has been failed.\n";
+        if((lcrfit->residualError() > 0.1)
+            || (fabs(fmin - fmin_fit) > (fmin_fit_err + trace_dfreq) * 2) || (fabs(rlmin - rlmin_fit) > 0.2)) {
+            message += formatString("Fitting is not reliable, because searched minimum was (%.2f MHz, %.2f dB).\n",
+                fmin, 20.0 * log10(rlmin));
             rollBack(tr, std::move(message));
         }
+        fmin = fmin_fit;
+        fmin_err = fmin_fit_err;
+        rlmin = rlmin_fit;
     }
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
@@ -623,7 +634,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
         tr[ *this].iterationCount++;
-        tr[ *m_status] = message + formatString("Iteration %d.\n", tr[ *this].iterationCount);
+        message += formatString("Iteration %d.\n", tr[ *this].iterationCount);
         if((shot_this[ *this].iterationCount > 2) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
             message += "The last 2 iterations made situation worse.";
             rollBack(tr, std::move(message));
@@ -676,7 +687,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if((sigma_per_change > 5) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= 2; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
+                testdelta *= 3; //std::min(3L, 1L + lrint(1.0 / sigma_per_change));
                 testdelta *= -1; //polarity for +Delta
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
@@ -752,15 +763,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
         }
     }
+    message += formatString("Suggested pos: %.1f, %.1f; rot.: %.1f, %.1f\n",
+        shot_this[ *this].targetSTMValues[0] + drot[0], shot_this[ *this].targetSTMValues[1]  + drot[1],
+        drot[0], drot[1]);
     //Subtracts backlashes
     for(int i: {0, 1}) {
         if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
             drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
     }
     //Limits rotations.
-    for(auto &&dx: drot) {
-        if(fabs(dx) > Payload::DeltaMax) dx *= Payload::DeltaMax / fabs(dx);
-    }
+    double drotabs = fabs(std::max(drot[0], drot[1]));
+    if(drotabs > Payload::DeltaMax)
+        for(auto &&dx: drot)
+            dx *= Payload::DeltaMax / drotabs;
     for(int i: {0, 1}) {
         tr[ *this].stmDelta[i] = drot[i];
         tr[ *this].targetSTMValues[i] += drot[i];
