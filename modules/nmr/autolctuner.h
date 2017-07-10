@@ -79,13 +79,13 @@ public:
         }
         shared_ptr<LCRFit> fitOrig, fitRotated;
         std::array<double, 2> stmBacklash; //[deg]
+        std::array<double, 2> stmTrustArea; //[deg]
         bool isSTMChanged; //STM positions will move to \a targetSTMValues.
         std::array<double, 2> targetSTMValues; //[deg]
         double smallestRLAtF0; //0 < RL < 1
         std::array<double, 2> bestSTMValues; //[deg]
         static constexpr double TestDeltaFirst = 5; //[deg]
         static constexpr double TestDeltaMax = 720; //[deg]
-        static constexpr double DeltaMax = 6 * 360; //[deg]
         std::array<double, 2> stmDelta; //[deg], +:CW, -:CCW.
         int lastDirection(size_t i) const {return (stmDelta[i] > 0) ? 1 : -1;} //+:CW, -:CCW.
         std::array<double, 2> deltaC1perDeltaSTM; //[F/deg.]

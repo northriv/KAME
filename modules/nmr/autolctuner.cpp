@@ -424,6 +424,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
         abortTuningFromAnalyze(tr, 0.0, std::move(message));
     }
     if((tr[ *this].iterationCount == 0) || (tr[ *this].iterationCount > 5)) {
+        //The first fitting has failed, or iteration exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
 	//rolls back to good positions.
@@ -706,6 +707,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
             if(backlash < 0) backlash = 0; //unphysical
             tr[ *this].stmBacklash[target_stm] = backlash;
+            tr[ *this].stmTrustArea[target_stm] =
+                fabs(testdelta) * std::min(fabs(testdelta) / backlash, 5.0);
             tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
             tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
             tr[ *this].clearSTMDelta();
@@ -772,10 +775,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
     }
     //Limits rotations.
-    double drotabs = fabs(std::max(drot[0], drot[1]));
-    if(drotabs > Payload::DeltaMax)
+    double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
+            fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
+    if(rotpertrust > 1.0)
         for(auto &&dx: drot)
-            dx *= Payload::DeltaMax / drotabs;
+            dx /= rotpertrust;
     for(int i: {0, 1}) {
         tr[ *this].stmDelta[i] = drot[i];
         tr[ *this].targetSTMValues[i] += drot[i];
