@@ -86,6 +86,7 @@ public:
         std::array<double, 2> bestSTMValues; //[deg]
         static constexpr double TestDeltaFirst = 5; //[deg]
         static constexpr double TestDeltaMax = 720; //[deg]
+        static constexpr double DeltaMax = 6 * 360; //[deg]
         std::array<double, 2> stmDelta; //[deg], +:CW, -:CCW.
         int lastDirection(size_t i) const {return (stmDelta[i] > 0) ? 1 : -1;} //+:CW, -:CCW.
         std::array<double, 2> deltaC1perDeltaSTM; //[F/deg.]
