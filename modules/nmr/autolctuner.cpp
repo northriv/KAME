@@ -205,7 +205,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if((retry > 24) && (XTime::now() - start > 0.2))
+        if(retry > 24)
             break;
         if((retry > 8) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
