@@ -129,6 +129,7 @@ NonLinearLeastSquare::NonLinearLeastSquare(Func func,
     gsl_multifit_fdfsolver_jac(s, J);
     gsl_multifit_covar(J, 0.0, covar);
 #else
+    #error GSL < 2 is obsolete, because of poor fit.
     gsl_multifit_covar (s->J, 0.0, covar);
 #endif
     m_errors.resize(init_params.size());
