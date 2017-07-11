@@ -717,7 +717,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if(backlash < 0) backlash = 0; //unphysical
             tr[ *this].stmBacklash[target_stm] = backlash;
             tr[ *this].stmTrustArea[target_stm] =
-                std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash, 50.0), Payload::DeltaMax);
+                std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash, 50.0), 6.0 * 360); //Payload::DeltaMax);
             tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
             tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
             tr[ *this].clearSTMDelta();
