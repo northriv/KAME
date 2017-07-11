@@ -165,8 +165,9 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
     double max_q = f0org / fstep;
+    size_t fit_start_idx = 0;
 
-    auto func = [&s11, this, fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
+    auto func = [&s11, this, &fit_start_idx, &fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
@@ -179,7 +180,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         plusDR2.m_r2 += DR2;
         plusDC1.m_c1 += DC1;
         plusDC2.m_c2 += DC2;
-        double freq = fstart;
+        double freq = fstart + fit_start_idx * fstep;
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             double rlpow0 = rlpow(omega);
@@ -207,8 +208,8 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             break;
         if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
-        if(retry > 10)
-            randomize = true;
+//        if(retry > 10)
+//            randomize = true;
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
@@ -223,11 +224,17 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
 //            }
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
-            randomize = true; //fitting diverged.
+//            randomize = true; //fitting diverged.
             continue;
         }
         omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
-        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, s11.size(), 200);
+        fit_start_idx = lrint((((omega0org - 3 * omega_trust) / 2 / M_PI) - fstart) / fstep);
+        fit_start_idx = std::min(fit_start_idx, (size_t)s11.size() - 1);
+        fit_start_idx = std::max(fit_start_idx, (size_t)0);
+        size_t fit_stop_idx = lrint((((omega0org + 3 * omega_trust) / 2 / M_PI) - fstart) / fstep);
+        fit_stop_idx = std::min(fit_stop_idx, (size_t)s11.size() - 1);
+        size_t fit_n = fit_stop_idx - fit_start_idx + 1;
+        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -241,9 +248,9 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             m_c1_err = nlls.errors()[2];
             lcr_orig = *this;
         }
-        nlls1 = NonLinearLeastSquare(func, {m_r1}, s11.size());
+        nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, s11.size());
+        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
     }
@@ -419,7 +426,6 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
 
 void
 XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
-    tr[ *m_status] = message + "Rolls back.";
     if(20.0 * log10(tr[ *this].smallestRLAtF0) < -3.0) {
         abortTuningFromAnalyze(tr, 0.0, std::move(message));
     }
@@ -427,7 +433,8 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
         //The first fitting has failed, or iteration exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
-	//rolls back to good positions.
+    tr[ *m_status] = message + "Rolls back.";
+    //rolls back to good positions.
 	tr[ *this].isSTMChanged = true;
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
@@ -596,7 +603,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if(auto plot = m_lcrPlot)
             plot->setLCR(lcrfit);
 
-        if((lcrfit->residualError() > 0.1)
+        if((lcrfit->residualError() > 0.1) || std::isnan(fmin_fit_err)
             || (fabs(fmin - fmin_fit) > (fmin_fit_err + trace_dfreq) * 2) || (fabs(rlmin - rlmin_fit) > 0.2)) {
             message += formatString("Fitting is not reliable, because searched minimum was (%.2f MHz, %.2f dB).\n",
                 fmin, 20.0 * log10(rlmin));
