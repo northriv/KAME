@@ -424,8 +424,8 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     if(20.0 * log10(tr[ *this].smallestRLAtF0) < -3.0) {
         abortTuningFromAnalyze(tr, 0.0, std::move(message));
     }
-    if((tr[ *this].iterationCount == 0) || (tr[ *this].iterationCount > 5)) {
-        //The first fitting has failed, or iteration exceeds a limit.
+    if(tr[ *this].iterationCount > 5) {
+        //Iteration count exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
     tr[ *m_status] = message + "Rolls back.";
