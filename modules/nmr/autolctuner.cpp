@@ -1,15 +1,15 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
-		                   kitagawa@phys.s.u-tokyo.ac.jp
+        Copyright (C) 2002-2015 Kentaro Kitagawa
+                           kitagawa@phys.s.u-tokyo.ac.jp
 
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
 
-		You should have received a copy of the GNU Library General
-		Public License and a list of authors along with this program;
-		see the files COPYING and AUTHORS.
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "analyzer.h"
@@ -280,19 +280,19 @@ private:
 };
 //---------------------------------------------------------------------------
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XSecondaryDriver(name, runtime, ref(tr_meas), meas),
-		m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
-		m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
-		m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
-		m_tuning(create<XBoolNode>("Tuning", true)),
-		m_succeeded(create<XBoolNode>("Succeeded", true)),
-		m_target(create<XDoubleNode>("Target", true)),
-		m_reflectionTargeted(create<XDoubleNode>("ReflectionTargeted", false)),
-		m_reflectionRequired(create<XDoubleNode>("ReflectionRequired", false)),
-		m_useSTM1(create<XBoolNode>("UseSTM1", false)),
-		m_useSTM2(create<XBoolNode>("UseSTM2", false)),
-		m_abortTuning(create<XTouchableNode>("AbortTuning", true)),
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XSecondaryDriver(name, runtime, ref(tr_meas), meas),
+        m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
+        m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
+        m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
+        m_tuning(create<XBoolNode>("Tuning", true)),
+        m_succeeded(create<XBoolNode>("Succeeded", true)),
+        m_target(create<XDoubleNode>("Target", true)),
+        m_reflectionTargeted(create<XDoubleNode>("ReflectionTargeted", false)),
+        m_reflectionRequired(create<XDoubleNode>("ReflectionRequired", false)),
+        m_useSTM1(create<XBoolNode>("UseSTM1", false)),
+        m_useSTM2(create<XBoolNode>("UseSTM2", false)),
+        m_abortTuning(create<XTouchableNode>("AbortTuning", true)),
         m_status(create<XStringNode>("FitStatus", true)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
@@ -300,11 +300,11 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_c1(create<XStringNode>("C1", true)),
         m_c2(create<XStringNode>("C2", true)),
         m_form(new FrmAutoLCTuner(g_pFrmMain))  {
-	connect(stm1());
-	connect(stm2());
-	connect(netana());
+    connect(stm1());
+    connect(stm2());
+    connect(netana());
 
-	m_form->setWindowTitle(i18n("NMR LC autotuner - ") + getLabel() );
+    m_form->setWindowTitle(i18n("NMR LC autotuner - ") + getLabel() );
 
     m_form->m_txtStatus->setReadOnly(true);
     m_conUIs = {
@@ -326,18 +326,18 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLabelConnector>(m_c2, m_form->m_lblC2)
     };
 
-	iterate_commit([=](Transaction &tr){
-		tr[ *m_tuning] = false;
-		tr[ *m_succeeded] = false;
+    iterate_commit([=](Transaction &tr){
+        tr[ *m_tuning] = false;
+        tr[ *m_succeeded] = false;
         tr[ *m_reflectionTargeted] = -20.0;
-		tr[ *m_reflectionRequired] = -7.0;
-		tr[ *m_useSTM1] = true;
-		tr[ *m_useSTM2] = true;
+        tr[ *m_reflectionRequired] = -7.0;
+        tr[ *m_useSTM1] = true;
+        tr[ *m_useSTM2] = true;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
-			shared_from_this(), &XAutoLCTuner::onTargetChanged);
-		m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
-			shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
+            shared_from_this(), &XAutoLCTuner::onTargetChanged);
+        m_lsnOnAbortTouched = tr[ *m_abortTuning].onTouch().connectWeakly(
+            shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
         m_lsnOnStatusOut = tr[ *m_status].onValueChanged().connectWeakly(
                     shared_from_this(), &XAutoLCTuner::onStatusChanged, Listener::FLAG_MAIN_THREAD_CALL);
     });
@@ -358,12 +358,12 @@ XAutoLCTuner::~XAutoLCTuner() {
 void XAutoLCTuner::showForms() {
     m_form->resize(100,100); //avoids bug on Windows.
     m_form->showNormal();
-	m_form->raise();
+    m_form->raise();
 }
 void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
-	Snapshot shot_this( *this);
-	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    Snapshot shot_this( *this);
+    shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+    shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     const unsigned int tunebits = 0xffu;
     for(auto &&stm: stms) {
@@ -379,7 +379,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         clearUIAndPlot(tr);
 
         tr[ *m_tuning] = true;
-		tr[ *succeeded()] = false;
+        tr[ *succeeded()] = false;
         tr[ *m_status] = "";
 
         tr[ *m_useSTM1].setUIEnabled(false);
@@ -391,9 +391,9 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
         tr[ *this].iterationCount = 0;
-		tr[ *this].isSTMChanged = true;
-		tr[ *this].started = XTime::now();
-		tr[ *this].isTargetAbondoned = false;
+        tr[ *this].timeSTMChanged = XTime::now();
+        tr[ *this].started = XTime::now();
+        tr[ *this].isTargetAbondoned = false;
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -410,11 +410,11 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) {
     iterate_commit_while([=](Transaction &tr)->bool{
-		if( !tr[ *m_tuning])
+        if( !tr[ *m_tuning])
             return false;
         clearUIAndPlot(tr);
         tr[ *m_tuning] = false;
-		tr[ *this].isSTMChanged = false;
+        tr[ *this].timeSTMChanged = {};
         return true;
     });
 }
@@ -430,7 +430,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     }
     tr[ *m_status] = message + "Rolls back.";
     //rolls back to good positions.
-	tr[ *this].isSTMChanged = true;
+    tr[ *this].timeSTMChanged = XTime::now();
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
     tr[ *this].resetToFirstStage();
@@ -458,26 +458,26 @@ XAutoLCTuner::clearUIAndPlot(Transaction &tr) {
 void
 XAutoLCTuner::abortTuningFromAnalyze(Transaction &tr, double rl_at_f0, XString &&message) {
     message += "\n";
-	double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
+    double tune_approach_goal2 = pow(10.0, 0.05 * tr[ *reflectionRequired()]);
     if((tune_approach_goal2 > tr[ *this].smallestRLAtF0) && !tr[ *this].isTargetAbondoned) {
         message += "Softens target value.\n";
         tr[ *this].resetToFirstStage();
         tr[ *this].smallestRLAtF0 = 1.0;
         tr[ *this].iterationCount = 0;
-        tr[ *this].isSTMChanged = true;
+        tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
         tr[ *this].isTargetAbondoned = true;
         rollBack(tr, std::move(message)); //rolls back and skps.
-	}
+    }
     clearUIAndPlot(tr);
-	tr[ *m_tuning] = false;
+    tr[ *m_tuning] = false;
     tr[ *m_status] = message + "Abort.";
     if(rl_at_f0 > tr[ *this].smallestRLAtF0) {
-		tr[ *this].isSTMChanged = true;
+        tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
         throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked. Back to better positions."), __FILE__, __LINE__);
-	}
-	throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked."), __FILE__, __LINE__);
+    }
+    throw XRecordError(i18n("Aborting. Out of tune, or capacitors have sticked."), __FILE__, __LINE__);
 }
 
 bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
@@ -496,13 +496,13 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 }
 void
 XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
-	const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
-	const Snapshot &shot_this(tr);
-	const Snapshot &shot_na(shot_emitter);
+    const Snapshot &shot_others,
+    XDriver *emitter) throw (XRecordError&) {
+    const Snapshot &shot_this(tr);
+    const Snapshot &shot_na(shot_emitter);
 
-	shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-	shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+    shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
 
     //remembers original position.
     if(stm1__)
@@ -513,12 +513,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !shot_this[ *useSTM1()]) stm1__.reset();
     if( !shot_this[ *useSTM2()]) stm2__.reset();
     if( (stm1__ && !shot_others[ *stm1__->ready()]) ||
-            ( stm2__  && !shot_others[ *stm2__->ready()]))
+            ( stm2__  && !shot_others[ *stm2__->ready()])) {
+        tr[ *this].timeSTMChanged = XTime::now();
         throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
+    }
 
-    if( shot_this[ *this].isSTMChanged) {
-        tr[ *this].isSTMChanged = false;
-        throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one before STM was moved. reload.
+    if(shot_this[ *this].timeSTMChanged) {
+        if((stm1__ && (shot_others[ *stm1__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
+            (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)))
+            throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
+        tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
+        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
+            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
+            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
     }
     if( !shot_this[ *tuning()]) {
         throw XSkippedRecordError(__FILE__, __LINE__);
@@ -528,20 +535,20 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
 
-	const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
+    const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
 
     XString message;
 
-	int trace_len = shot_na[ *na__].length();
+    int trace_len = shot_na[ *na__].length();
     double trace_dfreq = shot_na[ *na__].freqInterval();
-	double trace_start = shot_na[ *na__].startFreq();
+    double trace_start = shot_na[ *na__].startFreq();
     double fmin = 0.0, fmin_err;
     double rlmin = 1e10;
-	double f0 = shot_this[ *target()];
+    double f0 = shot_this[ *target()];
     double rl_at_f0 = 0.0;
     double rl_at_f0_sigma;
     shared_ptr<LCRFit> lcrfit;
-	//analyzes trace.
+    //analyzes trace.
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
         double rl_eval_min = 1e10;
@@ -611,28 +618,28 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
 
-	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
-	if(shot_this[ *this].isTargetAbondoned)
-		tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
+    double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
+    if(shot_this[ *this].isTargetAbondoned)
+        tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionRequired()]);
     if(rl_at_f0 + rl_at_f0_sigma < tune_approach_goal) {
         tr[ *m_status] = message + "Tuning done satisfactorily.";
-		tr[ *succeeded()] = true;
-		return;
-	}
+        tr[ *succeeded()] = true;
+        return;
+    }
 
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         tr[ *this].iterationCount = 0;
-		//remembers good positions.
+        //remembers good positions.
         tr[ *this].bestSTMValues = tr[ *this].targetSTMValues;
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
-	}
+    }
 
     bool timeout = (XTime::now() - shot_this[ *this].started > 600); //10min.
-	if(timeout) {
+    if(timeout) {
         message += "Time out.";
         abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//Aborts.
-		return;
-	}
+        return;
+    }
 
     int target_stm = ((shot_this[ *this].deltaC1perDeltaSTM[0] == 0.0) && stm1__) ? 0 : 1;
 
@@ -649,7 +656,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].stmDelta[target_stm] =
                 Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
         tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-        tr[ *this].isSTMChanged = true;
+        tr[ *this].timeSTMChanged = XTime::now();
         tr[ *m_status] = message + formatString("STM%d: Testing +Delta.", target_stm + 1);;
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
@@ -660,7 +667,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             //follows the last rotation direction.
             tr[ *this].stmDelta[target_stm] *= -1.0; //opposite direction.
             tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-            tr[ *this].isSTMChanged = true;
+            tr[ *this].timeSTMChanged = XTime::now();
             tr[ *m_status] = message + formatString("STM%d: Testing -Delta.", target_stm + 1);;
             throw XSkippedRecordError(__FILE__, __LINE__);
         }
@@ -705,7 +712,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                tr[ *this].fitRotated.reset();
                tr[ *this].stmDelta[target_stm] = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm);
                tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-               tr[ *this].isSTMChanged = true;
+               tr[ *this].timeSTMChanged = XTime::now();
                tr[ *m_status] = message;
                throw XSkippedRecordError(__FILE__, __LINE__);
             }
@@ -726,7 +733,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                     tr[ *this].stmDelta[target_stm] =
                             Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
                     tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-                    tr[ *this].isSTMChanged = true;
+                    tr[ *this].timeSTMChanged = XTime::now();
                     tr[ *m_status] = message + formatString("STM%d: Testing +Delta", target_stm + 1);
                     throw XSkippedRecordError(__FILE__, __LINE__);
                 }
@@ -789,19 +796,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].targetSTMValues[i] += drot[i];
     }
     tr[ *this].resetToFirstStage();
-    tr[ *this].isSTMChanged = true;
+    tr[ *this].timeSTMChanged = XTime::now();
 
     tr[ *m_status] = message;
     throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
 XAutoLCTuner::visualize(const Snapshot &shot_this) {
-	const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
-	const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+    const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     if(shot_this[ *tuning()]) {
-		if(shot_this[ *succeeded()]){
-			const unsigned int tunebits = 0;
+        if(shot_this[ *succeeded()]){
+            const unsigned int tunebits = 0;
             for(auto &&stm: stms) {
                 if(stm) {
                     stm->iterate_commit([=](Transaction &tr){
@@ -809,15 +816,15 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                         tr[ *stm->auxBits()] = tunebits; //For external RF relays.
                     });
                 }
-			}
-			msecsleep(50); //waits for relays.
+            }
+            msecsleep(50); //waits for relays.
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.
                 clearUIAndPlot(tr);
             });
         }
-	}
-	if(shot_this[ *this].isSTMChanged) {
+    }
+    if(shot_this[ *this].timeSTMChanged) {
         for(int i: {0, 1}) {
             auto stm = stms[i];
             if(stm) {
@@ -831,10 +838,12 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 }
             }
         }
-		msecsleep(50); //waits for ready indicators.
-		if( !shot_this[ *tuning()]) {
-			trans( *this).isSTMChanged = false;
-		}
-	}
+        if(shot_this[ *tuning()]) {
+            trans( *this).timeSTMChanged = XTime::now();
+        }
+        else {
+            trans( *this).timeSTMChanged = {};
+        }
+    }
 }
 

@@ -80,7 +80,7 @@ public:
         shared_ptr<LCRFit> fitOrig, fitRotated;
         std::array<double, 2> stmBacklash; //[deg]
         std::array<double, 2> stmTrustArea; //[deg]
-        bool isSTMChanged; //STM positions will move to \a targetSTMValues.
+        XTime timeSTMChanged; //STM positions will move to \a targetSTMValues.
         std::array<double, 2> targetSTMValues; //[deg]
         double smallestRLAtF0; //0 < RL < 1
         std::array<double, 2> bestSTMValues; //[deg]
@@ -94,7 +94,7 @@ public:
 
 		XTime started;
         int iterationCount;
-		bool isTargetAbondoned;
+        bool isTargetAbondoned;
 	};
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
