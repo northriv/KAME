@@ -492,10 +492,6 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
         return false;
     if(emitter != na__.get())
         return false;
-    if(shot_others[ *stm1__].time() > shot_emitter[ *na__].timeAwared())
-        return false; //trace acquired before motor starts.
-    if(shot_others[ *stm2__].time() > shot_emitter[ *na__].timeAwared())
-        return false; //trace acquired before motor starts.
     return true;
 }
 void
@@ -593,20 +589,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *m_c1].str(formatString("C1=%.2f\n  +-%.2f pF", lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12));
         tr[ *m_c2].str(formatString("C2=%.2f\n  +-%.2f pF", lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12));
         auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
-        message +=
-            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
+//        message +=
+//            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
         if(auto plot = m_lcrPlot)
             plot->setLCR(lcrfit);
 
-        if((lcrfit->residualError() > 0.1) || std::isnan(fmin_fit_err)
-            || (fabs(fmin - fmin_fit) > (fmin_fit_err + trace_dfreq) * 2) || (fabs(rlmin - rlmin_fit) > 0.2)) {
+        if((lcrfit->residualError() > 0.1) || std::isnan(fmin_fit_err) ||
+            ((fabs(fmin - fmin_fit) > (4 * fmin_fit_err + 6 * trace_dfreq)) && (rlmin < 0.1)) ||
+            (fabs(rlmin - rlmin_fit) > 0.2)) {
             message += formatString("Fitting is not reliable, because searched minimum was (%.2f MHz, %.2f dB).\n",
                 fmin, 20.0 * log10(rlmin));
-            rollBack(tr, std::move(message));
+            if(shot_this[ *this].fitOrig)
+                rollBack(tr, std::move(message));
+            message += "Continues anyway.";
+            fmin_err = fabs(fmin - fmin_fit);
         }
-        fmin = fmin_fit;
-        fmin_err = fmin_fit_err;
-        rlmin = rlmin_fit;
+        else {
+            fmin = fmin_fit;
+            fmin_err = fmin_fit_err;
+            rlmin = rlmin_fit;
+        }
     }
 
 	double tune_approach_goal = pow(10.0, 0.05 * shot_this[ *reflectionTargeted()]);
@@ -625,7 +627,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
 	}
 
-	bool timeout = (XTime::now() - shot_this[ *this].started > 360); //6min.
+    bool timeout = (XTime::now() - shot_this[ *this].started > 600); //10min.
 	if(timeout) {
         message += "Time out.";
         abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//Aborts.
@@ -637,7 +639,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !shot_this[ *this].fitOrig) {
     //The stage just before +Delta rotation.
         tr[ *this].iterationCount++;
-        message += formatString("Iteration %d.\n", tr[ *this].iterationCount);
+        message += formatString("Iteration %d after the best fit so far.\n", tr[ *this].iterationCount);
         if((shot_this[ *this].iterationCount > 2) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
             message += "The last 2 iterations made situation worse.";
             rollBack(tr, std::move(message));
@@ -710,7 +712,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if(backlash < 0) backlash = 0; //unphysical
             tr[ *this].stmBacklash[target_stm] = backlash;
             tr[ *this].stmTrustArea[target_stm] =
-                std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash, 50.0), 6.0 * 360); //Payload::DeltaMax);
+                std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash * 2, 50.0), 10.0 * 360); //Payload::DeltaMax);
             tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
             tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
             tr[ *this].clearSTMDelta();
