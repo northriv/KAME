@@ -205,24 +205,17 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if(retry > 24)
-            break;
-        if((retry > 8) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
-            break;
-//        if(retry > 10)
-//            randomize = true;
+        if(retry > 12)
+            break; //better fit cannot be expected anymore.
+        if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-3))
+            break; //enough good
+        if((retry == 2) && (residualerr < 1e-3) && !randomize)
+            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
-            double q = pow(10.0, (retry % 24) / 24.0 * log10(max_q)) + 2;
+            double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust_scale = (retry % 8) / 8.0 * 2.0 + 0.5;
-//            omega_trust = eval_omega_trust(q);
-//            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-//            if(residualError() < residualerr) {
-//                residualerr  = residualError();
-//                lcr_orig = *this;
-//                fprintf(stderr, "Found best tune: rms of residuals = %.3g\n", residualError());
-//            }
+            omega_trust_scale = (retry % 6) / 6.0 * 2.0 + 0.5;
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
 //            randomize = true; //fitting diverged.
@@ -697,7 +690,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if((sigma_per_change > 5) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(4L, 1L + lrint(5.0 / sigma_per_change));
+                testdelta *= std::min(4L, 2L + lrint(sigma_per_change));
                 testdelta *= -1; //polarity for +Delta
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
