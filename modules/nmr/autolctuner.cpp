@@ -165,7 +165,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
     double max_q = f0org / fstep;
-    size_t fit_start_idx = 0;
+    int fit_start_idx = 0, fit_stop_idx = s11.size() - 1;
 
     auto func = [&s11, this, &fit_start_idx, &fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
@@ -186,7 +186,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             double rlpow0 = rlpow(omega);
             double wsqrt = isigma(omega - omega0org, omega_trust) * sqrt(2.0 * M_PI * fstep);
             if(f) {
-                f[i] = (rlpow0 - s11[i]) * wsqrt;
+                f[i] = (rlpow0 - s11[i + fit_start_idx]) * wsqrt;
             }
             else {
                 df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
@@ -228,24 +228,29 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             continue;
         }
         omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
-        fit_start_idx = lrint((((omega0org - 3 * omega_trust) / 2 / M_PI) - fstart) / fstep);
-        fit_start_idx = std::min(fit_start_idx, (size_t)s11.size() - 1);
-        fit_start_idx = std::max(fit_start_idx, (size_t)0);
-        size_t fit_stop_idx = lrint((((omega0org + 3 * omega_trust) / 2 / M_PI) - fstart) / fstep);
-        fit_stop_idx = std::min(fit_stop_idx, (size_t)s11.size() - 1);
+        if( !(omega_trust > 0))
+            continue; //less or nan
+        if(retry >= 1) {
+            fit_start_idx = lrint((((omega0org - 5 * omega_trust) / 2 / M_PI) - fstart) / fstep);
+            fit_start_idx = std::max(fit_start_idx, 0);
+            fit_stop_idx = lrint((((omega0org + 5 * omega_trust) / 2 / M_PI) - fstart) / fstep);
+            fit_stop_idx = std::min(fit_stop_idx, (int)s11.size() - 1);
+        }
         size_t fit_n = fit_stop_idx - fit_start_idx + 1;
+        if(fit_n < 20)
+            continue;
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
+        m_c2_err = nlls1.errors()[1];
+        m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-        if(nlls1.isSuccessful() && (residualError() < residualerr)) {
+        if(nlls1.isSuccessful() && (residualError() < residualerr) && (f0err() > f0() * 0.01)) {
             residualerr  = residualError();
             nlls = std::move(nlls1);
-            m_c2_err = nlls.errors()[1];
-            m_c1_err = nlls.errors()[2];
             lcr_orig = *this;
         }
         nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
