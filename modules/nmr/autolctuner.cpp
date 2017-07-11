@@ -98,7 +98,8 @@ private:
     }
     double isigma(double domega, double omega_trust) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        return sqrt(exp( -std::norm(domega / omega_trust) / 2.0) / (sqrt(2 * M_PI)  * omega_trust)); //a weight during the fit.
+//        return sqrt(exp( -std::norm(domega / omega_trust) / 2.0) / (sqrt(2 * M_PI)  * omega_trust)); //a weight during the fit.
+        return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / omega_trust)))); //a weight during the fit.
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
@@ -165,9 +166,8 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
     double max_q = f0org / fstep;
-    int fit_start_idx = 0, fit_stop_idx = s11.size() - 1;
 
-    auto func = [&s11, this, &fit_start_idx, &fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
+    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
@@ -180,13 +180,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         plusDR2.m_r2 += DR2;
         plusDC1.m_c1 += DC1;
         plusDC2.m_c2 += DC2;
-        double freq = fstart + fit_start_idx * fstep;
+        double freq = fstart;
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             double rlpow0 = rlpow(omega);
             double wsqrt = isigma(omega - omega0org, omega_trust) * sqrt(2.0 * M_PI * fstep);
             if(f) {
-                f[i] = (rlpow0 - s11[i + fit_start_idx]) * wsqrt;
+                f[i] = (rlpow0 - s11[i]) * wsqrt;
             }
             else {
                 df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
@@ -201,20 +201,21 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
 
     double omega_trust_scale = 1.5;
     double residualerr = 1.0;
+    int it_best;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
-    for(int retry = 0; ; retry++) {
+    for(int retry = 0;; retry++) {
         if((retry > 24) && (XTime::now() - start > 0.2))
             break;
-        if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
+        if((retry > 8) && (XTime::now() - start > 0.01) && (residualerr < 1e-4))
             break;
 //        if(retry > 10)
 //            randomize = true;
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, retry % 4 < 2);
-            double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
+            double q = pow(10.0, (retry % 24) / 24.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust_scale = randMT19937() * 3.0 + 1.0;
+            omega_trust_scale = (retry % 8) / 8.0 * 2.0 + 0.5;
 //            omega_trust = eval_omega_trust(q);
 //            computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
 //            if(residualError() < residualerr) {
@@ -230,13 +231,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
         if( !(omega_trust > 0))
             continue; //less or nan
-        if(retry >= 1) {
-            fit_start_idx = lrint((((omega0org - 5 * omega_trust) / 2 / M_PI) - fstart) / fstep);
-            fit_start_idx = std::max(fit_start_idx, 0);
-            fit_stop_idx = lrint((((omega0org + 5 * omega_trust) / 2 / M_PI) - fstart) / fstep);
-            fit_stop_idx = std::min(fit_stop_idx, (int)s11.size() - 1);
-        }
-        size_t fit_n = fit_stop_idx - fit_start_idx + 1;
+        size_t fit_n = s11.size() - 1;
         if(fit_n < 20)
             continue;
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
@@ -248,10 +243,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-        if(nlls1.isSuccessful() && (residualError() < residualerr) && (f0err() > f0() * 0.01)) {
+        if(nlls1.isSuccessful() && (residualError() < residualerr) && !std::isnan(f0err())) {
             residualerr  = residualError();
             nlls = std::move(nlls1);
             lcr_orig = *this;
+            it_best = retry;
         }
         nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
@@ -265,7 +261,8 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err());
     }
-    fprintf(stderr, "rms of residuals = %.3g, elapsed = %f ms\n", residualError(), 1000.0 * (XTime::now() - start));
+    fprintf(stderr, "rms of residuals = %.3g, elapsed = %f ms & %d iterations.\n",
+            residualError(), 1000.0 * (XTime::now() - start), it_best);
 }
 
 class XLCRPlot : public XFuncPlot {
