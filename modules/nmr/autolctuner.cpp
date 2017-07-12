@@ -560,7 +560,6 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
         double rl_eval_min = 1e10;
-        std::complex<double> res_rl_inv = 0.0, z0 = 0.0;
         //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
@@ -571,12 +570,24 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 rlmin = z;
                 fmin = f;
             }
-            auto z1 = trace[i] * y / z;
-            if(y < 0.9)
-                res_rl_inv += (z1 - z0) / (z1 + z0);
-            z0 = z1;
         }
-        res_rl_inv /= std::complex<double>(0.0, 1.0 * M_PI); //Residue of 1/RL around the origin, >0 if the coupling is tight.
+        //Residue of 1/RL around the origin, approx. 1.0 if the coupling is tight.
+        std::complex<double> res_rl_inv = 0.0, z0 = 0.0, z1 = 1.0;
+        //searches for minimum in reflection around f0.
+        for(int i = 0; i < trace_len; ++i) {
+            double z = std::abs(trace[i]);
+            double f = trace_start + i * trace_dfreq;
+            double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin)) / (2.0 * 4.0 * 4.0));
+            if(y < pow(rlmin, 0.1)) { //restricts area not to count cables' effect or other resonances.
+                auto z2 = trace[i] * y / z;
+                if(z0 == 0.0)
+                    z0 = z2; //the first point under consideration
+                res_rl_inv += std::log(z2 / z1); //line integration for holomorphic.
+                z1 = z2;
+            }
+        }
+        res_rl_inv += std::log(z0 / z1);
+        res_rl_inv /= std::complex<double>(0.0, 2.0 * M_PI);
         message +=
             formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi\n",
                 fmin, 20.0 * log10(rlmin), res_rl_inv.real(), res_rl_inv.imag());
