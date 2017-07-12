@@ -552,6 +552,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
         double rl_eval_min = 1e10;
+        std::complex<double> residue_of_zinv = 0.0, z0 = 0.0;
         //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
@@ -562,10 +563,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 rlmin = z;
                 fmin = f;
             }
+            auto z1 = trace[i] * y / z;
+            if(y < 0.9)
+                residue_of_zinv += (z1 - z0) / (z1 + z0);
+            z0 = z1;
         }
-//        message +=
-//            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB\n",
-//                fmin, 20.0 * log10(rlmin));
+        residue_of_zinv /= std::complex<double>(0.0, 2.0 * M_PI);
+        message +=
+            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Rez(1/Z)=%.1f+%.1fi\n",
+                fmin, 20.0 * log10(rlmin), residue_of_zinv.real(), residue_of_zinv.imag());
 
         //Fits to LCR circuit.
         std::vector<double> rl(trace_len);
