@@ -602,7 +602,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, res_rl_inv.real() > 0.5);
-        lcrfit->setTunedCaps(fmin * 1e6, rlmin, res_rl_inv.real() > 0.5);
+        lcrfit->setTunedCaps(fmin * 1e6, rlmin, fabs(res_rl_inv.real()) > 0.5);
         lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
