@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
+
 //---------------------------------------------------------------------------
 template <class FRM>
 XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
@@ -198,14 +199,15 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	if(max__ <= min__) {
 		throw XSkippedRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
 	}
-    if(res * 65536 * 2 < max__ - min__) {
-        res = df * lrint((max__ - min__) / 65536 / 2 / df);
+    constexpr ssize_t MAX_ACCUM_LEN = 65536 * 2;
+    if(res * MAX_ACCUM_LEN < max__ - min__) {
+        //restricts a size of accumulation buffers.
+        res = df * lrint((max__ - min__) / MAX_ACCUM_LEN / df - 0.5);
 //		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
 	}
-
+    //small change is discarded.
 	if(fabs(log(shot_this[ *this].res() / res)) < log(2.0))
 		res = shot_this[ *this].res();
-	
 	if((shot_this[ *this].res() != res) || clear) {
 		tr[ *this].m_res = res;
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
@@ -215,7 +217,8 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		}
 	}
 	else {
-		int diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
+        //expands/shrinks the begining of buffers.
+        int diff = lrint(shot_this[ *this].min() / res) - lrint(min__ / res);
 		for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
             auto &accum = tr[ *this].m_accum[bank];
             auto &accum_weights = tr[ *this].m_accum_weights[bank];
@@ -235,7 +238,8 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		}
 	}
 	tr[ *this].m_min = min__;
-	int length = lrint((max__ - min__) / res);
+    //expands/shrinks the end of buffers.
+    int length = lrint((max__ - min__) / res);
 	for(int bank = 0; bank < Payload::ACCUM_BANKS; bank++) {
 		tr[ *this].m_accum[bank].resize(length, 0.0);
 		tr[ *this].m_accum_weights[bank].resize(length, 0);

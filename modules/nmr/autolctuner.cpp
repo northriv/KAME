@@ -338,7 +338,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_tuning] = false;
         tr[ *m_succeeded] = false;
         tr[ *m_reflectionTargeted] = -20.0;
-        tr[ *m_reflectionRequired] = -7.0;
+        tr[ *m_reflectionRequired] = -12.0;
         tr[ *m_useSTM1] = true;
         tr[ *m_useSTM2] = true;
         tr[ *abortTuning()].setUIEnabled(false);

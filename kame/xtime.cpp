@@ -144,7 +144,8 @@ XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
 		localtime_r( &tv_sec, &time);
 #endif
         char str[100];
-        strftime(str, 100, fmt, &time);
+        if( !strftime(str, 100, fmt, &time))
+            return {"(Undefined)"};
 		if(subsecond)
 			sprintf(str + strlen(str), " +%.3f", 1e-6 * tv_usec);
         return {str};
