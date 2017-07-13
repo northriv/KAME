@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>327</width>
-    <height>506</height>
+    <width>344</width>
+    <height>483</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -291,6 +291,9 @@
        <enum>QFrame::Raised</enum>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_8">
+       <property name="spacing">
+        <number>4</number>
+       </property>
        <property name="leftMargin">
         <number>0</number>
        </property>
@@ -454,43 +457,19 @@
      </widget>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <layout class="QHBoxLayout" name="horizontalLayout_12">
       <item>
-       <widget class="QCheckBox" name="m_ckbUseSTM1">
-        <property name="text">
-         <string>Use STM1</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="m_ckbUseSTM2">
-        <property name="text">
-         <string>Use STM2</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_9">
-      <item>
-       <layout class="QHBoxLayout" name="_2">
-        <property name="spacing">
-         <number>4</number>
-        </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
         <item>
-         <widget class="QLabel" name="textLabel20">
+         <widget class="QCheckBox" name="m_ckbUseSTM1">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
           <property name="text">
            <string>STM1</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -507,23 +486,17 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="_4">
-        <property name="spacing">
-         <number>4</number>
-        </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_9">
         <item>
-         <widget class="QLabel" name="textLabel20_3">
+         <widget class="QCheckBox" name="m_ckbUseSTM2">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
           <property name="text">
            <string>STM2</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -544,12 +517,12 @@
     <item>
      <layout class="QHBoxLayout" name="_3">
       <property name="spacing">
-       <number>4</number>
+       <number>12</number>
       </property>
       <item>
        <widget class="QLabel" name="textLabel20_2">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
