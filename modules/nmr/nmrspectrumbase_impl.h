@@ -442,7 +442,8 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	std::vector<std::complex<double> > fftwave(iftlen), iftwave(iftlen);
 	std::fill(fftwave.begin(), fftwave.end(), std::complex<double>(0.0));
 	for(int i = min_idx; i <= max_idx; i++) {
-		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
+        int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
+        assert(k >= 0);
 		if(accum_weights[i] > th)
 			fftwave[k] = accum_wave[i] / accum_weights[i];
 	}
@@ -488,6 +489,7 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	psdcoeff /= wave_period;
 	for(int i = min_idx; i <= max_idx; i++) {
 		int k = (i - (max_idx + min_idx) / 2 + iftlen) % iftlen;
+        assert(k >= 0);
 		wave[i] = fftwave[k] / (double)iftlen;
 		double w = accum_weights[i];
 		weights[i] = w;
