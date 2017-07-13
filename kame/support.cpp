@@ -80,16 +80,17 @@ XKameError::print(const XString &msg, const char *file, int line, int errno_) {
 	if( !file) return;
 	if(errno_) {
 		errno = 0;
-		char buf[256];
+		char buf[256] = {};
 	#ifdef __linux__
 		char *s = strerror_r(errno_, buf, sizeof(buf));
 		gErrPrint_redirected(msg + " " + s, file, line);
     #else
         #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-            strerror_s(buf, sizeof(buf), errno_);
+            if(strerror_s(buf, sizeof(buf), errno_))
         #else
-            strerror_r(errno_, buf, sizeof(buf));
+            if(strerror_r(errno_, buf, sizeof(buf)))
         #endif
+                buf[0] = '\0';
         gErrPrint_redirected(msg + " " + buf, file, line);
 	#endif
 		errno = 0;
