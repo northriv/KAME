@@ -281,7 +281,7 @@ XString dumpCString(const char *cstr) {
 		if(isprint(*cstr))
 			buf.append(1, *cstr);
 		else {
-			char s[5];
+            char s[5] = {};
 			snprintf(s, 5, "\\x%02x", (unsigned int)(int)*cstr);
 			buf.append(s);
 		}
