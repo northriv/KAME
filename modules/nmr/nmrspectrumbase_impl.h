@@ -198,8 +198,9 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	if(max__ <= min__) {
 		throw XSkippedRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
 	}
-    if(res * 65536 * 32 < max__ - min__) {
-		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
+    if(res * 65536 * 2 < max__ - min__) {
+        res = df * lrint((max__ - min__) / 65536 / 2 / df);
+//		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
 	}
 
 	if(fabs(log(shot_this[ *this].res() / res)) < log(2.0))
