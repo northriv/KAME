@@ -56,14 +56,14 @@ public:
 		void setLabel(unsigned int col, const char *label);
         const std::vector<XString> &labels() const {return m_labels;}
 		void setRowCount(unsigned int rowcnt);
-        void setColCount(unsigned int colcnt, const char **labels);
+        void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {
-            return m_colcnt ? m_cols.size() / m_colcnt : 0;}
-        unsigned int colCount() const {return m_colcnt;}
+            return m_cols.size() ? m_cols[0].size(): 0; }
+        unsigned int colCount() const {return m_cols.size();}
         unsigned int numPlots() const { return m_plots.size();}
 
-		const double *cols(unsigned int n) const;
-		double *cols(unsigned int n);
+        const double *cols(unsigned int n) const {return rowCount() ? &m_cols.at(n)[0] : nullptr;}
+        double *cols(unsigned int n) {return rowCount() ? &m_cols.at(n)[0] : nullptr;}
         const double *weight() const;
         //! \param plotnum start with zero.
 		int colX(unsigned int plotnum) const { return m_plots[plotnum].colx;}
@@ -91,9 +91,8 @@ public:
 			shared_ptr<XXYPlot> xyplot;
 			int colx, coly1, coly2, colweight, colz;
 		};
-		unsigned int m_colcnt;
 		std::vector<XString> m_labels;
-		std::vector<double> m_cols;
+        std::vector<std::vector<double>> m_cols;
 		int m_colw;
         std::vector<Plot> m_plots;
 		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;

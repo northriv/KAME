@@ -178,12 +178,12 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 			}
 		}
 
-		//Standard error.
-		double sigma2 = 0.0;
-		for(int i = 0; i < t; i++) {
-			sigma2 += std::norm(wave[i] - z * std::conj(coeff[i])) * weight[i];
-		}
-		sigma2 /= wsum;
+//		//Standard error.
+//		double sigma2 = 0.0;
+//		for(int i = 0; i < t; i++) {
+//			sigma2 += std::norm(wave[i] - z * std::conj(coeff[i])) * weight[i];
+//		}
+//		sigma2 /= wsum;
 		
 		m_peaks.push_back(std::pair<double, double>(std::abs(z) * n, freq / t * n));
 		zlist.push_back(z);

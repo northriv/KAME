@@ -404,6 +404,7 @@ private:
     void lookupFailure() const;
     local_shared_ptr<typename Node<XN>::Packet>*lookupFromChild(local_shared_ptr<Packet> &superpacket,
         bool copy_branch, int64_t tr_serial, bool set_missing, XN **uppernode);
+    static void print_recoverable_error(const char*);
 };
 
 template <class XN>
@@ -683,31 +684,46 @@ void Transaction<XN>::finalizeCommitment(Node<XN> &node) {
 
 template <class XN>
 template <typename Closure>
-Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
+Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-        closure(tr);
-        if(tr.commit())
-            return std::move(tr);
+        try {
+            if( !closure(tr))
+                continue; //skipping.
+            if(tr.commit())
+                return std::move(tr);
+        }
+        catch (const std::bad_alloc &e) {
+            Node<XN>::print_recoverable_error(e.what());
+        }
     }
 }
 template <class XN>
 template <typename Closure>
-Snapshot<XN> Node<XN>::iterate_commit_if(Closure &&closure) {
+Snapshot<XN> Node<XN>::iterate_commit(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-        if( !closure(tr))
-            continue; //skipping.
-        if(tr.commit())
-            return std::move(tr);
+          try {
+              closure(tr);
+              if(tr.commit())
+                  return std::move(tr);
+          }
+          catch (const std::bad_alloc &e) {
+              Node<XN>::print_recoverable_error(e.what());
+          }
     }
 }
 template <class XN>
 template <typename Closure>
 void Node<XN>::iterate_commit_while(Closure &&closure) {
     for(Transaction<XN> tr( *this);;++tr) {
-        if( !closure(tr))
-             return;
-        if(tr.commit())
-            return;
+        try {
+            if( !closure(tr))
+                 return;
+            if(tr.commit())
+                return;
+        }
+        catch (const std::bad_alloc &e) {
+            Node<XN>::print_recoverable_error(e.what());
+        }
     }
 }
 

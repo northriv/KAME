@@ -155,6 +155,13 @@ Node<XN>::PacketWrapper::print_() const {
 
 template <class XN>
 void
+Node<XN>::print_recoverable_error(const char* reason) {
+    fprintf(stderr, "Memory allocation has failed: %s\n", reason);
+    fprintf(stderr, "Transaction will be iterated...\n");
+}
+
+template <class XN>
+void
 Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &started_time, float mult_wait) noexcept {
     for(int ms = 0;;) {
         auto transaction_started_time = m_transaction_started_time;

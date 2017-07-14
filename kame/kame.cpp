@@ -104,7 +104,7 @@ FrmKameMain::FrmKameMain()
 
     m_pFrmDriver = new FrmDriver(this);
     m_pFrmDriver->setWindowIcon(*g_pIconDriver);
-    QMdiSubWindow* swnd = addDockableWindow(m_pMdiLeft, m_pFrmDriver, false);
+    addDockableWindow(m_pMdiLeft, m_pFrmDriver, false);
 
     m_pFrmGraphList = new FrmGraphList(this);
     m_pFrmGraphList->setWindowIcon(*g_pIconGraph);
@@ -124,7 +124,7 @@ FrmKameMain::FrmKameMain()
 
     m_pFrmInterface = new FrmInterface(this);
     m_pFrmInterface ->setWindowIcon(*g_pIconInterface);
-    swnd = addDockableWindow(m_pMdiRight, m_pFrmInterface, false);
+    addDockableWindow(m_pMdiRight, m_pFrmInterface, false);
 
     m_pFrmScalarEntry = new FrmEntry(this);
     m_pFrmScalarEntry->setWindowIcon(*g_pIconScalar);

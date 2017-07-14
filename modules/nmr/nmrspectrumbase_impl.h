@@ -204,7 +204,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
         //restricts a size of accumulation buffers.
         res = df * lrint((max__ - min__) / MAX_ACCUM_LEN / df - 0.5);
 //		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
-	}
+    }
     //small change is discarded.
 	if(fabs(log(shot_this[ *this].res() / res)) < log(2.0))
 		res = shot_this[ *this].res();

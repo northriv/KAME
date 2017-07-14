@@ -179,31 +179,23 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 }
 
 void
-XWaveNGraph::Payload::setColCount(unsigned int n, const char **labels) {
-    m_colcnt = n;
-    m_labels.resize(m_colcnt);
-    for(unsigned int i = 0; i < n; i++) {
-        m_labels[i] = labels[i];
-    }
+XWaveNGraph::Payload::setColCount(unsigned int colcnt, const char **labels) {
+    m_cols.resize(colcnt);
+    m_labels.resize(colcnt);
+    for(auto &&label: m_labels)
+        label = *labels++;
 }
 void
 XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {
-	m_labels[col] = label;
+    m_labels.at(col) = label;
 }
 void
 XWaveNGraph::Payload::setRowCount(unsigned int n) {
-	m_cols.resize(m_colcnt * n);
-    for(auto it = m_plots.begin(); it != m_plots.end(); it++) {
-		tr()[ *it->xyplot->maxCount()] = n;
+    for(auto &&col: m_cols)
+        col.resize(n);
+    for(auto &&plot: m_plots) {
+        tr()[ *plot.xyplot->maxCount()] = n;
 	}
-}
-double *
-XWaveNGraph::Payload::cols(unsigned int n) {
-    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
-}
-const double *
-XWaveNGraph::Payload::cols(unsigned int n) const {
-    return rowCount() ? &(m_cols[rowCount() * n]) : 0;
 }
 const double *
 XWaveNGraph::Payload::weight() const {
