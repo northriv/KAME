@@ -435,7 +435,6 @@ XNMRSpectrumBase<FRM>::analyzeIFT(Transaction &tr, const Snapshot &shot_pulse) {
 	if(trunc2 < 1)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	iftlen = ((iftlen * 3 / 2 + npad) / trunc2 + 1) * trunc2;
-    fprintf(stderr, "IFT len=%d for %d points\n", iftlen, max_idx - min_idx + 1);
 	int tdsize = lrint(wave_period * res * iftlen);
 	int iftorigin = lrint(shot_pulse[ *pulse__].waveFTPos() * shot_pulse[ *pulse__].interval() * res * iftlen);
 	int bwinv = abs(lrint(1.0 / (shot_this[ *bandWidth()] * bw_coeff * 1000.0 * shot_pulse[ *pulse__].interval() * res * iftlen)));
