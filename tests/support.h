@@ -91,25 +91,5 @@ private:
 	const int m_errno;
 };
 
-
-//! Debug printing.
-#define dbgPrint(msg) dbgPrint_redirected(msg, __FILE__, __LINE__)
-void
-dbgPrint_redirected(const XString &str, const char *file, int line);
-//! Global Error Message/Printing.
-#define gErrPrint(msg) gErrPrint_redirected(msg, __FILE__, __LINE__)
-#define gWarnPrint(msg) gWarnPrint_redirected(msg, __FILE__, __LINE__)
-void
-gErrPrint_redirected(const XString &str, const char *file, int line);
-void
-gWarnPrint_redirected(const XString &str, const char *file, int line);
-
-//! If true, use mlockall MCL_FUTURE.
-extern bool g_bMLockAlways;
-//! If true, use mlock.
-extern bool g_bUseMLock;
-
-inline bool isMemLockAvailable() {return g_bUseMLock;}
-
 //---------------------------------------------------------------------------
 #endif

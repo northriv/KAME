@@ -201,7 +201,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 	}
     constexpr ssize_t MAX_ACCUM_LEN = 65536 * 2;
     if(res * MAX_ACCUM_LEN < max__ - min__) {
-        //restricts a size of accumulation buffers.
+        //restricts a size of accumulation buffers, due to memory consumption and friendliness.
         res = df * lrint((max__ - min__) / MAX_ACCUM_LEN / df - 0.5);
 //		throw XSkippedRecordError(i18n("Too small resolution."), __FILE__, __LINE__);
     }
