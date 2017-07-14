@@ -1,3 +1,9 @@
+* Fri Jul 14 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.0-1)
+- Floating tool boxes.
+- NMR: Autotuner becomes much better.
+- gsl >= 2 is required for better fitting.
+
 * Fri Jun 23 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.0.1-1)
 - Thamway USB: minor fix for PROTII.
