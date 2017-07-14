@@ -109,7 +109,7 @@ XTime::now() noexcept {
 XString
 XTime::getTimeStr(bool subsecond) const {
     if( *this) {
-        char str[100];
+        char str[100] = {};
 #ifdef _MSC_VER
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
@@ -120,7 +120,7 @@ XTime::getTimeStr(bool subsecond) const {
 #else
         ctime_r( &tv_sec, str);
 #endif
-        str[strlen(str) - 1] = '\0';
+        str[std::min(strlen(str), sizeof(str)) - 1] = '\0'; //erases \n
         if(subsecond)
 			sprintf(str + strlen(str), " +%.3dms", (int)tv_usec/1000);
         return {str};
@@ -143,7 +143,7 @@ XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
 #else
 		localtime_r( &tv_sec, &time);
 #endif
-        char str[100];
+        char str[100] = {};
         if( !strftime(str, 100, fmt, &time))
             return {"(Undefined)"};
 		if(subsecond)
