@@ -156,11 +156,11 @@ Node<XN>::PacketWrapper::print_() const {
 template <class XN>
 void
 Node<XN>::print_recoverable_error(const char* reason) {
-    fprintf(stderr, "Memory allocation has failed: %sTransaction is delaying...\n", reason);
+    fprintf(stderr, "Memory allocation has failed: %s\nTransaction is delaying...\n", reason);
 #ifdef gErrPrint
     try {
     char buf[256] = {};
-        snprintf(buf, sizeof(buf), "Memory allocation has failed: %sTransaction is delaying...\n", reason);
+        snprintf(buf, sizeof(buf), "Memory allocation has failed: %s\nTransaction is delaying...\n", reason);
         gErrPrint(buf);
     }
     catch (const std::bad_alloc &) {
