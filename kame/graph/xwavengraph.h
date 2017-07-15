@@ -55,7 +55,9 @@ public:
 
 		void setLabel(unsigned int col, const char *label);
         const std::vector<XString> &labels() const {return m_labels;}
-		void setRowCount(unsigned int rowcnt);
+        void setPrecision(unsigned int col, unsigned int prec);
+        const std::vector<unsigned int> &precisions() const {return m_precisions;}
+        void setRowCount(unsigned int rowcnt);
         void setColCount(unsigned int colcnt, const char** labels);
         unsigned int rowCount() const {
             return m_cols.size() ? m_cols[0].size(): 0; }
@@ -92,6 +94,7 @@ public:
 			int colx, coly1, coly2, colweight, colz;
 		};
 		std::vector<XString> m_labels;
+        std::vector<unsigned int> m_precisions;
         std::vector<std::vector<double>> m_cols;
 		int m_colw;
         std::vector<Plot> m_plots;
@@ -118,6 +121,7 @@ private:
 
 	xqcon_ptr m_conFilename, m_conDump;
 
+    unique_ptr<XThread> m_threadDump;
 	std::fstream m_stream;
 	XMutex m_filemutex;
 };

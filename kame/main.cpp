@@ -249,6 +249,7 @@ int main(int argc, char *argv[]) {
 #endif
         }
     }
+    int num_loaded_modules = 0;
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
@@ -265,6 +266,7 @@ int main(int argc, char *argv[]) {
 #endif
         if(handle) {
             XMessageBox::post("Module \"" + *it + "\" loaded", *g_pIconKame);
+            ++num_loaded_modules;
         }
         else {
             XMessageBox::post("Failure during loading module \"" + *it + "\"", *g_pIconError);
@@ -276,6 +278,9 @@ int main(int argc, char *argv[]) {
     //Disables App Nap
     suspendLazySleeps();
 #endif
+    XMessageBox::post(formatString_tr(I18N_NOOP("%d out of %d modules have been loaded."),
+        num_loaded_modules, (int)modules.size()),
+        (num_loaded_modules == (int)modules.size()) ? *g_pIconInfo : *g_pIconWarn);
 
     const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
     fprintf(stderr, "%s\n", greeting);

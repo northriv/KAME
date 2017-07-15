@@ -123,7 +123,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
     waveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
 		tr[ *waveGraph()].setColCount(5, labels);
-		tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
+        int i = 0;
+        for(auto prec: {6, 5, 5, 4, 4})
+            tr[ *waveGraph()].setPrecision(i++, prec);
+        tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
 		tr[ *waveGraph()].insertPlot(labels[2], 0, 2);
 		tr[ *waveGraph()].insertPlot(labels[3], 0, 3);
 		tr[ *waveGraph()].insertPlot(labels[4], 0, 4);
@@ -151,7 +154,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
 		tr[ *ftWaveGraph()].setColCount(6, labels);
-		tr[ *ftWaveGraph()].insertPlot(labels[3], 0, 3);
+        int i = 0;
+        for(auto prec: {8, 5, 5, 5, 4, 4})
+            tr[ *ftWaveGraph()].setPrecision(i++, prec);
+        tr[ *ftWaveGraph()].insertPlot(labels[3], 0, 3);
 		tr[ *ftWaveGraph()].insertPlot(labels[4], 0, -1, 4);
 		tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
 		tr[ *tr[ *ftWaveGraph()].axisy()->label()] = i18n("Intens. [V]");

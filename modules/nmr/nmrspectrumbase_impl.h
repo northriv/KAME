@@ -49,6 +49,9 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
 		tr[ *m_spectrum].setColCount(6, labels);
+        int i = 0;
+        for(auto prec: {9, 5, 5, 4, 5, 4})
+            tr[ *m_spectrum].setPrecision(i++, prec);
 		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
 		tr[ *m_spectrum].insertPlot(labels[1], 0, 1, -1, 3);
 		tr[ *m_spectrum].insertPlot(labels[2], 0, 2, -1, 3);

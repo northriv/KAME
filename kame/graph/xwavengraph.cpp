@@ -16,6 +16,7 @@
 #include "ui_graphnurlform.h"
 #include "graphwidget.h"
 #include "graph.h"
+#include <iomanip>
 
 #include <QPushButton>
 #include <QStatusBar>
@@ -182,6 +183,7 @@ void
 XWaveNGraph::Payload::setColCount(unsigned int colcnt, const char **labels) {
     m_cols.resize(colcnt);
     m_labels.resize(colcnt);
+    m_precisions.resize(colcnt, 6);
     for(auto &&label: m_labels)
         label = *labels++;
 }
@@ -189,6 +191,11 @@ void
 XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {
     m_labels.at(col) = label;
 }
+void
+XWaveNGraph::Payload::setPrecision(unsigned int col, unsigned int prec) {
+    m_precisions.at(col) = prec;
+}
+
 void
 XWaveNGraph::Payload::setRowCount(unsigned int n) {
     for(auto &&col: m_cols)
@@ -243,10 +250,19 @@ XWaveNGraph::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 
 void
 XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
-    Snapshot shot( *this);
-    {
+    if(m_filemutex.trylock()) {
+        m_filemutex.unlock();
+    }
+    else {
+        gWarnPrint(i18n("Previous dump is still on going. It is deferred."));
+    }
+    m_threadDump.reset(new XThread{shared_from_this(),
+        [this](const atomic<bool>&, Snapshot &&shot){
         XScopedLock<XMutex> filelock(m_filemutex);
-        if( !m_stream.good()) return;
+        if( !m_stream.good()) {
+            gErrPrint(i18n("File cannot open."));
+            return;
+        }
 
         int rowcnt = shot[ *this].rowCount();
         int colcnt = shot[ *this].colCount();
@@ -260,10 +276,12 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
             "%Y/%m/%d %H:%M:%S") << std::endl;
 
         auto &p(shot[ *this]);
+        auto &precs = p.precisions();
         for(unsigned int i = 0; i < rowcnt; i++) {
             if( !p.weight() || (p.weight()[i] > 0)) {
                 for(unsigned int j = 0; j < colcnt; j++) {
-                    m_stream << p.cols(j)[i] << KAME_DATAFILE_DELIMITER;
+                    m_stream << std::setprecision(precs[j]) <<
+                        p.cols(j)[i] << KAME_DATAFILE_DELIMITER;
                 }
                 m_stream << std::endl;
             }
@@ -271,7 +289,9 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
         m_stream << std::endl;
 
         m_stream.flush();
-    }
+
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
+    }, Snapshot( *this)});
 
     iterate_commit([=](Transaction &tr){
         tr.mark(tr[ *this].onIconChanged(), true);
@@ -300,6 +320,7 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
 
         auto &points_plot(tr[ *shot[ *this].plot(i)].points());
 		points_plot.clear();
+        points_plot.reserve(rowcnt);
 		for(int i = 0; i < rowcnt; ++i) {
 			double z = 0.0;
 			if(colz)
