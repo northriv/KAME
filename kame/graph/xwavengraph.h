@@ -85,9 +85,20 @@ public:
             virtual ~ColumnBase() = default;
             virtual double max() const = 0;
             virtual bool moreThanZero(size_t i) const = 0;
-            virtual void fillGraphPoints(XGraph::VFloat *) const = 0;
+            virtual const XGraph::VFloat *fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const = 0;
             virtual void toOFStream(std::fstream &s, size_t idx) = 0;
             unsigned int precision;
+            template <typename VALUE>
+            static const XGraph::VFloat *fillOrPointToGraphPointsBasic(std::vector<XGraph::VFloat>& buf,
+                const std::vector<VALUE>& vector) {
+                buf.resize(vector.size());
+                std::copy(vector.cbegin(), vector.cend(), buf.begin());
+                return &buf[0];
+            }
+            static const XGraph::VFloat *fillOrPointToGraphPointsBasic(std::vector<XGraph::VFloat>&,
+                const std::vector<XGraph::VFloat>&vector) {
+                return &vector[0];
+            }
         };
         template <typename VALUE>
         struct Column : public ColumnBase {
@@ -99,8 +110,8 @@ public:
             virtual bool moreThanZero(size_t i) const {
                 return vector[i] > 0;
             }
-            virtual void fillGraphPoints(XGraph::VFloat *vec) const {
-                std::copy(vector.cbegin(), vector.cend(), vec);
+            virtual const XGraph::VFloat *fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const {
+                return fillOrPointToGraphPointsBasic(buf, vector);
             }
             virtual void toOFStream(std::fstream &s, size_t idx) {
                 s << vector[idx];

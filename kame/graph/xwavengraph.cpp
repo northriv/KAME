@@ -86,15 +86,13 @@ XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
         return;
 
     std::vector<XGraph::VFloat> cols[4];
-    XGraph::VFloat *pcolx = nullptr, *pcoly = nullptr,
+    const XGraph::VFloat *pcolx = nullptr, *pcoly = nullptr,
             *pcolz = nullptr, *pcolweight = nullptr;
 
     auto prepare_column_data =
-        [&](int colidx, std::vector<XGraph::VFloat>&buf, XGraph::VFloat *&pcolumn) {
+        [&](int colidx, std::vector<XGraph::VFloat>&buf, const XGraph::VFloat *&pcolumn) {
         if(colidx >= 0) {
-            buf.resize(rowcnt);
-            pcolumn = &buf[0];
-            shot_waves[ *waves].m_cols[colidx]->fillGraphPoints(pcolumn);
+            pcolumn = shot_waves[ *waves].m_cols[colidx]->fillOrPointToGraphPoints(buf);
         }
     };
     prepare_column_data(m_colx, cols[0], pcolx);
