@@ -192,22 +192,11 @@ XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {
     m_labels.at(col) = label;
 }
 void
-XWaveNGraph::Payload::setPrecision(unsigned int col, unsigned int prec) {
-    m_precisions.at(col) = prec;
-}
-
-void
 XWaveNGraph::Payload::setRowCount(unsigned int n) {
-    for(auto &&col: m_cols)
-        col.resize(n);
+    m_rowCount = n;
     for(auto &&plot: m_plots) {
         tr()[ *plot.xyplot->maxCount()] = n;
 	}
-}
-const double *
-XWaveNGraph::Payload::weight() const {
-    if(m_colw < 0) return 0L;
-    return cols(m_colw);
 }
 
 void
@@ -276,12 +265,14 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
             "%Y/%m/%d %H:%M:%S") << std::endl;
 
         auto &p(shot[ *this]);
-        auto &precs = p.precisions();
+        shared_ptr<Payload::ColumnBase> colw;
+        if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
         for(unsigned int i = 0; i < rowcnt; i++) {
-            if( !p.weight() || (p.weight()[i] > 0)) {
+            if(colw || (colw->moreThanZero(i) > 0)) {
                 for(unsigned int j = 0; j < colcnt; j++) {
-                    m_stream << std::setprecision(precs[j]) <<
-                        p.cols(j)[i] << KAME_DATAFILE_DELIMITER;
+                    m_stream << std::setprecision(p.m_cols[j]->precision);
+                    p.m_cols[j]->toOFStream(m_stream, i);
+                    m_stream << KAME_DATAFILE_DELIMITER;
                 }
                 m_stream << std::endl;
             }
@@ -299,39 +290,51 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
-	for(int i = 0; i < shot[ *this].numPlots(); ++i) {
-		int rowcnt = shot[ *this].rowCount();
-		double *colx = tr[ *this].cols(shot[ *this].colX(i));
-		double *coly = NULL;
-		if(shot[ *this].colY1(i) >= 0)
-			coly = tr[ *this].cols(shot[ *this].colY1(i));
-		if(shot[ *this].colY2(i) >= 0)
-			coly = tr[ *this].cols(shot[ *this].colY2(i));
-		double *colweight = (shot[ *this].colWeight(i) >= 0) ? tr[ *this].cols(shot[ *this].colWeight(i)) : NULL;
-		double *colz = (shot[ *this].colZ(i) >= 0) ? tr[ *this].cols(shot[ *this].colZ(i)) : NULL;
+    int rowcnt = shot[ *this].rowCount();
+    std::vector<XGraph::VFloat> colx(rowcnt), coly(rowcnt), colz(rowcnt),
+        colweight(rowcnt);
+    int colx_colidx = -1, colweight_colidx = -1, coly_colidx = -1, colz_colidx = -1;
+    for(int i = 0; i < shot[ *this].numPlots(); ++i) {
+        auto &points_plot(tr[ *shot[ *this].plot(i)].points());
+        points_plot.clear();
+        points_plot.reserve(rowcnt);
+        if( !rowcnt) continue;
 
-		if(colweight) {
-			double weight_max = 0.0;
+
+        for(auto &&x :
+            {std::make_tuple(shot[ *this].colX(i), std::ref(colx_colidx), &colx[0]),
+            std::make_tuple(shot[ *this].colY1(i), std::ref(coly_colidx), &coly[0]),
+            std::make_tuple(shot[ *this].colY2(i), std::ref(coly_colidx), &coly[0]),
+            std::make_tuple(shot[ *this].colZ(i), std::ref(colz_colidx), &coly[0]),
+            std::make_tuple(shot[ *this].colWeight(i), std::ref(colweight_colidx),
+               &colweight[0])}) {
+            int colidx = std::get<0>(x);
+            //recycles buf if it has been copied.
+            if((std::get<1>(x) != colidx) && (colidx >= 0)) {
+                shot[ *this].m_cols[colidx]->fillGraphPoints(std::get<2>(x));
+            }
+            std::get<1>(x) = colidx;
+        }
+
+        if(colweight_colidx >= 0) {
+            XGraph::VFloat weight_max = 0.0;
 			for(int i = 0; i < rowcnt; i++)
-				weight_max = std::max(weight_max, colweight[i]);
+                weight_max = std::max(weight_max, colweight[i]);
 			tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
 			tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
 		}
 
-        auto &points_plot(tr[ *shot[ *this].plot(i)].points());
-		points_plot.clear();
-        points_plot.reserve(rowcnt);
 		for(int i = 0; i < rowcnt; ++i) {
 			double z = 0.0;
-			if(colz)
-				z = colz[i];
-			if(colweight) {
-				if(colweight[i] > 0)
-					points_plot.push_back(XGraph::ValPoint(colx[i],
-						coly[i], z, colweight[i]));
+            if(colz_colidx >= 0)
+                z = colz[i];
+            if(colweight_colidx >= 0) {
+                if(colweight[i] > 0)
+                    points_plot.push_back(XGraph::ValPoint(colx[i],
+                        coly[i], z, colweight[i]));
 			}
 			else
-				points_plot.push_back(XGraph::ValPoint(colx[i], coly[i], z));
+                points_plot.push_back(XGraph::ValPoint(colx[i], coly[i], z));
 		}
 	}
 	tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());

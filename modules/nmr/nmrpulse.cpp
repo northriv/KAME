@@ -123,9 +123,6 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
     waveGraph()->iterate_commit([=](Transaction &tr){
 		const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
 		tr[ *waveGraph()].setColCount(5, labels);
-        int i = 0;
-        for(auto prec: {6, 5, 5, 4, 4})
-            tr[ *waveGraph()].setPrecision(i++, prec);
         tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
 		tr[ *waveGraph()].insertPlot(labels[2], 0, 2);
 		tr[ *waveGraph()].insertPlot(labels[3], 0, 3);
@@ -154,9 +151,6 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
 			"Abs. [V]", "Phase [deg]", "Dark. [V]" };
 		tr[ *ftWaveGraph()].setColCount(6, labels);
-        int i = 0;
-        for(auto prec: {8, 5, 5, 5, 4, 4})
-            tr[ *ftWaveGraph()].setPrecision(i++, prec);
         tr[ *ftWaveGraph()].insertPlot(labels[3], 0, 3);
 		tr[ *ftWaveGraph()].insertPlot(labels[4], 0, -1, 4);
 		tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
@@ -684,12 +678,9 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		double dfreq = shot[ *this].m_dFreq;
 		const double *darkpsd( &shot[ *this].m_darkPSD[0]);
 		const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);
-		double *colf(tr[ *ftWaveGraph()].cols(0));
-		double *colr(tr[ *ftWaveGraph()].cols(1));
-		double *coli(tr[ *ftWaveGraph()].cols(2));
-		double *colabs(tr[ *ftWaveGraph()].cols(3));
-		double *colarg(tr[ *ftWaveGraph()].cols(4));
-		double *coldark(tr[ *ftWaveGraph()].cols(5));
+        std::vector<double> colf(ftsize);
+        std::vector<float> colr(ftsize), coli(ftsize), colarg(ftsize),
+            colabs(ftsize), coldark(ftsize);
 		for (int i = 0; i < ftsize; i++) {
 			int j = (i - ftsize/2 + ftsize) % ftsize;
 			colf[i] = 0.001 * (i - ftsize/2) * dfreq;
@@ -700,7 +691,13 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			colarg[i] = std::arg(z) / M_PI * 180;
 			coldark[i] = sqrt(darkpsd[j] * darknormalize);
 		}
-		const std::vector<std::pair<double, double> > &peaks(solver.peaks());
+        tr[ *ftWaveGraph()].setColumn(0, std::move(colf), 8);
+        tr[ *ftWaveGraph()].setColumn(1, std::move(colr), 5);
+        tr[ *ftWaveGraph()].setColumn(2, std::move(coli), 5);
+        tr[ *ftWaveGraph()].setColumn(3, std::move(colabs), 5);
+        tr[ *ftWaveGraph()].setColumn(4, std::move(colarg), 4);
+        tr[ *ftWaveGraph()].setColumn(5, std::move(coldark), 4);
+        const std::vector<std::pair<double, double> > &peaks(solver.peaks());
 		int peaks_size = peaks.size();
 		tr[ *m_peakPlot->maxCount()] = peaks_size;
         auto &points(tr[ *m_peakPlot].points());
@@ -722,11 +719,9 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 		double starttime = shot[ *this].startTime();
 		int waveftpos = shot[ *this].m_waveFTPos;
 		tr[ *waveGraph()].setRowCount(length);
-		double *colt(tr[ *waveGraph()].cols(0));
-		double *colfr(tr[ *waveGraph()].cols(1));
-		double *colfi(tr[ *waveGraph()].cols(2));
-		double *colrr(tr[ *waveGraph()].cols(3));
-		double *colri(tr[ *waveGraph()].cols(4));
+        std::vector<float> colt(length);
+        std::vector<float> colfr(length), colfi(length),
+            colrr(length), colri(length);
 		for (int i = 0; i < length; i++) {
 			int j = i - dsowavestartpos;
 			colt[i] = (starttime + j * interval) * 1e3;
@@ -742,7 +737,12 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 			colrr[i] = dsowave[i].real();
 			colri[i] = dsowave[i].imag();
 		}
-		waveGraph()->drawGraph(tr);
+        tr[ *waveGraph()].setColumn(0, std::move(colt), 7);
+        tr[ *waveGraph()].setColumn(1, std::move(colfr), 5);
+        tr[ *waveGraph()].setColumn(2, std::move(colfi), 5);
+        tr[ *waveGraph()].setColumn(3, std::move(colrr), 4);
+        tr[ *waveGraph()].setColumn(4, std::move(colri), 4);
+        waveGraph()->drawGraph(tr);
     });
 }
 

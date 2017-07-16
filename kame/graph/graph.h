@@ -107,11 +107,8 @@ public:
     virtual XString getLabel() const override {return ( **label())->to_str();}
 
 	typedef float SFloat;
-	static const SFloat SFLOAT_MAX;
 	typedef float GFloat;
-	static const GFloat GFLOAT_MAX;
-	typedef double VFloat;
-	static const VFloat VFLOAT_MAX;
+    typedef double VFloat;
 	typedef Vector4<SFloat> ScrPoint;
 	typedef Vector4<GFloat> GPoint;
 	typedef Vector4<VFloat> ValPoint;

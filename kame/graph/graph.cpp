@@ -14,6 +14,8 @@
 #include "graph.h"
 #include "support.h"
 
+#include <cmath>
+
 // \todo Use Payload for scales.
 
 #include "graphpainter.h"
@@ -24,31 +26,6 @@ using std::max;
 #define GRAPH_UI_DELAY 10
 
 #include <float.h>
-const XGraph::SFloat XGraph::SFLOAT_MAX = FLT_MAX;
-const XGraph::GFloat XGraph::GFLOAT_MAX = FLT_MAX;
-const XGraph::VFloat XGraph::VFLOAT_MAX = DBL_MAX;
-
-#define SFLOAT_EXP expf
-#define GFLOAT_EXP expf
-#define VFLOAT_EXP exp
-
-#define SFLOAT_POW powf
-#define GFLOAT_POW powf
-#define VFLOAT_POW pow
-
-#define SFLOAT_LOG logf
-#define GFLOAT_LOG logf
-#define VFLOAT_LOG log
-
-#define SFLOAT_LOG10 log10f
-#define GFLOAT_LOG10 log10f
-#define VFLOAT_LOG10 log10
-
-#define SFLOAT_LRINT lrintf
-#define GFLOAT_LRINT lrintf
-#define VFLOAT_LRINT lrint
-
-#define VFLOAT_RINT lrint
 
 #define AxisToLabel 0.09
 #define AxisToTicLabel 0.015
@@ -396,7 +373,7 @@ XPlot::onClearPoints(const Snapshot &, XTouchableNode *) {
 
 void
 XPlot::drawGrid(const Snapshot &shot, XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2) {
-	int len = SFLOAT_LRINT(1.0/painter->resScreen());
+    int len = std::lrint(1.0/painter->resScreen());
 	painter->beginLine(1.0);
 	bool disp_major = shot[ *displayMajorGrid()];
 	bool disp_minor = shot[ *displayMinorGrid()];
@@ -903,8 +880,8 @@ XAxis::startAutoscale_(const Snapshot &shot, bool clearscale) {
 	m_bLogscaleFixed = shot[ *logScale()];
 	m_bAutoscaleFixed = shot[ *autoScale()];
 	if(clearscale) {
-		m_minFixed = XGraph::VFLOAT_MAX;
-		m_maxFixed = m_bLogscaleFixed ? 0 : - XGraph::VFLOAT_MAX;
+        m_minFixed = std::numeric_limits<XGraph::VFloat>::max();
+        m_maxFixed = m_bLogscaleFixed ? 0 : std::numeric_limits<XGraph::VFloat>::lowest();
 	}
 	else {
 		m_minFixed = m_bLogscaleFixed ?
@@ -949,9 +926,9 @@ XAxis::performAutoFreq(const Snapshot &shot, float resolution) {
 	if(shot[ *autoFreq()] &&
 	   ( !m_bLogscaleFixed || (m_minFixed >= 0)) &&
 	   (m_minFixed < m_maxFixed)) {
-		float fac = max(0.8f, log10f(2e-3 / resolution) );
-		m_majorFixed = (VFLOAT_POW((XGraph::VFloat)10.0,
-								   VFLOAT_RINT(VFLOAT_LOG10(m_maxFixed - m_minFixed) - fac)));
+        float fac = max(0.8f, std::log10(2e-3F / resolution) );
+        m_majorFixed = (std::pow((XGraph::VFloat)10.0,
+            std::rint(std::log10(m_maxFixed - m_minFixed) - fac)));
 		m_minorFixed = m_majorFixed / (XGraph::VFloat)2.0;
 	}
 	else {
@@ -1003,10 +980,10 @@ XAxis::valToAxis(XGraph::VFloat x) {
 	XGraph::GFloat pos;
 	if(m_bLogscaleFixed) {
 		if ((x <= 0) || (m_minFixed <= 0) || (m_maxFixed <= m_minFixed))
-			return - XGraph::GFLOAT_MAX;
+            return std::numeric_limits<XGraph::GFloat>::lowest();
 		if(m_invLogMaxOverMinFixed < 0)
-			m_invLogMaxOverMinFixed = 1 / VFLOAT_LOG(m_maxFixed / m_minFixed);  
-		pos = VFLOAT_LOG(x / m_minFixed) * m_invLogMaxOverMinFixed;
+            m_invLogMaxOverMinFixed = 1 / std::log(m_maxFixed / m_minFixed);
+        pos = std::log(x / m_minFixed) * m_invLogMaxOverMinFixed;
 	}
 	else {
 		if(m_maxFixed <= m_minFixed) return -1;
@@ -1023,7 +1000,7 @@ XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec) const {
 	if(axis_prec <= 0) {
 		if(m_bLogscaleFixed) {
 			if((m_minFixed <= 0) || (m_maxFixed < m_minFixed)) return 0;
-			x = m_minFixed * VFLOAT_EXP(VFLOAT_LOG(m_maxFixed / m_minFixed) * pos);
+            x = m_minFixed * std::exp(std::log(m_maxFixed / m_minFixed) * pos);
 		}
 		else {
 			if(m_maxFixed < m_minFixed) return 0;
@@ -1074,17 +1051,17 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 	if(m_bLogscaleFixed) {
 		x = axisToVal((XGraph::GFloat)pos / len);
         if(x <= 0) return Tic::None;
-		t = VFLOAT_POW((XGraph::VFloat)10.0, VFLOAT_RINT(VFLOAT_LOG10(x)));
-		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
+        t = std::pow((XGraph::VFloat)10.0, std::rint(std::log10(x)));
+        if(std::lrint(valToAxis(t) * len) == pos) {
 			*ticnum = t;
             return Tic::Major;
 		}
 		x = x / t;
 		if(x < 1)
-			t = VFLOAT_RINT(x / (XGraph::VFloat)0.1) * (XGraph::VFloat)0.1 * t;
+            t = std::rint(x / (XGraph::VFloat)0.1) * (XGraph::VFloat)0.1 * t;
 		else
-			t = VFLOAT_RINT(x) * t;
-		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
+            t = std::rint(x) * t;
+        if(std::lrint(valToAxis(t) * len) == pos) {
 			*ticnum = t;
             return Tic::Minor;
 		}
@@ -1092,13 +1069,13 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 	}
 	else {
 		x = axisToVal((XGraph::GFloat)pos / len);
-		t = VFLOAT_RINT(x / m_majorFixed) * m_majorFixed;
-		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
+        t = std::rint(x / m_majorFixed) * m_majorFixed;
+        if(std::lrint(valToAxis(t) * len) == pos) {
 			*ticnum = t;
             return Tic::Major;
 		}
-		t = VFLOAT_RINT(x / m_minorFixed) * m_minorFixed;
-		if(GFLOAT_LRINT(valToAxis(t) * len) == pos) {
+        t = std::rint(x / m_minorFixed) * m_minorFixed;
+        if(std::lrint(valToAxis(t) * len) == pos) {
 			*ticnum = t;
             return Tic::Minor;
 		}
@@ -1175,7 +1152,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 	if(m_bLogscaleFixed && (m_minFixed < 0)) return -1;
 	if(m_maxFixed <= m_minFixed) return -1;
   
-	int len = SFLOAT_LRINT(shot[ *length()] / painter->resScreen());
+    int len = std::lrint(shot[ *length()] / painter->resScreen());
 	painter->defaultFont();
 	XGraph::GFloat mindx = 2, lastg = -1;
 	//dry-running to determine a font

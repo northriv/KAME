@@ -162,20 +162,21 @@ XNetworkAnalyzer::visualize(const Snapshot &shot) {
 		}
 
 		tr[ *m_waveForm].setRowCount(length);
+        std::vector<float> freqs(length), mags(length), phases(length);
 
-		double *freqs = tr[ *m_waveForm].cols(0);
-		double *mag = tr[ *m_waveForm].cols(1);
-		double *ph = tr[ *m_waveForm].cols(2);
 		const std::complex<double> *z = shot[ *this].trace();
 		double fint = shot[ *this].freqInterval();
 		double f = shot[ *this].startFreq();
 		for(unsigned int i = 0; i < length; i++) {
-			*freqs++ = f;
-			*mag++ = 20.0 * log10(std::abs( *z));
-			*ph++ = std::arg( *z) * 180.0 /  M_PI;
+            freqs[i] = f;
+            mags[i] = 20.0 * log10(std::abs( *z));
+            phases[i] = std::arg( *z) * 180.0 /  M_PI;
 			z++;
 			f += fint;
 		}
+        tr[ *m_waveForm].setColumn(0, std::move(freqs), 7);
+        tr[ *m_waveForm].setColumn(1, std::move(mags), 5);
+        tr[ *m_waveForm].setColumn(2, std::move(phases), 5);
 
 		m_waveForm->drawGraph(tr);
     });

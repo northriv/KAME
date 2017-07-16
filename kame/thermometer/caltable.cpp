@@ -115,16 +115,20 @@ XConCalTable::onDisplayTouched(const Snapshot &shot, XTouchableNode *) {
 	double step = (log(shot_th[ *thermo->tempMax()]) - log(shot_th[ *thermo->tempMin()])) / length;
     m_wave->iterate_commit([=](Transaction &tr){
 		tr[ *m_wave].setRowCount(length);
+        std::vector<double> colt(length), colr(length), coldt(length);
 		double lt = log(shot_th[ *thermo->tempMin()]);
 		for(int i = 0; i < length; ++i) {
 			double t = exp(lt);
 			double r = thermo->getRawValue(t);
-			tr[ *m_wave].cols(0)[i] = t;
-			tr[ *m_wave].cols(1)[i] = r;
-			tr[ *m_wave].cols(2)[i] = thermo->getTemp(r) - t;
+            colt[i] = t;
+            colr[i] = r;
+            coldt[i] = thermo->getTemp(r) - t;
 			lt += step;
 		}
-		m_wave->drawGraph(tr);
+        tr[ *m_wave].setColumn(0, std::move(colt), 5);
+        tr[ *m_wave].setColumn(1, std::move(colr), 5);
+        tr[ *m_wave].setColumn(2, std::move(coldt), 5);
+        m_wave->drawGraph(tr);
     });
     m_waveform->showNormal();
 	m_waveform->raise();  

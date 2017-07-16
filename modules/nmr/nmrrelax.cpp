@@ -742,13 +742,11 @@ XNMRT1::visualize(const Snapshot &shot) {
 		}
 		tr[ *m_wave].setLabel(0, label.c_str());
 		tr[ *tr[ *m_wave].axisx()->label()] = label;
-		tr[ *m_wave].setRowCount(shot[ *this].m_sumpts.size());
-		double *colp1 = tr[ *m_wave].cols(0);
-		double *colval = tr[ *m_wave].cols(1);
-		double *colabs = tr[ *m_wave].cols(3);
-		double *colre = tr[ *m_wave].cols(4);
-		double *colim = tr[ *m_wave].cols(5);
-		double *colisigma = tr[ *m_wave].cols(2);
+        size_t length = shot[ *this].m_sumpts.size();
+        tr[ *m_wave].setRowCount(length);
+        std::vector<float> colp1(length), colval(length),
+            colabs(length), colre(length), colim(length),
+            colisigma(length);
 		int i = 0;
 		for(auto it = shot[ *this].m_sumpts.begin();
 			it != shot[ *this].m_sumpts.end(); it++) {
@@ -769,7 +767,13 @@ XNMRT1::visualize(const Snapshot &shot) {
 			colisigma[i] = it->isigma;
 			i++;
 		}
-		m_wave->drawGraph(tr);
+        tr[ *m_wave].setColumn(0, std::move(colp1), 5);
+        tr[ *m_wave].setColumn(1, std::move(colval), 5);
+        tr[ *m_wave].setColumn(2, std::move(colisigma), 4);
+        tr[ *m_wave].setColumn(3, std::move(colabs), 4);
+        tr[ *m_wave].setColumn(4, std::move(colre), 4);
+        tr[ *m_wave].setColumn(5, std::move(colim), 4);
+        m_wave->drawGraph(tr);
     });
 }
 

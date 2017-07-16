@@ -412,13 +412,16 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 	MonteCarlo::Vector3<double> field_dir(shot[ *m_hdirx], shot[ *m_hdiry], shot[ *m_hdirz]);
 	field_dir.normalize();
     
+    std::vector<double> colh(fftlen), colk(fftlen), coll(fftlen),
+        colv(fftlen), cols(fftlen),
+        colx(fftlen), coly(fftlen), colz(fftlen);
 
 	if(fftx || ffty || fftz) {
 		fftw_execute(shot[ *this].m_fftplan[0]);
 		fftw_execute(shot[ *this].m_fftplan[1]);
 		fftw_execute(shot[ *this].m_fftplan[2]);
     
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
 			tr[ *m_wave3D].setRowCount(fftlen * fftlen * fftlen );
 			double normalize = A_MOMENT / fftlen / fftlen / fftlen;
 			int idx = 0;
@@ -429,9 +432,9 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 						fftw_complex *ix = &shot[ *this].m_pFFTout[0][qidx];
 						fftw_complex *iy = &shot[ *this].m_pFFTout[1][qidx];
 						fftw_complex *iz = &shot[ *this].m_pFFTout[2][qidx];
-						tr[ *m_wave3D].cols(0)[idx] = (double)h * 8.0/fftlen;
-						tr[ *m_wave3D].cols(1)[idx] = (double)k * 8.0/fftlen;
-						tr[ *m_wave3D].cols(2)[idx] = (double)l * 8.0/fftlen;
+                        colh[idx] = (double)h * 8.0/fftlen;
+                        colk[idx] = (double)k * 8.0/fftlen;
+                        coll[idx] = (double)l * 8.0/fftlen;
 						double v = 0.0;
 						if(along_field_dir) {
 							double vr = field_dir.innerProduct(MonteCarlo::Vector3<double>
@@ -446,20 +449,28 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 							if(fftz) v+= (*iz)[0]*(*iz)[0] + (*iz)[1]*(*iz)[1];
 						}
 						v = sqrt(v);
-						tr[ *m_wave3D].cols(3)[idx] = v * normalize;
-						tr[ *m_wave3D].cols(4)[idx] = ((*ix)[0]*(*ix)[0] + (*ix)[1]*(*ix)[1]) * normalize;
-						tr[ *m_wave3D].cols(5)[idx] = ((*iy)[0]*(*iy)[0] + (*iy)[1]*(*iy)[1]) * normalize;
-						tr[ *m_wave3D].cols(6)[idx] = ((*iz)[0]*(*iz)[0] + (*iz)[1]*(*iz)[1]) * normalize;
-						tr[ *m_wave3D].cols(7)[idx] = 0;
+                        colv[idx] = v * normalize;
+                        colx[idx] = ((*ix)[0]*(*ix)[0] + (*ix)[1]*(*ix)[1]) * normalize;
+                        coly[idx] = ((*iy)[0]*(*iy)[0] + (*iy)[1]*(*iy)[1]) * normalize;
+                        colz[idx] = ((*iz)[0]*(*iz)[0] + (*iz)[1]*(*iz)[1]) * normalize;
+                        cols[idx] = 0;
 						idx++;
 					}
 				}
 			}
-			m_wave3D->drawGraph(tr);
+            tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+            tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+            tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+            tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+            tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+            tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+            tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+            tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
+            m_wave3D->drawGraph(tr);
         });
 	}
 	if(calcasite) {
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
             int idx = 0;
             tr[ *m_wave3D].setRowCount(16*size*size*size);
             for(int site = 0; site < 16; site++) {
@@ -472,9 +483,9 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
                             double x = i + pos[0] * 0.25;
                             double y = j + pos[1] * 0.25;
                             double z = k + pos[2] * 0.25;
-                            tr[ *m_wave3D].cols(0)[idx] = x;
-                            tr[ *m_wave3D].cols(1)[idx] = y;
-                            tr[ *m_wave3D].cols(2)[idx] = z;
+                            colh[idx] = x;
+                            colk[idx] = y;
+                            coll[idx] = z;
                             double sx = shot[ *this].m_pFFTin[0][fftidx][0];
                             double sy = shot[ *this].m_pFFTin[1][fftidx][0];
                             double sz = shot[ *this].m_pFFTin[2][fftidx][0];
@@ -493,15 +504,23 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
                                     }
                                 }
                             }
-                            tr[ *m_wave3D].cols(3)[idx] = v;
-                            tr[ *m_wave3D].cols(4)[idx] = sx;
-                            tr[ *m_wave3D].cols(5)[idx] = sy;
-                            tr[ *m_wave3D].cols(6)[idx] = sz;
-                            tr[ *m_wave3D].cols(7)[idx] = site;
+                            colv[idx] = v;
+                            colx[idx] = sx;
+                            coly[idx] = sy;
+                            colz[idx] = sz;
+                            cols[idx] = site;
                             idx++;
                         }
                     }
                 }
+                tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+                tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+                tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+                tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+                tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+                tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+                tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+                tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
                 m_wave3D->drawGraph(tr);
             }
         });
@@ -509,7 +528,7 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 	if(calcbsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(16*size*size*size);
 		shot[ *this].m_store->write_bsite(&fields[0]);
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(16*size*size*size);
 			for(int site = 0; site < 16; site++) {
@@ -522,26 +541,34 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 							double x = i + pos[0] * 0.25;
 							double y = j + pos[1] * 0.25;
 							double z = k + pos[2] * 0.25;
-							tr[ *m_wave3D].cols(0)[idx] = x;
-							tr[ *m_wave3D].cols(1)[idx] = y;
-							tr[ *m_wave3D].cols(2)[idx] = z;
-							tr[ *m_wave3D].cols(3)[idx] = h.abs();
-							tr[ *m_wave3D].cols(4)[idx] = h.x;
-							tr[ *m_wave3D].cols(5)[idx] = h.y;
-							tr[ *m_wave3D].cols(6)[idx] = h.z;
-							tr[ *m_wave3D].cols(7)[idx] = site;
+                            colh[idx] = x;
+                            colk[idx] = y;
+                            coll[idx] = z;
+                            colv[idx] = h.abs();
+                            colx[idx] = h.x;
+                            coly[idx] = h.y;
+                            colz[idx] = h.z;
+                            cols[idx] = site;
 							idx++;
 						}
 					}
 				}
 			}
-			m_wave3D->drawGraph(tr);
+            tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+            tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+            tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+            tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+            tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+            tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+            tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+            tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
+            m_wave3D->drawGraph(tr);
         });
 	}
 	if(calc8asite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(8*size*size*size);
 		shot[ *this].m_store->write_8asite(&fields[0]);
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(8*size*size*size);
 			for(int site = 0; site < 8; site++) {
@@ -554,26 +581,34 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 							double x = i + pos[0] * 0.125;
 							double y = j + pos[1] * 0.125;
 							double z = k + pos[2] * 0.125;
-							tr[ *m_wave3D].cols(0)[idx] = x;
-							tr[ *m_wave3D].cols(1)[idx] = y;
-							tr[ *m_wave3D].cols(2)[idx] = z;
-							tr[ *m_wave3D].cols(3)[idx] = h.abs();
-							tr[ *m_wave3D].cols(4)[idx] = h.x;
-							tr[ *m_wave3D].cols(5)[idx] = h.y;
-							tr[ *m_wave3D].cols(6)[idx] = h.z;
-							tr[ *m_wave3D].cols(7)[idx] = site;
+                            colh[idx] = x;
+                            colk[idx] = y;
+                            coll[idx] = z;
+                            colv[idx] = h.abs();
+                            colx[idx] = h.x;
+                            coly[idx] = h.y;
+                            colz[idx] = h.z;
+                            cols[idx] = site;
 							idx++;
 						}
 					}
 				}
 			}
-			m_wave3D->drawGraph(tr);
+            tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+            tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+            tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+            tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+            tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+            tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+            tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+            tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
+            m_wave3D->drawGraph(tr);
         });
 	}
 	if(calc48fsite) {
 		std::vector<MonteCarlo::Vector3<double> > fields(48*size*size*size);
 		shot[ *this].m_store->write_48fsite(&fields[0]);
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
 			int idx = 0;
 			tr[ *m_wave3D].setRowCount(48*size*size*size);
 			for(int site = 0; site < 48; site++) {
@@ -586,27 +621,35 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 							double x = i + pos[0] * 0.125;
 							double y = j + pos[1] * 0.125;
 							double z = k + pos[2] * 0.125;
-							tr[ *m_wave3D].cols(0)[idx] = x;
-							tr[ *m_wave3D].cols(1)[idx] = y;
-							tr[ *m_wave3D].cols(2)[idx] = z;
-							tr[ *m_wave3D].cols(3)[idx] = h.abs();
-							tr[ *m_wave3D].cols(4)[idx] = h.x;
-							tr[ *m_wave3D].cols(5)[idx] = h.y;
-							tr[ *m_wave3D].cols(6)[idx] = h.z;
-							tr[ *m_wave3D].cols(7)[idx] = site;
+                            colh[idx] = x;
+                            colk[idx] = y;
+                            coll[idx] = z;
+                            colv[idx] = h.abs();
+                            colx[idx] = h.x;
+                            coly[idx] = h.y;
+                            colz[idx] = h.z;
+                            cols[idx] = site;
 							idx++;
 						}
 					}
 				}
 			}
-			m_wave3D->drawGraph(tr);
+            tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+            tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+            tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+            tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+            tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+            tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+            tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+            tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
+            m_wave3D->drawGraph(tr);
         });
 	}
 	if(writeflips) {
 		std::deque<MonteCarlo::FlipHistory> flips;
 		shot[ *this].m_loop->write_flips(flips);
 
-        m_wave3D->iterate_commit([=](Transaction &tr){
+        m_wave3D->iterate_commit([&](Transaction &tr){
 			tr[ *m_wave3D].setRowCount(flips.size());
 			for(int idx = 0; idx < (int)flips.size(); idx++) {
 				int lidx = flips[idx].lidx;
@@ -621,16 +664,24 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
 				double x = i + pos[0] * 0.25;
 				double y = j + pos[1] * 0.25;
 				double z = k + pos[2] * 0.25;
-				tr[ *m_wave3D].cols(0)[idx] = x;
-				tr[ *m_wave3D].cols(1)[idx] = y;
-				tr[ *m_wave3D].cols(2)[idx] = z;
-				tr[ *m_wave3D].cols(3)[idx] = (flips[idx].delta > 0.0) ? 2.0 : 1.0;
-				tr[ *m_wave3D].cols(4)[idx] = flips[idx].delta;
-				tr[ *m_wave3D].cols(5)[idx] = flips[idx].tests;
-				tr[ *m_wave3D].cols(6)[idx] = 0;
-				tr[ *m_wave3D].cols(7)[idx] = site;
+                colh[idx] = x;
+                colk[idx] = y;
+                coll[idx] = z;
+                colv[idx] = (flips[idx].delta > 0.0) ? 2.0 : 1.0;
+                colx[idx] = flips[idx].delta;
+                coly[idx] = flips[idx].tests;
+                colz[idx] = 0;
+                cols[idx] = site;
 			}
-			m_wave3D->drawGraph(tr);
+            tr[ *m_wave3D].setColumn(0, std::move(colh), 5);
+            tr[ *m_wave3D].setColumn(1, std::move(colk), 5);
+            tr[ *m_wave3D].setColumn(2, std::move(coll), 5);
+            tr[ *m_wave3D].setColumn(3, std::move(colv), 5);
+            tr[ *m_wave3D].setColumn(4, std::move(colx), 5);
+            tr[ *m_wave3D].setColumn(5, std::move(coly), 5);
+            tr[ *m_wave3D].setColumn(6, std::move(colz), 5);
+            tr[ *m_wave3D].setColumn(7, std::move(cols), 5);
+            m_wave3D->drawGraph(tr);
         });
 	}
 }

@@ -214,17 +214,19 @@ XDSO::visualize(const Snapshot &shot) {
 		}
 
 		tr[ *m_waveForm].setRowCount(length);
-
-		double *times = tr[ *m_waveForm].cols(0);
+        std::vector<double> times(length);
 		double tint = shot[ *this].timeIntervalDisp();
 		double t = -shot[ *this].trigPosDisp() * tint;
-		for(unsigned int i = 0; i < length; i++) {
-			*times++ = t;
+        for(auto &&x: times) {
+            x = t;
 			t += tint;
 		}
+        tr[ *m_waveForm].setColumn(0, std::move(times), 9);
 
 		for(unsigned int i = 0; i < num_channels; i++) {
-			memcpy(tr[ *m_waveForm].cols(i + 1), shot[ *this].waveDisp(i), length * sizeof(double));
+            std::vector<float> wave(length);
+            std::copy(shot[ *this].waveDisp(i), shot[ *this].waveDisp(i) + length, wave.begin());
+            tr[ *m_waveForm].setColumn(i + 1, std::move(wave), 6);
 		}
 		m_waveForm->drawGraph(tr);
     });

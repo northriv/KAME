@@ -49,9 +49,6 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
 		tr[ *m_spectrum].setColCount(6, labels);
-        int i = 0;
-        for(auto prec: {9, 5, 5, 4, 5, 4})
-            tr[ *m_spectrum].setPrecision(i++, prec);
 		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
 		tr[ *m_spectrum].insertPlot(labels[1], 0, 1, -1, 3);
 		tr[ *m_spectrum].insertPlot(labels[2], 0, 2, -1, 3);
@@ -311,12 +308,9 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		const double *weights( &shot[ *this].weights()[0]);
 		const double *darkpsd( &shot[ *this].darkPSD()[0]);
 		tr[ *m_spectrum].setRowCount(length);
-		double *colx(tr[ *m_spectrum].cols(0));
-		double *colr(tr[ *m_spectrum].cols(1));
-		double *coli(tr[ *m_spectrum].cols(2));
-		double *colw(tr[ *m_spectrum].cols(3));
-		double *colabs(tr[ *m_spectrum].cols(4));
-		double *coldark(tr[ *m_spectrum].cols(5));
+        std::vector<double> colx(length);
+        std::vector<float> colr(length), coli(length), colw(length),
+            colabs(length), coldark(length);
 		for(int i = 0; i < length; i++) {
 			colx[i] = values[i];
 			colr[i] = std::real(wave[i]);
@@ -325,6 +319,12 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 			colabs[i] = std::abs(wave[i]);
 			coldark[i] = sqrt(darkpsd[i]);
 		}
+        tr[ *m_spectrum].setColumn(0, std::move(colx), 9);
+        tr[ *m_spectrum].setColumn(1, std::move(colr), 5);
+        tr[ *m_spectrum].setColumn(2, std::move(coli), 5);
+        tr[ *m_spectrum].setColumn(3, std::move(colw), 4);
+        tr[ *m_spectrum].setColumn(4, std::move(colabs), 5);
+        tr[ *m_spectrum].setColumn(5, std::move(coldark), 4);
         const auto &peaks(shot[ *this].m_peaks);
 		int peaks_size = peaks.size();
 		tr[ *m_peakPlot->maxCount()] = peaks_size;
