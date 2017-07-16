@@ -64,19 +64,8 @@ public:
 
         template <typename VALUE>
         void setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision = std::numeric_limits<VALUE>::digits10 + 1);
-        const double *weight() const;
-        //! \param plotnum start with zero.
-		int colX(unsigned int plotnum) const { return m_plots[plotnum].colx;}
-		//! \param plotnum start with zero.
-		int colY1(unsigned int plotnum) const { return m_plots[plotnum].coly1;}
-		//! \param plotnum start with zero.
-		int colY2(unsigned int plotnum) const { return m_plots[plotnum].coly2;}
-		//! \param plotnum start with zero.
-		int colWeight(unsigned int plotnum) const { return m_plots[plotnum].colweight;}
-		//! \param plotnum start with zero.
-		int colZ(unsigned int plotnum) const { return m_plots[plotnum].colz;}
-		//! \param plotnum start with zero.
-		const shared_ptr<XXYPlot> &plot(unsigned int plotnum) const { return m_plots[plotnum].xyplot;}
+
+        shared_ptr<XPlot> plot(unsigned int plotnum) const { return m_plots[plotnum];}
 		const shared_ptr<XAxis> &axisx() const { return m_axisx;}
 		const shared_ptr<XAxis> &axisy() const { return m_axisy;}
 		const shared_ptr<XAxis> &axisy2() const { return m_axisy2;}
@@ -94,6 +83,7 @@ public:
         struct ColumnBase {
             ColumnBase(unsigned int prec) : precision(prec) {}
             virtual ~ColumnBase() = default;
+            virtual double max() const = 0;
             virtual bool moreThanZero(size_t i) const = 0;
             virtual void fillGraphPoints(XGraph::VFloat *) const = 0;
             virtual void toOFStream(std::fstream &s, size_t idx) = 0;
@@ -103,6 +93,9 @@ public:
         struct Column : public ColumnBase {
             Column(std::vector<VALUE> &&vec, unsigned int prec) : ColumnBase(prec), vector(std::move(vec)) {}
             virtual ~Column() = default;
+            virtual double max() const {
+                return *std::max_element(vector.cbegin(), vector.cend());
+            }
             virtual bool moreThanZero(size_t i) const {
                 return vector[i] > 0;
             }
@@ -115,11 +108,17 @@ public:
             std::vector<VALUE> vector;
         };
         std::vector<shared_ptr<ColumnBase>> m_cols;
-        struct Plot {
-            shared_ptr<XXYPlot> xyplot;
-            int colx, coly1, coly2, colweight, colz;
+
+        struct XPlotWrapper : public XPlot {
+            XPlotWrapper(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
+            virtual void clearAllPoints(Transaction &) override {}
+            //! Takes a snap-shot all points for rendering
+            virtual void snapshot(const Snapshot &shot) override;
+            weak_ptr<XWaveNGraph> m_parent;
+            unique_ptr<Snapshot> m_shotWaves;
+            int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
         };
-        std::vector<Plot> m_plots;
+        std::vector<shared_ptr<XPlotWrapper>> m_plots;
 		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
 
         Talker<bool> m_tlkOnIconChanged;

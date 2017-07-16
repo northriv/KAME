@@ -68,11 +68,60 @@ XWaveNGraph::~XWaveNGraph() {
 	m_stream.close();
 }
 
+XWaveNGraph::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
+    Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
+    XPlot(name, runtime, tr_graph, graph) {
+
+}
+void
+XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
+    if( !m_shotWaves) return;
+    const Snapshot &shot_waves( *m_shotWaves);
+    auto waves = m_parent.lock();
+    if( !waves) return;
+    int rowcnt = shot_waves[ *waves].rowCount();
+    m_ptsSnapped.clear();
+    m_ptsSnapped.reserve(rowcnt);
+    if( !rowcnt)
+        return;
+
+    std::vector<XGraph::VFloat> cols[4];
+    XGraph::VFloat *pcolx = nullptr, *pcoly = nullptr,
+            *pcolz = nullptr, *pcolweight = nullptr;
+
+    auto prepare_column_data =
+        [&](int colidx, std::vector<XGraph::VFloat>&buf, XGraph::VFloat *&pcolumn) {
+        if(colidx >= 0) {
+            buf.resize(rowcnt);
+            pcolumn = &buf[0];
+            shot_waves[ *waves].m_cols[colidx]->fillGraphPoints(pcolumn);
+        }
+    };
+    prepare_column_data(m_colx, cols[0], pcolx);
+    prepare_column_data(m_coly1, cols[1], pcoly);
+    prepare_column_data(m_coly2, cols[1], pcoly);
+    prepare_column_data(m_colz, cols[2], pcolz);
+    prepare_column_data(m_colweight, cols[3], pcolweight);
+
+    for(int i = 0; i < rowcnt; ++i) {
+        double z = 0.0;
+        if(pcolz)
+            z = pcolz[i];
+        if(pcolweight) {
+            if(pcolweight[i] > 0) {
+                m_ptsSnapped.push_back(XGraph::ValPoint(pcolx[i],
+                    pcoly[i], z, pcolweight[i]));
+            }
+        }
+        else {
+            m_ptsSnapped.push_back(XGraph::ValPoint(pcolx[i], pcoly[i], z));
+        }
+    }
+}
+
 void
 XWaveNGraph::Payload::clearPoints() {
 	setRowCount(0);
-	for(int i = 0; i < numPlots(); ++i)
-		tr()[ *plot(i)].points().clear();
 
 	shared_ptr<XGraph> graph(static_cast<XWaveNGraph*>( &node())->graph());
 	tr().mark(tr()[ *graph].onUpdate(), graph.get());
@@ -80,8 +129,8 @@ XWaveNGraph::Payload::clearPoints() {
 void
 XWaveNGraph::Payload::clearPlots() {
 	const auto &graph(static_cast<XWaveNGraph &>(node()).m_graph);
-	for(auto it = m_plots.begin(); it != m_plots.end(); it++) {
-		graph->plots()->release(tr(), it->xyplot);
+    for(auto &&x: m_plots) {
+        graph->plots()->release(tr(), x);
 	}
 	if(m_axisw)
 		graph->axes()->release(tr(), m_axisw);
@@ -105,12 +154,6 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	int weight, int z) {
 	const auto &graph(static_cast<XWaveNGraph &>(node()).m_graph);
 	assert( (y1 < 0) || (y2 < 0) );
-	Plot plot;
-	plot.colx = x;
-	plot.coly1 = y1;
-	plot.coly2 = y2;
-	plot.colweight = weight;
-	plot.colz = z;
 
 	if(weight >= 0) {
 		if((m_colw >= 0) && (m_colw != weight))
@@ -123,23 +166,29 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	tr()[ *graph->label()] = node().getLabel();
 
 	unsigned int plotnum = m_plots.size() + 1;
-	plot.xyplot = graph->plots()->create<XXYPlot>(tr(), formatString("Plot%u",
+    auto plot = graph->plots()->create<XPlotWrapper>(tr(), formatString("Plot%u",
 		plotnum).c_str(), true, ref(tr()), graph);
+    plot->m_parent = static_pointer_cast<XWaveNGraph>(node().shared_from_this());
+    plot->m_colx = x;
+    plot->m_coly1 = y1;
+    plot->m_coly2 = y2;
+    plot->m_colweight = weight;
+    plot->m_colz = z;
 
-	tr()[ *plot.xyplot->label()] = label;
+    tr()[ *plot->label()] = label;
 	const XNode::NodeList &axes_list( *tr().list(graph->axes()));
 	m_axisx = static_pointer_cast<XAxis>(axes_list.at(0));
 	m_axisy = static_pointer_cast<XAxis>(axes_list.at(1));
-	tr()[ *plot.xyplot->axisX()] = m_axisx;
-	tr()[ *m_axisx->label()] = m_labels[plot.colx];
-	if(plot.coly1 >= 0) {
-		tr()[ *plot.xyplot->axisY()] = m_axisy;
-		tr()[ *m_axisy->label()] = m_labels[plot.coly1];
+    tr()[ *plot->axisX()] = m_axisx;
+    tr()[ *m_axisx->label()] = m_labels[plot->m_colx];
+    if(plot->m_coly1 >= 0) {
+        tr()[ *plot->axisY()] = m_axisy;
+        tr()[ *m_axisy->label()] = m_labels[plot->m_coly1];
 	}
-	tr()[ *plot.xyplot->maxCount()] = rowCount();
-	tr()[ *plot.xyplot->maxCount()] = false;
-	tr()[ *plot.xyplot->clearPoints()].setUIEnabled(false);
-	tr()[ *plot.xyplot->intensity()] = 1.0;
+    tr()[ *plot->maxCount()] = rowCount();
+    tr()[ *plot->maxCount()].setUIEnabled(false);
+    tr()[ *plot->clearPoints()].setUIEnabled(false);
+    tr()[ *plot->intensity()] = 1.0;
 //	if(m_plots.size()) {
 //        tr()[ *plot.xyplot->pointColor()] = clAqua; //Green;
 //        tr()[ *plot.xyplot->lineColor()] = clAqua; //Green;
@@ -147,31 +196,31 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 //		tr()[ *plot.xyplot->displayMajorGrid()] = false;
 //	}
 
-	if(plot.colz >= 0) {
+    if(plot->m_colz >= 0) {
 		if( !m_axisz) {
 			m_axisz = graph->axes()->create<XAxis>(tr(), "Z Axis", true,
                 XAxis::AxisDirection::Z, true, ref(tr()), graph);
 		}
-		tr()[ *plot.xyplot->axisZ()] = m_axisz;
-		tr()[ *m_axisz->label()] = m_labels[plot.colz];
+        tr()[ *plot->axisZ()] = m_axisz;
+        tr()[ *m_axisz->label()] = m_labels[plot->m_colz];
 	}
-	if(plot.colweight >= 0) {
+    if(plot->m_colweight >= 0) {
 		if( !m_axisw) {
 			m_axisw = graph->axes()->create<XAxis>(tr(), "Weight", true,
                 XAxis::AxisDirection::Weight, true, ref(tr()), graph);
 		}
 		tr()[ *m_axisw->autoScale()] = false;
 		tr()[ *m_axisw->autoScale()].setUIEnabled(false);
-		tr()[ *plot.xyplot->axisW()] = m_axisw;
-		tr()[ *m_axisw->label()] = m_labels[plot.colweight];
+        tr()[ *plot->axisW()] = m_axisw;
+        tr()[ *m_axisw->label()] = m_labels[plot->m_colweight];
 	}
-	if(plot.coly2 >= 0) {
+    if(plot->m_coly2 >= 0) {
 		if( !m_axisy2) {
 			m_axisy2 = graph->axes()->create<XAxis>(tr(), "Y2 Axis", true,
                 XAxis::AxisDirection::Y, true, ref(tr()), graph);
 		}
-		tr()[ *plot.xyplot->axisY()] = m_axisy2;
-		tr()[ *m_axisy2->label()] = m_labels[plot.coly2];
+        tr()[ *plot->axisY()] = m_axisy2;
+        tr()[ *m_axisy2->label()] = m_labels[plot->m_coly2];
 	}
 
 	m_plots.push_back(plot);
@@ -195,7 +244,7 @@ void
 XWaveNGraph::Payload::setRowCount(unsigned int n) {
     m_rowCount = n;
     for(auto &&plot: m_plots) {
-        tr()[ *plot.xyplot->maxCount()] = n;
+        tr()[ *plot->maxCount()] = n;
 	}
 }
 
@@ -252,6 +301,7 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
             gErrPrint(i18n("File cannot open."));
             return;
         }
+        Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 
         int rowcnt = shot[ *this].rowCount();
         int colcnt = shot[ *this].colCount();
@@ -290,52 +340,14 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
-    int rowcnt = shot[ *this].rowCount();
-    std::vector<XGraph::VFloat> colx(rowcnt), coly(rowcnt), colz(rowcnt),
-        colweight(rowcnt);
-    int colx_colidx = -1, colweight_colidx = -1, coly_colidx = -1, colz_colidx = -1;
-    for(int i = 0; i < shot[ *this].numPlots(); ++i) {
-        auto &points_plot(tr[ *shot[ *this].plot(i)].points());
-        points_plot.clear();
-        points_plot.reserve(rowcnt);
-        if( !rowcnt) continue;
+    for(auto &&plot: tr[ *this].m_plots) {
+        plot->m_shotWaves.reset(new Snapshot(shot));
+    }
 
-
-        for(auto &&x :
-            {std::make_tuple(shot[ *this].colX(i), std::ref(colx_colidx), &colx[0]),
-            std::make_tuple(shot[ *this].colY1(i), std::ref(coly_colidx), &coly[0]),
-            std::make_tuple(shot[ *this].colY2(i), std::ref(coly_colidx), &coly[0]),
-            std::make_tuple(shot[ *this].colZ(i), std::ref(colz_colidx), &coly[0]),
-            std::make_tuple(shot[ *this].colWeight(i), std::ref(colweight_colidx),
-               &colweight[0])}) {
-            int colidx = std::get<0>(x);
-            //recycles buf if it has been copied.
-            if((std::get<1>(x) != colidx) && (colidx >= 0)) {
-                shot[ *this].m_cols[colidx]->fillGraphPoints(std::get<2>(x));
-            }
-            std::get<1>(x) = colidx;
-        }
-
-        if(colweight_colidx >= 0) {
-            XGraph::VFloat weight_max = 0.0;
-			for(int i = 0; i < rowcnt; i++)
-                weight_max = std::max(weight_max, colweight[i]);
-			tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
-			tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
-		}
-
-		for(int i = 0; i < rowcnt; ++i) {
-			double z = 0.0;
-            if(colz_colidx >= 0)
-                z = colz[i];
-            if(colweight_colidx >= 0) {
-                if(colweight[i] > 0)
-                    points_plot.push_back(XGraph::ValPoint(colx[i],
-                        coly[i], z, colweight[i]));
-			}
-			else
-                points_plot.push_back(XGraph::ValPoint(colx[i], coly[i], z));
-		}
-	}
+    if(shot[ *this].m_colw >= 0) {
+        XGraph::VFloat weight_max = shot[ *this].m_cols[shot[ *this].m_colw]->max();
+        tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
+        tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
+    }
 	tr.mark(tr[ *m_graph].onUpdate(), m_graph.get());
 }
