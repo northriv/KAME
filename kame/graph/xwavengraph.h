@@ -126,7 +126,6 @@ public:
             //! Takes a snap-shot all points for rendering
             virtual void snapshot(const Snapshot &shot) override;
             weak_ptr<XWaveNGraph> m_parent;
-            unique_ptr<Snapshot> m_shotWaves;
             int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
         };
         std::vector<shared_ptr<XPlotWrapper>> m_plots;

@@ -75,11 +75,11 @@ XWaveNGraph::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
 }
 void
 XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
-    if( !m_shotWaves) return;
-    const Snapshot &shot_waves( *m_shotWaves);
     auto waves = m_parent.lock();
     if( !waves) return;
-    int rowcnt = shot_waves[ *waves].rowCount();
+    //Snapshot only for the parent. Otherwise, transaction of graph will fail.
+    SingleSnapshot<XWaveNGraph> shot_waves( *waves);
+    int rowcnt = shot_waves->rowCount();
     m_ptsSnapped.clear();
     m_ptsSnapped.reserve(rowcnt);
     if( !rowcnt)
@@ -92,7 +92,7 @@ XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
     auto prepare_column_data =
         [&](int colidx, std::vector<XGraph::VFloat>&buf, const XGraph::VFloat *&pcolumn) {
         if(colidx >= 0) {
-            pcolumn = shot_waves[ *waves].m_cols[colidx]->fillOrPointToGraphPoints(buf);
+            pcolumn = shot_waves->m_cols[colidx]->fillOrPointToGraphPoints(buf);
         }
     };
     prepare_column_data(m_colx, cols[0], pcolx);
@@ -338,10 +338,6 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
 }
 void XWaveNGraph::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
-    for(auto &&plot: tr[ *this].m_plots) {
-        plot->m_shotWaves.reset(new Snapshot(shot));
-    }
-
     if(shot[ *this].m_colw >= 0) {
         XGraph::VFloat weight_max = shot[ *this].m_cols[shot[ *this].m_colw]->max();
         tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
