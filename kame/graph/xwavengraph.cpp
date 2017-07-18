@@ -315,21 +315,23 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
         auto &p(shot[ *this]);
         shared_ptr<Payload::ColumnBase> colw;
         if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
+        int written_rows = 0;
         for(unsigned int i = 0; i < rowcnt; i++) {
-            if(colw || (colw->moreThanZero(i) > 0)) {
+            if( !colw || (colw->moreThanZero(i))) {
                 for(unsigned int j = 0; j < colcnt; j++) {
                     m_stream << std::setprecision(p.m_cols[j]->precision);
                     p.m_cols[j]->toOFStream(m_stream, i);
                     m_stream << KAME_DATAFILE_DELIMITER;
                 }
                 m_stream << std::endl;
+                written_rows++;
             }
         }
         m_stream << std::endl;
 
         m_stream.flush();
 
-        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %d rows written into %s."), written_rows, shot[ *filename()].to_str().c_str()));
     }, Snapshot( *this)});
 
     iterate_commit([=](Transaction &tr){
