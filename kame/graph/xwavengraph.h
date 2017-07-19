@@ -105,6 +105,7 @@ public:
             Column(std::vector<VALUE> &&vec, unsigned int prec) : ColumnBase(prec), vector(std::move(vec)) {}
             virtual ~Column() = default;
             virtual double max() const {
+                if(vector.empty()) return 0.0;
                 return *std::max_element(vector.cbegin(), vector.cend());
             }
             virtual bool moreThanZero(size_t i) const {
