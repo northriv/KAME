@@ -73,8 +73,10 @@ def sleep(sec)
 		if /^(.+?):(\d+)(?::in `(.*)')?/ =~ caller[1]
 			Thread.current[:statusstring] += " < #{$3}:#{$2}"
 	    end
+		x = Time.now()
  		_orig_sleep(0.5)
- 	end
+        break if(Time.now() - x < 0.5) #interrupted.
+    end
 	Thread.current[:statusstring] = nil
 end
 
@@ -256,21 +258,19 @@ begin
 	   if thread then
 	     if thread.status == "starting" then
 	       raise "why starting?"
-	     end
-		 if thread.status.include?("sleep") && action == "wakeup" then
+		 end
+		 if thread.status == "sleep" && action == "wakeup" then
 	       print "wakeup " +  thread.to_s + "\n"
-	       thread.wakeup
+		   thread.wakeup
 	       print thread.inspect + "\n"
 	     end
-	     if thread.alive? && action == "kill" then
+		 if thread.alive? && action == "kill" then
 	       print "kill " +  thread.to_s + "\n"
 	       thread.kill
-	       print thread.inspect + "\n"
-	     end
-	     if action != "" then
-		     xrbthread_action.set("")
+		   print thread.inspect + "\n"
 		 end
-		  status = thread.status
+		 xrbthread_action.set("")
+		 status = thread.status
 	     if status then
 		   status += thread[:statusstring] if thread[:statusstring] && (status == "sleep")
 	       if xrbthread_status.value != status then
@@ -299,6 +299,7 @@ begin
 					 else
 					    Thread.current[:load_kam] = true
 					 end
+					 Thread.current[:xrbthread] = xrbthread;
 					 load filename
 		             print thread.to_s + " Finished.\n"
 		          rescue ScriptError, StandardError, SystemExit
