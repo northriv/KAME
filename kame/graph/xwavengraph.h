@@ -134,8 +134,6 @@ public:
         Talker<bool> m_tlkOnIconChanged;
 	};
 private:
-	void init();
-
 	QPushButton * const m_btnDump;
 
 	const shared_ptr<XGraph> m_graph;

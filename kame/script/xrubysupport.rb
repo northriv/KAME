@@ -257,7 +257,7 @@ begin
 	     if thread.status == "starting" then
 	       raise "why starting?"
 	     end
-	     if thread.status == "sleep" && action == "wakeup" then
+		 if thread.status.include?("sleep") && action == "wakeup" then
 	       print "wakeup " +  thread.to_s + "\n"
 	       thread.wakeup
 	       print thread.inspect + "\n"

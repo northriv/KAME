@@ -26,14 +26,9 @@
 //---------------------------------------------------------------------------
 
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
-	XNode(name, runtime), m_btnDump(item->m_btnDump), m_graph(create<XGraph> (
-		name, false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
-		XStringNode> ("FileName", true)) {
-	item->m_graphwidget->setGraph(m_graph);
-    m_conFilename = xqcon_create<XFilePathConnector> (m_filename, item->m_edUrl, item->m_btnUrl,
-		"Data files (*.dat);;All files (*.*)", true);
-	m_conDump = xqcon_create<XQButtonConnector> (m_dump, item->m_btnDump);
-	init();
+    XWaveNGraph(name, runtime, item->m_graphwidget, item->m_edUrl,
+        item->m_btnUrl, item->m_btnDump) {
+
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
@@ -44,26 +39,25 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
 		"Data files (*.dat);;All files (*.*)", true);
 	m_conDump = xqcon_create<XQButtonConnector> (m_dump, btndump);
-	init();
-}
-void XWaveNGraph::init() {
-	iterate_commit([=](Transaction &tr){
-		m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
-			shared_from_this(), &XWaveNGraph::onFilenameChanged);
+
+    iterate_commit([=](Transaction &tr){
+        m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
+            shared_from_this(), &XWaveNGraph::onFilenameChanged);
     });
 
     iterate_commit([=](Transaction &tr){
         m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
-			shared_from_this(),
-			&XWaveNGraph::onIconChanged, Listener::FLAG_MAIN_THREAD_CALL
-				| Listener::FLAG_AVOID_DUP);
-		tr.mark(tr[ *this].onIconChanged(), false);
+            shared_from_this(),
+            &XWaveNGraph::onIconChanged, Listener::FLAG_MAIN_THREAD_CALL
+                | Listener::FLAG_AVOID_DUP);
+        tr.mark(tr[ *this].onIconChanged(), false);
 
-		tr[ *dump()].setUIEnabled(false);
+        tr[ *dump()].setUIEnabled(false);
         tr[ *m_graph->persistence()] = 0.4;
-		tr[ *this].clearPlots();
+        tr[ *this].clearPlots();
     });
 }
+
 XWaveNGraph::~XWaveNGraph() {
 	m_stream.close();
 }
