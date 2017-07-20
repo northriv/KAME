@@ -119,6 +119,8 @@ XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordE
     isready = reader.pop<uint16_t>();
     m_position->value(tr, pos);
     tr[ *m_slipping] = slip;
+    if(m_timeMovementStarted > tr[* this].timeAwared())
+        isready = false; //Motor started moving after the previous timeAwared().
     tr[ *m_ready] = isready;
 }
 void
@@ -130,6 +132,7 @@ XMotorDriver::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     try {
         setTarget(shot_this, shot[ *target()]);
+        m_timeMovementStarted = XTime::now();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while changing target, "));
@@ -189,6 +192,7 @@ XMotorDriver::onForwardMotorTouched(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
     try {
         setForward();
+        m_timeMovementStarted = XTime::now();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));
@@ -200,6 +204,7 @@ XMotorDriver::onReverseMotorTouched(const Snapshot &shot, XTouchableNode *) {
 	Snapshot shot_this( *this);
     try {
         setReverse();
+        m_timeMovementStarted = XTime::now();
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error, "));
@@ -223,7 +228,8 @@ XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
 }
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
-	iterate_commit([=](Transaction &tr){
+    m_timeMovementStarted = {};
+    iterate_commit([=](Transaction &tr){
 		getConditions(tr);
     });
 

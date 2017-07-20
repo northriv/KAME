@@ -124,6 +124,7 @@ private:
 
 	void *execute(const atomic<bool> &);
 
+    XTime m_timeMovementStarted;
 };
 
 
