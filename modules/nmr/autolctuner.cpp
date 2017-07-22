@@ -692,82 +692,92 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
     else {
+        double testdelta = shot_this[ *this].stmDelta[target_stm];
         if( !shot_this[ *this].fitRotated) {
         //The stage just after +Delta rotation.
-            tr[ *this].fitRotated = lcrfit;
-            //follows the last rotation direction.
-            tr[ *this].stmDelta[target_stm] *= -1.0; //opposite direction.
-            tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-            tr[ *this].timeSTMChanged = XTime::now();
-            tr[ *m_status] = message + formatString("STM%d: Testing -Delta.", target_stm + 1);;
-            throw XSkippedRecordError(__FILE__, __LINE__);
+            tr[ *this].fitRotated.swap(lcrfit);
         }
         else {
-        //The stage just after -Delta rotation.
-            //calculate capacitance change and backlash.
-            double testdelta = shot_this[ *this].stmDelta[target_stm];
+            //The stage just after -Delta rotation.
             testdelta *= -1; //polarity for +Delta
-            double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
-            double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0) + pow(lcrfit->c1err(), 2.0)
-                    + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
-            double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
-            double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0) + pow(lcrfit->c2err(), 2.0)
-                    + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / fabs(testdelta);
+        }
+        //calculates capacitance changes.
+        double dc1dtest = (shot_this[ *this].fitRotated->c1() - shot_this[ *this].fitOrig->c1()) / testdelta;
+        double dc1dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c1err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c1err(), 2.0)) / fabs(testdelta);
+        double dc2dtest = (shot_this[ *this].fitRotated->c2() - shot_this[ *this].fitOrig->c2()) / testdelta;
+        double dc2dtest_err = sqrt(pow(shot_this[ *this].fitRotated->c2err(), 2.0)
+                + pow(shot_this[ *this].fitOrig->c2err(), 2.0)) / fabs(testdelta);
+        if(lcrfit) {
+            dc1dtest_err += pow(lcrfit->c1err(), 2.0) / fabs(testdelta);
+            dc2dtest_err += pow(lcrfit->c2err(), 2.0) / fabs(testdelta);
+        }
+        double w1 = dc2dtest_err / fabs(dc2dtest);
+        double w2 = dc1dtest_err / fabs(dc1dtest);
+        double sigma_per_change = std::min(w1, w2);
+        bool further_test = sigma_per_change > 5;
+        double backlash = 0.0;
+        if(lcrfit) {
+            //calculates backlashes.
             double dc1dtest_minus_backlash =
                 (lcrfit->c1() - shot_this[ *this].fitRotated->c1()) / (-testdelta);
             double dc2dtest_minus_backlash =
                 (lcrfit->c2() - shot_this[ *this].fitRotated->c2()) / (-testdelta);
             double backlash1 = testdelta - dc1dtest_minus_backlash / dc1dtest * testdelta;
             double backlash2 = testdelta - dc2dtest_minus_backlash / dc2dtest * testdelta;
-            double w1 = dc2dtest_err / fabs(dc2dtest);
-            double w2 = dc1dtest_err / fabs(dc1dtest);
-            double backlash = w1 * w1 * backlash1 + w2 * w2 * backlash2;
+            backlash = w1 * w1 * backlash1 + w2 * w2 * backlash2;
             backlash /= w1 * w1 + w2 * w2;
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            double sigma_per_change = std::min(w1, w2);
-            if((sigma_per_change > 5) ||
-                    (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3)) {
-            //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(6L, 2L + lrint(fabs(backlash / testdelta) * 5));
-                testdelta *= -1; //polarity for +Delta
-               if(fabs(testdelta) > Payload::TestDeltaMax) {
-                   abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
-                   return;
-               }
-               message +=
-                    formatString("Increasing test angle to %.1f, Testing +Delta.", (double)testdelta);
-               //rotates C more and try again.
-               tr[ *this].fitOrig = lcrfit;
-               tr[ *this].fitRotated.reset();
-               tr[ *this].stmDelta[target_stm] = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm);
-               tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-               tr[ *this].timeSTMChanged = XTime::now();
-               tr[ *m_status] = message;
-               throw XSkippedRecordError(__FILE__, __LINE__);
-            }
-            if(backlash < 0) backlash = 0; //unphysical
-            tr[ *this].stmBacklash[target_stm] = backlash;
-            tr[ *this].stmTrustArea[target_stm] =
-                std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash * 2, 50.0), 10.0 * 360); //Payload::DeltaMax);
-            tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
-            tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
-            tr[ *this].clearSTMDelta();
-            if(stm1__ && stm2__) {
-                target_stm = 1 - target_stm; //STM1
-                if(tr[ *this].deltaC1perDeltaSTM[target_stm] == 0.0) {
-                    //go to next test for another STM.
-                    tr[ *this].fitOrig = lcrfit;
-                    tr[ *this].fitRotated.reset();
-                    //follows the last rotation direction.
-                    tr[ *this].stmDelta[target_stm] =
-                            Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
-                    tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
-                    tr[ *this].timeSTMChanged = XTime::now();
-                    tr[ *m_status] = message + formatString("STM%d: Testing +Delta", target_stm + 1);
-                    throw XSkippedRecordError(__FILE__, __LINE__);
-                }
+            further_test = further_test || (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3);
+        }
+        if(further_test) {
+        //Capacitance is sticking, test angle is too small, or poor fitting.
+            testdelta *= std::min(6L, 2L + lrint(fabs(backlash / testdelta) * 5));
+           if(fabs(testdelta) > Payload::TestDeltaMax) {
+               abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
+               return;
+           }
+           message +=
+                formatString("Increasing test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
+           //rotates C more and try again.
+           if(lcrfit)
+                tr[ *this].fitRotated = std::move(lcrfit);
+           tr[ *this].fitOrig = std::move(tr[ *this].fitRotated);
+           tr[ *this].stmDelta[target_stm] = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm);
+           tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
+           tr[ *this].timeSTMChanged = XTime::now();
+           tr[ *m_status] = message;
+           throw XSkippedRecordError(__FILE__, __LINE__);
+        }
+        if( !lcrfit) {
+            tr[ *this].stmDelta[target_stm] *= -1.0; //opposite direction.
+            tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
+            tr[ *this].timeSTMChanged = XTime::now();
+            tr[ *m_status] = message + formatString("STM%d: Testing -Delta.", target_stm + 1);;
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        }
+        if(backlash < 0) backlash = 0; //unphysical
+        tr[ *this].stmBacklash[target_stm] = backlash;
+        tr[ *this].stmTrustArea[target_stm] =
+            std::min(fabs(testdelta) * std::min(fabs(testdelta) / backlash * 2, 50.0), 10.0 * 360); //Payload::DeltaMax);
+        tr[ *this].deltaC1perDeltaSTM[target_stm] = dc1dtest;
+        tr[ *this].deltaC2perDeltaSTM[target_stm] = dc2dtest;
+        tr[ *this].clearSTMDelta();
+        if(stm1__ && stm2__) {
+            target_stm = 1 - target_stm; //STM1
+            if(tr[ *this].deltaC1perDeltaSTM[target_stm] == 0.0) {
+                //go to next test for another STM.
+                tr[ *this].fitOrig = lcrfit;
+                tr[ *this].fitRotated.reset();
+                //follows the last rotation direction.
+                tr[ *this].stmDelta[target_stm] =
+                        Payload::TestDeltaFirst * shot_this[ *this].lastDirection(target_stm);
+                tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
+                tr[ *this].timeSTMChanged = XTime::now();
+                tr[ *m_status] = message + formatString("STM%d: Testing +Delta", target_stm + 1);
+                throw XSkippedRecordError(__FILE__, __LINE__);
             }
         }
     }
