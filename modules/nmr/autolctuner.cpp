@@ -220,7 +220,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         if((retry == 2) && (residualerr < 1e-3) && !randomize)
             break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
-            *this = LCRFit(f0org, rl_orig, isCouplingTight());
+            *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
             double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust_scale = (retry % 6) / 6.0 * 2.0 + 0.5;
@@ -246,7 +246,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
         double err = residualError();
         if(coupling() * coupling_orig < 0)
-            err += sqrt( -coupling() * coupling_orig); //opposite coupling.
+            err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
         if(nlls1.isSuccessful() && (err < residualerr) && !std::isnan(f0err())) {
             residualerr  = err;
             nlls = std::move(nlls1);
@@ -535,9 +535,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
         tr[ *this].taintedCount = 1; //# of incoming traces to be skipped.
-        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
-            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
-            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
+//        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
+//            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
+//            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
     }
     if(shot_this[ *this].taintedCount) {
         tr[ *this].taintedCount--;
