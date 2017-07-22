@@ -712,6 +712,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             dc1dtest_err += pow(lcrfit->c1err(), 2.0) / fabs(testdelta);
             dc2dtest_err += pow(lcrfit->c2err(), 2.0) / fabs(testdelta);
         }
+        else {
+            dc1dtest_err *= 2;
+            dc2dtest_err *= 2;
+        }
         double w1 = dc2dtest_err / fabs(dc2dtest);
         double w2 = dc1dtest_err / fabs(dc1dtest);
         double sigma_per_change = std::min(w1, w2);
