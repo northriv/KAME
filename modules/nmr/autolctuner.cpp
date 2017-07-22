@@ -167,6 +167,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
     double f0org = lcr_orig.f0();
     double omega0org = 2.0 * M_PI * f0org;
     double rl_orig = std::abs(lcr_orig.rl(omega0org));
+    double coupling_orig = lcr_orig.coupling();
     double omega_trust;
     auto eval_omega_trust = [&](double q){
         double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * s11.size() - f0org);
@@ -243,9 +244,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
-        if(nlls1.isSuccessful() && (residualError() < residualerr) && !std::isnan(f0err())
-            && (coupling() * lcr_orig.coupling() > -0.01)) {
-            residualerr  = residualError();
+        double err = residualError();
+        if(coupling() * coupling_orig < 0)
+            err += sqrt( -coupling() * coupling_orig); //opposite coupling.
+        if(nlls1.isSuccessful() && (err < residualerr) && !std::isnan(f0err())) {
+            residualerr  = err;
             nlls = std::move(nlls1);
             lcr_orig = *this;
             it_best = retry;
