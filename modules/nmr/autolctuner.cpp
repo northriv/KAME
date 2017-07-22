@@ -530,10 +530,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if((stm1__ && (shot_others[ *stm1__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
             (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)))
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
-//        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
-//            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
-//            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
+        tr[ *this].taintedCount = 2; //# of incoming traces to be skipped.
+        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
+            (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
+            throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
+    }
+    if( --tr[ *this].taintedCount) {
         throw XSkippedRecordError(__FILE__, __LINE__); //the present data might be unreliable due to STM movement. reload.
     }
     if( !shot_this[ *tuning()]) {
@@ -629,7 +632,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             plot->setLCR(lcrfit);
 
         if((lcrfit->residualError() > 0.1) || std::isnan(fmin_fit_err) ||
-            ((fabs(fmin - fmin_fit) > (4 * fmin_fit_err + 6 * trace_dfreq)) && (rlmin < 0.1)) ||
+            ((fabs(fmin - fmin_fit) > (10 * fmin_fit_err + 6 * trace_dfreq)) && (rlmin < 0.1)) ||
             (fabs(rlmin - rlmin_fit) > 0.2)) {
             message += formatString("Fitting is not reliable, because searched minimum was (%.2f MHz, %.2f dB).\n",
                 fmin, 20.0 * log10(rlmin));
