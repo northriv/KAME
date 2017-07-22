@@ -730,7 +730,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             if((sigma_per_change > 5) ||
                     (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3)) {
             //Capacitance is sticking, test angle is too small, or poor fitting.
-                testdelta *= std::min(6L, 2L + lrint(sigma_per_change));
+                testdelta *= std::min(6L, 2L + lrint(fabs(backlash / testdelta) * 5));
                 testdelta *= -1; //polarity for +Delta
                if(fabs(testdelta) > Payload::TestDeltaMax) {
                    abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
