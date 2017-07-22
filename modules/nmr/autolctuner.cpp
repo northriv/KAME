@@ -244,7 +244,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
         if(nlls1.isSuccessful() && (residualError() < residualerr) && !std::isnan(f0err())
-            && (coupling() * lcr_orig.coupling() > -0.003)) {
+            && (coupling() * lcr_orig.coupling() > -0.01)) {
             residualerr  = residualError();
             nlls = std::move(nlls1);
             lcr_orig = *this;
@@ -626,7 +626,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *m_r2].str(formatString("R2=%.2f Ohm", lcrfit->r2()));
         tr[ *m_c1].str(formatString("C1=%.2f\n  +-%.2f pF", lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12));
         tr[ *m_c2].str(formatString("C2=%.2f\n  +-%.2f pF", lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12));
-        auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
+//        auto newcaps = lcrfit->tuneCaps(f0 * 1e6);
 //        message +=
 //            formatString("Fit suggests: C1=%.2f pF, C2=%.2f pF\n", newcaps.first * 1e12, newcaps.second * 1e12);
         if(auto plot = m_lcrPlot)
