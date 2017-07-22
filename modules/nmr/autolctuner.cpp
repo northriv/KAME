@@ -531,7 +531,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)))
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
-        tr[ *this].taintedCount = 2; //# of incoming traces to be skipped.
+        tr[ *this].taintedCount = 1; //# of incoming traces to be skipped.
         if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
             (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
             throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
