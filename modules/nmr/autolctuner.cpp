@@ -536,7 +536,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             (stm2__ && (shot_this[ *this].timeAwared() - shot_others[ *stm2__].time() < 0)))
             throw XSkippedRecordError(__FILE__, __LINE__); //the present data may involve one during STM movement. reload.
     }
-    if( --tr[ *this].taintedCount) {
+    if(shot_this[ *this].taintedCount) {
+        tr[ *this].taintedCount--;
         throw XSkippedRecordError(__FILE__, __LINE__); //the present data might be unreliable due to STM movement. reload.
     }
     if( !shot_this[ *tuning()]) {
