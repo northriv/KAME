@@ -73,8 +73,11 @@ XQDPPMS6000::setTemp(double temp, double rate, int approach_mode){
     if(temp > 0.0){
         interface()->sendf("TEMP %f %f %d", temp, rate, approach_mode);
     }
-    else{
+    else if(1 > getField() && ((getStatus() >> 4) & 0xf) == 0x1){
         interface()->send("SHUTDOWN");
+    }
+    else{
+        throw XInterface::XInterfaceError(i18n("Erase magnetic field before shutdown."), __FILE__, __LINE__);
     }
 }
 
