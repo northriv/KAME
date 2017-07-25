@@ -304,9 +304,10 @@ XGraphList::XGraphList(const char *name, bool runtime, const shared_ptr<XScalarE
 
 shared_ptr<XNode>
 XGraphList::createByTypename(const XString &, const XString& name)  {
-	shared_ptr<XValGraph> x;
+    shared_ptr<XValGraph> x;
     m_entries->iterate_commit([=, &x](Transaction &tr){
-		x = create<XValGraph>(name.c_str(), false, tr, m_entries);
+        if(x) release(x);
+        x = create<XValGraph>(name.c_str(), false, tr, m_entries);
     });
-	return x;
+    return x;
 }
