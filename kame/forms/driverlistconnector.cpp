@@ -21,6 +21,9 @@
 #include <QLabel>
 #include "ui_drivertool.h"
 #include "ui_drivercreate.h"
+#include "icon.h"
+#include <QPainter>
+#include <QPixmap>
 
 typedef QForm<QDialog, Ui_DlgCreateDriver> DlgCreateDriver;
 
@@ -130,14 +133,45 @@ void
 XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
     qshared_ptr<DlgCreateDriver> dlg(new DlgCreateDriver(m_pItem));
 	dlg->setModal(true);
-	static int num = 0;
+    static int num = 0;
 	num++;
 	dlg->m_edName->setText(QString("NewDriver%1").arg(num));
    
+    auto iconMaker = [](const QString &str, QColor clr = 0x808080u){
+        QPixmap pixmap(96, 96);
+        pixmap.fill(Qt::transparent);
+        QPainter painter( &pixmap);
+        QFont font(painter.font());
+        font.setPixelSize(std::min(48, 92 / str.length()));
+        painter.setFont(font);
+        font.setBold(true);
+        QPen pen(clr);
+        painter.setPen(pen);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.drawText(pixmap.rect(), str, QTextOption(Qt::AlignVCenter|Qt::AlignHCenter));
+        return pixmap;
+    };
 	dlg->m_lstType->clear();
-	for(unsigned int i = 0; i < XDriverList::typelabels().size(); i++) {
-        dlg->m_lstType->addItem(XDriverList::typelabels()[i].c_str());
-	}
+    for(auto &&label: XDriverList::typelabels()) {
+        QPixmap icon;
+        if(label.find("temp") != std::string::npos)
+            icon = iconMaker("TEMP", 0xa00000u);
+        if(label.find("magnet power") != std::string::npos)
+            icon = iconMaker("MAG", 0x800080u);
+        if(label.find("DMM") != std::string::npos)
+            icon = iconMaker("DMM", 0x000000u);
+        if(label.find("Network Analyzer") != std::string::npos)
+            icon = iconMaker("NA", 0x008080u);
+        if(label.find("signal generator") != std::string::npos)
+            icon = iconMaker("SG", 0x00a080u);
+        if(label.find("DSO") != std::string::npos)
+            icon = iconMaker("DSO", 0xa0a000u);
+        if(label.find("NMR") != std::string::npos || label.find("Thamway") != std::string::npos)
+            icon = iconMaker("NMR", 0x000080u);
+        if(icon.isNull())
+            icon = iconMaker(label.substr(0, 1).c_str());
+        new QListWidgetItem(icon, label.c_str(), dlg->m_lstType);
+    }
    
     dlg->m_lstType->setCurrentRow(-1);
 	if(dlg->exec() == QDialog::Rejected) {
