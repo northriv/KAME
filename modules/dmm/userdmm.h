@@ -92,6 +92,23 @@ public:
 	}
 };
 
+//! Keithley 6482 picoam meter
+//! One must setup instruments for SCPI mode
+class XKE6482:public XDMMSCPI {
+public:
+    XKE6482(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+        XDMMSCPI(name, runtime, ref(tr_meas), meas) {
+        iterate_commit([=](Transaction &tr){
+            tr[ *function()].add("CURR1");
+            tr[ *function()].add("CURR2");
+        });
+    }
+protected:
+    //! called when m_function is changed
+    virtual void changeFunction();
+};
+
 //! Agilent(Hewlett-Packard) 3458A DMM.
 class XHP3458A : public XCharDeviceDriver<XDMM> {
 public:
