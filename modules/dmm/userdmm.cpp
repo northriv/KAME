@@ -19,6 +19,7 @@
 
 REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");
 REGISTER_TYPE(XDriverList, KE2182, "Keithley 2182 nanovolt meter");
+REGISTER_TYPE(XDriverList, KE6482, "Keithley 6482 picoam meter");
 REGISTER_TYPE(XDriverList, HP34420A, "Agilent 34420A nanovolt meter");
 REGISTER_TYPE(XDriverList, HP3458A, "Agilent 3458A DMM");
 REGISTER_TYPE(XDriverList, HP3478A, "Agilent 3478A DMM");
@@ -49,6 +50,15 @@ XDMMSCPI::measure(const XString &func)
     return interface()->toDouble();
 }
 */
+
+void
+XKE6482::changeFunction() {
+    XString func = ( **function())->to_str();
+    if( !func.empty()) {
+        interface()->send(":CONF:CURR");
+        interface()->sendf(":FORM:ELEM %s", func.c_str());
+    }
+}
 
 XHP3458A::XHP3458A(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
