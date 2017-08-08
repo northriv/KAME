@@ -346,12 +346,14 @@ private:
 
     //! \sa SoftwareTrigger::onTriggerRequested()
     void onTriggerRequested(uint64_t threshold);
+    void freeRunToDetectTriggers(const atomic<bool>&, uint64_t threshold, int count = 0);
     shared_ptr<Listener> m_lsnOnTriggerRequested;
     Payload::RelPatList m_patListFreeRun;
     int m_lastIdxFreeRun;
     uint32_t m_lastPatFreeRun;
     uint64_t m_totalSampsOfFreeRun;
     XMutex m_mutexForFreeRun;
+    unique_ptr<XThread> m_threadFreeRun;
 
     uint64_t m_prefillingSampsBeforeArm = 0;
 };

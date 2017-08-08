@@ -177,8 +177,8 @@ class XThread {
 public:
     //! Starts up a new thread.
     //! \param f a member function of an object \p r, r->f(const atomic<bool>& terminated, args...)
-    template <class X, class T, class... Args>
-    XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, Args...), Args&&...args);
+    template <class X, class T, class R, class... Args>
+    XThread(const shared_ptr<X> &r, R(T::*func)(const atomic<bool> &, Args...), Args&&...args);
     template <class X, class Function, class... Args>
     XThread(const shared_ptr<X> &r, Function &&func, Args&&...args);
     //! Joins a thread here if it is still un-joined (joinable).
@@ -198,8 +198,8 @@ private:
     std::thread m_thread;
 };
 
-template <class X, class T, class... Args>
-XThread::XThread(const shared_ptr<X> &r, void *(T::*func)(const atomic<bool> &, Args...), Args&&...args) :
+template <class X, class T, class R, class... Args>
+XThread::XThread(const shared_ptr<X> &r, R(T::*func)(const atomic<bool> &, Args...), Args&&...args) :
     m_thread(
         [r, func, this](Args&&...args) {
             auto obj = dynamic_pointer_cast<T>(r);

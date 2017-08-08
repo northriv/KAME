@@ -362,7 +362,8 @@ void
 XPulser::stop() {
     m_lsnOnTriggerRequested.reset();
     m_lsnOnPulseChanged.reset();
-  
+    m_threadFreeRun.reset();
+
 	changeUIStatus(true, false);
 	pulseAnalyzerMode()->setUIEnabled(false);
 
@@ -422,14 +423,13 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
     });
 }
 void
-XPulser::onTriggerRequested(uint64_t threshold) {
+XPulser::freeRunToDetectTriggers(const atomic<bool>&, uint64_t threshold, int count) {
     XScopedLock<XMutex> lock(m_mutexForFreeRun);
     auto &patlist = m_patListFreeRun;
     int idx = m_lastIdxFreeRun;
     uint32_t oldpat = m_lastPatFreeRun;
     if(idx >= patlist.size()) return;
     auto *p = softwareTrigger().get();
-    int cnt = 0;
     //Caches trigger positions
     while(m_totalSampsOfFreeRun < threshold) {
         auto &pat = patlist[idx++];
@@ -439,11 +439,21 @@ XPulser::onTriggerRequested(uint64_t threshold) {
         bool ret = p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
         oldpat = newpat;
         if(ret) {
-            if(cnt++ > 1) break;
+            count--;
+            if(count == 0) break; //reached a requested number of trigger points.
         }
     }
     m_lastIdxFreeRun = idx;
     m_lastPatFreeRun = oldpat;
+}
+
+void
+XPulser::onTriggerRequested(uint64_t threshold) {
+    freeRunToDetectTriggers({false}, threshold, 1);
+    if(threshold > m_totalSampsOfFreeRun) {
+        m_threadFreeRun.reset(new XThread{shared_from_this(),
+            &XPulser::freeRunToDetectTriggers, (uint64_t)threshold, 0});
+    }
 }
 
 void
@@ -1193,6 +1203,7 @@ XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
         if(hasSoftwareTrigger()) {
+            m_threadFreeRun.reset();
             if(softwareTrigger()->isPersistentCoherentMode() &&
                     (m_totalSampsOfFreeRun <= prefillingSampsBeforeArm())) {
                 softwareTrigger()->clear();
@@ -1213,7 +1224,7 @@ XPulser::visualize(const Snapshot &shot) {
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
                     //free-runs to calculate trigger positions for 0.3sec.
-                    softwareTrigger()->onTriggerRequested().talk(lrint(0.3 * softwareTrigger()->freq()));
+                    freeRunToDetectTriggers({false}, lrint(0.3 * softwareTrigger()->freq()));
                 }
             }
         }
