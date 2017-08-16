@@ -4,6 +4,7 @@
 - lcautotuner: better behavior
 - graphlist: fox for multiple creation
 - xwavengraph: appropriate precisions for waves, threaded dumping.
+-KE6482 picoam meter
 
 * Fri Jul 14 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.1.0-1)

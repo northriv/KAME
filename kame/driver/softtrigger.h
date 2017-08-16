@@ -83,6 +83,7 @@ private:
     unsigned int m_bits;
     uint32_t m_risingEdgeMask, m_fallingEdgeMask;
     uint64_t m_blankTerm;
+    uint64_t m_lastThresholdRequested;
     uint64_t m_endOfBlank; //!< next stamp must not be less than this.
     double m_freq; //!< [Hz].
     enum {QUEUE_SIZE = 8192};

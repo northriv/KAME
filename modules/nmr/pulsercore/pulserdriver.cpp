@@ -423,37 +423,35 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
     });
 }
 void
-XPulser::freeRunToDetectTriggers(const atomic<bool>&, uint64_t threshold, int count) {
-    XScopedLock<XMutex> lock(m_mutexForFreeRun);
-    auto &patlist = m_patListFreeRun;
-    int idx = m_lastIdxFreeRun;
-    uint32_t oldpat = m_lastPatFreeRun;
-    if(idx >= patlist.size()) return;
-    auto *p = softwareTrigger().get();
-    //Caches trigger positions
-    while(m_totalSampsOfFreeRun < threshold) {
-        auto &pat = patlist[idx++];
-        if(idx >= patlist.size()) idx = 0;
-        m_totalSampsOfFreeRun += pat.toappear;
-        uint32_t newpat = pat.pattern;
-        bool ret = p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
-        oldpat = newpat;
-        if(ret) {
-            count--;
-            if(count == 0) break; //reached a requested number of trigger points.
+XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
+    for(;;) {
+        XScopedLock<XMutex> lock(m_mutexForFreeRun);
+        uint64_t threshold = m_thresholdOfFreeRun;
+        auto &patlist = m_patListFreeRun;
+        int idx = m_lastIdxFreeRun;
+        uint32_t oldpat = m_lastPatFreeRun;
+        if(idx >= patlist.size()) return;
+        auto *p = softwareTrigger().get();
+        //Caches trigger positions
+        while(m_totalSampsOfFreeRun < threshold) {
+            auto &pat = patlist[idx++];
+            if(idx >= patlist.size()) idx = 0;
+            m_totalSampsOfFreeRun += pat.toappear;
+            uint32_t newpat = pat.pattern;
+            p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
+            oldpat = newpat;
         }
+        m_lastIdxFreeRun = idx;
+        m_lastPatFreeRun = oldpat;
+        if(single || terminated)
+            break;
+        msecsleep(20); //lazy sleep
     }
-    m_lastIdxFreeRun = idx;
-    m_lastPatFreeRun = oldpat;
 }
 
 void
 XPulser::onTriggerRequested(uint64_t threshold) {
-    freeRunToDetectTriggers({false}, threshold, 1);
-    if(threshold > m_totalSampsOfFreeRun) {
-        m_threadFreeRun.reset(new XThread{shared_from_this(),
-            &XPulser::freeRunToDetectTriggers, (uint64_t)threshold, 0});
-    }
+    m_thresholdOfFreeRun = threshold;
 }
 
 void
@@ -1224,7 +1222,12 @@ XPulser::visualize(const Snapshot &shot) {
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
                     //free-runs to calculate trigger positions for 0.3sec.
-                    freeRunToDetectTriggers({false}, lrint(0.3 * softwareTrigger()->freq()));
+                    m_thresholdOfFreeRun = lrint(0.3 * softwareTrigger()->freq());
+                    freeRunToDetectTriggers({false}, true);
+                    m_thresholdOfFreeRun = lrint(0.5 * softwareTrigger()->freq());
+                    //starts a free-running thread.
+                    m_threadFreeRun.reset(new XThread{shared_from_this(),
+                        &XPulser::freeRunToDetectTriggers, false});
                 }
             }
         }

@@ -69,6 +69,7 @@ SoftwareTrigger::clear_() {
     }
     m_slowQueue.clear();
     m_slowQueueSize = 0;
+    m_lastThresholdRequested = 0;
 }
 bool
 SoftwareTrigger::stamp(uint64_t cnt) {
@@ -156,15 +157,13 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
     }
     FastQueue::key t = m_fastQueue.atomicFront(&cnt);
     uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
-    if( !t) {
-        //requests a new stamp
-        onTriggerRequested().talk(thres_em);
-        t = m_fastQueue.atomicFront(&cnt);
+    if(m_lastThresholdRequested < thres_em + lrint(0.2 / freq())) {
+        //Caches trigger positions for future use within 0.5sec.
+        m_lastThresholdRequested = thres_em + lrint(0.5 / freq());
+        onTriggerRequested().talk(m_lastThresholdRequested);
     }
     cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
     if( !t || (cnt >= threshold)) {
-    //Not found. Caches trigger positions for future use within 0.5sec.
-        onTriggerRequested().talk(thres_em + lrint(0.5 / freq()));
         return 0uLL;
     }
     if(m_fastQueue.atomicPop(t))
