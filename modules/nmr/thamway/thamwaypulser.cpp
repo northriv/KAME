@@ -317,16 +317,16 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
             this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
 
-            writer.flush();
+            writer.flush(); //sends above commands here.
             if(hasQAMPorts()) {
                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
 //                //this readout procedure is necessary for unknown reasons!
 //                //mimics modQAM.bas:dump_qam
 //                std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
 //                this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
-                writerQAM.flush();
+                writerQAM.flush(); //sends above commands here.
             }
-        } //sends above commands here.
+        }
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
         std::vector<uint8_t> buf(addr);
@@ -338,6 +338,10 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
 
+        if(hasQAMPorts()) {
+            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
+            this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
+        }
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
 
     }
