@@ -252,7 +252,9 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             fprintf(stderr, "Unexpected collision\n");
             break; //nothing to read.
         }
-        assert(chunk.data.size() > m_currRdPos);
+        if(chunk.data.size() < m_currRdPos)
+            fprintf(stderr, "??? %d < %d\n", chunk.data.size(), m_currRdPos);
+
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(m_swapTraces) {
             //copies data with word swapping.
@@ -308,7 +310,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         try {
             auto async = issue_async_read();
             dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
-            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
+//            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated) {
@@ -316,7 +318,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             }
             auto count = async->waitFor() / sizeof(tRawAI);
             dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
-            fprintf(stderr, "read for %u count=%u", (unsigned int)wridx, (unsigned int)count);
+//            fprintf(stderr, "read for %u count=%u", (unsigned int)wridx, (unsigned int)count);
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
@@ -327,7 +329,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
                 if(std::max(maxv, (short)-minv) > 0x7000) {
                     dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
-                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
+//                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
                 }
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
@@ -339,7 +341,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                         m_wrChunkBegin = wridx;
                     }
                     dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
-                    fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
+//                    fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
                 }
                 if(count == 0) {
                 //Pulse generation has stopped.
