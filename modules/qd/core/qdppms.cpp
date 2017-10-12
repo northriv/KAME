@@ -116,8 +116,8 @@ XQDPPMS::onFieldChanged(const Snapshot &,  XValueNodeBase *){
         throw XInterface::XInterfaceError(i18n("Too small sweep rate."), __FILE__, __LINE__);
     int approachMode = shot[ *fieldApproachMode()];
     int magnetMode = shot[ *fieldMagnetMode()];
-    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (approachMode != 0))
-        throw XInterface::XInterfaceError(i18n("Slow ramp is only allowed for linear approach."), __FILE__, __LINE__);
+    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (approachMode == 2))
+        throw XInterface::XInterfaceError(i18n("Slow ramp is not allowed for oscillating approach."), __FILE__, __LINE__);
     try {
         setField(shot[ *targetField()], sweepRate,
                 approachMode, magnetMode);
@@ -253,14 +253,14 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         }
         try {
             Snapshot shot( *this);
-            if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
-                //Field sweep control for slow ramp by software
-                //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
-                switch ((status >> 4) & 0xf) {
-                case 4: //"Holding"
-                case 5: //"Iterate"
-                case 6: //"Charging"
-                case 7: //"Disharging"
+            switch ((status >> 4) & 0xf) {
+            case 4: //"Holding"
+            case 5: //"Iterate"
+            case 6: //"Charging"
+            case 7: //"Disharging"
+                if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
+                    //Field sweep control for slow ramp by software
+                    //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
                     if(XTime::now() - setfield_prevtime > 4) {
                         //every 4 sec..
                         setfield_prevtime = XTime::now();
@@ -272,20 +272,19 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
                             if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
                                 ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
                                 dbgPrint( "Magnet field now approaching to the set point.");
-                                setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
+                                setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 1 /*no overshoot*/, shot[ *fieldMagnetMode()]);
                             }
                             else {
-                                setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
+                                setField(newfield, MIN_MODEL6700_SWEEPRATE, 1 /*no overshoot*/, 1 /*driven*/);
                             }
-                            break;
                         }
-                        //Real holding state. Go to default:
                     }
-                default:
-                    field_by_hardware = magnet_field * 1e-4; //T
-                    field_by_hardware_time = XTime::now();
                     break;
                 }
+            default:
+                field_by_hardware = magnet_field * 1e-4; //T
+                field_by_hardware_time = XTime::now();
+                break;
             }
         }
         catch (XKameError &e) {
