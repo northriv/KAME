@@ -244,6 +244,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     };
 
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
+        memoryBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
             break; //collision.
@@ -252,8 +253,10 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             fprintf(stderr, "Unexpected collision\n");
             break; //nothing to read.
         }
-        if(chunk.data.size() < m_currRdPos)
+        if(chunk.data.size() < m_currRdPos) {
             fprintf(stderr, "??? %d < %d\n", chunk.data.size(), m_currRdPos);
+            break;
+        }
 
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(m_swapTraces) {
@@ -270,14 +273,21 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         samps_read += len;
         size -= len;
         m_currRdPos += len;
-        assert(m_currRdPos <= chunk.data.size());
+        readBarrier();
+        if(chunk.ioInProgress) {
+            fprintf(stderr, "Ring buffer has been overwritten\n");
+            break; //collision.
+        }
         if(m_currRdPos == chunk.data.size()) {
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
             chunk = m_chunks[m_currRdChunk];
             m_currRdPos = 0;
-            assert(m_currRdChunk != m_wrChunkBegin);
+            if(m_currRdChunk == m_wrChunkBegin) {
+                fprintf(stderr, "Unexpected collision\n");
+                break; //nothing to read.
+            }
         }
     }
     return samps_read / getNumOfChannels();
@@ -304,6 +314,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             m_wrChunkEnd = next_idx;
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
+            writeBarrier();
             return interface()->asyncReceive( (char*)&chunk.data[0],
                     chunk.data.size() * sizeof(tRawAI));
         };
@@ -325,12 +336,12 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 chunk.ioInProgress = false;
 //                auto expected = chunk.data.size();
                 chunk.data.resize(count);
-                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
-                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
-                if(std::max(maxv, (short)-minv) > 0x7000) {
-                    dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
-//                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
-                }
+//                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
+//                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
+//                if(std::max(maxv, (short)-minv) > 0x7000) {
+//                    dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
+////                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
+//                }
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
