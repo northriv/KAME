@@ -244,7 +244,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     };
 
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
-        memoryBarrier();
+        readBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
             break; //collision.
@@ -346,6 +346,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
                         m_chunks[wridx].posAbsPerCh = m_totalSmpsPerCh;
+                        writeBarrier();
                         m_totalSmpsPerCh += m_chunks[wridx].data.size() / getNumOfChannels();
                         wridx++;
                         if(wridx == m_chunks.size()) wridx = 0;
