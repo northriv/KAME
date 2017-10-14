@@ -196,6 +196,8 @@ else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 macx {
     INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
     LIBS += -framework Ruby
+#for ruby.h incompatible with C++11
+    QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
 }
 else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/

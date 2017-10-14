@@ -20,10 +20,6 @@
 #define FW_DWLSIZE 0x2000
 #define GPIFWAVE_SIZE 172
 
-#ifndef KAME_THAMWAY_USB_DIR
-    #define KAME_THAMWAY_USB_DIR ""
-#endif
-
 template <class USBDevice>
 XMutex XCyFXUSBInterface<USBDevice>::s_mutex;
 template <class USBDevice>
@@ -56,18 +52,21 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
         if(path.isEmpty()) {
             //for macosx/win
             QDir dir(QApplication::applicationDirPath());
+            path = dir.absoluteFilePath(filename);
     #if defined __MACOSX__ || defined __APPLE__
             //For macosx application bundle.
-            dir.cdUp();
+            if( !dir.exists(filename)) {
+                //dir is wrong: ".../Contents/MacOS" or  ".../Contents"
+                auto relpath = QString("Resources/") + filename;
+                path = dir.absoluteFilePath(relpath);
+                if( !dir.exists(relpath)) {
+                    dir.cdUp();
+                    path = dir.absoluteFilePath(relpath);
+                }
+            }
     #endif
-            QString path2 = KAME_THAMWAY_USB_DIR;
-            path2 += filename;
-            dir.filePath(path2);
-            if(dir.exists())
-                path = dir.absoluteFilePath(path2);
         }
     #endif
-        dir.filePath(path);
         if( !dir.exists())
             throw XInterface::XInterfaceError(i18n_noncontext("USB GPIF/firmware file ") +
                 filename + i18n_noncontext(" not found."), __FILE__, __LINE__);

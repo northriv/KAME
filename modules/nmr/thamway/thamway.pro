@@ -45,7 +45,6 @@ unix {
             cyfxusb_libusb.cpp\
 
         DEFINES += USE_THAMWAY_USB
-        macx: DEFINES += KAME_THAMWAY_USB_DIR=\"quotedefined(Contents/Resources/)\"
     }
     else {
         message("Missing library for libusb-1.0")
