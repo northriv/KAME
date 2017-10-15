@@ -334,14 +334,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
                 chunk.ioInProgress = false;
-//                auto expected = chunk.data.size();
                 chunk.data.resize(count);
-//                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
-//                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
-//                if(std::max(maxv, (short)-minv) > 0x7000) {
-//                    dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
-////                    fprintf(stderr, "max=%x, min=%x\n", (unsigned int)maxv, (unsigned int)(unsigned short)minv);
-//                }
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
