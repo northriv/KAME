@@ -321,7 +321,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         try {
             auto async = issue_async_read();
             dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
-            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
+//            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated) {
