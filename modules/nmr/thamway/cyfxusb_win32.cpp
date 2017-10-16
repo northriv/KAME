@@ -34,7 +34,9 @@ CyFXWin32USBDevice::AsyncIO::~AsyncIO() {
         assert( !HasOverlappedIoCompleted( &overlap));
         if(abort()) {
             try {
+                fprintf(stderr, "wait after abor");
                 waitFor(); //wait for ERROR_OPERATION_ABORTED.
+                fprintf(stderr, "t\n");
             }
             catch(XInterface::XInterfaceError &) {
             }
