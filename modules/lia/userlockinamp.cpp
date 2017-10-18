@@ -263,7 +263,7 @@ void
 XHP4284A::get(double *x, double *y) {
     interface()->query("TRIG:IMM;:FETCH?");
     int status, binno;
-    if(interface()->scanf("%lf,%lf,%d,%d", &x, &y, &status, &binno) != 4)
+    if(interface()->scanf("%lf,%lf,%d,%d", x, y, &status, &binno) != 4)
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
