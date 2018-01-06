@@ -146,6 +146,7 @@ XTempManager::XTempManager(const char *name, bool runtime,
     refreshZoneUIs();
     m_currZoneNo = 0;
     m_currLoopNo = 0;
+    m_currCh = 0;
     m_tempStarted = 0.0;
     m_timeStarted = XTime::now();
 }
@@ -318,6 +319,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     auto currZone = currentZone(shot_this);
     if( !currZone) {
         if( !shot_this.size(zones())) {
+            msecsleep(100);
             throw XRecordError(i18n("No available zone setting."), __FILE__, __LINE__);
         }
         m_currZoneNo = 0;
@@ -332,6 +334,8 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         double temp = 0.0;
         if((currCh < 0) || (currCh >= shot_emitter.size(maindev->channels())))
             currCh = m_currCh;
+        if((currCh < 0) || (currCh >= shot_emitter.size(maindev->channels())))
+            currCh = 0;
         chstr = shot_emitter.list(maindev->channels())->at(currCh)->getLabel();
         temp = shot_emitter[ *maindev->entryTemp(currCh)->value()];
 //            temp = shot_emitter[ *maindev->sourceTemp(currloop)];
