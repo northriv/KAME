@@ -171,10 +171,6 @@ void XTempManager::showForms() {
 void XTempManager::visualize(const Snapshot &shot) {
     const shared_ptr<XTempControl> maindev = shot[ *mainDevice()];
     if( !maindev) return;
-    if( !shot[ *this].time()) {
-        trans( *maindev->targetTemp(m_currLoopNo)) = 0.0;
-        return;
-    }
     Snapshot shot_emitter( *maindev);
     auto zone = currentZone(shot);
     shared_ptr<XFlowControllerDriver> extflowctrl = shot[ *extDevice()];
@@ -399,7 +395,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         ramprate = shot_this[ *rampRate()];
 
     int nextzone = firstMatchingZone(shot_this, temp, ramprate, true);
-    if(nextzone < 0) {
+    if((nextzone < 0) && shot_this[ *isActivated()]) {
         tr[ *isActivated()] = false;
         throw XRecordError(i18n("Temperature exceeds the limitation."), __FILE__, __LINE__);
     }
@@ -467,7 +463,7 @@ void
 XTempManager::onActivateChanged(const Snapshot &shot, XValueNodeBase *) {
     Snapshot shot_this( *this);
     bool actv = shot_this[ *isActivated()];
-    shared_ptr<XNode> maindev = shot_this[ *mainDevice()];
+    shared_ptr<XTempControl> maindev = shot_this[ *mainDevice()];
     m_lsnOnTargetChanged.reset();
     if(actv && !maindev) {
         trans( *isActivated()) = false;
@@ -514,6 +510,17 @@ XTempManager::onActivateChanged(const Snapshot &shot, XValueNodeBase *) {
         m_pidAccum = 0;
         m_pidLastTime = XTime::now();
         m_pidLastTemp = 0.0;
+        //turns off.
+        shared_ptr<XFlowControllerDriver> extflowctrl = shot_this[ *extDevice()];
+        shared_ptr<XDCSource> extdcsrc = shot_this[ *extDevice()];
+        if(extflowctrl)
+            trans( *extflowctrl->target()) = 0.0;
+        else if(extdcsrc)
+            trans( *extdcsrc->value()) = 0.0;
+        else {
+            if((m_currLoopNo >= 0) && (m_currLoopNo < maindev->numOfLoops()))
+                trans( *maindev->targetTemp(m_currLoopNo)) = 0.0;
+        }
     }
 }
 
