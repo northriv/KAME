@@ -317,7 +317,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     tr[ *statusStr()] = i18n("No available zone setting.");
     auto currZone = currentZone(shot_this);
     if( !currZone) {
-        if( !shot_this.size(zones()) && shot_this[ *isActivated()]) {
+        if( !shot_this.size(zones())) {
             throw XRecordError(i18n("No available zone setting."), __FILE__, __LINE__);
         }
         m_currZoneNo = 0;
@@ -348,7 +348,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     m_entryTemp->value(tr, temp);
 
     //calculates std. deviations in some periods
-    double tau = 4.0;
+    double tau = 10.0;
     XTime newtime = XTime::now();
     double dt = newtime - m_lasttime;
     m_lasttime = newtime;
