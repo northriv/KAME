@@ -7,15 +7,18 @@ INCLUDEPATH += \
 HEADERS += \
     tempcontrol.h\
     usertempcontrol.h \
-    omronmodbus.h
+    omronmodbus.h \
+    tempmanager.h
 
 SOURCES += \
     tempcontrol.cpp\
     usertempcontrol.cpp \
-    omronmodbus.cpp
+    omronmodbus.cpp \
+    tempmanager.cpp
 
 FORMS +=\
-    tempcontrolform.ui
+    tempcontrolform.ui \
+    tempmanagerform.ui
 
 win32:LIBS += -lcharinterface
 

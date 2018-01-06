@@ -568,9 +568,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
         double rl_eval_min = 1e10;
+        double zabs_av = 0;
         //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
+            zabs_av += z;
             double f = trace_start + i * trace_dfreq;
             double y = 1.0 - ((1.0 - z) * exp( -std::norm((f0 - f) / f0) / (2.0 * 1.0 * 1.0)));
             if(y < rl_eval_min) {
@@ -579,6 +581,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 fmin = f;
             }
         }
+        zabs_av /= trace_len;
         //Residue of 1/RL around the origin, approx. 1.0 if the coupling is tight.
         std::complex<double> res_rl_inv = 0.0, z0 = 0.0, z1 = 1.0;
         //searches for minimum in reflection around f0.
@@ -586,7 +589,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             double z = std::abs(trace[i]);
             double f = trace_start + i * trace_dfreq;
             double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin) / (2.0 * 4.0 * 4.0)));
-            if(y < pow(rlmin, 0.1)) { //restricts area not to count cables' effect or other resonances.
+            if(y < (rlmin + zabs_av) / 2) { //restricts area not to count cables' effect or other resonances.
                 auto z2 = trace[i] * y / z;
                 if(z0 == 0.0)
                      z0 = z2; //the first point under consideration

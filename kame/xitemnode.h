@@ -183,6 +183,7 @@ public:
             m_var(std::pair<XString, int>("", -1)) {}
         void add(const XString &str);
         void add(std::initializer_list<XString> strlist) {for(auto &&x: strlist){ add(x);}}
+        void add(const std::vector<XItemNodeBase::Item> &items);
         void clear();
         operator int() const { return m_var.second;}
         virtual XString to_str() const override { return m_var.first;}

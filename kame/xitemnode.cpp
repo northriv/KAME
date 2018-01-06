@@ -84,6 +84,11 @@ XComboNode::Payload::add(const XString &str) {
 	    tr().mark(onValueChanged(), static_cast<XValueNodeBase*>( &node()));
 	}
 }
+void
+XComboNode::Payload::add(const std::vector<Item> &items) {
+    for(auto &&x: items)
+        add(x.label);
+}
 
 void
 XComboNode::Payload::clear() {
