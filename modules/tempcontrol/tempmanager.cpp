@@ -216,18 +216,18 @@ void XTempManager::visualize(const Snapshot &shot) {
         double limit_max = extdcsrc->max(loop, false);
         power = limit_max * sqrt(power) / 10.0;
         extdcsrc->changeValue(loop, power, false);
-        msg += formatString(", using ext.dc.src. %s, P=%.4g of %.3g",
-            shot[ *extdcsrc->channel()].to_str().c_str(), power, limit_max);
+//        msg += formatString(", using ext.dc.src. %s, P=%.4g of %.3g",
+//            shot[ *extdcsrc->channel()].to_str().c_str(), power, limit_max);
     }
     else if(extflowctrl) {
         double limit_max = Snapshot( *extflowctrl)[ *extflowctrl].fullScale();
         power = limit_max * power / 100.0;
         trans( *extflowctrl->target()) = power;
-        msg += formatString(", using ext.flow cntl. %.4g of %.3g", power, limit_max);
+//        msg += formatString(", using ext.flow cntl. %.4g of %.3g", power, limit_max);
     }
     else {
         if((loop >= 0) && (loop < maindev->numOfLoops())) {
-            msg += formatString(", using %s", maindev->loopLabel(loop).c_str());
+//            msg += formatString(", using %s", maindev->loopLabel(loop).c_str());
             maindev->iterate_commit([=](Transaction &tr){
                 if(tr[ *maindev->targetTemp(loop)] != stemp)
                     tr[ *maindev->targetTemp(loop)] = stemp;
@@ -348,6 +348,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         return temp;
     };
     double temp = get_temp(currentZoneNo());
+    chstr = maindev->getLabel() + " " + chstr;
     tr[ *m_tempStatusStr] = i18n("Temperature") + " [" + chstr + "]";
     m_entryTemp->value(tr, temp);
 
@@ -362,7 +363,8 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     m_tempErrAvg = (m_tempErrAvg - terr * terr) * exp( -dt / tau) + terr * terr;
     m_tempErrAvg = std::min(m_tempErrAvg, temp * temp * 0.04);
     tr[ *m_stabilized] = sqrt(m_tempErrAvg); //std.dev.
-    tr[ *statusStr()] = XString(shot_this[ *statusStr()]) + formatString(", std.dev.=%.2g K", sqrt(m_tempErrAvg));
+    tr[ *statusStr()] = XString(shot_this[ *statusStr()]) +
+            formatString(", %.2gsec.deviation=%.2g K", tau, sqrt(m_tempErrAvg));
 
     int currloop = shot_this[ *currZone->loop()];
     if((currloop < 0) || (currloop >= maindev->numOfLoops()))
@@ -381,16 +383,18 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
     else if(extdcsrc) {
         power = shot_others[ *extdcsrc->value()];
+        double limit_max = extdcsrc->max(currloop, false);
         tr[ *m_heaterStatusStr] = i18n("Voltage/Current") +
-            formatString(" [%s %s (%s)]", extdcsrc->getLabel().c_str(),
-            shot_others[ *extdcsrc->channel()].to_str().c_str(),
-            shot_others[ *extdcsrc->range()].to_str().c_str());
+            formatString(" [%s %s max=%.3g]", extdcsrc->getLabel().c_str(),
+            shot_others[ *extdcsrc->channel()].to_str().c_str(), limit_max);
     }
     else {
-        shot_emitter[ *maindev->heaterPower(currloop)];
-        tr[ *m_heaterStatusStr] = i18n("Heater Power") +
-            formatString(" (%%) [%s %s]", maindev->loopLabel(currloop).c_str(),
-            shot_emitter[ *maindev->powerRange(currloop)].to_str().c_str());
+        if((currloop >= 0) && (currloop < maindev->numOfLoops())) {
+            power = shot_emitter[ *maindev->heaterPower(currloop)];
+            tr[ *m_heaterStatusStr] = i18n("Heater Power") +
+                formatString(" (%%) [%s %s]", maindev->loopLabel(currloop).c_str(),
+                shot_emitter[ *maindev->powerRange(currloop)].to_str().c_str());
+        }
     }
     m_entryPow->value(tr, power);
 
@@ -401,7 +405,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         double dt = (XTime::now() - m_timeStarted) * signed_ramprate / 60.0;
         double stemp = m_tempStarted + dt;
         XString msg = formatString(", SetPoint=%.4g K", stemp);
-        if(fabs(stemp - m_tempStarted) > fabs(dt)) {
+        if(fabs(shot_this[ *targetTemp()] - m_tempStarted) > fabs(dt)) {
             stemp = shot_this[ *targetTemp()]; //reached to the target temp.
             msg = formatString(", SetPoint(=Target)=%.4g K", stemp);
             if(shot_this[ *stabilized()] < fabs(signed_ramprate) * 1.0) {
@@ -409,7 +413,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 msg += ", Stabilizing";
             }
         }
-        if(fabs(m_setpointTemp - stemp) > fabs(signed_ramprate) / 60 * 3); {
+        if(fabs(m_setpointTemp - stemp) > fabs(signed_ramprate) / 60 * 3) {
             m_setpointTemp = stemp; //every 3 sec.
         }
         msg += formatString(", Rate=%.3g K/min.", signed_ramprate);
