@@ -175,6 +175,7 @@ void XTempManager::visualize(const Snapshot &shot) {
     const shared_ptr<XTempControl> maindev = shot[ *mainDevice()];
     if( !maindev) return;
     Snapshot shot_emitter( *maindev);
+
     auto zone = currentZone(shot);
     shared_ptr<XFlowControllerDriver> extflowctrl = shot[ *extDevice()];
     shared_ptr<XDCSource> extdcsrc = shot[ *extDevice()];
@@ -184,7 +185,8 @@ void XTempManager::visualize(const Snapshot &shot) {
             XString chname = maindev->currentChannel(loop)->itemStrings(shot_emitter).at(m_currCh).name;
             if(chname != shot_emitter[ *maindev->currentChannel(loop)].to_str()) {
                 trans( *maindev->currentChannel(loop)).str(chname);
-                gMessagePrint(formatString_tr(I18N_NOOP("Source sensor channel is changed to %s."), chname.c_str()));
+                gMessagePrint(
+                    getLabel() + ": " + formatString_tr(I18N_NOOP("Source sensor channel is changed to %s."), chname.c_str()));
                 return;
             }
         }
@@ -200,13 +202,8 @@ void XTempManager::visualize(const Snapshot &shot) {
         }
     }
 
-    double rate = (shot[ *targetTemp()] - m_tempStarted) / 60 * fabs(shot[ *rampRate()]);
-    double dt = (XTime::now() - m_timeStarted) * rate;
-    double stemp = m_tempStarted + dt;
-    if(fabs(stemp - m_tempStarted) > fabs(dt))
-        stemp = shot[ *targetTemp()];
     XString msg = shot[ *statusStr()];
-    msg += formatString(", SV=%.4g K", stemp);
+    double stemp = m_setpointTemp;
 
     double p = shot[ *zone->prop()];
     double i = shot[ *zone->interv()];
@@ -397,11 +394,29 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
     m_entryPow->value(tr, power);
 
-    double ramprate = 0.0;
-    if(shot_this[ *isActivated()])
-        ramprate = shot_this[ *rampRate()];
+    double signed_ramprate = -0.001;
+    if(shot_this[ *isActivated()]) {
+        signed_ramprate = ((shot_this[ *targetTemp()] > m_tempStarted) ? 1.0 : -1.0) *
+            fabs(shot_this[ *rampRate()]);
+        double dt = (XTime::now() - m_timeStarted) * signed_ramprate / 60.0;
+        double stemp = m_tempStarted + dt;
+        XString msg = formatString(", SetPoint=%.4g K", stemp);
+        if(fabs(stemp - m_tempStarted) > fabs(dt)) {
+            stemp = shot_this[ *targetTemp()]; //reached to the target temp.
+            msg = formatString(", SetPoint(=Target)=%.4g K", stemp);
+            if(shot_this[ *stabilized()] < fabs(signed_ramprate) * 1.0) {
+                signed_ramprate *= shot_this[ *stabilized()] / fabs(signed_ramprate); //stabilizing.
+                msg += ", Stabilizing";
+            }
+        }
+        if(fabs(m_setpointTemp - stemp) > fabs(signed_ramprate) / 60 * 3); {
+            m_setpointTemp = stemp; //every 3 sec.
+        }
+        msg += formatString(", Rate=%.3g K/min.", signed_ramprate);
+        tr[ *statusStr()] = shot_this[ *statusStr()].to_str() + msg;
+    }
 
-    int nextzone = firstMatchingZone(shot_this, temp, ramprate, true);
+    int nextzone = firstMatchingZone(shot_this, temp, signed_ramprate, true);
     if(nextzone < 0) {
         if(shot_this[ *isActivated()]) {
             tr[ *isActivated()] = false;
@@ -411,8 +426,8 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
     double temp_plus_hys = temp * (1 + 1e-2 * shot_this[ *hysteresisOnZoneTr()]);
     double temp_minus_hys = temp * (1 - 1e-2 * shot_this[ *hysteresisOnZoneTr()]);
-    int upperzone = firstMatchingZone(shot_this, temp_plus_hys, ramprate);
-    int lowerzone = firstMatchingZone(shot_this, temp_minus_hys, ramprate);
+    int upperzone = firstMatchingZone(shot_this, temp_plus_hys, signed_ramprate);
+    int lowerzone = firstMatchingZone(shot_this, temp_minus_hys, signed_ramprate);
     if((currentZoneNo() != upperzone) && (currentZoneNo() != lowerzone)) {
         m_currZoneNo = nextzone;
         currZone = currentZone(shot_this);
@@ -437,18 +452,22 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
 void
 XTempManager::onTargetChanged(const Snapshot &, XValueNodeBase *) {
     Snapshot shot( *this);
+    if(fabs(shot[ *m_rampRate]) * 60 * 24 * 10 <
+        fabs(shot[ *m_entryTemp->value()] - shot[ *m_targetTemp])) {
+        gWarnPrint(getLabel() + i18n("Too small ramp rate."));
+    }
     m_tempStarted = shot[ *m_entryTemp->value()];
     m_timeStarted = XTime::now();
 }
 
 int
-XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double ramprate,
+XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double signed_ramprate,
     bool update_missinginfo) {
    assert(shot.size(zones()));
    int zno = -1;
    for(auto &&x: *shot.list(zones())) {
        auto zone = dynamic_pointer_cast<XZone>(x);
-       if((temp > shot[ *zone->upperTemp()]) || (ramprate > shot[ *zone->maxRampRate()]))
+       if((temp > shot[ *zone->upperTemp()]) || (signed_ramprate > shot[ *zone->maxRampRate()]))
            return zno;
        zno++;
        if(update_missinginfo) {
