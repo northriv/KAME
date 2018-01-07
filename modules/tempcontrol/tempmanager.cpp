@@ -395,9 +395,12 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         ramprate = shot_this[ *rampRate()];
 
     int nextzone = firstMatchingZone(shot_this, temp, ramprate, true);
-    if((nextzone < 0) && shot_this[ *isActivated()]) {
-        tr[ *isActivated()] = false;
-        throw XRecordError(i18n("Temperature exceeds the limitation."), __FILE__, __LINE__);
+    if(nextzone < 0) {
+        if(shot_this[ *isActivated()]) {
+            tr[ *isActivated()] = false;
+            throw XRecordError(i18n("Temperature exceeds the limitation."), __FILE__, __LINE__);
+        }
+        throw XSkippedRecordError(__FILE__, __LINE__);
     }
     double temp_plus_hys = temp * (1 + 1e-2 * shot_this[ *hysteresisOnZoneTr()]);
     double temp_minus_hys = temp * (1 - 1e-2 * shot_this[ *hysteresisOnZoneTr()]);
@@ -409,7 +412,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
 //        temp = get_temp(currentZoneNo());
     }
 
-    if(shot_this[ *doesMixTemp()]) {
+    if(shot_this[ *doesMixTemp()] && (upperzone >= 0) && (lowerzone >= 0)) {
         double temp_u = get_temp(upperzone);
         auto chstr_u = chstr;
         double temp_l = get_temp(lowerzone);
