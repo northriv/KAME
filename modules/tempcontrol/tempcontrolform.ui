@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>240</width>
-    <height>446</height>
+    <width>223</width>
+    <height>553</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -61,7 +61,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>232</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -551,7 +551,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>232</width>
+         <width>215</width>
          <height>442</height>
         </rect>
        </property>
@@ -1020,7 +1020,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>232</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -1510,7 +1510,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>232</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -2000,8 +2000,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>232</width>
-         <height>308</height>
+         <width>215</width>
+         <height>415</height>
         </rect>
        </property>
        <attribute name="label">

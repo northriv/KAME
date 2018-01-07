@@ -354,7 +354,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     m_entryTemp->value(tr, temp);
 
     //calculates std. deviations in some periods
-    double tau = 10.0;
+    double tau = 30.0;
     XTime newtime = XTime::now();
     double dt = newtime - m_lasttime;
     m_lasttime = newtime;
@@ -405,7 +405,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
             fabs(shot_this[ *rampRate()]);
         double dt = (XTime::now() - m_timeStarted) * signed_ramprate / 60.0;
         double stemp = m_tempStarted + dt;
-        XString msg = formatString(", SetPoint=%.4g K", stemp);
+        XString msg = formatString(", SetPoint=%.5g K", stemp);
         if(fabs(shot_this[ *targetTemp()] - m_tempStarted) <= fabs(dt)) {
             stemp = shot_this[ *targetTemp()]; //reached to the target temp.
             msg = formatString(", SetPoint(=Target)=%.4g K", stemp);
@@ -417,7 +417,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if(fabs(m_setpointTemp - stemp) > fabs(signed_ramprate) / 60 * 3) {
             m_setpointTemp = stemp; //every 3 sec.
         }
-        msg += formatString(", Rate=%.3g K/min.", signed_ramprate);
+        msg += formatString(", Rate=%+.3g K/min.", signed_ramprate);
         tr[ *statusStr()] = shot_this[ *statusStr()].to_str() + msg;
     }
 
@@ -508,6 +508,7 @@ XTempManager::onActivateChanged(const Snapshot &shot, XValueNodeBase *) {
         return;
     }
     if(actv) {
+        sanityCheckOfZones(shot_this);
         iterate_commit([=](Transaction &tr){
             m_lsnOnTargetChanged = tr[ *m_targetTemp].onValueChanged().connectWeakly(
                 shared_from_this(), &XTempManager::onTargetChanged);
@@ -769,7 +770,63 @@ XTempManager::refreshZoneUIs() {
 }
 
 void
+XTempManager::sanityCheckOfZones(const Snapshot &shot) {
+    QPalette palette(m_form->m_tblZone->palette());
+    QPalette palette_err(m_form->m_tblZone->palette());
+    palette.setColor(QPalette::Text, Qt::black);
+    palette_err.setColor(QPalette::Text, Qt::red);
+    if(shot.size(zones())) {
+        double uppertemp = 0.0;
+        double maxramprate = 0.0;
+        for(int i = 0; i < shot.size(zones()); ++i) {
+            auto zone = dynamic_pointer_cast<XZone>(shot.list(zones())->at(i));
+            XString zonestr = formatString("%d.", i + 1);
+            if(i == 0) {
+                m_form->m_tblZone->cellWidget(i, 5)->setPalette(palette);
+                if(shot[ *zone->loop()] < 0) {
+                    gWarnPrint(i18n("Loop # is NOT specified at the first zone."));
+                    m_form->m_tblZone->cellWidget(i, 5)->setPalette(palette_err);
+                }
+//                if(shot[ *zone->channel()] < 0)
+//                    gWarnPrint(i18n("Channel # is NOT specified at the first zone."));
+                m_form->m_tblZone->cellWidget(i, 6)->setPalette(palette);
+                if(shot[ *zone->powerRange()] < 0) {
+                    gWarnPrint(i18n("Power range is NOT specified at the first zone."));
+                    m_form->m_tblZone->cellWidget(i, 6)->setPalette(palette_err);
+                }
+            }
+            else {
+                m_form->m_tblZone->cellWidget(i, 0)->setPalette(palette);
+                if(uppertemp < shot[ *zone->upperTemp()]) {
+                    gWarnPrint(i18n("Upper temp. field should be descending order. Check zone ") + zonestr);
+                    m_form->m_tblZone->cellWidget(i, 0)->setPalette(palette_err);
+                }
+                m_form->m_tblZone->cellWidget(i, 1)->setPalette(palette);
+                if(uppertemp == shot[ *zone->upperTemp()])
+                    if(maxramprate < shot[ *zone->maxRampRate()]) {
+                        gWarnPrint(i18n("Max. ramp rate field should be descending order in a group of the same upper temp.. Check zone ") + zonestr);
+                        m_form->m_tblZone->cellWidget(i, 1)->setPalette(palette_err);
+                    }
+            }
+            uppertemp = shot[ *zone->upperTemp()];
+            maxramprate = shot[ *zone->maxRampRate()];
+            m_form->m_tblZone->cellWidget(i, 7)->setPalette(palette);
+            if(shot[ *zone->prop()] <= 1e-10) {
+                gWarnPrint(i18n("P value is NOT specified at zone ") + zonestr);
+                m_form->m_tblZone->cellWidget(i, 7)->setPalette(palette_err);
+            }
+            m_form->m_tblZone->cellWidget(i, 8)->setPalette(palette);
+            if(shot[ *zone->interv()] <= 1e-10) {
+                gWarnPrint(i18n("I value is NOT specified at zone ") + zonestr);
+                m_form->m_tblZone->cellWidget(i, 8)->setPalette(palette_err);
+            }
+        }
+    }
+}
+
+void
 XTempManager::onDupTouched(const Snapshot &shot, XTouchableNode *) {
+    sanityCheckOfZones(Snapshot( *this));
     zones()->thermometers()->iterate_commit_if([=](Transaction &tr_th){
         Transaction tr( *this);
         //nameless
@@ -803,6 +860,7 @@ XTempManager::onDeleteTouched(const Snapshot &shot, XTouchableNode *) {
         return true;
     });
     refreshZoneUIs();
+    sanityCheckOfZones(Snapshot( *this));
 }
 
 double

@@ -192,6 +192,7 @@ private:
     int firstMatchingZone(const Snapshot &shot, double temp, double signed_ramprate,
         bool update_missinginfo = false);
     int currentZoneNo() const {return m_currZoneNo;}
+    void sanityCheckOfZones(const Snapshot &shot);
 
     int m_currZoneNo;
     int m_currLoopNo;
