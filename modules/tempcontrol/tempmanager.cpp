@@ -177,19 +177,24 @@ void XTempManager::visualize(const Snapshot &shot) {
     shared_ptr<XDCSource> extdcsrc = shot[ *extDevice()];
     int loop = m_currLoopNo;
     if( !extflowctrl && !extdcsrc && (m_currCh >= 0)) {
-        XString chname = maindev->currentChannel(loop)->itemStrings(shot_emitter).at(m_currCh).name;
-        if(chname != shot_emitter[ *maindev->currentChannel(loop)].to_str()) {
-            trans( *maindev->currentChannel(loop)).str(chname);
-            gMessagePrint(formatString_tr(I18N_NOOP("Source sensor channel is changed to %s."), chname.c_str()));
-            return;
+        if((loop >= 0) && (loop < maindev->numOfLoops())) {
+            XString chname = maindev->currentChannel(loop)->itemStrings(shot_emitter).at(m_currCh).name;
+            if(chname != shot_emitter[ *maindev->currentChannel(loop)].to_str()) {
+                trans( *maindev->currentChannel(loop)).str(chname);
+                gMessagePrint(formatString_tr(I18N_NOOP("Source sensor channel is changed to %s."), chname.c_str()));
+                return;
+            }
         }
     }
-    shared_ptr<XTempControl::XChannel> ch = shot_emitter[ *maindev->currentChannel(loop)];
-    if((m_currExcitaion >= 0) &&
-        (m_currExcitaion != shot_emitter[ *ch->excitation()])) {
-        trans( *ch->excitation()) = m_currExcitaion;
-        fprintf(stderr, "Excitation is changed to %d.\n", m_currExcitaion);
-        return;
+    if((m_currCh >= 0) && (m_currCh < shot_emitter.size(maindev->channels()))) {
+        auto ch = dynamic_pointer_cast<XTempControl::XChannel>(
+            shot_emitter.list(maindev->channels())->at(m_currCh));
+        if((m_currExcitaion >= 0) &&
+            (m_currExcitaion != shot_emitter[ *ch->excitation()])) {
+            trans( *ch->excitation()) = m_currExcitaion;
+            fprintf(stderr, "Excitation is changed to %d.\n", m_currExcitaion);
+            return;
+        }
     }
 
     if( !shot[ *isActivated()]) {
@@ -225,25 +230,27 @@ void XTempManager::visualize(const Snapshot &shot) {
         msg += formatString(", using ext.flow cntl. %.4g of %.3g", power, limit_max);
     }
     else {
-        msg += formatString(", using %s", maindev->loopLabel(loop).c_str());
-        maindev->iterate_commit([=](Transaction &tr){
-            if(tr[ *maindev->targetTemp(loop)] != stemp)
-                tr[ *maindev->targetTemp(loop)] = stemp;
-            if((shot[ *zone->powerRange()] >= 0) &&
-                (tr[ *maindev->powerRange(loop)] != (int)shot[ *zone->powerRange()])) {
-                tr[ *maindev->powerRange(loop)] = (int)shot[ *zone->powerRange()];
-            }
+        if((loop >= 0) && (loop < maindev->numOfLoops())) {
+            msg += formatString(", using %s", maindev->loopLabel(loop).c_str());
+            maindev->iterate_commit([=](Transaction &tr){
+                if(tr[ *maindev->targetTemp(loop)] != stemp)
+                    tr[ *maindev->targetTemp(loop)] = stemp;
+                if((shot[ *zone->powerRange()] >= 0) &&
+                    (tr[ *maindev->powerRange(loop)] != (int)shot[ *zone->powerRange()])) {
+                    tr[ *maindev->powerRange(loop)] = (int)shot[ *zone->powerRange()];
+                }
 
-            if(tr[ *maindev->prop(loop)] != p) {
-                tr[ *maindev->prop(loop)] = p;
-            }
-            if(tr[ *maindev->interval(loop)] != i) {
-                tr[ *maindev->interval(loop)] = i;
-            }
-            if(tr[ *maindev->deriv(loop)] != d) {
-                tr[ *maindev->deriv(loop)] = d;
-            }
-        });
+                if(tr[ *maindev->prop(loop)] != p) {
+                    tr[ *maindev->prop(loop)] = p;
+                }
+                if(tr[ *maindev->interval(loop)] != i) {
+                    tr[ *maindev->interval(loop)] = i;
+                }
+                if(tr[ *maindev->deriv(loop)] != d) {
+                    tr[ *maindev->deriv(loop)] = d;
+                }
+            });
+        }
     }
 
     for(unsigned int i = 0; i < maxNumOfAUXDevices; ++i) {
@@ -448,7 +455,8 @@ XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double rampra
        zno++;
        if(update_missinginfo) {
            int currloop = shot[ *zone->loop()];
-           if(currloop) m_currLoopNo = currloop;
+           if(currloop >= 0)
+                m_currLoopNo = currloop;
            shared_ptr<XThermometer> thermo = shot[ *zone->thermometer()];
            if(thermo) m_currThermometer = thermo;
            int ch = shot[ *zone->channel()];
