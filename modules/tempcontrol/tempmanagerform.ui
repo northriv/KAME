@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>516</width>
-    <height>400</height>
+    <height>322</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -57,7 +57,7 @@
        <enum>QFrame::Plain</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="tabSpacing">
        <number>-1</number>
@@ -68,7 +68,7 @@
          <x>0</x>
          <y>0</y>
          <width>508</width>
-         <height>290</height>
+         <height>212</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -96,6 +96,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+           <number>30</number>
+          </property>
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <item>
@@ -119,7 +122,7 @@
               <item>
                <widget class="QLCDNumber" name="m_lcdTemp">
                 <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
@@ -197,7 +200,7 @@
             <item>
              <widget class="QLCDNumber" name="m_lcdHeater">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+               <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -240,6 +243,9 @@
         </item>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <property name="spacing">
+           <number>30</number>
+          </property>
           <item>
            <layout class="QHBoxLayout">
             <item>
@@ -323,7 +329,7 @@
         <item>
          <widget class="QLabel" name="m_lblStatus">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -331,8 +337,11 @@
           <property name="text">
            <string>Status:</string>
           </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
           <property name="wordWrap">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
          </widget>
         </item>
@@ -533,7 +542,7 @@
          <x>0</x>
          <y>0</y>
          <width>528</width>
-         <height>290</height>
+         <height>280</height>
         </rect>
        </property>
        <attribute name="label">

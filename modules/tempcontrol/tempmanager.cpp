@@ -169,6 +169,9 @@ void XTempManager::showForms() {
 }
 
 void XTempManager::visualize(const Snapshot &shot) {
+    if( !shot[ *isActivated()]) {
+        return;
+    }
     const shared_ptr<XTempControl> maindev = shot[ *mainDevice()];
     if( !maindev) return;
     Snapshot shot_emitter( *maindev);
@@ -195,10 +198,6 @@ void XTempManager::visualize(const Snapshot &shot) {
             fprintf(stderr, "Excitation is changed to %d.\n", m_currExcitaion);
             return;
         }
-    }
-
-    if( !shot[ *isActivated()]) {
-        return;
     }
 
     double rate = (shot[ *targetTemp()] - m_tempStarted) / 60 * fabs(shot[ *rampRate()]);
@@ -352,6 +351,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         return temp;
     };
     double temp = get_temp(currentZoneNo());
+    tr[ *m_tempStatusStr] = i18n("Temperature") + " [" + chstr + "]";
     m_entryTemp->value(tr, temp);
 
     //calculates std. deviations in some periods
@@ -431,8 +431,6 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *m_tempStatusStr] = i18n("Temperature") + " [" + chstr_u +
             formatString(" %.2g%% + %s %.2g%%]", 1e2 * (1 - x), chstr.c_str(), x * 1e2);
     }
-    else
-        tr[ *m_tempStatusStr] = i18n("Temperature") + " [" + chstr + "]";
     m_entryTemp->value(tr, temp);
 }
 
@@ -467,7 +465,7 @@ XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double rampra
                m_currExcitaion = exc;
        }
    }
-   return -1;
+   return zno;
 }
 
 void
