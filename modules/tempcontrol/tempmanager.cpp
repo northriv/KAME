@@ -549,7 +549,7 @@ XTempManager::onActivateChanged(const Snapshot &shot, XValueNodeBase *) {
             trans( *extflowctrl->target()) = 0.0;
         else if(extdcsrc)
             trans( *extdcsrc->value()) = 0.0;
-        else {
+        else if(maindev) {
             if((m_currLoopNo >= 0) && (m_currLoopNo < maindev->numOfLoops()))
                 trans( *maindev->targetTemp(m_currLoopNo)) = 0.0;
         }
