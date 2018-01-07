@@ -146,6 +146,7 @@ XTempManager::XTempManager(const char *name, bool runtime,
     refreshZoneUIs();
     m_currZoneNo = 0;
     m_currLoopNo = 0;
+    m_currExcitaion = -1; //undef.
     m_currCh = 0;
     m_tempStarted = 0.0;
     m_timeStarted = XTime::now();
@@ -405,7 +406,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         double dt = (XTime::now() - m_timeStarted) * signed_ramprate / 60.0;
         double stemp = m_tempStarted + dt;
         XString msg = formatString(", SetPoint=%.4g K", stemp);
-        if(fabs(shot_this[ *targetTemp()] - m_tempStarted) > fabs(dt)) {
+        if(fabs(shot_this[ *targetTemp()] - m_tempStarted) <= fabs(dt)) {
             stemp = shot_this[ *targetTemp()]; //reached to the target temp.
             msg = formatString(", SetPoint(=Target)=%.4g K", stemp);
             if(shot_this[ *stabilized()] < fabs(signed_ramprate) * 1.0) {
@@ -468,6 +469,10 @@ int
 XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double signed_ramprate,
     bool update_missinginfo) {
    assert(shot.size(zones()));
+   if(update_missinginfo) {
+       m_currExcitaion = -1;
+       m_currThermometer.reset();
+   }
    int zno = -1;
    for(auto &&x: *shot.list(zones())) {
        auto zone = dynamic_pointer_cast<XZone>(x);
