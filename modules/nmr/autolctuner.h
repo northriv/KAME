@@ -96,6 +96,7 @@ public:
         int iterationCount;
         bool isTargetAbondoned;
         int taintedCount;
+        int residue_offset;
 	};
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;

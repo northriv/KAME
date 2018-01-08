@@ -405,6 +405,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
         tr[ *this].isTargetAbondoned = false;
+        tr[ *this].residue_offset = 0;
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -588,9 +589,12 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
             double f = trace_start + i * trace_dfreq;
-            double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin) / (2.0 * 4.0 * 4.0)));
-            if(y < (rlmin + zabs_av) / 2) { //restricts area not to count cables' effect or other resonances.
-                auto z2 = trace[i] * y / z;
+//            double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin) / (2.0 * 4.0 * 4.0)));
+//            if((y < (rlmin + zabs_av) / 2) &&
+            if((z < (rlmin + zabs_av) / 2) &&
+                (fabs(f - fmin) < fmin * 0.1)) { //restricts area not to count cables' effect or other resonances.
+//                auto z2 = trace[i] * y / z;
+                auto z2 = trace[i];
                 if(z0 == 0.0)
                      z0 = z2; //the first point under consideration
                 else
@@ -599,10 +603,17 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
         }
         res_rl_inv += std::log(z0 / z1);
-        res_rl_inv /= -std::complex<double>(0.0, 2.0 * M_PI);
+        res_rl_inv /= std::complex<double>(0.0, 2.0 * M_PI);
+        if(res_rl_inv.real() > 0.5)
+            tr[ *this].residue_offset--; //compensates miscounting.
+        if(res_rl_inv.real() < -1.5)
+            tr[ *this].residue_offset++; //compensates miscounting.
+
         message +=
-            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi\n",
-                fmin, 20.0 * log10(rlmin), res_rl_inv.real(), res_rl_inv.imag());
+            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi(+%d)\n",
+                fmin, 20.0 * log10(rlmin),
+                res_rl_inv.real(), res_rl_inv.imag(), shot_this[ *this].residue_offset);
+        bool is_tight_cpl = (res_rl_inv.real() + shot_this[ *this].residue_offset < -0.5);
 
         //Fits to LCR circuit.
         std::vector<double> rl(trace_len);
@@ -612,8 +623,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if(shot_this[ *this].fitOrig)
             lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
         else
-            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, fabs(res_rl_inv.real()) > 0.5);
-        lcrfit->setTunedCaps(fmin * 1e6, rlmin, fabs(res_rl_inv.real()) > 0.5);
+            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, is_tight_cpl);
+        lcrfit->setTunedCaps(fmin * 1e6, rlmin, is_tight_cpl);
         lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
