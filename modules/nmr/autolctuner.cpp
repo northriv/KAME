@@ -604,16 +604,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
         res_rl_inv += std::log(z0 / z1);
         res_rl_inv /= std::complex<double>(0.0, 2.0 * M_PI);
-        if(res_rl_inv.real() > 0.5)
-            tr[ *this].residue_offset--; //compensates miscounting.
-        if(res_rl_inv.real() < -1.5)
-            tr[ *this].residue_offset++; //compensates miscounting.
+        //compensates miscounting.
+        if(fabs(res_rl_inv.real()) > 1.5)
+            tr[ *this].residue_offset = lrint( -res_rl_inv.real());
 
         message +=
-            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi(+%d)\n",
+            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi(%+d)\n",
                 fmin, 20.0 * log10(rlmin),
                 res_rl_inv.real(), res_rl_inv.imag(), shot_this[ *this].residue_offset);
-        bool is_tight_cpl = (res_rl_inv.real() + shot_this[ *this].residue_offset < -0.5);
+        bool is_tight_cpl = (fabs(res_rl_inv.real() + shot_this[ *this].residue_offset) > 0.5);
 
         //Fits to LCR circuit.
         std::vector<double> rl(trace_len);

@@ -743,6 +743,7 @@ XTempManager::refreshZoneUIs() {
                 shared_ptr<XDCSource> dcsrc = shot[ *extDevice()];
                 shared_ptr<XTempControl> maindev = shot[ *mainDevice()];
                 if(maindev) {
+                    Snapshot shot_emitter( *maindev);
                     if(dcsrc) {
                         tr[ *zone->loop()].add(dcsrc->channel()->itemStrings(Snapshot( *dcsrc)));
                         loop = 0;
@@ -755,13 +756,14 @@ XTempManager::refreshZoneUIs() {
                     }
                     if(loop < maindev->numOfLoops()) {
                         tr[ *zone->channel()].add(maindev->currentChannel(loop)->itemStrings(Snapshot( *maindev)));
-                        auto cch = dynamic_pointer_cast<XTempControl::XChannel>(maindev->currentChannel(loop));
-                        if(cch)
-                            tr[ *zone->excitation()].add(cch->excitation()->itemStrings(Snapshot( *maindev)));
+                        if((shot[ *zone->channel()] >= 0) && (shot[ *zone->channel()] < shot_emitter.size(maindev->channels())) {
+                            tr[ *zone->excitation()].add(
+                                shot.list( *maindev->channels())->at(shot[ *zone->channel()])->itemStrings(shot_emitter));
+                        }
                         if(dcsrc)
                             tr[ *zone->powerRange()].add(dcsrc->range()->itemStrings(Snapshot( *dcsrc)));
                         else
-                            tr[ *zone->powerRange()].add(maindev->powerRange(loop)->itemStrings(Snapshot( *maindev)));
+                            tr[ *zone->powerRange()].add(maindev->powerRange(loop)->itemStrings(shot_emitter));
                     }
                 }
             }
