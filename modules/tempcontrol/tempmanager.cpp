@@ -756,9 +756,9 @@ XTempManager::refreshZoneUIs() {
                     }
                     if(loop < maindev->numOfLoops()) {
                         tr[ *zone->channel()].add(maindev->currentChannel(loop)->itemStrings(Snapshot( *maindev)));
-                        if((shot[ *zone->channel()] >= 0) && (shot[ *zone->channel()] < shot_emitter.size(maindev->channels())) {
-                            tr[ *zone->excitation()].add(
-                                shot.list( *maindev->channels())->at(shot[ *zone->channel()])->itemStrings(shot_emitter));
+                        if((shot[ *zone->channel()] >= 0) && (shot[ *zone->channel()] < shot_emitter.size(maindev->channels()))) {
+                            auto ch = dynamic_pointer_cast<XTempControl::XChannel>(shot.list(maindev->channels())->at(shot[ *zone->channel()]));
+                            tr[ *zone->excitation()].add(ch->excitation()->itemStrings(shot_emitter));
                         }
                         if(dcsrc)
                             tr[ *zone->powerRange()].add(dcsrc->range()->itemStrings(Snapshot( *dcsrc)));
