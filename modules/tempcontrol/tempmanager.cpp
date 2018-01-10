@@ -122,7 +122,8 @@ XTempManager::XTempManager(const char *name, bool runtime,
         tr[ *hysteresisOnZoneTr()] = 5;
         tr[ *doesMixTemp()] = true;
         m_lsnOnActivateChanged = tr[ *m_isActivated].onValueChanged().connectWeakly(
-            shared_from_this(), &XTempManager::onActivateChanged);
+            shared_from_this(), &XTempManager::onActivateChanged,
+            Listener::FLAG_MAIN_THREAD_CALL);
         m_lsnOnAUXDeviceChanged = tr[ *auxDevice(0)].onValueChanged().connectWeakly(
             shared_from_this(), &XTempManager::onAUXDeviceChanged,
             Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
