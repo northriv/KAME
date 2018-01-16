@@ -609,7 +609,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             tr[ *this].residue_offset = lrint( -res_rl_inv.real());
 
         message +=
-            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi(%+d)\n",
+            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.1f%+.1fi(%+d)\n",
                 fmin, 20.0 * log10(rlmin),
                 res_rl_inv.real(), res_rl_inv.imag(), shot_this[ *this].residue_offset);
         bool is_tight_cpl = (fabs(res_rl_inv.real() + shot_this[ *this].residue_offset) > 0.5);

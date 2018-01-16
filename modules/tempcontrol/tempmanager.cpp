@@ -60,14 +60,15 @@ XTempManager::XTempManager(const char *name, bool runtime,
     m_doesMixTemp(create<XBoolNode> ("MixTempOnSensorChange" , false)),
     m_mainDevice(create<XItemMainDevice>("MainDevice", false, ref(tr_meas), meas->drivers(), true)),
     m_zones(create<XZoneList> ("ZoneList" , false, meas->thermometers())),
-    m_stabilized(create<XDoubleNode> ("Stabilized", true, "%.3g")),
     m_statusStr(create<XStringNode> ("Status", true)),
     m_tempStatusStr(create<XStringNode> ("TempStatus", true)),
     m_heaterStatusStr(create<XStringNode> ("HeaterStatus", true)),
     m_entryTemp(create<XScalarEntry>("Temp", false,
         dynamic_pointer_cast<XDriver>(shared_from_this()), "%.5g")),
     m_entryPow(create<XScalarEntry>("HeaterPower", false,
-        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.5g")),
+        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
+    m_entryStability(create<XScalarEntry>("Stability", false,
+        dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
     m_form(new FrmTempManager(g_pFrmMain)) {
     for(unsigned int i = 0; i < maxNumOfAUXDevices; ++i) {
         m_auxDevices.push_back(create<XItemAUXDevice>(
@@ -82,6 +83,7 @@ XTempManager::XTempManager(const char *name, bool runtime,
 
     meas->scalarEntries()->insert(tr_meas, m_entryTemp);
     meas->scalarEntries()->insert(tr_meas, m_entryPow);
+    meas->scalarEntries()->insert(tr_meas, m_entryStability);
 
     m_conUIs = {
         xqcon_create<XQToggleButtonConnector>(m_isActivated, m_form->m_ckbActivateEngine),
@@ -364,7 +366,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     m_tempAvg = (m_tempAvg - temp) * exp( -dt / tau) + temp;
     m_tempErrAvg = (m_tempErrAvg - terr * terr) * exp( -dt / tau) + terr * terr;
     m_tempErrAvg = std::min(m_tempErrAvg, temp * temp * 0.04);
-    tr[ *m_stabilized] = sqrt(m_tempErrAvg); //std.dev.
+    m_entryStability->value(tr, sqrt(m_tempErrAvg)); //std.dev.
     tr[ *statusStr()] = XString(shot_this[ *statusStr()]) +
             formatString(", %.2gsec.deviation=%.2g K", tau, sqrt(m_tempErrAvg));
 
@@ -410,8 +412,8 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
         if(fabs(shot_this[ *targetTemp()] - m_tempStarted) <= fabs(dt)) {
             stemp = shot_this[ *targetTemp()]; //reached to the target temp.
             msg = formatString(", SetPoint(=Target)=%.4g K", stemp);
-            if(shot_this[ *stabilized()] < fabs(signed_ramprate) * 1.0) {
-                signed_ramprate *= shot_this[ *stabilized()] / fabs(signed_ramprate); //stabilizing.
+            if(shot_this[ *m_entryStability->value()] < fabs(signed_ramprate) * 1.0) {
+                signed_ramprate *= shot_this[ *m_entryStability->value()] / fabs(signed_ramprate); //stabilizing.
                 msg += ", Stabilizing";
             }
         }
@@ -426,7 +428,7 @@ void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if(nextzone < 0) {
         if(shot_this[ *isActivated()]) {
             tr[ *isActivated()] = false;
-            throw XRecordError(i18n("Temperature exceeds the limitation."), __FILE__, __LINE__);
+            throw XRecordError(i18n("Temperature or ramp rate exceeds the limitation."), __FILE__, __LINE__);
         }
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
@@ -475,11 +477,12 @@ XTempManager::firstMatchingZone(const Snapshot &shot, double temp, double signed
        m_currThermometer.reset();
    }
    int zno = -1;
-   for(auto &&x: *shot.list(zones())) {
-       auto zone = dynamic_pointer_cast<XZone>(x);
-       if((temp > shot[ *zone->upperTemp()]) || (signed_ramprate > shot[ *zone->maxRampRate()]))
+   for(int i = 0; i < shot.size(zones()); ++i) {
+       auto zone = dynamic_pointer_cast<XZone>(shot.list(zones())->at(i));
+       if(temp > shot[ *zone->upperTemp()])
            return zno;
-       zno++;
+       if(signed_ramprate <= shot[ *zone->maxRampRate()])
+           zno = i; //stores index of the matched zone.
        if(update_missinginfo) {
            int currloop = shot[ *zone->loop()];
            if(currloop >= 0)

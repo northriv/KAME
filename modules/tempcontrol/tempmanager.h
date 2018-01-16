@@ -111,9 +111,6 @@ public:
     const shared_ptr<XComboNode> &auxDevCh(unsigned int i) const {return m_auxDevChs.at(i);}
     const shared_ptr<XComboNode> &auxDevMode(unsigned int i) const {return m_auxDevModes.at(i);}
 
-    //! holds an averaged error between target temp and actual one
-    const shared_ptr<XDoubleNode> &stabilized() const {return m_stabilized;}
-
     const shared_ptr<XStringNode> &statusStr() const {return m_statusStr;}
 
 protected:
@@ -147,9 +144,6 @@ private:
 
     const shared_ptr<XZoneList> m_zones;
 
-    //! holds an averaged error between target temp and actual one
-    const shared_ptr<XDoubleNode> m_stabilized;
-
     const shared_ptr<XStringNode> m_statusStr;
     const shared_ptr<XStringNode> m_tempStatusStr, m_heaterStatusStr;
 
@@ -170,7 +164,7 @@ private:
     void onDeleteTouched(const Snapshot &shot, XTouchableNode *);
     void onChListChanged(const Snapshot &shot, XItemNodeBase::Payload::ListChangeEvent e);
 
-    shared_ptr<XScalarEntry> m_entryTemp, m_entryPow;
+    shared_ptr<XScalarEntry> m_entryTemp, m_entryPow, m_entryStability;
  
     const qshared_ptr<FrmTempManager> m_form;
 
