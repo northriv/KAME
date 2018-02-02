@@ -338,10 +338,6 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
 
-        if(hasQAMPorts()) {
-            this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
-            this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
-        }
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
 
     }
