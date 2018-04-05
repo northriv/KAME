@@ -322,8 +322,8 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
 //                //this readout procedure is necessary for unknown reasons!
 //                //mimics modQAM.bas:dump_qam
-//                std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
-//                this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
+                std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
+                this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
                 writerQAM.flush(); //sends above commands here.
             }
         }
