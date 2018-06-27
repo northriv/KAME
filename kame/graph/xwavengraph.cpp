@@ -20,6 +20,7 @@
 
 #include <QPushButton>
 #include <QStatusBar>
+#include <QStyle>
 
 #define OFSMODE (std::ios::out | std::ios::app | std::ios::ate)
 
