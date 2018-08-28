@@ -83,7 +83,7 @@ XThamwayPROT3DSO::stopAcquision() {
     clearAcquision();
     {
         XScopedLock<XMutex> lock(m_acqMutex);
-        fprintf(stderr, "stop acq.\n");
+        fprintf(stderr, "stop acq., total=%llu\n", (long long unsigned int)(uint64_t)m_totalSmpsPerCh);
         //allocates buffers.
         m_chunks.resize(NumChunks);
         m_totalSmpsPerCh = 0;
@@ -320,7 +320,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         };
         try {
             auto async = issue_async_read();
-            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
+//            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
 //            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
@@ -328,8 +328,8 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                 break;
             }
             auto count = async->waitFor() / sizeof(tRawAI);
-            dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
-            fprintf(stderr, "read for %u count=%u", (unsigned int)wridx, (unsigned int)count);
+//          dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
+//          fprintf(stderr, "read for %u count=%u", (unsigned int)wridx, (unsigned int)count);
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
@@ -345,8 +345,8 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
                         if(wridx == m_chunks.size()) wridx = 0;
                         m_wrChunkBegin = wridx;
                     }
-                    dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
-                    fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
+//                  dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
+//                  fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
                 }
                 if(count == 0) {
                 //Pulse generation has stopped.
