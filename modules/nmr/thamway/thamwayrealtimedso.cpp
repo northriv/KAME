@@ -76,6 +76,7 @@ XThamwayPROT3DSO::startAcquision() {
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
+    fprintf(stderr, "commit acq.: ");
     stopAcquision();
 }
 void
@@ -116,9 +117,6 @@ XThamwayPROT3DSO::clearAcquision() {
         x->join();
     }
     m_acqThreads.clear();
-    for(auto &&x: m_chunks) {
-        x.data.clear();
-    }
     fprintf(stderr, "q.\n");
 }
 
