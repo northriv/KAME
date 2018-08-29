@@ -63,6 +63,7 @@ SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
 
 void
 SoftwareTrigger::clear_() {
+    fprintf(stderr, "Softtrigger clea");
     uint64_t x;
     while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
         m_fastQueue.atomicPop(t);
@@ -70,6 +71,7 @@ SoftwareTrigger::clear_() {
     m_slowQueue.clear();
     m_slowQueueSize = 0;
     m_lastThresholdRequested = 0;
+    fprintf(stderr, "red.\n");
 }
 bool
 SoftwareTrigger::stamp(uint64_t cnt) {
@@ -95,19 +97,23 @@ void
 SoftwareTrigger::start(double freq) {
     {
         XScopedLock<XMutex> lock(m_mutex);
+        fprintf(stderr, "Softtrigger star");
         m_endOfBlank = 0;
         if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
         m_freq = freq;
         clear_();
     }
     onStart().talk(shared_from_this());
+    fprintf(stderr, "ted.\n");
 }
 
 void
 SoftwareTrigger::stop() {
     XScopedLock<XMutex> lock(m_mutex);
+    fprintf(stderr, "Softtrigger sto");
     clear_();
     m_endOfBlank = (uint64_t)-1LL;
+    fprintf(stderr, "pped.\n");
 }
 void
 SoftwareTrigger::connect(uint32_t rising_edge_mask, uint32_t falling_edge_mask) {
