@@ -39,8 +39,10 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
         for(auto &&x: {trace1(), trace2()}) {
             tr[ *x].add({"CH1", "CH2"});
         }
-        tr[ *trace1()] = "CH2";
-        tr[ *trace2()] = "CH1";
+//        tr[ *trace1()] = "CH2";
+//        tr[ *trace2()] = "CH1";
+        tr[ *trace1()] = "CH1";
+        tr[ *trace2()] = "CH2";
         tr[ *average()] = 1;
         for(auto &&x: unnecessary_ui)
             tr[ *x].disable();
@@ -183,7 +185,7 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
         if((pos >= pos_abs_per_ch) && (pos < pos_abs_per_ch_end)) {
             m_currRdPos = (pos - pos_abs_per_ch) * getNumOfChannels();
-            fprintf(stderr, "Set readpos at %u, chunk %u, rpos %u.\n", (unsigned int)pos, (unsigned int)m_currRdChunk, (unsigned int)m_currRdPos);
+//            fprintf(stderr, "Set readpos at %u, chunk %u, rpos %u.\n", (unsigned int)pos, (unsigned int)m_currRdChunk, (unsigned int)m_currRdPos);
             return true;
         }
         m_currRdChunk++;
