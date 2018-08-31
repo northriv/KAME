@@ -228,6 +228,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     if( !this->interface()->isOpened())
         return;
 
+    fprintf(stderr, "Pulser stopping.\n");
     //mimics PULBOAD.BAS:StopBrd(0)
     bool ext_clock = false;
     //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
@@ -253,6 +254,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     size_t addr = 0, addr_qam = 0;
     if(output) {
         {
+            fprintf(stderr, "Pulser start");
             XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
             XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
 
@@ -340,6 +342,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
 
         this->interface()->writeToRegister8(ADDR_REG_CTRL, 1); //starts it
 
+        fprintf(stderr, "ed.\n");
     }
 }
 
