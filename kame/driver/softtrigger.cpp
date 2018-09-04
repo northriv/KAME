@@ -63,7 +63,7 @@ SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
 
 void
 SoftwareTrigger::clear_() {
-    fprintf(stderr, "Softtrigger clea");
+    fprintf(stderr, "Softtrigger clearred with %u + %u points remaining.\n", m_fastQueue.size(), m_slowQueue.size());
     uint64_t x;
     while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
         m_fastQueue.atomicPop(t);
@@ -71,7 +71,6 @@ SoftwareTrigger::clear_() {
     m_slowQueue.clear();
     m_slowQueueSize = 0;
     m_lastThresholdRequested = 0;
-    fprintf(stderr, "red.\n");
 }
 bool
 SoftwareTrigger::stamp(uint64_t cnt) {
