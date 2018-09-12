@@ -32,7 +32,8 @@ SUBDIRS += testdriver\
     sg\
     tempcontrol\
     qdcore\
-    qd
+    qd\
+    pumpcontroller
 
 unix: SUBDIRS +=    montecarlo\
 
@@ -67,3 +68,4 @@ thamway.file = nmr/thamway/thamway.pro
 thamway.depends += nmrpulsercore sgcore networkanalyzercore
 qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
+pumpcontroller.depends += charinterface
