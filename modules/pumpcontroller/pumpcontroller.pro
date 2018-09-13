@@ -4,7 +4,8 @@ include($${PRI_DIR}/modules.pri)
 INCLUDEPATH += \
 
 HEADERS += \
-    pumpcontroller.h
+    pumpcontroller.h \
+    userpumpcontroller.h
 
 SOURCES += \
     pumpcontroller.cpp \

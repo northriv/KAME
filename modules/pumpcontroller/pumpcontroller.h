@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
                            kitagawa@phys.s.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -31,6 +31,11 @@ public:
 
     const shared_ptr<XScalarEntry> &entryPressure() const {return m_entryPressure;}
 
+    const shared_ptr<XBoolNode> activate() const {return m_activate;}
+    const shared_ptr<XBoolNode> heating() const {return m_heating;}
+    const shared_ptr<XBoolNode> standby() const {return m_standby;}
+    const shared_ptr<XDoubleNode> standbyRotationSpeed() const {return m_standbyRotationSpeed;}
+    const shared_ptr<XDoubleNode> maxDrivePower() const {return m_maxDrivePower;}
 protected:
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
