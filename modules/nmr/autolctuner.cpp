@@ -226,15 +226,19 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
-//            randomize = true; //fitting diverged.
+            randomize = true; //fitting diverged.
             continue;
         }
         omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
-        if( !(omega_trust > 0))
+        if( !(omega_trust > 0)) {
+            fprintf(stderr, "Too small omega trust.\n");
             continue; //less or nan
+        }
         size_t fit_n = s11.size() - 1;
-        if(fit_n < 20)
+        if(fit_n < 20) {
+            fprintf(stderr, "Too small fit #.\n");
             continue;
+        }
         auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
@@ -264,6 +268,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err());
+    }
+    else {
+        fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g\n",
+                r1(), r2(), l1(),
+                c1(), c2());
     }
     fprintf(stderr, "rms of residuals = %.3g, elapsed = %f ms & %d iterations.\n",
             residualError(), 1000.0 * (XTime::now() - start), it_best);
