@@ -257,6 +257,11 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
         double err = residualError();
         if(coupling() * coupling_orig < 0)
             err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
+        if(retry == 0) {
+            //Stores an error for the original fitting.
+            residualerr = err;
+            lcr_orig.m_resErr = err;
+        }
         if(nlls1.isSuccessful() && (err < residualerr) && !std::isnan(f0err())) {
             residualerr  = err;
             nlls = std::move(nlls1);
