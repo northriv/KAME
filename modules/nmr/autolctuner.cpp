@@ -209,7 +209,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
 
     double omega_trust_scale = 1.5;
     double residualerr = 1.0;
-    int it_best;
+    int it_best = 0.0;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
@@ -227,7 +227,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
         }
-        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
+        if((retry > 12) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Fitting diverged.\n");
             fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g, Q:%.3g\n",
                     r1(), r2(), l1(),
