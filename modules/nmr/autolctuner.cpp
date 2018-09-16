@@ -217,17 +217,17 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
-        if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-3))
+        if((retry > 8) && (residualerr < 1e-3))
             break; //enough good
-        if((retry == 2) && (residualerr < 1e-3) && !randomize)
-            break; //enough good and initial values were already good.
+//        if((retry == 2) && (residualerr < 1e-3) && !randomize)
+//            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
             double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
         }
-        if((retry > 12) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
+        if((retry % 6 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Fitting diverged.\n");
             fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g, Q:%.3g\n",
                     r1(), r2(), l1(),
