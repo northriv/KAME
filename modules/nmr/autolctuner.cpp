@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
                            kitagawa@phys.s.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -217,7 +217,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
-        if((retry > 8) && (residualerr < 1e-3))
+        if((retry > 5) && (residualerr < 1e-3))
             break; //enough good
 //        if((retry == 2) && (residualerr < 1e-3) && !randomize)
 //            break; //enough good and initial values were already good.
@@ -227,8 +227,8 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
         }
-        if((retry % 6 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
-            fprintf(stderr, "Fitting diverged.\n");
+        if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
+            fprintf(stderr, "Randomize anyway.\n");
             fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g, Q:%.3g\n",
                     r1(), r2(), l1(),
                     c1(), c2(), qValue());

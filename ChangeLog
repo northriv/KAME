@@ -1,3 +1,10 @@
+* Mon Sep 17 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.5-1)
+- Pfeiffer Turbo molecular pump controller TC110 
+- Autolctuner: fiting improved.
+- VNWA3E TCP/IP interface for recent firmwares.
+- pulseanalyzer: obsolete
+
 * Wed Jun 27 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.1.4-1)
 - Compatible with Qt-5.11

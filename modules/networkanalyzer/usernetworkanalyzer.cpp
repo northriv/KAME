@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -17,6 +17,7 @@
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
 REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzer, "DG8SAQ VNWA3E/Custom Network Analyzer");
+REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzerTCPIP, "DG8SAQ VNWA3E Network Analyzer TCP/IP");
 
 //---------------------------------------------------------------------------
 XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
@@ -282,4 +283,157 @@ XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw
 	for(unsigned int i = 0; i < samples; i++) {
 		tr[ *this].trace_()[i] = std::complex<double>(reader.pop<double>(), reader.pop<double>());
 	}
+}
+
+
+XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas),
+    m_interface2(XNode::create<XCharInterface>("Interface2", false,
+        dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+    meas->interfaces()->insert(tr_meas, m_interface2);
+    interface()->setEOS("");
+    interface()->device()->setUIEnabled(false);
+    trans( *interface()->device()) = "TCP/IP";
+    trans( *interface()->port()) = "127.0.0.1:55555";
+    interface2()->setEOS("");
+    interface2()->control()->setUIEnabled(false);
+    interface2()->device()->setUIEnabled(false);
+    trans( *interface2()->device()) = "TCP/IP";
+    trans( *interface2()->port()) = "127.0.0.1:55556";
+
+    average()->disable();
+
+    calOpen()->disable();
+    calShort()->disable();
+    calTerm()->disable();
+    calThru()->disable();
+}
+
+void
+XVNWA3ENetworkAnalyzerTCPIP::open() throw (XKameError &) {
+    interface2()->start();
+    start();
+    interface()->write("stop", 5); //with null.
+    interface()->receive();
+    int err;
+    if(interface()->scanf("Error Code: %d", &err) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(err != 0)
+        throw XInterface::XInterfaceError( &interface()->buffer()[0], __FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::close() throw (XKameError &) {
+    interface2()->stop();
+    XCharDeviceDriver<XNetworkAnalyzer>::close();
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+    Snapshot shot_this( *this);
+    auto buf = formatString("range %g %g",
+        (double)shot_this[ *startFreq()], (double)shot_this[ *stopFreq()]);
+    interface()->write(buf.c_str(), buf.length() + 1); //with null.
+    interface()->receive();
+    int err;
+    if(interface()->scanf("Error Code: %d", &err) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(err != 0)
+        throw XInterface::XInterfaceError( &interface()->buffer()[0], __FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *node) {
+    onStartFreqChanged(shot, node);
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
+    Snapshot shot_this( *this);
+    auto buf = formatString("setgrid lin %g %g %u",
+        (double)shot_this[ *startFreq()], (double)shot_this[ *stopFreq()],
+        (unsigned int)shot_this[ *points()]);
+    interface()->write(buf.c_str(), buf.length() + 1); //with null.
+    interface()->receive();
+    int err;
+    if(interface()->scanf("Error Code: %d", &err) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(err != 0)
+        throw XInterface::XInterfaceError( &interface()->buffer()[0], __FILE__, __LINE__);
+}
+
+void
+XVNWA3ENetworkAnalyzerTCPIP::getMarkerPos(unsigned int num, double &x, double &y) {
+    throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::oneSweep() {
+    XString buf = "sweep S11 S21";
+    interface()->write(buf.c_str(), buf.length() + 1); //with null.
+    interface()->receive();
+    int err;
+    if(interface()->scanf("Error Code: %d", &err) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    if(err != 0)
+        throw XInterface::XInterfaceError( &interface()->buffer()[0], __FILE__, __LINE__);
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::startContSweep() {
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
+    XScopedLock<XInterface> lock( *interface());
+    interface2()->receive();
+    unsigned int num_pts, sweep_type;
+    double start_freq, stop_freq;
+    if(interface2()->scanf("sweep_start %u %lf %lf %u",
+        &num_pts, &start_freq, &stop_freq, &sweep_type) != 4)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    writer->push((uint32_t)num_pts);
+    writer->push((int32_t)sweep_type);
+    writer->push(start_freq);
+    writer->push(stop_freq);
+    for(;;) {
+        interface2()->receive();
+        double freq, res11, ims11, res21, ims21;
+        if(interface2()->scanf("data %*u %lf %lf %lf %lf %lf",
+            &freq, &res11, &ims11, &res21, &ims21) != 5)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        writer->push(freq);
+        writer->push(res11);
+        writer->push(ims11);
+        writer->push(res21);
+        writer->push(ims21);
+    }
+    interface2()->receive(); //sweep_complete
+    unsigned int subswp;
+    if(interface2()->scanf("sweep_complete %u", &subswp) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->receive(); //sweep_complete
+}
+void
+XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+    const Snapshot &shot(tr);
+
+    uint32_t samples = reader.pop<uint32_t>();
+    int stype = reader.pop<int32_t>();
+    double start = reader.pop<double>() * 1e-6; //[MHz]
+    double stop = reader.pop<double>() * 1e-6; //[MHz]
+
+    double df = (stop - start) / (samples - 1);
+    tr[ *this].m_startFreq = start;
+    tr[ *this].m_freqInterval = df;
+    tr[ *this].trace_().resize(samples);
+
+    switch(stype) {
+    case 1: //Linear sweep.
+        break;
+    case 2:	//Log sweep.
+    case 3: //Listed sweep.
+    default:
+        throw XRecordError(i18n("Log/Listed sweep is not supported."), __FILE__, __LINE__);
+    }
+    for(unsigned int i = 0; i < samples; i++) {
+        reader.pop<double>(); //freq
+        tr[ *this].trace_()[i] = std::complex<double>(reader.pop<double>(), reader.pop<double>());
+        reader.pop<double>(); //s21re
+        reader.pop<double>(); //s21im
+    }
 }

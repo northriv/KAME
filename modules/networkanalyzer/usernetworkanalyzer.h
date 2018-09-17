@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -105,5 +105,37 @@ protected:
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
+};
+
+//! DG8SAQ VNWA3E via TCP/IP interface.
+class XVNWA3ENetworkAnalyzerTCPIP : public XCharDeviceDriver<XNetworkAnalyzer> {
+public:
+    XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XVNWA3ENetworkAnalyzerTCPIP() {}
+protected:
+    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
+
+    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+
+    virtual void getMarkerPos(unsigned int num, double &x, double &y);
+    virtual void oneSweep();
+    virtual void startContSweep();
+    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
+    //! Converts raw to dispaly-able
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+
+    virtual void open() throw (XKameError &);
+    virtual void close() throw (XKameError &) override;
+
+    virtual shared_ptr<XCharInterface> interface2() const {return m_interface2;}
+private:
+    const shared_ptr<XCharInterface> m_interface2;
 };
 #endif

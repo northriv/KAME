@@ -206,7 +206,8 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
         }
 		len += rlen;
 		if(len >= eos_len) {
-            if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len)) {
+            if(((eos_len == 0) && (buffer().at(len - 1) == '\0')) ||
+                !strncmp(&buffer().at(len - eos_len), ceos, eos_len)) {
 				break;
 			}
 		}
