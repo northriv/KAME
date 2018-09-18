@@ -313,14 +313,9 @@ XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool 
 void
 XVNWA3ENetworkAnalyzerTCPIP::open() throw (XKameError &) {
     interface2()->start();
+//    interface()->write("stop", 5); //with null.
+//    interface()->receive(); //"sweep stopped "
     start();
-    interface()->write("stop", 5); //with null.
-    interface()->receive();
-    int err;
-    if(interface()->scanf("Error Code: %d", &err) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    if(err != 0)
-        throw XInterface::XInterfaceError( &interface()->buffer()[0], __FILE__, __LINE__);
 }
 void
 XVNWA3ENetworkAnalyzerTCPIP::close() throw (XKameError &) {
@@ -365,7 +360,7 @@ XVNWA3ENetworkAnalyzerTCPIP::getMarkerPos(unsigned int num, double &x, double &y
 }
 void
 XVNWA3ENetworkAnalyzerTCPIP::oneSweep() {
-    XString buf = "sweep S11 S21";
+    XString buf = "sweep S21 S11";
     interface()->write(buf.c_str(), buf.length() + 1); //with null.
     interface()->receive();
     int err;
@@ -385,12 +380,12 @@ XVNWA3ENetworkAnalyzerTCPIP::acquireTrace(shared_ptr<RawData> &writer, unsigned 
     double start_freq, stop_freq;
     if(interface2()->scanf("sweep_start %u %lf %lf %u",
         &num_pts, &start_freq, &stop_freq, &sweep_type) != 4)
-        throw XInterface::XConvError(__FILE__, __LINE__);
+        throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
     writer->push((uint32_t)num_pts);
     writer->push((int32_t)sweep_type);
     writer->push(start_freq);
     writer->push(stop_freq);
-    for(;;) {
+    for(unsigned int cnt = 0; cnt < num_pts; cnt++) {
         interface2()->receive();
         double freq, res11, ims11, res21, ims21;
         if(interface2()->scanf("data %*u %lf %lf %lf %lf %lf",
@@ -422,7 +417,7 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
     tr[ *this].m_freqInterval = df;
     tr[ *this].trace_().resize(samples);
 
-    switch(stype) {
+    switch(stype & 0xfu) {
     case 1: //Linear sweep.
         break;
     case 2:	//Log sweep.
