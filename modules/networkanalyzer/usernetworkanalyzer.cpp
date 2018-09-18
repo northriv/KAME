@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "usernetworkanalyzer.h"
 #include "charinterface.h"
+#include "analyzer.h"
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
@@ -425,10 +426,24 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
     default:
         throw XRecordError(i18n("Log/Listed sweep is not supported."), __FILE__, __LINE__);
     }
+    double min_f = 1e10, max_f = -1e10, min_v = 1e10, max_v = -1e10;
     for(unsigned int i = 0; i < samples; i++) {
-        reader.pop<double>(); //freq
-        tr[ *this].trace_()[i] = std::complex<double>(reader.pop<double>(), reader.pop<double>());
+        double f = reader.pop<double>(); //freq
+        auto z = std::complex<double>(reader.pop<double>(), reader.pop<double>());
+        tr[ *this].trace_()[i] = z;
         reader.pop<double>(); //s21re
         reader.pop<double>(); //s21im
+        if(std::abs(z) < min_v) {
+            min_v = std::abs(z);
+            min_f = f;
+        }
+        if(std::abs(z) > max_v) {
+            max_v = std::abs(z);
+            max_f = f;
+        }
     }
+    m_marker1X->value(tr, min_f);
+    m_marker1Y->value(tr, min_v);
+    m_marker2X->value(tr, max_f);
+    m_marker2Y->value(tr, max_v);
 }

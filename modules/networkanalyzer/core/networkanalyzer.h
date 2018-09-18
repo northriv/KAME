@@ -92,12 +92,13 @@ protected:
 	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) = 0;
 	//! Converts raw to dispaly-able
 	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
+
+    const shared_ptr<XScalarEntry> m_marker1X;
+    const shared_ptr<XScalarEntry> m_marker1Y;
+    const shared_ptr<XScalarEntry> m_marker2X;
+    const shared_ptr<XScalarEntry> m_marker2Y;
 private:
 	const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
-	const shared_ptr<XScalarEntry> m_marker1X;
-	const shared_ptr<XScalarEntry> m_marker1Y;
-	const shared_ptr<XScalarEntry> m_marker2X;
-	const shared_ptr<XScalarEntry> m_marker2Y;
 	const shared_ptr<XDoubleNode> m_startFreq;
 	const shared_ptr<XDoubleNode> m_stopFreq;
 	const shared_ptr<XComboNode> m_points;

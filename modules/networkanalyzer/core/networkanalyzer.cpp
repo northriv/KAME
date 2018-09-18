@@ -235,6 +235,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			}
 		}
 		catch (XDriver::XSkippedRecordError&) {
+        //Markers are missing.
 			msecsleep(10);
 		}
 		catch (XKameError &e) {
