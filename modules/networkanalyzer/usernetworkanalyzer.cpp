@@ -447,9 +447,9 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
             max_f = f;
         }
     }
-    tr[ *this].m_markers.resize(2);
-    tr[ *this].m_markers[0].first = min_f;
-    tr[ *this].m_markers[0].second = 10.0 * log10(min_v);
-    tr[ *this].m_markers[1].first = max_f;
-    tr[ *this].m_markers[1].second = 10.0 * log10(max_v);
+    tr[ *this].markers().resize(2);
+    tr[ *this].markers()[0].first = min_f;
+    tr[ *this].markers()[0].second = 20.0 * log10(min_v);
+    tr[ *this].markers()[1].first = max_f;
+    tr[ *this].markers()[1].second = 20.0 * log10(max_v);
 }

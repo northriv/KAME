@@ -47,14 +47,15 @@ public:
 		unsigned int length() const {return m_trace.size();}
 		const std::complex<double> *trace() const {return &m_trace.at(0);}
 
-		std::vector<std::complex<double> > &trace_() {return m_trace;}
+        std::vector<std::complex<double>> &trace_() {return m_trace;}
 		double m_startFreq;
-		double m_freqInterval;
-	private:
+        double m_freqInterval;
+        std::deque<std::pair<double, double>> &markers() {return m_markers;}
+    private:
 		friend class XNetworkAnalyzer;
-		std::vector<std::complex<double> > m_trace;
-		std::deque<std::pair<double, double> > m_markers;
-	};
+        std::vector<std::complex<double>> m_trace;
+        std::deque<std::pair<double, double>> m_markers;
+    };
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
