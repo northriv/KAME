@@ -303,6 +303,11 @@ XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool 
     trans( *interface2()->device()) = "TCP/IP";
     trans( *interface2()->port()) = "127.0.0.1:55556";
 
+    iterate_commit([=](Transaction &tr){
+        tr[ *points()].add({"3", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"});
+        tr[ *points()].str("512");
+    });
+
     average()->disable();
 
     calOpen()->disable();
@@ -327,7 +332,7 @@ void
 XVNWA3ENetworkAnalyzerTCPIP::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     Snapshot shot_this( *this);
     auto buf = formatString("range %g %g",
-        (double)shot_this[ *startFreq()], (double)shot_this[ *stopFreq()]);
+        (double)shot_this[ *startFreq()] * 1e6, (double)shot_this[ *stopFreq()] * 1e6);
     interface()->write(buf.c_str(), buf.length() + 1); //with null.
     interface()->receive();
     int err;
@@ -344,8 +349,8 @@ void
 XVNWA3ENetworkAnalyzerTCPIP::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
     Snapshot shot_this( *this);
     auto buf = formatString("setgrid lin %g %g %u",
-        (double)shot_this[ *startFreq()], (double)shot_this[ *stopFreq()],
-        (unsigned int)shot_this[ *points()]);
+        (double)shot_this[ *startFreq()] * 1e6, (double)shot_this[ *stopFreq()] * 1e6,
+        atoi(shot_this[ *points()].to_str().c_str()));
     interface()->write(buf.c_str(), buf.length() + 1); //with null.
     interface()->receive();
     int err;
@@ -428,7 +433,7 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
     }
     double min_f = 1e10, max_f = -1e10, min_v = 1e10, max_v = -1e10;
     for(unsigned int i = 0; i < samples; i++) {
-        double f = reader.pop<double>(); //freq
+        double f = reader.pop<double>() * 1e-6; //freq [MHz]
         auto z = std::complex<double>(reader.pop<double>(), reader.pop<double>());
         tr[ *this].trace_()[i] = z;
         reader.pop<double>(); //s21re
