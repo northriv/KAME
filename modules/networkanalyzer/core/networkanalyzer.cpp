@@ -136,15 +136,18 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
 		tr[ *this].m_markers[i].first = reader.pop<double>();
 		tr[ *this].m_markers[i].second = reader.pop<double>();
 	}
-	if(nummk >= 1) {
-	    m_marker1X->value(tr, shot[ *this].m_markers[0].first);
-	    m_marker1Y->value(tr, shot[ *this].m_markers[0].second);
-	}
-	if(nummk >= 2) {
-	    m_marker2X->value(tr, shot[ *this].m_markers[1].first);
-	    m_marker2Y->value(tr, shot[ *this].m_markers[1].second);
-	}
+
     convertRaw(reader, tr);
+
+    nummk = shot[*this].m_markers.size(); //# of markers may be changed by convertRaw()
+    if(nummk >= 1) {
+        m_marker1X->value(tr, shot[ *this].m_markers[0].first);
+        m_marker1Y->value(tr, shot[ *this].m_markers[0].second);
+    }
+    if(nummk >= 2) {
+        m_marker2X->value(tr, shot[ *this].m_markers[1].first);
+        m_marker2Y->value(tr, shot[ *this].m_markers[1].second);
+    }
 }
 void
 XNetworkAnalyzer::visualize(const Snapshot &shot) {
