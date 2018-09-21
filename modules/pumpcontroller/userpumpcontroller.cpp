@@ -243,7 +243,8 @@ XPfeifferTC110::changeMode(bool active, bool stby, bool heating) {
 
 void
 XPfeifferTC110::changeMaxDrivePower(double p){
-    control(Snapshot( *this), DATATYPE::U_REAL, 708, std::max(0.0, std::min(100.0, p)));
+    control(Snapshot( *this), DATATYPE::U_SHORT_INT, 708,
+        (unsigned int)std::max(0.0, std::min(100.0, p)));
 }
 
 void
@@ -252,7 +253,7 @@ XPfeifferTC110::changeStandbyRotationSpeed(double p) {
 }
 void
 XPfeifferTC110::open() throw (XKameError &) {
-    double dp = requestReal(Snapshot( *this), DATATYPE::U_REAL, 708);
+    double dp = requestUInt(Snapshot( *this), DATATYPE::U_SHORT_INT, 708);
     double rs = requestReal(Snapshot( *this), DATATYPE::U_REAL, 717);
     bool ac = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 023);
     bool st = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 002);
