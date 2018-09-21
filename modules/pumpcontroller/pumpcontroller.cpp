@@ -29,7 +29,6 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
     m_activate(create<XBoolNode>("Activate", true)),
     m_heating(create<XBoolNode>("Heating", true)),
     m_standby(create<XBoolNode>("Standby", true)),
-    m_running(create<XBoolNode>("Running", true)),
     m_warning(create<XBoolNode>("Warning", true)),
     m_error(create<XBoolNode>("Error", true)),
     m_rotationSpeed(create<XDoubleNode>("RotationSpeed", true)),
@@ -44,7 +43,6 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_activate, m_form->m_ckbActivate),
         xqcon_create<XQToggleButtonConnector>(m_heating, m_form->m_ckbHeat),
         xqcon_create<XQToggleButtonConnector>(m_standby, m_form->m_ckbStanby),
-        xqcon_create<XQLedConnector>(m_running, m_form->m_ledPumping),
         xqcon_create<XQLedConnector>(m_warning, m_form->m_ledWarning),
         xqcon_create<XQLedConnector>(m_error, m_form->m_ledError),
         xqcon_create<XQLCDNumberConnector>(m_rotationSpeed, m_form->m_lcdRotationSpeed),
@@ -147,11 +145,11 @@ XPumpControl::execute(const atomic<bool> &terminated) {
         auto labels = getTempLabels();
         QLCDNumber *runtime_uis[] = {
             m_form->m_lcdTemp1, m_form->m_lcdTemp2, m_form->m_lcdTemp3,
-            m_form->m_lcdTemp4, m_form->m_lcdTemp5, m_form->m_lcdTemp6,
+            m_form->m_lcdTemp4,
             nullptr};
         QLabel *lbl_uis[] = {
             m_form->m_lblTemp1, m_form->m_lblTemp2, m_form->m_lblTemp3,
-            m_form->m_lblTemp4, m_form->m_lblTemp5, m_form->m_lblTemp6,
+            m_form->m_lblTemp4,
             nullptr};
         auto runtime_ui = runtime_uis;
         auto lbl_ui = lbl_uis;
