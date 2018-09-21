@@ -770,7 +770,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            further_test = further_test || (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3);
+            further_test = further_test || (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.4);
         }
         if(further_test) {
         //Capacitance is sticking, test angle is too small, or poor fitting.
@@ -862,10 +862,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         shot_this[ *this].targetSTMValues[0] + drot[0], shot_this[ *this].targetSTMValues[1]  + drot[1],
         drot[0], drot[1]);
     //Subtracts backlashes
-    for(int i: {0, 1}) {
-        if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
-            drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
-    }
+//    for(int i: {0, 1}) {
+//        if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
+//            drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
+//    }
     //Limits rotations.
     double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
