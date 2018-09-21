@@ -41,7 +41,7 @@ XPfeifferTC110::action(const Snapshot &shot_this, bool iscontrol,
     for(auto c: buf)
         csum += c;
     csum = csum % 0x100u;
-    buf += formatString("%02u", csum);
+    buf += formatString("%03u", csum);
     interface()->query(buf.c_str());
     unsigned int res_addr, res_action, res_param_no, res_len;
     if(interface()->scanf("%3u%2u%3u%2u", &res_addr, &res_action, &res_param_no, &res_len) != 4)
@@ -237,9 +237,9 @@ XPfeifferTC110::getError() {
 
 void
 XPfeifferTC110::changeMode(bool active, bool stby, bool heating) {
-    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 23, active);
     control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 2, stby);
     control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 1, heating);
+    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 10, active);
 }
 
 void
@@ -256,7 +256,7 @@ void
 XPfeifferTC110::open() throw (XKameError &) {
     double dp = requestUInt(Snapshot( *this), DATATYPE::U_SHORT_INT, 708);
     double rs = requestReal(Snapshot( *this), DATATYPE::U_REAL, 717);
-    bool ac = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 23);
+    bool ac = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 10);
     bool st = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 2);
     bool ht = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 1);
     iterate_commit([=](Transaction &tr){
