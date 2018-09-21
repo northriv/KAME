@@ -237,9 +237,9 @@ XPfeifferTC110::getError() {
 
 void
 XPfeifferTC110::changeMode(bool active, bool stby, bool heating) {
-    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 023, active);
-    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 002, stby);
-    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 001, heating);
+    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 23, active);
+    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 2, stby);
+    control(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 1, heating);
 }
 
 void
@@ -256,9 +256,9 @@ void
 XPfeifferTC110::open() throw (XKameError &) {
     double dp = requestUInt(Snapshot( *this), DATATYPE::U_SHORT_INT, 708);
     double rs = requestReal(Snapshot( *this), DATATYPE::U_REAL, 717);
-    bool ac = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 023);
-    bool st = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 002);
-    bool ht = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 001);
+    bool ac = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 23);
+    bool st = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 2);
+    bool ht = requestBool(Snapshot( *this), DATATYPE::BOOLEAN_OLD, 1);
     iterate_commit([=](Transaction &tr){
         tr[ *maxDrivePower()] = dp;
         tr[ *standbyRotationSpeed()] = rs;
