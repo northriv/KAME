@@ -57,6 +57,7 @@ XPfeifferTC110::action(const Snapshot &shot_this, bool iscontrol,
         unsigned int res_csum = atoi(buf.substr(10 + res_len, 3).c_str());
         if(csum != res_csum)
             throw XInterface::XConvError(__FILE__, __LINE__);
+        buf = buf.substr(10, res_len);
     }
     catch (std::out_of_range &) {
         throw XInterface::XConvError(__FILE__, __LINE__);
