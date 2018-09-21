@@ -20,6 +20,8 @@ REGISTER_TYPE(XDriverList, PfeifferTC110, "Pfeiffer TC110 turbopump controller")
 XPfeifferTC110::XPfeifferTC110(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XPumpControl>(name, runtime, ref(tr_meas), meas) {
+    trans( *interface()->device()) = "SERIAL";
+    trans( *interface()->address()) = 1;
     interface()->setSerialBaudRate(9600);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_NONE);
@@ -48,10 +50,9 @@ XPfeifferTC110::action(const Snapshot &shot_this, bool iscontrol,
         throw XInterface::XConvError(__FILE__, __LINE__);
     try {
         buf = &interface()->buffer()[0];
-        buf = buf.substr(10, res_len);
         csum = 0;
-        for(auto c: buf)
-            csum += c;
+        for(size_t i = 0; i < 10 + res_len; ++i)
+            csum += buf[i];
         csum = csum % 0x100u;
         unsigned int res_csum = atoi(buf.substr(10 + res_len, 3).c_str());
         if(csum != res_csum)
@@ -242,12 +243,12 @@ XPfeifferTC110::changeMode(bool active, bool stby, bool heating) {
 
 void
 XPfeifferTC110::changeMaxDrivePower(double p){
-    control(Snapshot( *this), DATATYPE::U_REAL, 708, p);
+    control(Snapshot( *this), DATATYPE::U_REAL, 708, std::max(0.0, std::min(100.0, p)));
 }
 
 void
 XPfeifferTC110::changeStandbyRotationSpeed(double p) {
-    control(Snapshot( *this), DATATYPE::U_REAL, 717, p);
+    control(Snapshot( *this), DATATYPE::U_REAL, 717, std::max(0.0, std::min(100.0, p)));
 }
 void
 XPfeifferTC110::open() throw (XKameError &) {
