@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>344</width>
-    <height>607</height>
+    <width>404</width>
+    <height>591</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -602,12 +602,12 @@
         <item>
          <widget class="QLabel" name="label_4">
           <property name="text">
-           <string>Fit Repeat</string>
+           <string>Original Back Count</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edFitRepeat"/>
+         <widget class="QLineEdit" name="m_edOrigBackMax_2"/>
         </item>
        </layout>
       </item>
@@ -631,20 +631,6 @@
          </widget>
         </item>
        </layout>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_31">
-      <item>
-       <widget class="QLabel" name="label_7">
-        <property name="text">
-         <string>Original Back Count</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="m_edOrigBackMax"/>
       </item>
      </layout>
     </item>

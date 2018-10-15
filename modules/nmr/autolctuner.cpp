@@ -28,7 +28,7 @@ class LCRFit {
 public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
-    void fit(const std::vector<double> &s11, double fstart, double fstep, int fitrepeat, int fit_func_type, double width_factor, bool randomize = true);
+    void fit(const std::vector<double> &s11, double fstart, double fstep, int fit_func_type, double width_factor, bool randomize = true);
     void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, int fit_func_type, double width_factor);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
@@ -99,10 +99,13 @@ private:
     std::complex<double> zlcr1(double omega) const {
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
     }
+    //a weight during the fit.
     double isigma(double domega, double omega_trust, int fit_func_type, double width_factor) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        if (fit_func_type == 0) return sqrt(exp( -std::norm(domega / (omega_trust * width_factor)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust)); //a weight during the fit.
-        else return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust * width_factor))))); //a weight during the fit.
+        if (fit_func_type == 0)
+            return sqrt(exp( -std::norm(domega / (omega_trust * width_factor)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust));
+        else
+            return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust * width_factor)))));
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
@@ -162,7 +165,7 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
 }
 
 void
-LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fitrepeat, int fit_func_type, double width_factor, bool randomize) {
+LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit_func_type, double width_factor, bool randomize) {
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -214,7 +217,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if(retry > fitrepeat) {
+        if(retry > 100) {
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
@@ -328,7 +331,6 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_status(create<XStringNode>("FitStatus", true)),
         m_backlushMinusTh(create<XDoubleNode>("BacklushMinusTh", false)),
         m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
-        m_fitRepeat(create<XIntNode>("FitRepeat", false)),
         m_timeMax(create<XIntNode>("TimeMax", false)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc",false, true)),
@@ -360,7 +362,6 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2),
         xqcon_create<XQLineEditConnector>(backlushMinusTh(), m_form->m_edBacklushMinusTh),
         xqcon_create<XQLineEditConnector>(backlushPlusTh(), m_form->m_edBacklushPlusTh),
-        xqcon_create<XQLineEditConnector>(fitRepeat(), m_form->m_edFitRepeat),
         xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
         xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
         xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
@@ -381,7 +382,6 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_useSTM2] = true;
         tr[ *m_backlushMinusTh] = 0.2;
         tr[ *m_backlushPlusTh] = 0.4;
-        tr[ *m_fitRepeat] = 100;
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Gaussian", "Lorentzian"});
@@ -667,7 +667,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, is_tight_cpl);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin, is_tight_cpl);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, shot_this[ *fitRepeat()], shot_this[ *fitFunc()], shot_this[ *widthFactor()], !shot_this[ *this].fitOrig);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, shot_this[ *fitFunc()], shot_this[ *widthFactor()], !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
         double rlmin_fit = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));

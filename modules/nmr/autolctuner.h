@@ -65,7 +65,6 @@ public:
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
     const shared_ptr<XDoubleNode> &backlushMinusTh() const {return m_backlushMinusTh;}
     const shared_ptr<XDoubleNode> &backlushPlusTh() const {return m_backlushPlusTh;}
-    const shared_ptr<XIntNode> &fitRepeat() const {return m_fitRepeat;}
     const shared_ptr<XIntNode> &timeMax() const {return m_timeMax;}
     const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
@@ -120,7 +119,7 @@ private:
 	const shared_ptr<XTouchableNode> m_abortTuning;
     const shared_ptr<XStringNode> m_status;
     const shared_ptr<XDoubleNode> m_backlushMinusTh, m_backlushPlusTh;
-    const shared_ptr<XIntNode> m_fitRepeat, m_timeMax, m_origBackMax;
+    const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
     const shared_ptr<XComboNode> m_fitFunc;
     const shared_ptr<XDoubleNode> m_widthFactor;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
