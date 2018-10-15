@@ -607,7 +607,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edOrigBackMax_2"/>
+         <widget class="QLineEdit" name="m_edOrigBackMax"/>
         </item>
        </layout>
       </item>

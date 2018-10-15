@@ -230,6 +230,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
             double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
+            width_factor = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
