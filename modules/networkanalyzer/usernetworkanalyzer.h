@@ -84,7 +84,6 @@ class XCopperMtTRVNA : public XAgilentE5061 {
 public:
     XCopperMtTRVNA(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len);
     virtual ~XCopperMtTRVNA() {}
 private:
 };

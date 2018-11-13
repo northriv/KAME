@@ -136,7 +136,7 @@ XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) thro
 
 unsigned int
 XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
-	interface()->send("FORM:DATA REAL,32;BORD SWAP");
+    interface()->send("FORM:DATA REAL,32;BORD NORM");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
     interface()->receive(2);
     unsigned int ptfield_len;
@@ -163,7 +163,7 @@ XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 
 unsigned int
 XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
-    interface()->send("FORM:DATA REAL32;BORD SWAP");
+    interface()->send("FORM:DATA REAL32;BORD NORM");
     interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u);
     interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
     interface()->receive(2);
@@ -192,20 +192,6 @@ XCopperMtTRVNA::XCopperMtTRVNA(const char *name, bool runtime,
     interface()->setEOS("\n");
     trans( *interface()->device()) = "TCP/IP";
     trans( *interface()->port()) = "127.0.0.1:5025";
-}
-unsigned int
-XCopperMtTRVNA::acquireTraceData(unsigned int ch, unsigned int len) {
-    interface()->send("FORM:DATA REAL32;BORD NORM"); //bug? instead of swapped.
-    interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u);
-    interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
-    interface()->receive(2);
-    unsigned int ptfield_len;
-    if(interface()->scanf("#%1u", &ptfield_len) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    interface()->receive(ptfield_len); //usually 6
-    unsigned int pts_len = interface()->toUInt();
-    interface()->receive(pts_len + 1); //+ LF
-    return pts_len;
 }
 
 
