@@ -218,6 +218,7 @@ XThamwayT300ImpedanceAnalyzer::XThamwayT300ImpedanceAnalyzer(const char *name, b
     trans( *interface()->device()) = "SERIAL";
 
     average()->disable();
+    power()->disable();
 
     calThru()->disable();
 }
