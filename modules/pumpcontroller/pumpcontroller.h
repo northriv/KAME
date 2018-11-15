@@ -64,7 +64,7 @@ protected:
     virtual void changeStandbyRotationSpeed(double p) = 0; //[%]
 private:
     const shared_ptr<XBoolNode> m_activate, m_heating, m_standby;
-    const shared_ptr<XBoolNode> m_running, m_warning, m_error;
+    const shared_ptr<XBoolNode> m_warning, m_error;
     const shared_ptr<XDoubleNode> m_rotationSpeed, m_runtime;
     std::deque<shared_ptr<XDoubleNode>> m_temps;
     const shared_ptr<XDoubleNode> m_standbyRotationSpeed, m_maxDrivePower;

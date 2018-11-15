@@ -17,6 +17,7 @@
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
+REGISTER_TYPE(XDriverList, CopperMtTRVNA, "Copper Mountain TR1300/1,5048,4530 Network Analyzer");
 REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzer, "DG8SAQ VNWA3E/Custom Network Analyzer");
 REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzerTCPIP, "DG8SAQ VNWA3E Network Analyzer TCP/IP");
 
@@ -53,11 +54,13 @@ XAgilentNetworkAnalyzer::open() throw (XKameError &) {
 	}
 	interface()->query("SENS:SWE:POIN?");
 	trans( *points()).str(formatString("%u", interface()->toUInt()));
-	interface()->send("SENS:SWE:TIME:AUTO OFF");
-	interface()->query("SENS:SWE:TIME?");
-	double swet = interface()->toDouble();
-	interface()->sendf(":SENS:SWE:TIME %f S", std::min(1.0, std::max(0.3, swet)));
-	interface()->send("ABOR;INIT:CONT OFF");
+//	interface()->send("SENS:SWE:TIME:AUTO OFF");
+//	interface()->query("SENS:SWE:TIME?");
+//	double swet = interface()->toDouble();
+//	interface()->sendf(":SENS:SWE:TIME %f S", std::min(1.0, std::max(0.3, swet)));
+    interface()->query("SOUR1:POW?");
+    trans( *power()) = interface()->toDouble();
+    interface()->send("ABOR;INIT:CONT OFF");
 	
 	start();
 }
@@ -80,6 +83,10 @@ XAgilentNetworkAnalyzer::onAverageChanged(const Snapshot &shot, XValueNodeBase *
 void
 XAgilentNetworkAnalyzer::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {	
 	interface()->sendf("SENS:SWE:POIN %s", shot[ *points()].to_str().c_str());
+}
+void
+XAgilentNetworkAnalyzer::onPowerChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("SOUR1:POW %f", (double)shot[ *power()]);
 }
 void
 XAgilentNetworkAnalyzer::getMarkerPos(unsigned int num, double &x, double &y) {
@@ -116,8 +123,9 @@ XAgilentNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int 
 	interface()->queryf("SENS%u:SWE:POIN?", ch + 1u);
 	uint32_t len = interface()->toUInt();
 	writer->push(len);
-	acquireTraceData(ch, len);
-	writer->insert(writer->end(),
+    uint32_t ptfield_len = acquireTraceData(ch, len);
+    writer->push(ptfield_len);
+    writer->insert(writer->end(),
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
 void
@@ -126,29 +134,25 @@ XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) thro
 	double stop = reader.pop<double>();
 	unsigned int samples = reader.pop<uint32_t>();
 	tr[ *this].m_startFreq = start;
-	char c = reader.pop<char>();
-	if (c != '#') throw XBufferUnderflowRecordError(__FILE__, __LINE__);
-	char buf[11];
-	buf[0] = reader.pop<char>();
-	unsigned int len;
-	sscanf(buf, "%1u", &len);
-	for(unsigned int i = 0; i < len; i++) {
-		buf[i] = reader.pop<char>();
-	}
-	buf[len] = '\0';
-	sscanf(buf, "%u", &len);
 	tr[ *this].m_freqInterval = (stop - start) / (samples - 1);
 	tr[ *this].trace_().resize(samples);
-
-	convertRawBlock(reader, tr, len);
+    unsigned int ptfield_len = reader.pop<uint32_t>();
+    convertRawBlock(reader, tr, ptfield_len);
 }
 
-void
+unsigned int
 XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
-	interface()->send("FORM:DATA REAL,32;BORD SWAP");
+    interface()->send("FORM:DATA REAL,32;BORD NORM");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
-	interface()->receive(len * sizeof(float) + 12);
-	//! \todo complex data.
+    interface()->receive(2);
+    unsigned int ptfield_len;
+    if(interface()->scanf("#%1u", &ptfield_len) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->receive(ptfield_len); //usually 6
+    //! \todo complex data.
+    unsigned int pts_len = interface()->toUInt();
+    interface()->receive(pts_len + 1); //+ LF
+    return pts_len;
 }
 void
 XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
@@ -163,24 +167,39 @@ XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	}
 }
 
-void
+unsigned int
 XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
-	interface()->send("FORM:DATA REAL32;BORD SWAP");
-	interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u);
-	interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
-	interface()->receive(len * sizeof(float) * 2 + 12);
+    interface()->send("FORM:DATA REAL32;BORD NORM"); //binary float, little endian
+    interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u); //smith r+jx
+    interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
+    interface()->receive(2);
+    unsigned int ptfield_len;
+    if(interface()->scanf("#%1u", &ptfield_len) != 1)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    interface()->receive(ptfield_len);
+    unsigned int pts_len = interface()->toUInt();
+    interface()->receive(pts_len + 1); //binary + LF + (END)
+    return pts_len;
 }
 void
 XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 	unsigned int len) throw (XRecordError&) {
 	unsigned int samples = tr[ *this].trace_().size();
-	if(len / sizeof(float) < samples * 2)
+    if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	for(unsigned int i = 0; i < samples; i++) {
 		tr[ *this].trace_()[i] = std::complex<double>(
 			reader.pop<float>(), reader.pop<float>());
 	}
 }
+XCopperMtTRVNA::XCopperMtTRVNA(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XAgilentE5061(name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("\n");
+    trans( *interface()->device()) = "TCP/IP";
+    trans( *interface()->port()) = "127.0.0.1:5025";
+}
+
 
 XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -191,6 +210,7 @@ XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 
 	average()->disable();
 	points()->disable();
+    power()->disable();
 
 	calOpen()->disable();
 	calShort()->disable();
@@ -309,6 +329,7 @@ XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool 
     });
 
     average()->disable();
+    power()->disable();
 
     calOpen()->disable();
     calShort()->disable();

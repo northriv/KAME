@@ -63,6 +63,14 @@ public:
 	const shared_ptr<XBoolNode> &useSTM1() const {return m_useSTM1;}
 	const shared_ptr<XBoolNode> &useSTM2() const {return m_useSTM2;}
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
+    const shared_ptr<XDoubleNode> &backlushMinusTh() const {return m_backlushMinusTh;}
+    const shared_ptr<XDoubleNode> &backlushPlusTh() const {return m_backlushPlusTh;}
+    const shared_ptr<XIntNode> &timeMax() const {return m_timeMax;}
+    const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
+    const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
+    const shared_ptr<XDoubleNode> &widthFactor() const {return m_widthFactor;}
+
+
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
@@ -110,6 +118,10 @@ private:
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
     const shared_ptr<XStringNode> m_status;
+    const shared_ptr<XDoubleNode> m_backlushMinusTh, m_backlushPlusTh;
+    const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
+    const shared_ptr<XComboNode> m_fitFunc;
+    const shared_ptr<XDoubleNode> m_widthFactor;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
     std::deque<xqcon_ptr> m_conUIs;

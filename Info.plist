@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>LSAppNapIsDisabled</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleDocumentTypes</key>
@@ -9,53 +11,38 @@
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>command</string>
-				<string>tool</string>
-				<string>sh</string>
-				<string>zsh</string>
-				<string>csh</string>
-				<string>pl</string>
+				<string>kam</string>
 			</array>
 			<key>CFBundleTypeIconFile</key>
-			<string>iTerm.icns</string>
+			<string>kame.icns</string>
 			<key>CFBundleTypeName</key>
-			<string>Terminal scripts</string>
+			<string>Application State File</string>
 			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Folders</string>
-			<key>CFBundleTypeOSTypes</key>
-			<array>
-				<string>fold</string>
-			</array>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
+			<string>Shell</string>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
-	<string>iTerm</string>
+	<string>kame</string>
 	<key>CFBundleGetInfoString</key>
-	<string>0.10</string>
+	<string>4.1</string>
 	<key>CFBundleHelpBookFolder</key>
-	<string>iTerm Help</string>
+	<string>KAME Help</string>
 	<key>CFBundleHelpBookName</key>
-	<string>iTerm Help</string>
+	<string>KAME Help</string>
 	<key>CFBundleIconFile</key>
-	<string>iTerm.icns</string>
+	<string>kame.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>net.sourceforge.iTerm</string>
+	<string>com.northriv.kame</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>iTerm</string>
+	<string>KAME</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.10</string>
 	<key>CFBundleSignature</key>
-	<string>ITRM</string>
+	<string>KAME</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -164,7 +151,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>0.10</string>
+	<string>4.1</string>
 	<key>NSAppleScriptEnabled</key>
 	<string>YES</string>
 	<key>NSExtensions</key>
@@ -172,16 +159,10 @@
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
-	<string>iTermApplication</string>
-	<key>SUFeedURLForFinal</key>
-	<string>http://iterm.sourceforge.net/appcasts/b/final.xml</string>
-	<key>SUFeedURLForTesting</key>
-	<string>http://iterm.sourceforge.net/appcasts/b/testing.xml</string>
+	<string>KAMEApplication</string>
 	<key>SUPublicDSAKeyFile</key>
 	<string>dsa_pub.pem</string>
 	<key>SmartCrashReports_CompanyName</key>
-	<string>iTerm</string>
-	<key>SmartCrashReports_EmailTicket</key>
-	<string>SCR-73C32475CB</string>
+	<string>KAME</string>
 </dict>
 </plist>

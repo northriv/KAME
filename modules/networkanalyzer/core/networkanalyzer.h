@@ -74,7 +74,8 @@ protected:
 	const shared_ptr<XDoubleNode> &stopFreq() const {return m_stopFreq;}
 	const shared_ptr<XComboNode> &points() const {return m_points;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
-	const shared_ptr<XTouchableNode> &calOpen() const {return m_calOpen;}
+    const shared_ptr<XDoubleNode> &power() const {return m_power;}
+    const shared_ptr<XTouchableNode> &calOpen() const {return m_calOpen;}
 	const shared_ptr<XTouchableNode> &calShort() const {return m_calShort;}
 	const shared_ptr<XTouchableNode> &calTerm() const {return m_calTerm;}
 	const shared_ptr<XTouchableNode> &calThru() const {return m_calThru;}
@@ -82,7 +83,8 @@ protected:
 	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
-	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) = 0;
 	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) = 0;
@@ -104,7 +106,8 @@ private:
 	const shared_ptr<XDoubleNode> m_stopFreq;
 	const shared_ptr<XComboNode> m_points;
 	const shared_ptr<XUIntNode> m_average;
-	const shared_ptr<XTouchableNode> m_calOpen, m_calShort, m_calTerm, m_calThru;
+    const shared_ptr<XDoubleNode> m_power;
+    const shared_ptr<XTouchableNode> m_calOpen, m_calShort, m_calTerm, m_calThru;
 
 	const qshared_ptr<FrmNetworkAnalyzer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
@@ -113,7 +116,8 @@ private:
 	shared_ptr<Listener> m_lsnOnStopFreqChanged;
 	shared_ptr<Listener> m_lsnOnPointsChanged;
 	shared_ptr<Listener> m_lsnOnAverageChanged;
-	shared_ptr<Listener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
+    shared_ptr<Listener> m_lsnOnPowerChanged;
+    shared_ptr<Listener> m_lsnCalOpen, m_lsnCalShort, m_lsnCalTerm, m_lsnCalThru;
   
     std::deque<xqcon_ptr> m_conUIs;
 
