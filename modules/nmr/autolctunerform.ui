@@ -563,7 +563,7 @@
         <item>
          <widget class="QLabel" name="label_2">
           <property name="text">
-           <string>Backlush Minus</string>
+           <string>Backlash Minus</string>
           </property>
          </widget>
         </item>
@@ -602,7 +602,7 @@
         <item>
          <widget class="QLabel" name="label_4">
           <property name="text">
-           <string>Original Back Count</string>
+           <string>IIterations for One Sequence</string>
           </property>
          </widget>
         </item>
@@ -644,7 +644,7 @@
         <item>
          <widget class="QLabel" name="label_8">
           <property name="text">
-           <string>FIt Function</string>
+           <string>FIt Func.</string>
           </property>
          </widget>
         </item>
