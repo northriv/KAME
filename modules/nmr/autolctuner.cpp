@@ -28,8 +28,9 @@ class LCRFit {
 public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
-    void fit(const std::vector<double> &s11, double fstart, double fstep, int fit_func_type, double width_factor, bool randomize = true);
-    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, int fit_func_type, double width_factor);
+    enum class TrustFunc {Lorentzian = 0, Gaussian = 1};
+    void fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool randomize = true);
+    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
@@ -100,18 +101,19 @@ private:
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
     }
     //a weight during the fit.
-    double isigma(double domega, double omega_trust, int fit_func_type, double width_factor) const {
+    double isigma(double domega, double omega_trust, TrustFunc fit_func_type) const {
 //        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-        if (fit_func_type == 0)
-            return sqrt(exp( -std::norm(domega / (omega_trust * width_factor)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust));
+        if (fit_func_type == TrustFunc::Gaussian)
+            return sqrt(exp( -std::norm(domega / (omega_trust)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust));
         else
-            return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust * width_factor)))));
+            return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust)))));
     }
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
     double m_c1_err, m_c2_err;
     double m_resErr;
+    double m_omega_trust_scale = 1.5;
     bool m_tightCouple;
 };
 
@@ -153,19 +155,19 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
 }
 
 void
-LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, int fit_func_type, double width_factor) {
+LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type) {
     double x = 0.0;
     double freq = fstart;
     for(size_t i = 0; i < s11.size(); ++i) {
         double omega = 2 * M_PI * freq;
-        x += std::norm((s11[i] - rlpow(omega)) * isigma(omega - omega0, omega_trust, fit_func_type, width_factor) * sqrt(2.0 * M_PI * fstep));
+        x += std::norm((s11[i] - rlpow(omega)) * isigma(omega - omega0, omega_trust, fit_func_type) * sqrt(2.0 * M_PI * fstep));
         freq += fstep;
     }
     m_resErr = sqrt(x / s11.size());
 }
 
 void
-LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit_func_type, double width_factor, bool randomize) {
+LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool randomize) {
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -179,7 +181,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
     };
     double max_q = f0org / fstep;
 
-    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type, width_factor](const double*params, size_t n, size_t p,
+    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
@@ -196,7 +198,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
             double rlpow0 = rlpow(omega);
-            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type, width_factor) * sqrt(2.0 * M_PI * fstep);
+            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type) * sqrt(2.0 * M_PI * fstep);
             if(f) {
                 f[i] = (rlpow0 - s11[i]) * wsqrt;
             }
@@ -211,7 +213,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
         return true;
     };
 
-    double omega_trust_scale = 1.5;
+    double omega_trust_scale = m_omega_trust_scale;
     double residualerr = 1.0;
     int it_best = 0.0;
     NonLinearLeastSquare nlls;
@@ -229,8 +231,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
             double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
-            width_factor = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02;
+            omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
@@ -258,7 +259,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, int fit
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
-        computeResidualError(s11, fstart, fstep, omega0org, omega_trust, fit_func_type, width_factor);
+        computeResidualError(s11, fstart, fstep, omega0org, omega_trust, fit_func_type);
         double err = residualError();
         if(coupling() * coupling_orig < 0)
             err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
@@ -335,7 +336,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_timeMax(create<XIntNode>("TimeMax", false)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
         m_fitFunc(create<XComboNode>("FitFunc",false, true)),
-        m_widthFactor(create<XDoubleNode>("widthFactor",false)),
+        m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor",false)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
         m_r2(create<XStringNode>("R2", true)),
@@ -366,7 +367,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
         xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
         xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
-        xqcon_create<XQLineEditConnector>(widthFactor(), m_form->m_edWidthFactor),
+        xqcon_create<XQLineEditConnector>(backlashRecoveryFactor(), m_form->m_edBacklashRecoveryFactor),
         xqcon_create<XQLabelConnector>(m_l1, m_form->m_lblL1),
         xqcon_create<XQLabelConnector>(m_r1, m_form->m_lblR1),
         xqcon_create<XQLabelConnector>(m_r2, m_form->m_lblR2),
@@ -381,13 +382,13 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_reflectionRequired] = -12.0;
         tr[ *m_useSTM1] = true;
         tr[ *m_useSTM2] = true;
-        tr[ *m_backlushMinusTh] = 0.2;
-        tr[ *m_backlushPlusTh] = 0.4;
+        tr[ *m_backlushMinusTh] = 0.3;
+        tr[ *m_backlushPlusTh] = 0.6;
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Gaussian", "Lorentzian"});
-        tr[ *m_fitFunc] = 1;
-        tr[ *m_widthFactor] = 1.0;
+        tr[ *m_fitFunc] = (int)LCRFit::TrustFunc::Lorentzian;
+        tr[ *m_backlashRecoveryFactor] = -0.5;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
             shared_from_this(), &XAutoLCTuner::onTargetChanged);
@@ -668,7 +669,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, is_tight_cpl);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin, is_tight_cpl);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, shot_this[ *fitFunc()], shot_this[ *widthFactor()], !shot_this[ *this].fitOrig);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, (LCRFit::TrustFunc)(int)shot_this[ *fitFunc()], !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
         double rlmin_fit = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
@@ -887,10 +888,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         shot_this[ *this].targetSTMValues[0] + drot[0], shot_this[ *this].targetSTMValues[1]  + drot[1],
         drot[0], drot[1]);
     //Subtracts backlashes
-//    for(int i: {0, 1}) {
-//        if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
-//            drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
-//    }
+    for(int i: {0, 1}) {
+        if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
+            drot[i] += shot_this[ *backlashRecoveryFactor()] *
+                shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
+    }
     //Limits rotations.
     double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));

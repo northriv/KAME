@@ -68,7 +68,7 @@ public:
     const shared_ptr<XIntNode> &timeMax() const {return m_timeMax;}
     const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
-    const shared_ptr<XDoubleNode> &widthFactor() const {return m_widthFactor;}
+    const shared_ptr<XDoubleNode> &backlashRecoveryFactor() const {return m_backlashRecoveryFactor;}
 
 
 
@@ -121,7 +121,7 @@ private:
     const shared_ptr<XDoubleNode> m_backlushMinusTh, m_backlushPlusTh;
     const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
     const shared_ptr<XComboNode> m_fitFunc;
-    const shared_ptr<XDoubleNode> m_widthFactor;
+    const shared_ptr<XDoubleNode> m_backlashRecoveryFactor;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
     std::deque<xqcon_ptr> m_conUIs;

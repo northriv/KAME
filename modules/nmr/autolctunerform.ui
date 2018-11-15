@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>404</width>
+    <width>445</width>
     <height>591</height>
    </rect>
   </property>
@@ -563,7 +563,7 @@
         <item>
          <widget class="QLabel" name="label_2">
           <property name="text">
-           <string>Backlash Minus</string>
+           <string>Permissive Backlash Neg.</string>
           </property>
          </widget>
         </item>
@@ -584,7 +584,7 @@
         <item>
          <widget class="QLabel" name="label_3">
           <property name="text">
-           <string>Plus</string>
+           <string>Pos.</string>
           </property>
          </widget>
         </item>
@@ -602,7 +602,7 @@
         <item>
          <widget class="QLabel" name="label_4">
           <property name="text">
-           <string>IIterations for One Sequence</string>
+           <string>Iterations for One Seq.</string>
           </property>
          </widget>
         </item>
@@ -644,7 +644,7 @@
         <item>
          <widget class="QLabel" name="label_8">
           <property name="text">
-           <string>FIt Func.</string>
+           <string>Trust Region</string>
           </property>
          </widget>
         </item>
@@ -661,12 +661,12 @@
         <item>
          <widget class="QLabel" name="label_9">
           <property name="text">
-           <string>Width Factor</string>
+           <string>Backlash Recovery</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edWidthFactor">
+         <widget class="QLineEdit" name="m_edBacklashRecoveryFactor">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -684,18 +684,24 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <tabstops>
+  <tabstop>m_ledTuning</tabstop>
+  <tabstop>m_ledSucceeded</tabstop>
   <tabstop>m_edTarget</tabstop>
   <tabstop>m_btnAbortTuning</tabstop>
   <tabstop>m_edReflectionTargeted</tabstop>
   <tabstop>m_edReflectionRequired</tabstop>
+  <tabstop>m_txtStatus</tabstop>
   <tabstop>m_ckbUseSTM1</tabstop>
-  <tabstop>m_ckbUseSTM2</tabstop>
   <tabstop>m_cmbSTM1</tabstop>
+  <tabstop>m_ckbUseSTM2</tabstop>
   <tabstop>m_cmbSTM2</tabstop>
   <tabstop>m_cmbNetAna</tabstop>
-  <tabstop>m_ledTuning</tabstop>
-  <tabstop>m_ledSucceeded</tabstop>
-  <tabstop>m_txtStatus</tabstop>
+  <tabstop>m_edBacklushMinusTh</tabstop>
+  <tabstop>m_edBacklushPlusTh</tabstop>
+  <tabstop>m_edOrigBackMax</tabstop>
+  <tabstop>m_edTimeMax</tabstop>
+  <tabstop>m_cmbFitFunc</tabstop>
+  <tabstop>m_edBacklashRecoveryFactor</tabstop>
  </tabstops>
  <resources>
   <include location="../../kame/kame.qrc"/>
