@@ -205,7 +205,8 @@ XPfeifferTC110::getRuntime() {
 }
 double
 XPfeifferTC110::getPressure() {
-    return requestUInt(Snapshot( *this), DATATYPE::U_EXPO_NEW, 340);
+    return 0.0;
+//    return requestUInt(Snapshot( *this), DATATYPE::U_EXPO_NEW, 340);
 }
 std::deque<XString>
 XPfeifferTC110::getTempLabels() {
@@ -266,10 +267,6 @@ XPfeifferTC110::open() throw (XKameError &) {
         tr[ *standby()] = st;
         tr[ *heating()] = ht;
     });
-
+    start();
 }
 
-void
-XPfeifferTC110::closeInterface() {
-
-}
