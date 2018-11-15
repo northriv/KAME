@@ -24,7 +24,7 @@ XSG::XSG(const char *name, bool runtime,
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),
 	  m_amON(create<XBoolNode>("AMON", true)),
-	  m_form(new FrmSG(g_pFrmMain)) {
+	  m_form(new FrmSG) {
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Signal Gen. Control - ") + getLabel() );
 

@@ -24,7 +24,7 @@
 	<key>CFBundleExecutable</key>
 	<string>kame</string>
 	<key>CFBundleGetInfoString</key>
-	<string>4.1</string>
+	<string>5.1</string>
 	<key>CFBundleHelpBookFolder</key>
 	<string>KAME Help</string>
 	<key>CFBundleHelpBookName</key>
@@ -151,7 +151,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>4.1</string>
+	<string>5.1</string>
 	<key>NSAppleScriptEnabled</key>
 	<string>YES</string>
 	<key>NSExtensions</key>

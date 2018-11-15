@@ -66,8 +66,8 @@ XMagnetPS::XMagnetPS(const char *name, bool runtime,
     m_nonPersistentCondEntry(create<XItemNode<XScalarEntryList, XScalarEntry> >("NonPersistentCondEntry", false, ref(tr_meas), meas->scalarEntries())),
     m_nonPersistentCondMin(create<XDoubleNode>("NonPersistentCondMin", false)),
     m_pcshWait(create<XDoubleNode>("PCSHWait", false)),
-    m_form(new FrmMagnetPS(g_pFrmMain)),
-    m_formConfig(new FrmMagnetPSConfig(g_pFrmMain)),
+    m_form(new FrmMagnetPS),
+    m_formConfig(new FrmMagnetPSConfig),
     m_statusPrinter(XStatusPrinter::create(m_form.get())) {
 	meas->scalarEntries()->insert(tr_meas, m_field);
 	meas->scalarEntries()->insert(tr_meas, m_current);

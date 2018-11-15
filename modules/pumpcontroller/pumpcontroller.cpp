@@ -35,7 +35,7 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
     m_runtime(create<XDoubleNode>("RotationSpeed", true)),
     m_standbyRotationSpeed(create<XDoubleNode>("StandbyRotationSpeed", true)),
     m_maxDrivePower(create<XDoubleNode>("MaxDriverPower", true)),
-    m_form(new FrmPumpControl(g_pFrmMain)) {
+    m_form(new FrmPumpControl) {
 
     meas->scalarEntries()->insert(tr_meas, m_entryPressure);
 

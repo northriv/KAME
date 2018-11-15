@@ -341,7 +341,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_r2(create<XStringNode>("R2", true)),
         m_c1(create<XStringNode>("C1", true)),
         m_c2(create<XStringNode>("C2", true)),
-        m_form(new FrmAutoLCTuner(g_pFrmMain))  {
+        m_form(new FrmAutoLCTuner)  {
     connect(stm1());
     connect(stm2());
     connect(netana());
