@@ -213,7 +213,6 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
         return true;
     };
 
-    double omega_trust_scale = m_omega_trust_scale;
     double residualerr = 1.0;
     int it_best = 0.0;
     NonLinearLeastSquare nlls;
@@ -231,7 +230,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
             double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
+            m_omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
@@ -241,7 +240,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
             randomize = true; //fitting diverged.
             continue;
         }
-        omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
+        omega_trust = eval_omega_trust(qValue()) * m_omega_trust_scale;
         if( !(omega_trust > 0)) {
             fprintf(stderr, "Too small omega trust.\n");
             continue; //less or nan
