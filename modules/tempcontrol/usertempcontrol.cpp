@@ -690,6 +690,7 @@ double XLakeShore340::getHeater(unsigned int loop) {
 	return interface()->toDouble();
 }
 void XLakeShoreBridge::onPChanged(unsigned int loop, double p) {
+    interface()->queryf("PID? %u", loop + 1);
     double i, d;
     if(interface()->scanf("%*lf,%lf,%lf", &i, &d) != 2)
         throw XInterface::XConvError(__FILE__, __LINE__);
