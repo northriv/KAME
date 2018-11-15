@@ -28,7 +28,7 @@ class LCRFit {
 public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
-    enum class TrustFunc {Lorentzian = 0, Gaussian = 1};
+    enum class TrustFunc {Gaussian = 0, Lorentzian = 1};
     void fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool randomize = true);
     void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type);
     double r1() const {return m_r1;} //!< R of LCR circuit
