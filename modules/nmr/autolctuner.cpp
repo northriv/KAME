@@ -179,7 +179,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
         double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * s11.size() - f0org);
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
-    double max_q = f0org / fstep;
+    double max_q = f0org / fstep / 4;
 
     auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type](const double*params, size_t n, size_t p,
             double *f, std::vector<double *> &df) -> bool {
@@ -222,13 +222,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
-        if((retry > 5) && (residualerr < 1e-3))
+        if((retry > 3) && (residualerr < 1e-3))
             break; //enough good
 //        if((retry == 2) && (residualerr < 1e-3) && !randomize)
 //            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
-            double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
+            double q = pow(10.0, (retry % 6) / 6.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             m_omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
