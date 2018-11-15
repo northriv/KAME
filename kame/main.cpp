@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "support.h"
+#include <iostream>
 
 #ifdef WITH_KDE
 	#include <kcmdlineargs.h>
@@ -253,6 +254,7 @@ int main(int argc, char *argv[]) {
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
+        std::cerr <<  "Loading module \"" + *it + "\" " << std::endl;
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
 #endif

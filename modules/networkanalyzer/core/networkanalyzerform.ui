@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>745</width>
-    <height>363</height>
+    <width>629</width>
+    <height>324</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,10 +15,28 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QHBoxLayout" name="horizontalLayout_3">
+    <property name="spacing">
+     <number>4</number>
+    </property>
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>4</number>
+    </property>
     <item>
      <layout class="QVBoxLayout">
       <item>
        <layout class="QHBoxLayout">
+        <property name="spacing">
+         <number>4</number>
+        </property>
         <item>
          <widget class="QLineEdit" name="m_edDump"/>
         </item>
@@ -58,7 +76,7 @@
       <item>
        <widget class="QGroupBox" name="groupBox1">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -67,6 +85,9 @@
          <string>Sense</string>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
+         <property name="spacing">
+          <number>4</number>
+         </property>
          <property name="leftMargin">
           <number>4</number>
          </property>
@@ -196,7 +217,14 @@
             </widget>
            </item>
            <item>
-            <widget class="QComboBox" name="m_cmbPoints"/>
+            <widget class="QComboBox" name="m_cmbPoints">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
@@ -231,6 +259,58 @@
                <width>69</width>
                <height>0</height>
               </size>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <item>
+            <widget class="QLabel" name="textLabel1_2_5_3_3_3">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Power</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="m_edPower">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>69</width>
+               <height>0</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="textLabel1_2_5_3_3_4">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>dBm</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
              </property>
             </widget>
            </item>
@@ -339,6 +419,7 @@
   <tabstop>m_edStop</tabstop>
   <tabstop>m_cmbPoints</tabstop>
   <tabstop>m_edAverage</tabstop>
+  <tabstop>m_edPower</tabstop>
   <tabstop>m_btnCalOpen</tabstop>
   <tabstop>m_btnCalShort</tabstop>
   <tabstop>m_btnCalTerm</tabstop>

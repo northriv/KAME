@@ -29,6 +29,7 @@ protected:
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *);
 
 	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
 	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
@@ -45,7 +46,7 @@ protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
 	virtual void open() throw (XKameError &);
 
-	virtual void acquireTraceData(unsigned int ch, unsigned int len) = 0;
+    virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len) = 0;
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
 		unsigned int len) throw (XRecordError&) = 0;
 private:
@@ -59,7 +60,7 @@ public:
 			 XAgilentNetworkAnalyzer(name, runtime, ref(tr_meas), meas) {}
 	virtual ~XHP8711() {}
 
-	virtual void acquireTraceData(unsigned int ch, unsigned int len);
+    virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len);
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
 		unsigned int len) throw (XRecordError&);
 private:
@@ -73,9 +74,18 @@ public:
 			 XHP8711(name, runtime, ref(tr_meas), meas) {}
 	virtual ~XAgilentE5061() {}
 
-	virtual void acquireTraceData(unsigned int ch, unsigned int len);
+    virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len);
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
 		unsigned int len) throw (XRecordError&);
+private:
+};
+
+//! Copper Mountain Planar TR1300/1, TR5048, TR4530 Vector Network Analyzer.
+class XCopperMtTRVNA : public XAgilentE5061 {
+public:
+    XCopperMtTRVNA(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XCopperMtTRVNA() {}
 private:
 };
 
@@ -90,6 +100,7 @@ protected:
 	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
 	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) {}
 
 	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
 	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
@@ -118,6 +129,7 @@ protected:
     virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) {}
 
     virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
     virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
