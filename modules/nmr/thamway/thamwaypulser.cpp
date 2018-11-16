@@ -278,7 +278,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto z = 127.0 * (c  + qam_offset);
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
-                if(std::abs(z) > 127.0) {
+                if(std::norm(z) > 127.0 * 127.0 / 2.0) {
                     is_saturated = true;
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
@@ -287,18 +287,22 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
             };
             for(auto &&pat: shot[ *this].m_patterns) {
+                unsigned int qamidx = 0;
+                unsigned int pnum_prev = 0xffffu;
                 addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
                 if(hasQAMPorts()) {
                     unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
                     if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
+                        if(pnum != pnum_prev)
+                            qamidx = 0;
                         unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
                         auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
                         z0 /= m_qamPeriod;
                         auto &wave = shot[ *this].qamWaveForm(pnum - 1);
                         assert(wave.size() >= pat.term_n_cmd);
                         auto z = std::polar(0.0, 0.0);
-                        for(int idx = 0; idx < pat.term_n_cmd; ++idx) {
-                            z += wave[idx];
+                        for(int i = 0; i < pat.term_n_cmd; ++i) {
+                            z += wave[qamidx++];
                             addr_qam++;
                             if(addr_qam % m_qamPeriod == 0) { //decimation.
                                 uint16_t iq = qamIQ(z0 * z);
@@ -314,6 +318,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                             throw XInterface::XInterfaceError(i18n("Number of QAM patterns exceeded the size limit."), __FILE__, __LINE__);
                         }
                     }
+                    pnum_prev = pnum;
                 }
             }
             this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.

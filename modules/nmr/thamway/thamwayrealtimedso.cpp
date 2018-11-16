@@ -65,12 +65,13 @@ XThamwayPROT3DSO::startAcquision() {
     int64_t cnt_remain = 0;
     for(int rdsize = ChunkSize / 16;; rdsize *= 2) {
         if(rdsize > sizeof(buf))
-            throw XInterface::XInterfaceError(i18n("Starting acquision has failed during buffer cleanup."), __FILE__, __LINE__);
+            break;
+//            throw XInterface::XInterfaceError(i18n("Starting acquision has failed during buffer cleanup."), __FILE__, __LINE__);
         auto async = interface()->asyncReceive(buf, rdsize);
         if( !async->hasFinished()) {
             msecsleep(rdsize / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
-            if( !async->hasFinished())
-                break; //not remaining?
+//            if( !async->hasFinished())
+//                break; //not remaining?
         }
         int64_t retsize = async->waitFor();
         cnt_remain += retsize;
