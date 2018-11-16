@@ -191,10 +191,10 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
             readBarrier();
             assert(completed == 1);
         }
-        if(completed_ev && transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+        if(completed_ev && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
 //            completed = 1; //not to abort() in the destructor.
             if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
-                break;
+                return 0;
             throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
         }
         if( !completed_ev && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
