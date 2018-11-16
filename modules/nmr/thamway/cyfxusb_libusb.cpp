@@ -73,6 +73,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
         }
         AsyncIO(AsyncIO&&) noexcept = default;
         virtual ~AsyncIO() {
+            readBarrier();
             if( !completed) {
                 if(abort()) {
                     try {
@@ -105,7 +106,8 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 //            default:
 //                break;
 //            }
-            *reinterpret_cast<int*>(transfer->user_data) = 1;
+            *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
+            writeBarrier();
         }
         std::vector<uint8_t> buf;
         libusb_transfer *transfer;
@@ -155,10 +157,18 @@ CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
     struct timeval tv = {};
-    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, const_cast<int*>( &completed)); //returns immediately.
+    readBarrier();
+    if(completed)
+        return true;
+    int completed_ev = 0;
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed_ev); //returns immediately.
     if(ret)
         fprintf(stderr, "Error during checking status in libusb: %s\n", libusb_error_name(ret));
-    return completed;
+    if(completed_ev) {
+        readBarrier();
+        assert(completed == 1);
+    }
+    return completed_ev;
 }
 
 int64_t
@@ -168,18 +178,25 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     tv.tv_usec = 0;
     auto start = XTime::now();
     while( !completed) {
-        int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
+        int completed_ev = 0;
+        int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed_ev);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during completing transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-        if(transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-            completed = true; //not to abort() in the destructor.
-//            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
-//                return 0;
-            throw XInterface::XInterfaceError(formatString("Error missing complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+        if(completed_ev) {
+            readBarrier();
+            assert(completed == 1);
         }
-        if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
+        if(completed_ev && transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+//            completed = 1; //not to abort() in the destructor.
+            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
+                break;
+            throw XInterface::XInterfaceError(formatString("Error unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+        }
+        if( !completed_ev && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
+            fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
             abort();
         }
+        readBarrier();
     }
     if(rdbuf) {
         assert(buf.size() >= transfer->actual_length);
@@ -190,12 +207,12 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 
 bool
 CyFXLibUSBDevice::AsyncIO::abort() noexcept {
-    fprintf(stderr, "Libusb async transfer aborted.\n");
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
         gErrPrint(formatString("Error during canceling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
+    fprintf(stderr, "Libusb async transfer aborted.\n");
     return true;
 }
 

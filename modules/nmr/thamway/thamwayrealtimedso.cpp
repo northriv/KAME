@@ -73,11 +73,11 @@ XThamwayPROT3DSO::startAcquision() {
                 break; //not remaining?
         }
         int64_t retsize = async->waitFor();
-        cnt_remain += retsize / sizeof(tRawAI);
+        cnt_remain += retsize;
         if(retsize < rdsize)
             break; //end of data.
     }
-    fprintf(stderr, "Remaining data was %lld words\n", (long long)cnt_remain);
+    fprintf(stderr, "Remaining data was %lld bytes\n", (long long)cnt_remain);
 
     //waits until async IOs have been submitted.
     for(unsigned int retry = 0;; ++retry) {
