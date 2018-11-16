@@ -8,135 +8,17 @@
 	<string>kame</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>CFBundleGetInfoString</key>
-	<string>5.1</string>
-	<key>CFBundleHelpBookFolder</key>
-	<string>KAME Help</string>
-	<key>CFBundleHelpBookName</key>
-	<string>KAME Help</string>
 	<key>CFBundleIconFile</key>
 	<string>kame.icns</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleGetInfoString</key>
+	<string>Created by Qt/QMake</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.github.northriv.kame</string>
 	<key>LSAppNapIsDisabled</key>
 	<true/>
-	<string>KAME</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>http URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>http</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>https URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>https</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>ftp URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>ftp</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>file URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>file</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>gopher URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>gopher</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>mailto URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>mailto</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>news URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>news</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>nntp URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>nntp</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>ssh URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>ssh</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>telnet URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>telnet</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>wais URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>wais</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>whois URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>whois</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>x-man-page URL</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>x-man-page</string>
-			</array>
-		</dict>
-	</array>
-	<key>CFBundleVersion</key>
-	<string>5.1</string>
-	<key>NSAppleScriptEnabled</key>
-	<string>YES</string>
-	<key>NSExtensions</key>
-	<dict/>
-	<key>NSMainNibFile</key>
-	<string>MainMenu</string>
 </dict>
 </plist>

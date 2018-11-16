@@ -308,14 +308,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                             addr_qam++;
                             if(addr_qam % m_qamPeriod == 0) { //decimation.
                                 uint16_t iq = qamIQ(z0 * qamz);
-                                fprintf(stderr, " %04x", iq);
+//                                fprintf(stderr, " %04x", iq);
                                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
                                 qamz = 0.0;
                             }
                         }
-                        fprintf(stderr, "<- QAM waveform %u %u %u\n", qamidx, phase, pnum);
+//                        fprintf(stderr, "<- QAM waveform %u %u %u\n", qamidx, phase, pnum);
                         if(addr_qam / m_qamPeriod >= MAX_QAM_PATTERN_SIZE) {
                             throw XInterface::XInterfaceError(i18n("Number of QAM patterns exceeded the size limit."), __FILE__, __LINE__);
                         }
