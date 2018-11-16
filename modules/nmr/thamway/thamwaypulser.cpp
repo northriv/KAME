@@ -288,29 +288,31 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             };
             unsigned int pnum_prev = 0xffffu;
             unsigned int qamidx = 0;
+            auto qamz = std::polar(0.0, 0.0);
             for(auto &&pat: shot[ *this].m_patterns) {
                 addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
                 if(hasQAMPorts()) {
                     unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
                     if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
-                        if(pnum != pnum_prev)
+                        if(pnum != pnum_prev) {
                             qamidx = 0;
+                            qamz = 0.0;
+                        }
                         unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
                         auto z0 = std::polar(pow(10.0, shot[ *this].masterLevel() / 20.0), M_PI / 2.0 * phase);
                         z0 /= m_qamPeriod;
                         auto &wave = shot[ *this].qamWaveForm(pnum - 1);
                         assert(wave.size() >= qamidx + pat.term_n_cmd);
-                        auto z = std::polar(0.0, 0.0);
                         for(int i = 0; i < pat.term_n_cmd; ++i) {
-                            z += wave[qamidx++];
+                            qamz += wave[qamidx++];
                             addr_qam++;
                             if(addr_qam % m_qamPeriod == 0) { //decimation.
-                                uint16_t iq = qamIQ(z0 * z);
+                                uint16_t iq = qamIQ(z0 * qamz);
                                 fprintf(stderr, " %04x", iq);
                                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
-                                z = 0.0;
+                                qamz = 0.0;
                             }
                         }
                         fprintf(stderr, "<- QAM waveform %u %u %u\n", qamidx, phase, pnum);
