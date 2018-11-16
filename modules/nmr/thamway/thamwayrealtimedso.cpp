@@ -65,8 +65,9 @@ XThamwayPROT3DSO::startAcquision() {
         auto async = interface()->asyncReceive(buf, sizeof(buf));
         if( !async->hasFinished()) {
             msecsleep(sizeof(buf) / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
-            if( !async->hasFinished())
-                break; //not remaining?
+            continue;
+//            if( !async->hasFinished())
+//                break; //not remaining?
         }
         int64_t retsize = async->waitFor();
         cnt_remain += retsize;
@@ -74,6 +75,22 @@ XThamwayPROT3DSO::startAcquision() {
 //            break; //end of data.
     }
     fprintf(stderr, "Remaining data was %lld bytes\n", (long long)cnt_remain);
+//    //reads out remaining data
+//    char buf[ChunkSize];
+//    int64_t cnt_remain = 0;
+//    for(int rdsize = ChunkSize / 16;; rdsize *= 2) {
+//        if(rdsize > sizeof(buf))
+//            throw XInterface::XInterfaceError(i18n("Starting acquision has failed during buffer cleanup."), __FILE__, __LINE__);
+//        auto async = interface()->asyncReceive(buf, rdsize);
+//        if( !async->hasFinished()) {
+//            msecsleep(sizeof(buf) / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
+//            if( !async->hasFinished())
+//                break; //not remaining.
+//        }
+//        cnt_remain += async->waitFor() / sizeof(tRawAI);
+//    }
+//    fprintf(stderr, "Remaining data was %lld words\n", (long long)cnt_remain);
+
 
     for(int i = 0; i < NumThreads; ++i)
         m_acqThreads.emplace_back(new XThread(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead));
