@@ -74,8 +74,8 @@ XThamwayPROT3DSO::startAcquision() {
         }
         int64_t retsize = async->waitFor();
         cnt_remain += retsize;
-        if(retsize < rdsize)
-            break; //end of data.
+//        if(retsize < rdsize)
+//            break; //end of data.
     }
     fprintf(stderr, "Remaining data was %lld bytes\n", (long long)cnt_remain);
 

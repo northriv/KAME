@@ -76,7 +76,7 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
 	    for(unsigned int i = 0; i < sizeof(ports)/sizeof(int); i++) {
             tr[ *XPulser::portSel(i)] = ports[i];
 		}
-        tr[ *masterLevel()] = 0.0;
+        tr[ *masterLevel()] = -3.0;
         tr[ *aswSetup()] = 0.2;
     });
 }
@@ -252,6 +252,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         writer.flush();
     }
     size_t addr = 0, addr_qam = 0;
+    bool is_saturated = false;
     if(output) {
         {
             fprintf(stderr, "Pulser start");
@@ -278,6 +279,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
                 if(std::abs(z) > 127.0) {
+                    is_saturated = true;
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
                 }
@@ -300,12 +302,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                             addr_qam++;
                             if(addr_qam % m_qamPeriod == 0) { //decimation.
                                 uint16_t iq = qamIQ(z0 * z);
+                                fprintf(stderr, " %x", iq);
                                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
                                 z = 0.0;
                             }
                         }
+                        fprintf(stderr, "<- QAM waveform %u %u\n", phase, pnum);
                         if(addr_qam / m_qamPeriod >= MAX_QAM_PATTERN_SIZE) {
                             throw XInterface::XInterfaceError(i18n("Number of QAM patterns exceeded the size limit."), __FILE__, __LINE__);
                         }
@@ -329,6 +333,8 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 writerQAM.flush(); //sends above commands here.
             }
         }
+        if(is_saturated)
+            gErrPrint(i18n("QAM levels may exceeds a limit voltage."));
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
         std::vector<uint8_t> buf(addr);
