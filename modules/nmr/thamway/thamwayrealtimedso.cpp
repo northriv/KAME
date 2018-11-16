@@ -68,11 +68,14 @@ XThamwayPROT3DSO::startAcquision() {
             throw XInterface::XInterfaceError(i18n("Starting acquision has failed during buffer cleanup."), __FILE__, __LINE__);
         auto async = interface()->asyncReceive(buf, rdsize);
         if( !async->hasFinished()) {
-            msecsleep(sizeof(buf) / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
+            msecsleep(rdsize / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
             if( !async->hasFinished())
-                break; //not remaining.
+                break; //not remaining?
         }
-        cnt_remain += async->waitFor() / sizeof(tRawAI);
+        int64_t retsize = async->waitFor();
+        cnt_remain += retsize / sizeof(tRawAI);
+        if(retsize < rdsize)
+            break; //end of data.
     }
     fprintf(stderr, "Remaining data was %lld words\n", (long long)cnt_remain);
 
