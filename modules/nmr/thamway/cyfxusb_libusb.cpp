@@ -83,6 +83,11 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
                         fprintf(stderr, "Error during aborting USB asyncIO: %s\n", e.msg().c_str());
                     }
                 }
+                else {
+                    readBarrier();
+                    if( !completed)
+                        fprintf(stderr, "Error during aborting USB asyncIO, aborted twice!\n");
+                }
             }
             libusb_free_transfer(transfer);
             if(buf.size() > stl_bufferGarbage->size())
@@ -190,7 +195,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
 //            completed = 1; //not to abort() in the destructor.
             if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
                 break;
-            throw XInterface::XInterfaceError(formatString("Error unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
         }
         if( !completed_ev && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
             fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
@@ -209,7 +214,10 @@ bool
 CyFXLibUSBDevice::AsyncIO::abort() noexcept {
     int ret = libusb_cancel_transfer(transfer);
     if(ret) {
-        gErrPrint(formatString("Error during canceling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
+        readBarrier();
+        if(completed && (ret == LIBUSB_ERROR_NOT_FOUND))
+            return false; //already completed.
+        gErrPrint(formatString("Error during cancelling transfer in libusb: %s\n", libusb_error_name(ret)).c_str());
         return false;
     }
     fprintf(stderr, "Libusb async transfer aborted.\n");

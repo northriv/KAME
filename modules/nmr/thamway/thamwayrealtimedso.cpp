@@ -345,7 +345,6 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             while( !async->hasFinished() && !terminated)
                 msecsleep(20);
             if(terminated) {
-                msecsleep(100);
                 break;
             }
             auto count = async->waitFor() / sizeof(tRawAI);
@@ -393,7 +392,6 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             case Collision::Stopped:
                 dbgPrint("Pulse generation has stopped.");
                 fprintf(stderr, "Pulse generation has stopped.\n");
-                msecsleep(200);
                 continue;
             }
         }
