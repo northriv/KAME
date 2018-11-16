@@ -286,9 +286,9 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 uint8_t i = lrint(x), q = lrint(y);
                 return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
             };
+            unsigned int pnum_prev = 0xffffu;
+            unsigned int qamidx = 0;
             for(auto &&pat: shot[ *this].m_patterns) {
-                unsigned int qamidx = 0;
-                unsigned int pnum_prev = 0xffffu;
                 addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
                 if(hasQAMPorts()) {
                     unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
