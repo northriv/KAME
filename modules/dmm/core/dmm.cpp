@@ -26,7 +26,7 @@ XDMM::XDMM(const char *name, bool runtime,
 								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_function(create<XComboNode>("Function", false)),
     m_waitInms(create<XUIntNode>("WaitInms", false)),
-    m_form(new FrmDMM(g_pFrmMain)) {
+    m_form(new FrmDMM) {
 	meas->scalarEntries()->insert(tr_meas, m_entry);
 	iterate_commit([=](Transaction &tr){
 		tr[ *m_waitInms] = 100;

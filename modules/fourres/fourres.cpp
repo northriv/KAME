@@ -28,7 +28,7 @@ XFourRes::XFourRes(const char *name, bool runtime,
 	  m_dcsource(create<XItemNode < XDriverList, XDCSource> >(
 		  "DCSource", false, ref(tr_meas), meas->drivers(), true)),
 	  m_control(create<XBoolNode>("Control", true)),
-	  m_form(new FrmFourRes(g_pFrmMain)) {
+	  m_form(new FrmFourRes) {
 
     m_form->setWindowTitle(i18n("Resistance Measurement with Switching Polarity - ") + getLabel() );
 

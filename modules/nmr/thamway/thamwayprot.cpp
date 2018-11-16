@@ -47,7 +47,7 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     m_rxGain(XSG::create<XDoubleNode>("RXGain", true, "%.0f")),
     m_rxPhase(XSG::create<XDoubleNode>("RXPhase", true, "%.1f")),
     m_rxLPFBW(XSG::create<XDoubleNode>("RXLPFBW", true, "%.4g")),
-    m_form(new FrmThamwayPROT(g_pFrmMain)) {
+    m_form(new FrmThamwayPROT) {
 
     m_form->statusBar()->hide();
     m_form->setWindowTitle(i18n("Thamway PROT Control - ") + this->getLabel() );

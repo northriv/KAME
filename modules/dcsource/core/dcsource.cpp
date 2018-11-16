@@ -28,7 +28,7 @@ XDCSource::XDCSource(const char *name, bool runtime,
     m_value(create<XDoubleNode>("Value", false)),
     m_channel(create<XComboNode>("Channel", false, true)),
     m_range(create<XComboNode>("Range", false, true)),
-    m_form(new FrmDCSource(g_pFrmMain)) {
+    m_form(new FrmDCSource) {
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("DC Source - ") + getLabel() );
 

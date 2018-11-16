@@ -42,7 +42,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_tempSweepRate(create<XDoubleNode>("TempSweepRate",true)),
     m_tempApproachMode(create<XComboNode>("TempApproachMode",true,true)),
     m_tempStatus(create<XStringNode>("TempStatus",true)),
-    m_form(new FrmQDPPMS(g_pFrmMain)) {
+    m_form(new FrmQDPPMS) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
     meas->scalarEntries()->insert(tr_meas, m_user_temp);
     meas->scalarEntries()->insert(tr_meas, m_field);

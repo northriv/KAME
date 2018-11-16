@@ -47,8 +47,6 @@ protected:
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() throw (XKameError &) override;
-    //! Be called for closing interfaces.
-    virtual void closeInterface() override;
 private:
     XString action(const Snapshot &shot_this,
         bool iscontrol, unsigned int param_no, const XString &str);

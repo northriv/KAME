@@ -31,7 +31,7 @@ XFuncSynth::XFuncSynth(const char *name, bool runtime,
     m_amp(create<XDoubleNode>("Amplitude", false)),
     m_phase(create<XDoubleNode>("Phase", false)),
     m_offset(create<XDoubleNode>("Offset", false)),
-    m_form(new FrmFuncSynth(g_pFrmMain)) {
+    m_form(new FrmFuncSynth) {
 
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Func. Synth. - ") + getLabel() );

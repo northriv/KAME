@@ -69,7 +69,7 @@ XTempManager::XTempManager(const char *name, bool runtime,
         dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4g")),
     m_entryStability(create<XScalarEntry>("Stability", false,
         dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3g")),
-    m_form(new FrmTempManager(g_pFrmMain)) {
+    m_form(new FrmTempManager) {
     for(unsigned int i = 0; i < maxNumOfAUXDevices; ++i) {
         m_auxDevices.push_back(create<XItemAUXDevice>(
             formatString("AUXDevice%d", i + 1).c_str(), false, ref(tr_meas), meas->drivers()));

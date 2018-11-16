@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>344</width>
-    <height>483</height>
+    <width>445</width>
+    <height>591</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -260,6 +260,12 @@
       <property name="minimumSize">
        <size>
         <width>100</width>
+        <height>150</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
         <height>150</height>
        </size>
       </property>
@@ -547,23 +553,155 @@
       </item>
      </layout>
     </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_13">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_18">
+        <item>
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>Permissive Backlash Neg.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edBacklushMinusTh">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_19">
+        <item>
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>Pos.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edBacklushPlusTh"/>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_20">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_30">
+        <item>
+         <widget class="QLabel" name="label_4">
+          <property name="text">
+           <string>Iterations for One Seq.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edOrigBackMax"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_29">
+        <item>
+         <widget class="QLabel" name="label_5">
+          <property name="text">
+           <string>Timeout</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edTimeMax"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_6">
+          <property name="text">
+           <string>s</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_14">
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_15">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetFixedSize</enum>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_8">
+          <property name="text">
+           <string>Trust Region</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="m_cmbFitFunc"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_16">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetFixedSize</enum>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_9">
+          <property name="text">
+           <string>Backlash Recovery</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="m_edBacklashRecoveryFactor">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
    </layout>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <tabstops>
+  <tabstop>m_ledTuning</tabstop>
+  <tabstop>m_ledSucceeded</tabstop>
   <tabstop>m_edTarget</tabstop>
   <tabstop>m_btnAbortTuning</tabstop>
   <tabstop>m_edReflectionTargeted</tabstop>
   <tabstop>m_edReflectionRequired</tabstop>
+  <tabstop>m_txtStatus</tabstop>
   <tabstop>m_ckbUseSTM1</tabstop>
-  <tabstop>m_ckbUseSTM2</tabstop>
   <tabstop>m_cmbSTM1</tabstop>
+  <tabstop>m_ckbUseSTM2</tabstop>
   <tabstop>m_cmbSTM2</tabstop>
   <tabstop>m_cmbNetAna</tabstop>
-  <tabstop>m_ledTuning</tabstop>
-  <tabstop>m_ledSucceeded</tabstop>
-  <tabstop>m_txtStatus</tabstop>
+  <tabstop>m_edBacklushMinusTh</tabstop>
+  <tabstop>m_edBacklushPlusTh</tabstop>
+  <tabstop>m_edOrigBackMax</tabstop>
+  <tabstop>m_edTimeMax</tabstop>
+  <tabstop>m_cmbFitFunc</tabstop>
+  <tabstop>m_edBacklashRecoveryFactor</tabstop>
  </tabstops>
  <resources>
   <include location="../../kame/kame.qrc"/>

@@ -35,7 +35,7 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
     m_runtime(create<XDoubleNode>("RotationSpeed", true)),
     m_standbyRotationSpeed(create<XDoubleNode>("StandbyRotationSpeed", true)),
     m_maxDrivePower(create<XDoubleNode>("MaxDriverPower", true)),
-    m_form(new FrmPumpControl(g_pFrmMain)) {
+    m_form(new FrmPumpControl) {
 
     meas->scalarEntries()->insert(tr_meas, m_entryPressure);
 
@@ -67,6 +67,30 @@ XPumpControl::XPumpControl(const char *name, bool runtime,
 
 void XPumpControl::showForms() {
     //! impliment form->show() here
+    if(m_temps.empty()) {
+        auto labels = getTempLabels();
+        QLCDNumber *runtime_uis[] = {
+            m_form->m_lcdTemp1, m_form->m_lcdTemp2, m_form->m_lcdTemp3,
+            m_form->m_lcdTemp4,
+            nullptr};
+        QLabel *lbl_uis[] = {
+            m_form->m_lblTemp1, m_form->m_lblTemp2, m_form->m_lblTemp3,
+            m_form->m_lblTemp4,
+            nullptr};
+        auto runtime_ui = runtime_uis;
+        auto lbl_ui = lbl_uis;
+        for(auto &&label: labels) {
+            if( !runtime_ui)
+                break;
+            auto node = create<XDoubleNode>(label.c_str(), true);
+            m_temps.push_back(node);
+            (*lbl_ui)->setText(label);
+            m_conTempUIs.push_back(
+                xqcon_create<XQLCDNumberConnector>(node, *runtime_ui));
+            runtime_ui++;
+            lbl_ui++;
+        }
+    }
     m_form->showNormal();
     m_form->raise();
 }
@@ -141,30 +165,6 @@ XPumpControl::execute(const atomic<bool> &terminated) {
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
-    if(m_temps.empty()) {
-        auto labels = getTempLabels();
-        QLCDNumber *runtime_uis[] = {
-            m_form->m_lcdTemp1, m_form->m_lcdTemp2, m_form->m_lcdTemp3,
-            m_form->m_lcdTemp4,
-            nullptr};
-        QLabel *lbl_uis[] = {
-            m_form->m_lblTemp1, m_form->m_lblTemp2, m_form->m_lblTemp3,
-            m_form->m_lblTemp4,
-            nullptr};
-        auto runtime_ui = runtime_uis;
-        auto lbl_ui = lbl_uis;
-        for(auto &&label: labels) {
-            if( !runtime_ui)
-                break;
-            auto node = create<XDoubleNode>(label.c_str(), true);
-            m_temps.push_back(node);
-            (*lbl_ui)->setText(label);
-            m_conTempUIs.push_back(
-                xqcon_create<XQLCDNumberConnector>(node, *runtime_ui));
-            runtime_ui++;
-            lbl_ui++;
-        }
-    }
     iterate_commit([=](Transaction &tr){
         m_lsnOnStanbyRotationSpeedChanged = tr[ *m_standbyRotationSpeed].onValueChanged().connectWeakly(
                     shared_from_this(), &XPumpControl::onStandbyRotationSpeedChanged);
