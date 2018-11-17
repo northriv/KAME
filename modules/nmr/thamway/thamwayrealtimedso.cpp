@@ -169,7 +169,7 @@ XThamwayPROT3DSO::setupChannels() {
         m_coeffAI[ch_num][1] = 2.5 / 32768.0; //+-5V F.S.
     }
     Snapshot shot( *this);
-    m_swapTraces = (shot[ *trace1()].to_str() == "CH2");
+    m_swapTraces = (shot[ *trace1()].to_str() == "CH1"); //{"COS" = CH2, "SIN" = CH1} sequence in memory.
 }
 
 void

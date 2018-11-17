@@ -284,18 +284,18 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                     y *= 127.0 / std::abs(z);
                 }
                 uint8_t i = lrint(x), q = lrint(y);
-                return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127.
+                return 0x100u * i + q; //I * 256 + Q, abs(z) <= 127 / sqrt(2)?.
             };
             unsigned int pnum_prev = 0xffffu;
-            unsigned int qamidx = 0;
-            auto qamz = std::polar(0.0, 0.0);
+            unsigned int qamidx = 0; //idx in one pulse waveform.
+            auto qamz = std::polar(0.0, 0.0); //intens. during a decimation.
             for(auto &&pat: shot[ *this].m_patterns) {
                 addPulse(pat.term_n_cmd, pat.data & PAT_DO_MASK);
                 if(hasQAMPorts()) {
                     unsigned int pnum = (pat.data & PAT_QAM_PULSE_IDX_MASK)/PAT_QAM_PULSE_IDX;
                     if(pnum && !(pat.term_n_cmd & CMD_MASK)) {
                         if(pnum != pnum_prev) {
-                            qamidx = 0;
+                            qamidx = 0; //waveform has been changed.
                             qamz = 0.0;
                         }
                         unsigned int phase = (pat.data & PAT_QAM_PHASE_MASK)/PAT_QAM_PHASE;
