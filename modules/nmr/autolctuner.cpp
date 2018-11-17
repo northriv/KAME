@@ -29,7 +29,7 @@ public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
     enum class TrustFunc {Gaussian = 0, Lorentzian = 1};
-    void fit(const std::complex<double> *s11, unsigned int length, double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize = true);
+    void fit(const std::complex<double> *s11, unsigned int length, double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize);
     void computeResidualError(const std::complex<double> *s11, unsigned int length, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type, bool fit_w_phase);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
@@ -166,12 +166,11 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
     double ph_per_f = -2.0 * M_PI * m_linelen / 2e8 * 2 * 2; //round-trip.
     for(size_t i = 0; i < length; ++i) {
         double omega = 2 * M_PI * freq;
-        auto z = rl(omega);
-        x += fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega))
+        x += (fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega)))
             * isigma(omega - omega0, omega_trust, fit_func_type);
         freq += fstep;
     }
-    m_resErr = sqrt(x / length) * wsqrt_norm;
+    m_resErr = sqrt(x * wsqrt_norm / length); // * wsqrt_norm;?
 }
 
 void
@@ -210,9 +209,9 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         plusDC2.m_c2 += DC2;
         double freq = fstart;
         double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
-        double ph_per_lf = -2.0 * M_PI / 2e8 * 2 * 2; //round-trip.
-        double ph_per_f = ph_per_lf * m_linelen;
         if(fit_w_phase) {
+            double ph_per_lf = -2.0 * M_PI / 2e8 * 2 * 2; //round-trip.
+            double ph_per_f = ph_per_lf * m_linelen;
             for(size_t i = 0; i < n; ++i) {
                 double omega = 2 * M_PI * freq;
                 auto rot = std::polar(1.0, ph_per_f * freq);
