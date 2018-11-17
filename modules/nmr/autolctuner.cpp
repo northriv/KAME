@@ -167,10 +167,10 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
     for(size_t i = 0; i < length; ++i) {
         double omega = 2 * M_PI * freq;
         x += (fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega)))
-            * isigma(omega - omega0, omega_trust, fit_func_type);
+            * pow(isigma(omega - omega0, omega_trust, fit_func_type), 2.0);
         freq += fstep;
     }
-    m_resErr = sqrt(x * wsqrt_norm / length); // * wsqrt_norm;?
+    m_resErr = sqrt(x * wsqrt_norm * wsqrt_norm / length);
 }
 
 void
@@ -290,7 +290,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             continue;
         }
         std::valarray<double> params{m_r1, m_c2, m_c1, m_r2, m_linelen};
-        if( !fit_w_phase) params.resize(4);
+        if( !fit_w_phase) params = {m_r1, m_c2, m_c1, m_r2};
         auto nlls1 = NonLinearLeastSquare(func, params, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
@@ -433,7 +433,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
-        tr[ *m_fitFunc] = 3;
+        tr[ *m_fitFunc] = 1;
         tr[ *m_backlashRecoveryFactor] = -0.5;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
