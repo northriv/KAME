@@ -319,18 +319,15 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
 
     enum class Collision {IOStall, Stopped};
     while( !terminated) {
-        ssize_t wridx; //index of a chunk for async. IO.
+        size_t wridx; //index of a chunk for async. IO.
         auto issue_async_read = [&]() {
             //Lambda fn to issue async IO and reserves a chunk atomically.
             XScopedLock<XMutex> lock(m_acqMutex);
-            ssize_t next_idx = m_wrChunkEnd;
-            wridx = next_idx;
-            auto &chunk = m_chunks[next_idx++];
+            wridx = m_wrChunkEnd;
+            auto &chunk = m_chunks[wridx];
             if(chunk.ioInProgress)
                 throw Collision::IOStall;
-            if(next_idx == m_chunks.size())
-                next_idx = 0;
-            m_wrChunkEnd = next_idx;
+            m_wrChunkEnd = (wridx + 1) % m_chunks.size();
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
             writeBarrier();
