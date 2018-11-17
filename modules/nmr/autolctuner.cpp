@@ -29,8 +29,8 @@ public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
     enum class TrustFunc {Gaussian = 0, Lorentzian = 1};
-    void fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool randomize = true);
-    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type);
+    void fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize = true);
+    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type, bool fit_w_phase);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
@@ -113,6 +113,7 @@ private:
     double m_c1, m_c2;
     double m_c1_err, m_c2_err;
     double m_resErr;
+    double m_linelen;
     double m_omega_trust_scale = 1.5;
     bool m_tightCouple;
 };
@@ -155,7 +156,7 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
 }
 
 void
-LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type) {
+LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type, bool fit_w_phase) {
     double x = 0.0;
     double freq = fstart;
     for(size_t i = 0; i < s11.size(); ++i) {
@@ -167,7 +168,7 @@ LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, doub
 }
 
 void
-LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool randomize) {
+LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize) {
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -181,12 +182,19 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
     };
     double max_q = f0org / fstep / 4;
 
-    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type](const double*params, size_t n, size_t p,
-            double *f, std::vector<double *> &df) -> bool {
+    int num_params = 4;
+    //Computes squares and differentials.
+    auto func_template = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type, fit_w_phase, num_params]
+        (const double*params, size_t n, size_t p, double *f, std::vector<double *> &df) -> bool {
+        assert(p == num_params); //for in-line opt.
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
         if(p >= 3) m_c1 = fabs(params[2]);
         if(p >= 4) m_r2 = params[3];
+        if(p >= 5) {
+            assert(fit_w_phase);
+            m_linelen = params[4];
+        }
 
         constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-15, DC2 = 1e-15;
         LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
@@ -195,10 +203,13 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
         plusDC1.m_c1 += DC1;
         plusDC2.m_c2 += DC2;
         double freq = fstart;
+        double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
+        double ph_per_f = 2.0 * M_PI * m_linelen / 2e8 * 2 * 2; //round-trip.
         for(size_t i = 0; i < n; ++i) {
             double omega = 2 * M_PI * freq;
+            auto z = rl(omega) * std::polar(1.0, ph_per_f * freq);
             double rlpow0 = rlpow(omega);
-            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type) * sqrt(2.0 * M_PI * fstep);
+            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type) * wsqrt_norm;
             if(f) {
                 f[i] = (rlpow0 - s11[i]) * wsqrt;
             }
@@ -212,6 +223,15 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
         }
         return true;
     };
+    //functors
+    num_params = 1; //for in-line opt.
+    auto func_p1 = func_template;
+    num_params = 2;
+    auto func_p2 = func_template;
+    num_params = 4;
+    auto func_p4 = func_template;
+    num_params = 5;
+    auto func_p5 = func_template;
 
     double residualerr = 1.0;
     int it_best = 0.0;
@@ -250,7 +270,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
             fprintf(stderr, "Too small fit #.\n");
             continue;
         }
-        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
+        auto nlls1 = NonLinearLeastSquare(func_p4, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -258,7 +278,7 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
-        computeResidualError(s11, fstart, fstep, omega0org, omega_trust, fit_func_type);
+        computeResidualError(s11, fstart, fstep, omega0org, omega_trust, fit_func_type, fit_w_phase);
         double err = residualError();
         if(coupling() * coupling_orig < 0)
             err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
@@ -273,9 +293,9 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, TrustFu
             lcr_orig = *this;
             it_best = retry;
         }
-        nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_p1, {m_r1}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_p2, {m_r1, m_c2}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
     }
@@ -385,8 +405,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_backlushPlusTh] = 0.6;
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
-        tr[ *fitFunc()].add({"Gaussian", "Lorentzian"});
-        tr[ *m_fitFunc] = (int)LCRFit::TrustFunc::Lorentzian;
+        tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
+        tr[ *m_fitFunc] = 3;
         tr[ *m_backlashRecoveryFactor] = -0.5;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
@@ -668,7 +688,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         else
             lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, is_tight_cpl);
         lcrfit->setTunedCaps(fmin * 1e6, rlmin, is_tight_cpl);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, (LCRFit::TrustFunc)(int)shot_this[ *fitFunc()], !shot_this[ *this].fitOrig);
+        auto fitfunc = (LCRFit::TrustFunc)((int)shot_this[ *fitFunc()] % 2);
+        bool fit_w_phase = ((int)shot_this[ *fitFunc()] / 2 == 1);
+        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, fitfunc, fit_w_phase, !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
         double rlmin_fit = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
