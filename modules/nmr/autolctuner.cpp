@@ -103,7 +103,6 @@ private:
     }
     //a weight during the fit.
     double isigma(double domega, double omega_trust, TrustFunc fit_func_type) const {
-//        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
         if (fit_func_type == TrustFunc::Gaussian)
             return sqrt(exp( -std::norm(domega / (omega_trust)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust));
         else
