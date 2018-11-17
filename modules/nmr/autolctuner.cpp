@@ -117,6 +117,7 @@ private:
     double m_linelen; //[m]
     double m_omega_trust_scale = 1.5;
     bool m_tightCouple;
+    static constexpr double phase_change_per_meter_freq = -2.0 * M_PI / 2e8 * 2 * 2; //round-trip.
 };
 
 std::pair<double, double> LCRFit::tuneCapsInternal(double f1, double target_rl, bool tight_couple) const {
@@ -163,7 +164,7 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
     double x = 0.0;
     double freq = fstart;
     double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
-    double ph_per_f = -2.0 * M_PI * m_linelen / 2e8 * 2 * 2; //round-trip.
+    double ph_per_f = phase_change_per_meter_freq * m_linelen;
     for(size_t i = 0; i < length; ++i) {
         double omega = 2 * M_PI * freq;
         x += (fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega)))
@@ -210,8 +211,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         double freq = fstart;
         double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
         if(fit_w_phase) {
-            double ph_per_lf = -2.0 * M_PI / 2e8 * 2 * 2; //round-trip.
-            double ph_per_f = ph_per_lf * m_linelen;
+            double ph_per_f = phase_change_per_meter_freq * m_linelen;
             for(size_t i = 0; i < n; ++i) {
                 double omega = 2 * M_PI * freq;
                 auto rot = std::polar(1.0, ph_per_f * freq);
@@ -227,7 +227,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
                     if(p >= 2) df[1][i] = std::real((plusDC2.rl(omega) * rot - z) / DC2 * y);
                     if(p >= 3) df[2][i] = std::real((plusDC1.rl(omega) * rot - z) / DC1 * y);
                     if(p >= 4) df[3][i] = std::real((plusDR2.rl(omega) * rot - z) / DR2 * y);
-                    if(p >= 5) df[4][i] = std::real(std::complex<double>(0.0, ph_per_lf * freq) * z * y);
+                    if(p >= 5) df[4][i] = std::real(std::complex<double>(0.0, phase_change_per_meter_freq * freq) * z * y);
                 }
                 freq += fstep;
             }
@@ -269,6 +269,15 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
             double q = pow(10.0, (retry % 6) / 6.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
+            if(fit_w_phase) {
+            //infers cable length.
+                size_t a = std::max(0L, lrint((f0org * std::max(0.7, (1 - 4.0 / q)) - fstart) / fstep));
+                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.4, (1 + 4.0 / q)) - fstart) / fstep));
+                double phase_chg = std::arg(s11[b] / s11[a]);
+                phase_chg -= std::abs(rl(2.0 * M_PI * (b * fstep + fstart)) / rl(2.0 * M_PI * (a * fstep + fstart)));
+                m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq);
+                double fmin = f0org * std::max(0.9, (1 - 10.0 / q));
+            }
             m_omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
