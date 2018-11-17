@@ -191,8 +191,8 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
     double max_q = f0org / fstep / 4;
 
     //Computes squares and differentials.
-    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type, fit_w_phase]
-        (const double*params, size_t n, size_t p, double *f, std::vector<double *> &df) -> bool {
+    auto func_template = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type]
+        (bool fit_w_phase, const double*params, size_t n, size_t p, double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
         if(p >= 3) m_c1 = fabs(params[2]);
@@ -202,7 +202,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             m_linelen = params[4];
         }
 
-        constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-15, DC2 = 1e-15;
+        constexpr double DR1 = 1e-3, DR2 = 1e-3, DC1 = 1e-15, DC2 = 1e-15;
         LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
         plusDR1.m_r1 += DR1;
         plusDR2.m_r2 += DR2;
@@ -251,13 +251,16 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         }
         return true;
     };
+    using namespace std::placeholders;
+    auto func_abs = std::bind(func_template, false, _1, _2, _3, _4, _5);
+    auto func = std::bind(func_template, fit_w_phase, _1, _2, _3, _4, _5);
 
     double residualerr = 1.0;
     int it_best = 0.0;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if(retry > 100) {
+        if(XTime::now() - start > 1.0) {
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
@@ -271,12 +274,13 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             if(fit_w_phase) {
             //infers cable length.
-                size_t a = std::max(0L, lrint((f0org * std::max(0.7, (1 - 4.0 / q)) - fstart) / fstep));
-                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.4, (1 + 4.0 / q)) - fstart) / fstep));
+                size_t a = std::max(0L, lrint((f0org * std::max(0.75, (1 - 2.0 / q)) - fstart) / fstep));
+                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.2, (1 + 2.0 / q)) - fstart) / fstep));
                 double phase_chg = std::arg(s11[b] / s11[a]);
-                phase_chg -= std::abs(rl(2.0 * M_PI * (b * fstep + fstart)) / rl(2.0 * M_PI * (a * fstep + fstart)));
-                m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq);
-                double fmin = f0org * std::max(0.9, (1 - 10.0 / q));
+                double f1 = a * fstep + fstart;
+                double f2 = b * fstep + fstart;
+                phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
+                m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
             }
             m_omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
@@ -298,9 +302,18 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             fprintf(stderr, "Too small fit #.\n");
             continue;
         }
-        std::valarray<double> params{m_r1, m_c2, m_c1, m_r2, m_linelen};
-        if( !fit_w_phase) params = {m_r1, m_c2, m_c1, m_r2};
-        auto nlls1 = NonLinearLeastSquare(func, params, fit_n, 200);
+        NonLinearLeastSquare nlls1;
+        if(fit_w_phase) {
+            //Fits in the Smith chart first.
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 200);
+            m_r1 = fabs(nlls1.params()[0]);
+            m_c2 = nlls1.params()[1];
+            m_c1 = nlls1.params()[2];
+            m_r2 = nlls1.params()[3];
+            m_linelen = nlls1.params()[4];
+            fprintf(stderr, "Cable len = %.3g m.\n", m_linelen);
+        }
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n, fit_w_phase ? 20 : 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -308,9 +321,9 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
         omega_trust = eval_omega_trust(4.0);
-        computeResidualError(s11, length, fstart, fstep, omega0org, omega_trust, fit_func_type, fit_w_phase);
+        computeResidualError(s11, length, fstart, fstep, omega0org, omega_trust, fit_func_type, false);
         double err = residualError();
-        if(coupling() * coupling_orig < 0)
+        if( !fit_w_phase && (coupling() * coupling_orig < 0))
             err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
         if(retry == 0) {
             //Stores an error for the original fitting.
@@ -323,15 +336,15 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             lcr_orig = *this;
             it_best = retry;
         }
-        nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2}, fit_n);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
     }
     *this = lcr_orig;
     if(nlls.errors().size() == 5) {
-        fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, len:%.2\n",
+        fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, len:%.2g\n",
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err(),
                 lineLen());
