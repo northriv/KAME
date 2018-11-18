@@ -301,24 +301,30 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             fprintf(stderr, "Too small fit #.\n");
             continue;
         }
-        NonLinearLeastSquare nlls1;
-        if(fit_w_phase) {
-            //Fits in the Smith chart first.
-            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 200);
-            m_r1 = fabs(nlls1.params()[0]);
-            m_c2 = nlls1.params()[1];
-            m_c1 = nlls1.params()[2];
-            m_r2 = nlls1.params()[3];
-            m_linelen = nlls1.params()[4];
-            fprintf(stderr, "Cable len = %.3g m.\n", m_linelen);
-        }
-        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n, fit_w_phase ? 20 : 200);
+        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
+        if(fit_w_phase) {
+            //Fits in the Smith chart first.
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 20);
+            m_r1 = fabs(nlls1.params()[0]);
+            m_c2 = nlls1.params()[1];
+            m_c1 = nlls1.params()[2];
+            m_r2 = nlls1.params()[3];
+            m_linelen = nlls1.params()[4];
+            nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n);
+            m_r1 = fabs(nlls1.params()[0]);
+            m_c2 = nlls1.params()[1];
+            m_c1 = nlls1.params()[2];
+            m_r2 = nlls1.params()[3];
+            m_c2_err = nlls1.errors()[1];
+            m_c1_err = nlls1.errors()[2];
+            fprintf(stderr, "Cable len = %.3g m.\n", m_linelen);
+        }
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, length, fstart, fstep, omega0org, omega_trust, fit_func_type, false);
         double err = residualError();
@@ -402,8 +408,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
         m_timeMax(create<XIntNode>("TimeMax", false)),
         m_origBackMax(create<XIntNode>("OrigBackMax", false)),
-        m_fitFunc(create<XComboNode>("FitFunc",false, true)),
-        m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor",false)),
+        m_fitFunc(create<XComboNode>("FitFunc", false, true)),
+        m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
         m_r2(create<XStringNode>("R2", true)),
@@ -454,8 +460,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
-        tr[ *m_fitFunc] = 1;
-        tr[ *m_backlashRecoveryFactor] = -0.5;
+        tr[ *m_fitFunc] = 2;
+        tr[ *m_backlashRecoveryFactor] = 0.0;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
             shared_from_this(), &XAutoLCTuner::onTargetChanged);
