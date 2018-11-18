@@ -970,8 +970,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
         //Limit with respect to the best fit values.
-        for(int i: {0, 1})
-            rotpertrust = std::max(rotpertrust, fabs(drot[i] / (tr[ *this].bestSTMValues[i] - tr[ *this].targetSTMValues[i])));
+        for(int i: {0, 1}) {
+            double rottobest = shot_this[ *this].bestSTMValues[i] - shot_this[ *this].targetSTMValues[i];
+            if(fabs(rottobest) > fabs(shot_this[ *this].stmDelta[i]))
+                rotpertrust = std::max(rotpertrust, fabs(drot[i] / rottobest));
+        }
     }
     if(rotpertrust > 1.0)
         for(auto &&dx: drot)
