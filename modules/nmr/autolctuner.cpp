@@ -953,6 +953,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         shot_this[ *this].targetSTMValues[0] + drot[0], shot_this[ *this].targetSTMValues[1]  + drot[1],
         drot[0], drot[1]);
     //Subtracts backlashes
+    //Comment: this seems to be unnecessary.
     for(int i: {0, 1}) {
         if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
             drot[i] += shot_this[ *backlashRecoveryFactor()] *
@@ -961,6 +962,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     //Limits rotations.
     double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
+    if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
+        //Limit with respect to the best fit values.
+        for(int i: {0, 1})
+            rotpertrust = std::max(rotpertrust, fabs(drot[i] / (tr[ *this].bestSTMValues[i] - tr[ *this].targetSTMValues[i])));
+    }
     if(rotpertrust > 1.0)
         for(auto &&dx: drot)
             dx /= rotpertrust;
