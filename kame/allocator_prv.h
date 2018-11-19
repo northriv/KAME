@@ -191,8 +191,15 @@ void* allocate_large_size_or_malloc(size_t size) throw();
 	}\
 }
 
+extern bool g_sys_image_loaded;
+
+void activateAllocator();
+
 inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
+    if( !g_sys_image_loaded)
+        return malloc(size); //Not to allocate dyld objects.
+
 	if(size <= ALLOC_SIZE1)
 		return PoolAllocator<ALLOC_SIZE1, true>::allocate<ALLOC_SIZE1>();
 	if(size <= ALLOC_SIZE2)

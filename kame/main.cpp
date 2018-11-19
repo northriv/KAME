@@ -250,6 +250,7 @@ int main(int argc, char *argv[]) {
 #endif
         }
     }
+
     int num_loaded_modules = 0;
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {
@@ -287,6 +288,8 @@ int main(int argc, char *argv[]) {
     const char *greeting = "KAME ver:" VERSION ", built at " __DATE__ " " __TIME__;
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
+
+    activateAllocator();
 
     int ret = app.exec();
 

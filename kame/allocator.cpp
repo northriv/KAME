@@ -134,6 +134,11 @@ inline void free_munmap(void *p) {
 		int ret = munmap(p, size);
 		assert( !ret);
 }
+
+bool g_sys_image_loaded = false;
+
+void activateAllocator() {g_sys_image_loaded = true;}
+
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr, char *ppool) :
 	PoolAllocatorBase(ppool),
