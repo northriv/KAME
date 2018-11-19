@@ -691,13 +691,13 @@ void* allocate_large_size_or_malloc(size_t size) throw() {
 	ALLOCATE_9_16X(32, size);
 	ALLOCATE_9_16X(64, size);
 
-	return malloc(size);
+    return std::malloc(size);
 }
 
 inline void deallocate_pooled_or_free(void* p) throw() {
 	if(PoolAllocatorBase::deallocate(p))
 		return;
-	free(p);
+    std::free(p);
 }
 
 void release_pools() {
@@ -742,10 +742,23 @@ void* operator new[](std::size_t size) {
 }
 
 void operator delete(void* p) noexcept {
-    return deallocate_pooled_or_free(p);
+    deallocate_pooled_or_free(p);
 }
 void operator delete[](void* p) noexcept {
-    return deallocate_pooled_or_free(p);
+    deallocate_pooled_or_free(p);
+}
+
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    return new_redirected(size);
+}
+void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+    return new_redirected(size);
+}
+void operator delete(void* p, const std::nothrow_t&) noexcept {
+    deallocate_pooled_or_free(p);
+}
+void operator delete[](void* p, const std::nothrow_t&) noexcept {
+    deallocate_pooled_or_free(p);
 }
 
 char *PoolAllocatorBase::s_mmapped_spaces[ALLOC_MAX_MMAP_ENTRIES];
