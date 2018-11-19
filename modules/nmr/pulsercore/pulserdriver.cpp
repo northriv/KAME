@@ -424,6 +424,7 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
 }
 void
 XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
     for(;;) {
         XScopedLock<XMutex> lock(m_mutexForFreeRun);
         uint64_t threshold = m_thresholdOfFreeRun;
@@ -445,7 +446,8 @@ XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
         m_lastPatFreeRun = oldpat;
         if(single || terminated)
             break;
-        msecsleep(20); //lazy sleep
+        if(m_totalSampsOfFreeRun < m_thresholdOfFreeRun)
+            msecsleep(20); //lazy sleep
     }
 }
 
