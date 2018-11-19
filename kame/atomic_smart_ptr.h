@@ -16,6 +16,7 @@
 
 #include "atomic_prv_basic.h"
 #include <functional>
+#include <assert.h>
 
 //! \brief This is an atomic variant of \a std::unique_ptr.
 //! An instance of atomic_unique_ptr can be shared among threads by the use of \a swap(\a _shared_target_).\n
