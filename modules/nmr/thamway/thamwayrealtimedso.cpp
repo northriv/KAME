@@ -330,7 +330,6 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             m_wrChunkEnd = (wridx + 1) % m_chunks.size();
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
-            writeBarrier();
             return interface()->asyncReceive( (char*)&chunk.data[0],
                     chunk.data.size() * sizeof(tRawAI));
         };
