@@ -360,6 +360,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
     async->buf.resize(len);
     async->rdbuf = buf;
     assert(async->completed == 0);
+    fprintf(stderr, "asyncRead %llx, %u.\n", (unsigned long long)&async->buf.at(0), len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
