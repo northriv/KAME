@@ -15,112 +15,83 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
+#include "allocator_prv.h"
+
+//! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
+//! Memory blocks in a unit of double-quad word less than 8KiB
+//! can be allocated from fixed-size or variable-size memory pools.
+//! The larger memory is provided by standard malloc().
+//! \sa PoolAllocator, allocator_test.cpp.
+#ifdef USE_EXTERN_INLINE
+extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
+	return new_redirected(size);
+}
+extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
+	return new_redirected(size);
+}
+#endif
+
+extern void release_pools();
+
 #include <array>
 #include <vector>
 #include "atomic.h"
 
 namespace Transactional {
 
-enum {mempool_max_size = 4};
-struct MemoryPool : public std::array<atomic<void*>, mempool_max_size> {
-    MemoryPool() {
-        std::fill(this->begin(), this->end(), nullptr);
-    }
-    ~MemoryPool() {
-        memoryBarrier();
-        for(auto &&x: *this) {
-            operator delete((void*)x);
-//            x = (void*)((uintptr_t)(void*)x | 1u); //invalid address.
-        }
-    }
-};
-
 template<typename T>
 class allocator {
 public:
-	typedef size_t size_type;
-	typedef ptrdiff_t difference_type;
-	typedef T* pointer;
-	typedef const T* const_pointer;
-	typedef T& reference;
-	typedef const T& const_reference;
-	typedef T value_type;
+    typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef T value_type;
 
-	template<class Y>
-	struct rebind {
-		typedef allocator<Y> other;
-	};
+    template<class Y>
+    struct rebind {
+        typedef allocator<Y> other;
+    };
 
-    allocator(MemoryPool *pool) noexcept : m_pool(pool) {}
-    allocator(const allocator& x) noexcept : m_pool(x.m_pool) {}
+    allocator() throw () { }
+    allocator(const allocator&) throw () { }
+    template<typename Y> allocator(const allocator<Y> &) throw () {}
+    ~allocator() throw () {}
 
-    template<typename Y> allocator(const allocator<Y> &x) noexcept : m_pool(x.m_pool) {}
-
-    ~allocator() {
-    }
-
-    unsigned int pool_size() const {
-        return std::min((int)mempool_max_size, std::max(4, 256 / (int)sizeof(T)));
-    }
     pointer allocate(size_type num, const void * /*hint*/ = 0) {
-        for(unsigned int i = 0; i < pool_size(); ++i) {
-            auto &x = (*m_pool)[i];
-            void *ptr = x.exchange(nullptr);
-            if(ptr) {
-//                if((uintptr_t)ptr & 1u)
-//                    throw ptr; //invalid address.
-                return static_cast<pointer>(ptr);
-            }
-        }
         return (pointer) (operator new(num * sizeof(T)));
-	}
-    template <class U, class... Args>
-    void construct(U* p, Args&&... args) {
-        new((void*) p) U(std::forward<Args>(args)...);
+    }
+    void construct(pointer p, const T& value) {
+        new((void*) p) T(value);
     }
 
-    void deallocate(pointer ptr, size_type /*num*/) {
-        void *p = ptr;
-        for(unsigned int i = 0; i < pool_size(); ++i) {
-            auto &x = (*m_pool)[i];
-            p = x.exchange(p);
-//            if((uintptr_t)p & 1u)
-//                throw ptr; //invalid address.
-            if( !p) {
-                return; //left in the pool.
-            }
-        }
-        operator delete(p);
+    void deallocate(pointer p, size_type /*num*/) {
+        operator delete((void *) p);
     }
-    template <class U>
-    void destroy(U* p) {
-        p->~U();
-	}
+    void destroy(pointer p) {
+        p->~T();
+    }
 
-    pointer address(reference value) const noexcept {
-		return &value;
-	}
-    const_pointer address(const_reference value) const noexcept {
-		return &value;
-	}
+    pointer address(reference value) const {
+        return &value;
+    }
+    const_pointer address(const_reference value) const {
+        return &value;
+    }
 
-    size_type max_size() const noexcept {
-		return std::numeric_limits<size_t>::max() / sizeof(T);
-	}
-private:
-    template <typename Y> friend class allocator;
-    MemoryPool *m_pool;
+    size_type max_size() const throw () {
+        return std::numeric_limits<size_t>::max() / sizeof(T);
+    }
 };
 
 template <class T1, class T2>
-bool operator==(const allocator<T1>&, const allocator<T2>&) noexcept {
-    return true;
-}
+bool operator==(const allocator<T1>&, const allocator<T2>&) throw() { return true; }
 
 template <class T1, class T2>
-bool operator!=(const allocator<T1>&, const allocator<T2>&) noexcept {
-    return false;
-}
+bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() { return false; }
+
 
 template <typename T, size_t SIZE_HINT = 1>
 class fast_vector {

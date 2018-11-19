@@ -25,6 +25,8 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/icons
 
 HEADERS += \
+    allocator_prv.h \
+    allocator.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \
@@ -138,12 +140,12 @@ SOURCES += icons/icon.cpp \
 
 unix {
     HEADERS += \
-        allocator.h \
         math/matrix.h \
         math/freqest.h
     SOURCES += \
         math/freqest.cpp \
-        math/matrix.cpp
+        math/matrix.cpp \
+        allocator.cpp
 }
 
 FORMS += \
