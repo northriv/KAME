@@ -89,6 +89,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
                         fprintf(stderr, "Error during aborting USB asyncIO, aborted twice!\n");
                 }
             }
+            assert(completed);
             libusb_free_transfer(transfer);
             if(buf.size() > stl_bufferGarbage->size())
                 stl_bufferGarbage->swap(buf);
@@ -111,6 +112,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 //            default:
 //                break;
 //            }
+            assert(*reinterpret_cast<int*>(transfer->user_data) == 0);
             *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
             writeBarrier();
         }
@@ -340,6 +342,7 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
+    assert(async->completed == 0);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_OUT | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
@@ -356,6 +359,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;
+    assert(async->completed == 0);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
