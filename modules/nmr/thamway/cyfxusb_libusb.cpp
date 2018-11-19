@@ -165,15 +165,10 @@ CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
     readBarrier();
     if(completed)
         return true;
-    int completed_ev = 0;
-    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed_ev); //returns immediately.
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, (int*)&completed); //returns immediately.
     if(ret)
         fprintf(stderr, "Error during checking status in libusb: %s\n", libusb_error_name(ret));
-    if(completed_ev) {
-        readBarrier();
-        assert(completed == 1);
-    }
-    return completed_ev;
+    return completed;
 }
 
 int64_t
