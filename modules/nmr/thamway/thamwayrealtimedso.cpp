@@ -338,7 +338,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
 //            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
 //            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
-                msecsleep(20);
+                ; //event loop for libusb
             if(terminated) {
                 break;
             }
