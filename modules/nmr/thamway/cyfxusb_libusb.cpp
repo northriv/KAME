@@ -165,10 +165,10 @@ CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
-//    struct timeval tv = {};
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 20000;
+    struct timeval tv = {};
+//    struct timeval tv;
+//    tv.tv_sec = 0;
+//    tv.tv_usec = 20000;
     readBarrier();
     if(completed)
         return true;
