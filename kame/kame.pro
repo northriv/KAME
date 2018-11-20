@@ -134,6 +134,7 @@ SOURCES += icons/icon.cpp \
     analyzer/analyzer.cpp \
     analyzer/recorder.cpp \
     analyzer/recordreader.cpp\
+    allocator.cpp \
     kame.cpp \
     main.cpp \
     messagebox.cpp
@@ -144,8 +145,7 @@ unix {
         math/freqest.h
     SOURCES += \
         math/freqest.cpp \
-        math/matrix.cpp \
-        allocator.cpp
+        math/matrix.cpp
 }
 
 FORMS += \

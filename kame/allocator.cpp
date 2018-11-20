@@ -24,7 +24,10 @@
 #include <assert.h>
 #include <string.h>
 #include <type_traits>
-#include <sys/mman.h>
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+#else
+    #include <sys/mman.h>
+#endif
 #include <sys/types.h>
 
 //! Bit count / population count for 32bit.
@@ -122,9 +125,13 @@ inline T find_training_zeros (int X, T x) {
 
 inline void *malloc_mmap(size_t size) {
 //		fprintf(stderr, "mmap(), %d\n", (int)size);
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        void *p = malloc(size);
+#else
 		void *p = (
 			mmap(0, size + ALLOC_ALIGNMENT, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0));
 		assert(p != MAP_FAILED);
+#endif
 		*static_cast<size_t *>(p) = size + ALLOC_ALIGNMENT;
 		return static_cast<char *>(p) + ALLOC_ALIGNMENT;
 }
@@ -132,8 +139,12 @@ inline void free_munmap(void *p) {
 		p = static_cast<void *>(static_cast<char *>(p) - ALLOC_ALIGNMENT);
 		size_t size = *static_cast<size_t *>(p);
 	//	fprintf(stderr, "unmmap(), %d\n", (int)size);
-		int ret = munmap(p, size);
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        free(p);
+#else
+        int ret = munmap(p, size);
 		assert( !ret);
+#endif
 }
 
 bool g_sys_image_loaded = false;
