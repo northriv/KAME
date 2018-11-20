@@ -483,7 +483,8 @@ PoolAllocatorBase::allocate_chunk() {
 	while( !s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE]) {
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-        void *p = malloc(mmap_size);
+        char *p = static_cast<char *>(
+            malloc(mmap_size));
 #else
 		char *p = static_cast<char *>(
 			mmap(0, mmap_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
@@ -510,8 +511,8 @@ PoolAllocatorBase::allocate_chunk() {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 #else
     int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
+    assert( !ret);
 #endif
-	assert( !ret);
 
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);
 	s_chunks[cidx] = palloc;
@@ -699,9 +700,9 @@ PoolAllocatorBase::release_chunks() {
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
 #else
         int ret = munmap(mp, mmap_size);
+        assert( !ret);
 #endif
 		s_mmapped_spaces[cnt] = 0;
-		assert( !ret);
 		chunk_size = GROW_CHUNK_SIZE(chunk_size);
 	}
 }
