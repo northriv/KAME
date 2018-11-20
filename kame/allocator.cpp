@@ -482,6 +482,9 @@ PoolAllocatorBase::allocate_chunk() {
 
 	while( !s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE]) {
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        void *p = malloc(mmap_size);
+#else
 		char *p = static_cast<char *>(
 			mmap(0, mmap_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0));
 		if(p == MAP_FAILED) {
@@ -489,17 +492,25 @@ PoolAllocatorBase::allocate_chunk() {
 			s_chunks[cidx] = 0;
 			return 0;
 		}
+#endif
 		writeBarrier();
 		if(atomicCompareAndSet((char *)0, p, &s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE])) {
 			readBarrier();
 			fprintf(stderr, "Reserve swap space starting @ %p w/ len. of 0x%llxB.\n", p, (unsigned long long)mmap_size);
 			break;
 		}
-		munmap(p, mmap_size);
-	}
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        free(p);
+#else
+        munmap(p, mmap_size);
+#endif
+    }
 	char *addr =
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
-	int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+#else
+    int ret = mprotect(addr, chunk_size, PROT_READ | PROT_WRITE);
+#endif
 	assert( !ret);
 
 	ALLOC *palloc = ALLOC::create(chunk_size, addr);
@@ -639,7 +650,11 @@ PoolAllocatorBase::deallocate_chunk(int cidx, size_t chunk_size) {
 	void *addr =
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
 	//releasing memory.
-	mprotect(addr, chunk_size, PROT_NONE);
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    free(addr);
+#else
+    mprotect(addr, chunk_size, PROT_NONE);
+#endif
 
 	s_chunks[cidx] = 0;
 }
@@ -681,7 +696,10 @@ PoolAllocatorBase::release_chunks() {
 		if( !mp)
 			break;
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
-		int ret = munmap(mp, mmap_size);
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+#else
+        int ret = munmap(mp, mmap_size);
+#endif
 		s_mmapped_spaces[cnt] = 0;
 		assert( !ret);
 		chunk_size = GROW_CHUNK_SIZE(chunk_size);
