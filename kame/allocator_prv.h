@@ -30,15 +30,22 @@
 
 #define ALLOC_MIN_CHUNK_SIZE (1024 * 256) //256KiB
 #define ALLOC_PAGE_SIZE (1024 * 4) //4KiB
-#if defined __LP64__ || defined __LLP64__
-	#define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
-	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
-	#define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+    #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
+    #define ALLOC_MAX_MMAP_ENTRIES 24
 #else
-	#define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
-	#define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
-	#define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
+    #if defined __LP64__ || defined __LLP64__
+        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
+        #define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
+    #else
+        #define GROW_CHUNK_SIZE(x) ((size_t)(x / 8 * 9) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
+        #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 8) //8MiB
+        #define ALLOC_MAX_MMAP_ENTRIES 32 //2.7GiB approx.
+    #endif
 #endif
+
 #define ALLOC_ALIGNMENT 16 //bytes, not 8 but 16 for compatibility
 #define ALLOC_MAX_CHUNKS_OF_TYPE \
 	(ALLOC_MIN_MMAP_SIZE / ALLOC_MIN_CHUNK_SIZE * ALLOC_MAX_MMAP_ENTRIES)
