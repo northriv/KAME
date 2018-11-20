@@ -164,10 +164,14 @@ CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
+//    struct timeval tv = {};
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 20000;
     readBarrier();
     if(completed)
         return true;
-    int ret = libusb_handle_events_completed(s_context.context, (int*)&completed); //returns immediately.
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, (int*)&completed); //returns immediately.
     if(ret)
         fprintf(stderr, "Error during checking status in libusb: %s\n", libusb_error_name(ret));
     return completed;
