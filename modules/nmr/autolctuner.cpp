@@ -500,6 +500,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
             stm->iterate_commit([=](Transaction &tr){
                 tr[ *stm->active()] = true; // Activate motor.
                 tr[ *stm->auxBits()] = tunebits; //For external RF relays.
+                tr[ *stm->stopMotor()].touch();
             });
         }
     }
