@@ -652,7 +652,6 @@ PoolAllocatorBase::deallocate_chunk(int cidx, size_t chunk_size) {
 		s_mmapped_spaces[cidx / NUM_ALLOCATORS_IN_SPACE] + chunk_size * (cidx % NUM_ALLOCATORS_IN_SPACE);
 	//releasing memory.
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
-    free(addr);
 #else
     mprotect(addr, chunk_size, PROT_NONE);
 #endif
@@ -698,6 +697,7 @@ PoolAllocatorBase::release_chunks() {
 			break;
 		size_t mmap_size = chunk_size * NUM_ALLOCATORS_IN_SPACE;
 #if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        free(mp);
 #else
         int ret = munmap(mp, mmap_size);
         assert( !ret);
