@@ -182,12 +182,11 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during completing transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-//        if(completed_ev && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
-////            completed = 1; //not to abort() in the destructor.
-//            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
-//                return 0;
-//            throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
-//        }
+        if(completed && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
+            if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
+                return 0;
+            gWarnPrint(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str());
+        }
         if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
             fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
             abort();
