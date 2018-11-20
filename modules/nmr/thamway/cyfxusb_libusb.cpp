@@ -175,7 +175,7 @@ CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
     struct timeval tv;
-    tv.tv_sec = USB_TIMEOUT / 1000;
+    tv.tv_sec = 500;
     tv.tv_usec = 0;
     auto start = XTime::now();
     while( !completed) {
@@ -185,7 +185,8 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         if(completed && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
             if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
                 return 0;
-            gWarnPrint(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str());
+            if(transfer->status != LIBUSB_TRANSFER_TIMED_OUT)
+                gErrPrint(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str());
         }
         if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
             fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
