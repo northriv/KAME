@@ -112,7 +112,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 //            default:
 //                break;
 //            }
-            fprintf(stderr, "compl, %llx.\n", (unsigned long long)transfer->user_data);
+//            fprintf(stderr, "compl, %llx.\n", (unsigned long long)transfer->user_data);
             assert(*reinterpret_cast<int*>(transfer->user_data) == 0);
             writeBarrier();
             *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
@@ -365,7 +365,7 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;
-    fprintf(stderr, "asyncRead %llx, %llx, %x.\n", (unsigned long long)&async->buf.at(0), (unsigned long long)&async->completed, len);
+//    fprintf(stderr, "asyncRead %llx, %llx, %x.\n", (unsigned long long)&async->buf.at(0), (unsigned long long)&async->completed, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
