@@ -114,6 +114,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 //            }
             fprintf(stderr, "compl, %llx.\n", (unsigned long long)transfer->user_data);
             assert(*reinterpret_cast<int*>(transfer->user_data) == 0);
+            writeBarrier();
             *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
             writeBarrier();
         }
@@ -200,6 +201,7 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
         readBarrier();
     }
     if(rdbuf) {
+        readBarrier();
         assert(buf.size() >= transfer->actual_length);
         std::memcpy(rdbuf, &buf[0], transfer->actual_length);
     }

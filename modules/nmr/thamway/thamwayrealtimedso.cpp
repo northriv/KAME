@@ -330,7 +330,6 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             m_wrChunkEnd = (wridx + 1) % m_chunks.size();
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
-            writeBarrier();
             return interface()->asyncReceive( (char*)&chunk.data[0],
                     chunk.data.size() * sizeof(tRawAI));
         };
@@ -339,7 +338,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
 //            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
 //            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
-                msecsleep(20);
+                ; //event loop for libusb
             if(terminated) {
                 break;
             }

@@ -21,6 +21,7 @@
 #include "atomic.h"
 #include "atomic_prv_x86.h"
 
+#include <assert.h>
 #include <string.h>
 #include <type_traits>
 #include <sys/mman.h>
