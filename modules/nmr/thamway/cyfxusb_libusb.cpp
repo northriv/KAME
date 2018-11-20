@@ -89,7 +89,6 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
                         fprintf(stderr, "Error during aborting USB asyncIO, aborted twice!\n");
                 }
             }
-            assert(completed);
             libusb_free_transfer(transfer);
             if(buf.size() > stl_bufferGarbage->size())
                 stl_bufferGarbage->swap(buf);
@@ -112,9 +111,6 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
 //            default:
 //                break;
 //            }
-//            fprintf(stderr, "compl, %llx.\n", (unsigned long long)transfer->user_data);
-            assert(*reinterpret_cast<int*>(transfer->user_data) == 0);
-            writeBarrier();
             *reinterpret_cast<int*>(transfer->user_data) = 1; //completed = 1
             writeBarrier();
         }
@@ -166,16 +162,18 @@ CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
     struct timeval tv = {};
-//    struct timeval tv;
-//    tv.tv_sec = 0;
-//    tv.tv_usec = 20000;
     readBarrier();
     if(completed)
         return true;
-    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, (int*)&completed); //returns immediately.
+    int completed_ev = 0;
+    int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed_ev); //returns immediately.
     if(ret)
         fprintf(stderr, "Error during checking status in libusb: %s\n", libusb_error_name(ret));
-    return completed;
+    if(completed_ev) {
+        readBarrier();
+        assert(completed == 1);
+    }
+    return completed_ev;
 }
 
 int64_t
@@ -185,23 +183,27 @@ CyFXLibUSBDevice::AsyncIO::waitFor() {
     tv.tv_usec = 0;
     auto start = XTime::now();
     while( !completed) {
-        int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
+        int completed_ev = 0;
+        int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed_ev);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during completing transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-        if(completed && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
+        if(completed_ev) {
+            readBarrier();
+            assert(completed == 1);
+        }
+        if(completed_ev && (transfer->status != LIBUSB_TRANSFER_COMPLETED)) {
 //            completed = 1; //not to abort() in the destructor.
             if(transfer->status == LIBUSB_TRANSFER_CANCELLED)
                 return 0;
             throw XInterface::XInterfaceError(formatString("Error, unhandled complete status in libusb: %s\n", libusb_error_name(transfer->status)).c_str(), __FILE__, __LINE__);
         }
-        if( !completed && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
+        if( !completed_ev && (XTime::now() - start > USB_TIMEOUT * 1e-3)) {
             fprintf(stderr, "Libusb async transfer aborting due to timeout.\n");
             abort();
         }
         readBarrier();
     }
     if(rdbuf) {
-        readBarrier();
         assert(buf.size() >= transfer->actual_length);
         std::memcpy(rdbuf, &buf[0], transfer->actual_length);
     }
@@ -348,7 +350,6 @@ CyFXLibUSBDevice::asyncBulkWrite(uint8_t ep, const uint8_t *buf, int len, unsign
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     std::memcpy( &async->buf[0], buf, len);
-    assert(async->completed == 0);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_OUT | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
@@ -365,11 +366,9 @@ CyFXLibUSBDevice::asyncBulkRead(uint8_t ep, uint8_t* buf, int len, unsigned int 
     unique_ptr<AsyncIO> async(new AsyncIO);
     async->buf.resize(len);
     async->rdbuf = buf;
-//    fprintf(stderr, "asyncRead %llx, %llx, %x.\n", (unsigned long long)&async->buf.at(0), (unsigned long long)&async->completed, len);
     libusb_fill_bulk_transfer(async->transfer, handle,
             LIBUSB_ENDPOINT_IN | ep, &async->buf.at(0), len,
             &AsyncIO::cb_fn, &async->completed, timeout_ms);
-    assert(async->completed == 0);
     int ret = libusb_submit_transfer(async->transfer);
     if(ret != 0) {
          async->completed = true; //not to abort() in the destructor.
