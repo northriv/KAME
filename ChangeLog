@@ -6,6 +6,8 @@
 - Thamway: libusb support is improved in mac.
 - Thamway: QAM works fine now.
 - Autolctuner: fiting improved, compatible with Flex AR.
+- Copper Mountain TR1300/1,5048,4530 Network Analyzer
+- Lakshore 350: Fix for prop. setting.
 
 * Mon Sep 17 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.1.5-1)
