@@ -66,7 +66,7 @@ protected:
 private:
 //    enum {ChunkSize = 16*1024,//32kB transfer each. >64kB is fine with libusb. <=4MB for CyUSB3.sys.
           enum {ChunkSize = 512*1024,//1MB transfer each. >64kB is fine with libusb. <=4MB for CyUSB3.sys.
-          NumThreads = 8, NumChunks = (1024*1024*32/ChunkSize)}; //64MB ring buffer.
+          NumThreads = 4, NumChunks = (1024*1024*32/ChunkSize)}; //64MB ring buffer.
     atomic<uint64_t> m_totalSmpsPerCh = 0; //# of samples per channel from the origin at the last sample available for read.
     unsigned int m_wrChunkBegin = 0, //Index for the oldest chunk yet to be trasfered.
         m_wrChunkEnd = 0, //Index pointing to the first chunk available for next writing.

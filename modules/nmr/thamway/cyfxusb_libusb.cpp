@@ -162,12 +162,12 @@ CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
-    struct timeval tv = {};
-    readBarrier();
     if(completed)
         return true;
     auto start = XTime::now();
     while( !completed) {
+        struct timeval tv = {};
+        readBarrier();
         int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, (int*)&completed); //returns immediately.
         if(ret)
             fprintf(stderr, "Error during checking status in libusb: %s\n", libusb_error_name(ret));
@@ -182,11 +182,11 @@ CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
 
 int64_t
 CyFXLibUSBDevice::AsyncIO::waitFor() {
-    struct timeval tv;
-    tv.tv_sec = USB_TIMEOUT / 1000;
-    tv.tv_usec = (USB_TIMEOUT % 1000) * 1000;
     auto start = XTime::now();
     while( !completed) {
+        struct timeval tv;
+        tv.tv_sec = USB_TIMEOUT / 1000;
+        tv.tv_usec = (USB_TIMEOUT % 1000) * 1000;
         int ret = libusb_handle_events_timeout_completed(s_context.context, &tv, &completed);
         if(ret)
             throw XInterface::XInterfaceError(formatString("Error during completing transfer in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
