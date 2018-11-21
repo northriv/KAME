@@ -176,6 +176,8 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
 void
 LCRFit::fit(const std::complex<double> *s11, unsigned int length,
     double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize) {
+    if( !fit_w_phase)
+        m_linelen = 0.0;
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -278,19 +280,20 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
 //            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
-            double q = pow(10.0, (retry % 14) / 13.0 * log10(max_q)) + 2;
+            double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
+            m_omega_trust_scale = pow(10.0, randMT19937() * 2)*0.001; //(retry % 8) / 6.0 * 2.0 + 0.5;
             if(fit_w_phase) {
             //infers cable length.
-                size_t a = std::max(0L, lrint((f0org * std::max(0.75, (1 - 2.0 / q)) - fstart) / fstep));
-                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.2, (1 + 2.0 / q)) - fstart) / fstep));
+                double d = (10.0 * randMT19937() + 1.0) / q;
+                size_t a = std::max(0L, lrint((f0org * std::max(0.75, (1 - d)) - fstart) / fstep));
+                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.2, (1 + d)) - fstart) / fstep));
                 double phase_chg = std::arg(s11[b] / s11[a]);
                 double f1 = a * fstep + fstart;
                 double f2 = b * fstep + fstart;
                 phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
                 m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
             }
-            m_omega_trust_scale = pow(10.0, (retry % 6) / 5.0)*0.01; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
@@ -312,7 +315,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             fprintf(stderr, "Too small fit #.\n");
             continue;
         }
-        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs, 200);
+        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs, 50);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -321,7 +324,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         m_c1_err = nlls1.errors()[2];
         if(fit_w_phase) {
             //Fits in the Smith chart first.
-            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 20);
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 10);
             m_r1 = fabs(nlls1.params()[0]);
             m_c2 = nlls1.params()[1];
             m_c1 = nlls1.params()[2];
@@ -471,7 +474,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_timeMax] = 600; //10 min.
         tr[ *m_origBackMax] = 2;
         tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
-        tr[ *m_fitFunc] = 2;
+        tr[ *m_fitFunc] = 3;
         tr[ *m_backlashRecoveryFactor] = 0.0;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
@@ -764,6 +767,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g, %s",
                 fmin_fit, fmin_fit_err,
                 log10(rlmin_fit) * 20.0, lcrfit->qValue(), lcrfit->isCouplingTight() ? "Tight" : "Loose");
+        if(lcrfit->lineLen() > 0.001)
+            message += formatString(", %.2f m", lcrfit->lineLen());
         message +=
             formatString(", C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
                          lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
