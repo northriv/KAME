@@ -187,7 +187,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * length - f0org);
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
-    double max_q = f0org / fstep / 4;
+    double max_q = f0org / fstep / 2;
 
     //Computes squares and differentials.
     auto func_template = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type]
@@ -207,46 +207,55 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         plusDR2.m_r2 += DR2;
         plusDC1.m_c1 += DC1;
         plusDC2.m_c2 += DC2;
+        std::pair<LCRFit&, double> lcrdas[] = {{plusDR1, DR1}, {plusDC2, DC2}, {plusDC1, DC1}, {plusDR2, DR2}};
         double freq = fstart;
         double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
-        if(fit_w_phase) {
-            double ph_per_f = phase_change_per_meter_freq * m_linelen;
-            for(size_t i = 0; i < n; ++i) {
-                double omega = 2 * M_PI * freq;
-                auto rot = std::polar(1.0, ph_per_f * freq);
-                auto z = rl(omega) * rot;
-                double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type) * wsqrt_norm;
-                auto dyabs = std::abs(z - s11[i]);
+        double ph_per_f = phase_change_per_meter_freq * m_linelen;
+        for(size_t i = 0; i < n;) {
+            double omega = 2 * M_PI * freq;
+            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type);
+            wsqrt *= wsqrt_norm;
+            if(fit_w_phase) {
+                auto rot = std::polar(1.0, -ph_per_f * freq);
+                auto z = rl(omega);
                 if(f) {
-                    f[i] = dyabs * wsqrt;
+                    auto dy = (z - s11[i] * rot) * wsqrt;
+                    f[i] = dy.real();
+                    f[i + 1] = dy.imag();
                 }
                 else {
-                    auto y = std::conj(z - s11[i]) / dyabs * wsqrt;
-                    df[0][i] = std::real((plusDR1.rl(omega) * rot - z) / DR1 * y);
-                    if(p >= 2) df[1][i] = std::real((plusDC2.rl(omega) * rot - z) / DC2 * y);
-                    if(p >= 3) df[2][i] = std::real((plusDC1.rl(omega) * rot - z) / DC1 * y);
-                    if(p >= 4) df[3][i] = std::real((plusDR2.rl(omega) * rot - z) / DR2 * y);
-                    if(p >= 5) df[4][i] = std::real(std::complex<double>(0.0, phase_change_per_meter_freq * freq) * z * y);
+                    unsigned int j = 0;
+                    for(auto &&y: lcrdas) {
+                        auto dyda = (y.first.rl(omega) - z) / y.second * wsqrt;
+                        df[j][i] = dyda.real();
+                        df[j][i + 1] = dyda.imag();
+                        ++j;
+                        if(j >= p) break;
+                    }
+                    if(p >= 5) {
+                        auto dyda = std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i] * wsqrt;
+                        df[4][i] = dyda.real();
+                        df[4][i + 1] = dyda.imag();
+                    }
                 }
-                freq += fstep;
+                i += 2;
             }
-        }
-        else {
-            for(size_t i = 0; i < n; ++i) {
-                double omega = 2 * M_PI * freq;
+            else {
                 double rlpow0 = rlpow(omega);
-                double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type) * wsqrt_norm;
                 if(f) {
                     f[i] = (rlpow0 - std::abs(s11[i])) * wsqrt;
                 }
                 else {
-                    df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
-                    if(p >= 2) df[1][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2 * wsqrt;
-                    if(p >= 3) df[2][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1 * wsqrt;
-                    if(p >= 4) df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2 * wsqrt;
+                    unsigned int j = 0;
+                    for(auto &&y: lcrdas) {
+                        df[j][i] = (y.first.rlpow(omega) - rlpow0) / y.second * wsqrt;
+                        ++j;
+                        if(j >= p) break;
+                    }
                 }
-                freq += fstep;
+                ++i;
             }
+            freq += fstep;
         }
         return true;
     };
@@ -259,7 +268,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if(XTime::now() - start > 1.0) {
+        if(XTime::now() - start > 3.0) {
             fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
         }
@@ -269,7 +278,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
 //            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
-            double q = pow(10.0, (retry % 6) / 6.0 * log10(max_q)) + 2;
+            double q = pow(10.0, (retry % 14) / 13.0 * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             if(fit_w_phase) {
             //infers cable length.
@@ -281,7 +290,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
                 phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
                 m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
             }
-            m_omega_trust_scale = pow(10.0, (retry % 3)) * 0.1 + pow(5, (retry % 5))*0.02; //(retry % 8) / 6.0 * 2.0 + 0.5;
+            m_omega_trust_scale = pow(10.0, (retry % 6) / 5.0)*0.01; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
@@ -296,12 +305,14 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             fprintf(stderr, "Too small omega trust.\n");
             continue; //less or nan
         }
-        size_t fit_n = length - 1;
+        size_t fit_n_abs = length - 1;
+        size_t fit_n = fit_n_abs;
+        if(fit_w_phase) fit_n *= 2; //real and imag
         if(fit_n < 20) {
             fprintf(stderr, "Too small fit #.\n");
             continue;
         }
-        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
+        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs, 200);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
@@ -316,7 +327,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             m_c1 = nlls1.params()[2];
             m_r2 = nlls1.params()[3];
             m_linelen = nlls1.params()[4];
-            nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n);
+            nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs);
             m_r1 = fabs(nlls1.params()[0]);
             m_c2 = nlls1.params()[1];
             m_c1 = nlls1.params()[2];
@@ -341,9 +352,9 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             lcr_orig = *this;
             it_best = retry;
         }
-        nlls1 = NonLinearLeastSquare(func_abs, {m_r1}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1}, fit_n_abs);
         m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2}, fit_n_abs);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
     }
