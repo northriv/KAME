@@ -25,7 +25,7 @@ XNIDAQMSeriesWithSSeriesPulser::XNIDAQMSeriesWithSSeriesPulser(const char *name,
 	m_ao_interface(XNode::create<XNIDAQmxInterface>("SubInterface", false,
 													dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_ao_interface);
-    m_ao_interface->control()->setUIEnabled(false);
+    m_ao_interface->control()->disable();
 }
 void
 XNIDAQAODOPulser::open() throw (XKameError &) {

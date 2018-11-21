@@ -1,3 +1,12 @@
+* Wed Nov 21 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.0-1)
+- Mac: userside memory allocator is introduced again.
+- Mac: repairs Info.plist and icon.
+- Better window initial positions when it appears.
+- Thamway: libusb support is improved in mac.
+- Thamway: QAM works fine now.
+- Autolctuner: fiting improved, compatible with Flex AR.
+
 * Mon Sep 17 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.1.5-1)
 - Pfeiffer Turbo molecular pump controller TC110 

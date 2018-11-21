@@ -180,7 +180,7 @@ XThamwayUSBPulserWithQAM::XThamwayUSBPulserWithQAM(const char *name, bool runtim
     m_interfaceQAM(XNode::create<XThamwayPGQAMCUSBInterface>("SubInterface", false,
                                                 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
     meas->interfaces()->insert(tr_meas, m_interfaceQAM);
-    m_interfaceQAM->control()->setUIEnabled(false);
+    m_interfaceQAM->control()->disable();
 }
 
 
