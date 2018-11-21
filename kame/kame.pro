@@ -25,7 +25,6 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/icons
 
 HEADERS += \
-    allocator_prv.h \
     allocator.h \
     kame.h \
     threadlocal.h \
@@ -134,7 +133,6 @@ SOURCES += icons/icon.cpp \
     analyzer/analyzer.cpp \
     analyzer/recorder.cpp \
     analyzer/recordreader.cpp\
-    allocator.cpp \
     kame.cpp \
     main.cpp \
     messagebox.cpp
@@ -144,6 +142,8 @@ unix {
         math/matrix.h \
         math/freqest.h
     SOURCES += \
+        allocator_prv.h \
+        allocator.cpp \
         math/freqest.cpp \
         math/matrix.cpp
 }

@@ -15,7 +15,11 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-#include "allocator_prv.h"
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    inline void activateAllocator() {}
+#else
+    #include "allocator_prv.h"
+#endif
 
 //! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
 //! Memory blocks in a unit of double-quad word less than 8KiB
