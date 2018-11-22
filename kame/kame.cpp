@@ -70,18 +70,18 @@ FrmKameMain::FrmKameMain()
 	//Central MDI area.
 	m_pMdiCentral = new QMdiArea( this );
     setCentralWidget( m_pMdiCentral );
-    m_pMdiCentral->setViewMode(QMdiArea::TabbedView);
+//    m_pMdiCentral->setViewMode(QMdiArea::TabbedView);
     m_pMdiCentral->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_pMdiCentral->setTabsClosable(true);
 
 //    setDockOptions(QMainWindow::ForceTabbedDocks | QMainWindow::VerticalTabs);
     //Left MDI area.
     QDockWidget* dockLeft = new QDockWidget(i18n("KAME Toolbox West"), this);
-    dockLeft->setFeatures(QDockWidget::DockWidgetFloatable);
+//    dockLeft->setFeatures(QDockWidget::DockWidgetFloatable);
     dockLeft->setWindowIcon(*g_pIconDriver);
     m_pMdiLeft = new QMdiArea( this );
     m_pMdiLeft->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
+//    m_pMdiLeft->setViewMode(QMdiArea::TabbedView);
     m_pMdiLeft->setTabPosition(QTabWidget::West);
 //    m_pMdiLeft->setTabPosition(QTabWidget::North);
     dockLeft->setWidget(m_pMdiLeft);
@@ -89,11 +89,11 @@ FrmKameMain::FrmKameMain()
 
     //Right MDI area.
     QDockWidget* dockRight = new QDockWidget(i18n("KAME Toolbox East"), this);
-    dockRight->setFeatures(QDockWidget::DockWidgetFloatable);
+//    dockRight->setFeatures(QDockWidget::DockWidgetFloatable);
     dockRight->setWindowIcon(*g_pIconInterface);
     m_pMdiRight= new QMdiArea( this );
     m_pMdiRight->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_pMdiRight->setViewMode(QMdiArea::TabbedView);
+//    m_pMdiRight->setViewMode(QMdiArea::TabbedView);
     m_pMdiRight->setTabPosition(QTabWidget::East);
 //    m_pMdiRight->setTabPosition(QTabWidget::North);
     dockRight->setWidget(m_pMdiRight);
@@ -118,9 +118,9 @@ FrmKameMain::FrmKameMain()
     m_pFrmNodeBrowser->setWindowIcon(QApplication::style()->standardIcon(QStyle::SP_FileDialogContentsView));
     addDockableWindow(m_pMdiLeft, m_pFrmNodeBrowser, false);
 
-    m_pMdiLeft->activatePreviousSubWindow();
-    m_pMdiLeft->activatePreviousSubWindow();
-    m_pMdiLeft->activatePreviousSubWindow();
+//    m_pMdiLeft->activatePreviousSubWindow();
+//    m_pMdiLeft->activatePreviousSubWindow();
+//    m_pMdiLeft->activatePreviousSubWindow();
 
     m_pFrmInterface = new FrmInterface(this);
     m_pFrmInterface ->setWindowIcon(*g_pIconInterface);
@@ -134,8 +134,8 @@ FrmKameMain::FrmKameMain()
     m_pFrmRecordReader->setWindowIcon(*g_pIconReader);
     addDockableWindow(m_pMdiRight, m_pFrmRecordReader, false);
 
-    m_pMdiRight->activatePreviousSubWindow();
-    m_pMdiRight->activatePreviousSubWindow();
+//    m_pMdiRight->activatePreviousSubWindow();
+//    m_pMdiRight->activatePreviousSubWindow();
 
     m_pViewMenu->addSeparator();
     m_pGraphThemeMenu = m_pViewMenu->addMenu(i18n( "Theme Color of &Graph" ) );
@@ -150,16 +150,16 @@ FrmKameMain::FrmKameMain()
 //	resize(QSize(std::min(1280, width()), 560));
     //rearranges window positions, sizes.
     QRect rect = QApplication::desktop()->availableGeometry(dockLeft);
-    dockLeft->setFloating(true);
-    dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+//    dockLeft->setFloating(true);
+//    dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+//        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
 //    dockLeft->setWindowOpacity(0.8);
     dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 64),
         std::max(rect.height() / 2, 360));
     dockLeft->move(0, rect.top());
-    dockRight->setFloating(true);
-    dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
-        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+//    dockRight->setFloating(true);
+//    dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
+//        Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
 //    dockRight->setWindowOpacity(0.8);
     dockRight->resize(std::max(rect.width() / 5, 400), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
