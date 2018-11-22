@@ -345,7 +345,6 @@ FrmKameMain::processSignals() {
 			last = XTime::now();
 		}
 	#endif
-        QGuiApplication::sync();
 	}
     msecsleep(0);
 }
