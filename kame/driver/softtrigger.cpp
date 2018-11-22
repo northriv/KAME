@@ -162,12 +162,12 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
     }
     FastQueue::key t = m_fastQueue.atomicFront(&cnt);
     uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
-    if(m_lastThresholdRequested < thres_em + lrint(0.5 * freq())) {
+    if(m_lastThresholdRequested < thres_em + lrint(timeForBufferredTriggersRequired() * freq())) {
         if(m_lastThresholdRequested && (m_lastThresholdRequested < thres_em))
             gErrPrint(formatString_tr(I18N_NOOP("Software trigger: yet uncalculated trigger is requested, %.2f sec. behind.\n"),
                 (thres_em - m_lastThresholdRequested) / freq()));
         //Caches trigger positions for future use within 0.8 sec.
-        m_lastThresholdRequested = thres_em + lrint(0.8 * freq());
+        m_lastThresholdRequested = thres_em + lrint(1.5 * timeForBufferredTriggersRequired() * freq());
         onTriggerRequested().talk(m_lastThresholdRequested);
     }
     cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
