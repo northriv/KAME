@@ -42,7 +42,7 @@ public:
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
     double coupling() const {return rl(f0() * 2.0 * M_PI).imag();}
-    double lineLen() const {return m_linelen;}
+    double txLen() const {return m_txLen;}
     //! Checks if the R_L appears on the upper half plane of Smith chart.
     bool isCouplingTight() const {return coupling() > 0;}
     double residualError() const {return m_resErr;}
@@ -108,15 +108,17 @@ private:
         else
             return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust)))));
     }
+    void inferTXLength(const std::complex<double> *s11, unsigned int length,
+                       double fstart, double fstep, double f0, double trust_area);
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
     double m_c1_err, m_c2_err;
     double m_resErr;
-    double m_linelen; //[m]
+    double m_txLen; //[m]
     double m_omega_trust_scale = 1.5;
     bool m_tightCouple;
-    static constexpr double phase_change_per_meter_freq = -2.0 * M_PI / 2e8 * 2 * 2; //round-trip.
+    static constexpr double phase_change_per_meter_freq = -2.0 * M_PI / (3e8 * 0.7) * 2 * 2; //round-trip.
 };
 
 std::pair<double, double> LCRFit::tuneCapsInternal(double f1, double target_rl, bool tight_couple) const {
@@ -152,7 +154,6 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
     }
     setTunedCaps(init_f0, init_rl, tight_couple);
     m_c1_err = m_c1 * 0.1; m_c2_err = m_c2 * 0.1;
-    m_linelen = 1.0;
 //    double omega = 2 * M_PI * init_f0;
 //    fprintf(stderr, "Target (%.4g, %.2g) -> (%.4g, %.2g)\n", init_f0, init_rl, f0(), std::abs(rl(omega)));
 }
@@ -163,7 +164,7 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
     double x = 0.0;
     double freq = fstart;
     double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
-    double ph_per_f = phase_change_per_meter_freq * m_linelen;
+    double ph_per_f = phase_change_per_meter_freq * m_txLen;
     for(size_t i = 0; i < length; ++i) {
         double omega = 2 * M_PI * freq;
         x += (fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega)))
@@ -174,10 +175,23 @@ LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int lengt
 }
 
 void
+LCRFit::inferTXLength(const std::complex<double> *s11, unsigned int length,
+                      double fstart, double fstep, double f0, double trust_area) {
+    double d = trust_area / f0;
+    long a = lrint((f0 * std::max(0.75, (1 - d)) - fstart) / fstep);
+    a = std::max(0L, std::min((long)length - 1L, a));
+    long b = lrint((f0 * std::max(1.2, (1 + d)) - fstart) / fstep);
+    b = std::max(0L, std::min((long)length - 1L, b));
+    double phase_chg = std::arg(s11[b] / s11[a]);
+    double f1 = a * fstep + fstart;
+    double f2 = b * fstep + fstart;
+    phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
+    m_txLen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
+}
+
+void
 LCRFit::fit(const std::complex<double> *s11, unsigned int length,
     double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize) {
-    if( !fit_w_phase)
-        m_linelen = 0.0;
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -200,7 +214,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         if(p >= 4) m_r2 = params[3];
         if(p >= 5) {
             assert(fit_w_phase);
-            m_linelen = params[4];
+            m_txLen = params[4];
         }
 
         constexpr double DR1 = 1e-3, DR2 = 1e-3, DC1 = 1e-15, DC2 = 1e-15;
@@ -212,7 +226,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         std::pair<LCRFit&, double> lcrdas[] = {{plusDR1, DR1}, {plusDC2, DC2}, {plusDC1, DC1}, {plusDR2, DR2}};
         double freq = fstart;
         double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
-        double ph_per_f = phase_change_per_meter_freq * m_linelen;
+        double ph_per_f = phase_change_per_meter_freq * m_txLen;
         for(size_t i = 0; i < n;) {
             double omega = 2 * M_PI * freq;
             double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type);
@@ -235,7 +249,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
                         if(j >= p) break;
                     }
                     if(p >= 5) {
-                        auto dyda = std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i] * wsqrt;
+                        auto dyda = -std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i] * rot * wsqrt;
                         df[4][i] = dyda.real();
                         df[4][i + 1] = dyda.imag();
                     }
@@ -283,19 +297,6 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
             m_omega_trust_scale = pow(10.0, randMT19937() * 2)*0.001; //(retry % 8) / 6.0 * 2.0 + 0.5;
-            if(fit_w_phase) {
-            //infers cable length.
-                double d = (10.0 * randMT19937() + 1.0) / q;
-                long a = lrint((f0org * std::max(0.75, (1 - d)) - fstart) / fstep);
-                a = std::max(0L, std::min((long)length - 1L, a));
-                long b = lrint((f0org * std::max(1.2, (1 + d)) - fstart) / fstep);
-                b = std::max(0L, std::min((long)length - 1L, b));
-                double phase_chg = std::arg(s11[b] / s11[a]);
-                double f1 = a * fstep + fstart;
-                double f2 = b * fstep + fstart;
-                phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
-                m_linelen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
-            }
         }
         if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
             fprintf(stderr, "Randomize anyway.\n");
@@ -325,13 +326,14 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
         if(fit_w_phase) {
+            inferTXLength(s11, length, fstart, fstep, f0org, (10.0 * randMT19937() + 1.0) / qValue() * f0org);
             //Fits in the Smith chart first.
-            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_linelen}, fit_n, 10);
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_txLen}, fit_n, 50);
             m_r1 = fabs(nlls1.params()[0]);
             m_c2 = nlls1.params()[1];
             m_c1 = nlls1.params()[2];
             m_r2 = nlls1.params()[3];
-            m_linelen = nlls1.params()[4];
+            m_txLen = nlls1.params()[4];
             nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs);
             m_r1 = fabs(nlls1.params()[0]);
             m_c2 = nlls1.params()[1];
@@ -339,7 +341,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             m_r2 = nlls1.params()[3];
             m_c2_err = nlls1.errors()[1];
             m_c1_err = nlls1.errors()[2];
-            fprintf(stderr, "Cable len = %.3g m.\n", m_linelen);
+            fprintf(stderr, "Cable len = %.3g m.\n", m_txLen);
         }
         omega_trust = eval_omega_trust(4.0);
         computeResidualError(s11, length, fstart, fstep, omega0org, omega_trust, fit_func_type, false);
@@ -368,7 +370,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
         fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, len:%.2g\n",
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err(),
-                lineLen());
+                txLen());
     }
     else if(nlls.errors().size() == 4) {
         fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
@@ -769,8 +771,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g, %s",
                 fmin_fit, fmin_fit_err,
                 log10(rlmin_fit) * 20.0, lcrfit->qValue(), lcrfit->isCouplingTight() ? "Tight" : "Loose");
-        if(lcrfit->lineLen() > 0.001)
-            message += formatString(", %.2f m", lcrfit->lineLen());
+        if(lcrfit->txLen() > 0.001)
+            message += formatString(", %.2f m", lcrfit->txLen());
         message +=
             formatString(", C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
                          lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
