@@ -153,14 +153,14 @@ FrmKameMain::FrmKameMain()
     dockLeft->setFloating(true);
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    dockLeft->setWindowOpacity(0.8);
+//    dockLeft->setWindowOpacity(0.8);
     dockLeft->resize(std::max(rect.width() / 5, XMessageBox::form()->width() + 64),
         std::max(rect.height() / 2, 360));
     dockLeft->move(0, rect.top());
     dockRight->setFloating(true);
     dockRight->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    dockRight->setWindowOpacity(0.8);
+//    dockRight->setWindowOpacity(0.8);
     dockRight->resize(std::max(rect.width() / 5, 400), dockLeft->height());
     dockRight->move(rect.right() - dockRight->frameSize().width() - 6, rect.top());
     resize(QSize(std::max(rect.width() / 5, 400), minimumHeight()));
