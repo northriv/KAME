@@ -86,7 +86,9 @@ XDriverListConnector::onCatch(const Snapshot &shot, const XListNodeBase::Payload
     m_pItem->setItem(i, 1, new QTableWidgetItem(driver->getTypename().c_str()));
 
     m_cons.push_back(std::make_shared<tcons>());
-    m_cons.back()->label = new QLabel(m_pItem);
+    m_cons.back()->label = new QLineEdit(m_pItem);
+    m_cons.back()->label->setReadOnly(true);
+    m_cons.back()->label->setFrame(false);
 	m_pItem->setCellWidget(i, 2, m_cons.back()->label);
 	m_cons.back()->driver = driver;
     driver->iterate_commit([=](Transaction &tr){

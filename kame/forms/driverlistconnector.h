@@ -22,7 +22,7 @@ class Ui_FrmDriver;
 typedef QForm<QWidget, Ui_FrmDriver> FrmDriver;
 
 class QTableWidget;
-class QLabel;
+class QLineEdit;
 
 class XDriverListConnector : public XListQConnector {
 	Q_OBJECT
@@ -39,7 +39,7 @@ private:
 	shared_ptr<XTouchableNode> m_create, m_release;
   
 	struct tcons {
-		QLabel *label;
+        QLineEdit *label;
 		shared_ptr<XDriver> driver;
 		shared_ptr<Listener> lsnOnRecord;
 	};

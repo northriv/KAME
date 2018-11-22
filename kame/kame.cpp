@@ -345,12 +345,6 @@ FrmKameMain::processSignals() {
 			last = XTime::now();
 		}
 	#endif
-    static auto lastrefresh = XTime::now();
-        if(XTime::now() - lastrefresh > 10.0) {
-            fprintf(stderr, "Flushing all events.\n");
-            QGuiApplication::sync();
-            lastrefresh = XTime::now();
-        }
 	}
     msecsleep(0);
 }
