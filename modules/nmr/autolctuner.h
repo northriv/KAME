@@ -53,6 +53,7 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm1() const {return m_stm1;}
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm2() const {return m_stm2;}
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > &netana() const {return m_netana;}
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &relayDriver() const {return m_relayDriver;}
 
 	/// Target frequency [MHz]
 	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
@@ -109,6 +110,7 @@ public:
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > m_netana;
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_relayDriver;
 
 	const shared_ptr<XBoolNode> m_tuning;
 	const shared_ptr<XBoolNode> m_succeeded;
