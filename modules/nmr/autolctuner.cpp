@@ -286,8 +286,10 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             if(fit_w_phase) {
             //infers cable length.
                 double d = (10.0 * randMT19937() + 1.0) / q;
-                size_t a = std::max(0L, lrint((f0org * std::max(0.75, (1 - d)) - fstart) / fstep));
-                size_t b = std::max((long)length - 1L, lrint((f0org * std::max(1.2, (1 + d)) - fstart) / fstep));
+                long a = lrint((f0org * std::max(0.75, (1 - d)) - fstart) / fstep);
+                a = std::max(0L, std::min((long)length - 1L, a));
+                long b = lrint((f0org * std::max(1.2, (1 + d)) - fstart) / fstep);
+                b = std::max(0L, std::min((long)length - 1L, b));
                 double phase_chg = std::arg(s11[b] / s11[a]);
                 double f1 = a * fstep + fstart;
                 double f2 = b * fstep + fstart;
