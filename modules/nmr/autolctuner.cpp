@@ -526,10 +526,10 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
             });
         }
     }
-    relay->iterate_commit([=](Transaction &tr){
-        tr[ *relay->auxBits()] = tunebits; //For external RF relays.
-    });
-
+    if(relay)
+        relay->iterate_commit([=](Transaction &tr){
+            tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+        });
 
     iterate_commit([=](Transaction &tr){
         clearUIAndPlot(tr);
@@ -1034,9 +1034,10 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                     });
                 }
             }
-            relay->iterate_commit([=](Transaction &tr){
-                tr[ *relay->auxBits()] = tunebits; //For external RF relays.
-            });
+            if(relay)
+                relay->iterate_commit([=](Transaction &tr){
+                    tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+                });
             msecsleep(50); //waits for relays.
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.
