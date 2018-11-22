@@ -195,8 +195,8 @@ int main(int argc, char *argv[]) {
 				return -1;
             }
 #endif
-//            Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
-            Transactional::setCurrentPriorityMode(Priority::NORMAL);
+            Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
+//            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
 			FrmKameMain *form;
 			form = new FrmKameMain();
