@@ -409,6 +409,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
         m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
         m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
+        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), true)),
         m_tuning(create<XBoolNode>("Tuning", true)),
         m_succeeded(create<XBoolNode>("Succeeded", true)),
         m_target(create<XDoubleNode>("Target", true)),
@@ -441,6 +442,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(stm1(), m_form->m_cmbSTM1, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(relayDriver(), m_form->m_cmbRelayDriver, ref(tr_meas)),
         xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget),
         xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted),
         xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired),
@@ -507,19 +509,23 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
     shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     const unsigned int tunebits = 0xffu;
     for(auto &&stm: stms) {
         if(stm) {
             stm->iterate_commit([=](Transaction &tr){
                 tr[ *stm->active()] = true; // Activate motor.
-                tr[ *stm->auxBits()] = tunebits; //For external RF relays.
             });
             stm->iterate_commit([=](Transaction &tr){
                 tr[ *stm->stopMotor()].touch();
             });
         }
     }
+    relay->iterate_commit([=](Transaction &tr){
+        tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+    });
+
 
     iterate_commit([=](Transaction &tr){
         clearUIAndPlot(tr);
@@ -1012,6 +1018,7 @@ void
 XAutoLCTuner::visualize(const Snapshot &shot_this) {
     const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    const shared_ptr<XMotorDriver> relay = shot_this[ *relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     if(shot_this[ *tuning()]) {
         if(shot_this[ *succeeded()]){
@@ -1020,10 +1027,12 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 if(stm) {
                     stm->iterate_commit([=](Transaction &tr){
                         tr[ *stm->active()] = false; //Deactivates motor.
-                        tr[ *stm->auxBits()] = tunebits; //For external RF relays.
                     });
                 }
             }
+            relay->iterate_commit([=](Transaction &tr){
+                tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+            });
             msecsleep(50); //waits for relays.
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.

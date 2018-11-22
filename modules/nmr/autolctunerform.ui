@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>415</width>
-    <height>591</height>
+    <height>625</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -550,6 +550,20 @@
          </sizepolicy>
         </property>
        </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_17">
+        <item>
+         <widget class="QLabel" name="label_7">
+          <property name="text">
+           <string>Relay</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="m_cmbRelayDriver"/>
+        </item>
+       </layout>
       </item>
      </layout>
     </item>
