@@ -123,10 +123,9 @@ XDriverListConnector::cellClicked ( int row, int col) {
 
 void
 XDriverListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
-	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
+    for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->driver.get() == driver) {
 			( *it)->label->setText(shot[ *driver].time().getTimeStr());
-            ( *it)->label->update();
 		}
 	}
 }

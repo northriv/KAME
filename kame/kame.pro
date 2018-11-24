@@ -266,7 +266,7 @@ macx {
         support_osx.h
 
     OBJECTIVE_SOURCES += \
-        support_osx.m
+        support_osx.mm
 
     LIBS += -framework Foundation
 

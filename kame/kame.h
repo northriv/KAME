@@ -85,6 +85,8 @@ public:
 	FrmNodeBrowser *m_pFrmNodeBrowser;
 
 	int openMes(const XString &filename);
+
+    bool running() const {return !!m_measure;}
 public slots:
     virtual void fileCloseAction_activated();
     virtual void fileExitAction_activated();

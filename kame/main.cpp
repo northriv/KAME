@@ -48,7 +48,7 @@
     #include <ltdl.h>
 #endif
 
-#ifdef __APPLE__
+#if defined __MACOSX__ || defined __APPLE__
     #include "support_osx.h"
 #endif
 
@@ -168,7 +168,8 @@ int main(int argc, char *argv[]) {
 //    }
 //#endif
 
-	{
+    FrmKameMain *form;
+    {
         makeIcons(); //loads icon pixmaps.
 		{
 
@@ -198,7 +199,6 @@ int main(int argc, char *argv[]) {
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
-			FrmKameMain *form;
 			form = new FrmKameMain();
             
             if(mesfile.length()) {
@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
 
     }
 
-#ifdef __APPLE__
+#if defined __MACOSX__ || defined __APPLE__
     //Disables App Nap
     suspendLazySleeps();
 #endif
@@ -292,7 +292,16 @@ int main(int argc, char *argv[]) {
 
     activateAllocator();
 
+#if defined __MACOSX__ || defined __APPLE__
+    while(form->running()) {
+        void *p = autoReleasePoolInit();
+        app.processEvents();
+        autoReleasePoolRelease(p);
+    }
+    int ret = 0;
+#else
     int ret = app.exec();
+#endif
 
 //#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 //    FreeConsole();

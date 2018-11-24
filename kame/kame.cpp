@@ -345,7 +345,7 @@ FrmKameMain::processSignals() {
 			last = XTime::now();
 		}
 	#endif
-	}
+    }
     msecsleep(0);
 }
 

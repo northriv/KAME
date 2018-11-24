@@ -15,3 +15,13 @@ void suspendLazySleeps() {
 void resumeLazySleeps() {
     [[NSProcessInfo processInfo] endActivity:activity];
 }
+
+void *autoReleasePoolInit() {
+    NSAutoreleasePool* p = [[NSAutoreleasePool alloc] init];
+    return p;
+}
+void autoReleasePoolRelease(void *pool) {
+    auto p = (NSAutoreleasePool*)pool;
+    //        NSLog(@"%@", [NSAutoreleasePool showPools]);
+    [p release];
+}

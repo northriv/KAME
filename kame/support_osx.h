@@ -10,4 +10,7 @@
 C_API void suspendLazySleeps();
 C_API void resumeLazySleeps();
 
+C_API void *autoReleasePoolInit();
+C_API void autoReleasePoolRelease(void *);
+
 #endif // SUPPORT_OSX_H
