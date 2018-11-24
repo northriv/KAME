@@ -302,6 +302,9 @@ XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
     if(shot_this[ *active()]) {
         //Tuning has succeeded, go on.
         trans( *pulser__->output()) = true; // Pulse on.
+        shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
+        if(pulse__)
+            trans( *pulse__->avgClear()).touch();
     }
 }
 void
