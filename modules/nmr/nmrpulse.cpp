@@ -51,7 +51,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
 		m_numEcho(create<XUIntNode>("NumEcho", false)),
 		m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
-		m_spectrumShow(create<XTouchableNode>("SpectrumShow", true)),
+        m_voltLimit(create<XDoubleNode>("VoltLimit", false)),
+        m_spectrumShow(create<XTouchableNode>("SpectrumShow", true)),
 		m_avgClear(create<XTouchableNode>("AvgClear", true)),
 		m_picEnabled(create<XBoolNode>("PICEnabled", false)),
 		m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, ref(tr_meas), meas->drivers(), true)),
@@ -82,6 +83,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *numEcho()] = 1;
 		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 		tr[ *windowWidth()] = 100.0;
+        tr[ *voltLimit()] = 1.5;
     });
 
 	m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
@@ -546,10 +548,15 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double *darkpsdsum( &tr[ *this].m_darkPSDSum[0]);
 	//Incremental/Sequential average.
 	if((emitter == dso__.get()) || ( !shot_this[ *this].m_avcount)) {
-		for(int i = 0; i < length; i++) {
+        double max_volt_abs = 0.0;
+        for(int i = 0; i < length; i++) {
 			wavesum[i] += dsowave[pos + i];
+            max_volt_abs = std::max(max_volt_abs, std::abs(dsowave[pos + i]));
 		}
-		if(bglength) {
+        if(max_volt_abs > shot_this[ *voltLimit()]) {
+            throw XRecordError(i18n("Peak height exceeded limit voltage."), __FILE__, __LINE__);
+        }
+        if(bglength) {
 			//Estimates power spectral density in the background.
 			if( !shot_this[ *this].m_ftDark ||
 				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
@@ -595,7 +602,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if( shot_this[ *exAvgIncr()]) {
 			tr[ *extraAvg()] = shot_this[ *this].m_avcount;
 		}
-	}
+    }
 	std::complex<double> *wave( &tr[ *this].m_wave[0]);
 	double normalize = 1.0 / shot_this[ *this].m_avcount;
 	for(int i = 0; i < length; i++) {

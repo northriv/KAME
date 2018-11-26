@@ -145,6 +145,8 @@ public:
 	/// If NumEcho > 1, need periodic term of echoes [ms]
 	const shared_ptr<XDoubleNode> &echoPeriod() const {return m_echoPeriod;}
 
+    const shared_ptr<XDoubleNode> &voltLimit() const {return m_voltLimit;} //[V]
+
 private:
 	/// Stored Wave for display.
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
@@ -176,6 +178,8 @@ private:
 
 	const shared_ptr<XUIntNode> m_numEcho;
 	const shared_ptr<XDoubleNode> m_echoPeriod;
+
+    const shared_ptr<XDoubleNode> m_voltLimit;
 
 	const shared_ptr<XTouchableNode> m_spectrumShow;
 	const shared_ptr<XTouchableNode> m_avgClear;

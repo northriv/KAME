@@ -92,7 +92,7 @@ public:
 		unsigned int numChannels() const {return m_numChannels;}
 		double timeInterval() const {return m_timeInterval;} //! [sec]
 		unsigned int length() const;
-		const double *wave(unsigned int ch) const;
+        const double *wave(unsigned int ch) const;
 
 		void setParameters(unsigned int channels, double startpos, double interval, unsigned int length);
 		//! For displaying.
@@ -107,7 +107,7 @@ public:
 		double m_trigPos; ///< unit is interval
 		unsigned int m_numChannels;
 		double m_timeInterval; //! [sec]
-		std::vector<double> m_waves;
+        std::vector<double> m_waves;
 
 		//! for displaying.
 		bool m_rawDisplayOnly; ///< flag for skipping to record.
