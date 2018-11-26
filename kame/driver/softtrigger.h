@@ -37,7 +37,7 @@ public:
     double freq() const {return m_freq;} //!< [Hz].
     unsigned int bits() const {return m_bits;}
     void stop();
-    double timeForBufferredTriggersRequired() const {return 0.5;} //sec.
+    double timeForBufferredTriggersRequired() const {return 0.6;} //sec.
     //! issues trigger anyway.
     void forceStamp(uint64_t now, double freq);
     //! issues trigger if possible.
