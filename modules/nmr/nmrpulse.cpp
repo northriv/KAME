@@ -550,8 +550,9 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if((emitter == dso__.get()) || ( !shot_this[ *this].m_avcount)) {
         double max_volt_abs = 0.0;
         for(int i = 0; i < length; i++) {
-			wavesum[i] += dsowave[pos + i];
-            max_volt_abs = std::max(max_volt_abs, std::abs(dsowave[pos + i]));
+            auto z = dsowave[pos + i];
+            wavesum[i] += z;
+            max_volt_abs = std::max(max_volt_abs, std::abs(z));
 		}
         if(max_volt_abs > shot_this[ *voltLimit()]) {
             throw XRecordError(i18n("Peak height exceeded limit voltage."), __FILE__, __LINE__);
