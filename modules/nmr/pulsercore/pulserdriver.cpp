@@ -1228,8 +1228,9 @@ XPulser::visualize(const Snapshot &shot) {
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
                     //free-runs to calculate future trigger positions.
-                    m_thresholdOfFreeRun = lrint(1.1 * softwareTrigger()->timeForBufferredTriggersRequired() * softwareTrigger()->freq());
+                    m_thresholdOfFreeRun = lrint(1.2 * softwareTrigger()->timeForBufferredTriggersRequired() * softwareTrigger()->freq());
                     freeRunToDetectTriggers({false}, true);
+                    m_thresholdOfFreeRun = lrint(2.0 * softwareTrigger()->timeForBufferredTriggersRequired() * softwareTrigger()->freq());
                     //starts a free-running thread.
                     m_threadFreeRun.reset(new XThread{shared_from_this(),
                         &XPulser::freeRunToDetectTriggers, false});
