@@ -117,6 +117,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(windowFunc(),	m_form->m_cmbWindowFunc, Snapshot( *windowFunc())),
         xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(), m_form->m_dblWindowWidth, m_form->m_slWindowWIdth),
         xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq),
+        xqcon_create<XQLineEditConnector>(voltLimit(), m_form->m_edVoltLimit),
         xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled),
         xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas))
