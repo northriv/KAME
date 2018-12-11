@@ -278,7 +278,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto z = 127.0 * (c  + qam_offset);
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
-                if(std::norm(z) > 127.0 * 127.0 / 2.0) {
+                if(std::norm(z) > 127.0 * 127.0) {
                     is_saturated = true;
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
