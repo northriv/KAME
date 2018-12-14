@@ -219,16 +219,17 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
 
 	bool conf_needed = false;
-	if(shot[ *stepMotor()] != interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382)) {
-		conf_needed = true;
-		int b = 1;
-		if(int x = shot[ *stepMotor()] % 1000)
-			b = 1000 / x;
-		b = std::min(b, 10);
-		int a = lrint(shot[ *stepMotor()]/1000.0*b);
-		interface()->presetTwoResistors(0x380,  a); //A
-		interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
-	}
+    //electric gear
+    {
+        int a = 1000;
+        int b = shot[ *stepMotor()];
+        if((a != interface()->readHoldingTwoResistors(0x380)) ||
+            (b != interface()->readHoldingTwoResistors(0x382))) {
+            conf_needed = true;
+            interface()->presetTwoResistors(0x380,  a); //A
+            interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
+        }
+    }
 	interface()->presetTwoResistors(0x1002, shot[ *stepEncoder()] / shot[ *stepMotor()]); //Multiplier is stored in MS2 No.
 	int b_micro = shot[ *microStep()] ? 1 : 0;
 	if(interface()->readHoldingTwoResistors(0x1028) != b_micro) {
@@ -309,8 +310,9 @@ XFlexAR::sendStopSignal(bool wait) {
 		bool isready = output & 0x20;
 		if(isready) break;
 		if(i ==0) {
-			interface()->presetTwoResistors(0x7c, 0x20u); //STOP
-			interface()->presetTwoResistors(0x7c, 0x0u);
+            uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+            interface()->presetTwoResistors(0x7c, netin | 0x20u); //STOP
+            interface()->presetTwoResistors(0x7c, netin);
 			if( !wait)
 				break;
 		}
