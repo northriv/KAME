@@ -228,9 +228,9 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 FrmKameMain::~FrmKameMain() {
 	m_pTimer->stop();
 //	while( !g_signalBuffer->synchronize()) {}
-	m_measure.reset();
     Transactional::SignalBuffer::cleanup();
     s_pMessageBox.reset();
+    m_measure.reset();
 }
 
 void
