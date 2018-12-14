@@ -296,8 +296,10 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
 	sendStopSignal(true);
 	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
 	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
-	interface()->presetTwoResistors(0x7c, 0x100u); //MS0
-	interface()->presetTwoResistors(0x7c, 0x0u);
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    interface()->presetTwoResistors(0x7c, netin | 0x100uL); //MS0
+    interface()->presetTwoResistors(0x7c, netin & ~0x100uL);
 }
 void
 XFlexAR::stopRotation() {
@@ -311,8 +313,9 @@ XFlexAR::sendStopSignal(bool wait) {
 		if(isready) break;
 		if(i ==0) {
             uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            interface()->presetTwoResistors(0x7c, netin | 0x20u); //STOP
-            interface()->presetTwoResistors(0x7c, netin);
+            netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
+            interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
+            interface()->presetTwoResistors(0x7c, netin & ~0x20uL);
 			if( !wait)
 				break;
 		}
@@ -325,27 +328,34 @@ XFlexAR::sendStopSignal(bool wait) {
 void
 XFlexAR::setForward() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x7c, 0x4000u); //FWD
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    interface()->presetTwoResistors(0x7c, netin | 0x4000uL); //FWD
 }
 void
 XFlexAR::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x7c, 0x8000u); //RVS
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    interface()->presetTwoResistors(0x7c, netin | 0x8000uL); //RVS
 }
 void
 XFlexAR::setActive(bool active) {
 	XScopedLock<XInterface> lock( *interface());
-	if(active) {
-		interface()->presetTwoResistors(0x7c, 0x0u);
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    if(active) {
+        interface()->presetTwoResistors(0x7c, netin & ~0x40uL);
 	}
 	else {
 		sendStopSignal(true);
-		interface()->presetTwoResistors(0x7c, 0x40u); //FREE
+        interface()->presetTwoResistors(0x7c, netin | 0x40uL); //FREE
 	}
 }
 void
 XFlexAR::setAUXBits(unsigned int bits) {
-	interface()->presetSingleResistor(0x7d, bits & 0x3fu);
+    XScopedLock<XInterface> lock( *interface());
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, netin | (bits & 0x3fuL));
 }
 
 XEMP401::XEMP401(const char *name, bool runtime,
