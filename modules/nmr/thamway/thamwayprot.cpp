@@ -47,6 +47,9 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     m_rxGain(XSG::create<XDoubleNode>("RXGain", true, "%.0f")),
     m_rxPhase(XSG::create<XDoubleNode>("RXPhase", true, "%.1f")),
     m_rxLPFBW(XSG::create<XDoubleNode>("RXLPFBW", true, "%.4g")),
+    m_fwdPWR(XSG::create<XDoubleNode>("FWDPWR", true, "%.1f")),
+    m_bwdPWR(XSG::create<XDoubleNode>("BWDPWR", true, "%.1f")),
+    m_ampWarn(XSG::create<XBoolNode>("AmpWarn", true)),
     m_form(new FrmThamwayPROT) {
 
     m_form->statusBar()->hide();
@@ -68,7 +71,10 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(this->freq(), m_form->m_edFreq),
         xqcon_create<XQDoubleSpinBoxConnector>(m_rxGain, m_form->m_dblRXGain, m_form->m_slRXGain),
         xqcon_create<XQDoubleSpinBoxConnector>(m_rxPhase, m_form->m_dblRXPhase, m_form->m_slRXPhase),
-        xqcon_create<XQLineEditConnector>(m_rxLPFBW, m_form->m_edRXLPFBW)
+        xqcon_create<XQLineEditConnector>(m_rxLPFBW, m_form->m_edRXLPFBW),
+        xqcon_create<XQLCDNumberConnector>(m_fwdPWR, m_form->m_lcdFWD),
+        xqcon_create<XQLCDNumberConnector>(m_bwdPWR, m_form->m_lcdBWD),
+        xqcon_create<XQLedConnector>(m_ampWarn, m_form->m_ledWarn),
     };
     this->rfON()->setUIEnabled(false);
     this->oLevel()->setUIEnabled(false);
@@ -88,41 +94,20 @@ XThamwayPROT<tInterface>::showForms() {
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::start() {
-    XScopedLock<XInterface> lock( *this->interface());
-    this->interface()->query("FREQR");
-    double f;
-    for(int i = 0; ; ++i) {
-        if(this->interface()->scanf("FREQR%lf", &f) == 1)
-            break;
-        if(i > 3)
-            throw XInterface::XConvError(__FILE__, __LINE__);
-        this->interface()->receive(); //flushing not-welcome message if any, although this is TCP connection.
+    {
+        XScopedLock<XInterface> lock( *this->interface());
+        this->interface()->query("FREQR");
+        double f;
+        for(int i = 0; ; ++i) {
+            if(this->interface()->scanf("FREQR%lf", &f) == 1)
+                break;
+            if(i > 3)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->receive(); //flushing not-welcome message if any, although this is TCP connection.
+        }
     }
-    this->interface()->query("ATT1R");
-    double olevel;
-    if(this->interface()->scanf("ATT1R%lf", &olevel) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-//    olevel = log10(olevel / 1023.0) * 20.0;
-    this->interface()->query("GAINR");
-    double gain;
-    if(this->interface()->scanf("GAINR%lf", &gain) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    this->interface()->query("PHASR");
-    double phase;
-    if(this->interface()->scanf("PHASR%lf", &phase) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    this->interface()->query("LPF1R");
-    double bw;
-    if(this->interface()->scanf("LPF1R%lf", &bw) != 1)
-        throw XInterface::XConvError(__FILE__, __LINE__);
-    bw *= 1e-3;
-    this->iterate_commit([=](Transaction &tr){
-        tr[ *this->freq()] = f;
-        tr[ *this->oLevel()] = olevel;
-        tr[ *this->rxGain()] = gain;
-        tr[ *this->rxPhase()] = phase;
-        tr[ *this->rxLPFBW()] = bw;
-    });
+
+    fetchStatus({}, true);
 
     XSG::start();
 
@@ -144,6 +129,8 @@ XThamwayPROT<tInterface>::start() {
         m_lsnRXLPFBW = tr[ *rxLPFBW()].onValueChanged().connectWeakly(
             this->shared_from_this(), &XThamwayPROT::onRXLPFBWChanged);
     });
+
+    m_thread.reset(new XThread{XThamwayPROT<tInterface>::shared_from_this(), &XThamwayPROT<tInterface>::fetchStatus, false});
 }
 template <class tInterface>
 void
@@ -159,7 +146,92 @@ XThamwayPROT<tInterface>::stop() {
     m_lsnRXPhase.reset();
     m_lsnRXLPFBW.reset();
 
+    m_thread->terminate();
+    m_thread->join();
+    m_thread.reset();
+
     XSG::stop();
+}
+
+template <class tInterface>
+void
+XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool single) {
+    for(;;) {
+        {
+            XScopedLock<XInterface> lock( *this->interface());
+            this->interface()->query("FREQR");
+            double f;
+            if(this->interface()->scanf("FREQR%lf", &f) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("ATT1R");
+            double olevel;
+            if(this->interface()->scanf("ATT1R%lf", &olevel) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+        //    olevel = log10(olevel / 1023.0) * 20.0;
+            this->interface()->query("GAINR");
+            double gain;
+            if(this->interface()->scanf("GAINR%lf", &gain) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("PHASR");
+            double phase;
+            if(this->interface()->scanf("PHASR%lf", &phase) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("LPF1R");
+            double bw;
+            if(this->interface()->scanf("LPF1R%lf", &bw) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("RFSWR");
+            int sw;
+            if(this->interface()->scanf("RFSWR%d", &sw) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            bw *= 1e-3;
+            this->interface()->query("FWDPR");
+            double fwd;
+            if(this->interface()->scanf("FWDPR%lf", &fwd) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("BWDPR");
+            double bwd;
+            if(this->interface()->scanf("BWDPR%lf", &bwd) != 1)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            this->interface()->query("STTSR");
+            bool warn = true;
+            char c;
+            if(this->interface()->scanf("STTSR%c", &c) != 1)
+                warn = false;
+            this->iterate_commit([=](Transaction &tr){
+                if(fabs(tr[ *this->freq()] - f) > 1e-6) {
+                    tr[ *this->freq()] = f;
+                    tr.unmark(m_lsnFreq);
+                }
+                if(fabs(tr[ *this->oLevel()] - olevel) > 1e-3) {
+                    tr[ *this->oLevel()] = olevel;
+                    tr.unmark(m_lsnOLevel);
+                }
+                if(fabs(tr[ *this->rxGain()] - gain) > 1e-3) {
+                    tr[ *this->rxGain()] = gain;
+                    tr.unmark(m_lsnRXGain);
+                }
+                if(fabs(tr[ *this->rxPhase()] - phase) > 1e-3) {
+                    tr[ *this->rxPhase()] = phase;
+                    tr.unmark(m_lsnRXPhase);
+                }
+                if(fabs(tr[ *this->rxLPFBW()] - bw) > 1e-3) {
+                    tr[ *this->rxLPFBW()] = bw;
+                    tr.unmark(m_lsnRXLPFBW);
+                }
+                if(tr[ *this->rfON()] != sw) {
+                    tr[ *this->rfON()] = sw;
+                    tr.unmark(this->lsnRFON());
+                }
+                tr[ *this->fwdPWR()] = fwd;
+                tr[ *this->bwdPWR()] = bwd;
+                tr[ *this->ampWarn()] = warn;
+            });
+        }
+        if(single || terminated)
+            break;
+        msecsleep(100);
+    }
 }
 
 template <class tInterface>

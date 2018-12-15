@@ -65,6 +65,9 @@ public:
     const shared_ptr<XDoubleNode> &rxGain() const {return m_rxGain;} //!< Receiver Gain [dB] (0 -- 95)
     const shared_ptr<XDoubleNode> &rxPhase() const {return m_rxPhase;} //!< Receiver phase [deg.]
     const shared_ptr<XDoubleNode> &rxLPFBW() const {return m_rxLPFBW;} //!< Receiver BW of LPF [kHz] (0 -- 200)
+    const shared_ptr<XDoubleNode> &fwdPWR() const {return m_fwdPWR;} //!< Transmission
+    const shared_ptr<XDoubleNode> &bwdPWR() const {return m_bwdPWR;} //!< Reflection
+    const shared_ptr<XBoolNode> &ampWarn() const {return m_ampWarn;}
 protected:
     //! Starts up your threads, connects GUI, and activates signals.
     virtual void start();
@@ -83,7 +86,8 @@ protected:
     virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *);
 private:
-    const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW;
+    const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW, m_fwdPWR, m_bwdPWR;
+    const shared_ptr<XBoolNode> m_ampWarn;
 
     shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel;
     shared_ptr<Listener> m_lsnRXGain, m_lsnRXPhase, m_lsnRXLPFBW;
@@ -91,6 +95,9 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
     const qshared_ptr<FrmThamwayPROT> m_form;
+
+    void fetchStatus(const atomic<bool>&, bool single);
+    unique_ptr<XThread> m_thread;
 };
 
 //! Thamway NMR PROT series for GPIB, etc..
