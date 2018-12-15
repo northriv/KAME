@@ -355,7 +355,7 @@ void
 XFlexAR::setAUXBits(unsigned int bits) {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    interface()->presetTwoResistors(0x7c, netin | (bits & 0x3fuL));
+    interface()->presetTwoResistors(0x7c, (netin & ~0x3fuL) | (bits & 0x3fuL));
 }
 
 XEMP401::XEMP401(const char *name, bool runtime,
