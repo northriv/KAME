@@ -240,12 +240,17 @@ XThamwayFX2USBInterface::bulkWriteStored() {
     XScopedLock<XThamwayFX2USBInterface> lock( *this);
 
     uint16_t len = m_buffer.size();
-    dbgPrint(driver()->getLabel() + formatString(" BurstWriting for %x bytes", (unsigned int)len));
+    auto sum = std::accumulate(m_buffer.begin(), m_buffer.end(), 0);
+    dbgPrint(driver()->getLabel() + formatString(" BurstWriting for %u bytes, sum=%x", (unsigned int)len, (unsigned int)sum));
+    fprintf(stderr, " BurstWriting for %u bytes, sum=%x\n", (unsigned int)len, (unsigned int)sum);
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
     usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     usb()->bulkWrite(EPOUT2, (uint8_t*) &m_buffer[0], len);
 
     resetBulkWrite();
+
+//    msecsleep(10); //this induces transfer problem at high rate.
+
 }
 
 void

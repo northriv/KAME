@@ -234,8 +234,8 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
     //        getStatus(0, &ext_clock); //PROT does not use ext. clock.
     this->interface()->writeToRegister8(ADDR_REG_CTRL, 0); //stops it
     {
-        XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
-        XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
+//        XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
+//        XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
         this->interface()->writeToRegister8(ADDR_REG_MODE, 2 | (ext_clock ? 4 : 0)); //direct output on.
         this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, blankpattern % 0x10000uL);
         this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, blankpattern / 0x10000uL);
@@ -247,16 +247,18 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
         if(hasQAMPorts()) {
             this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_ADDR_L, 0);
             this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_ADDR_H, 0);
-            writerQAM.flush();
+//            writerQAM.flush();
         }
-        writer.flush();
+//        writer.flush();
     }
+    uint32_t checksum = 0, checksum_qam = 0, checksum_rd = 0, checksum_qam_rd = 0;
+    uint32_t addr_end;
     size_t addr = 0, addr_qam = 0;
     bool is_saturated = false;
     if(output) {
         {
             fprintf(stderr, "Pulser start");
-            XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
+//            XThamwayFX2USBInterface::ScopedBulkWriter writer(this->interface());
             XThamwayFX2USBInterface::ScopedBulkWriter writerQAM(this->interfaceQAM());
 
             //lambda for one pulse
@@ -266,6 +268,10 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 this->interface()->writeToRegister16(ADDR_REG_DATA_LSW, data % 0x10000uL);
                 this->interface()->writeToRegister16(ADDR_REG_DATA_MSW, data / 0x10000uL);
                 this->interface()->writeToRegister8(ADDR_REG_CTRL, 2); //addr++
+                checksum += term % 0x10000uL;
+                checksum += term / 0x10000uL;
+                checksum += data % 0x10000uL;
+                checksum += data / 0x10000uL;
                 addr += 2;
                 if(addr >= MAX_PATTERN_SIZE) {
                     throw XInterface::XInterfaceError(i18n("Number of patterns exceeded the size limit."), __FILE__, __LINE__);
@@ -278,7 +284,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                 auto z = 127.0 * (c  + qam_offset);
                 auto x = std::real(z) * qam_lvl1;
                 auto y = std::imag(z) * qam_lvl2;
-                if(std::norm(z) > 127.0 * 127.0) {
+                if(std::norm(z) > 127.1 * 127.0) {
                     is_saturated = true;
                     x *= 127.0 / std::abs(z);
                     y *= 127.0 / std::abs(z);
@@ -310,6 +316,7 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                                 uint16_t iq = qamIQ(z0 * qamz);
 //                                fprintf(stderr, " %04x", iq);
                                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_DATA_LSW, iq);
+                                checksum_qam += iq;
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 2); //addr++
                                 this->interfaceQAM()->writeToRegister8(QAM_ADDR_REG_CTRL, 0); //?
                                 qamz = 0.0;
@@ -323,6 +330,8 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
                     pnum_prev = pnum;
                 }
             }
+//            writer.flush(); //sends above commands here.
+            addr_end = this->interface()->readRegister16(ADDR_REG_ADDR_L) + 0x10000uL * this->interface()->readRegister8(ADDR_REG_ADDR_H);
             this->interface()->writeToRegister8(ADDR_REG_STS, 0); //clears STS.
             this->interface()->writeToRegister16(ADDR_REG_REP_N, 0); //infinite loops
             //mimics PULBOAD.BAS:StartBrd(0)
@@ -330,13 +339,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
             this->interface()->writeToRegister8(ADDR_REG_MODE, 8 | (ext_clock ? 4 : 0)); //external Trig
 
-            writer.flush(); //sends above commands here.
             if(hasQAMPorts()) {
                 this->interfaceQAM()->writeToRegister16(QAM_ADDR_REG_REP_N, 0); //infinite loops
 //                //this readout procedure is necessary for unknown reasons!
 //                //mimics modQAM.bas:dump_qam
                 std::vector<uint8_t> buf(addr_qam / m_qamPeriod * 2);
                 this->interfaceQAM()->burstRead(QAM_ADDR_REG_DATA_LSW, &buf[0], buf.size());
+                for(unsigned int i = 0; i < addr_qam / m_qamPeriod; ++i)
+                    checksum_qam_rd += buf[i * 2] + 0x100uL * buf[i * 2 + 1];
                 writerQAM.flush(); //sends above commands here.
             }
         }
@@ -344,11 +354,14 @@ XThamwayUSBPulser::changeOutput(const Snapshot &shot, bool output, unsigned int 
             gErrPrint(i18n("QAM levels may exceeds a limit voltage."));
 
         //For PROT3, this readout procedure is necessary for unknown reasons!
-        std::vector<uint8_t> buf(addr);
-        this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], buf.size());
-        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], buf.size());
+//        std::vector<uint8_t> buf(addr * 2);
+//        this->interface()->burstRead(ADDR_REG_TIME_LSW, &buf[0], buf.size());
+//        this->interface()->burstRead(ADDR_REG_TIME_MSW, &buf[0], buf.size());
 //        this->interface()->burstRead(ADDR_REG_DATA_LSW, &buf[0], buf.size());
 //        this->interface()->burstRead(ADDR_REG_DATA_MSW, &buf[0], buf.size());
+        fprintf(stderr, "End of addr. wr = %x, rd = %x\n", (unsigned int)addr, (unsigned int)addr_end*2);
+//        if(hasQAMPorts())
+//            fprintf(stderr, "Check sum QAM = %x, rd = %x\n", (unsigned int)checksum_qam, (unsigned int)checksum_qam_rd);
 
         this->interface()->writeToRegister16(ADDR_REG_ADDR_L, 0);
         this->interface()->writeToRegister8(ADDR_REG_ADDR_H, 0);
