@@ -86,6 +86,8 @@ protected:
     virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *);
 private:
+    double query(const char *cmd);
+
     const shared_ptr<XDoubleNode> m_rxGain, m_rxPhase, m_rxLPFBW, m_fwdPWR, m_bwdPWR;
     const shared_ptr<XBoolNode> m_ampWarn;
 
@@ -98,6 +100,7 @@ private:
 
     void fetchStatus(const atomic<bool>&, bool single);
     unique_ptr<XThread> m_thread;
+    atomic<XTime> m_timeUIinteracted;
 };
 
 //! Thamway NMR PROT series for GPIB, etc..

@@ -91,22 +91,10 @@ XThamwayPROT<tInterface>::showForms() {
     m_form->showNormal();
     m_form->raise();
 }
+
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::start() {
-    {
-        XScopedLock<XInterface> lock( *this->interface());
-        this->interface()->query("FREQR");
-        double f;
-        for(int i = 0; ; ++i) {
-            if(this->interface()->scanf("FREQR%lf", &f) == 1)
-                break;
-            if(i > 3)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->receive(); //flushing not-welcome message if any, although this is TCP connection.
-        }
-    }
-
     fetchStatus({}, true);
 
     XSG::start();
@@ -146,58 +134,51 @@ XThamwayPROT<tInterface>::stop() {
     m_lsnRXPhase.reset();
     m_lsnRXLPFBW.reset();
 
-    m_thread->terminate();
-    m_thread->join();
-    m_thread.reset();
+    if(m_thread) {
+        m_thread->terminate();
+        m_thread->join();
+        m_thread.reset();
+    }
 
     XSG::stop();
 }
 
 template <class tInterface>
+double
+XThamwayPROT<tInterface>::query(const char *cmd) {
+    this->interface()->query(cmd);
+    double v;
+    for(int i = 0; ; ++i) {
+        if(this->interface()->scanf((XString(cmd) + "%lf").c_str(), &v) == 1)
+            break;
+        if(i > 4)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        this->interface()->receive(); //flushing not-welcome message if any.
+        msecsleep(10);
+    }
+    return v;
+}
+
+template <class tInterface>
 void
 XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool single) {
+    m_timeUIinteracted = XTime::now();
     for(;;) {
-        {
+        try {
             XScopedLock<XInterface> lock( *this->interface());
-            this->interface()->query("FREQR");
-            double f;
-            if(this->interface()->scanf("FREQR%lf", &f) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("ATT1R");
-            double olevel;
-            if(this->interface()->scanf("ATT1R%lf", &olevel) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
+            if(!single && (XTime::now() - m_timeUIinteracted < 0.2))
+                continue; //waits for PROT is stable.
+            double f = query("FREQR");
+            double olevel = query("ATT1R");
         //    olevel = log10(olevel / 1023.0) * 20.0;
-            this->interface()->query("GAINR");
-            double gain;
-            if(this->interface()->scanf("GAINR%lf", &gain) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("PHASR");
-            double phase;
-            if(this->interface()->scanf("PHASR%lf", &phase) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("LPF1R");
-            double bw;
-            if(this->interface()->scanf("LPF1R%lf", &bw) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("RFSWR");
-            int sw;
-            if(this->interface()->scanf("RFSWR%d", &sw) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
+            double gain = query("GAINR");
+            double phase = query("PHASR");
+            double bw = query("LPF1R");
             bw *= 1e-3;
-            this->interface()->query("FWDPR");
-            double fwd;
-            if(this->interface()->scanf("FWDPR%lf", &fwd) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("BWDPR");
-            double bwd;
-            if(this->interface()->scanf("BWDPR%lf", &bwd) != 1)
-                throw XInterface::XConvError(__FILE__, __LINE__);
-            this->interface()->query("STTSR");
-            bool warn = true;
-            char c;
-            if(this->interface()->scanf("STTSR%c", &c) != 1)
-                warn = false;
+            int sw = (int)lrint(query("RFSWR"));
+            double fwd = query("FWDPR");
+            double bwd = query("BWDPR");
+            int warn = (int)lrint(query("STTSR"));
             this->iterate_commit([=](Transaction &tr){
                 if(fabs(tr[ *this->freq()] - f) > 1e-6) {
                     tr[ *this->freq()] = f;
@@ -228,6 +209,9 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
                 tr[ *this->ampWarn()] = warn;
             });
         }
+        catch (XInterface::XInterfaceError &e) {
+            e.print();
+        }
         if(single || terminated)
             break;
         msecsleep(100);
@@ -238,17 +222,20 @@ template <class tInterface>
 void
 XThamwayPROT<tInterface>::changeFreq(double mhz) {
     XScopedLock<XInterface> lock( *this->interface());
+    m_timeUIinteracted = XTime::now();
     this->interface()->sendf("FREQW%010.6f", mhz);
     msecsleep(50); //wait stabilization of PLL
 }
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+    m_timeUIinteracted = XTime::now();
     this->interface()->sendf("RFSWW%s", shot[ *this->rfON()] ? "1" : "0");
 }
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+    m_timeUIinteracted = XTime::now();
     int olevel = (int)shot[ *this->oLevel()]; //pow(10, shot[ *this->oLevel()] / 20.0) * 1023.0);
     olevel = std::min(1023, std::max(0, olevel));
     this->interface()->sendf("ATT1W%04.0f", (double)olevel);
@@ -256,6 +243,7 @@ XThamwayPROT<tInterface>::onOLevelChanged(const Snapshot &shot, XValueNodeBase *
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onRXGainChanged(const Snapshot &shot, XValueNodeBase *) {
+    m_timeUIinteracted = XTime::now();
     double gain = shot[ *rxGain()];
     gain = std::min(95.0, std::max(0.0, gain));
     this->interface()->sendf("GAINW%02.0f", gain);
@@ -263,6 +251,7 @@ XThamwayPROT<tInterface>::onRXGainChanged(const Snapshot &shot, XValueNodeBase *
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *) {
+    m_timeUIinteracted = XTime::now();
     double phase = shot[ *rxPhase()];
     phase -= floor(phase / 360.0) * 360.0;
     this->interface()->sendf("PHASW%05.1f", phase);
@@ -270,6 +259,7 @@ XThamwayPROT<tInterface>::onRXPhaseChanged(const Snapshot &shot, XValueNodeBase 
 template <class tInterface>
 void
 XThamwayPROT<tInterface>::onRXLPFBWChanged(const Snapshot &shot, XValueNodeBase *) {
+    m_timeUIinteracted = XTime::now();
     double bw = shot[ *rxLPFBW()];
 //    bw = std::min(200.0, std::max(0.0, bw));
     this->interface()->sendf("LPF1W%07.0f", bw * 1e3);
