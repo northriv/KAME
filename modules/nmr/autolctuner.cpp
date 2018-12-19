@@ -334,7 +334,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
             m_c1 = nlls1.params()[2];
             m_r2 = nlls1.params()[3];
             m_txLen = nlls1.params()[4];
-            nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs);
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n);
             m_r1 = fabs(nlls1.params()[0]);
             m_c2 = nlls1.params()[1];
             m_c1 = nlls1.params()[2];
