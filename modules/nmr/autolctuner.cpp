@@ -410,10 +410,10 @@ private:
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
-        m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
+        m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), false)),
         m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
         m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
-        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), true)),
+        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), false)),
         m_tuning(create<XBoolNode>("Tuning", true)),
         m_succeeded(create<XBoolNode>("Succeeded", true)),
         m_target(create<XDoubleNode>("Target", true)),
