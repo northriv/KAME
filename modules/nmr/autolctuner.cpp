@@ -235,7 +235,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
                 auto rot = std::polar(1.0, -ph_per_f * freq);
                 auto z = rl(omega);
                 if(f) {
-                    auto dy = (z - s11[i] * rot) * wsqrt;
+                    auto dy = (z - s11[i / 2] * rot) * wsqrt;
                     f[i] = dy.real();
                     f[i + 1] = dy.imag();
                 }
@@ -249,7 +249,7 @@ LCRFit::fit(const std::complex<double> *s11, unsigned int length,
                         if(j >= p) break;
                     }
                     if(p >= 5) {
-                        auto dyda = -std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i] * rot * wsqrt;
+                        auto dyda = -std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i / 2] * rot * wsqrt;
                         df[4][i] = dyda.real();
                         df[4][i + 1] = dyda.imag();
                     }
