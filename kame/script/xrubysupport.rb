@@ -6,7 +6,10 @@
 #redirect defout, deferr
 class << $stdout
   def write(str)
-    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
+    if Thread.current[:logfile] then
+        Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str)
+        Thread.current[:logfile].flush()
+    end
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -23,7 +26,10 @@ class << $stdout
 end
 class << $stderr
   def write(str)
-    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
+    if Thread.current[:logfile] then
+        Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str)
+        Thread.current[:logfile].flush()
+    end
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
