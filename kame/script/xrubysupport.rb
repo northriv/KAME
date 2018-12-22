@@ -6,10 +6,7 @@
 #redirect defout, deferr
 class << $stdout
   def write(str)
-    if Thread.current[:logfile] then
-        Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str)
-        Thread.current[:logfile].flush()
-    end
+    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -26,10 +23,7 @@ class << $stdout
 end
 class << $stderr
   def write(str)
-    if Thread.current[:logfile] then
-        Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str)
-        Thread.current[:logfile].flush()
-    end
+    Thread.current[:logfile].puts(Time.now().strftime("%T") + ":" + str) if Thread.current[:logfile]
     str = str.gsub(/&/, "&amp;")
     str = str.gsub(/</, "&lt;")
     str = str.gsub(/>/, "&gt;")
@@ -301,6 +295,7 @@ begin
 					 filename.untaint
 					 if /\.seq/i =~ filename then
 					    Thread.current[:logfile] = File.open(filename + ".log", "a")
+						Thread.current[:logfile].sync = true
 					    Thread.current[:logfile].puts("Started @#{Time.now()} \n")
 					 else
 					    Thread.current[:load_kam] = true
