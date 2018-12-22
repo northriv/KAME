@@ -551,6 +551,8 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].started = XTime::now();
         tr[ *this].isTargetAbondoned = false;
         tr[ *this].residue_offset = 0;
+        tr[ *this].taintedCount = 0;
+        tr[ *this].sor = 1.0;
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -591,6 +593,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
     tr[ *this].resetToFirstStage();
+    tr[ *this].sor *= 0.5;
     throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
@@ -676,8 +679,9 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
 
     if(shot_this[ *this].timeSTMChanged) {
-        if((stm1__ && (shot_emitter[ *emitter].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
-            (stm2__ && (shot_emitter[ *emitter].timeAwared() - shot_this[ *this].timeSTMChanged < 0)))
+        if(((stm1__ && (shot_others[ *stm1__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
+            (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0))) &&
+            (XTime::now() - shot_this[ *this].timeSTMChanged < 2.0)) //workaround?
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
         tr[ *this].taintedCount = 1; //# of incoming traces to be skipped.
@@ -995,6 +999,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
     }
     //Limits rotations.
+    for(int i: {0, 1})
+        drot[i] *= shot_this[ *this].sor;
     double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
     if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
