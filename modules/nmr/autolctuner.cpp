@@ -587,13 +587,13 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
         //Iteration count exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
-    tr[ *m_status] = message + "Rolls back.";
     //rolls back to good positions.
     tr[ *this].timeSTMChanged = XTime::now();
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
     tr[ *this].resetToFirstStage();
     tr[ *this].sor *= 0.5;
+    tr[ *m_status] = message + formatString("Rolls back, SOR=%.2f.", (double)tr[ *this].sor);
     throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
@@ -679,10 +679,15 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
 
     if(shot_this[ *this].timeSTMChanged) {
-        if(((stm1__ && (shot_others[ *stm1__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
-            (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0))) &&
-            (XTime::now() - shot_this[ *this].timeSTMChanged < 2.0)) //workaround?
-            throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
+        if((stm1__ && (shot_others[ *stm1__].timeAwared() < shot_this[ *this].timeSTMChanged)) ||
+            (stm2__ && (shot_others[ *stm2__].timeAwared() < shot_this[ *this].timeSTMChanged))) {
+            if(XTime::now() - shot_this[ *this].timeSTMChanged > 2.0) {
+                //workaround?
+                fprintf(stderr, "Timeout while waiting STM ready status. Ignoring.\n");
+            }
+            else
+                throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
+        }
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
         tr[ *this].taintedCount = 1; //# of incoming traces to be skipped.
 //        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
