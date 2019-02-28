@@ -410,6 +410,8 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	int numechoes = shot_this[ *numEcho()];
 	numechoes = std::max(1, numechoes);
     bool bg_after_last_echo = pos + length + echoperiod * (numechoes - 1) < bgpos;
+    if(pulse__)
+        bg_after_last_echo = pos + length + echoperiod * (shot_others[ *pulse__].echoNum() - 1) < bgpos;
 
     if(bglength && (bglength < length * numechoes * 3))
 		m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
@@ -524,8 +526,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
     for(int i = 1; i < numechoes; i++) {
 		int rpos = pos + i * echoperiod;
-		for(int j = 0;
-		j < ( !bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
+        for(int j = 0; j < length; j++) {
 			int k = rpos + j;
 			assert(k < dso_len);
 			if(i == 1)
@@ -533,9 +534,6 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 			dsowave[pos + j] += dsowave[k] / (double)numechoes;
 		}
 	}
-	//Background subtraction or dynamic noise reduction
-	if( !bg_after_last_echo)
-		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
 
 	std::complex<double> *wavesum( &tr[ *this].m_waveSum[0]);
 	double *darkpsdsum( &tr[ *this].m_darkPSDSum[0]);
