@@ -409,12 +409,13 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	int echoperiod = lrint(shot_this[ *echoPeriod()] / 1000 /interval);
 	int numechoes = shot_this[ *numEcho()];
 	numechoes = std::max(1, numechoes);
-    bool bg_after_last_echo = pos + length + echoperiod * (numechoes - 1) < bgpos;
+	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
 
-    if(bglength && (bglength < length * numechoes * 3))
+	if(bglength && (bglength < length * (bg_after_last_echo ? numechoes : 1) * 3))
 		m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
 	
-    if(bglength && !bg_after_last_echo)
+	if((bgpos < length + (bg_after_last_echo ? (echoperiod * (numechoes - 1)) : 0)) 
+		&& (bgpos + bglength > 0))
 		m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
 	if(numechoes > 1) {
@@ -424,10 +425,17 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if(echoperiod < length) {
 			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
 		}
+		if( !bg_after_last_echo) {
+			if(bgpos + bglength > echoperiod) {
+				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+			}
+			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= dso_len) {
+				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+			}
+		}
 		if(pulse__) {
 			if((numechoes > shot_others[ *pulse__].echoNum()) ||
-                (fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4) ||
-                    pos + length + echoperiod * (shot_others[ *pulse__].echoNum() - 1) < bgpos) {
+				(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4)) {
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 			}
 		}
@@ -506,7 +514,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-    tr[ *this].m_dsoWave.resize(dso_len);
+	tr[ *this].m_dsoWave.resize(dso_len);
 	std::complex<double> *dsowave( &tr[ *this].m_dsoWave[0]);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
@@ -522,7 +530,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//Background subtraction or dynamic noise reduction
 	if(bg_after_last_echo)
 		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
-    for(int i = 1; i < numechoes; i++) {
+	for(int i = 1; i < numechoes; i++) {
 		int rpos = pos + i * echoperiod;
 		for(int j = 0;
 		j < ( !bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
