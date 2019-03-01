@@ -509,20 +509,22 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             }
         }
 
-        Payload::RawPt pt1, pt2;
+
         if(mode__ != MEAS_T2_Multi){
+            tr[ *this].m_pts.clear();
             for(int i = 0; i < shot_pulser[ *pulser__].echoNum(); i++){
+                Payload::RawPt pt1;
                 analyzeSpectrum(tr, shot_pulse1[ *pulse1__].echoesT2()[i],
                         shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
-            }
-            pt1.value_by_cond.resize(cmp1.size());
+                pt1.value_by_cond.resize(cmp1.size());
 
-            //TODO calculate 2tau
-            pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau();
-            std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-            tr[ *this].m_pts.push_back(pt1);
+                pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
+                std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
+                tr[ *this].m_pts.push_back(pt1);
+            }
         }
         else {
+            Payload::RawPt pt1, pt2;
             analyzeSpectrum(tr, shot_pulse1[ *pulse1__].wave(),
                     shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
             if(pulse2__) {
