@@ -57,8 +57,6 @@ public:
 		const std::vector<std::complex<double> > &wave() const {return m_wave;}
 		//! Power spectrum of the noise estimated from the background. [V^2/Hz].
 		const std::vector<double> &darkPSD() const {return m_darkPSD;}
-        //! Stored multi-echoes for T2 measurement
-        const std::vector<std::vector<std::complex<double> > > &echoesT2() const {return m_echoesT2;}
 		//! freq. resolution [Hz]
 		double dFreq() const {return m_dFreq;}
 		//! time resolution [sec.]
@@ -91,10 +89,8 @@ public:
 		double m_interval;
 		//! time diff. of the first point from trigger
 		double m_startTime;
+        //! Stored multi-echoes for T2 measurement
         std::vector<std::vector<std::complex<double> > > m_echoesT2;
-        //! Stored averaged multi-echoes for T2 measurement
-        std::vector<std::vector<std::complex<double> > > m_echoesT2Sum;
-
 
 
 		//for FFT/MEM.
