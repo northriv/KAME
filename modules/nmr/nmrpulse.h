@@ -89,6 +89,9 @@ public:
 		double m_interval;
 		//! time diff. of the first point from trigger
 		double m_startTime;
+        //! Stored multi-echoes for T2 measurement
+        std::vector<std::vector<std::complex<double> > > m_echoesT2;
+
 
 		//for FFT/MEM.
 		shared_ptr<FFT> m_ftDark;
