@@ -469,9 +469,13 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	tr[ *this].m_wave.resize(length);
 	tr[ *this].m_waveSum.resize(length);
-    tr[ *this].m_echoesT2.resize(numechoes_pulse);
+    auto &echoesT2(tr[ *this].m_echoesT2);
+    echoesT2.resize(numechoes_pulse);
+    auto &echoesT2Sum(tr[ *this].m_echoesT2Sum);
+    echoesT2Sum.resize(numechoes_pulse);
     for(int i = 0; i < numechoes_pulse; i++){
-        tr[ *this].m_echoesT2[i].resize(length);
+        echoesT2[i].resize(length);
+        echoesT2Sum[i].resize(length);
     }
 	int fftlen = FFT::fitLength(shot_this[ *fftLen()]);
 	if(fftlen != shot_this[ *this].m_darkPSD.size()) {
@@ -503,7 +507,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if(avgclear) {
 		std::fill(tr[ *this].m_waveSum.begin(), tr[ *this].m_waveSum.end(), std::complex<double>(0.0));
 		std::fill(tr[ *this].m_darkPSDSum.begin(), tr[ *this].m_darkPSDSum.end(), 0.0);
-		tr[ *this].m_avcount = 0;
+        for(int i = 0; i < numechoes_pulse; i++){
+            std::fill(echoesT2Sum[i].begin(), echoesT2Sum[i].end(), std::complex<double>(0.0));
+        }
+        tr[ *this].m_avcount = 0;
 		if(shot_this[ *exAvgIncr()]) {
 			tr[ *extraAvg()] = 0;
 		}
@@ -525,7 +532,6 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		}
 	}
 	tr[ *this].m_dsoWaveStartPos = pos;
-    auto &echoesT2(tr[ *this].m_echoesT2);
 
 	//Background subtraction or dynamic noise reduction
 	if(bg_after_last_echo)
@@ -612,6 +618,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	double normalize = 1.0 / shot_this[ *this].m_avcount;
 	for(int i = 0; i < length; i++) {
 		wave[i] = wavesum[i] * normalize;
+        //multi-echo T2
+        for(int j=0; j < numechoes_pulse; j++){
+            echoesT2[j][i] = echoesT2Sum[j][i] * normalize;
+        }
 	}
 	double darknormalize = normalize * normalize;
 	if(bg_after_last_echo)
