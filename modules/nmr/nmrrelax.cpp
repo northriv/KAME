@@ -714,7 +714,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 void
 XNMRT1::setNextP1(const Snapshot &shot) {
     shared_ptr<XPulser> pulser__ = shot[ *pulser()];
-    if(pulser__) {
+    if(pulser__ && shot[ *mode()] != MEAS_T2_Multi) {
         pulser__->iterate_commit([=](Transaction &tr){
             switch(shot[ *mode()]) {
             case MEAS_T1:
@@ -753,6 +753,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 			label = "P1 [ms]";
 			break;
 		case MEAS_T2:
+        case MEAS_T2_Multi:
 			label = "2tau [us]";
 			break;
 		case MEAS_ST_E:
