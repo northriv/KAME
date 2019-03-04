@@ -592,7 +592,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
     tr[ *this].resetToFirstStage();
-    tr[ *this].sor *= 0.5;
+    tr[ *this].sor = std::max(0.1, tr[ *this].sor * 0.7);
     tr[ *m_status] = message + formatString("Rolls back, SOR=%.2f.", (double)tr[ *this].sor);
     throw XSkippedRecordError(__FILE__, __LINE__);
 }

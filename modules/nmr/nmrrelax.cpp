@@ -497,24 +497,24 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
 
-        //TODO track peak for T2 multi-echo
 		std::deque<std::complex<double> > cmp1, cmp2;
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MEAS_T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
                ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33))) ||
+               (mode__ == MEAS_T2_Multi) ||
                shot_this[ *this].m_sumpts.empty()) {
                 tr[ *freq()] = (double)shot_pulse1[ *pulse1__->entryPeakFreq()->value()];
                 tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
             }
         }
 
-
         if(mode__ == MEAS_T2_Multi){
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 
-            tr[ *this].m_pts.clear();
+            if(shot_pulse1[ *pulse1__->exAvgIncr()])
+                tr[ *this].m_pts.clear();
             for(int i = 0; i < shot_pulser[ *pulser__].echoNum(); i++){
                 Payload::RawPt pt1;
                 analyzeSpectrum(tr, shot_pulse1[ *pulse1__].echoesT2()[i],
@@ -587,9 +587,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         tr[ *this].m_pts.clear();
 		tr[ *m_wave].clearPoints();
 		tr[ *m_fitStatus] = "";
-		trans( *pulse1__->avgClear()).touch();
-		if(pulse2__)
-			trans( *pulse2__->avgClear()).touch();
+        if( !shot_pulse1[ *pulse1__->exAvgIncr()] || mode__ != MEAS_T2_Multi) {
+            trans( *pulse1__->avgClear()).touch();
+            if(pulse2__)
+                trans( *pulse2__->avgClear()).touch();
+        }
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
