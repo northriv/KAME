@@ -419,22 +419,20 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if(bglength && !bg_after_last_echo)
 		m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
-	if(numechoes > 1) {
-		if(pos + echoperiod * (numechoes - 1) + length >= dso_len) {
-			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-		}
+    if(numechoes_pulse > 1) {
+        if(pos + echoperiod * (numechoes_pulse - 1) + length >= dso_len) {
+            throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        }
 		if(echoperiod < length) {
 			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-		}
+        }
 		if(pulse__) {
             if((numechoes > shot_others[ *pulse__].echoNum()))
                 throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-            if((fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4) ||
-                    pos + length + echoperiod * (shot_others[ *pulse__].echoNum() - 1) < bgpos) {
+            if(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4)
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
-			}
 		}
-	}
+    }
 	if(pulse__) {
 		if(shot_others[ *pulse__].isPulseAnalyzerMode()) {
 			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), false);
