@@ -510,7 +510,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
 
 
-        if(mode__ != MEAS_T2_Multi){
+        if(mode__ == MEAS_T2_Multi){
             tr[ *this].m_pts.clear();
             for(int i = 0; i < shot_pulser[ *pulser__].echoNum(); i++){
                 Payload::RawPt pt1;
