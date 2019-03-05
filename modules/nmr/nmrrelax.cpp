@@ -843,8 +843,8 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         setNextP1(shot_this);
         if(shot_this[ *mode()] == MEAS_T2_Multi){
             iterate_commit([=](Transaction &tr){
-                tr[ *p1Min()] = 2.0 * shot_pulse1[ *pulser__].tau();
-                tr[ *p1Max()] = 2.0 * shot_pulse1[ *pulser__].tau() * shot_pulse1[ *pulser__].echoNum();
+                tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
+                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();
             });
         }
 
