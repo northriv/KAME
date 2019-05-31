@@ -63,12 +63,14 @@ SoftwareTrigger::SoftwareTrigger(const char *label, unsigned int bits)
 
 void
 SoftwareTrigger::clear_() {
+    fprintf(stderr, "Softtrigger clearred with %u + %lu points remaining.\n", m_fastQueue.size(), m_slowQueue.size());
     uint64_t x;
     while(FastQueue::key t = m_fastQueue.atomicFront(&x)) {
         m_fastQueue.atomicPop(t);
     }
     m_slowQueue.clear();
     m_slowQueueSize = 0;
+    m_lastThresholdRequested = 0;
 }
 bool
 SoftwareTrigger::stamp(uint64_t cnt) {
@@ -94,19 +96,23 @@ void
 SoftwareTrigger::start(double freq) {
     {
         XScopedLock<XMutex> lock(m_mutex);
+        fprintf(stderr, "Softtrigger star");
         m_endOfBlank = 0;
         if(!m_blankTerm) m_blankTerm = lrint(0.02 * freq);
         m_freq = freq;
         clear_();
     }
     onStart().talk(shared_from_this());
+    fprintf(stderr, "ted.\n");
 }
 
 void
 SoftwareTrigger::stop() {
     XScopedLock<XMutex> lock(m_mutex);
+    fprintf(stderr, "Softtrigger sto");
     clear_();
     m_endOfBlank = (uint64_t)-1LL;
+    fprintf(stderr, "pped.\n");
 }
 void
 SoftwareTrigger::connect(uint32_t rising_edge_mask, uint32_t falling_edge_mask) {
@@ -155,20 +161,19 @@ SoftwareTrigger::tryPopFront(uint64_t threshold, double freq__) {
         return cnt;
     }
     FastQueue::key t = m_fastQueue.atomicFront(&cnt);
-    if( !t) {
-        uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
-        //requests a new stamp
-        onTriggerRequested().talk(thres_em);
-        t = m_fastQueue.atomicFront(&cnt);
-        if( !t) {
-        //Not found. Caches trigger positions for future use within 0.2sec.
-            onTriggerRequested().talk(thres_em + lrint(0.2 / freq()));
-            return 0uLL;
-        }
+    uint64_t thres_em = (threshold * (freq_em / gcd__)) / (freq_rc / gcd__);
+    if(m_lastThresholdRequested < thres_em + lrint(timeForBufferredTriggersRequired() * freq())) {
+        if(m_lastThresholdRequested && (m_lastThresholdRequested < thres_em))
+            gErrPrint(formatString_tr(I18N_NOOP("Software trigger: yet uncalculated trigger is requested, %.2f sec. behind.\n"),
+                (thres_em - m_lastThresholdRequested) / freq()));
+        //Caches trigger positions for future use within 1.2 sec.
+        m_lastThresholdRequested = thres_em + lrint(2.0 * timeForBufferredTriggersRequired() * freq());
+        onTriggerRequested().talk(m_lastThresholdRequested);
     }
     cnt = (cnt * (freq_rc / gcd__)) / (freq_em / gcd__);
-    if(cnt >= threshold)
+    if( !t || (cnt >= threshold)) {
         return 0uLL;
+    }
     if(m_fastQueue.atomicPop(t))
         return cnt;
     return 0uLL;

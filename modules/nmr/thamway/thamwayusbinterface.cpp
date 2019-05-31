@@ -17,8 +17,10 @@
 #include "fx2fw.h"
 #include <cstring>
 
-constexpr size_t FX2FW_MAX_BURST_SIZE_USB2 = 512; //Thamway's value was 40000(WR)/512(RD).
-constexpr size_t FX2FW_MAX_BURST_SIZE_USB1_1 = 512; //64 //Thamway's value was 40000(WR)/512(RD).
+constexpr size_t FX2FW_MAX_BURST_WR_SIZE_USB2 = 40000; //Thamway's value
+constexpr size_t FX2FW_MAX_BURST_WR_SIZE_USB1_1 = 40000; //64 //Thamway's value
+constexpr size_t FX2FW_MAX_BURST_RD_SIZE_USB2 = 512; //Thamway's value
+constexpr size_t FX2FW_MAX_BURST_RD_SIZE_USB1_1 = 512; //64 //Thamway's value
 
 #define CMD_DIPSW 0x11u
 #define CMD_LED 0x12u
@@ -179,8 +181,9 @@ XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
     uint8_t buf[10];
     usb()->bulkRead(EPIN6, buf, 1);
     bool is_usb2 = buf[0] & 0x80u;
-    m_maxBurstRWSize = is_usb2 ? FX2FW_MAX_BURST_SIZE_USB2 : FX2FW_MAX_BURST_SIZE_USB1_1;
-    dbgPrint(formatString("FX2FW connected to %s, max_bsize=%u", is_usb2 ? "USB2" : "USB1.1", (unsigned int)m_maxBurstRWSize));
+    m_maxBurstWRSize = is_usb2 ? FX2FW_MAX_BURST_WR_SIZE_USB2 : FX2FW_MAX_BURST_WR_SIZE_USB1_1;
+    m_maxBurstRDSize = is_usb2 ? FX2FW_MAX_BURST_RD_SIZE_USB2 : FX2FW_MAX_BURST_RD_SIZE_USB1_1;
+    dbgPrint(formatString("FX2FW connected to %s", is_usb2 ? "USB2" : "USB1.1"));
 }
 
 void
@@ -193,7 +196,7 @@ void
 XThamwayFX2USBInterface::resetBulkWrite() noexcept {
     m_isDeferredWritingOn = false;
     m_buffer.clear();
-    m_buffer.reserve(FX2FW_MAX_BURST_SIZE_USB2);
+    m_buffer.reserve(std::max(FX2FW_MAX_BURST_WR_SIZE_USB2, FX2FW_MAX_BURST_WR_SIZE_USB1_1));
 }
 void
 XThamwayFX2USBInterface::deferWritings() {
@@ -206,7 +209,7 @@ XThamwayFX2USBInterface::writeToRegister8(unsigned int addr, uint8_t data) {
     assert(addr < 0x100u);
 
     if(m_isDeferredWritingOn) {
-        if(m_buffer.size() >= m_maxBurstRWSize) {
+        if(m_buffer.size() >= m_maxBurstWRSize) {
             XScopedLock<XThamwayFX2USBInterface> lock( *this);
             bulkWriteStored();
             deferWritings();
@@ -240,12 +243,17 @@ XThamwayFX2USBInterface::bulkWriteStored() {
     XScopedLock<XThamwayFX2USBInterface> lock( *this);
 
     uint16_t len = m_buffer.size();
-    dbgPrint(driver()->getLabel() + formatString(" BurstWriting for %x bytes", (unsigned int)len));
+    auto sum = std::accumulate(m_buffer.begin(), m_buffer.end(), 0);
+    dbgPrint(driver()->getLabel() + formatString(" BurstWriting for %u bytes, sum=%x", (unsigned int)len, (unsigned int)sum));
+    fprintf(stderr, " BurstWriting for %u bytes, sum=%x\n", (unsigned int)len, (unsigned int)sum);
     uint8_t cmds[] = {CMD_BWRITE, (uint8_t)(len % 0x100u), (uint8_t)(len / 0x100u)};
     usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     usb()->bulkWrite(EPOUT2, (uint8_t*) &m_buffer[0], len);
 
     resetBulkWrite();
+
+    msecsleep(10); //this induces transfer problem at high rate.
+
 }
 
 void
@@ -329,7 +337,7 @@ XThamwayFX2USBInterface::burstRead(unsigned int addr, uint8_t *buf, unsigned int
         uint8_t cmds[] = {CMD_SWRITE, (uint8_t)(addr)};
         usb()->bulkWrite(EPOUT8, cmds, sizeof(cmds));
     }
-    std::vector<uint8_t> bbuf(m_maxBurstRWSize);
+    std::vector<uint8_t> bbuf(m_maxBurstRDSize);
     std::uint8_t cmds[] = {CMD_BREAD, 0, 0};
     cmds[1] = bbuf.size() % 0x100u;
     cmds[2] = bbuf.size() / 0x100u;

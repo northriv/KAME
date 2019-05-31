@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>709</width>
-    <height>435</height>
+    <width>685</width>
+    <height>484</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,20 +15,35 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QHBoxLayout" name="horizontalLayout_6">
+    <property name="spacing">
+     <number>4</number>
+    </property>
     <property name="leftMargin">
-     <number>6</number>
+     <number>4</number>
     </property>
     <property name="topMargin">
-     <number>6</number>
+     <number>4</number>
     </property>
     <property name="rightMargin">
-     <number>6</number>
+     <number>4</number>
     </property>
     <property name="bottomMargin">
-     <number>6</number>
+     <number>4</number>
     </property>
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="leftMargin">
+       <number>4</number>
+      </property>
+      <property name="topMargin">
+       <number>4</number>
+      </property>
+      <property name="rightMargin">
+       <number>4</number>
+      </property>
+      <property name="bottomMargin">
+       <number>4</number>
+      </property>
       <item>
        <layout class="QHBoxLayout">
         <item>
@@ -580,6 +595,71 @@
        </widget>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="_4">
+        <property name="spacing">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="textLabel1_5_2_2_5">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Volt. Limit</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="wordWrap">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="_5">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QLineEdit" name="m_edVoltLimit">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>80</width>
+              <height>32767</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="textLabel2_2_3_4">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>V</string>
+            </property>
+            <property name="wordWrap">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
        <layout class="QHBoxLayout">
         <property name="spacing">
          <number>0</number>
@@ -1088,6 +1168,7 @@
   </customwidget>
  </customwidgets>
  <tabstops>
+  <tabstop>m_btnAvgClear</tabstop>
   <tabstop>m_cmbDSO</tabstop>
   <tabstop>m_edPos</tabstop>
   <tabstop>m_edWidth</tabstop>
@@ -1099,6 +1180,7 @@
   <tabstop>m_edEchoPeriod</tabstop>
   <tabstop>m_ckbPICEnabled</tabstop>
   <tabstop>m_cmbPulser</tabstop>
+  <tabstop>m_edVoltLimit</tabstop>
   <tabstop>m_edDIFFreq</tabstop>
   <tabstop>m_edDump</tabstop>
   <tabstop>m_tbDump</tabstop>
@@ -1114,7 +1196,7 @@
   <tabstop>m_edFFTLen</tabstop>
   <tabstop>m_ckbIncrAvg</tabstop>
   <tabstop>m_numExtraAvg</tabstop>
-  <tabstop>m_btnAvgClear</tabstop>
+  <tabstop>m_edDIFFreq_2</tabstop>
  </tabstops>
  <resources/>
  <connections/>

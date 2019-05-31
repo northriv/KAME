@@ -1,3 +1,50 @@
+* Sun Nov 25 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.1-2)
+- Mac: Fix for text/draw collapse on MDI windows.
+
+* Sat Nov 24 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.1-1)
+- Mac: Workaround for huge memory (pseudo) leakage with QLabel/QLineEdit.  
+- NMRFSpectrum: fix for saving time
+
+* Wed Nov 21 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.0-1)
+- Mac: userside memory allocator is introduced again.
+- Mac: repairs Info.plist and icon.
+- Better window initial positions when it appears.
+- Thamway: libusb support is improved in mac.
+- Thamway: QAM works fine now.
+- Autolctuner: fiting improved, compatible with Flex AR.
+- Copper Mountain TR1300/1,5048,4530 Network Analyzer
+- Lakshore 350: Fix for prop. setting.
+
+* Mon Sep 17 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.5-1)
+- Pfeiffer Turbo molecular pump controller TC110 
+- Autolctuner: fiting improved.
+- VNWA3E TCP/IP interface for recent firmwares.
+- pulseanalyzer: obsolete
+
+* Wed Jun 27 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.4-1)
+- Compatible with Qt-5.11
+- Fixed bug for formatprint with threads.
+
+* Mon Oct 16 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.3-1)
+- Compatible with OSX High Sierra
+- thamwayrealtimedso: improved stability.
+- qdppms: better slow sweep.
+- Agilent/HP4282A LCR meter.
+
+* Wed Aug 16 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.1.2-1)
+- nmrpulser: improved stability for softtrigerring
+- lcautotuner: better behavior
+- graphlist: fox for multiple creation
+- xwavengraph: appropriate precisions for waves, threaded dumping.
+-KE6482 picoam meter
+
 * Fri Jul 14 2017 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.1.0-1)
 - Floating tool boxes.

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 
 		This program is free software; you can redistribute it and/or
@@ -53,6 +53,7 @@ public:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm1() const {return m_stm1;}
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm2() const {return m_stm2;}
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > &netana() const {return m_netana;}
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &relayDriver() const {return m_relayDriver;}
 
 	/// Target frequency [MHz]
 	const shared_ptr<XBoolNode> &tuning() const {return m_tuning;}
@@ -63,6 +64,14 @@ public:
 	const shared_ptr<XBoolNode> &useSTM1() const {return m_useSTM1;}
 	const shared_ptr<XBoolNode> &useSTM2() const {return m_useSTM2;}
 	const shared_ptr<XTouchableNode> &abortTuning() const {return m_abortTuning;}
+    const shared_ptr<XDoubleNode> &backlushMinusTh() const {return m_backlushMinusTh;}
+    const shared_ptr<XDoubleNode> &backlushPlusTh() const {return m_backlushPlusTh;}
+    const shared_ptr<XIntNode> &timeMax() const {return m_timeMax;}
+    const shared_ptr<XIntNode> &origBackMax() const {return m_origBackMax;}
+    const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
+    const shared_ptr<XDoubleNode> &backlashRecoveryFactor() const {return m_backlashRecoveryFactor;}
+
+
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
@@ -96,10 +105,13 @@ public:
         int iterationCount;
         bool isTargetAbondoned;
         int taintedCount;
+        int residue_offset;
+        double sor;
 	};
 private:
 	const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm1, m_stm2;
 	const shared_ptr<XItemNode<XDriverList, XNetworkAnalyzer> > m_netana;
+    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_relayDriver;
 
 	const shared_ptr<XBoolNode> m_tuning;
 	const shared_ptr<XBoolNode> m_succeeded;
@@ -109,6 +121,10 @@ private:
 	const shared_ptr<XBoolNode> m_useSTM1, m_useSTM2;
 	const shared_ptr<XTouchableNode> m_abortTuning;
     const shared_ptr<XStringNode> m_status;
+    const shared_ptr<XDoubleNode> m_backlushMinusTh, m_backlushPlusTh;
+    const shared_ptr<XIntNode> m_timeMax, m_origBackMax;
+    const shared_ptr<XComboNode> m_fitFunc;
+    const shared_ptr<XDoubleNode> m_backlashRecoveryFactor;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
     std::deque<xqcon_ptr> m_conUIs;

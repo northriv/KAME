@@ -32,7 +32,7 @@ XFlowControllerDriver::XFlowControllerDriver(const char *name, bool runtime,
     m_warning(create<XBoolNode>("Warning", true)),
     m_alarm(create<XBoolNode>("Alarm", true)),
     m_control(create<XBoolNode>("Control", true)),
-    m_form(new FrmFlowController(g_pFrmMain)) {
+    m_form(new FrmFlowController) {
 
 	iterate_commit([=](Transaction &tr){
 		tr[ *control()] = false;

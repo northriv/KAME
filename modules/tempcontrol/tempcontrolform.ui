@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>216</width>
-    <height>472</height>
+    <width>223</width>
+    <height>553</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -51,7 +51,7 @@
        <enum>QFrame::Plain</enum>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>0</number>
       </property>
       <property name="tabSpacing">
        <number>2</number>
@@ -61,7 +61,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>208</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -551,7 +551,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>208</width>
+         <width>215</width>
          <height>442</height>
         </rect>
        </property>
@@ -1020,7 +1020,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>208</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -1510,7 +1510,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>208</width>
+         <width>215</width>
          <height>426</height>
         </rect>
        </property>
@@ -2000,8 +2000,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>208</width>
-         <height>379</height>
+         <width>215</width>
+         <height>415</height>
         </rect>
        </property>
        <attribute name="label">

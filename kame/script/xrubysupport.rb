@@ -295,6 +295,7 @@ begin
 					 filename.untaint
 					 if /\.seq/i =~ filename then
 					    Thread.current[:logfile] = File.open(filename + ".log", "a")
+						Thread.current[:logfile].sync = true
 					    Thread.current[:logfile].puts("Started @#{Time.now()} \n")
 					 else
 					    Thread.current[:load_kam] = true

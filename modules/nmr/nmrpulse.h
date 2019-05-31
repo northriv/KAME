@@ -57,6 +57,8 @@ public:
 		const std::vector<std::complex<double> > &wave() const {return m_wave;}
 		//! Power spectrum of the noise estimated from the background. [V^2/Hz].
 		const std::vector<double> &darkPSD() const {return m_darkPSD;}
+        //! Stored multi-echoes for T2 measurement
+        const std::vector<std::vector<std::complex<double> > > &echoesT2() const {return m_echoesT2;}
 		//! freq. resolution [Hz]
 		double dFreq() const {return m_dFreq;}
 		//! time resolution [sec.]
@@ -89,6 +91,11 @@ public:
 		double m_interval;
 		//! time diff. of the first point from trigger
 		double m_startTime;
+        std::vector<std::vector<std::complex<double> > > m_echoesT2;
+        //! Stored averaged multi-echoes for T2 measurement
+        std::vector<std::vector<std::complex<double> > > m_echoesT2Sum;
+
+
 
 		//for FFT/MEM.
 		shared_ptr<FFT> m_ftDark;
@@ -145,6 +152,8 @@ public:
 	/// If NumEcho > 1, need periodic term of echoes [ms]
 	const shared_ptr<XDoubleNode> &echoPeriod() const {return m_echoPeriod;}
 
+    const shared_ptr<XDoubleNode> &voltLimit() const {return m_voltLimit;} //[V]
+
 private:
 	/// Stored Wave for display.
 	const shared_ptr<XWaveNGraph> &waveGraph() const {return m_waveGraph;}
@@ -176,6 +185,8 @@ private:
 
 	const shared_ptr<XUIntNode> m_numEcho;
 	const shared_ptr<XDoubleNode> m_echoPeriod;
+
+    const shared_ptr<XDoubleNode> m_voltLimit;
 
 	const shared_ptr<XTouchableNode> m_spectrumShow;
 	const shared_ptr<XTouchableNode> m_avgClear;

@@ -360,9 +360,6 @@ XNMRSpectrumBase<FRM>::fssum(Transaction &tr, const Snapshot &shot_pulse, const 
 		throw XRecordError(i18n("BW beyond Nyquist freq."), __FILE__, __LINE__);
 	}
 	double cfreq = getCurrentCenterFreq(shot_this, shot_others);
-	if(cfreq == 0) {
-		throw XRecordError(i18n("Invalid center freq."), __FILE__, __LINE__);
-	}
 	std::vector<std::complex<double> > ftwavein(len, 0.0), ftwaveout(len);
 	if( !shot_this[ *this].m_preFFT || (shot_this[ *this].m_preFFT->length() != len)) {
 		tr[ *this].m_preFFT.reset(new FFT(-1, len));

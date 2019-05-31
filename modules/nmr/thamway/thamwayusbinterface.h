@@ -82,7 +82,8 @@ private:
     uint8_t m_addrOffset;
     XString m_idString;
     bool m_isDeferredWritingOn;
-    size_t m_maxBurstRWSize; //depending on whether the connection is on USB2/1.1.
+    size_t m_maxBurstWRSize; //depending on whether the connection is on USB2/1.1.
+    size_t m_maxBurstRDSize; //depending on whether the connection is on USB2/1.1.
     std::vector<uint8_t> m_buffer; //writing buffer for a burst write.
 };
 

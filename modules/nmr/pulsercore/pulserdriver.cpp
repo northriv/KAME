@@ -362,7 +362,8 @@ void
 XPulser::stop() {
     m_lsnOnTriggerRequested.reset();
     m_lsnOnPulseChanged.reset();
-  
+    m_threadFreeRun.reset();
+
 	changeUIStatus(true, false);
 	pulseAnalyzerMode()->setUIEnabled(false);
 
@@ -422,28 +423,37 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
     });
 }
 void
-XPulser::onTriggerRequested(uint64_t threshold) {
-    XScopedLock<XMutex> lock(m_mutexForFreeRun);
-    auto &patlist = m_patListFreeRun;
-    int idx = m_lastIdxFreeRun;
-    uint32_t oldpat = m_lastPatFreeRun;
-    if(idx >= patlist.size()) return;
-    auto *p = softwareTrigger().get();
-    int cnt = 0;
-    //Caches trigger positions
-    while(m_totalSampsOfFreeRun < threshold) {
-        auto &pat = patlist[idx++];
-        if(idx >= patlist.size()) idx = 0;
-        m_totalSampsOfFreeRun += pat.toappear;
-        uint32_t newpat = pat.pattern;
-        bool ret = p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
-        oldpat = newpat;
-        if(ret) {
-            if(cnt++ > 1) break;
+XPulser::freeRunToDetectTriggers(const atomic<bool>&terminated, bool single) {
+    Transactional::setCurrentPriorityMode(Transactional::Priority::HIGHEST);
+    for(;;) {
+        XScopedLock<XMutex> lock(m_mutexForFreeRun);
+        uint64_t threshold = m_thresholdOfFreeRun;
+        auto &patlist = m_patListFreeRun;
+        int idx = m_lastIdxFreeRun;
+        uint32_t oldpat = m_lastPatFreeRun;
+        if(idx >= patlist.size()) return;
+        auto *p = softwareTrigger().get();
+        //Caches trigger positions
+        while(m_totalSampsOfFreeRun < threshold) {
+            auto &pat = patlist[idx++];
+            if(idx >= patlist.size()) idx = 0;
+            m_totalSampsOfFreeRun += pat.toappear;
+            uint32_t newpat = pat.pattern;
+            p->changeValue(oldpat, newpat, m_totalSampsOfFreeRun);
+            oldpat = newpat;
         }
+        m_lastIdxFreeRun = idx;
+        m_lastPatFreeRun = oldpat;
+        if(single || terminated)
+            break;
+        if(m_totalSampsOfFreeRun < m_thresholdOfFreeRun)
+            msecsleep(20); //lazy sleep
     }
-    m_lastIdxFreeRun = idx;
-    m_lastPatFreeRun = oldpat;
+}
+
+void
+XPulser::onTriggerRequested(uint64_t threshold) {
+    m_thresholdOfFreeRun = threshold;
 }
 
 void
@@ -707,21 +717,21 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 	unsigned int qpskmask;
 	qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, invert_phase__);
 
-	uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
-	uint64_t tau__ = rintSampsMicroSec(shot[ *this].tau());
-	uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
-	uint64_t asw_hold__ = rintSampsMilliSec(shot[ *this].aswHold());
-	uint64_t alt_sep__ = rintSampsMilliSec(shot[ *this].altSep());
-	uint64_t pw1__ = hasQAMPorts() ?
+    uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
+    uint64_t tau__ = rintSampsMicroSec(shot[ *this].tau());
+    uint64_t asw_setup__ = rintSampsMilliSec(shot[ *this].aswSetup());
+    uint64_t asw_hold__ = rintSampsMilliSec(shot[ *this].aswHold());
+    uint64_t alt_sep__ = rintSampsMilliSec(shot[ *this].altSep());
+    uint64_t pw1__ = hasQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].pw1()/2)*2 : rintSampsMicroSec(shot[ *this].pw1()/2)*2;
-	uint64_t pw2__ = hasQAMPorts() ?
+    uint64_t pw2__ = hasQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].pw2()/2)*2 : rintSampsMicroSec(shot[ *this].pw2()/2)*2;
-	uint64_t comb_pw__ = hasQAMPorts() ?
+    uint64_t comb_pw__ = hasQAMPorts() ?
 		ceilSampsMicroSec(shot[ *this].combPW()/2)*2 : rintSampsMicroSec(shot[ *this].combPW()/2)*2;
-	uint64_t comb_pt__ = rintSampsMicroSec(shot[ *this].combPT());
-	uint64_t comb_p1__ = rintSampsMilliSec(shot[ *this].combP1());
-	uint64_t comb_p1_alt__ = rintSampsMilliSec(shot[ *this].combP1Alt());
-	uint64_t g2_setup__ = ceilSampsMicroSec(shot[ *g2Setup()]);
+    uint64_t comb_pt__ = rintSampsMicroSec(shot[ *this].combPT());
+    uint64_t comb_p1__ = rintSampsMilliSec(shot[ *this].combP1());
+    uint64_t comb_p1_alt__ = rintSampsMilliSec(shot[ *this].combP1Alt());
+    uint64_t g2_setup__ = ceilSampsMicroSec(shot[ *g2Setup()]);
 	int echo_num__ = shot[ *this].echoNum();
 	int comb_num__ = shot[ *this].combNum();
 	int comb_mode__ = shot[ *this].combMode();
@@ -733,14 +743,14 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 								(comb_mode__ == N_COMB_MODE_COMB_ALT));
 	bool saturation_wo_comb = (comb_num__ == 0);
 	bool driven_equilibrium = shot[ *drivenEquilibrium()];
-	uint64_t qsw_delay__ = rintSampsMicroSec(shot[ *qswDelay()]);
-	uint64_t qsw_width__ = rintSampsMicroSec(shot[ *qswWidth()]);
-	uint64_t qsw_softswoff__ = std::min(qsw_width__, rintSampsMicroSec(shot[ *qswSoftSWOff()]));
+    uint64_t qsw_delay__ = rintSampsMicroSec(shot[ *qswDelay()]);
+    uint64_t qsw_width__ = rintSampsMicroSec(shot[ *qswWidth()]);
+    uint64_t qsw_softswoff__ = std::min(qsw_width__, rintSampsMicroSec(shot[ *qswSoftSWOff()]));
 	bool qsw_pi_only__ = shot[ *qswPiPulseOnly()];
 	int comb_rot_num = lrint(shot[ *this].combOffRes() * (shot[ *this].combPW() / 1000.0 * 4));
   
 	bool induce_emission__ = shot[ *induceEmission()];
-	uint64_t induce_emission___pw = comb_pw__;
+    uint64_t induce_emission___pw = comb_pw__;
 	if(comb_mode__ == N_COMB_MODE_OFF)
 		num_phase_cycle__ = std::min(num_phase_cycle__, 4);
   
@@ -776,12 +786,13 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 	const uint32_t ste_p2[MAX_NUM_PHASE_CYCLE] = {
 		0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 2, 2, 0
 	};
-  
+
 	typedef std::multiset<tpat, std::less<tpat> > tpatset;
 	tpatset patterns;  // patterns
 	tpatset patterns_cheap; //Low priority patterns
 	typedef std::multiset<tpat, std::less<tpat> >::iterator tpatset_it;
-  
+    const uint64_t longest_patlen = 24*365*3600*1e3/resolution();
+
 	uint64_t pos = 0;
             
 	int echonum = echo_num__;
@@ -794,18 +805,17 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 		former_of_alt = !former_of_alt;
 		bool comb_off_res = ((comb_mode__ != N_COMB_MODE_COMB_ALT) || former_of_alt) && (comb_rot_num != 0);
             
-		uint64_t p1__ = 0; //0: Comb pulse is OFF.
+        uint64_t p1__ = 0; //0: Comb pulse is OFF.
 		if((comb_mode__ != N_COMB_MODE_OFF) &&
 		   !((comb_mode__ == N_COMB_MODE_COMB_ALT) && former_of_alt && !(comb_rot_num != 0))) {
 			p1__ = ((former_of_alt || (comb_mode__ != N_COMB_MODE_P1_ALT)) ? comb_p1__ : comb_p1_alt__);
 		}
 
-		uint64_t rest;
-		if(rt_mode__ == N_RT_MODE_FIXREST)
-			rest = rtime__;
-		else
-			rest = rtime__ - p1__;
-		if(rest <= 0)
+        uint64_t rest;
+        rest = rtime__;
+        if(rt_mode__ != N_RT_MODE_FIXREST)
+            rest -= p1__;
+        if((rest == 0) || (rest > longest_patlen))
 			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
     
 		if(saturation_wo_comb && (p1__ > 0)) rest = 0;
@@ -1017,7 +1027,9 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
 				continue;
 			}
 			Payload::RelPat relpat(pat, patpos, patpos - lastpos);
-			tr[ *this].m_relPatList.push_back(relpat);
+            if(relpat.toappear > longest_patlen)
+                throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
+            tr[ *this].m_relPatList.push_back(relpat);
 			if(it == patterns.end()) break;
 			lastpos = patpos;
 			patpos = it->pos;
@@ -1160,7 +1172,9 @@ XPulser::makeWaveForm(Transaction &tr, unsigned int pnum_minus_1,
 	double dp = 2*M_PI*freq*dma_ao_period;
 	double z = pow(10.0, dB/20.0);
     const int FAC_ANTIALIAS = std::min(3L, lrint(dma_ao_period / resolution()));
-	p.resize(to_center * 2);
+    if(to_center > 1000000)
+        throw XDriver::XRecordError("Too large waveform.", __FILE__, __LINE__);
+    p.resize(to_center * 2);
 	std::fill(p.begin(), p.end(), std::complex<double>(0.0));
 	std::vector<std::complex<double> > wave(p.size() * FAC_ANTIALIAS, 0.0);
 	for(int i = 0; i < (int)wave.size(); ++i) {
@@ -1193,6 +1207,7 @@ XPulser::visualize(const Snapshot &shot) {
 	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
 	try {
         if(hasSoftwareTrigger()) {
+            m_threadFreeRun.reset();
             if(softwareTrigger()->isPersistentCoherentMode() &&
                     (m_totalSampsOfFreeRun <= prefillingSampsBeforeArm())) {
                 softwareTrigger()->clear();
@@ -1212,8 +1227,13 @@ XPulser::visualize(const Snapshot &shot) {
                     }
                     m_lsnOnTriggerRequested = softwareTrigger()->onTriggerRequested().connectWeakly(
                         shared_from_this(), &XPulser::onTriggerRequested);
-                    //free-runs to calculate trigger positions for 0.3sec.
-                    softwareTrigger()->onTriggerRequested().talk(lrint(0.3 * softwareTrigger()->freq()));
+                    //free-runs to calculate future trigger positions.
+                    m_thresholdOfFreeRun = lrint(1.2 * softwareTrigger()->timeForBufferredTriggersRequired() * softwareTrigger()->freq());
+                    freeRunToDetectTriggers({false}, true);
+                    m_thresholdOfFreeRun = lrint(2.0 * softwareTrigger()->timeForBufferredTriggersRequired() * softwareTrigger()->freq());
+                    //starts a free-running thread.
+                    m_threadFreeRun.reset(new XThread{shared_from_this(),
+                        &XPulser::freeRunToDetectTriggers, false});
                 }
             }
         }

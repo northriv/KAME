@@ -20,7 +20,8 @@ HEADERS += \
     nmrspectrumbase_impl.h \
     nmrspectrumbase.h \
     nmrspectrumsolver.h \
-    pulseanalyzer.h \
+
+#    pulseanalyzer.h \
 
 SOURCES += \
     autolctuner.cpp \
@@ -30,7 +31,8 @@ SOURCES += \
     nmrrelaxfit.cpp \
     nmrspectrum.cpp \
     nmrspectrumsolver.cpp \
-    pulseanalyzer.cpp \
+
+#    pulseanalyzer.cpp \
 
 FORMS += \
     autolctunerform.ui \

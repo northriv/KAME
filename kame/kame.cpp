@@ -209,25 +209,28 @@ FrmKameMain::addDockableWindow(QMdiArea *area, QWidget *widget, bool closable) {
 		 wnd->setAttribute(Qt::WA_DeleteOnClose);
 	}
 	else {
-		 wnd = new MySubWindow(); //delegated class, which ignores closing events.
+         wnd = new MySubWindow(); //delegated class, which ignores closing events.
 		 QAction *act = new QAction(widget->windowIcon(), widget->windowTitle(), this);
          connect(act, SIGNAL(triggered()), wnd, SLOT(showMaximized()));
 	     m_pViewMenu->addAction(act);
 	}
+    widget->setAutoFillBackground(true);
 	wnd->setWidget(widget);
-	area->addSubWindow(wnd);
+    area->addSubWindow(wnd);
 	wnd->setWindowIcon(widget->windowIcon());
-	wnd->setWindowTitle(widget->windowTitle());
-	wnd->showMaximized();
-	return wnd;
+    wnd->setWindowTitle(widget->windowTitle());
+    wnd->showMaximized();
+//    auto sub = area->addSubWindow(wnd,Qt::Window);
+//    area->setActiveSubWindow(sub);
+    return wnd;
 }
 
 FrmKameMain::~FrmKameMain() {
 	m_pTimer->stop();
 //	while( !g_signalBuffer->synchronize()) {}
-	m_measure.reset();
     Transactional::SignalBuffer::cleanup();
     s_pMessageBox.reset();
+    m_measure.reset();
 }
 
 void
@@ -345,7 +348,7 @@ FrmKameMain::processSignals() {
 			last = XTime::now();
 		}
 	#endif
-	}
+    }
     msecsleep(0);
 }
 

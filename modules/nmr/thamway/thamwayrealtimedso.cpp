@@ -49,11 +49,32 @@ XThamwayPROT3DSO::XThamwayPROT3DSO(const char *name, bool runtime,
 
 void
 XThamwayPROT3DSO::startAcquision() {
-    fprintf(stderr, "start acq.\n");
     if(m_acqThreads.size())
         return;
 
+    fprintf(stderr, "start acq.\n");
+    if(m_swapTraces)
+        fprintf(stderr, " with traces swapped.\n");
+
     commitAcquision();
+
+    //reads out remaining data
+    char buf[16384*2];
+    int64_t cnt_remain = 0;
+    for(int retry = 0; retry < 2; ++retry) {
+        auto async = interface()->asyncReceive(buf, sizeof(buf));
+        if( !async->hasFinished()) {
+            msecsleep(sizeof(buf) / NUM_MAX_CH / sizeof(tRawAI) * 1000 / SMPL_PER_SEC + 1);
+            if( !async->hasFinished())
+                break; //not remaining?
+        }
+        int64_t retsize = async->waitFor();
+        cnt_remain += retsize;
+        if(retsize < sizeof(buf))
+            break; //end of data.
+    }
+    fprintf(stderr, "Remaining data was %lld bytes\n", (long long)cnt_remain);
+
     for(int i = 0; i < NumThreads; ++i)
         m_acqThreads.emplace_back(new XThread(shared_from_this(), &XThamwayPROT3DSO::executeAsyncRead));
 
@@ -76,6 +97,7 @@ XThamwayPROT3DSO::startAcquision() {
 }
 void
 XThamwayPROT3DSO::commitAcquision() {
+    fprintf(stderr, "commit acq.: ");
     stopAcquision();
 }
 void
@@ -83,7 +105,7 @@ XThamwayPROT3DSO::stopAcquision() {
     clearAcquision();
     {
         XScopedLock<XMutex> lock(m_acqMutex);
-        fprintf(stderr, "stop acq.\n");
+        fprintf(stderr, "stop acq., total=%llu\n", (long long unsigned int)getTotalSampsAcquired());
         //allocates buffers.
         m_chunks.resize(NumChunks);
         m_totalSmpsPerCh = 0;
@@ -116,9 +138,6 @@ XThamwayPROT3DSO::clearAcquision() {
         x->join();
     }
     m_acqThreads.clear();
-    for(auto &&x: m_chunks) {
-        x.data.clear();
-    }
     fprintf(stderr, "q.\n");
 }
 
@@ -150,7 +169,7 @@ XThamwayPROT3DSO::setupChannels() {
         m_coeffAI[ch_num][1] = 2.5 / 32768.0; //+-5V F.S.
     }
     Snapshot shot( *this);
-    m_swapTraces = (shot[ *trace1()].to_str() == "CH2");
+    m_swapTraces = (shot[ *trace1()].to_str() == "CH1"); //{"COS" = CH2, "SIN" = CH1} sequence in memory.
 }
 
 void
@@ -185,7 +204,7 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
         if((pos >= pos_abs_per_ch) && (pos < pos_abs_per_ch_end)) {
             m_currRdPos = (pos - pos_abs_per_ch) * getNumOfChannels();
-            fprintf(stderr, "Set readpos at %u, chunk %u, rpos %u.\n", (unsigned int)pos, (unsigned int)m_currRdChunk, (unsigned int)m_currRdPos);
+//            fprintf(stderr, "Set readpos at %u, chunk %u, rpos %u.\n", (unsigned int)pos, (unsigned int)m_currRdChunk, (unsigned int)m_currRdPos);
             return true;
         }
         m_currRdChunk++;
@@ -244,6 +263,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     };
 
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
+        readBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
             break; //collision.
@@ -252,7 +272,11 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             fprintf(stderr, "Unexpected collision\n");
             break; //nothing to read.
         }
-        assert(chunk.data.size() > m_currRdPos);
+        if(chunk.data.size() < m_currRdPos) {
+            fprintf(stderr, "??? %d < %d\n", (int)chunk.data.size(), m_currRdPos);
+            break;
+        }
+
         ssize_t len = std::min((uint32_t)chunk.data.size() - m_currRdPos, size);
         if(m_swapTraces) {
             //copies data with word swapping.
@@ -268,14 +292,21 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         samps_read += len;
         size -= len;
         m_currRdPos += len;
-        assert(m_currRdPos <= chunk.data.size());
+        readBarrier();
+        if(chunk.ioInProgress) {
+            fprintf(stderr, "Ring buffer has been overwritten\n");
+            break; //collision.
+        }
         if(m_currRdPos == chunk.data.size()) {
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
             chunk = m_chunks[m_currRdChunk];
             m_currRdPos = 0;
-            assert(m_currRdChunk != m_wrChunkBegin);
+            if(m_currRdChunk == m_wrChunkBegin) {
+                fprintf(stderr, "Unexpected collision\n");
+                break; //nothing to read.
+            }
         }
     }
     return samps_read / getNumOfChannels();
@@ -288,18 +319,15 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
 
     enum class Collision {IOStall, Stopped};
     while( !terminated) {
-        ssize_t wridx; //index of a chunk for async. IO.
+        size_t wridx; //index of a chunk for async. IO.
         auto issue_async_read = [&]() {
             //Lambda fn to issue async IO and reserves a chunk atomically.
             XScopedLock<XMutex> lock(m_acqMutex);
-            ssize_t next_idx = m_wrChunkEnd;
-            wridx = next_idx;
-            auto &chunk = m_chunks[next_idx++];
+            wridx = m_wrChunkEnd;
+            auto &chunk = m_chunks[wridx];
             if(chunk.ioInProgress)
                 throw Collision::IOStall;
-            if(next_idx == m_chunks.size())
-                next_idx = 0;
-            m_wrChunkEnd = next_idx;
+            m_wrChunkEnd = (wridx + 1) % m_chunks.size();
             chunk.data.resize(ChunkSize, 0x4f4f);
             chunk.ioInProgress = true;
             return interface()->asyncReceive( (char*)&chunk.data[0],
@@ -307,34 +335,33 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         };
         try {
             auto async = issue_async_read();
-            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
+//            dbgPrint(formatString("asyncRead for %u initiated", (unsigned int)wridx));
+//            fprintf(stderr, "asyncRead for %u initiated\n", (unsigned int)wridx);
             while( !async->hasFinished() && !terminated)
-                msecsleep(20);
+                msecsleep(10);
             if(terminated) {
                 break;
             }
             auto count = async->waitFor() / sizeof(tRawAI);
-            dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
+//          dbgPrint(formatString("read for %u count=%u", (unsigned int)wridx, (unsigned int)count));
+//          fprintf(stderr, "read for %u count=%u", (unsigned int)wridx, (unsigned int)count);
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
                 chunk.ioInProgress = false;
-//                auto expected = chunk.data.size();
                 chunk.data.resize(count);
-                short maxv = *std::max_element(chunk.data.begin(), chunk.data.end());
-                short minv = *std::min_element(chunk.data.begin(), chunk.data.end());
-                if(std::max(maxv, (short)-minv) > 0x7000)
-                    dbgPrint(formatString("max=%x, min=%x", (unsigned int)maxv, (unsigned int)(unsigned short)minv));
                 if(wridx == m_wrChunkBegin) {
                     //rearranges indices to indicate ready for read.
                     while( !m_chunks[wridx].ioInProgress && (wridx != m_wrChunkEnd)) {
                         m_chunks[wridx].posAbsPerCh = m_totalSmpsPerCh;
+                        writeBarrier();
                         m_totalSmpsPerCh += m_chunks[wridx].data.size() / getNumOfChannels();
                         wridx++;
                         if(wridx == m_chunks.size()) wridx = 0;
                         m_wrChunkBegin = wridx;
                     }
-                    dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
+//                  dbgPrint(formatString("wrBegin=%u, total=%f sec", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6));
+//                  fprintf(stderr, "wrBegin=%u, total=%f sec\n", (unsigned int)wridx, (double)m_totalSmpsPerCh / 5e6);
                 }
                 if(count == 0) {
                 //Pulse generation has stopped.
@@ -353,13 +380,14 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
         catch (Collision &c) {
             switch (c) {
             case Collision::IOStall:
+                fprintf(stderr, "IO stall.\n");
                 dbgPrint("IO stall.");
                 msecsleep(20);
                 continue;
             case Collision::Stopped:
+                msecsleep(20);
                 dbgPrint("Pulse generation has stopped.");
                 fprintf(stderr, "Pulse generation has stopped.\n");
-                msecsleep(200);
                 continue;
             }
         }

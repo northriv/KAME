@@ -6,30 +6,30 @@ INCLUDEPATH += \
 
 HEADERS += \
     thamwayprot.h \
-    thamwaypulser.h \
-    fx2fw.h\
-    cyfxusb.h\
-    thamwaydso.h \
-    thamwayusbinterface.h \
-    cyfxusbinterface_impl.h \
-    thamwayrealtimedso.h
+    thamwaypulser.h
 
 SOURCES += \
     thamwayprot.cpp \
-    thamwaypulser.cpp \
-    thamwaydso.cpp \
-    cyfxusb.cpp\
-    thamwayusbinterface.cpp \
-    thamwayrealtimedso.cpp
+    thamwaypulser.cpp
 
 FORMS += \
     thamwayprotform.ui
 win32: {
     HEADERS += \
         cyfxusb_win32.h\
+        fx2fw.h\
+        cyfxusb.h\
+        thamwayusbinterface.h \
+        cyfxusbinterface_impl.h \
+        thamwayrealtimedso.h
+        thamwaydso.h \
 
     SOURCES += \
         cyfxusb_win32.cpp\
+        thamwaydso.cpp \
+        cyfxusb.cpp\
+        thamwayusbinterface.cpp \
+        thamwayrealtimedso.cpp
 
     DEFINES += USE_THAMWAY_USB
 
@@ -40,12 +40,21 @@ unix {
     exists("/opt/local/include/libusb-1.0/libusb.h") {
         LIBS += -lusb-1.0
         HEADERS += \
+            fx2fw.h\
+            cyfxusb.h\
+            thamwayusbinterface.h \
+            cyfxusbinterface_impl.h \
+            thamwayrealtimedso.h
+            thamwaydso.h \
 
         SOURCES += \
             cyfxusb_libusb.cpp\
+            thamwaydso.cpp \
+            cyfxusb.cpp\
+            thamwayusbinterface.cpp \
+            thamwayrealtimedso.cpp
 
         DEFINES += USE_THAMWAY_USB
-        macx: DEFINES += KAME_THAMWAY_USB_DIR=\"quotedefined(Contents/Resources/)\"
     }
     else {
         message("Missing library for libusb-1.0")

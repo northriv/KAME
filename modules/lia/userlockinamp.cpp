@@ -16,6 +16,7 @@
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
 REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
+REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
 REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
 
 XSR830::XSR830(const char *name, bool runtime, 
@@ -240,6 +241,83 @@ XLI5640::changeFreq(double x) {
 	interface()->sendf("FREQ %g", x);
 }
 
+
+XHP4284A::XHP4284A(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XLIA>(name, runtime, ref(tr_meas), meas) {
+    iterate_commit([=](Transaction &tr){
+        for(auto &&s: {"SHORT", "MED", "LONG"}) {
+            tr[ *timeConst()].add(s);
+        }
+        for(auto &&s: {"1", "10", "30", "100", "1000", "3000", "10000", "30000", "100000"}) {
+            tr[ *sensitivity()].add(s);
+        }
+        tr[ *output()].disable();
+        tr[ *fetchFreq()] = 0;
+        tr[ *fetchFreq()].disable();
+        tr[ *autoScaleX()].disable();
+        tr[ *autoScaleY()].disable();
+    });
+}
+void
+XHP4284A::get(double *x, double *y) {
+    interface()->query("TRIG:IMM;:FETCH?");
+    int status, binno;
+    if(interface()->scanf("%lf,%lf,%d,%d", x, y, &status, &binno) != 4)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XHP4284A::open() throw (XKameError &) {
+    interface()->send("*RST;*CLS");
+    interface()->send("FORM ASCII");
+    interface()->send("TRIG:SOUR BUS");
+    interface()->send("COMP ON");
+    interface()->send("INIT:CONT ON");
+
+    interface()->query("APER?");
+    auto s = interface()->toStrSimplified();
+    s = s.substr(0, s.find(','));
+    trans( *timeConst()) = s;
+
+    interface()->query("FUNC:IMP:RANGE?");
+    trans( *sensitivity()) = interface()->toStrSimplified();
+
+    interface()->query("FREQ?");
+    trans( *frequency()) = interface()->toDouble();
+
+    start();
+}
+void
+XHP4284A::closeInterface() {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    try {
+        interface()->send("*RST;*CLS");
+    }
+    catch (XInterface::XInterfaceError &e) {
+        e.print(getLabel());
+    }
+    close();
+}
+void
+XHP4284A::changeOutput(double x) {
+    interface()->sendf("VOLT %g", x);
+}
+void
+XHP4284A::changeTimeConst(int x) {
+    interface()->send(("APER " + Snapshot(*this)[ *timeConst()].to_str()).c_str());
+}
+void
+XHP4284A::changeSensitivity(int ) {
+    double x = atof(Snapshot(*this)[ *sensitivity()].to_str().c_str());
+    interface()->sendf("FUNC:IMP:RANGE %g", x);
+}
+void
+XHP4284A::changeFreq(double x) {
+    interface()->sendf("FREQ %g", x);
+}
+
 XAH2500A::XAH2500A(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XLIA>(name, runtime, ref(tr_meas), meas) {
@@ -292,7 +370,10 @@ XAH2500A::open() throw (XKameError &) {
 }
 void
 XAH2500A::closeInterface() {
-	try {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    try {
 		interface()->send("LOC");
 	}
 	catch (XInterface::XInterfaceError &e) {

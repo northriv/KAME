@@ -25,6 +25,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/icons
 
 HEADERS += \
+    allocator.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \
@@ -138,10 +139,11 @@ SOURCES += icons/icon.cpp \
 
 unix {
     HEADERS += \
-        allocator.h \
         math/matrix.h \
         math/freqest.h
     SOURCES += \
+        allocator_prv.h \
+        allocator.cpp \
         math/freqest.cpp \
         math/matrix.cpp
 }
@@ -195,7 +197,10 @@ else:unix: PRE_TARGETDEPS += $$OUT_PWD/liblibkame.a
 
 macx {
     INCLUDEPATH += /System/Library/Frameworks/Ruby.framework/Versions/Current/Headers
+    INCLUDEPATH += /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Ruby.framework/Versions/Current/Headers/
     LIBS += -framework Ruby
+#for ruby.h incompatible with C++11
+    QMAKE_CXXFLAGS += -Wno-error=reserved-user-defined-literal
 }
 else:unix {
     INCLUDEPATH += /usr/lib/ruby/1.8/i386-linux/
@@ -261,7 +266,7 @@ macx {
         support_osx.h
 
     OBJECTIVE_SOURCES += \
-        support_osx.m
+        support_osx.mm
 
     LIBS += -framework Foundation
 
@@ -299,6 +304,7 @@ macx {
     modulefiles.files += ../modules/nmr/thamway/libthamway.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/qd/libqd.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/digilentwf/libdigilentwf.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/pumpcontroller/libpumpcontroller.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}
     QMAKE_BUNDLE_DATA += coremodulefiles

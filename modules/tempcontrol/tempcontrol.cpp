@@ -369,7 +369,7 @@ XTempControl::XTempControl(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
 	m_channels(create<XChannelList> ("Channels", false)),
-	m_form(new FrmTempControl(g_pFrmMain)) {
+    m_form(new FrmTempControl) {
 
     iterate_commit([=](Transaction &tr){
 		m_setupChannel =

@@ -14,6 +14,8 @@
 #include "support.h"
 #include "atomic.h"
 
+#include "../kame/allocator.cpp"
+
 bool g_bUseMLock = false;
 
 int my_assert(char const*s, int d) {

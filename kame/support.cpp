@@ -180,25 +180,15 @@ gWarnPrint_redirected(const XString &str, const char *file, int line) {
     if(statusprinter) statusprinter->printWarning(str, false, file, line);
 }
 
-#define SNPRINT_BUF_SIZE 128
+#define SNPRINT_BUF_SIZE 1024
 #include <stdarg.h>
 #include <vector>
 
 static XString
 v_formatString(const char *fmt, va_list ap) {
-	int buf_size = SNPRINT_BUF_SIZE;
-	std::vector<char> buf;
-	for(;;) {
-		buf.resize(buf_size);
-		int ret;
-
-		ret = vsnprintf(&buf[0], buf_size, fmt, ap);
-
-        if(ret < 0) throw XKameError(i18n_noncontext("Mal-format conversion."), __FILE__, __LINE__);
-		if(ret < buf_size) break;
-
-		buf_size *= 2;
-	}
+    std::vector<char> buf(SNPRINT_BUF_SIZE);
+    int ret = vsnprintf(&buf[0], SNPRINT_BUF_SIZE, fmt, ap);
+    if(ret < 0) throw XKameError(i18n_noncontext("Mal-format conversion."), __FILE__, __LINE__);
 	return XString((char*)&buf[0]);
 }
 

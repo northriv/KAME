@@ -206,10 +206,15 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
         }
 		len += rlen;
 		if(len >= eos_len) {
-            if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len)) {
-				break;
+            if(eos_len == 0) {
+                if(buffer().at(len - 1) == '\0')
+                    break;
+            }
+            else {
+                if( !strncmp(&buffer().at(len - eos_len), ceos, eos_len))
+                    break;
 			}
-		}
+        }
 	}
     
 	buffer().resize(len + 1);

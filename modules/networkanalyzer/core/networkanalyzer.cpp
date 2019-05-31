@@ -36,7 +36,8 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	m_stopFreq(create<XDoubleNode>("StopFreq", false)),
 	m_points(create<XComboNode>("Points", false, true)),
 	m_average(create<XUIntNode>("Average", false)),
-	m_calOpen(create<XTouchableNode>("CalOpen", true)),
+    m_power(create<XDoubleNode>("Power", false)),
+    m_calOpen(create<XTouchableNode>("CalOpen", true)),
 	m_calShort(create<XTouchableNode>("CalShort", true)),
 	m_calTerm(create<XTouchableNode>("CalTerm", true)),
 	m_calThru(create<XTouchableNode>("CalThru", true)),
@@ -53,7 +54,8 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
-	calOpen()->setUIEnabled(false);
+    power()->setUIEnabled(false);
+    calOpen()->setUIEnabled(false);
 	calShort()->setUIEnabled(false);
 	calTerm()->setUIEnabled(false);
 	calThru()->setUIEnabled(false);
@@ -63,6 +65,7 @@ XNetworkAnalyzer::XNetworkAnalyzer(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(stopFreq(), m_form->m_edStop),
         xqcon_create<XQComboBoxConnector>(points(), m_form->m_cmbPoints, Snapshot( *points())),
         xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage),
+        xqcon_create<XQLineEditConnector>(power(), m_form->m_edPower),
         xqcon_create<XQButtonConnector>(m_calOpen, m_form->m_btnCalOpen),
         xqcon_create<XQButtonConnector>(m_calShort, m_form->m_btnCalShort),
         xqcon_create<XQButtonConnector>(m_calTerm, m_form->m_btnCalTerm),
@@ -136,15 +139,18 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
 		tr[ *this].m_markers[i].first = reader.pop<double>();
 		tr[ *this].m_markers[i].second = reader.pop<double>();
 	}
-	if(nummk >= 1) {
-	    m_marker1X->value(tr, shot[ *this].m_markers[0].first);
-	    m_marker1Y->value(tr, shot[ *this].m_markers[0].second);
-	}
-	if(nummk >= 2) {
-	    m_marker2X->value(tr, shot[ *this].m_markers[1].first);
-	    m_marker2Y->value(tr, shot[ *this].m_markers[1].second);
-	}
+
     convertRaw(reader, tr);
+
+    nummk = shot[*this].m_markers.size(); //# of markers may be changed by convertRaw()
+    if(nummk >= 1) {
+        m_marker1X->value(tr, shot[ *this].m_markers[0].first);
+        m_marker1Y->value(tr, shot[ *this].m_markers[0].second);
+    }
+    if(nummk >= 2) {
+        m_marker2X->value(tr, shot[ *this].m_markers[1].first);
+        m_marker2Y->value(tr, shot[ *this].m_markers[1].second);
+    }
 }
 void
 XNetworkAnalyzer::visualize(const Snapshot &shot) {
@@ -189,7 +195,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	stopFreq()->setUIEnabled(true);
 	points()->setUIEnabled(true);
 	average()->setUIEnabled(true);
-	calOpen()->setUIEnabled(true);
+    power()->setUIEnabled(true);
+    calOpen()->setUIEnabled(true);
 	calShort()->setUIEnabled(true);
 	calTerm()->setUIEnabled(true);
 	calThru()->setUIEnabled(true);
@@ -203,7 +210,9 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			shared_from_this(), &XNetworkAnalyzer::onPointsChanged);
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
 			shared_from_this(), &XNetworkAnalyzer::onAverageChanged);
-		m_lsnCalOpen = tr[ *m_calOpen].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalOpenTouched);
+        m_lsnOnPowerChanged = tr[ *power()].onValueChanged().connectWeakly(
+            shared_from_this(), &XNetworkAnalyzer::onPowerChanged);
+        m_lsnCalOpen = tr[ *m_calOpen].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalOpenTouched);
 		m_lsnCalShort = tr[ *m_calShort].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalShortTouched);
 		m_lsnCalTerm = tr[ *m_calTerm].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalTermTouched);
 		m_lsnCalThru = tr[ *m_calThru].onTouch().connectWeakly(shared_from_this(), &XNetworkAnalyzer::onCalThruTouched);
@@ -235,6 +244,7 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 			}
 		}
 		catch (XDriver::XSkippedRecordError&) {
+        //Markers are missing.
 			msecsleep(10);
 		}
 		catch (XKameError &e) {
@@ -269,7 +279,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	stopFreq()->setUIEnabled(false);
 	points()->setUIEnabled(false);
 	average()->setUIEnabled(false);
-	calOpen()->setUIEnabled(false);
+    power()->setUIEnabled(false);
+    calOpen()->setUIEnabled(false);
 	calShort()->setUIEnabled(false);
 	calTerm()->setUIEnabled(false);
 	calThru()->setUIEnabled(false);
@@ -278,7 +289,8 @@ XNetworkAnalyzer::execute(const atomic<bool> &terminated) {
 	m_lsnOnStopFreqChanged.reset();
 	m_lsnOnPointsChanged.reset();
 	m_lsnOnAverageChanged.reset();
-	m_lsnCalOpen.reset();
+    m_lsnOnPowerChanged.reset();
+    m_lsnCalOpen.reset();
 	m_lsnCalShort.reset();
 	m_lsnCalTerm.reset();
 	m_lsnCalThru.reset();

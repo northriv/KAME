@@ -23,8 +23,10 @@
 
 typedef intptr_t int_cas2;
 typedef uintptr_t uint_cas2;
+#ifndef ATOMIC_PRV_STD_H_
 typedef int_cas2 int_cas_max;
 typedef uint_cas2 uint_cas_max;
+#endif
 
 #if !defined __LP64__ && !defined __LLP64__
 	#ifdef __SSE2__

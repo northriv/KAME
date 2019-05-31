@@ -37,6 +37,7 @@ public:
     double freq() const {return m_freq;} //!< [Hz].
     unsigned int bits() const {return m_bits;}
     void stop();
+    double timeForBufferredTriggersRequired() const {return 0.6;} //sec.
     //! issues trigger anyway.
     void forceStamp(uint64_t now, double freq);
     //! issues trigger if possible.
@@ -83,6 +84,7 @@ private:
     unsigned int m_bits;
     uint32_t m_risingEdgeMask, m_fallingEdgeMask;
     uint64_t m_blankTerm;
+    uint64_t m_lastThresholdRequested;
     uint64_t m_endOfBlank; //!< next stamp must not be less than this.
     double m_freq; //!< [Hz].
     enum {QUEUE_SIZE = 8192};

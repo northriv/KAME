@@ -55,6 +55,7 @@ public:
 
     struct DECLSPEC_SHARED Payload : public XPrimaryDriver::Payload {
 		double fullScale() const {return m_fullScale;}
+        const XString &unit() const {return m_unit;}
 		XString m_unit;
 		double m_fullScale;
 	};

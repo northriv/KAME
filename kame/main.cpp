@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "support.h"
+#include <iostream>
 
 #ifdef WITH_KDE
 	#include <kcmdlineargs.h>
@@ -47,7 +48,7 @@
     #include <ltdl.h>
 #endif
 
-#ifdef __APPLE__
+#if defined __MACOSX__ || defined __APPLE__
     #include "support_osx.h"
 #endif
 
@@ -167,7 +168,8 @@ int main(int argc, char *argv[]) {
 //    }
 //#endif
 
-	{
+    FrmKameMain *form;
+    {
         makeIcons(); //loads icon pixmaps.
 		{
 
@@ -195,8 +197,8 @@ int main(int argc, char *argv[]) {
             }
 #endif
             Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
+//            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
-			FrmKameMain *form;
 			form = new FrmKameMain();
             
             if(mesfile.length()) {
@@ -249,10 +251,12 @@ int main(int argc, char *argv[]) {
 #endif
         }
     }
+
     int num_loaded_modules = 0;
     //loads modules.
     for(auto it = modules.begin(); it != modules.end(); it++) {
         app.processEvents(); //displays message.
+        std::cerr <<  "Loading module \"" + *it + "\" " << std::endl;
 #ifdef USE_LIBTOOL
         lt_dlhandle handle = lt_dlopenext(QString( *it).toLocal8Bit().data());
 #endif
@@ -274,7 +278,7 @@ int main(int argc, char *argv[]) {
 
     }
 
-#ifdef __APPLE__
+#if defined __MACOSX__ || defined __APPLE__
     //Disables App Nap
     suspendLazySleeps();
 #endif
@@ -286,7 +290,18 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "%s\n", greeting);
     gMessagePrint(greeting);
 
+    activateAllocator();
+
+#if defined __MACOSX__ || defined __APPLE__
+    while(form->running()) {
+        void *p = autoReleasePoolInit();
+        app.processEvents();
+        autoReleasePoolRelease(p);
+    }
+    int ret = 0;
+#else
     int ret = app.exec();
+#endif
 
 //#if defined __WIN32__ || defined WINDOWS || defined _WIN32
 //    FreeConsole();

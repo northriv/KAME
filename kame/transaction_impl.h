@@ -200,11 +200,11 @@ Node<XN>::Linkage::negotiate_internal(typename NegotiationCounter::cnt_t &starte
 //            break; //performs anyway.
 //        }
         ms = std::max((int)(dt2 / 10000),  ms + 1);
-        if(ms > 300) {
+        if(ms > 5000) {
             fprintf(stderr, "Nested transaction?, ");
-            fprintf(stderr, "Negotiating, %f sec. requested, limited to 300ms.", ms*1e-3);
+            fprintf(stderr, "Negotiating, %f sec. requested, limited to 5s.", ms*1e-3);
             fprintf(stderr, "for BP@%p\n", this);
-            ms = 300;
+            ms = 5000;
         }
         msecsleep(ms);
     }

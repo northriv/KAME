@@ -51,7 +51,8 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		m_extraAvg(create<XUIntNode>("ExtraAvg", false)),
 		m_numEcho(create<XUIntNode>("NumEcho", false)),
 		m_echoPeriod(create<XDoubleNode>("EchoPeriod", false)),
-		m_spectrumShow(create<XTouchableNode>("SpectrumShow", true)),
+        m_voltLimit(create<XDoubleNode>("VoltLimit", false)),
+        m_spectrumShow(create<XTouchableNode>("SpectrumShow", true)),
 		m_avgClear(create<XTouchableNode>("AvgClear", true)),
 		m_picEnabled(create<XBoolNode>("PICEnabled", false)),
 		m_pulser(create<XItemNode<XDriverList, XPulser> >("Pulser", false, ref(tr_meas), meas->drivers(), true)),
@@ -82,6 +83,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
 		tr[ *numEcho()] = 1;
 		tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
 		tr[ *windowWidth()] = 100.0;
+        tr[ *voltLimit()] = 1.5;
     });
 
 	m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
@@ -115,6 +117,7 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(windowFunc(),	m_form->m_cmbWindowFunc, Snapshot( *windowFunc())),
         xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(), m_form->m_dblWindowWidth, m_form->m_slWindowWIdth),
         xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq),
+        xqcon_create<XQLineEditConnector>(voltLimit(), m_form->m_edVoltLimit),
         xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled),
         xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas))
@@ -406,37 +409,30 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	int echoperiod = lrint(shot_this[ *echoPeriod()] / 1000 /interval);
 	int numechoes = shot_this[ *numEcho()];
 	numechoes = std::max(1, numechoes);
-	bool bg_after_last_echo = (echoperiod < bgpos + bglength);
+    int numechoes_pulse = numechoes;
+    if(pulse__) numechoes_pulse = shot_others[ *pulse__].echoNum();
+    bool bg_after_last_echo = pos + length + echoperiod * (numechoes_pulse - 1) < bgpos;
 
-	if(bglength && (bglength < length * (bg_after_last_echo ? numechoes : 1) * 3))
+    if(bglength && (bglength < length * numechoes * 3))
 		m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
 	
-	if((bgpos < length + (bg_after_last_echo ? (echoperiod * (numechoes - 1)) : 0)) 
-		&& (bgpos + bglength > 0))
+    if(bglength && !bg_after_last_echo)
 		m_statusPrinter->printWarning(i18n("Maybe, position for BG. sub. is overrapped against echoes"), true);
 
-	if(numechoes > 1) {
-		if(pos + echoperiod * (numechoes - 1) + length >= dso_len) {
-			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-		}
+    if(numechoes_pulse > 1) {
+        if(pos + echoperiod * (numechoes_pulse - 1) + length >= dso_len) {
+            throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+        }
 		if(echoperiod < length) {
 			throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-		}
-		if( !bg_after_last_echo) {
-			if(bgpos + bglength > echoperiod) {
-				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-			}
-			if(pos + echoperiod * (numechoes - 1) + bgpos + bglength >= dso_len) {
-				throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
-			}
-		}
+        }
 		if(pulse__) {
-			if((numechoes > shot_others[ *pulse__].echoNum()) ||
-				(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4)) {
+            if((numechoes > shot_others[ *pulse__].echoNum()))
+                throw XSkippedRecordError(i18n("Invalid Multiecho settings."), __FILE__, __LINE__);
+            if(fabs(shot_this[ *echoPeriod()] * 1e3 / (shot_others[ *pulse__].tau() * 2.0) - 1.0) > 1e-4)
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
-			}
 		}
-	}
+    }
 	if(pulse__) {
 		if(shot_others[ *pulse__].isPulseAnalyzerMode()) {
 			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), false);
@@ -471,6 +467,14 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	tr[ *this].m_wave.resize(length);
 	tr[ *this].m_waveSum.resize(length);
+    auto &echoesT2(tr[ *this].m_echoesT2);
+    echoesT2.resize(numechoes_pulse);
+    auto &echoesT2Sum(tr[ *this].m_echoesT2Sum);
+    echoesT2Sum.resize(numechoes_pulse);
+    for(int i = 0; i < numechoes_pulse; i++){
+        echoesT2[i].resize(length);
+        echoesT2Sum[i].resize(length);
+    }
 	int fftlen = FFT::fitLength(shot_this[ *fftLen()]);
 	if(fftlen != shot_this[ *this].m_darkPSD.size()) {
 		avgclear = true;		
@@ -501,7 +505,10 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if(avgclear) {
 		std::fill(tr[ *this].m_waveSum.begin(), tr[ *this].m_waveSum.end(), std::complex<double>(0.0));
 		std::fill(tr[ *this].m_darkPSDSum.begin(), tr[ *this].m_darkPSDSum.end(), 0.0);
-		tr[ *this].m_avcount = 0;
+        for(int i = 0; i < numechoes_pulse; i++){
+            std::fill(echoesT2Sum[i].begin(), echoesT2Sum[i].end(), std::complex<double>(0.0));
+        }
+        tr[ *this].m_avcount = 0;
 		if(shot_this[ *exAvgIncr()]) {
 			tr[ *extraAvg()] = 0;
 		}
@@ -511,7 +518,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-	tr[ *this].m_dsoWave.resize(dso_len);
+    tr[ *this].m_dsoWave.resize(dso_len);
 	std::complex<double> *dsowave( &tr[ *this].m_dsoWave[0]);
 	{
 		const double *rawwavecos, *rawwavesin = NULL;
@@ -527,29 +534,38 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	//Background subtraction or dynamic noise reduction
 	if(bg_after_last_echo)
 		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
-	for(int i = 1; i < numechoes; i++) {
-		int rpos = pos + i * echoperiod;
-		for(int j = 0;
-		j < ( !bg_after_last_echo ? std::max(bgpos + bglength, length) : length); j++) {
-			int k = rpos + j;
-			assert(k < dso_len);
-			if(i == 1)
-				dsowave[pos + j] /= (double)numechoes;
-			dsowave[pos + j] += dsowave[k] / (double)numechoes;
-		}
-	}
-	//Background subtraction or dynamic noise reduction
-	if( !bg_after_last_echo)
-		backgroundSub(tr, tr[ *this].m_dsoWave, pos, length, bgpos, bglength);
+    for(int i = 0; i < numechoes_pulse; i++){
+        int rpos = pos + i * echoperiod;
+        std::complex<double> *pechoesT2(&echoesT2[i][0]);
+        std::complex<double> *pechoesT2Sum(&echoesT2Sum[i][0]);
+        for(int j = 0; j < length; j++){
+            int k = rpos + j;
+            assert(k < dso_len);
+            pechoesT2[j] = dsowave[k];
+            //increments for multi-echo T2
+            if((emitter == dso__.get()) || ( !shot_this[ *this].m_avcount))
+                pechoesT2Sum[j] += dsowave[k];
+            if(i == 0)
+                dsowave[pos + j] /= (double)numechoes;
+            else if(numechoes > i)
+                dsowave[pos + j] += dsowave[k] / (double)numechoes;
+        }
+    }
 
 	std::complex<double> *wavesum( &tr[ *this].m_waveSum[0]);
 	double *darkpsdsum( &tr[ *this].m_darkPSDSum[0]);
 	//Incremental/Sequential average.
 	if((emitter == dso__.get()) || ( !shot_this[ *this].m_avcount)) {
-		for(int i = 0; i < length; i++) {
-			wavesum[i] += dsowave[pos + i];
+        double max_volt_abs = 0.0;
+        for(int i = 0; i < length; i++) {
+            auto z = dsowave[pos + i];
+            wavesum[i] += z;
+            max_volt_abs = std::max(max_volt_abs, std::abs(z));
 		}
-		if(bglength) {
+        if(max_volt_abs > shot_this[ *voltLimit()]) {
+            throw XRecordError(i18n("Peak height exceeded limit voltage."), __FILE__, __LINE__);
+        }
+        if(bglength) {
 			//Estimates power spectral density in the background.
 			if( !shot_this[ *this].m_ftDark ||
 				(shot_this[ *this].m_ftDark->length() != shot_this[ *this].m_darkPSD.size())) {
@@ -595,11 +611,15 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 		if( shot_this[ *exAvgIncr()]) {
 			tr[ *extraAvg()] = shot_this[ *this].m_avcount;
 		}
-	}
+    }
 	std::complex<double> *wave( &tr[ *this].m_wave[0]);
 	double normalize = 1.0 / shot_this[ *this].m_avcount;
 	for(int i = 0; i < length; i++) {
 		wave[i] = wavesum[i] * normalize;
+        //multi-echo T2
+        for(int j=0; j < numechoes_pulse; j++){
+            echoesT2[j][i] = echoesT2Sum[j][i] * normalize;
+        }
 	}
 	double darknormalize = normalize * normalize;
 	if(bg_after_last_echo)

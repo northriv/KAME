@@ -58,6 +58,23 @@ protected:
 	bool m_currMode;
 };
 
+//! Agilent/HP4284A Precision LCR Meter
+class XHP4284A : public XCharDeviceDriver<XLIA> {
+public:
+    XHP4284A(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+protected:
+    virtual void get(double *cos, double *sin);
+    virtual void changeOutput(double volt);
+    virtual void changeFreq(double freq);
+    virtual void changeSensitivity(int);
+    virtual void changeTimeConst(int);
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open() throw (XKameError &);
+    //! Be called for closing interfaces.
+    virtual void closeInterface();
+};
+
 //! ANDEEN HAGERLING 2500A 1kHz Ultra-Precision Capcitance Bridge
 class XAH2500A : public XCharDeviceDriver<XLIA> {
 public:

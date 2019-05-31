@@ -21,6 +21,7 @@
 #include "ui_rubythreadtool.h"
 #include "icons/icon.h"
 #include <QCloseEvent>
+#include <QStyle>
 
 FrmRubyThread::FrmRubyThread(QWidget *w) :
     QForm<QWidget, Ui_FrmRubyThread>(w), m_closable(false) {

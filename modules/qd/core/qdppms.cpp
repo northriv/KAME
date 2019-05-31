@@ -28,21 +28,21 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4f")),
     m_position(create<XScalarEntry>("Position", false,
                                  dynamic_pointer_cast<XDriver>(shared_from_this()), "%.3f")),
-    m_heliumLevel(create<XDoubleNode>("HeliumLevel", false)),
-    m_targetField(create<XDoubleNode>("TargetField",true)),
+    m_heliumLevel(create<XDoubleNode>("HeliumLevel", true)),
+    m_targetField(create<XDoubleNode>("TargetField", true)),
     m_fieldSweepRate(create<XDoubleNode>("FieldSweepRate",true)),
     m_fieldApproachMode(create<XComboNode>("FieldApproachMode",true,true)),
     m_fieldMagnetMode(create<XComboNode>("FieldMagnetMode",true,true)),
-    m_fieldStatus(create<XStringNode>("FieldStatus",false)),
+    m_fieldStatus(create<XStringNode>("FieldStatus", true)),
     m_targetPosition(create<XDoubleNode>("TargetPosition",true)),
     m_positionApproachMode(create<XComboNode>("PositionApproachMode",true,true)),
     m_positionSlowDownCode(create<XIntNode>("PositionSlowDownCode",true)),
-    m_positionStatus(create<XStringNode>("PositionStatus",false)),
+    m_positionStatus(create<XStringNode>("PositionStatus",true)),
     m_targetTemp(create<XDoubleNode>("TargetTemp",true)),
     m_tempSweepRate(create<XDoubleNode>("TempSweepRate",true)),
     m_tempApproachMode(create<XComboNode>("TempApproachMode",true,true)),
-    m_tempStatus(create<XStringNode>("TempStatus",false)),
-    m_form(new FrmQDPPMS(g_pFrmMain)) {
+    m_tempStatus(create<XStringNode>("TempStatus",true)),
+    m_form(new FrmQDPPMS) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
     meas->scalarEntries()->insert(tr_meas, m_user_temp);
     meas->scalarEntries()->insert(tr_meas, m_field);
@@ -116,14 +116,14 @@ XQDPPMS::onFieldChanged(const Snapshot &,  XValueNodeBase *){
         throw XInterface::XInterfaceError(i18n("Too small sweep rate."), __FILE__, __LINE__);
     int approachMode = shot[ *fieldApproachMode()];
     int magnetMode = shot[ *fieldMagnetMode()];
-    if((sweepRate < MIN_MODEL6700_SWEEPRATE) && (approachMode != 0))
-        throw XInterface::XInterfaceError(i18n("Slow ramp is only allowed for linear approach."), __FILE__, __LINE__);
-    try {
-        setField(shot[ *targetField()], sweepRate,
-                approachMode, magnetMode);
-    }
-    catch (XKameError &e) {
-        e.print(getLabel() + "; ");
+    if(shot[ *fieldSweepRate()] >= MIN_MODEL6700_SWEEPRATE) {
+        try {
+            setField(shot[ *targetField()], sweepRate,
+                    approachMode, magnetMode);
+        }
+        catch (XKameError &e) {
+            e.print(getLabel() + "; ");
+        }
     }
 }
 
@@ -254,38 +254,43 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         try {
             Snapshot shot( *this);
             if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
-                //Field sweep control for slow ramp by software
-                //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
                 switch ((status >> 4) & 0xf) {
+                case 3: //"SW-Cool"
                 case 4: //"Holding"
-                case 5: //"Iterate"
-                case 6: //"Charging"
-                case 7: //"Disharging"
-                    if(XTime::now() - setfield_prevtime > 4) {
-                        //every 4 sec..
-                        setfield_prevtime = XTime::now();
-                        double sweeprate = fabs(shot[ *fieldSweepRate()]); //T/s
-                        if( shot[ *targetField()] < field_by_hardware)
-                            sweeprate *= -1;
-                        double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 4) * sweeprate; //expected field 10 sec after.
-                        if(fabs(shot[ *targetField()] - magnet_field) > std::max(4 * sweeprate, 2e-4)) {
-                            if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
-                                ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
-                                dbgPrint( "Magnet field now approaching to the set point.");
-                                setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, shot[ *fieldMagnetMode()]);
-                            }
-                            else {
-                                setField(newfield, MIN_MODEL6700_SWEEPRATE, 0 /*linear*/, 1 /*driven*/);
-                            }
-                            break;
+                {
+                    //Field sweep control for slow ramp by software
+                    //Model6700 hardware cannot handle a rate below 9.3Oe/sec..
+                    setfield_prevtime = XTime::now();
+                    double sweeprate = fabs(shot[ *fieldSweepRate()]); //T/s
+                    if( shot[ *targetField()] < field_by_hardware)
+                        sweeprate *= -1;
+                    double newfield = field_by_hardware + (XTime::now() - field_by_hardware_time + 4) * sweeprate; //expected field 4 sec after.
+                    int approach_mode = shot[ *fieldApproachMode()];
+                    if(fabs(shot[ *targetField()] - magnet_field * 1e-4) > std::max(10 * sweeprate, 2e-4)) {
+                        if(((newfield > shot[ *targetField()]) && (sweeprate > 0)) ||
+                            ((newfield < shot[ *targetField()]) && (sweeprate < 0))) {
+                            dbgPrint( "Magnet field now approaching to the set point.");
+                            setField(shot[ *targetField()], MIN_MODEL6700_SWEEPRATE, approach_mode, shot[ *fieldMagnetMode()]);
                         }
-                        //Real holding state. Go to default:
+                        else {
+                            setField(newfield, MIN_MODEL6700_SWEEPRATE, 1 /*no overshoot*/, 1 /*driven*/);
+                        }
+                        break;
                     }
-                default:
                     field_by_hardware = magnet_field * 1e-4; //T
                     field_by_hardware_time = XTime::now();
                     break;
                 }
+                case 5: //"Iterate"
+                case 6: //"Charging"
+                case 7: //"Disharging"
+                default:
+                    break;
+                }
+            }
+            else {
+                field_by_hardware = magnet_field * 1e-4; //T
+                field_by_hardware_time = XTime::now();
             }
         }
         catch (XKameError &e) {

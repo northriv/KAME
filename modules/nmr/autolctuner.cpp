@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2018 Kentaro Kitagawa
                            kitagawa@phys.s.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -22,13 +22,15 @@ REGISTER_TYPE(XDriverList, AutoLCTuner, "NMR LC autotuner");
 #include "nllsfit.h"
 #include "rand.h"
 
+//TODO tight couple calc.
 //! Series LCR circuit. Additional R in series with a port.
 class LCRFit {
 public:
     LCRFit(double f0, double rl, bool tight_couple);
     LCRFit(const LCRFit &) = default;
-    void fit(const std::vector<double> &s11, double fstart, double fstep, bool randomize = true);
-    void computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust);
+    enum class TrustFunc {Gaussian = 0, Lorentzian = 1};
+    void fit(const std::complex<double> *s11, unsigned int length, double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize);
+    void computeResidualError(const std::complex<double> *s11, unsigned int length, double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type, bool fit_w_phase);
     double r1() const {return m_r1;} //!< R of LCR circuit
     double r2() const {return m_r2;} //!< R in series with a port.
     double c1() const {return m_c1;} //!< C of LCR circuit
@@ -40,6 +42,7 @@ public:
     double c1err() const {return m_c1_err;}
     double c2err() const {return m_c2_err;}
     double coupling() const {return rl(f0() * 2.0 * M_PI).imag();}
+    double txLen() const {return m_txLen;}
     //! Checks if the R_L appears on the upper half plane of Smith chart.
     bool isCouplingTight() const {return coupling() > 0;}
     double residualError() const {return m_resErr;}
@@ -98,17 +101,24 @@ private:
     std::complex<double> zlcr1(double omega) const {
         return std::complex<double>(r1(), omega * l1() - 1.0 / (omega * c1()));
     }
-    double isigma(double domega, double omega_trust) const {
-//        return 1.0/(pow(rlpow0, 0.5 / POW_ON_FIT) + 0.1) / exp( fabs(domega) / omega_trust / 3);
-//        return sqrt(exp( -std::norm(domega / omega_trust) / 2.0) / (sqrt(2 * M_PI)  * omega_trust)); //a weight during the fit.
-        return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / omega_trust)))); //a weight during the fit.
+    //a weight during the fit.
+    double isigma(double domega, double omega_trust, TrustFunc fit_func_type) const {
+        if (fit_func_type == TrustFunc::Gaussian)
+            return sqrt(exp( -std::norm(domega / (omega_trust)) / 2.0) / (sqrt(2 * M_PI)  * omega_trust));
+        else
+            return sqrt(1.0 / (M_PI * omega_trust * (1.0 + std::norm(domega / (omega_trust)))));
     }
+    void inferTXLength(const std::complex<double> *s11, unsigned int length,
+                       double fstart, double fstep, double f0, double trust_area);
     std::pair<double, double> tuneCapsInternal(double target_freq, double target_rl0, bool tight_couple) const;
     double m_r1, m_r2, m_l1;
     double m_c1, m_c2;
     double m_c1_err, m_c2_err;
     double m_resErr;
+    double m_txLen; //[m]
+    double m_omega_trust_scale = 1.5;
     bool m_tightCouple;
+    static constexpr double phase_change_per_meter_freq = -2.0 * M_PI / (3e8 * 0.7) * 2 * 2; //round-trip.
 };
 
 std::pair<double, double> LCRFit::tuneCapsInternal(double f1, double target_rl, bool tight_couple) const {
@@ -149,19 +159,39 @@ LCRFit::LCRFit(double init_f0, double init_rl, bool tight_couple) {
 }
 
 void
-LCRFit::computeResidualError(const std::vector<double> &s11, double fstart, double fstep, double omega0, double omega_trust) {
+LCRFit::computeResidualError(const std::complex<double> *s11, unsigned int length,
+    double fstart, double fstep, double omega0, double omega_trust, TrustFunc fit_func_type, bool fit_w_phase) {
     double x = 0.0;
     double freq = fstart;
-    for(size_t i = 0; i < s11.size(); ++i) {
+    double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
+    double ph_per_f = phase_change_per_meter_freq * m_txLen;
+    for(size_t i = 0; i < length; ++i) {
         double omega = 2 * M_PI * freq;
-        x += std::norm((s11[i] - rlpow(omega)) * isigma(omega - omega0, omega_trust) * sqrt(2.0 * M_PI * fstep));
+        x += (fit_w_phase ? std::norm(s11[i] - rl(omega) * std::polar(1.0, ph_per_f * freq)) : std::norm(std::abs(s11[i]) - rlpow(omega)))
+            * pow(isigma(omega - omega0, omega_trust, fit_func_type), 2.0);
         freq += fstep;
     }
-    m_resErr = sqrt(x / s11.size());
+    m_resErr = sqrt(x * wsqrt_norm * wsqrt_norm / length);
 }
 
 void
-LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool randomize) {
+LCRFit::inferTXLength(const std::complex<double> *s11, unsigned int length,
+                      double fstart, double fstep, double f0, double trust_area) {
+    double d = trust_area / f0;
+    long a = lrint((f0 * std::max(0.75, (1 - d)) - fstart) / fstep);
+    a = std::max(0L, std::min((long)length - 1L, a));
+    long b = lrint((f0 * std::max(1.2, (1 + d)) - fstart) / fstep);
+    b = std::max(0L, std::min((long)length - 1L, b));
+    double phase_chg = std::arg(s11[b] / s11[a]);
+    double f1 = a * fstep + fstart;
+    double f2 = b * fstep + fstart;
+    phase_chg -= std::abs(rl(2.0 * M_PI * f2) / rl(2.0 * M_PI * f1));
+    m_txLen = std::max(0.0, phase_chg / phase_change_per_meter_freq) / (f2 - f1);
+}
+
+void
+LCRFit::fit(const std::complex<double> *s11, unsigned int length,
+    double fstart, double fstep, TrustFunc fit_func_type, bool fit_w_phase, bool randomize) {
     m_resErr = 1.0;
     LCRFit lcr_orig( *this);
     double f0org = lcr_orig.f0();
@@ -170,100 +200,187 @@ LCRFit::fit(const std::vector<double> &s11, double fstart, double fstep, bool ra
     double coupling_orig = lcr_orig.coupling();
     double omega_trust;
     auto eval_omega_trust = [&](double q){
-        double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * s11.size() - f0org);
+        double omega_avail = 2.0 * M_PI * std::min(f0org - fstart, fstart + fstep * length - f0org);
         return std::min(omega0org / q * 2, omega_avail / 2);
     };
-    double max_q = f0org / fstep;
+    double max_q = f0org / fstep / 2;
 
-    auto func = [&s11, this, &fstart, fstep, omega0org, &omega_trust](const double*params, size_t n, size_t p,
-            double *f, std::vector<double *> &df) -> bool {
+    //Computes squares and differentials.
+    auto func_template = [&s11, this, &fstart, fstep, omega0org, &omega_trust, fit_func_type]
+        (bool fit_w_phase, const double*params, size_t n, size_t p, double *f, std::vector<double *> &df) -> bool {
         m_r1 = params[0];
         if(p >= 2) m_c2 = params[1];
         if(p >= 3) m_c1 = fabs(params[2]);
         if(p >= 4) m_r2 = params[3];
+        if(p >= 5) {
+            assert(fit_w_phase);
+            m_txLen = params[4];
+        }
 
-        constexpr double DR1 = 1e-2, DR2 = 1e-2, DC1 = 1e-15, DC2 = 1e-15;
+        constexpr double DR1 = 1e-3, DR2 = 1e-3, DC1 = 1e-15, DC2 = 1e-15;
         LCRFit plusDR1( *this), plusDR2( *this), plusDC1( *this), plusDC2( *this);
         plusDR1.m_r1 += DR1;
         plusDR2.m_r2 += DR2;
         plusDC1.m_c1 += DC1;
         plusDC2.m_c2 += DC2;
+        std::pair<LCRFit&, double> lcrdas[] = {{plusDR1, DR1}, {plusDC2, DC2}, {plusDC1, DC1}, {plusDR2, DR2}};
         double freq = fstart;
-        for(size_t i = 0; i < n; ++i) {
+        double wsqrt_norm = sqrt(2.0 * M_PI * fstep);
+        double ph_per_f = phase_change_per_meter_freq * m_txLen;
+        for(size_t i = 0; i < n;) {
             double omega = 2 * M_PI * freq;
-            double rlpow0 = rlpow(omega);
-            double wsqrt = isigma(omega - omega0org, omega_trust) * sqrt(2.0 * M_PI * fstep);
-            if(f) {
-                f[i] = (rlpow0 - s11[i]) * wsqrt;
+            double wsqrt = isigma(omega - omega0org, omega_trust, fit_func_type);
+            wsqrt *= wsqrt_norm;
+            if(fit_w_phase) {
+                auto rot = std::polar(1.0, -ph_per_f * freq);
+                auto z = rl(omega);
+                if(f) {
+                    auto dy = (z - s11[i / 2] * rot) * wsqrt;
+                    f[i] = dy.real();
+                    f[i + 1] = dy.imag();
+                }
+                else {
+                    unsigned int j = 0;
+                    for(auto &&y: lcrdas) {
+                        auto dyda = (y.first.rl(omega) - z) / y.second * wsqrt;
+                        df[j][i] = dyda.real();
+                        df[j][i + 1] = dyda.imag();
+                        ++j;
+                        if(j >= p) break;
+                    }
+                    if(p >= 5) {
+                        auto dyda = -std::complex<double>(0.0, -phase_change_per_meter_freq * freq) * s11[i / 2] * rot * wsqrt;
+                        df[4][i] = dyda.real();
+                        df[4][i + 1] = dyda.imag();
+                    }
+                }
+                i += 2;
             }
             else {
-                df[0][i] = (plusDR1.rlpow(omega) - rlpow0) / DR1 * wsqrt;
-                if(p >= 2) df[1][i] = (plusDC2.rlpow(omega) - rlpow0) / DC2 * wsqrt;
-                if(p >= 3) df[2][i] = (plusDC1.rlpow(omega) - rlpow0) / DC1 * wsqrt;
-                if(p >= 4) df[3][i] = (plusDR2.rlpow(omega) - rlpow0) / DR2 * wsqrt;
+                double rlpow0 = rlpow(omega);
+                if(f) {
+                    f[i] = (rlpow0 - std::abs(s11[i])) * wsqrt;
+                }
+                else {
+                    unsigned int j = 0;
+                    for(auto &&y: lcrdas) {
+                        df[j][i] = (y.first.rlpow(omega) - rlpow0) / y.second * wsqrt;
+                        ++j;
+                        if(j >= p) break;
+                    }
+                }
+                ++i;
             }
             freq += fstep;
         }
         return true;
     };
+    using namespace std::placeholders;
+    auto func_abs = std::bind(func_template, false, _1, _2, _3, _4, _5);
+    auto func = std::bind(func_template, fit_w_phase, _1, _2, _3, _4, _5);
 
-    double omega_trust_scale = 1.5;
     double residualerr = 1.0;
-    int it_best;
+    int it_best = 0.0;
     NonLinearLeastSquare nlls;
     auto start = XTime::now();
     for(int retry = 0;; retry++) {
-        if(retry > 24)
+        if(XTime::now() - start > 3.0) {
+            fprintf(stderr, "Fitting has not converged.\n");
             break; //better fit cannot be expected anymore.
-        if((retry > 6) && (XTime::now() - start > 0.01) && (residualerr < 1e-3))
+        }
+        if((retry > 3) && (residualerr < 1e-3))
             break; //enough good
-        if((retry == 2) && (residualerr < 1e-3) && !randomize)
-            break; //enough good and initial values were already good.
+//        if((retry == 2) && (residualerr < 1e-3) && !randomize)
+//            break; //enough good and initial values were already good.
         if((retry % 2 == 1) && (randomize)) {
             *this = LCRFit(f0org, rl_orig, coupling_orig > 0.0);
-            double q = pow(10.0, (retry % 12) / 12.0 * log10(max_q)) + 2;
+            double q = pow(10.0, randMT19937() * log10(max_q)) + 2;
             m_r1 = 2.0 * M_PI * f0org * l1() / q;
-            omega_trust_scale = (retry % 8) / 6.0 * 2.0 + 0.5;
+            m_omega_trust_scale = pow(10.0, randMT19937() * 2)*0.001; //(retry % 8) / 6.0 * 2.0 + 0.5;
         }
-        if((fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
-//            randomize = true; //fitting diverged.
+        if((retry % 3 == 0) || (fabs(r2()) > 10) || (c1() < 0) || (c2() < 0) || (qValue() > max_q) || (qValue() < 2)) {
+            fprintf(stderr, "Randomize anyway.\n");
+            fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g, Q:%.3g\n",
+                    r1(), r2(), l1(),
+                    c1(), c2(), qValue());
+            randomize = true; //fitting diverged.
             continue;
         }
-        omega_trust = eval_omega_trust(qValue()) * omega_trust_scale;
-        if( !(omega_trust > 0))
+        omega_trust = eval_omega_trust(qValue()) * m_omega_trust_scale;
+        if( !(omega_trust > 0)) {
+            fprintf(stderr, "Too small omega trust.\n");
             continue; //less or nan
-        size_t fit_n = s11.size() - 1;
-        if(fit_n < 20)
+        }
+        size_t fit_n_abs = length - 1;
+        size_t fit_n = fit_n_abs;
+        if(fit_w_phase) fit_n *= 2; //real and imag
+        if(fit_n < 20) {
+            fprintf(stderr, "Too small fit #.\n");
             continue;
-        auto nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n, 200);
+        }
+        auto nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2, m_c1, m_r2}, fit_n_abs, 50);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
         m_c1 = nlls1.params()[2];
         m_r2 = nlls1.params()[3];
         m_c2_err = nlls1.errors()[1];
         m_c1_err = nlls1.errors()[2];
+        if(fit_w_phase) {
+            inferTXLength(s11, length, fstart, fstep, f0org, (10.0 * randMT19937() + 1.0) / qValue() * f0org);
+            //Fits in the Smith chart first.
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2, m_txLen}, fit_n, 50);
+            m_r1 = fabs(nlls1.params()[0]);
+            m_c2 = nlls1.params()[1];
+            m_c1 = nlls1.params()[2];
+            m_r2 = nlls1.params()[3];
+            m_txLen = nlls1.params()[4];
+            nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2, m_c1, m_r2}, fit_n);
+            m_r1 = fabs(nlls1.params()[0]);
+            m_c2 = nlls1.params()[1];
+            m_c1 = nlls1.params()[2];
+            m_r2 = nlls1.params()[3];
+            m_c2_err = nlls1.errors()[1];
+            m_c1_err = nlls1.errors()[2];
+            fprintf(stderr, "Cable len = %.3g m.\n", m_txLen);
+        }
         omega_trust = eval_omega_trust(4.0);
-        computeResidualError(s11, fstart, fstep, omega0org, omega_trust);
+        computeResidualError(s11, length, fstart, fstep, omega0org, omega_trust, fit_func_type, false);
         double err = residualError();
-        if(coupling() * coupling_orig < 0)
+        if( !fit_w_phase && (coupling() * coupling_orig < 0))
             err += 4.0 * sqrt( -coupling() * coupling_orig); //Adds cost for opposite coupling.
+        if(retry == 0) {
+            //Stores an error for the original fitting.
+            residualerr = err;
+            lcr_orig.m_resErr = err;
+        }
         if(nlls1.isSuccessful() && (err < residualerr) && !std::isnan(f0err())) {
             residualerr  = err;
             nlls = std::move(nlls1);
             lcr_orig = *this;
             it_best = retry;
         }
-        nlls1 = NonLinearLeastSquare(func, {m_r1}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1}, fit_n_abs);
         m_r1 = fabs(nlls1.params()[0]);
-        nlls1 = NonLinearLeastSquare(func, {m_r1, m_c2}, fit_n);
+        nlls1 = NonLinearLeastSquare(func_abs, {m_r1, m_c2}, fit_n_abs);
         m_r1 = fabs(nlls1.params()[0]);
         m_c2 = nlls1.params()[1];
     }
     *this = lcr_orig;
-    if(nlls.errors().size() == 4) {
+    if(nlls.errors().size() == 5) {
+        fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g, len:%.2g\n",
+                r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
+                c1(), c1err(), c2(), c2err(),
+                txLen());
+    }
+    else if(nlls.errors().size() == 4) {
         fprintf(stderr, "R1:%.3g+-%.2g, R2:%.3g+-%.2g, L:%.3g, C1:%.3g+-%.2g, C2:%.3g+-%.2g\n",
                 r1(), nlls.errors()[0], r2(), nlls.errors()[3], l1(),
                 c1(), c1err(), c2(), c2err());
+    }
+    else {
+        fprintf(stderr, "R1:%.3g, R2:%.3g, L:%.3g, C1:%.3g, C2:%.3g\n",
+                r1(), r2(), l1(),
+                c1(), c2());
     }
     fprintf(stderr, "rms of residuals = %.3g, elapsed = %f ms & %d iterations.\n",
             residualError(), 1000.0 * (XTime::now() - start), it_best);
@@ -293,9 +410,10 @@ private:
 XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
-        m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), true)),
+        m_stm1(create<XItemNode<XDriverList, XMotorDriver> >("STM1", false, ref(tr_meas), meas->drivers(), false)),
         m_stm2(create<XItemNode<XDriverList, XMotorDriver> >("STM2", false, ref(tr_meas), meas->drivers(), false)),
         m_netana(create<XItemNode<XDriverList, XNetworkAnalyzer> >("NetworkAnalyzer", false, ref(tr_meas), meas->drivers(), true)),
+        m_relayDriver(create<XItemNode<XDriverList, XMotorDriver> >("RelayDriver", false, ref(tr_meas), meas->drivers(), false)),
         m_tuning(create<XBoolNode>("Tuning", true)),
         m_succeeded(create<XBoolNode>("Succeeded", true)),
         m_target(create<XDoubleNode>("Target", true)),
@@ -305,12 +423,18 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_useSTM2(create<XBoolNode>("UseSTM2", false)),
         m_abortTuning(create<XTouchableNode>("AbortTuning", true)),
         m_status(create<XStringNode>("FitStatus", true)),
+        m_backlushMinusTh(create<XDoubleNode>("BacklushMinusTh", false)),
+        m_backlushPlusTh(create<XDoubleNode>("BacklushPlusTh", false)),
+        m_timeMax(create<XIntNode>("TimeMax", false)),
+        m_origBackMax(create<XIntNode>("OrigBackMax", false)),
+        m_fitFunc(create<XComboNode>("FitFunc", false, true)),
+        m_backlashRecoveryFactor(create<XDoubleNode>("BacklashRecoveryFactor", false)),
         m_l1(create<XStringNode>("L1", true)),
         m_r1(create<XStringNode>("R1", true)),
         m_r2(create<XStringNode>("R2", true)),
         m_c1(create<XStringNode>("C1", true)),
         m_c2(create<XStringNode>("C2", true)),
-        m_form(new FrmAutoLCTuner(g_pFrmMain))  {
+        m_form(new FrmAutoLCTuner)  {
     connect(stm1());
     connect(stm2());
     connect(netana());
@@ -322,6 +446,7 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(stm1(), m_form->m_cmbSTM1, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(stm2(), m_form->m_cmbSTM2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(netana(), m_form->m_cmbNetAna, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(relayDriver(), m_form->m_cmbRelayDriver, ref(tr_meas)),
         xqcon_create<XQLineEditConnector>(target(), m_form->m_edTarget),
         xqcon_create<XQLineEditConnector>(reflectionTargeted(), m_form->m_edReflectionTargeted),
         xqcon_create<XQLineEditConnector>(reflectionRequired(), m_form->m_edReflectionRequired),
@@ -330,6 +455,12 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLedConnector>(m_succeeded, m_form->m_ledSucceeded),
         xqcon_create<XQToggleButtonConnector>(m_useSTM1, m_form->m_ckbUseSTM1),
         xqcon_create<XQToggleButtonConnector>(m_useSTM2, m_form->m_ckbUseSTM2),
+        xqcon_create<XQLineEditConnector>(backlushMinusTh(), m_form->m_edBacklushMinusTh),
+        xqcon_create<XQLineEditConnector>(backlushPlusTh(), m_form->m_edBacklushPlusTh),
+        xqcon_create<XQLineEditConnector>(timeMax(), m_form->m_edTimeMax),
+        xqcon_create<XQLineEditConnector>(origBackMax(), m_form->m_edOrigBackMax),
+        xqcon_create<XQComboBoxConnector>(fitFunc(), m_form->m_cmbFitFunc, Snapshot( *m_fitFunc)),
+        xqcon_create<XQLineEditConnector>(backlashRecoveryFactor(), m_form->m_edBacklashRecoveryFactor),
         xqcon_create<XQLabelConnector>(m_l1, m_form->m_lblL1),
         xqcon_create<XQLabelConnector>(m_r1, m_form->m_lblR1),
         xqcon_create<XQLabelConnector>(m_r2, m_form->m_lblR2),
@@ -344,6 +475,13 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         tr[ *m_reflectionRequired] = -12.0;
         tr[ *m_useSTM1] = true;
         tr[ *m_useSTM2] = true;
+        tr[ *m_backlushMinusTh] = 0.3;
+        tr[ *m_backlushPlusTh] = 0.6;
+        tr[ *m_timeMax] = 600; //10 min.
+        tr[ *m_origBackMax] = 2;
+        tr[ *fitFunc()].add({"Abs.&Gaussian", "Abs.&Lorentzian", "Smith&Gaussian", "Smith&Lorentzian"});
+        tr[ *m_fitFunc] = 3;
+        tr[ *m_backlashRecoveryFactor] = 0.0;
         tr[ *abortTuning()].setUIEnabled(false);
         m_lsnOnTargetChanged = tr[ *m_target].onValueChanged().connectWeakly(
             shared_from_this(), &XAutoLCTuner::onTargetChanged);
@@ -375,16 +513,23 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
     shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     const unsigned int tunebits = 0xffu;
     for(auto &&stm: stms) {
         if(stm) {
             stm->iterate_commit([=](Transaction &tr){
                 tr[ *stm->active()] = true; // Activate motor.
-                tr[ *stm->auxBits()] = tunebits; //For external RF relays.
+            });
+            stm->iterate_commit([=](Transaction &tr){
+                tr[ *stm->stopMotor()].touch();
             });
         }
     }
+    if(relay)
+        relay->iterate_commit([=](Transaction &tr){
+            tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+        });
 
     iterate_commit([=](Transaction &tr){
         clearUIAndPlot(tr);
@@ -405,6 +550,9 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
         tr[ *this].timeSTMChanged = XTime::now();
         tr[ *this].started = XTime::now();
         tr[ *this].isTargetAbondoned = false;
+        tr[ *this].residue_offset = 0;
+        tr[ *this].taintedCount = 0;
+        tr[ *this].sor = 1.0;
     });
 
     shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
@@ -439,12 +587,13 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
         //Iteration count exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
-    tr[ *m_status] = message + "Rolls back.";
     //rolls back to good positions.
     tr[ *this].timeSTMChanged = XTime::now();
     tr[ *this].targetSTMValues = tr[ *this].bestSTMValues;
     tr[ *this].smallestRLAtF0 = 1; //resets the memory.
     tr[ *this].resetToFirstStage();
+    tr[ *this].sor = std::max(0.1, tr[ *this].sor * 0.7);
+    tr[ *m_status] = message + formatString("Rolls back, SOR=%.2f.", (double)tr[ *this].sor);
     throw XSkippedRecordError(__FILE__, __LINE__);
 }
 void
@@ -530,9 +679,10 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     }
 
     if(shot_this[ *this].timeSTMChanged) {
-        if((stm1__ && (shot_others[ *stm1__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)) ||
-            (stm2__ && (shot_others[ *stm2__].timeAwared() - shot_this[ *this].timeSTMChanged < 0)))
+        if((stm1__ && (shot_others[ *stm1__].timeAwared() < shot_this[ *this].timeSTMChanged)) ||
+            (stm2__ && (shot_others[ *stm2__].timeAwared() < shot_this[ *this].timeSTMChanged))) {
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
+        }
         tr[ *this].timeSTMChanged = {}; //valid ready state are confirmed.
         tr[ *this].taintedCount = 1; //# of incoming traces to be skipped.
 //        if((stm1__ && (shot_this[ *this].timeAwared() - shot_others[ *stm1__].time() < 0)) ||
@@ -568,9 +718,11 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     {
         const std::complex<double> *trace = &shot_na[ *na__].trace()[0];
         double rl_eval_min = 1e10;
+        double zabs_av = 0;
         //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
+            zabs_av += z;
             double f = trace_start + i * trace_dfreq;
             double y = 1.0 - ((1.0 - z) * exp( -std::norm((f0 - f) / f0) / (2.0 * 1.0 * 1.0)));
             if(y < rl_eval_min) {
@@ -579,15 +731,19 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 fmin = f;
             }
         }
+        zabs_av /= trace_len;
         //Residue of 1/RL around the origin, approx. 1.0 if the coupling is tight.
         std::complex<double> res_rl_inv = 0.0, z0 = 0.0, z1 = 1.0;
         //searches for minimum in reflection around f0.
         for(int i = 0; i < trace_len; ++i) {
             double z = std::abs(trace[i]);
             double f = trace_start + i * trace_dfreq;
-            double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin) / (2.0 * 4.0 * 4.0)));
-            if(y < pow(rlmin, 0.1)) { //restricts area not to count cables' effect or other resonances.
-                auto z2 = trace[i] * y / z;
+//            double y = 1.0 - ((1.0 - z) * exp( -std::norm((fmin - f) / fmin) / (2.0 * 4.0 * 4.0)));
+//            if((y < (rlmin + zabs_av) / 2) &&
+            if((z < (rlmin + zabs_av) / 2) &&
+                (fabs(f - fmin) < fmin * 0.1)) { //restricts area not to count cables' effect or other resonances.
+//                auto z2 = trace[i] * y / z;
+                auto z2 = trace[i];
                 if(z0 == 0.0)
                      z0 = z2; //the first point under consideration
                 else
@@ -596,22 +752,26 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             }
         }
         res_rl_inv += std::log(z0 / z1);
-        res_rl_inv /= -std::complex<double>(0.0, 2.0 * M_PI);
+        res_rl_inv /= std::complex<double>(0.0, 2.0 * M_PI);
+        //compensates miscounting.
+        if(fabs(res_rl_inv.real()) > 1.5)
+            tr[ *this].residue_offset = lrint( -res_rl_inv.real());
+
         message +=
-            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.2g+%.2gi\n",
-                fmin, 20.0 * log10(rlmin), res_rl_inv.real(), res_rl_inv.imag());
+            formatString("Before Fit: fmin=%.4f MHz, RL=%.2f dB, Res(1/RL)=%.1f%+.1fi(%+d)\n",
+                fmin, 20.0 * log10(rlmin),
+                res_rl_inv.real(), res_rl_inv.imag(), shot_this[ *this].residue_offset);
+        bool is_tight_cpl = (fabs(res_rl_inv.real() + shot_this[ *this].residue_offset) > 0.5);
 
         //Fits to LCR circuit.
-        std::vector<double> rl(trace_len);
-        for(int i = 0; i < trace_len; ++i)
-            rl[i] = std::abs(trace[i]);
-
         if(shot_this[ *this].fitOrig)
             lcrfit = std::make_shared<LCRFit>( *shot_this[ *this].fitOrig);
         else
-            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, fabs(res_rl_inv.real()) > 0.5);
-        lcrfit->setTunedCaps(fmin * 1e6, rlmin, fabs(res_rl_inv.real()) > 0.5);
-        lcrfit->fit(rl, trace_start * 1e6, trace_dfreq * 1e6, !shot_this[ *this].fitOrig);
+            lcrfit = std::make_shared<LCRFit>(fmin * 1e6, rlmin, is_tight_cpl);
+        lcrfit->setTunedCaps(fmin * 1e6, rlmin, is_tight_cpl);
+        auto fitfunc = (LCRFit::TrustFunc)((int)shot_this[ *fitFunc()] % 2);
+        bool fit_w_phase = ((int)shot_this[ *fitFunc()] / 2 == 1);
+        lcrfit->fit(trace, trace_len, trace_start * 1e6, trace_dfreq * 1e6, fitfunc, fit_w_phase, !shot_this[ *this].fitOrig);
         double fmin_fit = lcrfit->f0() * 1e-6;
         double fmin_fit_err = lcrfit->f0err() * 1e-6;
         double rlmin_fit = std::abs(lcrfit->rl(2.0 * M_PI * lcrfit->f0()));
@@ -621,6 +781,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             formatString("Fit: fres=%.4f+-%.4f MHz, RL=%.2f dB, Q=%.2g, %s",
                 fmin_fit, fmin_fit_err,
                 log10(rlmin_fit) * 20.0, lcrfit->qValue(), lcrfit->isCouplingTight() ? "Tight" : "Loose");
+        if(lcrfit->txLen() > 0.001)
+            message += formatString(", %.2f m", lcrfit->txLen());
         message +=
             formatString(", C1=%.2f+-%.2f pF, C2=%.2f+-%.2f pF\n",
                          lcrfit->c1() * 1e12, lcrfit->c1err() * 1e12, lcrfit->c2() * 1e12, lcrfit->c2err() * 1e12);
@@ -668,7 +830,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].smallestRLAtF0 = rl_at_f0 + rl_at_f0_sigma;
     }
 
-    bool timeout = (XTime::now() - shot_this[ *this].started > 600); //10min.
+    bool timeout = (XTime::now() - shot_this[ *this].started > shot_this[ *timeMax()]);
     if(timeout) {
         message += "Time out.";
         abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//Aborts.
@@ -681,8 +843,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     //The stage just before +Delta rotation.
         tr[ *this].iterationCount++;
         message += formatString("Iteration %d after the best fit so far.\n", tr[ *this].iterationCount);
-        if((shot_this[ *this].iterationCount > 2) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
-            message += "The last 2 iterations made situation worse.";
+        if((shot_this[ *this].iterationCount > shot_this[ *origBackMax()]) && (rl_at_f0 - rl_at_f0_sigma > shot_this[ *this].smallestRLAtF0)) {
+            message += formatString("The last %d iterations made situation worse.\n", shot_this[ *this].iterationCount - 1);
             rollBack(tr, std::move(message));
         }
         tr[ *this].fitOrig = lcrfit;
@@ -737,7 +899,8 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             message +=
                 formatString("STM%d: dC1/dx = %.2g+-%.2g pF/deg., dC2/dx = %.2g+-%.2g pF/deg., backlash = %.1f deg.\n",
                     target_stm + 1, dc1dtest * 1e12, dc1dtest_err * 1e12, dc2dtest * 1e12, dc2dtest_err * 1e12, backlash);
-            further_test = further_test || (backlash / fabs(testdelta) < -0.2) || (fabs(backlash / testdelta) > 0.3);
+            further_test = further_test || (backlash / fabs(testdelta) < -shot_this[ *backlushMinusTh()])
+                    || (fabs(backlash / testdelta) > shot_this[ *backlushPlusTh()]);
         }
         if(further_test) {
         //Capacitance is sticking, test angle is too small, or poor fitting.
@@ -829,13 +992,25 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         shot_this[ *this].targetSTMValues[0] + drot[0], shot_this[ *this].targetSTMValues[1]  + drot[1],
         drot[0], drot[1]);
     //Subtracts backlashes
+    //Comment: this seems to be unnecessary.
     for(int i: {0, 1}) {
         if(shot_this[ *this].lastDirection(i) * drot[i] < 0)
-            drot[i] -= shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
+            drot[i] += shot_this[ *backlashRecoveryFactor()] *
+                shot_this[ *this].lastDirection(i) * shot_this[ *this].stmBacklash[i];
     }
     //Limits rotations.
+    for(int i: {0, 1})
+        drot[i] *= shot_this[ *this].sor;
     double rotpertrust = fabs(std::max(fabs(drot[0]) / shot_this[*this].stmTrustArea[0],
             fabs(drot[1]) / shot_this[*this].stmTrustArea[1]));
+    if(shot_this[ *this].smallestRLAtF0 > rl_at_f0 + rl_at_f0_sigma) {
+        //Limit with respect to the best fit values.
+        for(int i: {0, 1}) {
+            double rottobest = shot_this[ *this].bestSTMValues[i] - shot_this[ *this].targetSTMValues[i];
+            if(fabs(rottobest) > fabs(shot_this[ *this].stmDelta[i]))
+                rotpertrust = std::max(rotpertrust, fabs(drot[i] / rottobest));
+        }
+    }
     if(rotpertrust > 1.0)
         for(auto &&dx: drot)
             dx /= rotpertrust;
@@ -853,6 +1028,7 @@ void
 XAutoLCTuner::visualize(const Snapshot &shot_this) {
     const shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
     const shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+    const shared_ptr<XMotorDriver> relay = shot_this[ *relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
     if(shot_this[ *tuning()]) {
         if(shot_this[ *succeeded()]){
@@ -861,10 +1037,13 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 if(stm) {
                     stm->iterate_commit([=](Transaction &tr){
                         tr[ *stm->active()] = false; //Deactivates motor.
-                        tr[ *stm->auxBits()] = tunebits; //For external RF relays.
                     });
                 }
             }
+            if(relay)
+                relay->iterate_commit([=](Transaction &tr){
+                    tr[ *relay->auxBits()] = tunebits; //For external RF relays.
+                });
             msecsleep(50); //waits for relays.
             iterate_commit([=](Transaction &tr){
                 tr[ *tuning()] = false;//finishes tuning successfully.
@@ -886,10 +1065,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
                 }
             }
         }
-        if(shot_this[ *tuning()]) {
-            trans( *this).timeSTMChanged = XTime::now();
-        }
-        else {
+        if( !shot_this[ *tuning()]) {
             trans( *this).timeSTMChanged = {};
         }
     }

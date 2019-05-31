@@ -33,7 +33,7 @@ XLIA::XLIA(const char *name, bool runtime,
     m_autoScaleX(create<XBoolNode>("AutoScaleX", false)),
     m_autoScaleY(create<XBoolNode>("AutoScaleY", false)),
     m_fetchFreq(create<XDoubleNode>("FetchFreq", false)),
-    m_form(new FrmLIA(g_pFrmMain)) {
+    m_form(new FrmLIA) {
 	iterate_commit([=](Transaction &tr){
 		tr[ *fetchFreq()] = 1;
     });
