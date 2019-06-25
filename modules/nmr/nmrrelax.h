@@ -129,7 +129,7 @@ public:
 	const shared_ptr<XComboNode> &windowWidth() const {return m_windowWidth;}
 	//! Auto-select window.
 	const shared_ptr<XBoolNode> &autoWindow() const {return m_autoWindow;}
-	enum MEASMODE {MEAS_T1 = 0, MEAS_T2 = 1, MEAS_ST_E = 2};
+    enum MEASMODE {MEAS_T1 = 0, MEAS_T2 = 1, MEAS_ST_E = 2, MEAS_T2_Multi = 3};
 	//! T1/T2/StE measurement
 	const shared_ptr<XComboNode> &mode() const {return m_mode;}
 	//! # of Samples for fitting and display

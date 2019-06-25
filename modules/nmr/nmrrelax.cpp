@@ -144,7 +144,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *plot3->axisY()] = axisy;
 		tr[ *m_wave].clearPoints();
 
-        tr[ *mode()].add({"T1 Measurement", "T2 Measurement", "St.E. Measurement"});
+        tr[ *mode()].add({"T1 Measurement", "T2 Measurement", "St.E. Measurement", "T2 Multi-echo"});
 		tr[ *mode()] = MEAS_T1;
 
         tr[ *p1Strategy()].add({P1STRATEGY_RANDOM, P1STRATEGY_FLATTEN});
@@ -480,6 +480,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 					(shot_pulser[ *pulser__].pw2() != shot_pulser[ *pulser__].combPW()))
 				m_statusPrinter->printWarning(i18n("Strange St.E. settings."));
 			break;
+        case MEAS_T2_Multi:
+            break;
 		}
 	}
 
@@ -490,7 +492,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		assert( shot_pulser[ *pulser__].time() );
 		assert( emitter != pulser__.get() );
 
-		if(shot_pulse1[ *pulse1__->exAvgIncr()]) {
+        if(shot_pulse1[ *pulse1__->exAvgIncr()] && mode__ != MEAS_T2_Multi) {
 			m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
@@ -500,61 +502,81 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         if(shot_this[ *trackPeak()]) {
             if(((mode__ == MEAS_T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
                ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33))) ||
+               (mode__ == MEAS_T2_Multi) ||
                shot_this[ *this].m_sumpts.empty()) {
                 tr[ *freq()] = (double)shot_pulse1[ *pulse1__->entryPeakFreq()->value()];
                 tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
             }
         }
 
-		analyzeSpectrum(tr, shot_pulse1[ *pulse1__].wave(),
-			shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);        
-        Payload::RawPt pt1, pt2;
-        if(pulse2__) {
-			analyzeSpectrum(tr, shot_pulse2[ *pulse2__].wave(),
-				shot_pulse2[ *pulse2__].waveFTPos(), cfreq, cmp2);
-			pt2.value_by_cond.resize(cmp2.size());
-		}
-        pt1.value_by_cond.resize(cmp1.size());
-		switch(shot_pulser[ *pulser__].combMode()) {
-        default:
-			throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
-        case XPulser::N_COMB_MODE_COMB_ALT:
-			if(mode__ != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
-			assert(pulse2__);
-            pt1.p1 = shot_pulser[ *pulser__].combP1();
-            for(int i = 0; i < cmp1.size(); i++)
-            	pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
-            tr[ *this].m_pts.push_back(pt1);
-            break;
-        case XPulser::N_COMB_MODE_P1_ALT:
-			if(mode__ == MEAS_T2)
-                throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
-			assert(pulse2__);
-            pt1.p1 = shot_pulser[ *pulser__].combP1();
-            std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-            tr[ *this].m_pts.push_back(pt1);
-            pt2.p1 = shot_pulser[ *pulser__].combP1Alt();
-            std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
-            tr[ *this].m_pts.push_back(pt2);
-            break;
-        case XPulser::N_COMB_MODE_ON:
-			if(mode__ != MEAS_T2) {
+        if(mode__ == MEAS_T2_Multi){
+            if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
+                m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
+
+            if(shot_pulse1[ *pulse1__->exAvgIncr()])
+                tr[ *this].m_pts.clear();
+            for(int i = 0; i < shot_pulser[ *pulser__].echoNum(); i++){
+                Payload::RawPt pt1;
+                analyzeSpectrum(tr, shot_pulse1[ *pulse1__].echoesT2()[i],
+                        shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
+                pt1.value_by_cond.resize(cmp1.size());
+
+                pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
+                std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
+                tr[ *this].m_pts.push_back(pt1);
+            }
+        }
+        else {
+            Payload::RawPt pt1, pt2;
+            analyzeSpectrum(tr, shot_pulse1[ *pulse1__].wave(),
+                    shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
+            if(pulse2__) {
+                analyzeSpectrum(tr, shot_pulse2[ *pulse2__].wave(),
+                        shot_pulse2[ *pulse2__].waveFTPos(), cfreq, cmp2);
+                pt2.value_by_cond.resize(cmp2.size());
+            }
+            pt1.value_by_cond.resize(cmp1.size());
+            switch(shot_pulser[ *pulser__].combMode()) {
+            default:
+                throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
+            case XPulser::N_COMB_MODE_COMB_ALT:
+                if(mode__ != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
+                assert(pulse2__);
+                pt1.p1 = shot_pulser[ *pulser__].combP1();
+                for(int i = 0; i < cmp1.size(); i++)
+                    pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
+                tr[ *this].m_pts.push_back(pt1);
+                break;
+            case XPulser::N_COMB_MODE_P1_ALT:
+                if(mode__ == MEAS_T2)
+                    throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
+                assert(pulse2__);
                 pt1.p1 = shot_pulser[ *pulser__].combP1();
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
+                pt2.p1 = shot_pulser[ *pulser__].combP1Alt();
+                std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
+                tr[ *this].m_pts.push_back(pt2);
                 break;
-			}
-			m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
-        case XPulser::N_COMB_MODE_OFF:
-			if(mode__ != MEAS_T2) {
-				m_statusPrinter->printWarning(i18n("Do not use T1 mode! Skipping."));
-				throw XSkippedRecordError(__FILE__, __LINE__);
-			}
-			//T2 measurement
-            pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau();
-            std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
-            tr[ *this].m_pts.push_back(pt1);
-            break;
+            case XPulser::N_COMB_MODE_ON:
+                if(mode__ != MEAS_T2) {
+                    pt1.p1 = shot_pulser[ *pulser__].combP1();
+                    std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
+                    tr[ *this].m_pts.push_back(pt1);
+                    break;
+                }
+                m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
+            case XPulser::N_COMB_MODE_OFF:
+                if(mode__ != MEAS_T2) {
+                    m_statusPrinter->printWarning(i18n("Do not use T1 mode! Skipping."));
+                    throw XSkippedRecordError(__FILE__, __LINE__);
+                }
+                //T2 measurement
+                pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau();
+                std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
+                tr[ *this].m_pts.push_back(pt1);
+                break;
+            }
         }
     }
 
@@ -565,9 +587,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         tr[ *this].m_pts.clear();
 		tr[ *m_wave].clearPoints();
 		tr[ *m_fitStatus] = "";
-		trans( *pulse1__->avgClear()).touch();
-		if(pulse2__)
-			trans( *pulse2__->avgClear()).touch();
+        if( !shot_pulse1[ *pulse1__->exAvgIncr()] || mode__ != MEAS_T2_Multi) {
+            trans( *pulse1__->avgClear()).touch();
+            if(pulse2__)
+                trans( *pulse2__->avgClear()).touch();
+        }
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
@@ -695,7 +719,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 void
 XNMRT1::setNextP1(const Snapshot &shot) {
     shared_ptr<XPulser> pulser__ = shot[ *pulser()];
-    if(pulser__) {
+    if(pulser__ && shot[ *mode()] != MEAS_T2_Multi) {
         pulser__->iterate_commit([=](Transaction &tr){
             switch(shot[ *mode()]) {
             case MEAS_T1:
@@ -734,6 +758,7 @@ XNMRT1::visualize(const Snapshot &shot) {
 			label = "P1 [ms]";
 			break;
 		case MEAS_T2:
+        case MEAS_T2_Multi:
 			label = "2tau [us]";
 			break;
 		case MEAS_ST_E:
@@ -814,8 +839,15 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 				tr[ *pulse2__->numEcho()] = (int)shot_pulse1[ *pulse1__->numEcho()];
 				tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
             });
-		}
+        }
         setNextP1(shot_this);
+        if(shot_this[ *mode()] == MEAS_T2_Multi){
+            iterate_commit([=](Transaction &tr){
+                tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
+                tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();
+            });
+        }
+
 	}
 }
 

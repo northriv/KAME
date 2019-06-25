@@ -339,6 +339,7 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
                                  t1, t1err, fabs(100.0 * t1err/t1));
         break;
     case MEAS_T2:
+    case MEAS_T2_Multi:
         buf += formatString("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
                                  1000.0 * shot_this[ *this].m_params[0],
                                  1000.0 * shot_this[ *this].m_errors[0],
