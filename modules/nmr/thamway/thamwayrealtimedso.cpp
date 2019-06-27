@@ -264,11 +264,8 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     };
 
 
-    auto buf_org = buf;
-    auto len_org = size;
-
     for(; size;) {
-        auto &chunk = m_chunks[m_currRdChunk]
+        auto &chunk = m_chunks[m_currRdChunk];
         readBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
@@ -310,15 +307,6 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             m_currRdPos = 0;
         }
     }
-
-    bool overflow = false;
-
-    for(int i = len_org/2; i < len_org; i++) {
-        if(abs(buf[i]) > 10000)
-            overflow = true;
-    }
-    if(overflow)
-        fprintf(stderr, "Overflow @ chunk %u\n", m_currRdChunk);
 
     return samps_read / getNumOfChannels();
 }
