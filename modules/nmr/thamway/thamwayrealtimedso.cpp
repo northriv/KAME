@@ -263,6 +263,10 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         }
     };
 
+
+    auto buf_org = buf;
+    auto len_org = len;
+
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
         readBarrier();
         if(chunk.ioInProgress) {
@@ -314,6 +318,16 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             }
         }
     }
+
+    bool overflow = false;
+
+    for(int i = len_org/2; i < len_org; i++) {
+        if(abs(buf[i]) > 10000)
+            overflow = true;
+    }
+    if(overflow)
+        fprintf(stderr, "Overflow @ chunk %u\n", m_currRdChunk);
+
     return samps_read / getNumOfChannels();
 }
 
