@@ -225,6 +225,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     uint32_t samps_read = 0;
     size *= getNumOfChannels();
 
+    //lambda fn for fast memcpy with word swapping
     auto memcpy_wordswap = [](tRawAI *dst, const tRawAI *src, size_t byte_size) {
         size_t len = byte_size / sizeof(tRawAI);
         const tRawAI *src_end = src + len;
@@ -301,6 +302,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             break; //collision.
         }
         if(m_currRdPos == chunk.data.size()) {
+            //Sets reading position for next chunk.
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
