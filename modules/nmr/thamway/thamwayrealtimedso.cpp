@@ -265,7 +265,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
 
     auto buf_org = buf;
-    auto len_org = len;
+    auto len_org = size;
 
     for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
         readBarrier();
