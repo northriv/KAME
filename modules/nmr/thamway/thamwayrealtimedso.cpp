@@ -267,7 +267,8 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     auto buf_org = buf;
     auto len_org = size;
 
-    for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
+    for(; size;) {
+        auto &chunk = m_chunks[m_currRdChunk]
         readBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
@@ -306,16 +307,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
-            chunk = m_chunks[m_currRdChunk];
             m_currRdPos = 0;
-            if(m_currRdChunk == m_wrChunkBegin) {
-                fprintf(stderr, "Unexpected collision\n");
-                break; //nothing to read.
-            }
-            if(chunk.ioInProgress) {
-                fprintf(stderr, "Unexpected collision\n");
-                break; //nothing to read.
-            }
         }
     }
 
