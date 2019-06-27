@@ -199,6 +199,7 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
     XScopedLock<XMutex> lock(m_acqMutex);
     //searching for corresponding chunk.
     for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
+        assert( !m_chunks[m_currRdChunk].ioInProgress);
         uint64_t pos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh;
         uint64_t pos_abs_per_ch_end = pos_abs_per_ch +
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
@@ -307,6 +308,10 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
                 fprintf(stderr, "Unexpected collision\n");
                 break; //nothing to read.
             }
+            if(chunk.ioInProgress) {
+                fprintf(stderr, "Unexpected collision\n");
+                break; //nothing to read.
+            }
         }
     }
     return samps_read / getNumOfChannels();
@@ -348,6 +353,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
+                assert(chunk.ioInProgress);
                 chunk.ioInProgress = false;
                 chunk.data.resize(count);
                 if(wridx == m_wrChunkBegin) {
