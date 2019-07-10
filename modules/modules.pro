@@ -33,7 +33,8 @@ SUBDIRS += testdriver\
     tempcontrol\
     qdcore\
     qd\
-    pumpcontroller
+    pumpcontroller\
+    twoaxis
 
 unix: SUBDIRS +=    montecarlo\
 
@@ -69,3 +70,4 @@ thamway.depends += nmrpulsercore sgcore networkanalyzercore
 qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
 pumpcontroller.depends += charinterface
+twoaxis.depends += motorcore
