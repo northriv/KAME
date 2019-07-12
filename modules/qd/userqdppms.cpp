@@ -106,19 +106,23 @@ XQDPPMS6000::getTemp(){
 }
 
 double
-XQDPPMS6000::getUserTemp(){
+XQDPPMS6000::getUserTemp(int channel){
     double sample_user_temp;
     int is_user_temp;
+    int user_temp_channel = 0;
     interface()->query("USERTEMP?");
     if( interface()->scanf("%d,%*f,%*f,%*f,%*f",&is_user_temp) != 1)
         throw XInterface::XConvError(__FILE__, __LINE__);
     if(is_user_temp){
-        int user_temp_channel = lrint(pow(2,is_user_temp));
+        user_temp_channel = lrint(pow(2,is_user_temp));
+    } else if(channel) {
+        user_temp_channel = lrint(pow(2,channel));
+    }
+    if(user_temp_channel){
         interface()->queryf("GetDat? %d", user_temp_channel);
         if( interface()->scanf("%*d,%*f,%lf", &sample_user_temp) != 1)
             throw XInterface::XConvError(__FILE__, __LINE__);
-    }
-    else{
+    } else {
         sample_user_temp = 0.0;
     }
     return sample_user_temp;

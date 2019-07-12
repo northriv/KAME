@@ -76,6 +76,7 @@ protected:
     const shared_ptr<XDoubleNode> &tempSweepRate() const {return m_tempSweepRate;}
     const shared_ptr<XComboNode> &tempApproachMode() const {return m_tempApproachMode;}
     const shared_ptr<XStringNode> &tempStatus() const {return m_tempStatus;}
+    const shared_ptr<XIntNode> &userTempChannel() const {return m_userTempChannel;}
 protected:
     virtual void setField(double field, double rate, int approach_mode, int magnet_mode) = 0; //T
     virtual void setPosition(double position, int mode, int slow_down_code) = 0;
@@ -83,7 +84,7 @@ protected:
     virtual double getField() = 0; //Oe
     virtual double getPosition() = 0;
     virtual double getTemp() = 0;
-    virtual double getUserTemp() = 0;
+    virtual double getUserTemp(int channel) = 0;
     virtual double getHeliumLevel() = 0;
     virtual int getStatus() = 0;
 private:
@@ -107,6 +108,7 @@ private:
     const shared_ptr<XDoubleNode> m_targetTemp, m_tempSweepRate;
     const shared_ptr<XComboNode> m_tempApproachMode;
     const shared_ptr<XStringNode> m_tempStatus;
+    const shared_ptr<XIntNode> m_userTempChannel;
 
     shared_ptr<Listener> m_lsnFieldSet, m_lsnTempSet, m_lsnPositionSet;
 
