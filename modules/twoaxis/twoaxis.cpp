@@ -16,7 +16,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
                                    dynamic_pointer_cast<XDriver>(shared_from_this()))),
       m_phi(create<XScalarEntry>("Phi", false,
                                    dynamic_pointer_cast<XDriver>(shared_from_this()))),
-      m_record(create<XScalarEntry>("RecordFlag", false,
+      m_record_step(create<XScalarEntry>("RecordStep", false,
                                    dynamic_pointer_cast<XDriver>(shared_from_this()))),
       m_target_theta(create<XDoubleNode>("TargetTheta", true)),
       m_target_phi(create<XDoubleNode>("TargetPhi", true)),
@@ -35,13 +35,14 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
       m_abort(create<XTouchableNode>("Abort", true)),
       m_ready(create<XBoolNode>("Ready", true)),
       m_running(create<XBoolNode>("Running", true)),
-      m_form(new FrmTwoaxis){
+      m_form(new FrmTwoaxis),
+      m_statusPrinter(XStatusPrinter::create(m_form.get())){
 
     m_form->setWindowTitle(i18n("Controller of Two-Axis Rotator") + getLabel() );
 
     meas->scalarEntries()->insert(tr_meas, theta());
     meas->scalarEntries()->insert(tr_meas, phi());
-    meas->scalarEntries()->insert(tr_meas, record());
+    meas->scalarEntries()->insert(tr_meas, record_step());
 
     m_conUIs = {
         xqcon_create<XQComboBoxConnector>(rot1(), m_form->m_cmbROT1, ref(tr_meas)),
@@ -75,6 +76,10 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
         tr[ *m_running] = false;
         tr[ *m_offset_theta] =0.0;
         tr[ *m_offset_phi] = 0.0;
+        tr[ *m_max_theta] = 180.0;
+        tr[ *m_min_theta] = -180.0;
+        tr[ *m_max_phi] = 180.0;
+        tr[ *m_min_phi] = -180.0;
         tr[ *m_wait] = 1.0;
         tr[ *m_step] = 100;
         tr[ *m_rot1_per_theta] = 80.0;
@@ -116,28 +121,53 @@ XTwoAxis::checkDependency(const Snapshot &shot_this,
 
 void XTwoAxis::onTargetThetaChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
-    initSweep(shot_this);
-    iterate_commit([=](Transaction &tr){
-        tr[ *this].isTheta = true;
-    });
+    if (shot_this[ *target_theta()] > shot_this[ *max_theta()]
+            || shot_this[ *target_theta()] < shot_this[ *min_theta()]) {
+        m_statusPrinter->printWarning(i18n("Invalid target theta."));
+
+    } else if(abs(shot[ *rot1_per_theta()] * shot[ *rot2_per_phi()] - shot[*rot2_per_theta()] * shot[ *rot1_per_phi()]) < 1){
+       m_statusPrinter->printWarning(i18n("Maybe invalid setting for rot per theta/phi."));
+
+    } else {
+        initSweep(shot_this);
+        iterate_commit([=](Transaction &tr){
+            tr[ *this].isTheta = true;
+            tr[ *this].startAngle = shot_this[ *m_theta->value()];
+            double delta_theta = (shot_this[*m_theta->value()] - shot_this[ *target_theta()]) / shot_this[ *step()];
+            double det = shot[ *rot1_per_theta()] * shot[ *rot2_per_phi()] - shot[*rot2_per_theta()] * shot[ *rot1_per_phi()];
+            tr[ *this].deltaROT[0] = shot_this[ *rot2_per_phi()] * delta_theta / det;
+            tr[ *this].deltaROT[1] = - shot_this[ *rot1_per_phi()] * delta_theta / det;
+        });
+    }
 }
 
 void XTwoAxis::onTargetPhiChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
-    initSweep(shot_this);
-    if (shot_this[ *target_theta()] > shot_this[ *max_theta()]
-            || shot_this[ *target_theta()] < shot_this[ *min_theta()]) {
+    if (shot_this[ *target_phi()] > shot_this[ *max_phi()]
+            || shot_this[ *target_phi()] < shot_this[ *min_phi()]) {
+        m_statusPrinter->printWarning(i18n("Invalid target phi."));
 
+    } else if(abs(shot[ *rot1_per_theta()] * shot[ *rot2_per_phi()] - shot[*rot2_per_theta()] * shot[ *rot1_per_phi()]) < 1){
+        m_statusPrinter->printWarning(i18n("Maybe invalid setting for rot per theta/phi."));
+
+    } else {
+        initSweep(shot_this);
+        iterate_commit([=](Transaction &tr){
+            tr[ *this].isTheta = false;
+            tr[ *this].startAngle = shot_this[ *m_phi->value()];
+            double delta_phi = (shot_this[*m_phi->value()] - shot_this[ *target_phi()]) / shot_this[ *step()];
+            double det = shot[ *rot1_per_theta()] * shot[ *rot2_per_phi()] - shot[*rot2_per_theta()] * shot[ *rot1_per_phi()];
+            tr[ *this].deltaROT[0] = - shot_this[ *rot2_per_theta()] * delta_phi / det;
+            tr[ *this].deltaROT[1] = shot_this[ *rot1_per_theta()] * delta_phi / det;
+        });
     }
-    iterate_commit([=](Transaction &tr){
-        tr[ *this].isTheta = false;
-    });
 }
 
 void XTwoAxis::initSweep(const Snapshot &shot) {
     shared_ptr<XMotorDriver> rot1__ = shot[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot[ *rot2()];
     const shared_ptr<XMotorDriver> rots[] = {rot1__, rot2__};
+
     for(auto &&rot: rots) {
         if(rot) {
             rot->iterate_commit([=](Transaction &tr){
@@ -151,16 +181,55 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
     iterate_commit([=](Transaction &tr){
 
         tr[ *m_running] = true;
-        tr[ *m_ready] = false;
+        record_step()->value(tr, 0);
+
+        tr[ *target_theta()].setUIEnabled(false);
+        tr[ *target_phi()].setUIEnabled(false);
+        tr[ *offset_theta()].setUIEnabled(false);
+        tr[ *offset_phi()].setUIEnabled(false);
+        tr[ *rot1_per_theta()].setUIEnabled(false);
+        tr[ *rot2_per_theta()].setUIEnabled(false);
+        tr[ *rot1_per_phi()].setUIEnabled(false);
+        tr[ *rot2_per_phi()].setUIEnabled(false);
+        tr[ *step()].setUIEnabled(false);
 
         tr[ *rot1()].setUIEnabled(false);
         tr[ *rot2()].setUIEnabled(false);
         tr[ *abort()].setUIEnabled(true);
 
-        tr[ *this].step = 0;
+        tr[ *this].currentStep = 0;
+        tr[ *this].isWaitStable = false;
+        tr[ *this].isMoving = false;
+        tr[ *this].startROT[0] = shot[ *rot1__->position()->value()];
+        tr[ *this].startROT[1] = shot[ *rot2__->position()->value()];
         tr[ *this].timeROTChanged = XTime::now();
+        tr[ *this].timeRecordChanged = XTime::now();
     });
 
+}
+void
+XTwoAxis::endSweep(Transaction &tr){
+    tr[ *m_running] = false;
+    record_step()->value(tr, -1);
+
+    tr[ *target_theta()].setUIEnabled(true);
+    tr[ *target_phi()].setUIEnabled(true);
+    tr[ *offset_theta()].setUIEnabled(true);
+    tr[ *offset_phi()].setUIEnabled(true);
+    tr[ *rot1_per_theta()].setUIEnabled(true);
+    tr[ *rot2_per_theta()].setUIEnabled(true);
+    tr[ *rot1_per_phi()].setUIEnabled(true);
+    tr[ *rot2_per_phi()].setUIEnabled(true);
+    tr[ *step()].setUIEnabled(true);
+
+    tr[ *rot1()].setUIEnabled(true);
+    tr[ *rot2()].setUIEnabled(true);
+
+    tr[ *this].currentStep = 0;
+    tr[ *this].isWaitStable = false;
+    tr[ *this].isMoving = false;
+    tr[ *this].timeROTChanged = {};
+    tr[ *this].timeRecordChanged = {};
 }
 
 void
@@ -168,11 +237,10 @@ XTwoAxis::onAbortTouched(const Snapshot &shot, XTouchableNode *) {
     iterate_commit_while([=](Transaction &tr)->bool{
         if( !tr[ *m_running])
             return false;
-        tr[ *m_running] = false;
-        record()->value(tr, 0);
-        tr[ *this].timeROTChanged = {};
+        endSweep(tr);
         return true;
     });
+
 }
 
 void
@@ -183,6 +251,10 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
     double pos1, pos2;
     bool ready1, ready2;
+
+    if(!rot1__ || !rot2__) {
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
 
     if(emitter == rot1__.get()){
         pos1 = shot_emitter[ *rot1__->position()->value()];
@@ -199,10 +271,34 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     theta()->value(tr, var);
     var = shot_this[ *offset_phi()] + pos1 / shot_this[ *rot1_per_phi()] + pos2 / shot_this[ *rot2_per_phi()];
     phi()->value(tr, var);
+    tr[ *m_ready] = ready1 && ready2;
 
-    if(!shot_this[ *running()]){
 
-
+    if(shot_this[ *running()]) {
+        if(shot_this[ *ready()] && !tr[ *this].isWaitMove){
+            if(!tr[ *this].isWaitStable){
+                tr[ *this].timeROTChanged = XTime::now();
+            } else if(XTime::now() - tr[ *this].timeROTChanged > shot_this[ *wait()]){
+                record_step()->value(tr, tr[ *this].currentStep);
+                tr[ *this].timeRecordChanged = XTime::now();
+            } else if(XTime::now() - tr[ *this].timeRecordChanged > shot_this[ *wait()]){
+                tr[ *this].isWaitStable = false;
+                tr[ *this].isWaitMove = true;
+                tr[ *this].currentStep += 1;
+                if(tr[ *this].currentStep > shot_this[ *step()]) {
+                    endSweep(tr);
+                } else {
+                    rot1__->iterate_commit([=](Transaction &tr){
+                        tr[ *rot1__->target()] = tr[ *this].startROT[0] + tr[ *this].deltaROT[0] * tr[ *this].currentStep;
+                    });
+                    rot2__->iterate_commit([=](Transaction &tr){
+                        tr[ *rot2__->target()] = tr[ *this].startROT[1] + tr[ *this].deltaROT[1] * tr[ *this].currentStep;
+                    });
+                }
+            }
+        } else if(!shot_this[ *ready()]){
+            tr[ *this].isWaitMove = false;
+        }
     }
 }
 

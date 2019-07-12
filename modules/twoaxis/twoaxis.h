@@ -38,14 +38,21 @@ public:
 
     struct Payload : public XSecondaryDriver::Payload {
     public:
-        int step;
+        int currentStep;
         bool isTheta;
+        bool isWaitStable;
+        bool isWaitMove;
+        bool isMoving;
+        double startAngle; //! for theta or phi
+        std::array<double, 2> deltaROT;
+        std::array<double, 2> startROT;
         XTime timeROTChanged;
+        XTime timeRecordChanged;
     };
 
     const shared_ptr<XScalarEntry> &theta() const {return m_theta;}
     const shared_ptr<XScalarEntry> &phi() const {return m_phi;}
-    const shared_ptr<XScalarEntry> &record() const {return m_record;}
+    const shared_ptr<XScalarEntry> &record_step() const {return m_record_step;}
 
     const shared_ptr<XDoubleNode> &target_theta() const {return m_target_theta;}
     const shared_ptr<XDoubleNode> &target_phi() const {return m_target_phi;}
@@ -69,7 +76,7 @@ public:
 private:
     const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_rot1, m_rot2;
     const shared_ptr<XScalarEntry> m_theta, m_phi;
-    const shared_ptr<XScalarEntry> m_record;
+    const shared_ptr<XScalarEntry> m_record_step;
 
     const shared_ptr<XDoubleNode> m_target_theta, m_target_phi;
     const shared_ptr<XDoubleNode> m_offset_theta, m_offset_phi;
@@ -87,12 +94,14 @@ private:
     shared_ptr<Listener> m_lsnOnTargetThetaChanged, m_lsnOnTargetPhiChanged, m_lsnOnAbortTouched;
 
     const qshared_ptr<FrmTwoaxis> m_form;
+    const shared_ptr<XStatusPrinter> m_statusPrinter;
 
     void onTargetThetaChanged(const Snapshot &shot, XValueNodeBase *);
     void onTargetPhiChanged(const Snapshot &shot, XValueNodeBase *);
     void onAbortTouched(const Snapshot &shot, XTouchableNode *);
 
     void initSweep(const Snapshot &shot);
+    void endSweep(Transaction &tr);
 
 };
 
