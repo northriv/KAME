@@ -344,13 +344,16 @@ XRealTimeAcqDSO<tDriver>::acquire(const Snapshot &shot, const atomic<bool> &term
                 if(tryReadAISuspend(terminated))
                     return;
                 uint64_t total_samps = getTotalSampsAcquired();
-                samplecnt_at_trigger = vt->tryPopFront(total_samps, freq);
-                if(samplecnt_at_trigger) {
-                    if( !setReadPositionAbsolute(samplecnt_at_trigger - m_preTriggerPos)) {
-                        gWarnPrint(i18n("Buffer Overflow."));
-                        continue;
+                if(total_samps >= size - m_preTriggerPos) {
+                    //returns the first remaining trigger position as long as stored trace can cover the display area.
+                    samplecnt_at_trigger = vt->tryPopFront(total_samps - (size - m_preTriggerPos), freq);
+                    if(samplecnt_at_trigger) {
+                        if( !setReadPositionAbsolute(samplecnt_at_trigger - m_preTriggerPos)) {
+                            gWarnPrint(i18n("Buffer Overflow."));
+                            continue;
+                        }
+                        break;
                     }
-                    break;
                 }
                 msecsleep(lrint(1e3 * size * m_interval / 6));
             }

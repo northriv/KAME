@@ -100,7 +100,6 @@ private:
 
     void fetchStatus(const atomic<bool>&, bool single);
     unique_ptr<XThread> m_thread;
-    atomic<XTime> m_timeUIinteracted;
 };
 
 //! Thamway NMR PROT series for GPIB, etc..

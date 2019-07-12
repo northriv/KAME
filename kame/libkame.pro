@@ -8,6 +8,7 @@ include(../kame.pri)
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}\
+    $${_PRO_FILE_PWD_}/graph\
 
 FORMS += \
     graph/graphdialog.ui \

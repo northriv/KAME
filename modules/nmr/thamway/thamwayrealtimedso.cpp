@@ -199,6 +199,7 @@ XThamwayPROT3DSO::setReadPositionAbsolute(uint64_t pos) {
     XScopedLock<XMutex> lock(m_acqMutex);
     //searching for corresponding chunk.
     for(m_currRdChunk = m_wrChunkEnd; m_currRdChunk != m_wrChunkBegin;) {
+        assert( !m_chunks[m_currRdChunk].ioInProgress);
         uint64_t pos_abs_per_ch = m_chunks[m_currRdChunk].posAbsPerCh;
         uint64_t pos_abs_per_ch_end = pos_abs_per_ch +
             m_chunks[m_currRdChunk].data.size() / getNumOfChannels();
@@ -224,6 +225,7 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
     uint32_t samps_read = 0;
     size *= getNumOfChannels();
 
+    //lambda fn for fast memcpy with word swapping
     auto memcpy_wordswap = [](tRawAI *dst, const tRawAI *src, size_t byte_size) {
         size_t len = byte_size / sizeof(tRawAI);
         const tRawAI *src_end = src + len;
@@ -262,7 +264,9 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
         }
     };
 
-    for(auto &chunk = m_chunks[m_currRdChunk]; size;) {
+
+    for(; size;) {
+        auto &chunk = m_chunks[m_currRdChunk];
         readBarrier();
         if(chunk.ioInProgress) {
             fprintf(stderr, "Unexpected collision\n");
@@ -298,17 +302,14 @@ XThamwayPROT3DSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
             break; //collision.
         }
         if(m_currRdPos == chunk.data.size()) {
+            //Sets reading position for next chunk.
             XScopedLock<XMutex> lock(m_acqMutex);
             m_currRdChunk++;
             if(m_currRdChunk == m_chunks.size()) m_currRdChunk = 0;
-            chunk = m_chunks[m_currRdChunk];
             m_currRdPos = 0;
-            if(m_currRdChunk == m_wrChunkBegin) {
-                fprintf(stderr, "Unexpected collision\n");
-                break; //nothing to read.
-            }
         }
     }
+
     return samps_read / getNumOfChannels();
 }
 
@@ -348,6 +349,7 @@ XThamwayPROT3DSO::executeAsyncRead(const atomic<bool> &terminated) {
             auto &chunk = m_chunks[wridx];
             {
                 XScopedLock<XMutex> lock(m_acqMutex);
+                assert(chunk.ioInProgress);
                 chunk.ioInProgress = false;
                 chunk.data.resize(count);
                 if(wridx == m_wrChunkBegin) {
