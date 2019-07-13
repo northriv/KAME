@@ -579,8 +579,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>310</width>
-         <height>273</height>
+         <width>271</width>
+         <height>242</height>
         </rect>
        </property>
        <attribute name="label">
@@ -689,6 +689,20 @@
             </item>
            </layout>
           </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_19">
+            <item>
+             <widget class="QLabel" name="label_8">
+              <property name="text">
+               <string>UserTempChannel</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="m_edUserTempChannel"/>
+            </item>
+           </layout>
+          </item>
          </layout>
         </item>
         <item>
@@ -711,8 +725,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>167</width>
-         <height>122</height>
+         <width>271</width>
+         <height>242</height>
         </rect>
        </property>
        <attribute name="label">
@@ -869,8 +883,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>171</width>
-         <height>94</height>
+         <width>271</width>
+         <height>242</height>
         </rect>
        </property>
        <attribute name="label">

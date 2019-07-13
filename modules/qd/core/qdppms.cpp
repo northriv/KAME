@@ -42,6 +42,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
     m_tempSweepRate(create<XDoubleNode>("TempSweepRate",true)),
     m_tempApproachMode(create<XComboNode>("TempApproachMode",true,true)),
     m_tempStatus(create<XStringNode>("TempStatus",true)),
+    m_userTempChannel(create<XIntNode>("UserTempChannel",true)),
     m_form(new FrmQDPPMS) {
     meas->scalarEntries()->insert(tr_meas, m_temp);
     meas->scalarEntries()->insert(tr_meas, m_user_temp);
@@ -68,7 +69,8 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(targetPosition(), m_form->m_edTargetPosition),
         xqcon_create<XQComboBoxConnector>(positionApproachMode(), m_form->m_cmbPositionApproachMode, Snapshot( *m_positionApproachMode)),
         xqcon_create<XQLineEditConnector>(positionSlowDownCode(), m_form->m_edPositionSlowDownCode),
-        xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus)
+        xqcon_create<XQLabelConnector>(positionStatus(), m_form->m_labelPositionStatus),
+        xqcon_create<XQLineEditConnector>(userTempChannel(), m_form->m_edUserTempChannel),
     };
 
     iterate_commit([=](Transaction &tr){
@@ -77,6 +79,7 @@ XQDPPMS::XQDPPMS(const char *name, bool runtime,
         tr[ *positionApproachMode()].add("default");
         tr[ *positionSlowDownCode()] = 0;
         tr[ *tempApproachMode()].add({"FastSettle", "No Overshoot"});
+        tr[ *userTempChannel()] = 0;
         std::vector<shared_ptr<XNode>> runtime_ui{
             targetField(), fieldSweepRate(), fieldApproachMode(),
             fieldMagnetMode(), targetTemp(), tempSweepRate(), tempApproachMode(),
@@ -187,12 +190,13 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
         double sample_position;
         double helium_level;
         int status;
+        Snapshot shot( *this);
 
         try {
             // Reading....
             magnet_field = getField();
             sample_temp = getTemp();
-            sample_user_temp = getUserTemp();
+            sample_user_temp = getUserTemp(shot[ *userTempChannel()]);
             sample_position = getPosition();
             helium_level = getHeliumLevel();
             status = getStatus();
@@ -252,7 +256,6 @@ XQDPPMS::execute(const atomic<bool> &terminated) {
             continue;
         }
         try {
-            Snapshot shot( *this);
             if(shot[ *fieldSweepRate()] < MIN_MODEL6700_SWEEPRATE) {
                 switch ((status >> 4) & 0xf) {
                 case 3: //"SW-Cool"

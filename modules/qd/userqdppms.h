@@ -36,7 +36,7 @@ protected:
     virtual double getField() override;
     virtual double getPosition() override;
     virtual double getTemp() override;
-    virtual double getUserTemp() override;
+    virtual double getUserTemp(int channel) override;
     virtual double getHeliumLevel() override;
     virtual int getStatus() override;
 private:
