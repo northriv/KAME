@@ -44,6 +44,7 @@ public:
         bool isRecorded;
         double startAngle; //! for theta or phi
         std::array<double, 2> currentROT;
+        std::array<double, 2> targetROT;
         std::array<double, 2> deltaROT;
         std::array<double, 2> startROT;
         XTime timeROTChanged;
