@@ -72,6 +72,7 @@ public:
     const shared_ptr<XDoubleNode> &rot2_per_phi() const {return m_rot2_per_phi;}
     const shared_ptr<XTouchableNode> &abort() const {return m_abort;}
     const shared_ptr<XBoolNode> &ready() const {return  m_ready;}
+    const shared_ptr<XBoolNode> &slipping() const {return  m_slipping;}
     const shared_ptr<XBoolNode> &running() const {return  m_running;}
     const shared_ptr<XDoubleNode> &timeout() const {return m_timeout;}
 
@@ -90,6 +91,7 @@ private:
     const shared_ptr<XDoubleNode> m_rot2_per_theta, m_rot2_per_phi; //! moter deg. per theta/phi deg. for rot2
     const shared_ptr<XTouchableNode> m_abort;
     const shared_ptr<XBoolNode> m_ready;
+    const shared_ptr<XBoolNode> m_slipping;
     const shared_ptr<XBoolNode> m_running;
     const shared_ptr<XDoubleNode> m_timeout;
 

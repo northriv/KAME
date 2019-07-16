@@ -34,6 +34,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
       m_rot2_per_phi(create<XDoubleNode>("ROT2PerPhi", true)),
       m_abort(create<XTouchableNode>("Abort", true)),
       m_ready(create<XBoolNode>("Ready", true)),
+      m_slipping(create<XBoolNode>("Slipping", true)),
       m_running(create<XBoolNode>("Running", true)),
       m_timeout(create<XDoubleNode>("Timeout", true)),
       m_form(new FrmTwoaxis),
@@ -66,6 +67,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(rot2_per_phi(), m_form->m_edROT2PerPhi),
         xqcon_create<XQButtonConnector>(m_abort, m_form->m_btnAbort),
         xqcon_create<XQLedConnector>(m_ready, m_form->m_ledReady),
+        xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipping),
         xqcon_create<XQLedConnector>(m_running, m_form->m_ledRunning),
         xqcon_create<XQLineEditConnector>(timeout(), m_form->m_edTimeout)
     };
@@ -75,6 +77,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
         tr[ *m_ready] = false;
+        tr[ *m_slipping] = false;
         tr[ *m_running] = false;
         tr[ *m_offset_theta] =0.0;
         tr[ *m_offset_phi] = 0.0;
@@ -258,7 +261,6 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
     const shared_ptr<XMotorDriver> rots[] = {rot1__, rot2__};
-    bool ready1, ready2;
 
     if(!rot1__ || !rot2__) {
         throw XSkippedRecordError(__FILE__, __LINE__);
@@ -266,9 +268,7 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 
 
     tr[ *this].currentROT[0] = shot_emitter[ *rot1__->position()->value()];
-    ready1 = shot_emitter[ *rot1__->ready()];
     tr[ *this].currentROT[1] = shot_others[ *rot2__->position()->value()];
-    ready2 = shot_others[ *rot2__->ready()];
 
     double var = shot_this[ *offset_theta()] + tr[ *this].currentROT[0] / shot_this[ *rot1_per_theta()]
             +  tr[ *this].currentROT[1] / shot_this[ *rot2_per_theta()];
@@ -276,7 +276,8 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     var = shot_this[ *offset_phi()] + tr[ *this].currentROT[0] / shot_this[ *rot1_per_phi()]
             + tr[ *this].currentROT[1] / shot_this[ *rot2_per_phi()];
     phi()->value(tr, var);
-    tr[ *m_ready] = ready1 && ready2;
+    tr[ *m_ready] = shot_emitter[ *rot1__->ready()] && shot_others[ *rot2__->ready()];
+    tr[ *m_slipping] = shot_emitter[ *rot1__->slipping()] || shot_others[ *rot2__->slipping()];
 
 
     if(shot_this[ *running()]) {

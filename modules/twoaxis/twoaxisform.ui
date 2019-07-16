@@ -336,7 +336,7 @@
      <rect>
       <x>60</x>
       <y>10</y>
-      <width>291</width>
+      <width>303</width>
       <height>88</height>
      </rect>
     </property>
@@ -388,11 +388,40 @@
       </layout>
      </item>
      <item>
-      <widget class="QPushButton" name="m_btnAbort">
-       <property name="text">
-        <string>Abort</string>
-       </property>
-      </widget>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_19">
+         <item>
+          <widget class="QPushButton" name="m_ledSlipping">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_22">
+           <property name="text">
+            <string>Slip</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_20">
+         <item>
+          <widget class="QPushButton" name="m_btnAbort">
+           <property name="text">
+            <string>Abort</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
      </item>
     </layout>
    </widget>
