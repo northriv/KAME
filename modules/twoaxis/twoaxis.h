@@ -106,6 +106,7 @@ private:
 
     void initSweep(const Snapshot &shot);
     void endSweep(Transaction &tr);
+    void enableUIs(Transaction &tr, bool flag);
 
 };
 

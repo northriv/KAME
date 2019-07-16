@@ -188,23 +188,7 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
             tr[ *m_running] = true;
             record_step()->value(tr, 0);
 
-            tr[ *target_theta()].setUIEnabled(false);
-            tr[ *target_phi()].setUIEnabled(false);
-            tr[ *offset_theta()].setUIEnabled(false);
-            tr[ *offset_phi()].setUIEnabled(false);
-            tr[ *max_theta()].setUIEnabled(false);
-            tr[ *min_theta()].setUIEnabled(false);
-            tr[ *max_phi()].setUIEnabled(false);
-            tr[ *min_phi()].setUIEnabled(false);
-            tr[ *rot1_per_theta()].setUIEnabled(false);
-            tr[ *rot2_per_theta()].setUIEnabled(false);
-            tr[ *rot1_per_phi()].setUIEnabled(false);
-            tr[ *rot2_per_phi()].setUIEnabled(false);
-            tr[ *step()].setUIEnabled(false);
-
-            tr[ *rot1()].setUIEnabled(false);
-            tr[ *rot2()].setUIEnabled(false);
-            tr[ *abort()].setUIEnabled(true);
+            enableUIs(tr, false);
 
             tr[ *this].currentStep = 0;
             tr[ *this].isWaitStable = false;
@@ -226,28 +210,34 @@ XTwoAxis::endSweep(Transaction &tr){
     tr[ *m_running] = false;
     record_step()->value(tr, -1);
 
-    tr[ *target_theta()].setUIEnabled(true);
-    tr[ *target_phi()].setUIEnabled(true);
-    tr[ *offset_theta()].setUIEnabled(true);
-    tr[ *offset_phi()].setUIEnabled(true);
-    tr[ *max_theta()].setUIEnabled(true);
-    tr[ *min_theta()].setUIEnabled(true);
-    tr[ *max_phi()].setUIEnabled(true);
-    tr[ *min_phi()].setUIEnabled(true);
-    tr[ *rot1_per_theta()].setUIEnabled(true);
-    tr[ *rot2_per_theta()].setUIEnabled(true);
-    tr[ *rot1_per_phi()].setUIEnabled(true);
-    tr[ *rot2_per_phi()].setUIEnabled(true);
-    tr[ *step()].setUIEnabled(true);
-
-    tr[ *rot1()].setUIEnabled(true);
-    tr[ *rot2()].setUIEnabled(true);
+    enableUIs(tr, true);
 
     tr[ *this].currentStep = 0;
     tr[ *this].isWaitStable = false;
     tr[ *this].timeROTChanged = {};
     tr[ *this].timeRecorded = {};
     tr[ *this].timeStarted = {};
+}
+
+void
+XTwoAxis::enableUIs(Transaction &tr, bool flag){
+    tr[ *target_theta()].setUIEnabled(flag);
+    tr[ *target_phi()].setUIEnabled(flag);
+    tr[ *offset_theta()].setUIEnabled(flag);
+    tr[ *offset_phi()].setUIEnabled(flag);
+    tr[ *max_theta()].setUIEnabled(flag);
+    tr[ *min_theta()].setUIEnabled(flag);
+    tr[ *max_phi()].setUIEnabled(flag);
+    tr[ *min_phi()].setUIEnabled(flag);
+    tr[ *rot1_per_theta()].setUIEnabled(flag);
+    tr[ *rot2_per_theta()].setUIEnabled(flag);
+    tr[ *rot1_per_phi()].setUIEnabled(flag);
+    tr[ *rot2_per_phi()].setUIEnabled(flag);
+    tr[ *step()].setUIEnabled(flag);
+
+    tr[ *rot1()].setUIEnabled(flag);
+    tr[ *rot2()].setUIEnabled(flag);
+    tr[ *abort()].setUIEnabled(!flag);
 }
 
 void
