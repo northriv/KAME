@@ -189,6 +189,10 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
             tr[ *target_phi()].setUIEnabled(false);
             tr[ *offset_theta()].setUIEnabled(false);
             tr[ *offset_phi()].setUIEnabled(false);
+            tr[ *max_theta()].setUIEnabled(false);
+            tr[ *min_theta()].setUIEnabled(false);
+            tr[ *max_phi()].setUIEnabled(false);
+            tr[ *min_phi()].setUIEnabled(false);
             tr[ *rot1_per_theta()].setUIEnabled(false);
             tr[ *rot2_per_theta()].setUIEnabled(false);
             tr[ *rot1_per_phi()].setUIEnabled(false);
@@ -201,11 +205,10 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
 
             tr[ *this].currentStep = 0;
             tr[ *this].isWaitStable = false;
-            tr[ *this].isMoving = false;
-            tr[ *this].startROT[0] = shot[ *rot1__->position()->value()];
-            tr[ *this].startROT[1] = shot[ *rot2__->position()->value()];
+            tr[ *this].startROT[0] = tr[ *this].currentROT[0];
+            tr[ *this].startROT[1] = tr[ *this].currentROT[1];
             tr[ *this].timeROTChanged = XTime::now();
-            tr[ *this].timeRecordChanged = XTime::now();
+            tr[ *this].timeRecorded = XTime::now();
         });
     } else {
         m_statusPrinter->printWarning(i18n("No motor."));
@@ -231,9 +234,8 @@ XTwoAxis::endSweep(Transaction &tr){
 
     tr[ *this].currentStep = 0;
     tr[ *this].isWaitStable = false;
-    tr[ *this].isMoving = false;
     tr[ *this].timeROTChanged = {};
-    tr[ *this].timeRecordChanged = {};
+    tr[ *this].timeRecorded = {};
 }
 
 void
@@ -253,7 +255,6 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     Snapshot &shot_this(tr);
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
-    double pos1, pos2;
     bool ready1, ready2;
 
     if(!rot1__ || !rot2__) {
@@ -261,34 +262,38 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     }
 
     if(emitter == rot1__.get()){
-        pos1 = shot_emitter[ *rot1__->position()->value()];
+        tr[ *this].currentROT[0] = shot_emitter[ *rot1__->position()->value()];
         ready1 = shot_emitter[ *rot1__->ready()];
-        pos2 = shot_others[ *rot2__->position()->value()];
+        tr[ *this].currentROT[1] = shot_others[ *rot2__->position()->value()];
         ready2 = shot_others[ *rot2__->ready()];
     } else {
-        pos1 = shot_others[ *rot1__->position()->value()];
+        tr[ *this].currentROT[0] = shot_others[ *rot1__->position()->value()];
         ready1 = shot_others[ *rot1__->ready()];
-        pos2 = shot_emitter[ *rot2__->position()->value()];
+        tr[ *this].currentROT[1] = shot_emitter[ *rot2__->position()->value()];
         ready2 = shot_emitter[ *rot2__->ready()];
     }
-    double var = shot_this[ *offset_theta()] + pos1 / shot_this[ *rot1_per_theta()] +  pos2 / shot_this[ *rot2_per_theta()];
+    double var = shot_this[ *offset_theta()] + tr[ *this].currentROT[0] / shot_this[ *rot1_per_theta()]
+            +  tr[ *this].currentROT[1] / shot_this[ *rot2_per_theta()];
     theta()->value(tr, var);
-    var = shot_this[ *offset_phi()] + pos1 / shot_this[ *rot1_per_phi()] + pos2 / shot_this[ *rot2_per_phi()];
+    var = shot_this[ *offset_phi()] + tr[ *this].currentROT[0] / shot_this[ *rot1_per_phi()]
+            + tr[ *this].currentROT[1] / shot_this[ *rot2_per_phi()];
     phi()->value(tr, var);
     tr[ *m_ready] = ready1 && ready2;
 
 
-    //! TODO validate slip
     if(shot_this[ *running()]) {
-        if(shot_this[ *ready()] && !tr[ *this].isWaitMove){
+        if(shot_this[ *ready()] && abs(tr[ *this].currentROT[0] - tr[ *rot1__->target()]) < 2.0
+                && abs(tr[ *this].currentROT[1] - tr[ *rot2__->target()]) < 2.0){
             if(!tr[ *this].isWaitStable){
                 tr[ *this].timeROTChanged = XTime::now();
-            } else if(XTime::now() - tr[ *this].timeROTChanged > shot_this[ *wait()]){
+                tr[ *this].isWaitStable =  true;
+            } else if(tr[ *this].isWaitStable && XTime::now() - tr[ *this].timeROTChanged > shot_this[ *wait()]){
                 record_step()->value(tr, tr[ *this].currentStep);
-                tr[ *this].timeRecordChanged = XTime::now();
-            } else if(XTime::now() - tr[ *this].timeRecordChanged > shot_this[ *wait()]){
+                tr[ *this].timeRecorded = XTime::now();
+                tr[ *this].isRecorded = true;
+            } else if(tr[ *this].isRecorded && XTime::now() - tr[ *this].timeRecorded > shot_this[ *wait()]){
                 tr[ *this].isWaitStable = false;
-                tr[ *this].isWaitMove = true;
+                tr[ *this].isRecorded = false;
                 tr[ *this].currentStep += 1;
                 if(tr[ *this].currentStep > shot_this[ *step()]) {
                     endSweep(tr);
@@ -301,8 +306,6 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
                     });
                 }
             }
-        } else if(!shot_this[ *ready()]){
-            tr[ *this].isWaitMove = false;
         }
     }
 }

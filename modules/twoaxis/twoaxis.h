@@ -41,13 +41,13 @@ public:
         int currentStep;
         bool isTheta;
         bool isWaitStable;
-        bool isWaitMove;
-        bool isMoving;
+        bool isRecorded;
         double startAngle; //! for theta or phi
+        std::array<double, 2> currentROT;
         std::array<double, 2> deltaROT;
         std::array<double, 2> startROT;
         XTime timeROTChanged;
-        XTime timeRecordChanged;
+        XTime timeRecorded;
     };
 
     const shared_ptr<XScalarEntry> &theta() const {return m_theta;}
