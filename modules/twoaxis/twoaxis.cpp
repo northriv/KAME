@@ -35,6 +35,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
       m_abort(create<XTouchableNode>("Abort", true)),
       m_ready(create<XBoolNode>("Ready", true)),
       m_running(create<XBoolNode>("Running", true)),
+      m_timeout(create<XDoubleNode>("Timeout", true)),
       m_form(new FrmTwoaxis),
       m_statusPrinter(XStatusPrinter::create(m_form.get())){
 
@@ -65,7 +66,8 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(rot2_per_phi(), m_form->m_edROT2PerPhi),
         xqcon_create<XQButtonConnector>(m_abort, m_form->m_btnAbort),
         xqcon_create<XQLedConnector>(m_ready, m_form->m_ledReady),
-        xqcon_create<XQLedConnector>(m_running, m_form->m_ledRunning)
+        xqcon_create<XQLedConnector>(m_running, m_form->m_ledRunning),
+        xqcon_create<XQLineEditConnector>(timeout(), m_form->m_edTimeout)
     };
 
     connect(rot1());
@@ -87,6 +89,7 @@ XTwoAxis::XTwoAxis(const char *name, bool runtime,
         tr[ *m_rot1_per_phi] = 160.0;
         tr[ *m_rot2_per_phi] = 160.0;
         tr[ *m_step] = 100;
+        tr[ *m_timeout] = 3600;
         tr[ *abort()].setUIEnabled(false);
         m_lsnOnTargetThetaChanged = tr[ *m_target_theta].onValueChanged().connectWeakly(
             shared_from_this(), &XTwoAxis::onTargetThetaChanged);
@@ -212,6 +215,7 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
             tr[ *this].targetROT[1] = tr[ *this].currentROT[1];
             tr[ *this].timeROTChanged = XTime::now();
             tr[ *this].timeRecorded = XTime::now();
+            tr[ *this].timeStarted = XTime::now();
         });
     } else {
         m_statusPrinter->printWarning(i18n("No motor."));
@@ -243,6 +247,7 @@ XTwoAxis::endSweep(Transaction &tr){
     tr[ *this].isWaitStable = false;
     tr[ *this].timeROTChanged = {};
     tr[ *this].timeRecorded = {};
+    tr[ *this].timeStarted = {};
 }
 
 void
@@ -311,6 +316,9 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
                      endSweep(tr);
                 }
             }
+        }
+        if(XTime::now() - tr[ *this].timeStarted > shot_this[ *timeout()]){
+            endSweep(tr);
         }
     }
 }

@@ -49,6 +49,7 @@ public:
         std::array<double, 2> startROT;
         XTime timeROTChanged;
         XTime timeRecorded;
+        XTime timeStarted;
     };
 
     const shared_ptr<XScalarEntry> &theta() const {return m_theta;}
@@ -72,6 +73,7 @@ public:
     const shared_ptr<XTouchableNode> &abort() const {return m_abort;}
     const shared_ptr<XBoolNode> &ready() const {return  m_ready;}
     const shared_ptr<XBoolNode> &running() const {return  m_running;}
+    const shared_ptr<XDoubleNode> &timeout() const {return m_timeout;}
 
 
 private:
@@ -89,6 +91,7 @@ private:
     const shared_ptr<XTouchableNode> m_abort;
     const shared_ptr<XBoolNode> m_ready;
     const shared_ptr<XBoolNode> m_running;
+    const shared_ptr<XDoubleNode> m_timeout;
 
     std::deque<xqcon_ptr> m_conUIs;
 
