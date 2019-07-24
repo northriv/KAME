@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>396</width>
-    <height>577</height>
+    <height>618</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -336,7 +336,7 @@
      <rect>
       <x>60</x>
       <y>10</y>
-      <width>291</width>
+      <width>303</width>
       <height>88</height>
      </rect>
     </property>
@@ -388,9 +388,67 @@
       </layout>
      </item>
      <item>
-      <widget class="QPushButton" name="m_btnAbort">
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_19">
+         <item>
+          <widget class="QPushButton" name="m_ledSlipping">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_22">
+           <property name="text">
+            <string>Slip</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_20">
+         <item>
+          <widget class="QPushButton" name="m_btnAbort">
+           <property name="text">
+            <string>Abort</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </widget>
+   <widget class="QWidget" name="horizontalLayoutWidget_3">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>540</y>
+      <width>361</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout_18">
+     <item>
+      <widget class="QLabel" name="label_20">
        <property name="text">
-        <string>Abort</string>
+        <string>timeout</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="m_edTimeout"/>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_21">
+       <property name="text">
+        <string>s</string>
        </property>
       </widget>
      </item>

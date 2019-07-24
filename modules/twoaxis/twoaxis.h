@@ -41,13 +41,15 @@ public:
         int currentStep;
         bool isTheta;
         bool isWaitStable;
-        bool isWaitMove;
-        bool isMoving;
+        bool isRecorded;
         double startAngle; //! for theta or phi
+        std::array<double, 2> currentROT;
+        std::array<double, 2> targetROT;
         std::array<double, 2> deltaROT;
         std::array<double, 2> startROT;
         XTime timeROTChanged;
-        XTime timeRecordChanged;
+        XTime timeRecorded;
+        XTime timeStarted;
     };
 
     const shared_ptr<XScalarEntry> &theta() const {return m_theta;}
@@ -70,7 +72,9 @@ public:
     const shared_ptr<XDoubleNode> &rot2_per_phi() const {return m_rot2_per_phi;}
     const shared_ptr<XTouchableNode> &abort() const {return m_abort;}
     const shared_ptr<XBoolNode> &ready() const {return  m_ready;}
+    const shared_ptr<XBoolNode> &slipping() const {return  m_slipping;}
     const shared_ptr<XBoolNode> &running() const {return  m_running;}
+    const shared_ptr<XDoubleNode> &timeout() const {return m_timeout;}
 
 
 private:
@@ -87,7 +91,9 @@ private:
     const shared_ptr<XDoubleNode> m_rot2_per_theta, m_rot2_per_phi; //! moter deg. per theta/phi deg. for rot2
     const shared_ptr<XTouchableNode> m_abort;
     const shared_ptr<XBoolNode> m_ready;
+    const shared_ptr<XBoolNode> m_slipping;
     const shared_ptr<XBoolNode> m_running;
+    const shared_ptr<XDoubleNode> m_timeout;
 
     std::deque<xqcon_ptr> m_conUIs;
 
@@ -102,6 +108,7 @@ private:
 
     void initSweep(const Snapshot &shot);
     void endSweep(Transaction &tr);
+    void enableUIs(Transaction &tr, bool flag);
 
 };
 
