@@ -369,7 +369,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	int dso_len = shot_dso[ *dso__].length();
 
-	double interval = shot_dso[ *dso__].timeInterval();
+    double interval = shot_dso[ *dso__].timeInterval(); //[sec.]
 	if (interval <= 0) {
 		throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
@@ -411,7 +411,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	numechoes = std::max(1, numechoes);
     int numechoes_pulse = numechoes;
     if(pulse__) numechoes_pulse = shot_others[ *pulse__].echoNum();
-    bool bg_after_last_echo = pos + length + echoperiod * (numechoes_pulse - 1) < bgpos;
+    bool bg_after_last_echo = pos + length + echoperiod * (numechoes_pulse - 1) < pos + bgpos;
 
     if(bglength && (bglength < length * numechoes * 3))
 		m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
