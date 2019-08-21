@@ -146,7 +146,8 @@ XThamwayPROT<tInterface>::stop() {
 template <class tInterface>
 double
 XThamwayPROT<tInterface>::query(const char *cmd) {
-    msecsleep(20);
+    XScopedLock<XInterface> lock( *this->interface());
+    msecsleep(10);
     this->interface()->query(cmd);
     for(int i = 0; ; ++i) {
         double v;
@@ -157,6 +158,7 @@ XThamwayPROT<tInterface>::query(const char *cmd) {
         this->interface()->receive(); //flushing not-welcome message if any.
         msecsleep(i * 10);
     }
+    msecsleep(10);
 }
 
 template <class tInterface>

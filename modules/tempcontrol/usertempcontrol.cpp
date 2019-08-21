@@ -450,9 +450,8 @@ void XCryocon::setTemp(unsigned int loop, double temp) {
         stopControl();
 
     Snapshot shot( *this);
-    auto ch = currentChannel(loop);
-    if(ch) {
-        shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *ch])->thermometer()];
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo)
             setHeaterSetPoint(loop, thermo->getRawValue(temp));
         else
@@ -715,17 +714,16 @@ void XLakeShoreBridge::onDChanged(unsigned int loop, double d) {
 }
 void XLakeShore340::onTargetTempChanged(unsigned int loop, double temp) {
 	Snapshot shot( *this);
-    auto ch = currentChannel(loop);
-    if(ch) {
-        shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *ch])->thermometer()];
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo) {
             interface()->sendf("CSET %u,%s,3,1", loop + 1,
-                (const char*)shot[ *ch].to_str().c_str());
+                (const char*)shot[ *ch->thermometer()].to_str().c_str());
             temp = thermo->getRawValue(temp);
         }
         else {
             interface()->sendf("CSET %u,%s,1,1", loop + 1,
-                (const char*)shot[ *ch].to_str().c_str());
+                (const char*)shot[ *ch->thermometer()].to_str().c_str());
         }
         interface()->sendf("SETP %u,%f", loop + 1, temp);
     }
@@ -862,9 +860,8 @@ double XLakeShore350::getHeater(unsigned int loop) {
 }
 void XLakeShore350::onTargetTempChanged(unsigned int loop, double temp) {
     Snapshot shot( *this);
-    auto ch = currentChannel(loop);
-    if(ch) {
-        shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *ch])->thermometer()];
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo) {
             temp = thermo->getRawValue(temp);
         }
@@ -1000,17 +997,16 @@ void XLakeShore370::onDChanged(unsigned int /*loop*/, double d) {
 }
 void XLakeShore370::onTargetTempChanged(unsigned int /*loop*/, double temp) {
 	Snapshot shot( *this);
-    auto ch = currentChannel(0);
-    if(ch) {
-        shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *ch])->thermometer()];
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(0)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo) {
             interface()->sendf("CSET %s,,2",
-                (const char*)shot[ *ch].to_str().c_str());
+                (const char*)shot[ *currentChannel(0)].to_str().c_str());
             temp = thermo->getRawValue(temp);
         }
         else {
             interface()->sendf("CSET %s,,1",
-                (const char*)shot[ *ch].to_str().c_str());
+                (const char*)shot[ *currentChannel(0)].to_str().c_str());
         }
         interface()->sendf("SETP %f", temp);
     }
@@ -1162,9 +1158,8 @@ void XLinearResearch700::onDChanged(unsigned int loop, double d) {
 }
 void XLinearResearch700::onTargetTempChanged(unsigned int loop, double temp) {
     Snapshot shot( *this);
-    auto ch = currentChannel(loop);
-    if(ch) {
-        shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *ch])->thermometer()];
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
         if(thermo) {
             temp = thermo->getRawValue(temp);
         }
