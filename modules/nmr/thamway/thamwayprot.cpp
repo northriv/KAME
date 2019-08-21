@@ -146,7 +146,7 @@ XThamwayPROT<tInterface>::stop() {
 template <class tInterface>
 double
 XThamwayPROT<tInterface>::query(const char *cmd) {
-    msecsleep(10);
+    msecsleep(20);
     this->interface()->query(cmd);
     for(int i = 0; ; ++i) {
         double v;
