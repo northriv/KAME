@@ -1,3 +1,11 @@
+* Fri Sep 6 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.2-1)
+- Workaround for Qt5.12
+- NMREcho: Fix for background warning, new warning against large voltage.
+- NMRT1: T2 measurement by CPMG
+- ThamwayRealtimeDSO: Fix for trigger position
+- new driver: two-axis goniometric stage
+
 * Sun Nov 25 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.2.1-2)
 - Mac: Fix for text/draw collapse on MDI windows.

@@ -211,11 +211,11 @@ XPulser::XPulser(const char *name, bool runtime,
     });
 
     //Ranges should be preset in prior to connectors.
-    m_form->m_dblP1Level->setRange(-20.0, 3.0);
+    m_form->m_dblP1Level->setRange(-40.0, 3.0);
     m_form->m_dblP1Level->setSingleStep(1.0);
-    m_form->m_dblP2Level->setRange(-20.0, 3.0);
+    m_form->m_dblP2Level->setRange(-40.0, 3.0);
     m_form->m_dblP2Level->setSingleStep(1.0);
-    m_form->m_dblCombLevel->setRange(-20.0, 3.0);
+    m_form->m_dblCombLevel->setRange(-40.0, 3.0);
     m_form->m_dblCombLevel->setSingleStep(1.0);
     m_form->m_dblMasterLevel->setRange(-30.0, 3.0);
     m_form->m_dblMasterLevel->setSingleStep(1.0);
