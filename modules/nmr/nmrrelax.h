@@ -98,12 +98,18 @@ public:
         double m_mapFreqRes; //!< [kHz]
         double m_mapBandWidth; //!< [kHz]
         double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[kHz]
-        long mapFreqCount() const {return m_allRelaxCurves.rows();}
-        long mapTCount() const {return m_allRelaxCurves.cols() * 10;}
-        //! rows of relax curves every \a m_mapFreqRes.
-        Eigen::MatrixXcd m_allRelaxCurves;
-        double m_allRelaxCurvesAvgCount;
+        long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
+        long m_mapTCount();
+        struct Pulse {
+            double p1;
+            int avgCount = 0;
+            Eigen::VectorXcd summedTrace; //!< time domain
+            Eigen::VectorXcd ft;
+            double summedDarkPSDSq; //! sum sq. of dark spectral power density.
+        };
+        std::vector<shared_ptr<Pulse>> m_allPulses;
 
+        XTime m_timeMapFTCalcRequested; //!< updated if any condition for Pulse::ft has been changed.
         XTime m_timeMapClearRequested;
     };
 
@@ -160,6 +166,10 @@ public:
     const shared_ptr<XDoubleNode> &mapBandWidth() const {return m_mapBandWidth;}
     //! [kHz].
     const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
+    //! FFT Window Function for mapping
+    const shared_ptr<XComboNode> &mapWindowFunc() const {return m_mapWindowFunc;}
+    //! FFT Window Length for mapping [%]
+    const shared_ptr<XDoubleNode> &mapWindowWidth() const {return m_mapWindowWidth;}
 
 private:
 	//! List of relaxation functions
@@ -203,6 +213,8 @@ private:
     const shared_ptr<XComboNode> m_mapMode;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XDoubleNode> m_mapBandWidth;
+    const shared_ptr<XComboNode> m_mapWindowFunc;
+    const shared_ptr<XDoubleNode> m_mapWindowWidth;
 
 	//! for Non-Lenear-Least-Square fitting
 	struct NLLS {
@@ -214,12 +226,13 @@ private:
  
     shared_ptr<Listener> m_lsnOnClearAll, m_lsnOnResetFit;
     shared_ptr<Listener> m_lsnOnActiveChanged;
-    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnMapCondChanged, m_lsnOnP1CondChanged;
+    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnP1CondChanged, m_lsnOnMapCondChanged, m_lsnOnMapClearCondRequested;
     void onClearAll (const Snapshot &shot, XTouchableNode *);
 	void onResetFit (const Snapshot &shot, XTouchableNode *);
     void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
 	void onCondChanged (const Snapshot &shot, XValueNodeBase *);
     void onMapCondChanged (const Snapshot &shot, XValueNodeBase *);
+    void onMapClearCondRequested (const Snapshot &shot, XValueNodeBase *);
     void onP1CondChanged (const Snapshot &shot, XValueNodeBase *);
     std::deque<xqcon_ptr> m_conUIs;
 
@@ -228,6 +241,7 @@ private:
 		std::deque<std::complex<double> > &value_by_cond);
 
 	shared_ptr<SpectrumSolverWrapper> m_solver;
+    shared_ptr<SpectrumSolverWrapper> m_solverMapPulse;
 
 	const qshared_ptr<FrmNMRT1> m_form;
     const shared_ptr<XStatusPrinter> m_statusPrinter;

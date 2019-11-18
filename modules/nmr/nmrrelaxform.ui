@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>739</width>
-    <height>531</height>
+    <width>713</width>
+    <height>562</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -110,22 +110,6 @@
       <property name="spacing">
        <number>6</number>
       </property>
-      <item>
-       <widget class="QCheckBox" name="m_ckbTrackPeak">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Track Peak Freq.</string>
-        </property>
-        <property name="shortcut">
-         <string>Alt+A</string>
-        </property>
-       </widget>
-      </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
@@ -442,7 +426,7 @@
        <attribute name="title">
         <string>Least-Square Fitting</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_13">
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
         <property name="spacing">
          <number>4</number>
         </property>
@@ -460,6 +444,9 @@
         </property>
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_3">
+          <property name="spacing">
+           <number>6</number>
+          </property>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_11">
             <item>
@@ -492,6 +479,22 @@
              </widget>
             </item>
            </layout>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="m_ckbTrackPeak">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Track Peak Freq.</string>
+            </property>
+            <property name="shortcut">
+             <string>Alt+A</string>
+            </property>
+           </widget>
           </item>
           <item>
            <layout class="QHBoxLayout" name="_24">
@@ -796,6 +799,9 @@
         </property>
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_10">
+          <property name="spacing">
+           <number>4</number>
+          </property>
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_9">
             <property name="spacing">
@@ -930,6 +936,94 @@
                </layout>
               </item>
              </layout>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="_27">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="textLabel5_9">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Window Func</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+              <property name="wordWrap">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="m_cmbMapWindowFunc">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_7">
+            <item>
+             <widget class="QLabel" name="textLabel5_10">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Window Width</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+              <property name="wordWrap">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="m_slMapWindowWidth">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="m_dbMapWindowWidth">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="suffix">
+               <string>%</string>
+              </property>
+              <property name="decimals">
+               <number>0</number>
+              </property>
+              <property name="minValue" stdset="0">
+               <number>-360</number>
+              </property>
+              <property name="maxValue" stdset="0">
+               <number>360</number>
+              </property>
+             </widget>
             </item>
            </layout>
           </item>
@@ -1227,7 +1321,6 @@
   <tabstop>m_ckbActive</tabstop>
   <tabstop>m_cmbMode</tabstop>
   <tabstop>m_cmbRelaxFunc</tabstop>
-  <tabstop>m_ckbTrackPeak</tabstop>
   <tabstop>m_ckbAutoPhase</tabstop>
   <tabstop>m_slPhase</tabstop>
   <tabstop>m_dblPhase</tabstop>

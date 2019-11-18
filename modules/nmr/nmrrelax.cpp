@@ -97,6 +97,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_clearAll(create<XTouchableNode>("ClearAll", true)),
 	  m_fitStatus(create<XStringNode>("FitStatus", true)),
 	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
+      m_solverMapPulse(create<SpectrumSolverWrapper>("SpectrumSolverMapPulse", true, shared_ptr<XComboNode>(), m_mapWindowFunc, m_windowWidth)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.2f")),
       m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
@@ -270,9 +271,14 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         m_lsnOnMapCondChanged = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapCondChanged);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
-            {mapMode(), smoothSamples(), mapBandWidth(), mapFreqRes(),
-            p1Min(), p1Max()}))
+            {mapBandWidth(), mapFreqRes(),
+            mapWindowFunc(), mapWindowWidth()}))
             tr[ *x].onValueChanged().connect(m_lsnOnMapCondChanged);
+        m_lsnOnMapClearCondRequested = tr[ *mode()].onValueChanged().connectWeakly(
+            shared_from_this(), &XNMRT1::onMapClearCondRequested);
+        for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
+            {mapMode(), smoothSamples(), p1Min(), p1Max()}))
+            tr[ *x].onValueChanged().connect(m_lsnOnMapClearCondRequested);
 
 		m_lsnOnClearAll = tr[ *m_clearAll].onTouch().connectWeakly(
 			shared_from_this(), &XNMRT1::onClearAll);
@@ -420,6 +426,11 @@ XNMRT1::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void
 XNMRT1::onMapCondChanged(const Snapshot &shot, XValueNodeBase *node) {
+    trans( *this).m_timeMapFTCalcRequested = XTime::now();
+    requestAnalysis();
+}
+void
+XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
     if(node == mapMode().get())
         if((MapMode)(int)shot[ *mapMode()] != MapMode::Off)
             return;
