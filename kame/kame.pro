@@ -86,7 +86,8 @@ HEADERS += \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
     messagebox.h \
-    math/nllsfit.h
+    math/nllsfit.h \
+    math/tikhonovreg.h
 
 SOURCES += icons/icon.cpp \
     xthread.cpp \
@@ -135,7 +136,8 @@ SOURCES += icons/icon.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
     main.cpp \
-    messagebox.cpp
+    messagebox.cpp \
+    math/tikhonovreg.cpp
 
 unix {
     HEADERS += \

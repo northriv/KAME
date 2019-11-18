@@ -38,10 +38,13 @@ else {
 
 macx {
     INCLUDEPATH += /opt/local/include
+    INCLUDEPATH += /opt/local/include/eigen3
     LIBS += -L/opt/local/lib/ #MacPorts
 }
 
 win32 {
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../eigen3
+
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
 

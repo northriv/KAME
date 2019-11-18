@@ -20,6 +20,7 @@
 //#include "nmrpulse.h"
 //#include "nmrrelaxfit.h"
 #include <complex>
+#include "tikhonovreg.h"
 
 #include "nmrspectrumsolver.h"
 
@@ -90,10 +91,21 @@ public:
 		//! Stores reduced points to manage fitting and display.
 		std::vector<Pt> m_sumpts;
 		double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
-		double m_errors[3]; //!< std. deviations
+		double m_errors[3]; //!< std. deviations        
+        XTime m_timeClearRequested;
 
-		XTime m_timeClearRequested;
-	};
+        //! Fields for Mapping via Tikhonov Regularization.
+        double m_mapFreqRes; //!< [kHz]
+        double m_mapBandWidth; //!< [kHz]
+        double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[kHz]
+        long mapFreqCount() const {return m_allRelaxCurves.rows();}
+        long mapTCount() const {return m_allRelaxCurves.cols() * 10;}
+        //! rows of relax curves every \a m_mapFreqRes.
+        Eigen::MatrixXcd m_allRelaxCurves;
+        double m_allRelaxCurvesAvgCount;
+
+        XTime m_timeMapClearRequested;
+    };
 
 	//! Holds 1/T1 or 1/T2 and its std. deviation
 	const shared_ptr<XScalarEntry> &t1inv() const {return m_t1inv;}
@@ -123,13 +135,13 @@ public:
 	const shared_ptr<XDoubleNode> &phase() const {return m_phase;}
 	//! Center freq of echoes [kHz].
 	const shared_ptr<XDoubleNode> &freq() const {return m_freq;}
-	/// FFT Window Function
+    //! FFT Window Function
 	const shared_ptr<XComboNode> &windowFunc() const {return m_windowFunc;}
-	/// FFT Window Length
+    //! FFT Window Length
 	const shared_ptr<XComboNode> &windowWidth() const {return m_windowWidth;}
 	//! Auto-select window.
 	const shared_ptr<XBoolNode> &autoWindow() const {return m_autoWindow;}
-    enum MEASMODE {MEAS_T1 = 0, MEAS_T2 = 1, MEAS_ST_E = 2, MEAS_T2_Multi = 3};
+    enum class MeasMode {T1 = 0, T2 = 1, ST_E = 2, T2_Multi = 3};
 	//! T1/T2/StE measurement
 	const shared_ptr<XComboNode> &mode() const {return m_mode;}
 	//! # of Samples for fitting and display
@@ -140,6 +152,14 @@ public:
 	const shared_ptr<XComboNode> &p1Dist() const {return m_p1Dist;}
 	//! Relaxation Function
 	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &relaxFunc() const {return m_relaxFunc;}
+
+    //! Fields for Mapping via Tikhonov Regularization.
+    enum class MapMode {Off = 0, NoiseAnalysis = 1, LCurve = 2, GCV = 3};
+    const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
+    //! [kHz].
+    const shared_ptr<XDoubleNode> &mapBandWidth() const {return m_mapBandWidth;}
+    //! [kHz].
+    const shared_ptr<XDoubleNode> &mapFreqRes() const {return m_mapFreqRes;}
 
 private:
 	//! List of relaxation functions
@@ -179,6 +199,11 @@ private:
 	const shared_ptr<XTouchableNode> m_resetFit, m_clearAll;
 	const shared_ptr<XStringNode> m_fitStatus;
 
+    //! Fields for Mapping via Tikhonov Regularization.
+    const shared_ptr<XComboNode> m_mapMode;
+    const shared_ptr<XDoubleNode> m_mapFreqRes;
+    const shared_ptr<XDoubleNode> m_mapBandWidth;
+
 	//! for Non-Lenear-Least-Square fitting
 	struct NLLS {
 		std::vector<Payload::Pt> *pts; //pointer to data
@@ -189,12 +214,13 @@ private:
  
     shared_ptr<Listener> m_lsnOnClearAll, m_lsnOnResetFit;
     shared_ptr<Listener> m_lsnOnActiveChanged;
-    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnP1CondChanged;
-	void onClearAll (const Snapshot &shot, XTouchableNode *);
+    shared_ptr<Listener> m_lsnOnCondChanged, m_lsnOnMapCondChanged, m_lsnOnP1CondChanged;
+    void onClearAll (const Snapshot &shot, XTouchableNode *);
 	void onResetFit (const Snapshot &shot, XTouchableNode *);
-	void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
+    void onActiveChanged (const Snapshot &shot, XValueNodeBase *);
 	void onCondChanged (const Snapshot &shot, XValueNodeBase *);
-	void onP1CondChanged (const Snapshot &shot, XValueNodeBase *);
+    void onMapCondChanged (const Snapshot &shot, XValueNodeBase *);
+    void onP1CondChanged (const Snapshot &shot, XValueNodeBase *);
     std::deque<xqcon_ptr> m_conUIs;
 
 	void analyzeSpectrum(Transaction &tr,
@@ -204,7 +230,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solver;
 
 	const qshared_ptr<FrmNMRT1> m_form;
-	const shared_ptr<XStatusPrinter> m_statusPrinter;
+    const shared_ptr<XStatusPrinter> m_statusPrinter;
   
 	//! Does fitting iterations \a itercnt times
 	//! \param relax a pointer to a realaxation function
@@ -232,6 +258,9 @@ private:
 	double distributeP1(const Snapshot &shot, double uniform_x_0_to_1);
 	void obtainNextP1(Transaction &tr);
     void setNextP1(const Snapshot &shot);
+
+    const shared_ptr<XWaveNGraph> m_waveMap, m_waveAllRelaxCurves;
+    shared_ptr<TikhonovRegular> m_regularization;
 };
 
 //---------------------------------------------------------------------------

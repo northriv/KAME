@@ -299,6 +299,7 @@ XWaveNGraph::onDumpTouched(const Snapshot &, XTouchableNode *) {
         int rowcnt = shot[ *this].rowCount();
         int colcnt = shot[ *this].colCount();
 
+        m_stream << "#" << getLabel() << std::endl;
         m_stream << "#";
         for(unsigned int i = 0; i < colcnt; i++) {
             m_stream << shot[ *this].labels()[i] << KAME_DATAFILE_DELIMITER;

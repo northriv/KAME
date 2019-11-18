@@ -87,9 +87,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_phase(create<XDoubleNode>("Phase", false, "%.2f")),
       m_freq(create<XDoubleNode>("Freq", false, "%.3f")),
 	  m_windowFunc(create<XComboNode>("WindowFunc", false, true)),
-	  m_autoWindow(create<XBoolNode>("AutoWindow", false)),
 	  m_windowWidth(create<XComboNode>("WindowWidth", false, true)),
-	  m_mode(create<XComboNode>("Mode", false, true)),
+      m_autoWindow(create<XBoolNode>("AutoWindow", false)),
+      m_mode(create<XComboNode>("Mode", false, true)),
 	  m_smoothSamples(create<XUIntNode>("SmoothSamples", false)),
 	  m_p1Strategy(create<XComboNode>("P1Strategy", false, true)),
 	  m_p1Dist(create<XComboNode>("P1Dist", false, true)),
@@ -97,9 +97,15 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 	  m_clearAll(create<XTouchableNode>("ClearAll", true)),
 	  m_fitStatus(create<XStringNode>("FitStatus", true)),
 	  m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
+      m_mapMode(create<XComboNode>("MapMode", false, true)),
+      m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.2f")),
+      m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
       m_form(new FrmNMRT1),
 	  m_statusPrinter(XStatusPrinter::create(m_form.get())),
-      m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
+      m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
+      m_waveMap(create<XWaveNGraph>("WaveMap", true, m_form->m_graphRelaxMap, m_form->m_edRelaxMapDump, m_form->m_tbRelaxMapDump, m_form->m_btnRelaxMapDump)),
+      m_waveAllRelaxCurves(create<XWaveNGraph>("WaveAllRelaxCurves", true, m_form->m_graphAllRelaxCurves, m_form->m_edAllRelaxCurvesDump, m_form->m_tbAllRelaxCurvesDump, m_form->m_btnAllRelaxCurvesDump))
+      {
 
     iterate_commit([=](Transaction &tr){
 		m_relaxFunc = create<XItemNode < XRelaxFuncList, XRelaxFunc > >(
@@ -124,9 +130,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *m_windowWidth].add({"25%", "50%", "100%", "150%", "200%"});
 	    tr[ *m_windowWidth] = 2;
 
-	    const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
-								"Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
-		tr[ *m_wave].setColCount(6, labels);
+        const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
+                                "Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
+        tr[ *m_wave].setColCount(6, labels);
 		tr[ *m_wave].insertPlot(i18n("Relaxation"), 0, 1, -1, 2);
 		tr[ *m_wave].insertPlot(i18n("Out-of-Phase"), 0, 5, -1, 2);
 		shared_ptr<XAxis> axisx = tr[ *m_wave].axisx();
@@ -145,22 +151,72 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
 		tr[ *m_wave].clearPoints();
 
         tr[ *mode()].add({"T1 Measurement", "T2 Measurement", "St.E. Measurement", "T2 Multi-echo"});
-		tr[ *mode()] = MEAS_T1;
+        tr[ *mode()] = (int)MeasMode::T1;
 
         tr[ *p1Strategy()].add({P1STRATEGY_RANDOM, P1STRATEGY_FLATTEN});
-		tr[ *p1Strategy()] = 1;
+        tr[ *p1Strategy()] = 1;
 
         tr[ *p1Dist()].add({P1DIST_LINEAR, P1DIST_LOG, P1DIST_RECIPROCAL});
-		tr[ *p1Dist()] = 1;
+        tr[ *p1Dist()] = 1;
 
-		tr[ *relaxFunc()].str(XString("NMR I=1/2"));
-		tr[ *p1Min()] = 1.0;
-		tr[ *p1Max()] = 100.0;
-		tr[ *autoPhase()] = true;
-		tr[ *autoWindow()] = true;
-		tr[ *mInftyFit()] = true;
+        tr[ *relaxFunc()].str(XString("NMR I=1/2"));
+        tr[ *p1Min()] = 1.0;
+        tr[ *p1Max()] = 100.0;
+        tr[ *autoPhase()] = true;
+        tr[ *autoWindow()] = true;
+        tr[ *mInftyFit()] = true;
         tr[ *trackPeak()] = false;
         tr[ *smoothSamples()] = 40;
+
+
+        tr[ *mapMode()].add({"Off", "Noise Analysis", "L Curve", "GCV"});
+        tr[ *mapMode()] = (int)MapMode::Off;
+
+        tr[ *mapBandWidth()] = 100.0;
+        tr[ *mapFreqRes()] = 1.0;
+
+        {
+            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Intens [V]",
+                                    "Weight [1/V]", "Re [V]", "Im [V]"};
+            tr[ *m_waveAllRelaxCurves].setColCount(6, labels);
+            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Relaxation"), 1, 2, -1, 3);
+            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Out-of-Phase"), 1, 5, -1, 3);
+            shared_ptr<XAxis> axisx = tr[ *m_waveAllRelaxCurves].axisx();
+            shared_ptr<XAxis> axisy = tr[ *m_waveAllRelaxCurves].axisy();
+            tr[ *axisx->logScale()] = true;
+            tr[ *axisy->label()] = i18n("Relaxation");
+            tr[ *tr[ *m_waveAllRelaxCurves].plot(0)->drawLines()] = false;
+            tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->drawLines()] = false;
+            tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->intensity()] = 1.0;
+        }
+        {
+            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Density"};
+            tr[ *m_waveMap].setColCount(3, labels);
+            tr[ *m_waveMap].insertPlot(i18n("Density"), 0, 1, -1, -1, 2);
+            shared_ptr<XAxis> axisx = tr[ *m_waveMap].axisx();
+            shared_ptr<XAxis> axisy = tr[ *m_waveMap].axisy();
+            tr[ *axisy->logScale()] = true;
+            tr[ *axisx->label()] = i18n("Freq [kHz]");
+            tr[ *tr[ *m_waveMap].plot(0)->drawLines()] = false;    
+            tr[ *m_waveMap->graph()->backGround()] = QColor(0,0,0).rgb();
+            tr[ *tr[ *m_waveMap].plot(0)->intensity()] = 2;
+            tr[ *tr[ *m_waveMap].plot(0)->colorPlot()] = true;
+            tr[ *tr[ *m_waveMap].plot(0)->colorPlotColorHigh()] = QColor(0xFF, 0xFF, 0x2F).rgb();
+            tr[ *tr[ *m_waveMap].plot(0)->colorPlotColorLow()] = QColor(0x00, 0x00, 0xFF).rgb();
+            tr[ *tr[ *m_waveMap].plot(0)->pointColor()] = QColor(0x00, 0xFF, 0x00).rgb();
+            tr[ *tr[ *m_waveMap].plot(0)->majorGridColor()] = QColor(0x4A, 0x4A, 0x4A).rgb();
+            tr[ *m_waveMap->graph()->titleColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisx()->ticColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisx()->labelColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisx()->ticLabelColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisy()->ticColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisy()->labelColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisy()->ticLabelColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisz()->ticColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisz()->labelColor()] = clWhite;
+            tr[ *tr[ *m_waveMap].axisz()->ticLabelColor()] = clWhite;
+            tr[ *m_waveMap].clearPoints();
+        }
     });
 
     //Ranges should be preset in prior to connectors.
@@ -191,7 +247,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_mode, m_form->m_cmbMode, Snapshot( *m_mode)),
         xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas)),
-        xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas))
+        xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbRegularizationChoice, Snapshot( *m_mapMode)),
+        xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edRegularizationResolution),
+        xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW)
     };
 
     iterate_commit([=](Transaction &tr){
@@ -208,6 +267,12 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             {mInftyFit(), absFit(), relaxFunc(), autoPhase(), freq(), autoWindow(),
             windowFunc(), windowWidth(), mode()}))
             tr[ *x].onValueChanged().connect(m_lsnOnCondChanged);
+        m_lsnOnMapCondChanged = tr[ *mode()].onValueChanged().connectWeakly(
+            shared_from_this(), &XNMRT1::onMapCondChanged);
+        for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
+            {mapMode(), smoothSamples(), mapBandWidth(), mapFreqRes(),
+            p1Min(), p1Max()}))
+            tr[ *x].onValueChanged().connect(m_lsnOnMapCondChanged);
 
 		m_lsnOnClearAll = tr[ *m_clearAll].onTouch().connectWeakly(
 			shared_from_this(), &XNMRT1::onClearAll);
@@ -220,10 +285,10 @@ XNMRT1::showForms() {
     m_form->showNormal();
 	m_form->raise();
 }
-
 void
 XNMRT1::onClearAll(const Snapshot &shot, XTouchableNode *) {
     trans( *this).m_timeClearRequested = XTime::now();
+    trans( *this).m_timeMapClearRequested = XTime::now();
     requestAnalysis();
 }
 double
@@ -346,14 +411,20 @@ XNMRT1::onP1CondChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void
 XNMRT1::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
-//    if((node == phase()) && *autoPhase()) return;
-//    if(((node == windowWidth()) || (node == windowFunc())) && *autoWindow()) return;
     if(
 		(node == mode().get()) ||
 		(node == freq().get())) {
         trans( *this).m_timeClearRequested = XTime::now();
     }
 	requestAnalysis();
+}
+void
+XNMRT1::onMapCondChanged(const Snapshot &shot, XValueNodeBase *node) {
+    if(node == mapMode().get())
+        if((MapMode)(int)shot[ *mapMode()] != MapMode::Off)
+            return;
+    trans( *this).m_timeMapClearRequested = XTime::now();
+    requestAnalysis();
 }
 void
 XNMRT1::analyzeSpectrum(Transaction &tr,
@@ -456,7 +527,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		m_statusPrinter->printWarning(i18n("Too many Samples."), true);
 	}
 
-	int mode__ = shot_this[ *mode()];
+    MeasMode mode__ = (MeasMode)(int)shot_this[ *mode()];
 	shared_ptr<XNMRPulseAnalyzer> pulse1__ = shot_this[ *pulse1()];
 	shared_ptr<XNMRPulseAnalyzer> pulse2__ = shot_this[ *pulse2()];
     const Snapshot &shot_pulse1((emitter == pulse1__.get()) ? shot_emitter : shot_others);
@@ -468,11 +539,11 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 	if(shot_pulser[ *pulser__].time()) {
 		//Check consitency.
 		switch (mode__) {
-		case MEAS_T1:
+        case MeasMode::T1:
 			break;
-		case MEAS_T2:
+        case MeasMode::T2:
 			break;
-		case MEAS_ST_E:
+        case MeasMode::ST_E:
 			if((shot_pulser[ *pulser__].tau() != shot_pulser[ *pulser__].combPT()) ||
 					(shot_pulser[ *pulser__].combNum() != 2) ||
 					( !shot_pulser[ *pulser__->conserveStEPhase()]) ||
@@ -480,7 +551,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 					(shot_pulser[ *pulser__].pw2() != shot_pulser[ *pulser__].combPW()))
 				m_statusPrinter->printWarning(i18n("Strange St.E. settings."));
 			break;
-        case MEAS_T2_Multi:
+        case MeasMode::T2_Multi:
             break;
 		}
 	}
@@ -492,7 +563,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		assert( shot_pulser[ *pulser__].time() );
 		assert( emitter != pulser__.get() );
 
-        if(shot_pulse1[ *pulse1__->exAvgIncr()] && mode__ != MEAS_T2_Multi) {
+        if(shot_pulse1[ *pulse1__->exAvgIncr()] && mode__ != MeasMode::T2_Multi) {
 			m_statusPrinter->printWarning(i18n("Do NOT use incremental avg. Skipping."));
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		}
@@ -500,16 +571,16 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 		std::deque<std::complex<double> > cmp1, cmp2;
         double cfreq = shot_this[ *freq()] * 1e3 * shot_pulse1[ *pulse1__].interval();
         if(shot_this[ *trackPeak()]) {
-            if(((mode__ == MEAS_T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
-               ((mode__ == MEAS_T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33))) ||
-               (mode__ == MEAS_T2_Multi) ||
+            if(((mode__ == MeasMode::T1) && (shot_pulser[ *pulser__].combP1() > distributeP1(shot_this, 0.66))) ||
+               ((mode__ == MeasMode::T2) && (shot_pulser[ *pulser__].combP1() < distributeP1(shot_this, 0.33))) ||
+               (mode__ == MeasMode::T2_Multi) ||
                shot_this[ *this].m_sumpts.empty()) {
                 tr[ *freq()] = (double)shot_pulse1[ *pulse1__->entryPeakFreq()->value()];
                 tr.unmark(m_lsnOnCondChanged); //avoiding recursive signaling.
             }
         }
 
-        if(mode__ == MEAS_T2_Multi){
+        if(mode__ == MeasMode::T2_Multi){
             if(shot_pulser[ *pulser__].combMode() != XPulser::N_COMB_MODE_OFF)
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
 
@@ -540,7 +611,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             default:
                 throw XRecordError(i18n("Unknown Comb Mode!"), __FILE__, __LINE__);
             case XPulser::N_COMB_MODE_COMB_ALT:
-                if(mode__ != MEAS_T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
+                if(mode__ != MeasMode::T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
                 assert(pulse2__);
                 pt1.p1 = shot_pulser[ *pulser__].combP1();
                 for(int i = 0; i < cmp1.size(); i++)
@@ -548,7 +619,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 tr[ *this].m_pts.push_back(pt1);
                 break;
             case XPulser::N_COMB_MODE_P1_ALT:
-                if(mode__ == MEAS_T2)
+                if(mode__ == MeasMode::T2)
                     throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
                 assert(pulse2__);
                 pt1.p1 = shot_pulser[ *pulser__].combP1();
@@ -559,7 +630,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 tr[ *this].m_pts.push_back(pt2);
                 break;
             case XPulser::N_COMB_MODE_ON:
-                if(mode__ != MEAS_T2) {
+                if(mode__ != MeasMode::T2) {
                     pt1.p1 = shot_pulser[ *pulser__].combP1();
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                     tr[ *this].m_pts.push_back(pt1);
@@ -567,7 +638,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 }
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
             case XPulser::N_COMB_MODE_OFF:
-                if(mode__ != MEAS_T2) {
+                if(mode__ != MeasMode::T2) {
                     m_statusPrinter->printWarning(i18n("Do not use T1 mode! Skipping."));
                     throw XSkippedRecordError(__FILE__, __LINE__);
                 }
@@ -587,13 +658,64 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         tr[ *this].m_pts.clear();
 		tr[ *m_wave].clearPoints();
 		tr[ *m_fitStatus] = "";
-        if( !shot_pulse1[ *pulse1__->exAvgIncr()] || mode__ != MEAS_T2_Multi) {
+        if( !shot_pulse1[ *pulse1__->exAvgIncr()] || mode__ != MeasMode::T2_Multi) {
             trans( *pulse1__->avgClear()).touch();
             if(pulse2__)
                 trans( *pulse2__->avgClear()).touch();
         }
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
+
+    //Prepares data for mapping.
+    if(shot_this[ *this].m_timeMapClearRequested) {
+        tr[ *this].m_timeMapClearRequested = {};
+        if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off) {
+            long xlen = lrint(shot_this[ *mapBandWidth()] / shot_this[ *mapFreqRes()]);
+            xlen = std::max(xlen, 0L);
+            if(xlen > 1000)
+                throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
+            int samples = shot_this[ *smoothSamples()] * 10;
+            if(samples * xlen > 40000)
+                throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
+            tr[ *this].m_allRelaxCurves.setZero(xlen, samples);
+        }
+        tr[ *this].m_allRelaxCurvesAvgCount = 0;
+        tr[ *m_waveMap].clearPoints();
+        tr[ *m_waveAllRelaxCurves].clearPoints();
+    }
+    if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off) {
+        //Reads spectra from NMRPulseAnalyzers
+        if( emitter != this) {
+            assert( pulse1__ );
+            assert( shot_pulse1[ *pulse1__].time() );
+            assert( shot_pulser[ *pulser__].time() );
+            assert( emitter != pulser__.get() );
+            tr[ *this].m_mapFreqRes = shot_this[ *m_mapFreqRes];
+            tr[ *this].m_mapBandWidth = shot_this[ *m_mapBandWidth];
+            auto &curves = tr[ *this].m_allRelaxCurves;
+            long xlen = curves.rows();
+            long cols = curves.cols();
+//todo incororate into analyzeSpectrum.
+            long p1index = lrint(p1 )
+            double freq_res = shot_this[ *this].m_mapFreqRes;
+            double freq_start = shot_this[ *this].mapStartFreq();
+            //stores freq.-dep. curves.
+            const std::complex<double> *ftWave = &shot_pulse1[ *pulse1__].ftWave()[0];
+            long ftlen = shot_pulse1[ *pulse1__].ftWidth();
+            double df_ft = shot_pulse1[ *pulse1__].dFreq();
+            size_t ub = lrint(-xlen / 2 * freq_res / df_ft);
+
+            for(size_t i = 0; i < xlen; ++i) {
+                double f = i * freq_res + freq_start;
+                int j = lrint(f / df_ft);
+                if(std::abs(j) >= -ftlen / 2) {
+                    throw XRecordError(i18n("Index beyond boundary during mapping."), __FILE__, __LINE__);
+                }
+                std::complex<double> z = ftWave[(j + ftlen) % ftlen];
+                curves
+            }
+        }
+    }
 
 	shared_ptr<XRelaxFunc> func = shot_this[ *relaxFunc()];
 	if( !func) {
@@ -617,7 +739,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 			if((idx < 0) || (idx >= sum_size)) continue;
 			double p1 = it->p1;
 			//For St.E., T+tau = P1+3*tau.
-			if(mode__ == MEAS_ST_E)
+            if(mode__ == MeasMode::ST_E)
 				p1 += 3 * shot_pulser[ *pulser__].tau() * 1e-3;
 			sumpts[idx].isigma += 1;
 			sumpts[idx].p1 += p1;
@@ -645,7 +767,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         //correlation for y_i * log(t_i)
 		for(unsigned int i = 0; i < corr.size(); i++) {
             corr[i] -= sum_c[i]*sum_t/(double)n;
-			corr[i] *= ((mode__ == MEAS_T1) ? 1 : -1);
+            corr[i] *= ((mode__ == MeasMode::T1) ? 1 : -1);
 		}
 
 		bool absfit__ = shot_this[ *absFit()];
@@ -719,15 +841,15 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 void
 XNMRT1::setNextP1(const Snapshot &shot) {
     shared_ptr<XPulser> pulser__ = shot[ *pulser()];
-    if(pulser__ && shot[ *mode()] != MEAS_T2_Multi) {
+    if(pulser__ && shot[ *mode()] != (int)MeasMode::T2_Multi) {
         pulser__->iterate_commit([=](Transaction &tr){
-            switch(shot[ *mode()]) {
-            case MEAS_T1:
-            case MEAS_ST_E:
+            switch((MeasMode)(int)shot[ *mode()]) {
+            case MeasMode::T1:
+            case MeasMode::ST_E:
                 tr[ *pulser__->combP1()] = (double)shot[ *p1Next()];
                 tr[ *pulser__->combP1Alt()] = (double)shot[ *p1AltNext()];
                 break;
-            case MEAS_T2:
+            case MeasMode::T2:
                 tr[ *pulser__->tau()] = shot[ *p1Next()] / 2.0;
                 break;
             }
@@ -753,15 +875,15 @@ XNMRT1::visualize(const Snapshot &shot) {
 
     m_wave->iterate_commit([=](Transaction &tr){
 		XString label;
-		switch(shot[ *mode()]) {
-		case MEAS_T1:
+        switch((MeasMode)(int)shot[ *mode()]) {
+        case MeasMode::T1:
 			label = "P1 [ms]";
 			break;
-		case MEAS_T2:
-        case MEAS_T2_Multi:
+        case MeasMode::T2:
+        case MeasMode::T2_Multi:
 			label = "2tau [us]";
 			break;
-		case MEAS_ST_E:
+        case MeasMode::ST_E:
 			label = "T+tau [ms]";
 			break;
 		}
@@ -841,7 +963,7 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
             });
         }
         setNextP1(shot_this);
-        if(shot_this[ *mode()] == MEAS_T2_Multi){
+        if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
             iterate_commit([=](Transaction &tr){
                 tr[ *p1Min()] = 2.0 * shot_pulser[ *pulser__].tau();
                 tr[ *p1Max()] = 2.0 * shot_pulser[ *pulser__].tau() * shot_pulser[ *pulser__].echoNum();

@@ -69,14 +69,14 @@ public:
 		int waveWidth() const {return m_waveWidth;}
 		//! Position of the origin of FT.
 		int waveFTPos() const {return m_waveFTPos;}
-		//! Length of FT.
+        /// FFT Wave
+        const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
+        //! Length of FT.
 		int ftWidth() const {return m_ftWave.size();}
 	private:
 		friend class XNMRPulseAnalyzer;
 		std::vector<std::complex<double> > m_wave;
 		std::vector<double> m_darkPSD;
-		/// FFT Wave
-		const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
 		double m_ftWavePSDCoeff;
 		std::vector<std::complex<double> > m_ftWave;
 		std::vector<std::complex<double> > m_dsoWave;
