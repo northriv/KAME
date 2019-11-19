@@ -95,9 +95,9 @@ public:
         XTime m_timeClearRequested;
 
         //! Fields for Mapping via Tikhonov Regularization.
-        double m_mapFreqRes; //!< [kHz]
-        double m_mapBandWidth; //!< [kHz]
-        double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[kHz]
+        double m_mapFreqRes; //!< [Hz]
+        double m_mapBandWidth; //!< [Hz]
+        double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[Hz]
         long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
         long m_mapTCount;
         struct Pulse {
@@ -106,7 +106,7 @@ public:
             Eigen::VectorXcd summedTrace; //!< time domain
             Eigen::VectorXcd ft;
             double ftOrigin = 0.0;
-            double summedDarkPSDSq; //! sum sq. of dark spectral power density.
+            double summedDarkPSDSq = 0.0; //! sum sq. of dark spectral power density.
         };
         std::vector<shared_ptr<Pulse>> m_allPulses;
 
@@ -240,6 +240,9 @@ private:
 	void analyzeSpectrum(Transaction &tr,
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
 		std::deque<std::complex<double> > &value_by_cond);
+    void storePulseForMapping(Transaction &tr, double p1_or_2tau,
+        const std::vector< std::complex<double> >&wave, int origin,
+        const std::vector<double>&darkpsd, double dfreq, double interval);
 
 	shared_ptr<SpectrumSolverWrapper> m_solver;
     shared_ptr<SpectrumSolverWrapper> m_solverMapPulse;

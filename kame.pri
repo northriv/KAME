@@ -36,6 +36,8 @@ else {
     DEFINES += DATA_INSTALL_DIR=\"\"quotedefined(/usr/share/kame)\"
 }
 
+DEFINES += EIGEN_NO_DEBUG
+
 macx {
     INCLUDEPATH += /opt/local/include
     INCLUDEPATH += /opt/local/include/eigen3
