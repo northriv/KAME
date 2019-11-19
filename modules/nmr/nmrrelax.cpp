@@ -277,7 +277,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         m_lsnOnMapClearCondRequested = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapClearCondRequested);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
-            {mapMode(), smoothSamples(), p1Min(), p1Max()}))
+            {mapMode(), smoothSamples(), p1Min(), p1Max(), p1Dist()}))
             tr[ *x].onValueChanged().connect(m_lsnOnMapClearCondRequested);
 
 		m_lsnOnClearAll = tr[ *m_clearAll].onTouch().connectWeakly(
@@ -347,10 +347,10 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 			//binary search for area having small sum isigma.
 			double p1min = shot[ *p1Min()];
 			double p1max = shot[ *p1Max()];
-			int lb = 0, ub = samples;
-			double k_0 = samples / log(p1max/p1min);
+            int lb = 0, ub = samples;
+            double k_0 = samples / log(p1max/p1min);
 			int idx_p1next = lrint(log(shot[ *p1Next()] / p1min) * k_0);
-			idx_p1next = std::min(std::max(idx_p1next, 0), samples);
+            idx_p1next = std::min(std::max(idx_p1next, 0), samples);
 			bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
 			bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
 			const auto &sumpts = shot[ *this].m_sumpts;
@@ -392,7 +392,7 @@ XNMRT1::obtainNextP1(Transaction &tr) {
 						lb = mid;
 				}
 				if(ub - lb <= 1) {
-					x_0_to_1 = (double)lb / samples;
+                    x_0_to_1 = (double)lb / (samples - 1);
 					break;
 				}
 			}
@@ -603,9 +603,14 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                         shot_pulse1[ *pulse1__].waveFTPos(), cfreq, cmp1);
                 pt1.value_by_cond.resize(cmp1.size());
 
-                pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
+                double twotau = 2.0 * shot_pulser[ *pulser__].tau() * (i + 1);
+                pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
+
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i],
+                        shot_pulse1[ *pulse1__].waveFTPos(),
+                        shot_pulse1[ *pulse1__].darkPSD());
             }
         }
         else {
@@ -624,27 +629,42 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             case XPulser::N_COMB_MODE_COMB_ALT:
                 if(mode__ != MeasMode::T1) throw XRecordError(i18n("Use T1 mode!"), __FILE__, __LINE__);
                 assert(pulse2__);
-                pt1.p1 = shot_pulser[ *pulser__].combP1();
+                double p1 = shot_pulser[ *pulser__].combP1();
+                pt1.p1 = p1;
                 for(int i = 0; i < cmp1.size(); i++)
                     pt1.value_by_cond[i] = (cmp1[i] - cmp2[i]) / cmp1[i];
                 tr[ *this].m_pts.push_back(pt1);
+                if((MapMode)(int)shot[ *mapMode()] != MapMode::Off)
+                    throw XRecordError(i18n("Unsupported Comb Mode for Mapping!"), __FILE__, __LINE__);
                 break;
             case XPulser::N_COMB_MODE_P1_ALT:
                 if(mode__ == MeasMode::T2)
                     throw XRecordError(i18n("Do not use T2 mode!"), __FILE__, __LINE__);
                 assert(pulse2__);
-                pt1.p1 = shot_pulser[ *pulser__].combP1();
+                double p1 = shot_pulser[ *pulser__].combP1();
+                pt1.p1 = p1;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
-                pt2.p1 = shot_pulser[ *pulser__].combP1Alt();
+                double p1_alt = shot_pulser[ *pulser__].combP1Alt();
+                pt2.p1 = p1_alt;
                 std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt2);
+                storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(),
+                        shot_pulse1[ *pulse1__].waveFTPos(),
+                        shot_pulse1[ *pulse1__].darkPSD());
+                storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(),
+                        shot_pulse1[ *pulse2__].waveFTPos(),
+                        shot_pulse1[ *pulse2__].darkPSD());
                 break;
             case XPulser::N_COMB_MODE_ON:
                 if(mode__ != MeasMode::T2) {
-                    pt1.p1 = shot_pulser[ *pulser__].combP1();
+                    double p1 = shot_pulser[ *pulser__].combP1();
+                    pt1.p1 = p1;
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                     tr[ *this].m_pts.push_back(pt1);
+                    storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(),
+                            shot_pulse1[ *pulse1__].waveFTPos(),
+                            shot_pulse1[ *pulse1__].darkPSD());
                     break;
                 }
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
@@ -654,9 +674,13 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                     throw XSkippedRecordError(__FILE__, __LINE__);
                 }
                 //T2 measurement
-                pt1.p1 = 2.0 * shot_pulser[ *pulser__].tau();
+                double twotau = 2.0 * shot_pulser[ *pulser__].tau();
+                pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(),
+                        shot_pulse1[ *pulse1__].waveFTPos(),
+                        shot_pulse1[ *pulse1__].darkPSD());
                 break;
             }
         }
@@ -688,9 +712,16 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
             int samples = shot_this[ *smoothSamples()] * 10;
             if(samples * xlen > 40000)
                 throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
-            tr[ *this].m_allRelaxCurves.setZero(xlen, samples);
+            tr[ *this].m_mapTCount = samples;
+            tr[ *this].m_allPulses.clear();
+            for(long i = 0; i < shot_this[ *smoothSamples()]; ++i) {
+                tr[ *this].m_allPulses.push_back(std::make_shared<Payload::Pulse>());
+                auto p = tr[ *this].m_allPulses.back();
+                p->summedTrace.setZero(xlen);
+                p->ft.setZero(xlen);
+                p->p1 = distributeP1(shot_this, (double)i / (shot_this[ *smoothSamples()] - 1));
+            }
         }
-        tr[ *this].m_allRelaxCurvesAvgCount = 0;
         tr[ *m_waveMap].clearPoints();
         tr[ *m_waveAllRelaxCurves].clearPoints();
     }

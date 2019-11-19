@@ -99,12 +99,13 @@ public:
         double m_mapBandWidth; //!< [kHz]
         double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[kHz]
         long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
-        long m_mapTCount();
+        long m_mapTCount;
         struct Pulse {
             double p1;
             int avgCount = 0;
             Eigen::VectorXcd summedTrace; //!< time domain
             Eigen::VectorXcd ft;
+            double ftOrigin = 0.0;
             double summedDarkPSDSq; //! sum sq. of dark spectral power density.
         };
         std::vector<shared_ptr<Pulse>> m_allPulses;
