@@ -100,8 +100,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
       m_solverMapPulse(create<SpectrumSolverWrapper>("SpectrumSolverMapPulse", true, shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
-      m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.2f")),
+      m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.3f")),
       m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
+      m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
+      m_mapWindowWidth(create<XDoubleNode>("MapWindowWidth", false, "%.1f")),
       m_form(new FrmNMRT1),
       m_statusPrinter(XStatusPrinter::create(m_form.get())),
       m_wave(create<XWaveNGraph>("Wave", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
@@ -125,6 +127,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     connect(pulser());
     connect(pulse1());
     connect(pulse2());
+
+    m_solverMapPulse->selectSolver(SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT);
 
     iterate_commit([=](Transaction &tr){
         tr[ *m_windowFunc] = SpectrumSolverWrapper::WINDOW_FUNC_HAMMING;
@@ -224,6 +228,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
     //Ranges should be preset in prior to connectors.
     m_form->m_dblPhase->setRange( -360.0, 360.0);
     m_form->m_dblPhase->setSingleStep(10.0);
+    m_form->m_dbMapWindowWidth->setRange(3.0, 200.0);
+    m_form->m_dbMapWindowWidth->setSingleStep(1.0);
 
     m_conUIs = {
         xqcon_create<XQLineEditConnector>(m_p1Min, m_form->m_edP1Min),
@@ -252,7 +258,9 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbRegularizationChoice, Snapshot( *m_mapMode)),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edRegularizationResolution),
-        xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW)
+        xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW),
+        xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_windowFunc)),
+        xqcon_create<XQDoubleSpinBoxConnector>(m_mapWindowWidth, m_form->m_dbMapWindowWidth, m_form->m_slMapWindowWidth),
     };
 
     iterate_commit([=](Transaction &tr){
@@ -492,13 +500,19 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     const Snapshot &shot_this(tr);
     if((MapMode)(int)shot_this[ *mapMode()] == MapMode::Off)
         return;
-    double x = (p1_or_2tau - shot_this[ *p1Min()]) / (shot_this[ *p1Max()] - shot_this[ *p1Min()]);
-    size_t idx = lrint(shot_this[ *smoothSamples()] * x);
-    if((idx < 0) || (idx >= shot_this[ *this].m_allPulses.size()))
-        throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
-    auto p = tr[ *this].m_allPulses[idx];
-    if(std::abs(p->p1 - p1_or_2tau) / p1_or_2tau > 1e-3)
-        throw XRecordError(i18n("Invalid P1Min or P1Max."), __FILE__, __LINE__);
+    if((p1_or_2tau > shot_this[ *p1Max()]) || (p1_or_2tau < shot_this[ *p1Min()]))
+        return;
+    double min_reldiff = 1e10;
+    std::shared_ptr<Payload::Pulse> p;
+    for(auto x: shot_this[ *this].m_allPulses) {
+        double reldiff = std::abs(x->p1 / p1_or_2tau - 1.0);
+        if(reldiff < min_reldiff) {
+            min_reldiff = reldiff;
+            p = x;
+        }
+    }
+    if(min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0)
+        return;
     p->ftOrigin = origin;
     if(p->summedTrace.size() != wave.size()) {
         p->avgCount = 0;
@@ -644,12 +658,12 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 
     //Prepares data for mapping.
-    if(shot_this[ *this].m_timeMapClearRequested) {
+    if(shot_this[ *this].m_allPulses.empty() || shot_this[ *this].m_timeMapClearRequested) {
         tr[ *this].m_timeMapClearRequested = {};
+        tr[ *this].m_allPulses.clear();
         if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off) {
             int samples = shot_this[ *smoothSamples()] * 10;
             tr[ *this].m_mapTCount = samples;
-            tr[ *this].m_allPulses.clear();
             for(long i = 0; i < shot_this[ *smoothSamples()]; ++i) {
                 tr[ *this].m_allPulses.push_back(std::make_shared<Payload::Pulse>());
                 auto p = tr[ *this].m_allPulses.back();
@@ -976,27 +990,20 @@ XNMRT1::visualize(const Snapshot &shot) {
         tr[ *tr[ *m_wave].axisx()->label()] = tlabel;
         size_t length = shot[ *this].m_sumpts.size();
         tr[ *m_wave].setRowCount(length);
-        std::vector<float> colp1(length), colval(length),
-            colabs(length), colre(length), colim(length),
-            colisigma(length);
+        std::vector<float> colp1(length, 0.0), colval(length, 0.0),
+            colabs(length, 0.0), colre(length, 0.0), colim(length, 0.0),
+            colisigma(length, 0.0);
         int i = 0;
         for(auto it = shot[ *this].m_sumpts.begin();
             it != shot[ *this].m_sumpts.end(); it++) {
-            if(it->isigma == 0) {
-                colval[i] = 0;
-                colabs[i] = 0;
-                colre[i] = 0;
-                colim[i] = 0;
-                colp1[i] = 0;
-            }
-            else {
+            if(it->isigma != 0) {
                 colval[i] = it->var;
                 colabs[i] = std::abs(it->c);
                 colre[i] = std::real(it->c);
                 colim[i] = std::imag(it->c);
                 colp1[i] = it->p1;
+                colisigma[i] = it->isigma;
             }
-            colisigma[i] = it->isigma;
             i++;
         }
         tr[ *m_wave].setColumn(0, std::move(colp1), 5);
@@ -1006,6 +1013,42 @@ XNMRT1::visualize(const Snapshot &shot) {
         tr[ *m_wave].setColumn(4, std::move(colre), 4);
         tr[ *m_wave].setColumn(5, std::move(colim), 4);
         m_wave->drawGraph(tr);
+    });
+
+    m_waveAllRelaxCurves->iterate_commit([=](Transaction &tr){
+
+        tr[ *m_waveAllRelaxCurves].setLabel(0, tlabel.c_str());
+        tr[ *tr[ *m_waveAllRelaxCurves].axisx()->label()] = tlabel;
+        size_t length = shot[ *smoothSamples()] * shot[ *this].mapFreqCount();
+        tr[ *m_waveAllRelaxCurves].setRowCount(length);
+        std::vector<float> colf(length, 0.0), colp1(length, 0.0), colval(length, 0.0),
+            colre(length, 0.0), colim(length, 0.0);
+        auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
+        int i = 0;
+        for(auto p: shot[ *this].m_allPulses) {
+            if(p->avgCount) {
+                for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
+                    colp1[i] = p->p1;
+                    colf[i] = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
+                    auto z = p->ft.coeff(j);
+                    colre[i] = std::real(z);
+                    colim[i] = std::imag(z);
+                    colval[i] = std::real(rot_ph * z);
+                }
+            }
+            i++;
+        }
+        colf.resize(i);
+        colp1.resize(i);
+        colval.resize(i);
+        colre.resize(i);
+        colim.resize(i);
+        tr[ *m_waveAllRelaxCurves].setColumn(0, std::move(colf), 5);
+        tr[ *m_waveAllRelaxCurves].setColumn(1, std::move(colp1), 5);
+        tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colval), 4);
+        tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colre), 4);
+        tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colim), 4);
+        m_waveAllRelaxCurves->drawGraph(tr);
     });
 }
 

@@ -128,6 +128,11 @@ SpectrumSolverWrapper::windowFuncs(std::deque<FFT::twindowfunc> &funcs) const {
 	funcs.push_back(&FFT::windowFuncKaiser3);
 }
 
+void SpectrumSolverWrapper::selectSolver(const char *str) {
+    Snapshot shot( *this);
+    onSolverChanged(shot, nullptr);
+}
+
 void
 SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
     shared_ptr<Payload::WrapperBase> wrapper;

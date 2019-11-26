@@ -87,6 +87,8 @@ public:
 	static const char WINDOW_FUNC_KAISER_2[];
 	static const char WINDOW_FUNC_KAISER_3[];
 	
+    void selectSolver(const char *str);
+
 	FFT::twindowfunc windowFunc(const Snapshot &shot) const;
 	void windowFuncs(std::deque<FFT::twindowfunc> &funcs) const;
 private:
