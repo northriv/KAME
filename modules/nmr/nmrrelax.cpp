@@ -200,7 +200,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->intensity()] = 1.0;
         }
         {
-            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Density"};
+            const char *labels[] = {"Freq [kHz]", "T1 [ms] or T2 [us]", "Density"};
             tr[ *m_waveMap].setColCount(3, labels);
             tr[ *m_waveMap].insertPlot(i18n("Density"), 0, 1, -1, -1, 2);
             shared_ptr<XAxis> axisx = tr[ *m_waveMap].axisx();
@@ -1029,44 +1029,123 @@ XNMRT1::visualize(const Snapshot &shot) {
         m_wave->drawGraph(tr);
     });
 
-    m_waveAllRelaxCurves->iterate_commit([=](Transaction &tr){
+    auto mapmode = (MapMode)(int)shot[ *mapMode()];
+    int pcount_stored = 0;
+    for(auto p: shot[ *this].m_allPulses)
+        if(p->avgCount)
+            ++pcount_stored;
 
-        tr[ *m_waveAllRelaxCurves].setLabel(0, tlabel.c_str());
-        tr[ *tr[ *m_waveAllRelaxCurves].axisx()->label()] = tlabel;
-        size_t length = shot[ *smoothSamples()] * shot[ *this].mapFreqCount();
-        std::vector<float> colf(length, 0.0), colp1(length, 0.0), colval(length, 0.0),
-            colre(length, 0.0), colim(length, 0.0), colisigma(length, 0.0);
-        auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
-        int i = 0;
-        for(auto p: shot[ *this].m_allPulses) {
-            if(p->avgCount) {
-                for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
-                    colp1[i] = p->p1;
-                    colf[i] = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
-                    auto z = p->ft.coeff(j);
-                    colre[i] = std::real(z);
-                    colim[i] = std::imag(z);
-                    colval[i] = std::real(rot_ph * z);
-                    colisigma[i] = p->avgCount / sqrt(p->summedDarkPSDSq);
+    if((mapmode != MapMode::Off) && pcount_stored) {
+
+        Eigen::MatrixXd relax_fdep;
+        relax_fdep.setZero(shot[ *this].mapFreqCount(), pcount_stored);
+
+        m_waveAllRelaxCurves->iterate_commit([&](Transaction &tr){
+
+            tr[ *m_waveAllRelaxCurves].setLabel(1, tlabel.c_str());
+            tr[ *tr[ *m_waveAllRelaxCurves].axisy()->label()] = tlabel;
+            size_t length = pcount_stored * shot[ *this].mapFreqCount();
+            std::vector<float> colf(length, 0.0), colp1(length, 0.0), colval(length, 0.0),
+                colre(length, 0.0), colim(length, 0.0), colisigma(length, 0.0);
+            auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
+            int i = 0;
+            int k = 0;
+            for(auto p: shot[ *this].m_allPulses) {
+                if(p->avgCount) {
+                    for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
+                        double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
+                        colp1[k] = p->p1;
+                        colf[k] = f;
+                        auto z = p->ft.coeff(j);
+                        colre[k] = std::real(z);
+                        colim[k] = std::imag(z);
+                        double v = std::real(rot_ph * z);
+                        colval[k] = v;
+                        relax_fdep.coeffRef(j, i) = v;
+                        colisigma[k] = p->avgCount / sqrt(p->summedDarkPSDSq);
+                        k++;
+                    }
                     i++;
                 }
             }
+            assert(i == pcount_stored);
+            tr[ *m_waveAllRelaxCurves].setRowCount(pcount_stored);
+            tr[ *m_waveAllRelaxCurves].setColumn(0, std::move(colf), 5);
+            tr[ *m_waveAllRelaxCurves].setColumn(1, std::move(colp1), 5);
+            tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colval), 4);
+            tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colisigma), 3);
+            tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colre), 4);
+            tr[ *m_waveAllRelaxCurves].setColumn(5, std::move(colim), 4);
+            m_waveAllRelaxCurves->drawGraph(tr);
+        });
+
+        auto mapT = [this](const Snapshot &shot, int i) {
+            return shot[ *p1Min()] * exp(log(shot[ *p1Max()]/shot[ *p1Min()]) / (shot[ *this].m_mapTCount - 1) * i);
+        };
+
+        shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
+        if( !relax_fn) return;
+
+        Eigen::MatrixXd mat_conv;
+        mat_conv.setZero(shot[ *this].m_mapTCount, pcount_stored);
+        for(int j = 0; j < shot[ *this].m_mapTCount; ++j) {
+            double it1 = 1.0 / mapT(shot, j);
+            int i = 0;
+            double f, df;
+            for(auto &p: shot[ *this].m_allPulses) {
+                if(p->avgCount) {
+                    relax_fn->relax( &f, &df, p->p1, it1);
+                    mat_conv.coeffRef(j, i) = f;
+                    ++i;
+                }
+            }
         }
-        colf.resize(i);
-        colp1.resize(i);
-        colval.resize(i);
-        colisigma.resize(i);
-        colre.resize(i);
-        colim.resize(i);
-        tr[ *m_waveAllRelaxCurves].setRowCount(i);
-        tr[ *m_waveAllRelaxCurves].setColumn(0, std::move(colf), 5);
-        tr[ *m_waveAllRelaxCurves].setColumn(1, std::move(colp1), 5);
-        tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colval), 4);
-        tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colisigma), 3);
-        tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colre), 4);
-        tr[ *m_waveAllRelaxCurves].setColumn(5, std::move(colim), 4);
-        m_waveAllRelaxCurves->drawGraph(tr);
-    });
+        m_regularization.reset(new TikhonovRegular(mat_conv));
+        auto method = std::map<MapMode, TikhonovRegular::Method>{{MapMode::NoiseAnalysis, TikhonovRegular::Method::KnownError},
+            {MapMode::GCV, TikhonovRegular::Method::MinGCV}, {MapMode::LCurve, TikhonovRegular::Method::L_Curve}}.at(mapmode);
+        m_regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2));
+
+        XString tlabel;
+        switch((MeasMode)(int)shot[ *mode()]) {
+        case MeasMode::T1:
+            tlabel = "T1 [ms]";
+            break;
+        case MeasMode::T2:
+        case MeasMode::T2_Multi:
+            tlabel = "T2 [us]";
+            break;
+        case MeasMode::ST_E:
+            tlabel = "Tste [ms]";
+            break;
+        }
+        m_waveMap->iterate_commit([&](Transaction &tr){
+            tr[ *m_waveMap].setLabel(1, tlabel.c_str());
+            tr[ *tr[ *m_waveMap].axisy()->label()] = tlabel;
+            size_t length = shot[ *this].m_mapTCount * shot[ *this].mapFreqCount();
+            std::vector<float> colf(length, 0.0), colt(length, 0.0), colval(length, 0.0);
+            int k = 0;
+            for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
+                double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
+
+                auto densities = m_regularization->solve(relax_fdep.row(j));
+
+                for(int i = 0; i < shot[ *this].m_mapTCount; ++i) {
+                    colt[k] = mapT(shot, i);
+                    colf[k] = f;
+                    colval[k] = densities[i];
+                    i++;
+                    k++;
+                }
+            }
+            tr[ *m_waveMap].setRowCount(length);
+            tr[ *m_waveMap].setColumn(0, std::move(colf), 5);
+            tr[ *m_waveMap].setColumn(1, std::move(colt), 5);
+            tr[ *m_waveMap].setColumn(2, std::move(colval), 4);
+            m_waveAllRelaxCurves->drawGraph(tr);
+        });
+
+
+    }
 }
 
 void
