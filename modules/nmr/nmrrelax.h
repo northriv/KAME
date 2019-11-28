@@ -97,8 +97,8 @@ public:
         //! Fields for Mapping via Tikhonov Regularization.
         double m_mapFreqRes; //!< [Hz]
         double m_mapBandWidth; //!< [Hz]
-        double mapStartFreq() const {return -m_mapBandWidth / 2;} //!<[Hz]
         long mapFreqCount() const {return lrint(m_mapBandWidth / m_mapFreqRes);}
+        double mapStartFreq() const {return -(mapFreqCount() / 2) * m_mapFreqRes;} //!<[Hz]
         long m_mapTCount;
         struct Pulse {
             double p1;
@@ -243,6 +243,9 @@ private:
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
         const std::vector< std::complex<double> >&wave, int origin,
         const std::vector<double>&darkpsd, double dfreq, double interval);
+    void ZFFFT(Transaction &tr,
+        std::vector< std::complex<double> >&bufin, std::vector< std::complex<double> >&bufout,
+        shared_ptr<Payload::Pulse> p, double interval);
 
 	shared_ptr<SpectrumSolverWrapper> m_solver;
     shared_ptr<SpectrumSolverWrapper> m_solverMapPulse;
@@ -278,7 +281,7 @@ private:
     void setNextP1(const Snapshot &shot);
 
     const shared_ptr<XWaveNGraph> m_waveMap, m_waveAllRelaxCurves;
-    shared_ptr<TikhonovRegular> m_regularization;
+    unique_ptr<TikhonovRegular> m_regularization;
 };
 
 //---------------------------------------------------------------------------
