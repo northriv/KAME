@@ -284,16 +284,16 @@ XQGraphPainter::viewRotate(double angle, double x, double y, double z, bool init
 		glGetDoublev(GL_PROJECTION_MATRIX, m_proj_rot);	
 		setInitView();
 	}
-	if(angle != 0.0) {
-		glLoadIdentity();
-		glTranslated(0.5, 0.5, 0.5);
-		glRotatef(angle, x, y, z);
-		glTranslated(-0.5, -0.5, -0.5);
-		glMultMatrixd(m_proj_rot);
-		glGetDoublev(GL_PROJECTION_MATRIX, m_proj_rot);
-		setInitView();
-		glMultMatrixd(m_proj_rot);
-	}
+    glLoadIdentity();
+    if(fabs(angle) > 0.0001) {
+        glTranslated(0.5, 0.5, 0.5);
+        glRotatef(angle, x, y, z);
+        glTranslated(-0.5, -0.5, -0.5);
+    }
+    glMultMatrixd(m_proj_rot);
+    glGetDoublev(GL_PROJECTION_MATRIX, m_proj_rot);
+    setInitView();
+    glMultMatrixd(m_proj_rot);
     glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
     checkGLError();
 	bool ov = m_bTilted;

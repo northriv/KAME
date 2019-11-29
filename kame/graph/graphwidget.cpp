@@ -79,7 +79,10 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
         mode = XQGraphPainter::SelectionMode::SelAxis;
 		break;
 	case Qt::LeftButton:
-        mode = XQGraphPainter::SelectionMode::SelPlane;
+        if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+            mode = XQGraphPainter::SelectionMode::TiltTracking;
+        else
+            mode = XQGraphPainter::SelectionMode::SelPlane;
 		break;
 	case Qt::MidButton:
         mode = XQGraphPainter::SelectionMode::TiltTracking;
@@ -112,6 +115,8 @@ void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 	e->accept();
 	if( !m_painter ) return;
+    if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+        return;
 	if(m_graph) { 
 		switch (e->button()) {
 		case Qt::RightButton:

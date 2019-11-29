@@ -240,7 +240,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 				break;
             case SelectionMode::TiltTracking:
 				viewRotate(0.0, 0.0, 0.0, 0.0, true);
-				break;
+                break;
 			default:
 				break;
 			}
