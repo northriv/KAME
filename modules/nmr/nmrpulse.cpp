@@ -693,8 +693,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 
 		tr[ *ftWaveGraph()].setRowCount(ftsize);
 		double normalize = 1.0 / shot[ *this].m_wave.size();
-		double darknormalize =
-			shot[ *this].m_ftWavePSDCoeff / (shot[ *this].m_wave.size() * shot[ *this].interval());
+        double darknormalize = shot[ *this].darkPSDFactorToVoltSq();
 		double dfreq = shot[ *this].m_dFreq;
 		const double *darkpsd( &shot[ *this].m_darkPSD[0]);
 		const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);

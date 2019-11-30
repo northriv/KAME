@@ -25,17 +25,20 @@ public:
     using Matrix = Eigen::MatrixXd;
     //! prepares SVD from a matrix.
     //! y = A x.
+    //! \arg sv_cond_cutoff cutoff value for truncated SVD.
     TikhonovRegular(const Matrix &matrixA, double sv_cond_cutoff = 2000.0);
-    ~TikhonovRegular();
+    ~TikhonovRegular() {}
     //! L-curve criterion, Genererized cross validation, Known error level.
     enum class Method {L_Curve, MinGCV, KnownError};
-    //!
+    //! \arg error_sq estimated noise level squared per \a y data point.
     Vector chooseLambda(Method method, const Vector &y, double error_sq = 0.0);
     //! \return \a x_lambda
     Vector solve(const Vector &y) const {
         assert(y.size() == m_ylen);
         return m_AinvReg * y;
     }
+    double xlen() const {return m_xlen;}
+    double ylen() const {return m_ylen;}
 private:
     long m_xlen, m_ylen;
     Matrix m_A, m_UT, m_V, m_sigma;

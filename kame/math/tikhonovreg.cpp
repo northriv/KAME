@@ -24,19 +24,19 @@ TikhonovRegular::TikhonovRegular(const Matrix &matrixA, double sv_cond_cutoff) {
     double sigma_max = m_sigma.maxCoeff();
     double cutoff = sigma_max / sv_cond_cutoff;
     long rank = (m_sigma.array() > cutoff).count();
+    rank = std::max(rank, 2L);
     m_sigma = m_sigma.topRows(rank);
-    m_V = svd.matrixU().leftCols(rank).transpose();
-    m_UT = svd.matrixV().leftCols(rank);
+    m_V = svd.matrixV().leftCols(rank);
+    m_UT = svd.matrixU().leftCols(rank).transpose();
     m_sv_cutoff = cutoff;
-    m_AinvReg = m_V * m_sigma.asDiagonal() * m_UT;
+    m_AinvReg = m_V * Eigen::VectorXd(1.0 / m_sigma.array()).asDiagonal() * m_UT;
     fprintf(stderr, "Rank=%ld, sigma_max=%.3g, sigma_min=%.3g\n", rank, sigma_max, m_sigma.minCoeff());
 }
 
 TikhonovRegular::Vector
 TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_sq) {
     assert(vec_y.size() == m_ylen);
-    Vector x_lambda;
-    auto vec_x_lambda = Eigen::Map<Eigen::VectorXd>(x_lambda.data(), m_xlen);
+    Vector vec_x_lambda(m_xlen);
     Eigen::VectorXd vec_x = vec_x_lambda;
     double kappa_max = -1e20;
     double gcv_min = 1e20;
@@ -44,7 +44,12 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
     double lambda_prev = 0.0;
     for(double lambda = m_sigma.maxCoeff() * 1.0; lambda > m_sv_cutoff; lambda *= 0.9) {
         auto slambda = Eigen::VectorXd((m_sigma.array() / (m_sigma.array().square() + lambda*lambda)));
-        m_AinvReg = m_V * slambda.asDiagonal() * m_UT;
+//        m_AinvReg = m_V * slambda.asDiagonal() * m_UT; //speed limiting line
+        m_AinvReg = m_V;
+        for(int i = 0; i < m_sigma.size(); ++i)
+            m_AinvReg.col(i) *= slambda.coeff(i);
+        m_AinvReg *= m_UT;
+
         vec_x_lambda = m_AinvReg * vec_y;
         auto dy = m_A * vec_x_lambda - vec_y;
         double dy_sqnorm = dy.squaredNorm();
@@ -58,6 +63,7 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
                     //curvature
                     double kappa = 2 * xi*rho/dxi_dl* (pow(lambda,2)*dxi_dl*rho+2*lambda*xi*rho+pow(lambda,4)*xi*dxi_dl)
                         / pow(pow(lambda,4)*xi*xi+rho*rho, 1.5);
+                    fprintf(stderr, "kappa=%.3g, lambda=%.3g; ", kappa, lambda);
                     if(kappa_max < kappa) {
                         kappa_max = kappa;
                         vec_x = vec_x_lambda;
@@ -70,6 +76,7 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
         case Method::MinGCV:
             {
             double gcv = dy_sqnorm / pow((Eigen::MatrixXd::Identity(m_ylen, m_ylen) - (m_A * m_AinvReg)).trace(), 2.0);
+            fprintf(stderr, "gcv=%.3g, lambda=%.3g; ", gcv, lambda);
             if(gcv_min > gcv) {
                 gcv_min = gcv;
                 m_lambda = lambda;
@@ -78,7 +85,8 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
             }
             break;
         case Method::KnownError:
-            if(dy_sqnorm > error_sq) {
+            fprintf(stderr, "dy_sqnorm=%.3g, lambda=%.3g; ", dy_sqnorm, lambda);
+            if(dy_sqnorm / m_ylen > error_sq) {
                 //stores before error becomes smaller than expected.
                 m_lambda = lambda;
                 vec_x = vec_x_lambda;
@@ -86,6 +94,7 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
             break;
         }
     }
-    return x_lambda;
+    fprintf(stderr, "lambda = %g\n", m_lambda);
+    return vec_x_lambda;
 }
 

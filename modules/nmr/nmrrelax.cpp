@@ -184,20 +184,23 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *m_mapWindowWidth] = 100.0;
 
         {
-            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Intens [V]",
-                                    "Weight [1/V]", "Re [V]", "Im [V]"};
-            tr[ *m_waveAllRelaxCurves].setColCount(6, labels);
-            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Relaxation"), 1, 2, -1, 3, 0);
-            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Out-of-Phase"), 1, 5, -1, 3, 0);
+            const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Re [V]", "Im [V]", "Weight [1/V]"};
+            tr[ *m_waveAllRelaxCurves].setColCount(5, labels);
+            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Relaxation"), 0, 2, -1, 4, 1);
+            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Out-of-Phase"), 0, 3, -1, 4, 1);
+//            tr[ *m_waveAllRelaxCurves].insertPlot(labels[4], 0, 4, -1, 4, 1);
             shared_ptr<XAxis> axisx = tr[ *m_waveAllRelaxCurves].axisx();
             shared_ptr<XAxis> axisy = tr[ *m_waveAllRelaxCurves].axisy();
             shared_ptr<XAxis> axisz = tr[ *m_waveAllRelaxCurves].axisz();
-            tr[ *axisz->label()] = i18n("Freq [kHz]");
-            tr[ *axisx->logScale()] = true;
-            tr[ *axisy->label()] = i18n("Relaxation");
+            tr[ *axisx->label()] = i18n("Freq [kHz]");
+            tr[ *axisz->logScale()] = true;
+            tr[ *axisy->label()] = i18n("Intens [V]");
             tr[ *tr[ *m_waveAllRelaxCurves].plot(0)->drawLines()] = false;
             tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->drawLines()] = false;
             tr[ *tr[ *m_waveAllRelaxCurves].plot(1)->intensity()] = 1.0;
+//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
+//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->drawPoints()] = false;
+//            tr[ *tr[ *m_waveAllRelaxCurves].plot(2)->intensity()] = 0.8;
         }
         {
             const char *labels[] = {"Freq [kHz]", "T1 [ms] or T2 [us]", "Density"};
@@ -285,7 +288,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             shared_from_this(), &XNMRT1::onMapCondChanged);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
             {mapBandWidth(), mapFreqRes(),
-            mapWindowFunc(), mapWindowWidth()}))
+            mapWindowFunc(), mapWindowWidth(), relaxFunc(), mode()}))
             tr[ *x].onValueChanged().connect(m_lsnOnMapCondChanged);
         m_lsnOnMapClearCondRequested = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapClearCondRequested);
@@ -445,9 +448,8 @@ XNMRT1::onMapCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 void
 XNMRT1::onMapClearCondRequested(const Snapshot &shot, XValueNodeBase *node) {
     if(node == mapMode().get())
-        if((MapMode)(int)shot[ *mapMode()] != MapMode::Off)
-            return;
-    trans( *this).m_timeMapClearRequested = XTime::now();
+        if((MapMode)(int)shot[ *mapMode()] == MapMode::Off)
+        trans( *this).m_timeMapClearRequested = XTime::now();
     requestAnalysis();
 }
 void
@@ -516,7 +518,7 @@ XNMRT1::ZFFFT(Transaction &tr,
         throw XRecordError(i18n("Invalid div. for mapping."), __FILE__, __LINE__);
     if(xlen > 1000)
         throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
-    if(shot_this[ *this].m_mapTCount * xlen > 40000)
+    if(shot_this[ *this].m_mapTCount * xlen > 20000)
         throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
 
     bufin.resize(p->summedTrace.size());
@@ -533,17 +535,18 @@ XNMRT1::ZFFFT(Transaction &tr,
     catch (XKameError &e) {
         throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
     }
+    double normalize = 1.0 / p->avgCount / p->summedTrace.size(); //for averaged voltage.
     p->ft.setZero(xlen);
     for(int i = 0; i < xlen; ++i) {
         double f = i * mapfreqres + startfreq; //Hz
         int j = (lrint(f / fftres) + fftlen) % fftlen;
-        p->ft.coeffRef(i) = bufout[j] / (double)p->avgCount;
+        p->ft.coeffRef(i) = bufout[j] * normalize;
     }
 }
 void
 XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
-    const std::vector< std::complex<double> >&wave, int origin,
-    const std::vector<double>&darkpsd, double dfreq, double interval) {
+    const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse,
+    const XNMRPulseAnalyzer &pulse) {
     const Snapshot &shot_this(tr);
     if((MapMode)(int)shot_this[ *mapMode()] == MapMode::Off)
         return;
@@ -560,7 +563,8 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     }
     if(min_reldiff > shot_this[ *p1Max()]/shot_this[ *p1Min()] - 1.0)
         return;
-    p->ftOrigin = origin;
+
+    p->ftOrigin = shot_pulse[pulse].waveFTPos();
     if(p->summedTrace.size() != wave.size()) {
         p->avgCount = 0;
         p->summedDarkPSDSq = 0.0;
@@ -568,12 +572,14 @@ XNMRT1::storePulseForMapping(Transaction &tr, double p1_or_2tau,
     }
     p->summedTrace += Eigen::Map<Eigen::VectorXcd>(const_cast<std::complex<double>*>( &wave[0]), wave.size());
     p->avgCount++;
+    const std::vector<double>& darkpsd = shot_pulse[pulse].darkPSD();
     auto vec_darkpsd = Eigen::Map<Eigen::VectorXd>(const_cast<double*>( &darkpsd[0]), darkpsd.size());
-    p->summedDarkPSDSq += vec_darkpsd.squaredNorm() * dfreq; //[V]
+
+    p->summedDarkPSDSq += vec_darkpsd.sum() * shot_pulse[pulse].darkPSDFactorToVoltSq() / vec_darkpsd.size(); //[V^2]
 
     std::vector<std::complex<double> > fftout;
     std::vector<std::complex<double> > fftin;
-    ZFFFT(tr, fftin, fftout, p, interval);
+    ZFFFT(tr, fftin, fftout, p, shot_pulse[pulse].interval());
 }
 
 bool
@@ -665,7 +671,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         tr[ *this].m_timeMapClearRequested = {};
         tr[ *this].m_allPulses.clear();
         if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off) {
-            int samples = shot_this[ *smoothSamples()] * 10;
+            int samples = std::min(200u, shot_this[ *smoothSamples()] * 10);
             tr[ *this].m_mapTCount = samples;
             for(long i = 0; i < shot_this[ *smoothSamples()]; ++i) {
                 tr[ *this].m_allPulses.push_back(std::make_shared<Payload::Pulse>());
@@ -675,6 +681,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         }
         tr[ *m_waveMap].clearPoints();
         tr[ *m_waveAllRelaxCurves].clearPoints();
+        m_regularization.reset();
     }
 
     //Reads spectra from NMRPulseAnalyzers
@@ -718,10 +725,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
 
-                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i],
-                        shot_pulse1[ *pulse1__].waveFTPos(),
-                        shot_pulse1[ *pulse1__].darkPSD(),
-                        shot_pulse1[ *pulse1__].dFreq(), shot_pulse1[ *pulse1__].interval());
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].echoesT2()[i], shot_pulse1, *pulse1__);
             }
         }
         else {
@@ -761,14 +765,8 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 pt2.p1 = p1_alt;
                 std::copy(cmp2.begin(), cmp2.end(), pt2.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt2);
-                storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(),
-                        shot_pulse1[ *pulse1__].waveFTPos(),
-                        shot_pulse1[ *pulse1__].darkPSD(),
-                        shot_pulse1[ *pulse1__].dFreq(), shot_pulse1[ *pulse1__].interval());
-                storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(),
-                        shot_pulse1[ *pulse2__].waveFTPos(),
-                        shot_pulse1[ *pulse2__].darkPSD(),
-                        shot_pulse1[ *pulse2__].dFreq(), shot_pulse1[ *pulse2__].interval());
+                storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
+                storePulseForMapping(tr, p1_alt, shot_pulse2[ *pulse2__].wave(), shot_pulse2, *pulse2__);
                 break;
                 }
             case XPulser::N_COMB_MODE_ON:
@@ -777,10 +775,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                     pt1.p1 = p1;
                     std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                     tr[ *this].m_pts.push_back(pt1);
-                    storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(),
-                            shot_pulse1[ *pulse1__].waveFTPos(),
-                            shot_pulse1[ *pulse1__].darkPSD(),
-                            shot_pulse1[ *pulse1__].dFreq(), shot_pulse1[ *pulse1__].interval());
+                    storePulseForMapping(tr, p1, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                     break;
                 }
                 m_statusPrinter->printWarning(i18n("T2 mode with comb pulse!"));
@@ -794,10 +789,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
                 pt1.p1 = twotau;
                 std::copy(cmp1.begin(), cmp1.end(), pt1.value_by_cond.begin());
                 tr[ *this].m_pts.push_back(pt1);
-                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(),
-                        shot_pulse1[ *pulse1__].waveFTPos(),
-                        shot_pulse1[ *pulse1__].darkPSD(),
-                        shot_pulse1[ *pulse1__].dFreq(), shot_pulse1[ *pulse1__].interval());
+                storePulseForMapping(tr, twotau, shot_pulse1[ *pulse1__].wave(), shot_pulse1, *pulse1__);
                 break;
             }
         }
@@ -943,9 +935,10 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         std::vector<std::complex<double> > fftout;
         std::vector<std::complex<double> > fftin;
         for(auto &p: shot_this[ *this].m_allPulses) {
-            if(fftin.size())
+            if(p->avgCount)
                 ZFFFT(tr, fftin, fftout, p, shot_pulse1[ *pulse1__].interval());
         }
+        m_regularization.reset(); //for mode/relax fn. change.
     }
 
     m_isPulserControlRequested = (emitter != this);
@@ -1036,16 +1029,15 @@ XNMRT1::visualize(const Snapshot &shot) {
             ++pcount_stored;
 
     if((mapmode != MapMode::Off) && pcount_stored) {
-
-        Eigen::MatrixXd relax_fdep;
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> relax_fdep;
         relax_fdep.setZero(shot[ *this].mapFreqCount(), pcount_stored);
 
         m_waveAllRelaxCurves->iterate_commit([&](Transaction &tr){
 
             tr[ *m_waveAllRelaxCurves].setLabel(1, tlabel.c_str());
-            tr[ *tr[ *m_waveAllRelaxCurves].axisy()->label()] = tlabel;
+            tr[ *tr[ *m_waveAllRelaxCurves].axisz()->label()] = tlabel;
             size_t length = pcount_stored * shot[ *this].mapFreqCount();
-            std::vector<float> colf(length, 0.0), colp1(length, 0.0), colval(length, 0.0),
+            std::vector<float> colf(length, 0.0), colp1(length, 0.0),
                 colre(length, 0.0), colim(length, 0.0), colisigma(length, 0.0);
             auto rot_ph = std::polar(1.0, -shot[ *phase()] / 180.0 * M_PI);
             int i = 0;
@@ -1056,28 +1048,31 @@ XNMRT1::visualize(const Snapshot &shot) {
                         double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
                         colp1[k] = p->p1;
                         colf[k] = f;
-                        auto z = p->ft.coeff(j);
+                        auto z = p->ft.coeff(j) * rot_ph;
                         colre[k] = std::real(z);
                         colim[k] = std::imag(z);
-                        double v = std::real(rot_ph * z);
-                        colval[k] = v;
-                        relax_fdep.coeffRef(j, i) = v;
+                        relax_fdep.coeffRef(j, i) = colre[k];
                         colisigma[k] = p->avgCount / sqrt(p->summedDarkPSDSq);
+//                        colisigma[k] = sqrt(p->summedDarkPSDSq) / p->avgCount;
                         k++;
                     }
                     i++;
                 }
             }
             assert(i == pcount_stored);
-            tr[ *m_waveAllRelaxCurves].setRowCount(pcount_stored);
+            tr[ *m_waveAllRelaxCurves].setRowCount(length);
             tr[ *m_waveAllRelaxCurves].setColumn(0, std::move(colf), 5);
             tr[ *m_waveAllRelaxCurves].setColumn(1, std::move(colp1), 5);
-            tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colval), 4);
-            tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colisigma), 3);
-            tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colre), 4);
-            tr[ *m_waveAllRelaxCurves].setColumn(5, std::move(colim), 4);
+            tr[ *m_waveAllRelaxCurves].setColumn(2, std::move(colre), 4);
+            tr[ *m_waveAllRelaxCurves].setColumn(3, std::move(colim), 4);
+            tr[ *m_waveAllRelaxCurves].setColumn(4, std::move(colisigma), 3);
             m_waveAllRelaxCurves->drawGraph(tr);
         });
+        double noisesq = 0.0;
+        for(auto &p: shot[ *this].m_allPulses)
+            if(p->avgCount)
+                noisesq += p->summedDarkPSDSq / p->avgCount / p->avgCount;
+        noisesq /= pcount_stored;
 
         auto mapT = [this](const Snapshot &shot, int i) {
             return shot[ *p1Min()] * exp(log(shot[ *p1Max()]/shot[ *p1Min()]) / (shot[ *this].m_mapTCount - 1) * i);
@@ -1086,24 +1081,32 @@ XNMRT1::visualize(const Snapshot &shot) {
         shared_ptr<XRelaxFunc> relax_fn = shot[ *relaxFunc()];
         if( !relax_fn) return;
 
-        Eigen::MatrixXd mat_conv;
-        mat_conv.setZero(shot[ *this].m_mapTCount, pcount_stored);
-        for(int j = 0; j < shot[ *this].m_mapTCount; ++j) {
-            double it1 = 1.0 / mapT(shot, j);
-            int i = 0;
-            double f, df;
-            for(auto &p: shot[ *this].m_allPulses) {
-                if(p->avgCount) {
-                    relax_fn->relax( &f, &df, p->p1, it1);
-                    mat_conv.coeffRef(j, i) = f;
-                    ++i;
+        double relax_coeff = -1.0; //exp(-t/T1)
+        if((MeasMode)(int)shot[ *mode()] == MeasMode::T1) {
+            //ex. 1.0 - exp(-t/T1)
+            relax_coeff = 1.0 / (shot[ *this].m_params[1] + shot[ *this].m_params[2]);
+        }
+
+        if( !m_regularization || (m_regularization->ylen() != pcount_stored)) {
+            Eigen::MatrixXd mat_conv; //Matrix A; y = A x.
+            mat_conv.setZero(pcount_stored, shot[ *this].m_mapTCount);
+            for(int j = 0; j < shot[ *this].m_mapTCount; ++j) {
+                double it1 = 1.0 / mapT(shot, j);
+                int i = 0;
+                double f, df;
+                for(auto &p: shot[ *this].m_allPulses) {
+                    if(p->avgCount) {
+                        relax_fn->relax( &f, &df, p->p1, it1); //ex. f(t) = 1 - exp(-t/T1)
+                        mat_conv.coeffRef(i, j) = relax_coeff * f + 1.0;
+                        ++i;
+                    }
                 }
             }
+            m_regularization.reset(new TikhonovRegular(mat_conv)); //very slow due to SVD.
         }
-        m_regularization.reset(new TikhonovRegular(mat_conv));
         auto method = std::map<MapMode, TikhonovRegular::Method>{{MapMode::NoiseAnalysis, TikhonovRegular::Method::KnownError},
             {MapMode::GCV, TikhonovRegular::Method::MinGCV}, {MapMode::LCurve, TikhonovRegular::Method::L_Curve}}.at(mapmode);
-        m_regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2));
+        m_regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2), noisesq);
 
         XString tlabel;
         switch((MeasMode)(int)shot[ *mode()]) {
@@ -1141,10 +1144,8 @@ XNMRT1::visualize(const Snapshot &shot) {
             tr[ *m_waveMap].setColumn(0, std::move(colf), 5);
             tr[ *m_waveMap].setColumn(1, std::move(colt), 5);
             tr[ *m_waveMap].setColumn(2, std::move(colval), 4);
-            m_waveAllRelaxCurves->drawGraph(tr);
+            m_waveMap->drawGraph(tr);
         });
-
-
     }
 }
 

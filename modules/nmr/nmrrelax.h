@@ -90,7 +90,7 @@ public:
 		std::deque<RawPt> m_pts;
 		//! Stores reduced points to manage fitting and display.
 		std::vector<Pt> m_sumpts;
-		double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*exp(-t/T1) + a
+        double m_params[3]; //!< fitting parameters; 1/T1, c, a; ex. f(t) = c*(1 - exp(-t/T1)) + a
 		double m_errors[3]; //!< std. deviations        
         XTime m_timeClearRequested;
 
@@ -241,8 +241,7 @@ private:
 		const std::vector< std::complex<double> >&wave, int origin, double cf,
 		std::deque<std::complex<double> > &value_by_cond);
     void storePulseForMapping(Transaction &tr, double p1_or_2tau,
-        const std::vector< std::complex<double> >&wave, int origin,
-        const std::vector<double>&darkpsd, double dfreq, double interval);
+        const std::vector< std::complex<double> >&wave, const Snapshot &shot_pulse, const XNMRPulseAnalyzer &pulse);
     void ZFFFT(Transaction &tr,
         std::vector< std::complex<double> >&bufin, std::vector< std::complex<double> >&bufout,
         shared_ptr<Payload::Pulse> p, double interval);

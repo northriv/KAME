@@ -57,6 +57,7 @@ public:
 		const std::vector<std::complex<double> > &wave() const {return m_wave;}
 		//! Power spectrum of the noise estimated from the background. [V^2/Hz].
 		const std::vector<double> &darkPSD() const {return m_darkPSD;}
+        double darkPSDFactorToVoltSq() const {return m_ftWavePSDCoeff / (m_wave.size() * interval());}
         //! Stored multi-echoes for T2 measurement
         const std::vector<std::vector<std::complex<double> > > &echoesT2() const {return m_echoesT2;}
 		//! freq. resolution [Hz]
