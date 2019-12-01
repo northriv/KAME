@@ -420,7 +420,7 @@
     <item row="2" column="0" colspan="2">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -781,7 +781,7 @@
        <attribute name="title">
         <string>Density Mapping</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_8">
+       <layout class="QHBoxLayout" name="horizontalLayout_9">
         <property name="spacing">
          <number>-1</number>
         </property>
@@ -1078,6 +1078,9 @@
         </item>
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_11">
+          <property name="spacing">
+           <number>4</number>
+          </property>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_6">
             <property name="spacing">
@@ -1092,7 +1095,43 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>Tikhonov Regularization Parameter</string>
+               <string>Tikhonov Matrix</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+              <property name="wordWrap">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="m_cmbTikhonovMatrix">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <property name="spacing">
+             <number>4</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="textLabel5_5">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Regularization Optimizer</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignCenter</set>
@@ -1345,7 +1384,7 @@
   <tabstop>m_btnDump</tabstop>
   <tabstop>m_edRegularizationBW</tabstop>
   <tabstop>m_edRegularizationResolution</tabstop>
-  <tabstop>m_cmbRegularizationChoice</tabstop>
+  <tabstop>m_cmbTikhonovMatrix</tabstop>
   <tabstop>m_edAllRelaxCurvesDump</tabstop>
   <tabstop>m_tbAllRelaxCurvesDump</tabstop>
   <tabstop>m_btnAllRelaxCurvesDump</tabstop>

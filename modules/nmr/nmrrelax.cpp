@@ -100,6 +100,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
       m_solver(create<SpectrumSolverWrapper>("SpectrumSolver", true, shared_ptr<XComboNode>(), m_windowFunc, shared_ptr<XDoubleNode>())),
       m_solverMapPulse(create<SpectrumSolverWrapper>("SpectrumSolverMapPulse", true, shared_ptr<XComboNode>(), m_mapWindowFunc, m_mapWindowWidth)),
       m_mapMode(create<XComboNode>("MapMode", false, true)),
+      m_mapTikhonovMatrix(create<XComboNode>("MapTikhonovMatrix", false, true)),
       m_mapFreqRes(create<XDoubleNode>("MapFreqRes", false, "%.3f")),
       m_mapBandWidth(create<XDoubleNode>("MapBandWidth", false, "%.1f")),
       m_mapWindowFunc(create<XComboNode>("MapWindowFunc", false, true)),
@@ -175,8 +176,10 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *smoothSamples()] = 40;
 
 
-        tr[ *mapMode()].add({"Off", "Noise Analysis", "L Curve", "GCV"});
+        tr[ *mapMode()].add({"Off", "AllNonNegative", "Noise Analysis", "L Curve", "GCV"});
         tr[ *mapMode()] = (int)MapMode::Off;
+        tr[ *mapTikhonovMatrix()].add({"Identity", "2nd Derivative Op."});
+        tr[ *mapTikhonovMatrix()] = (int)TikhonovRegular::TikhonovMatrix::I;
 
         tr[ *mapBandWidth()] = 100.0;
         tr[ *mapFreqRes()] = 1.0;
@@ -264,6 +267,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_pulse1, m_form->m_cmbPulse1, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_pulse2, m_form->m_cmbPulse2, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_mapMode, m_form->m_cmbRegularizationChoice, Snapshot( *m_mapMode)),
+        xqcon_create<XQComboBoxConnector>(m_mapTikhonovMatrix, m_form->m_cmbTikhonovMatrix, Snapshot( *m_mapTikhonovMatrix)),
         xqcon_create<XQLineEditConnector>(m_mapFreqRes, m_form->m_edRegularizationResolution),
         xqcon_create<XQLineEditConnector>(m_mapBandWidth, m_form->m_edRegularizationBW),
         xqcon_create<XQComboBoxConnector>(m_mapWindowFunc, m_form->m_cmbMapWindowFunc, Snapshot( *m_mapWindowFunc)),
@@ -288,7 +292,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
             shared_from_this(), &XNMRT1::onMapCondChanged);
         for(auto &&x: std::vector<shared_ptr<XValueNodeBase>>(
             {mapBandWidth(), mapFreqRes(),
-            mapWindowFunc(), mapWindowWidth(), relaxFunc(), mode()}))
+            mapWindowFunc(), mapWindowWidth(), relaxFunc(),
+            mode(), mapTikhonovMatrix()}))
             tr[ *x].onValueChanged().connect(m_lsnOnMapCondChanged);
         m_lsnOnMapClearCondRequested = tr[ *mode()].onValueChanged().connectWeakly(
             shared_from_this(), &XNMRT1::onMapClearCondRequested);
@@ -516,9 +521,9 @@ XNMRT1::ZFFFT(Transaction &tr,
     long xlen = shot_this[ *this].mapFreqCount();
     if(xlen < 4)
         throw XRecordError(i18n("Invalid div. for mapping."), __FILE__, __LINE__);
-    if(xlen > 1000)
+    if(xlen > 10000)
         throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
-    if(shot_this[ *this].m_mapTCount * xlen > 20000)
+    if(shot_this[ *this].m_mapTCount * xlen > 50000)
         throw XRecordError(i18n("Too many # of div. for mapping."), __FILE__, __LINE__);
 
     bufin.resize(p->summedTrace.size());
@@ -1047,7 +1052,7 @@ XNMRT1::visualize(const Snapshot &shot) {
                     for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
                         double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
                         colp1[k] = p->p1;
-                        colf[k] = f;
+                        colf[k] = f * 1e-3;
                         auto z = p->ft.coeff(j) * rot_ph;
                         colre[k] = std::real(z);
                         colim[k] = std::imag(z);
@@ -1087,7 +1092,8 @@ XNMRT1::visualize(const Snapshot &shot) {
             relax_coeff = 1.0 / (shot[ *this].m_params[1] + shot[ *this].m_params[2]);
         }
 
-        if( !m_regularization || (m_regularization->ylen() != pcount_stored)) {
+        local_shared_ptr<TikhonovRegular> regularization = m_regularization;
+        if( !regularization || (regularization->ylen() != pcount_stored)) {
             Eigen::MatrixXd mat_conv; //Matrix A; y = A x.
             mat_conv.setZero(pcount_stored, shot[ *this].m_mapTCount);
             for(int j = 0; j < shot[ *this].m_mapTCount; ++j) {
@@ -1102,11 +1108,14 @@ XNMRT1::visualize(const Snapshot &shot) {
                     }
                 }
             }
-            m_regularization.reset(new TikhonovRegular(mat_conv)); //very slow due to SVD.
+            //very slow due to SVD.
+            regularization.reset(new TikhonovRegular(mat_conv, (TikhonovRegular::TikhonovMatrix)(int)shot[ *mapTikhonovMatrix()]));
+            m_regularization = regularization;
         }
         auto method = std::map<MapMode, TikhonovRegular::Method>{{MapMode::NoiseAnalysis, TikhonovRegular::Method::KnownError},
-            {MapMode::GCV, TikhonovRegular::Method::MinGCV}, {MapMode::LCurve, TikhonovRegular::Method::L_Curve}}.at(mapmode);
-        m_regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2), noisesq);
+            {MapMode::GCV, TikhonovRegular::Method::MinGCV}, {MapMode::LCurve, TikhonovRegular::Method::L_Curve},
+            {MapMode::AllNonNegative, TikhonovRegular::Method::AllNonNegative}}.at(mapmode);
+        regularization->chooseLambda(method, relax_fdep.row(shot[ *this].mapFreqCount() / 2), noisesq);
 
         XString tlabel;
         switch((MeasMode)(int)shot[ *mode()]) {
@@ -1130,11 +1139,11 @@ XNMRT1::visualize(const Snapshot &shot) {
             for(int j = 0; j < shot[ *this].mapFreqCount(); ++j) {
                 double f = shot[ *this].mapStartFreq() + j * shot[ *this].m_mapFreqRes;
 
-                auto densities = m_regularization->solve(relax_fdep.row(j));
+                auto densities = regularization->solve(relax_fdep.row(j));
 
                 for(int i = 0; i < shot[ *this].m_mapTCount; ++i) {
                     colt[k] = mapT(shot, i);
-                    colf[k] = f;
+                    colf[k] = f * 1e-3;
                     colval[k] = densities[i];
                     i++;
                     k++;

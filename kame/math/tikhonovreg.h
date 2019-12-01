@@ -23,13 +23,15 @@ class DECLSPEC_KAME TikhonovRegular {
 public:
     using Vector = Eigen::VectorXd;
     using Matrix = Eigen::MatrixXd;
-    //! prepares SVD from a matrix.
+    //! Regular(identity), Second derivartive op.
+    enum class TikhonovMatrix {I = 0, D2 = 1};
     //! y = A x.
-    //! \arg sv_cond_cutoff cutoff value for truncated SVD.
-    TikhonovRegular(const Matrix &matrixA, double sv_cond_cutoff = 2000.0);
+    //! \arg sv_cond_cutoff cutoff value for truncated SVD inside regular Tikhonov problem (\a matStype = I).
+    TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype = TikhonovMatrix::I, double sv_cond_cutoff = 2000.0);
     ~TikhonovRegular() {}
-    //! L-curve criterion, Genererized cross validation, Known error level.
-    enum class Method {L_Curve, MinGCV, KnownError};
+    //! Criteria for lambda selection.
+    //! L-curve criterion, Genererized cross validation, Known error level for <dy^2>, All Non-negative values for x.
+    enum class Method {L_Curve, MinGCV, KnownError, AllNonNegative};
     //! \arg error_sq estimated noise level squared per \a y data point.
     Vector chooseLambda(Method method, const Vector &y, double error_sq = 0.0);
     //! \return \a x_lambda
@@ -41,10 +43,15 @@ public:
     double ylen() const {return m_ylen;}
 private:
     long m_xlen, m_ylen;
-    Matrix m_A, m_UT, m_V, m_sigma;
-    Matrix m_AinvReg; //!< regularized inverse, A#lambda = (AtA + lambda^2 I)^-1 At
+    Matrix m_A;
+    TikhonovMatrix m_matStype;
+    Matrix m_UT, m_V, m_sigma; //SVD solutions during regular problem.
+    Matrix m_S, m_ATA, m_STS; //during general problem.
+    Matrix m_AinvReg; //!< regularized inverse, A#lambda = (AtA + lambda^2 StS)^-1 At
     double m_lambda;
     double m_sv_cutoff;
+    //\return true if larger lambda is preferable for bi-sect search, true if best so far.
+    bool testLambda(double lambda, Method method, const Vector &y, Vector &vec_x, double &index, double error_sq, double lambda_prev, double &xi_prev);
 };
 
 #endif /*TIKHONOV_H_*/

@@ -161,8 +161,9 @@ public:
 	const shared_ptr<XItemNode < XRelaxFuncList, XRelaxFunc > >  &relaxFunc() const {return m_relaxFunc;}
 
     //! Fields for Mapping via Tikhonov Regularization.
-    enum class MapMode {Off = 0, NoiseAnalysis = 1, LCurve = 2, GCV = 3};
+    enum class MapMode {Off = 0, AllNonNegative = 1, NoiseAnalysis = 2, LCurve = 3, GCV = 4};
     const shared_ptr<XComboNode> &mapMode() const {return m_mapMode;}
+    const shared_ptr<XComboNode> &mapTikhonovMatrix() const {return m_mapTikhonovMatrix;}
     //! [kHz].
     const shared_ptr<XDoubleNode> &mapBandWidth() const {return m_mapBandWidth;}
     //! [kHz].
@@ -212,6 +213,7 @@ private:
 
     //! Fields for Mapping via Tikhonov Regularization.
     const shared_ptr<XComboNode> m_mapMode;
+    const shared_ptr<XComboNode> m_mapTikhonovMatrix;
     const shared_ptr<XDoubleNode> m_mapFreqRes;
     const shared_ptr<XDoubleNode> m_mapBandWidth;
     const shared_ptr<XComboNode> m_mapWindowFunc;
@@ -280,7 +282,7 @@ private:
     void setNextP1(const Snapshot &shot);
 
     const shared_ptr<XWaveNGraph> m_waveMap, m_waveAllRelaxCurves;
-    unique_ptr<TikhonovRegular> m_regularization;
+    atomic_shared_ptr<TikhonovRegular> m_regularization;
 };
 
 //---------------------------------------------------------------------------
