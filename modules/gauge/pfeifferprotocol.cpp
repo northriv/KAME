@@ -58,11 +58,10 @@ XPfeifferProtocolInterface::close() throw (XInterfaceError &) {
 }
 
 XString
-XPfeifferProtocolInterface::action(const Snapshot &shot_this, bool iscontrol,
+XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     unsigned int param_no, const XString &str) {
     XScopedLock<XPfeifferProtocolInterface> lock( *this);
     XString buf;
-    unsigned int addr = shot_this[ *address()];
     buf = formatString("%03u%02u%03u%02u", addr,
         iscontrol ? 10u : 0u, param_no, (unsigned int)str.length());
     buf += str;
@@ -104,8 +103,8 @@ XPfeifferProtocolInterface::action(const Snapshot &shot_this, bool iscontrol,
 }
 
 unsigned int
-XPfeifferProtocolInterface::requestUInt(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no) {
-    auto buf = action(shot_this, false, param_no, "=?");
+XPfeifferProtocolInterface::requestUInt(unsigned int address, DATATYPE data_type, unsigned int param_no) {
+    auto buf = action(address, false, param_no, "=?");
     int sizes[] = {6, 6, 6, 6, 1, 3, 6, 16};
     if(((int)data_type > 7) || (buf.size() != sizes[(int)data_type]))
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -113,8 +112,8 @@ XPfeifferProtocolInterface::requestUInt(const Snapshot &shot_this, DATATYPE data
 }
 
 bool
-XPfeifferProtocolInterface::requestBool(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no) {
-    auto buf = action(shot_this, false, param_no, "=?");
+XPfeifferProtocolInterface::requestBool(unsigned int address, DATATYPE data_type, unsigned int param_no) {
+    auto buf = action(address, false, param_no, "=?");
     int sizes[] = {6, 6, 6, 6, 1, 3, 6, 16};
     if(((int)data_type > 7) || (buf.size() != sizes[(int)data_type]))
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -126,8 +125,8 @@ XPfeifferProtocolInterface::requestBool(const Snapshot &shot_this, DATATYPE data
 }
 
 double
-XPfeifferProtocolInterface::requestReal(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no) {
-    auto buf = action(shot_this, false, param_no, "=?");
+XPfeifferProtocolInterface::requestReal(unsigned int address, DATATYPE data_type, unsigned int param_no) {
+    auto buf = action(address, false, param_no, "=?");
     int sizes[] = {6, 6, 6, 6, 1, 3, 6, 16};
     if(((int)data_type > 7) || (buf.size() != sizes[(int)data_type]))
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -145,8 +144,8 @@ XPfeifferProtocolInterface::requestReal(const Snapshot &shot_this, DATATYPE data
 }
 
 XString
-XPfeifferProtocolInterface::requestString(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no) {
-    auto buf = action(shot_this, false, param_no, "=?");
+XPfeifferProtocolInterface::requestString(unsigned int address, DATATYPE data_type, unsigned int param_no) {
+    auto buf = action(address, false, param_no, "=?");
     int sizes[] = {6, 6, 6, 6, 1, 3, 6, 16};
     if(((int)data_type > 7) || (buf.size() != sizes[(int)data_type]))
         throw XInterface::XConvError(__FILE__, __LINE__);
@@ -161,7 +160,7 @@ XPfeifferProtocolInterface::requestString(const Snapshot &shot_this, DATATYPE da
 
 
 void
-XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no, bool data) {
+XPfeifferProtocolInterface::control(unsigned int address, DATATYPE data_type, unsigned int param_no, bool data) {
     XString buf;
     switch (data_type) {
     case DATATYPE::BOOLEAN_OLD:
@@ -173,10 +172,10 @@ XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_typ
     default:
         throw;
     }
-    action(shot_this, true, param_no, buf);
+    action(address, true, param_no, buf);
 }
 void
-XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no, unsigned int data) {
+XPfeifferProtocolInterface::control(unsigned int address, DATATYPE data_type, unsigned int param_no, unsigned int data) {
     XString buf;
     switch (data_type) {
     case DATATYPE::U_INTEGER:
@@ -188,10 +187,10 @@ XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_typ
     default:
         throw;
     }
-    action(shot_this, true, param_no, buf);
+    action(address, true, param_no, buf);
 }
 void
-XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no, double data) {
+XPfeifferProtocolInterface::control(unsigned int address, DATATYPE data_type, unsigned int param_no, double data) {
     XString buf;
     switch (data_type) {
     case DATATYPE::U_REAL:
@@ -207,10 +206,10 @@ XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_typ
     default:
         throw;
     }
-    action(shot_this, true, param_no, buf);
+    action(address, true, param_no, buf);
 }
 void
-XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no, const XString &data) {
+XPfeifferProtocolInterface::control(unsigned int address, DATATYPE data_type, unsigned int param_no, const XString &data) {
     XString buf;
     switch (data_type) {
     case DATATYPE::STRING:
@@ -222,6 +221,6 @@ XPfeifferProtocolInterface::control(const Snapshot &shot_this, DATATYPE data_typ
     default:
         throw;
     }
-    action(shot_this, true, param_no, buf);
+    action(address, true, param_no, buf);
 }
 

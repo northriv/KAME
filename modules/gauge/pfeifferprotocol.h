@@ -23,25 +23,25 @@
 class XPfeifferProtocolInterface : public XCharInterface {
 public:
     XPfeifferProtocolInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
-    virtual ~XPfeifferProtocolInterface();
+    virtual ~XPfeifferProtocolInterface() {}
 
     enum class DATATYPE {
         BOOLEAN_OLD, U_INTEGER, U_REAL, STRING, BOOLEAN_NEW, U_SHORT_INT, U_EXPO_NEW, STRING_LONG
     };
-    bool requestBool(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    unsigned int requestUInt(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    double requestReal(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    XString requestString(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
+    bool requestBool(unsigned int address, DATATYPE data_type, unsigned int param_no);
+    unsigned int requestUInt(unsigned int address, DATATYPE data_type, unsigned int param_no);
+    double requestReal(unsigned int address, DATATYPE data_type, unsigned int param_no);
+    XString requestString(unsigned int address, DATATYPE data_type, unsigned int param_no);
     template <typename X>
-    void control(const Snapshot &shot_this,
+    void control(unsigned int address,
         DATATYPE data_type, unsigned int param_no, X data);
-    void control(const Snapshot &shot_this,
+    void control(unsigned int address,
         DATATYPE data_type, unsigned int param_no, bool data);
-    void control(const Snapshot &shot_this,
+    void control(unsigned int address,
         DATATYPE data_type, unsigned int param_no, unsigned int data);
-    void control(const Snapshot &shot_this,
+    void control(unsigned int address,
         DATATYPE data_type, unsigned int param_no, const XString &data);
-    void control(const Snapshot &shot_this,
+    void control(unsigned int address,
         DATATYPE data_type, unsigned int param_no, double data);
 protected:
     virtual void open() throw (XInterfaceError &);
@@ -54,7 +54,7 @@ private:
     static XMutex s_lock;
     static std::deque<weak_ptr<XPort> > s_openedPorts; //guarded by s_lock.
 
-    XString action(const Snapshot &shot_this,
+    XString action(unsigned int address,
         bool iscontrol, unsigned int param_no, const XString &str);
 };
 

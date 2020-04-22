@@ -17,10 +17,10 @@
 #define userpumpcontrollerH
 
 #include "pumpcontroller.h"
-#include "chardevicedriver.h"
+#include "pfeifferprotocol.h"
 
 //! Pfeiffer TC110
-class XPfeifferTC110:public XCharDeviceDriver<XPumpControl> {
+class XPfeifferTC110:public XPfeifferProtocolDriver<XPumpControl> {
 public:
     XPfeifferTC110(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -48,28 +48,7 @@ protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() throw (XKameError &) override;
 private:
-    XString action(const Snapshot &shot_this,
-        bool iscontrol, unsigned int param_no, const XString &str);
-    enum class DATATYPE {
-        BOOLEAN_OLD, U_INTEGER, U_REAL, STRING, BOOLEAN_NEW, U_SHORT_INT, U_EXPO_NEW, STRING_LONG
-    };
-    bool requestBool(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    unsigned int requestUInt(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    double requestReal(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    XString requestString(const Snapshot &shot_this, DATATYPE data_type, unsigned int param_no);
-    template <typename X>
-    void control(const Snapshot &shot_this,
-        DATATYPE data_type, unsigned int param_no, X data);
-    void control(const Snapshot &shot_this,
-        DATATYPE data_type, unsigned int param_no, bool data);
-    void control(const Snapshot &shot_this,
-        DATATYPE data_type, unsigned int param_no, unsigned int data);
-    void control(const Snapshot &shot_this,
-        DATATYPE data_type, unsigned int param_no, const XString &data);
-    void control(const Snapshot &shot_this,
-        DATATYPE data_type, unsigned int param_no, double data);
+    using DATATYPE = XPfeifferProtocolInterface::DATATYPE;
 };
-
-
 
 #endif

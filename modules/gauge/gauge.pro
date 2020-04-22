@@ -5,10 +5,12 @@ INCLUDEPATH += \
 
 HEADERS += \
     gauge.h \
+    usergauge.h \
     pfeifferprotocol.h
 
 SOURCES += \
     gauge.cpp \
+    usergauge.cpp \
     pfeifferprotocol.cpp
 
 win32:LIBS += -lcharinterface

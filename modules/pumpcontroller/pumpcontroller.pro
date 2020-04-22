@@ -16,5 +16,7 @@ FORMS += \
 
 win32:LIBS += -lcharinterface
 
-INCLUDEPATH += $$PWD/../charinterface
-DEPENDPATH += $$PWD/../charinterface
+INCLUDEPATH += $$PWD/../charinterface \
+    $$PWD/../gauge
+DEPENDPATH += $$PWD/../charinterface \
+    $$PWD/../gauge

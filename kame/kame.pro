@@ -306,6 +306,7 @@ macx {
     modulefiles.files += ../modules/nmr/thamway/libthamway.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/qd/libqd.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/digilentwf/libdigilentwf.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/gauge/libgauge.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/pumpcontroller/libpumpcontroller.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
 
