@@ -129,7 +129,6 @@ TikhonovRegular::chooseLambda(Method method, const Vector &vec_y, double error_s
     case Method::MinGCV: {
         double lambda_prev = 0.0;
         //serach by lambda reduction
-        //bisection algorithm for determination.
         int cnt = 0;
         for(double lambda = lambda_max; lambda > lambda_max * 0.00001; lambda *= 0.9) {
             double index = index_best;

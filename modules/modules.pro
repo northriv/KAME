@@ -33,6 +33,7 @@ SUBDIRS += testdriver\
     tempcontrol\
     qdcore\
     qd\
+    gauge\
     pumpcontroller\
     twoaxis
 
@@ -69,5 +70,6 @@ thamway.file = nmr/thamway/thamway.pro
 thamway.depends += nmrpulsercore sgcore networkanalyzercore
 qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
-pumpcontroller.depends += charinterface
+gauge.depends += charinterface
+pumpcontroller.depends += charinterface gauge
 twoaxis.depends += motorcore
