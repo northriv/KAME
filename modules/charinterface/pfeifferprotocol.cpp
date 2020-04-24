@@ -137,7 +137,7 @@ XPfeifferProtocolInterface::requestReal(unsigned int address, DATATYPE data_type
         unsigned int v, e;
         if(sscanf(buf.c_str(), "%4u%2u", &v, &e) != 2)
             throw XInterface::XConvError(__FILE__, __LINE__);
-        return v * pow(10.0, e - 23);
+        return v * pow(10.0, (int)e - 23);
     default:
         throw XInterface::XConvError(__FILE__, __LINE__);
     }
