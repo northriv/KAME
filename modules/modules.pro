@@ -71,5 +71,5 @@ thamway.depends += nmrpulsercore sgcore networkanalyzercore
 qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
 gauge.depends += charinterface
-pumpcontroller.depends += charinterface gauge
+pumpcontroller.depends += charinterface
 twoaxis.depends += motorcore

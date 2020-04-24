@@ -21,7 +21,7 @@ XTPG362::XTPG362(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPfeifferProtocolDriver<XGauge>(name, runtime, ref(tr_meas), meas) {
     trans( *interface()->device()) = "SERIAL";
-    trans( *interface()->address()) = 24; //Pfeiffer protocol address = 240,241,242
+    trans( *interface()->address()) = 1; //Pfeiffer protocol address = 10,11,12
     const char *channels_create[] = {"Ch1", "Ch2", 0L};
 	createChannels(ref(tr_meas), meas, channels_create);
 }
