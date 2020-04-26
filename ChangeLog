@@ -1,4 +1,8 @@
-* Sun Dec 1 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+* Sun Apr 26 2020 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.3-1)
+- Pfeiffer TPG361/362 Gauge (RS485). 
+
+* Sun Dec 1 2019 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.3-1)
 - Density mapping for T1,T2 by Tikhonov regularization. 
 
