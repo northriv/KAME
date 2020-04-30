@@ -301,8 +301,10 @@ XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRe
     if(rand() % 20 == 0) {
         std::cerr << "Recalculate Internal Energy." << std::endl;
         u = shot[ *this].m_store->internalEnergy() * N_A;
-        if(fabs((u - shot[ *this].m_sumDU)/u) > 1e-5) {
-            gErrPrint(formatString("SumDU Error = %g!", (double)(u - shot[ *this].m_sumDU)/u));
+        double diff = (u - shot[ *this].m_sumDU)/u;
+        if(fabs(diff) > 1e-5) {
+            gErrPrint(formatString("SumDU Error = %g!", diff));
+            tr[ *this].m_sumDU = u;
         }
     }
     MonteCarlo::Quartet quartet = shot[ *this].m_store->siteMagnetization();

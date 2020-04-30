@@ -49,7 +49,7 @@
 #define THIRD_CACHE_OFF_FACTOR 0.02
 
 //! For SIMD vectorization.
-//#define PACK_4FLOAT
+#define PACK_4FLOAT
 
 //! Nearest neighbor exchange interaction [K]
 #define J_NN -1.24
