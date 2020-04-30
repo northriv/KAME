@@ -213,7 +213,7 @@ XMonteCarloDriver::start() {
     m_hdirz->setUIEnabled(false);
     iterate_commit([=](Transaction &tr){
     	const Snapshot &shot(tr);
-        tr[ *this].m_loop.reset(new MonteCarlo(2));
+        tr[ *this].m_loop.reset(new MonteCarlo(8));
         tr[ *this].m_store.reset(new MonteCarlo(1));
         tr[ *this].m_sumDU = tr[ *this].m_loop->internalEnergy() * N_A;
         tr[ *this].m_sumDUav = tr[ *this].m_sumDU;
