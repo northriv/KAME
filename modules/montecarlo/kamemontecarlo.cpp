@@ -270,24 +270,34 @@ void
 XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
 	const Snapshot &shot(tr);
     unsigned int size = MonteCarlo::length();
-    if(reader.size() != size*size*size*16)
-        throw XRecordError("Size Mismatch", __FILE__, __LINE__);
+    unsigned int len = size*size*size*16;
+
     MonteCarlo::Vector3<double> field_dir(shot[ *m_hdirx], shot[ *m_hdiry], shot[ *m_hdirz]);
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);
     field *= shot[ *m_targetField];
-    char *spins = (char*)&reader.data()[0];
-    tr[ *this].m_spins.resize(reader.size());
-    MonteCarlo store(1);
-    store.read(spins, shot[ *m_targetTemp], field);
-    store.write( &tr[ *this].m_spins[0]);
+
+    double dU = reader.pop<double>();
+    tr[ *this].m_DUav = reader.pop<double>();
+    tr[ *this].m_dU = dU;
+    tr[ *this].m_flippedTotal += reader.pop<int>();
+    tr[ *this].m_testsTotal += reader.pop<double>();
+    double mav = reader.pop<double>();
+    tr[ *this].m_Mav = mav;
+    double m = reader.pop<double>();
+    double onethree = reader.pop<double>();
+    double twotwo = reader.pop<double>();
+    double u_calc = reader.pop<double>();
+
+    fprintf(stderr, "Total flips = %g (%g per spin).\n",
+        ((double)tr[ *this].m_flippedTotal), ((double)tr[ *this].m_flippedTotal / len));
+    fprintf(stderr, "Total tests = %g (%g per spin).\n",
+        ((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / len));
 
     double dT = shot[ *m_targetTemp] - shot[ *this].m_lastTemp;
     tr[ *this].m_lastTemp = shot[ *m_targetTemp];
-    double m = store.magnetization().innerProduct(field_dir);
     double dM = m - shot[ *this].m_lastMagnetization;
     double dH = shot[ *m_targetField] - shot[ *this].m_lastField;
-    double dU = shot[ *this].m_dU;
     // DS += (DU + HDM + MDH)/T
     tr[ *this].m_sumDS += (dU + dM * shot[ *m_targetField] * MU_B * N_A) / shot[ *m_targetTemp];
     // DU += -MDH.
@@ -299,17 +309,20 @@ XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRe
     tr[ *this].m_sumDU += dU;
     tr[ *this].m_lastMagnetization = m;
     tr[ *this].m_lastField = shot[ *m_targetField];
-    double u = shot[ *this].m_sumDU;
-    if(rand() % 20 == 0) {
-        std::cerr << "Recalculate Internal Energy." << std::endl;
-        u = store.internalEnergy() * N_A;
-        double diff = (u - shot[ *this].m_sumDU)/u;
+
+    long double u = shot[ *this].m_sumDU;
+    if(u_calc != 0.0)  {
+        double diff = (u - u_calc)/u_calc;
         if(fabs(diff) > 1e-5) {
             gErrPrint(formatString("SumDU Error = %g!", diff));
-            tr[ *this].m_sumDU = u;
+            tr[ *this].m_sumDU = u_calc;
         }
     }
-    MonteCarlo::Quartet quartet = store.siteMagnetization();
+
+    const char *spins = &*reader.popIterator();
+    tr[ *this].m_spins.resize(len);
+    std::memcpy( &tr[ *this].m_spins[0], spins, len);
+
     m_entryT->value(tr, shot[ *this].m_lastTemp);
     m_entryH->value(tr, shot[ *this].m_lastField);
     m_entryU->value(tr, u);
@@ -317,8 +330,8 @@ XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRe
     m_entryCoT->value(tr, c / shot[ *this].m_lastTemp);
     m_entryS->value(tr, shot[ *this].m_sumDS);
     m_entryM->value(tr, shot[ *this].m_Mav);
-    m_entry2in2->value(tr, 100.0*quartet.twotwo);
-    m_entry1in3->value(tr, 100.0*quartet.onethree);
+    m_entry2in2->value(tr, 100.0*twotwo);
+    m_entry1in3->value(tr, 100.0*onethree);
 }
 void
 XMonteCarloDriver::visualize(const Snapshot &shot) {
@@ -393,7 +406,7 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
     field_dir.normalize();
     MonteCarlo::Vector3<double> field(field_dir);
     field *= shot[ *m_targetField];
-    MonteCarlo stored(1);
+    MonteCarlo stored(0, false);
     stored.read( &shot[ *this].m_spins[0], shot[ *m_targetTemp], field);
 
     std::vector<char> spins(size*size*size*16);
@@ -739,26 +752,35 @@ XMonteCarloDriver::onStepTouched(const Snapshot &shot, XTouchableNode *) {
 }
 void
 XMonteCarloDriver::execute(int flips, long double tests) {
-    Snapshot shot = iterate_commit([=, &flips, &tests](Transaction &tr){
-        unsigned int size = m_loop->length();
-		int spin_size = size*size*size*4*4;
-		MonteCarlo::Vector3<double> field_dir(tr[ *m_hdirx], tr[ *m_hdiry], tr[ *m_hdirz]);
-		field_dir.normalize();
-		MonteCarlo::Vector3<double> field(field_dir);
-		field *= tr[ *m_targetField];
-		MonteCarlo::Vector3<double> m;
-        tr[ *this].m_dU = m_loop->exec(tr[ *m_targetTemp], field, &flips, &tests, &tr[ *this].m_DUav, &m) * N_A;
-		tr[ *this].m_testsTotal += tests;
-		tr[ *this].m_flippedTotal += flips;
-		fprintf(stderr, "Total flips = %g (%g per spin).\n",
-			((double)tr[ *this].m_flippedTotal), ((double)tr[ *this].m_flippedTotal / spin_size));
-		tr[ *this].m_Mav = m.innerProduct(field_dir);
-		fprintf(stderr, "Total tests = %g (%g per spin).\n",
-			((double)tr[ *this].m_testsTotal), ((double)tr[ *this].m_testsTotal / spin_size));
-    });
+    Snapshot shot_this( *this);
     unsigned int size = m_loop->length();
+    MonteCarlo::Vector3<double> field_dir(shot_this[ *m_hdirx], shot_this[ *m_hdiry], shot_this[ *m_hdirz]);
+    field_dir.normalize();
+    MonteCarlo::Vector3<double> field(field_dir);
+    MonteCarlo::Vector3<double> mav;
+    field *= shot_this[ *m_targetField];
+    double dU_av;
+    double dU = m_loop->exec(shot_this[ *m_targetTemp], field, &flips, &tests, &dU_av, &mav) * N_A;
+    double mag = m_loop->magnetization().innerProduct(field_dir);
     auto writer = std::make_shared<RawData>();
-    writer->resize(size*size*size*16);
-    m_loop->write((char*)&writer->at(0));
+    std::vector<char> buf(size*size*size*16);
+    writer->push(dU);
+    writer->push(dU_av);
+    writer->push(flips);
+    writer->push((double)tests);
+    writer->push(mav.innerProduct(field_dir));
+    writer->push(mag);
+    MonteCarlo::Quartet quartet = m_loop->siteMagnetization();
+    writer->push(quartet.onethree);
+    writer->push(quartet.twotwo);
+    if(rand() % 20 == 0) {
+        std::cerr << "Recalculate Internal Energy." << std::endl;
+        double u = m_loop->internalEnergy() * N_A;
+        writer->push(u);
+    }
+    else
+        writer->push(0.0);
+    m_loop->write((char*)&buf.at(0));
+    writer->insert(writer->end(), buf.begin(), buf.end());
     finishWritingRaw(writer, XTime::now(), XTime::now());
 }

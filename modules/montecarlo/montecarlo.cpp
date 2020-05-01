@@ -39,7 +39,7 @@ double MonteCarlo::s_fields_rec_sum;
 std::vector<std::complex<MonteCarlo::Spin> > MonteCarlo::s_exp_ph[16];
 std::vector<int> MonteCarlo::s_4r2_neighbor;
 
-MonteCarlo::MonteCarlo(int num_threads)
+MonteCarlo::MonteCarlo(int num_threads, bool init_randomize)
 	: 
 	m_bTerminated(false),
 	m_sec_cache_enabled(false),
@@ -50,26 +50,29 @@ MonteCarlo::MonteCarlo(int num_threads)
     int lsize = s_num_spins/16;
 
     for(int site1 = 0; site1 < 16; site1++) {
-	#ifdef PACK_4FLOAT
-        m_spins_real[site1].resize(spins_real_index(0,0,s_L)/4);
-	#else
-        m_spins_real[site1].resize(3*lsize);
-	#endif
-        
-        m_field_pri_cached[site1].resize(lsize, 0.0);
-        m_field_pri_cached_sane.resize(lsize, 0);
-        for(int site2 = 0; site2 < 16; site2++) {
-            m_field_sec_cached[site2][site1].resize(lsize, 0.0);
-            m_field_sec_cached_sane[site2].resize(lsize, 0);
-            m_field_third_cached[site2][site1].resize(lsize, 0.0);
-            m_field_third_cached_sane[site2].resize(lsize, 0);
+        #ifdef PACK_4FLOAT
+            m_spins_real[site1].resize(spins_real_index(0,0,s_L)/4);
+        #else
+            m_spins_real[site1].resize(3*lsize);
+        #endif
+        if(num_threads) {
+            m_field_pri_cached[site1].resize(lsize, 0.0);
+            m_field_pri_cached_sane.resize(lsize, 0);
+            for(int site2 = 0; site2 < 16; site2++) {
+                m_field_sec_cached[site2][site1].resize(lsize, 0.0);
+                m_field_sec_cached_sane[site2].resize(lsize, 0);
+                m_field_third_cached[site2][site1].resize(lsize, 0.0);
+                m_field_third_cached_sane[site2].resize(lsize, 0);
+            }
+            m_probability_buffers[0][site1].resize(lsize, 0.0);
+            m_probability_buffers[1][site1].resize(lsize, 0.0);
         }
-        m_probability_buffers[0][site1].resize(lsize, 0.0);
-        m_probability_buffers[1][site1].resize(lsize, 0.0);
     }
-        
-    fprintf(stderr, "# of spins = %d\n", 16*lsize);
-    randomize();
+
+    if(init_randomize) {
+        fprintf(stderr, "# of spins = %d\n", 16*lsize);
+        randomize();
+    }
 
 	for(int i = 0; i < num_threads - 1; i++) {
 		pthread_t tid;

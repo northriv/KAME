@@ -130,7 +130,7 @@ public:
         }
     }; 
 
-    MonteCarlo(int num_threads);
+    MonteCarlo(int num_threads, bool randomize = true);
     ~MonteCarlo();
     
     //! \return Delta U [J/A site].
