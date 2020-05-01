@@ -34,10 +34,10 @@ public:
 	virtual void showForms();
 
 	struct Payload : public XPrimaryDriver::Payload {
-		Payload() : m_fftlen(-1) {}
+        Payload() : m_fftlen(-1) {}
 	private:
 		friend class XMonteCarloDriver;
-		shared_ptr<MonteCarlo> m_loop, m_store;
+        std::vector<char> m_spins;
 		int m_fftlen;
 		fftw_complex *m_pFFTin[3];
 		fftw_complex *m_pFFTout[3];
@@ -96,6 +96,7 @@ private:
 	void onStepTouched(const Snapshot &shot, XTouchableNode *);
 	shared_ptr<Listener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;
+    shared_ptr<MonteCarlo> m_loop;
 };
 
 #endif /*KAMEMONTECARLO_H_*/
