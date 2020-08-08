@@ -241,8 +241,11 @@ void
 XCharInterface::send(const char *str) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
-        m_xport->send(str);
+        port->send(str);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -253,8 +256,11 @@ void
 XCharInterface::write(const char *sendbuf, int size) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
-        m_xport->write(sendbuf, size);
+        port->write(sendbuf, size);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -265,8 +271,11 @@ void
 XCharInterface::receive() {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Receiving...");
-        m_xport->receive();
+        port->receive();
         assert(buffer().size());
         dbgPrint(driver()->getLabel() + " Received;\"" +
                  dumpCString((const char*)&buffer()[0]) + "\"");
@@ -280,8 +289,11 @@ void
 XCharInterface::receive(unsigned int length) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
-        m_xport->receive(length);
+        port->receive(length);
         dbgPrint(driver()->getLabel() + QString(" %1 bytes Received.").arg(buffer().size()));
     }
     catch (XCommError &e) {

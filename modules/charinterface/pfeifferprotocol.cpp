@@ -61,6 +61,8 @@ XString
 XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     unsigned int param_no, const XString &str) {
     XScopedLock<XPfeifferProtocolInterface> lock( *this);
+    auto port = m_openedPort;
+
     XString buf;
     buf = formatString("%03u%02u%03u%02u", addr,
         iscontrol ? 10u : 0u, param_no, (unsigned int)str.length());
@@ -70,7 +72,8 @@ XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
         csum += c;
     csum = csum % 0x100u;
     buf += formatString("%03u", csum);
-    query(buf.c_str());
+    port->send(buf.c_str());
+    port->receive();
     unsigned int res_addr, res_action, res_param_no, res_len;
     if(scanf("%3u%2u%3u%2u", &res_addr, &res_action, &res_param_no, &res_len) != 4)
         throw XInterface::XConvError(__FILE__, __LINE__);
