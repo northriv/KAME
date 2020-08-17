@@ -43,11 +43,11 @@ XPfeifferProtocolInterface::open() throw (XInterfaceError &) {
             else
                 it = s_openedPorts.erase(it); //cleans garbage.
         }
+        //Opens new COMM device.
+        XCharInterface::open();
+        m_openedPort = openedPort();
+        s_openedPorts.push_back(m_openedPort);
     }
-    //Opens new COMM device.
-    XCharInterface::open();
-    m_openedPort = openedPort();
-    s_openedPorts.push_back(m_openedPort);
 }
 void
 XPfeifferProtocolInterface::close() throw (XInterfaceError &) {
@@ -61,6 +61,7 @@ XString
 XPfeifferProtocolInterface::action(unsigned int addr, bool iscontrol,
     unsigned int param_no, const XString &str) {
     XScopedLock<XPfeifferProtocolInterface> lock( *this);
+    XScopedLock<XMutex> glock(s_lock);
     auto port = m_openedPort;
 
     XString buf;
