@@ -1,15 +1,15 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
-		                   kitagawa@phys.s.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+        Copyright (C) 2002-2015 Kentaro Kitagawa
+                           kitagawa@phys.s.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "montecarlo.h"
 #include "rand.h"
@@ -40,12 +40,12 @@ std::vector<std::complex<MonteCarlo::Spin> > MonteCarlo::s_exp_ph[16];
 std::vector<int> MonteCarlo::s_4r2_neighbor;
 
 MonteCarlo::MonteCarlo(int num_threads, bool init_randomize)
-	: 
-	m_bTerminated(false),
-	m_sec_cache_enabled(false),
-	m_third_cache_enabled(false),
-	m_sec_cache_firsttime(true),
-	m_third_cache_firsttime(true)
+    :
+    m_bTerminated(false),
+    m_sec_cache_enabled(false),
+    m_third_cache_enabled(false),
+    m_sec_cache_firsttime(true),
+    m_third_cache_firsttime(true)
 {
     int lsize = s_num_spins/16;
 
@@ -55,18 +55,16 @@ MonteCarlo::MonteCarlo(int num_threads, bool init_randomize)
         #else
             m_spins_real[site1].resize(3*lsize);
         #endif
-        if(num_threads) {
-            m_field_pri_cached[site1].resize(lsize, 0.0);
-            m_field_pri_cached_sane.resize(lsize, 0);
-            for(int site2 = 0; site2 < 16; site2++) {
-                m_field_sec_cached[site2][site1].resize(lsize, 0.0);
-                m_field_sec_cached_sane[site2].resize(lsize, 0);
-                m_field_third_cached[site2][site1].resize(lsize, 0.0);
-                m_field_third_cached_sane[site2].resize(lsize, 0);
-            }
-            m_probability_buffers[0][site1].resize(lsize, 0.0);
-            m_probability_buffers[1][site1].resize(lsize, 0.0);
+        m_field_pri_cached[site1].resize(lsize, 0.0);
+        m_field_pri_cached_sane.resize(lsize, 0);
+        for(int site2 = 0; site2 < 16; site2++) {
+            m_field_sec_cached[site2][site1].resize(lsize, 0.0);
+            m_field_sec_cached_sane[site2].resize(lsize, 0);
+            m_field_third_cached[site2][site1].resize(lsize, 0.0);
+            m_field_third_cached_sane[site2].resize(lsize, 0);
         }
+        m_probability_buffers[0][site1].resize(lsize, 0.0);
+        m_probability_buffers[1][site1].resize(lsize, 0.0);
     }
 
     if(init_randomize) {
@@ -74,27 +72,27 @@ MonteCarlo::MonteCarlo(int num_threads, bool init_randomize)
         randomize();
     }
 
-	for(int i = 0; i < num_threads - 1; i++) {
-		pthread_t tid;
-		int ret =
-			pthread_create(&tid, NULL, xthread_start_routine, this);
-		assert(!ret);
-		m_threads.push_back(tid);
+    for(int i = 0; i < num_threads - 1; i++) {
+        pthread_t tid;
+        int ret =
+            pthread_create(&tid, NULL, xthread_start_routine, this);
+        assert(!ret);
+        m_threads.push_back(tid);
     }
 }
 MonteCarlo::~MonteCarlo()
 {
-	{
-		XScopedLock<XCondition> lock(m_thread_pool_cond);
+    {
+        XScopedLock<XCondition> lock(m_thread_pool_cond);
         m_bTerminated = true;
         m_thread_pool_cond.broadcast();
-	}
+    }
     for(deque<pthread_t>::iterator it = m_threads.begin(); it != m_threads.end(); it++)
-	{
-		void *retv;
-		int ret = pthread_join(*it, &retv);
-		assert(!ret);
-	}
+    {
+        void *retv;
+        int ret = pthread_join(*it, &retv);
+        assert(!ret);
+    }
 }
 void
 MonteCarlo::read(istream &is)
@@ -108,7 +106,7 @@ MonteCarlo::read(istream &is)
         getline(is, str);
     }
     int size;
-    sscanf(str.c_str(), "size=%d", &size); 
+    sscanf(str.c_str(), "size=%d", &size);
     if(size != s_L) throw "size mismatch\n";
     is >> str;
     if(str != "[") throw "ill format\n";
@@ -165,9 +163,9 @@ MonteCarlo::write(ostream &os)
     for(int site1 = 0; site1 < 16; site1++) {
         os << "[ ";
         for(int k1 = 0; k1 < s_L; k1++) {
-			os << "[ ";
-			for(int j1 = 0; j1 < s_L; j1++) {
-				os << "[ ";
+            os << "[ ";
+            for(int j1 = 0; j1 < s_L; j1++) {
+                os << "[ ";
                 for(int i1 = 0; i1 < s_L; i1++) {
                     os << "[ ";
                     int lidx = lattice_index(i1,j1,k1);
@@ -176,11 +174,11 @@ MonteCarlo::write(ostream &os)
                         char buf[31];
                         snprintf(buf, 30, "%.16g", m_field_pri_cached[site1][lidx]);
                         os << " " << buf;
-					}
+                    }
                     else
-					{
-						os << " ?";
-					}
+                    {
+                        os << " ?";
+                    }
                     os << " ] " ;
                 }
                 os << "]" << endl;
@@ -201,13 +199,13 @@ MonteCarlo::randomize()
     }
     for(int site1 = 0; site1 < 16; site1++) {
         for(int k1 = 0; k1 < s_L; k1++) {
-			for(int j1 = 0; j1 < s_L; j1++) {
+            for(int j1 = 0; j1 < s_L; j1++) {
                 for(int i1 = 0; i1 < s_L; i1++) {
                     int sidx = spins_real_index(i1,j1,k1);
                     int val = (randMT19937() < 0.5) ? 1 : -1;
                     writeSpin(val, site1, sidx);
                 }
-			}
+            }
         }
     }
     makeReciprocalImage();
@@ -269,14 +267,14 @@ MonteCarlo::takeThermalAverage(long double tests_after_check)
 
 double
 MonteCarlo::exec(double temp, Vector3<double> field, int *flips,
-				 long double *tests, double *DUav, Vector3<double> *Mav)
+                 long double *tests, double *DUav, Vector3<double> *Mav)
 {
     m_beta = 1.0/K_B/temp;
 
     for(int site1 = 0; site1 < 16; site1++) {
         m_ext_field[site1] = field.innerProduct(s_ASiteIsingVector[site1]);
     }
-    
+
     m_DeltaU = 0.0;
     m_SumDeltaU = 0.0;
     for(int site = 0; site < 16; site++) {
@@ -284,7 +282,7 @@ MonteCarlo::exec(double temp, Vector3<double> field, int *flips,
     }
     m_SumTests = 0.0;
     m_SumTestsAtLastFlip = 0.0;
-    
+
     m_flipHistory.clear();
 
     doTests(flips, *tests);
@@ -321,7 +319,7 @@ MonteCarlo::accelFlipping()
     m_sec_cache_enabled = true;
 
     double sum_p = 0.0;
-    
+
     int current_buffer;
     if(m_last_flipped_lattice_index >= 0) {
         // swap buffers.
@@ -335,7 +333,7 @@ MonteCarlo::accelFlipping()
         for(int site1 = 0; site1 < 16; site1++) {
             double *pprob = &m_probability_buffers[current_buffer][site1][0];
             for(int i = 0; i < s_num_spins/16; i++) {
-				sum_p += *(pprob++);
+                sum_p += *(pprob++);
             }
         }
     }
@@ -356,7 +354,7 @@ MonteCarlo::accelFlipping()
     }
     m_play_back_buffer = false;
     m_last_probability_buffer = current_buffer;
-    
+
     double p_av = sum_p / s_num_spins;
     if(p_av <= 0.0) return -1;
     // counts to next flip.
@@ -409,7 +407,7 @@ MonteCarlo::accelFlipping()
             n /= size;
             int k2 = n;
             VectorInt v = distance(site1, m_last_flipped_site,
-								   (i1 - i2 + size) % size, (j1 - j2 + size) % size, (k1 - k2 + size) % size); 
+                                   (i1 - i2 + size) % size, (j1 - j2 + size) % size, (k1 - k2 + size) % size);
             int d = v.x*v.x + v.y*v.y + v.z*v.z;
             assert(d > 0);
             for(int i = 0; i < 10; i++) {
@@ -424,7 +422,7 @@ MonteCarlo::accelFlipping()
                 }
             }
             if(sum_p > 3.0) {
-				// leave accel flipping mode.
+                // leave accel flipping mode.
                 m_last_probability_buffer = -1;
             }
         }
@@ -444,15 +442,15 @@ MonteCarlo::internalEnergy() {
     double U = 0.0;
     // iterate target site.
     for(int site1 = 0; site1 < 16; site1++) {
-		for(int lidx = 0; lidx < s_num_spins/16; lidx++) {
-			double h = 0.0;
-			h = hinteraction(site1, lidx);
-			// interacting field must be half.
-			h *= 0.5;
-			h += m_ext_field[site1];
-			U += -readSpin(site1, spins_real_index(lidx)) * A_MOMENT * MU_B * h;
-		}}
-    
+        for(int lidx = 0; lidx < s_num_spins/16; lidx++) {
+            double h = 0.0;
+            h = hinteraction(site1, lidx);
+            // interacting field must be half.
+            h *= 0.5;
+            h += m_ext_field[site1];
+            U += -readSpin(site1, spins_real_index(lidx)) * A_MOMENT * MU_B * h;
+        }}
+
     U /= s_num_spins;
     return U;
 }
@@ -488,37 +486,37 @@ MonteCarlo::doTests(int *flips, long double tests)
             tests_accel_flip += adv;
             flipped++;
             if(m_last_probability_buffer < 0) {
-                fprintf(stderr, "\nSkipped tests = %Lg. Flipped = %d\n", 
-						(long double)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
+                fprintf(stderr, "\nSkipped tests = %Lg. Flipped = %d\n",
+                        (long double)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
                 accel_flip = false;
 //                activateThreading();
             }
             continue;
         }
-        
+
         // pick-up target spin.
         int idx = (int)floor(randMT19937() * s_num_spins);
 
         int site = idx % 16;
         int lidx = idx / 16;
-        
+
         double h = hinteraction(site, lidx);
 
         double du = 0.0;
         double probability = flippingProbability(site, lidx, h, &du);
-        
+
         tested++;
         tests_after_check++;
-        
+
         if((probability >= 1) || (randMT19937() < probability)) {
             flipSpin(site, lidx, du, tests_after_check);
             tests_after_check = 0;
             flipped++;
         }
-        
+
         if((tested % s_num_spins == 0) && (tested != 0)) {
             int flips = flipped - flipped_checked;
-            
+
             if(flips <= 0) {
                 fprintf(stderr, "Flipping Acceleration...");
                 accel_flip = true;
@@ -542,9 +540,9 @@ MonteCarlo::doTests(int *flips, long double tests)
                 }
             }
             else {
-                double hit_prob_estimate = 
+                double hit_prob_estimate =
                     pow(1.0 - (double)flips / m_hinteractions_called /16 / (s_L*s_L*s_L)
-						* (4.0*M_PI/3.0*s_cutoff_real/2*s_cutoff_real/2*s_cutoff_real/2), (double)s_num_spins);
+                        * (4.0*M_PI/3.0*s_cutoff_real/2*s_cutoff_real/2*s_cutoff_real/2), (double)s_num_spins);
                 if(hit_prob_estimate > THIRD_CACHE_ON_FACTOR) {
                     m_third_cache_enabled = true;
                     m_third_cache_firsttime = true;
@@ -568,7 +566,7 @@ MonteCarlo::doTests(int *flips, long double tests)
                 m_sec_cache_firsttime = false;
             }
             else {
-                double hit_prob_estimate = 
+                double hit_prob_estimate =
                     pow(1.0 - (double)flips / m_hinteractions_called /16, (double)s_num_spins);
                 if(hit_prob_estimate > SEC_CACHE_ON_FACTOR) {
                     m_sec_cache_enabled = true;
@@ -578,14 +576,14 @@ MonteCarlo::doTests(int *flips, long double tests)
                 }
             }
             m_sec_cache_hit = 0;
-                        
+
             flipped_checked = flipped;
             m_hinteractions_called = 0;
-        } 
+        }
     }
     if(accel_flip) {
-        fprintf(stderr, "\nSkipped tests = %Lg. Flipped = %d\n", 
-				(long double)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
+        fprintf(stderr, "\nSkipped tests = %Lg. Flipped = %d\n",
+                (long double)(tests_accel_flip - tests_accel_flip_started), flipped - flipped_accel_flip_started);
     }
     *flips = flipped;
     takeThermalAverage(tests_after_check);
@@ -597,7 +595,7 @@ MonteCarlo::modifyReciprocalImage(Spin diff, int site1, int i, int j, int k)
     int cutoff = s_cutoff_rec;
     int cnt = 2*cutoff + 1;
     complex<Spin> *pspin = &m_spins_rec[site1][0];
-    
+
     Vector3<double> pos1(cg_ASitePositions[site1]);
     pos1 *= LATTICE_CONST / 4.0;
     double phx = -2*M_PI / (LATTICE_CONST * s_L) * (i * LATTICE_CONST + pos1.x);
@@ -606,9 +604,9 @@ MonteCarlo::modifyReciprocalImage(Spin diff, int site1, int i, int j, int k)
     complex<Spin> exp_i_rx = exp(complex<Spin>(0.0, phx));
     complex<Spin> exp_i_ry = exp(complex<Spin>(0.0, phy));
     complex<Spin> exp_i_rz = exp(complex<Spin>(0.0, phz));
-        
+
     complex<Spin> exp_ikrz = ((Spin)diff)
-		* exp(complex<Spin>(0.0, -cutoff * (phx + phy)));
+        * exp(complex<Spin>(0.0, -cutoff * (phx + phy)));
     for(int kz = 0; kz <= cutoff; kz++) {
         complex<Spin> exp_ikryz = exp_ikrz;
         for(int ky = -cutoff; ky <= cutoff; ky++) {
@@ -645,7 +643,7 @@ void
 MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_check)
 {
     takeThermalAverage(tests_after_check);
-    
+
     m_DeltaU += du;
 
     int sidx = spins_real_index(lidx);
@@ -660,7 +658,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
     // flip spin. keep repeated image.
     writeSpin(-oldv, site1, sidx);
     assert(spins_real_index(i,j,k) == sidx);
-    
+
     FlipHistory hist;
     hist.lidx = lidx;
     hist.site = site1;
@@ -668,7 +666,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
     hist.tests = (m_SumTests - m_SumTestsAtLastFlip);
     m_flipHistory.push_back(hist);
     m_SumTestsAtLastFlip = m_SumTests;
-    
+
     //set dirty flags to caches.
     fill(m_field_pri_cached_sane.begin(), m_field_pri_cached_sane.end(), 0);
     if(m_sec_cache_enabled) {
@@ -697,7 +695,7 @@ MonteCarlo::flipSpin(int site1, int lidx, double du, long double tests_after_che
             }
         }
     }
-    
+
 }
 void
 MonteCarlo::write(char *data, double *fields, double *probabilities)
@@ -778,8 +776,8 @@ MonteCarlo::write_48fsite(Vector3<double> *fields)
 }
 void
 MonteCarlo::write_flips(std::deque<FlipHistory> &buf) {
-	buf.resize(m_flipHistory.size());
-	std::copy(m_flipHistory.begin(), m_flipHistory.end(), buf.begin());
+    buf.resize(m_flipHistory.size());
+    std::copy(m_flipHistory.begin(), m_flipHistory.end(), buf.begin());
 }
 
 void
@@ -790,7 +788,7 @@ MonteCarlo::read(const char *data, double temp, Vector3<double> field)
     for(int site1 = 0; site1 < 16; site1++) {
         m_ext_field[site1] = field.innerProduct(s_ASiteIsingVector[site1]);
     }
-    
+
     for(int site = 0; site < 16; site++) {
         for(int k1 = 0; k1 < s_L; k1++) {
             for(int j1 = 0; j1 < s_L; j1++) {

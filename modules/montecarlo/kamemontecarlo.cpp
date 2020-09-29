@@ -416,7 +416,7 @@ XMonteCarloDriver::visualize(const Snapshot &shot) {
     std::vector<double> probabilities;
     if(calcp) probabilities.resize(size*size*size*16);
     stored.write((char*)&spins[0]
-				   , fields.size() ? &fields[0] : 0, probabilities.size() ? &probabilities[0] : 0);
+                   , fields.size() ? &fields[0] : 0, probabilities.size() ? &probabilities[0] : 0);
     int fftlen = shot[ *this].m_fftlen;
     for(int d = 0; d < 3; d++) {
         for(int site = 0; site < 16; site++) {
