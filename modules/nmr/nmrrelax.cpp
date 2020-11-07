@@ -822,13 +822,12 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
     tr[ *this].m_sumpts.resize(samples);
     auto &sumpts(tr[ *this].m_sumpts);
-
     {
-        Payload::Pt dummy;
-        dummy.c = 0; dummy.p1 = 0; dummy.isigma = 0;
+    //Building recovery curves after rounding log(P1) from all of aquirred points.
+        Payload::Pt dummy = {};
         dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
         std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
-        double k = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
+        double k = (shot_this[ *this].m_sumpts.size() - 1) / log(p1max/p1min);
         auto pts_begin(shot_this[ *this].m_pts.begin());
         auto pts_end(shot_this[ *this].m_pts.end());
         int sum_size = (int)shot_this[ *this].m_sumpts.size();
