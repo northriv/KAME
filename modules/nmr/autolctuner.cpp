@@ -902,12 +902,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             further_test = further_test || (backlash / fabs(testdelta) < -shot_this[ *backlushMinusTh()])
                     || (fabs(backlash / testdelta) > shot_this[ *backlushPlusTh()]);
         }
-        if(further_test) {
-        //Capacitance is sticking, test angle is too small, or poor fitting.
-            double multiplier_to_reach_f0 = (f0 * 1e6 - shot_this[ *this].fitRotated->f0()) / (shot_this[ *this].fitRotated->f0() - shot_this[ *this].fitOrig->f0());
-            double rlmin_prev = std::abs(shot_this[ *this].fitOrig->rl(2.0 * M_PI * shot_this[ *this].fitOrig->f0()));
-            constexpr long MULTIPLIER_MAX = 6L;
-            if((std::max(rlmin, rlmin_prev) < tune_approach_goal) && (fabs(multiplier_to_reach_f0) < MULTIPLIER_MAX)) {
+        double multiplier_to_reach_f0 = (f0 * 1e6 - shot_this[ *this].fitRotated->f0()) / (shot_this[ *this].fitRotated->f0() - shot_this[ *this].fitOrig->f0());
+        double rlmin_prev = std::abs(shot_this[ *this].fitOrig->rl(2.0 * M_PI * shot_this[ *this].fitOrig->f0()));
+        constexpr long MULTIPLIER_MAX = 6L;
+        bool test_with_good_resonance = (std::max(rlmin, rlmin_prev) < tune_approach_goal) &&
+            (fabs(multiplier_to_reach_f0) < MULTIPLIER_MAX) && (fabs(multiplier_to_reach_f0) > 0.2);
+        if(further_test || test_with_good_resonance) {
+            if(test_with_good_resonance) {
                 //The last two steps satisfied the reflection level, but the resonant frequency needs to be tuned.
                 //good fit is expected after next 1-axis step.
                 testdelta *= multiplier_to_reach_f0;
@@ -915,6 +916,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                      formatString("Adjusting test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
             }
             else {
+                //Capacitance is sticking, test angle is too small, or poor fitting.
                 testdelta *= std::min(MULTIPLIER_MAX, 2L + lrint(fabs(backlash / testdelta) * 5));
                 testdelta = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
                 message +=
