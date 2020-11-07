@@ -906,7 +906,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         double rlmin_prev = std::abs(shot_this[ *this].fitOrig->rl(2.0 * M_PI * shot_this[ *this].fitOrig->f0()));
         constexpr long MULTIPLIER_MAX = 6L;
         bool test_with_good_resonance = (std::max(rlmin, rlmin_prev) < tune_approach_goal) &&
-            (fabs(multiplier_to_reach_f0) < MULTIPLIER_MAX) && (fabs(multiplier_to_reach_f0) > 0.2);
+            (fabs(multiplier_to_reach_f0) < MULTIPLIER_MAX) && (fabs(multiplier_to_reach_f0) > 0.15);
         if(further_test || test_with_good_resonance) {
             if(test_with_good_resonance) {
                 //The last two steps satisfied the reflection level, but the resonant frequency needs to be tuned.
