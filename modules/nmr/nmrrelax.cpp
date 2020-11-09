@@ -369,9 +369,9 @@ XNMRT1::obtainNextP1(Transaction &tr) {
             double p1min = shot[ *p1Min()];
             double p1max = shot[ *p1Max()];
             int lb = 0, ub = samples;
-            double k_0 = samples / log(p1max/p1min);
+            double k_0 = (samples - 1) / log(p1max/p1min);
             int idx_p1next = lrint(log(shot[ *p1Next()] / p1min) * k_0);
-            idx_p1next = std::min(std::max(idx_p1next, 0), samples);
+            idx_p1next = std::min(std::max(idx_p1next, 0), samples - 1);
             bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
             bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
             const auto &sumpts = shot[ *this].m_sumpts;
