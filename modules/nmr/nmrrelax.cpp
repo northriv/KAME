@@ -173,7 +173,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *autoWindow()] = true;
         tr[ *mInftyFit()] = true;
         tr[ *trackPeak()] = false;
-        tr[ *smoothSamples()] = 40;
+        tr[ *smoothSamples()] = 33;
 
 
         tr[ *mapMode()].add({"Off", "AllNonNegative", "Noise Analysis", "L Curve", "GCV"});
@@ -1195,6 +1195,9 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
                 tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
             });
         }
+        shot_this = iterate_commit([=](Transaction &tr){
+            obtainNextP1(tr);
+        });
         setNextP1(shot_this);
         if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
             iterate_commit([=](Transaction &tr){
