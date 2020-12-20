@@ -31,4 +31,18 @@ private:
 	const tfuncIC m_funcIC;
 };
 
+#include <Eigen/Core>
+
+//! Fourier-series expansion solved by truncated SVD.
+class TSVDFourierSeries : public SpectrumSolver {
+public:
+protected:
+    virtual void genSpectrum(const std::vector<std::complex<double> >& memin,
+        std::vector<std::complex<double> >& memout,
+        int t0, double tol, FFT::twindowfunc windowfunc, double windowlength);
+private:
+    long m_xlen = 0, m_ylen = 0;
+    Eigen::MatrixXcd m_AinvReg; //SVD solutions.
+};
+
 #endif /*FREQESTLEASTSQUARE_H_*/

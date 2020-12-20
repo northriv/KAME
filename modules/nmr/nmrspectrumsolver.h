@@ -59,7 +59,8 @@ public:
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];
-	static const char SPECTRUM_SOLVER_MEM_STRICT[];
+    static const char SPECTRUM_SOLVER_TSVD_FS[];
+    static const char SPECTRUM_SOLVER_MEM_STRICT[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT_BURG[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_AICc[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_MDL[];
