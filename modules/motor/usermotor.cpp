@@ -315,6 +315,7 @@ XFlexAR::sendStopSignal(bool wait) {
             uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
             netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
             interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
+            msecsleep(4);
             interface()->presetTwoResistors(0x7c, netin & ~0x20uL);
 			if( !wait)
 				break;
