@@ -100,6 +100,8 @@ protected:
 	virtual double getHeater(unsigned int loop) = 0;
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
+    //! converts displayed interval setting to unit in second to calculate \a stabilized().
+    virtual double currentIntervalSettingInSec(const Snapshot &shot, unsigned int lp) {return shot[ *interval(lp)];}
   
 	bool hasExtDevice(const Snapshot &shot, unsigned int lp) const {return loop(lp)->hasExtDevice(shot);}
 

@@ -293,6 +293,7 @@ protected:
     virtual double getTemp(shared_ptr<XChannel> &channel) override;
     //! ex. "W", "dB", or so
     virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
+    virtual double currentIntervalSettingInSec(const Snapshot &shot, unsigned int lp) override {return 1000.0 / shot[ *interval(lp)];}
     virtual void onPChanged(unsigned int loop, double p) override;
     virtual void onIChanged(unsigned int loop, double i) override;
     virtual void onDChanged(unsigned int loop, double d) override;
