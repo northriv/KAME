@@ -336,7 +336,7 @@ XCryogenicSMS::toPersistent() {
 	interface()->send("HEATER OFF");
 	receiveMessage("HEATER STATUS");
 
-	setRate(10.0); //Setting very high rate.
+    setRate(10.0); //Setting very high rate.
 }
 void
 XCryogenicSMS::toNonPersistent() {
@@ -406,6 +406,8 @@ XCryogenicSMS::setPoint(double field) {
 void
 XCryogenicSMS::setRate(double hpm) {
 	XScopedLock<XInterface> lock( *interface());
+    if(Snapshot( *this)[ *persistent()])
+        return; //ignores if the supply is already in persistent mode. See toNonPersistent().
 	double amp_per_sec = hpm / 60.0 / teslaPerAmp();
 	interface()->sendf("SET RAMP %.5g", amp_per_sec);
 	double x;
