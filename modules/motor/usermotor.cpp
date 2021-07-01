@@ -293,7 +293,7 @@ XFlexAR::getConditions(Transaction &tr) {
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
 	XScopedLock<XInterface> lock( *interface());
-	sendStopSignal(true);
+    sendStopSignal(false);
 	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
 	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
