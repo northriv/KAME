@@ -210,7 +210,8 @@ XFlexAR::getStatus(const Snapshot &shot, double *position, bool *slipping, bool 
 void
 XFlexAR::changeConditions(const Snapshot &shot) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->presetTwoResistors(0x240,  lrint(shot[ *currentRunning()] * 10.0));
+    interface()->presetTwoResistors(0x200,  1); //slowing down on STOP
+    interface()->presetTwoResistors(0x240,  lrint(shot[ *currentRunning()] * 10.0));
 	interface()->presetTwoResistors(0x242,  lrint(shot[ *currentStopping()] * 10.0));
 	interface()->presetTwoResistors(0x28c, 0); //common setting for acc/dec.
 	interface()->presetTwoResistors(0x280,  lrint(shot[ *timeAcc()] * 1e3));
@@ -274,7 +275,6 @@ XFlexAR::getConditions(Transaction &tr) {
 	tr[ *roundBy()] = interface()->readHoldingTwoResistors(0x390);
     tr[ *active()] = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
 
-	interface()->presetTwoResistors(0x200, 3); //Inactive after stop.
 	interface()->presetTwoResistors(0x500, 1); //Absolute.
 	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
 	interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
