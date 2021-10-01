@@ -222,15 +222,23 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
             case SelectionMode::SelAxis:
 				m_graph->iterate_commit([=](Transaction &tr){
 					if( !m_foundAxis) {
-						//Autoscales all axes
-						if(tr.size(m_graph->axes())) {
-							const auto &axes_list( *tr.list(m_graph->axes()));
-							for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
-								shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
-								if(tr[ *axis->autoScale()].isUIEnabled())
-									tr[ *axis->autoScale()] = true;
-							}
-						}
+                        bool all_autoscaled = true;
+                        //Autoscales all axes
+                        if(tr.size(m_graph->axes())) {
+                            const auto &axes_list( *tr.list(m_graph->axes()));
+                            for(auto it = axes_list.begin(); it != axes_list.end(); it++) {
+                                shared_ptr<XAxis> axis = static_pointer_cast<XAxis>(*it);
+                                if(tr[ *axis->autoScale()].isUIEnabled())
+                                    if( !tr[ *axis->autoScale()]) {
+                                        all_autoscaled = false; //at least 1 axis is manually scaled.
+                                        tr[ *axis->autoScale()] = true;
+                                    }
+                            }
+                        }
+                        if(all_autoscaled) {
+                            //alt way for middle click.
+                            viewRotate(0.0, 0.0, 0.0, 0.0, true);
+                        }
 					}
 					else {
 						if(tr[ *m_foundAxis->autoScale()].isUIEnabled())
