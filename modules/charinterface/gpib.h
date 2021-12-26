@@ -36,19 +36,19 @@ public:
 	XNIGPIBPort(XCharInterface *interface);
 	virtual ~XNIGPIBPort();
  
-    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
-	virtual void send(const char *str) throw (XInterface::XCommError &);
-	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-	virtual void receive() throw (XInterface::XCommError &);
-	virtual void receive(unsigned int length) throw (XInterface::XCommError &);
+    virtual void open(const XCharInterface *pInterface);
+    virtual void send(const char *str);
+    virtual void write(const char *sendbuf, int size);
+    virtual void receive();
+    virtual void receive(unsigned int length);
 
 private:
 	int m_ud;
-	void gpib_close() throw (XInterface::XCommError &);
-    void gpib_open() throw (XInterface::XCommError &);
-    void gpib_reset() throw (XInterface::XCommError &);
-    void gpib_spoll_before_write() throw (XInterface::XCommError &);
-	void gpib_spoll_before_read() throw (XInterface::XCommError &);
+    void gpib_close();
+    void gpib_open();
+    void gpib_reset();
+    void gpib_spoll_before_write();
+    void gpib_spoll_before_read();
 	XString gpibStatus(const XString &msg);
 	unsigned int gpib_receive(unsigned int est_length, unsigned int max_length)
 		throw (XInterface::XCommError &);

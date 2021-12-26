@@ -139,7 +139,7 @@ public:
         virtual XString to_str() const = 0;
         //! Sets value as a string, which is used for scripting.
         //! This throws exception when the validator throws.
-        void str(const XString &str) throw (XKameError &) {
+        void str(const XString &str) {
             XString sc(str);
             if(static_cast<XValueNodeBase&>(node()).m_validator)
                 (*static_cast<XValueNodeBase&>(node()).m_validator)(sc);

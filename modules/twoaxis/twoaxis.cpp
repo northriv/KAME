@@ -256,7 +256,7 @@ XTwoAxis::onAbortTouched(const Snapshot &shot, XTouchableNode *) {
 
 void
 XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     Snapshot &shot_this(tr);
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];

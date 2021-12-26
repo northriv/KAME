@@ -26,9 +26,9 @@ public:
     int hdwf() const noexcept {return m_hdwf;}
     void throwWFError(XString &&msg, const char *file, int line);
 protected:
-    virtual void open() throw (XInterfaceError &) override;
+    virtual void open() override;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) override;
+    virtual void close() override;
 private:
     int m_hdwf;
 };
@@ -46,9 +46,10 @@ protected:
     }
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) {this->start();}
+    virtual void open() {this->start();}
     //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) {interface()->stop();}
+    virtual void close() {interface()->stop();}
+
     void onOpen(const Snapshot &shot, XInterface *);
     void onClose(const Snapshot &shot, XInterface *);
     //! This should not cause an exception.
@@ -65,7 +66,7 @@ public:
     XDigilentWFDSO(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     //! Converts the raw to a display-able style.
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 protected:
     virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) override {}
     virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *) override {}
@@ -90,9 +91,9 @@ protected:
     virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *) override;
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
     //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) override;
+    virtual void close() override;
 
     virtual double getTimeInterval() override;
     //! clear count or start sequence measurement

@@ -89,7 +89,7 @@ XPfeifferTC110::changeStandbyRotationSpeed(double p) {
     interface()->control(address, DATATYPE::U_REAL, 717, std::max(0.0, std::min(100.0, p)));
 }
 void
-XPfeifferTC110::open() throw (XKameError &) {
+XPfeifferTC110::open() {
     unsigned int address = Snapshot( *this)[ *interface()->address()];
     double dp = interface()->requestUInt(address, DATATYPE::U_SHORT_INT, 708);
     double rs = interface()->requestReal(address, DATATYPE::U_REAL, 717);

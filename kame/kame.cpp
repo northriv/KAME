@@ -16,19 +16,24 @@
 #include <QAction>
 #include <QMenu>
 #include <QMenuBar>
-#include <QDesktopWidget>
 #include <QApplication>
+#include <QScreen>
 #include <QDockWidget>
 #include <QCloseEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QMainWindow>
+#include <QWindow>
 #include <QMessageBox>
 #include <QFileDialog>
 #ifdef WITH_KDE
 	#include <kstandarddirs.h>
 #else
 	#include <QStandardPaths>
+#endif
+
+#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
+    #include <QActionGroup>
 #endif
 
 #include "kame.h"
@@ -149,7 +154,7 @@ FrmKameMain::FrmKameMain()
 
 //	resize(QSize(std::min(1280, width()), 560));
     //rearranges window positions, sizes.
-    QRect rect = QApplication::desktop()->availableGeometry(dockLeft);
+    QRect rect = dockLeft->window()->windowHandle()->screen()->availableGeometry();
     dockLeft->setFloating(true);
     dockLeft->setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint |
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
@@ -411,7 +416,9 @@ void FrmKameMain::fileSaveAction_activated() {
     dialog.setWindowTitle(i18n("Save Measurement File"));
     dialog.setViewMode(QFileDialog::Detail);
     dialog.setNameFilter(filter);
-    dialog.setConfirmOverwrite(true);
+    #if QT_VERSION < QT_VERSION_CHECK(5,4,0)
+        dialog.setConfirmOverwrite(true);
+    #endif
     dialog.setDefaultSuffix("kam");
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     if( !dialog.exec())
@@ -518,7 +525,11 @@ void FrmKameMain::scriptLineShellAction_activated() {
 #ifdef WITH_KDE
         KStandardDirs::locate("appdata", RUBYLINESHELL_FILE);
 #else
-        QStandardPaths::locate(QStandardPaths::DataLocation, RUBYLINESHELL_FILE);
+        #if QT_VERSION >= QT_VERSION_CHECK(5,4,0)
+            QStandardPaths::locate(QStandardPaths::AppDataLocation, RUBYLINESHELL_FILE);
+        #else
+            QStandardPaths::locate(QStandardPaths::DataLocation, RUBYLINESHELL_FILE);
+        #endif
     if(filename.isEmpty()) {
         //for macosx/win
         QDir dir(QApplication::applicationDirPath());

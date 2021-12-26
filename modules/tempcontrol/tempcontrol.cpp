@@ -395,7 +395,7 @@ void XTempControl::showForms() {
 	m_form->raise();
 }
 
-void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	try {
 		for(;;) {
 			//! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s

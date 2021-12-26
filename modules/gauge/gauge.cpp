@@ -22,7 +22,7 @@ XGauge::XGauge(const char *name, bool runtime,
 }
 
 void
-XGauge::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XGauge::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     for(unsigned int ch = 0; ch < tr[ *this].m_pressures.size(); ch++) {
         tr[ *this].m_pressures[ch] = reader.pop<double>();
         m_entries[ch]->value(tr, tr[ *this].m_pressures[ch]);

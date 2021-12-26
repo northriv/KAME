@@ -42,10 +42,10 @@ protected:
     virtual void startContSweep();
     virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
     //! Converts raw to dispaly-able
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr);
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 };
 
 class Ui_FrmThamwayPROT;

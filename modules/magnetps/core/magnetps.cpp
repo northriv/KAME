@@ -184,7 +184,7 @@ XMagnetPS::onConfigShow(const Snapshot &shot, XTouchableNode *) {
     m_formConfig->raise();
 }
 void
-XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	tr[ *this].m_magnetField = reader.pop<float>();
 	tr[ *this].m_outputCurrent = reader.pop<float>();
 	m_field->value(tr, tr[ *this].m_magnetField);

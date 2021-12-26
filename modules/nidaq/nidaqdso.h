@@ -25,9 +25,9 @@ public:
     virtual ~XNIDAQmxDSO() = default;
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
     //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) override;
+    virtual void close() override;
 
     //! Changes the instrument state so that it can wait for a trigger (arm).
     virtual void startAcquision() override;

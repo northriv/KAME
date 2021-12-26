@@ -87,7 +87,7 @@ XSG::stop() {
 }
 
 void
-XSG::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XSG::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	tr[ *this].m_freq = reader.pop<double>();
 }
 void

@@ -126,7 +126,7 @@ void XPumpControl::onMaxDriverPowerChanged(const Snapshot &, XValueNodeBase *) {
     }
 }
 
-void XPumpControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+void XPumpControl::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     try {
         for(;;) {
             //! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s

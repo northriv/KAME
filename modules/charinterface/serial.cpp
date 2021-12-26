@@ -49,7 +49,7 @@ XSerialPort::~XSerialPort() {
 #endif /*SERIAL_WIN32*/
 
 void
-XSerialPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
+XSerialPort::open(const XCharInterface *pInterface) {
     Snapshot shot( *pInterface);
 
 #ifdef SERIAL_POSIX
@@ -153,7 +153,7 @@ XSerialPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
     fprintf(stderr, "Serial port opened w/ baudrate=%d\n", (int)pInterface->serialBaudRate());
 }
 void
-XSerialPort::send(const char *str) throw (XInterface::XCommError &) {
+XSerialPort::send(const char *str) {
 	XString buf(str);
     buf += eos();
     if(m_serialHasEchoBack) {
@@ -166,7 +166,7 @@ XSerialPort::send(const char *str) throw (XInterface::XCommError &) {
 	}
 }
 void
-XSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+XSerialPort::write(const char *sendbuf, int size) {
     if(m_serialHasEchoBack && (size >= 2) && isprint(sendbuf[0])) {
 		for(int cnt = 0; cnt < size; ++cnt) {
 		//sends 1 char.
@@ -240,7 +240,7 @@ XSerialPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 	} while (wlen < size);
 }
 void
-XSerialPort::receive() throw (XInterface::XCommError &) {
+XSerialPort::receive() {
 //   for(;;) {
 //        if(tcdrain(m_scifd) < 0) {
 //            dbgPrint("tcdrain failed, continue.");
@@ -290,7 +290,7 @@ XSerialPort::receive() throw (XInterface::XCommError &) {
 	buffer().at(len) = '\0';
 }
 void
-XSerialPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+XSerialPort::receive(unsigned int length) {
 //   for(;;) {
 //        if(tcdrain(m_scifd) < 0) {
 //            dbgPrint("tcdrain failed, continue.");

@@ -623,7 +623,7 @@ XNMRT1::checkDependency(const Snapshot &shot_this,
 
 void
 XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     Snapshot &shot_this(tr);
 
     double p1min = shot_this[ *p1Min()];

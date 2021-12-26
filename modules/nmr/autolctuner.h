@@ -39,7 +39,7 @@ protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter,
 		const Snapshot &shot_others,
-		XDriver *emitter) throw (XRecordError&);
+		XDriver *emitter);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);

@@ -46,9 +46,10 @@ protected:
     virtual void changeStandbyRotationSpeed(double p) override; //[%]
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
 private:
     using DATATYPE = XPfeifferProtocolInterface::DATATYPE;
+
 };
 
 #endif

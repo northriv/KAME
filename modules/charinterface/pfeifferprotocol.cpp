@@ -26,7 +26,7 @@ XPfeifferProtocolInterface::XPfeifferProtocolInterface(const char *name, bool ru
 }
 
 void
-XPfeifferProtocolInterface::open() throw (XInterfaceError &) {
+XPfeifferProtocolInterface::open() {
     XScopedLock<XPfeifferProtocolInterface> lock( *this);
     {
         Snapshot shot( *this);
@@ -50,7 +50,7 @@ XPfeifferProtocolInterface::open() throw (XInterfaceError &) {
     }
 }
 void
-XPfeifferProtocolInterface::close() throw (XInterfaceError &) {
+XPfeifferProtocolInterface::close() {
     XScopedLock<XPfeifferProtocolInterface> lock( *this);
     XScopedLock<XMutex> glock(s_lock);
     m_openedPort.reset(); //release shared_ptr to the port if any.

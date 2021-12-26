@@ -103,9 +103,9 @@ public:
     XCyFXUSBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
     virtual ~XCyFXUSBInterface();
 
-    virtual void open() throw (XInterfaceError &) override;
+    virtual void open() override;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) override;
+    virtual void close() override;
 
     //! must be called during the constructor of the inherited class.
     void initialize();

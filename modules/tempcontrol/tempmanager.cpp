@@ -314,7 +314,7 @@ bool XTempManager::checkDependency(const Snapshot &shot_this,
 }
 void XTempManager::analyze(Transaction &tr, const Snapshot &shot_emitter,
     const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     const Snapshot &shot_this(tr);
     const shared_ptr<XTempControl> maindev = shot_this[ *mainDevice()];
     assert(maindev);

@@ -69,7 +69,7 @@ XLIA::showForms() {
 }
 
 void
-XLIA::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XLIA::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     double x, y;
     x = reader.pop<double>();
     y = reader.pop<double>();

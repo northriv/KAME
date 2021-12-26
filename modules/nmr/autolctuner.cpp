@@ -657,7 +657,7 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 void
 XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     const Snapshot &shot_this(tr);
     const Snapshot &shot_na(shot_emitter);
 

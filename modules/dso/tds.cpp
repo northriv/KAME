@@ -40,7 +40,7 @@ XTDS::XTDS(const char *name, bool runtime,
 }
 
 void
-XTDS::open() throw (XKameError &) {
+XTDS::open() {
 	interface()->send("HEADER ON");
 	interface()->query("ACQ:STOPAFTER?");
 	char buf[10];
@@ -207,7 +207,7 @@ XTDS::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) {
 	}
 }
 void
-XTDS::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XTDS::convertRaw(RawDataReader &reader, Transaction &tr) {
 	double xin = 0;
 	double yin[256], yoff[256];
 	int width = 0;

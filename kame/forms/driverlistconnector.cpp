@@ -142,7 +142,7 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
         pixmap.fill(Qt::transparent);
         QPainter painter( &pixmap);
         QFont font(painter.font());
-        font.setPixelSize(std::min(48, 92 / str.length()));
+        font.setPixelSize(std::min(48, 92 / (int)str.length()));
         painter.setFont(font);
         font.setBold(true);
         QPen pen(clr);

@@ -15,8 +15,8 @@
 #include "messagebox.h"
 #include "xnodeconnector.h"
 #include <QMainWindow>
-#include <QApplication>
-#include <QDesktopWidget>
+#include <QWindow>
+#include <QScreen>
 #include <QTimer>
 
 #include "ui_messageform.h"
@@ -32,7 +32,7 @@ XMessageBox::XMessageBox(QWidget *parent) {
 
     s_pFrmMessage->m_widget->hide();
 
-    QRect rect = QApplication::desktop()->availableGeometry(s_pFrmMessage);
+    QRect rect = s_pFrmMessage->window()->windowHandle()->screen()->availableGeometry();
     int y = rect.bottom() - s_pFrmMessage->frameSize().height();
     s_pFrmMessage->move(0, y);
 //    s_pFrmMessage->m_list->setMouseTracking(true); //for statusTip.

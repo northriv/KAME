@@ -461,7 +461,7 @@ XDSO::Payload::setParameters(unsigned int channels, double startpos, double inte
 	m_timeIntervalDisp = interval;
 }
 void
-XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
+XDSO::demodulateDisp(Transaction &tr) {
 	Snapshot &shot(tr);
 	unsigned int num_channels = shot[ *this].numChannelsDisp();
 	unsigned int length = shot[ *this].lengthDisp();
@@ -507,7 +507,7 @@ XDSO::demodulateDisp(Transaction &tr) throw (XRecordError&) {
 	}
 }
 void
-XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) {
     convertRaw(reader, tr);
     
 	Snapshot &shot(tr);
@@ -537,7 +537,7 @@ XDSO::convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordErr
 	}
 }
 void
-XDSO::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XDSO::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     convertRawToDisp(reader, tr);
 
 	if(tr[ *this].m_rawDisplayOnly) {

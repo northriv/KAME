@@ -30,7 +30,7 @@ public:
 	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(Transaction &, int) {}
 protected:
-	virtual void open() throw (XKameError &);
+	virtual void open();
 };
 
 //!ADVANTEST TR6142/R6142/R6144 DC V/DC A source
@@ -45,7 +45,7 @@ public:
 	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(Transaction &, int) {}
 protected:
-	virtual void open() throw (XKameError &);
+	virtual void open();
 };
 
 //!MicroTask/Leiden Triple Current Source.
@@ -60,7 +60,7 @@ public:
 	virtual double max(int ch, bool autorange) const;
 	virtual void queryStatus(Transaction &tr, int ch);
 protected:
-	virtual void open() throw (XKameError &);
+	virtual void open();
 };
 #endif
 

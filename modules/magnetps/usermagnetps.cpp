@@ -25,7 +25,7 @@ XPS120::XPS120(const char *name, bool runtime,
 }
 
 void
-XPS120::setActivity(int val) throw (XInterface::XInterfaceError&) {
+XPS120::setActivity(int val) {
 	int ret;
 	XScopedLock<XInterface> lock( *interface());
 	for(int i = 0; i < 3; i++) {
@@ -205,7 +205,7 @@ XPS120::isPCSFitted() {
 	return (ret != 8);
 }
 void
-XPS120::setPCSHeater(bool val) throw (XInterface::XInterfaceError&) {
+XPS120::setPCSHeater(bool val) {
 	interface()->sendf("H%u", (unsigned int)(val ? 1 : 0));
 	msecsleep(200);
 	if(isPCSHeaterOn() != val)
@@ -232,7 +232,7 @@ XPS120::setRate(double hpm) {
 }
 
 void
-XIPS120::open() throw (XKameError &) {
+XIPS120::open() {
 	interface()->send("$Q6");
 	start();
 }
@@ -298,7 +298,7 @@ XCryogenicSMS::receiveMessage(const char *title, bool is_stamp_required) {
 }
 
 void
-XCryogenicSMS::open() throw (XKameError &) {
+XCryogenicSMS::open() {
 	interface()->send("SET TPA");
 	if(sscanf(receiveMessage("FIELD CONSTANT").c_str(), "%lf", &m_tpa) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);

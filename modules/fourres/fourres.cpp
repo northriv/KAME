@@ -65,7 +65,7 @@ XFourRes::checkDependency(const Snapshot &shot_this,
 
 void
 XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
+	XDriver *emitter) {
 	Snapshot &shot_this(tr);
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];

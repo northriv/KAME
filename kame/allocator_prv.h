@@ -202,7 +202,7 @@ extern bool g_sys_image_loaded;
 
 void activateAllocator();
 
-inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
+inline void* new_redirected(std::size_t size) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
     if( !g_sys_image_loaded)
         return malloc(size); //Not to allocate dyld objects.

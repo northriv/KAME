@@ -60,7 +60,7 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -94,7 +94,8 @@ protected:
 	virtual void startContSweep() = 0;
 	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) = 0;
 	//! Converts raw to dispaly-able
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
+    //! may throw XRecordError if mal-formatted.
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) = 0;
 
     const shared_ptr<XScalarEntry> m_marker1X;
     const shared_ptr<XScalarEntry> m_marker1Y;

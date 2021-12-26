@@ -51,8 +51,8 @@ private:
 	virtual double currentResolution() {return 0.01;}
 	virtual double voltageResolution() {return 0.01;}
     
-	void setPCSHeater(bool val) throw (XInterface::XInterfaceError&);
-	void setActivity(int val) throw (XInterface::XInterfaceError&);
+	void setPCSHeater(bool val);
+	void setActivity(int val);
 };
 
 //OXFORD IPS120 Magnet Power Supply
@@ -65,7 +65,7 @@ public:
 	virtual double fieldResolution() {return 0.0001;}
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+	virtual void open();
 
 	virtual double currentResolution() {return 0.001;}
 	virtual double voltageResolution() {return 0.001;}
@@ -87,7 +87,7 @@ public:
 	virtual ~XCryogenicSMS() {}
 protected:
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+	virtual void open();
 
 	virtual void toNonPersistent();
 	virtual void toPersistent();

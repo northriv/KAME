@@ -42,7 +42,7 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -155,7 +155,8 @@ protected:
 	virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) = 0;
 	//! Converts the raw to a display-able style.
 	//! In the coherent SG mode,  real and imaginary parts should be stored in \a Payload::waveDisp().
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
+    //! may throw XRecordError if mal-formatted.
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) = 0;
 
 	virtual bool isDRFCoherentSGSupported() const {return false;}
 
@@ -207,9 +208,9 @@ private:
 	const shared_ptr<XWaveNGraph> m_waveForm;
   
 	//! Converts the raw to a display-able style and performs extra digital processing.
-	void convertRawToDisp(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	void convertRawToDisp(RawDataReader &reader, Transaction &tr);
 	//! Digital direct conversion.
-    void demodulateDisp(Transaction &tr) throw (XRecordError&);
+    void demodulateDisp(Transaction &tr);
   
     shared_ptr<Listener> m_lsnOnSingleChanged;
     shared_ptr<Listener> m_lsnOnAverageChanged;

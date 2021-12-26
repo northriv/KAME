@@ -267,7 +267,7 @@ XMonteCarloDriver::stop() {
     closeInterface();
 }
 void
-XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XMonteCarloDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	const Snapshot &shot(tr);
     unsigned int size = MonteCarlo::length();
     unsigned int len = size*size*size*16;

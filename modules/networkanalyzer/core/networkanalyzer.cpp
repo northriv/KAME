@@ -128,7 +128,7 @@ XNetworkAnalyzer::showForms() {
 }
 
 void
-XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	const Snapshot &shot(tr);
 	unsigned int numtr = reader.pop<unsigned int>();
 	if(numtr != 1)

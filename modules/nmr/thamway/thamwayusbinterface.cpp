@@ -165,7 +165,7 @@ XThamwayFX2USBInterface::setWave(const shared_ptr<CyFXUSBDevice> &dev, const uin
 }
 
 void
-XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
+XThamwayFX2USBInterface::open() {
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::open();
 //    for(int i = 0; i < 1; ++i) {
 //        //blinks LED
@@ -187,7 +187,7 @@ XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
 }
 
 void
-XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
+XThamwayFX2USBInterface::close() {
 //    if(isOpened()) setLED(usb(), 0);
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::close();
 }
@@ -406,12 +406,12 @@ XThamwayFX3USBInterface::~XThamwayFX3USBInterface() {
 }
 
 void
-XThamwayFX3USBInterface::open() throw (XInterfaceError &) {
+XThamwayFX3USBInterface::open() {
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>::open();
 }
 
 void
-XThamwayFX3USBInterface::close() throw (XInterfaceError &) {
+XThamwayFX3USBInterface::close() {
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>::close();
 }
 

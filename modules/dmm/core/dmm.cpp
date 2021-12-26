@@ -47,7 +47,7 @@ XDMM::showForms() {
 }
 
 void
-XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	double x = reader.pop<double>();
 	tr[ *this].write_(x);
 	m_entry->value(tr, x);
