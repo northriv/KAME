@@ -31,7 +31,7 @@ XNodeBrowser::XNodeBrowser
 	m_conDesc(xqcon_create<XQTextBrowserConnector>(m_desc, form->m_txtDesc)) {
 
 	m_pTimer = new QTimer(this);
-	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
+    connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(process()));
 	m_pTimer->start(500);
     form->m_txtDesc->setAcceptRichText(true);
 }

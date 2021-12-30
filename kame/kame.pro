@@ -26,6 +26,7 @@ INCLUDEPATH += \
 
 HEADERS += \
     allocator.h \
+    atomic_prv_mfence_arm8.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \

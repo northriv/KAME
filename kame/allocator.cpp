@@ -18,6 +18,8 @@
 
 #include "allocator_prv.h"
 
+#ifndef USE_STD_ALLOCATOR
+
 #include "atomic.h"
 #include "atomic_prv_x86.h"
 
@@ -393,7 +395,7 @@ PoolAllocator<ALIGN, false, DUMMY>::deallocate_pooled(char *p) {
 				m_available_bits = sizeof(FUINT) * 8;
 				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
 					if(this->release_allocator(this)) {
-						delete this; //suicide.
+                        delete this; //suicide.
 						return true;
 					}
 					else
@@ -444,7 +446,7 @@ PoolAllocator<ALIGN, FS, DUMMY>::deallocate_pooled(char *p) {
 			else if(newv == 0) {
 				if(atomicDecAndTest( &this->m_flags_nonzero_cnt)) {
 					if(this->release_allocator(this)) {
-						delete this; //suicide.
+                        delete this; //suicide.
 						return true;
 					}
 					else
@@ -853,3 +855,4 @@ template void *PoolAllocator<ALLOC_ALIGN(ALLOC_SIZE16 * 2)>::allocate<ALLOC_SIZE
 //		release_pools();
 //	}
 //} pool_releaser;
+#endif //USE_STD_ALLOCATOR

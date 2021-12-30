@@ -195,7 +195,7 @@ FrmKameMain::FrmKameMain()
 	connect(qApp, SIGNAL( lastWindowClosed() ), qApp, SLOT( quit() ) );
 
 	m_pTimer = new QTimer(this);
-	connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
+    connect(m_pTimer, SIGNAL (timeout() ), this, SLOT(processSignals()));
 	m_pTimer->start(0);
 
 	scriptLineShellAction_activated();

@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
 //            Transactional::setCurrentPriorityMode(Priority::NORMAL);
 
 			form = new FrmKameMain();
-            
+
             if(mesfile.length()) {
                 form->openMes(mesfile);
             }
