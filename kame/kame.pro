@@ -145,10 +145,14 @@ unix {
         math/matrix.h \
         math/freqest.h
     SOURCES += \
-        allocator_prv.h \
-        allocator.cpp \
         math/freqest.cpp \
         math/matrix.cpp
+
+    contains(QMAKE_HOST.arch, x86_64) {
+        SOURCES += \
+            allocator_prv.h \
+            allocator.cpp \
+    }
 }
 
 FORMS += \

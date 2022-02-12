@@ -50,8 +50,7 @@ private:
     void gpib_spoll_before_write();
     void gpib_spoll_before_read();
 	XString gpibStatus(const XString &msg);
-	unsigned int gpib_receive(unsigned int est_length, unsigned int max_length)
-		throw (XInterface::XCommError &);
+    unsigned int gpib_receive(unsigned int est_length, unsigned int max_length);
 	static int s_cntOpened;
 	static XMutex s_lock;
 

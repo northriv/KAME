@@ -1,7 +1,10 @@
 TEMPLATE = app
 
 CONFIG += exceptions
-CONFIG += sse sse2 rtti
+CONFIG += rtti
+contains(QMAKE_HOST.arch, x86_64) {
+    CONFIG += sse sse2
+}
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 	CONFIG += c++11
@@ -22,5 +25,7 @@ win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
 }
 else {
-    QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    contains(QMAKE_HOST.arch, x86_64) {
+        QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    }
 }

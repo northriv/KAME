@@ -22,20 +22,20 @@
 
 //! memory barriers.
 inline void readBarrier() noexcept {
-     __asm__ __volatile__ ("dmb" : : : "memory");
+     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
  //   __dmb(0xf);
 }
 inline void writeBarrier() noexcept {
-     __asm__ __volatile__ ("dmb" : : : "memory");
+     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
  //   __dmb(0xf);
 }
 inline void memoryBarrier() noexcept {
-     __asm__ __volatile__ ("dmb" : : : "memory");
+     __asm__ __volatile__ ("dmb 0xf" : : : "memory");
  //   __dmb(0xf);
 }
 
 inline void pause4spin() noexcept {
-    __asm__ __volatile__("isb" ::: "memory");
+    __asm__ __volatile__("isb 0xf" ::: "memory");
 //    ___isb(0xf);
 }
 

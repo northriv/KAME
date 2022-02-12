@@ -1,5 +1,8 @@
 CONFIG += qt exceptions
-CONFIG += sse sse2 rtti
+CONFIG += rtti
+contains(QMAKE_HOST.arch, x86_64) {
+    CONFIG += sse sse2
+}
 
 QT       += core gui
 
@@ -24,7 +27,7 @@ else {
 #	 -stdlib=libc++
 }
 
-VERSTR = 5.3
+VERSTR = 5.5
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules
@@ -89,7 +92,9 @@ win32-msvc* {
     QMAKE_LFLAGS += /opt:noref
 }
 else {
-    QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    contains(QMAKE_HOST.arch, x86_64) {
+        QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    }
 }
 win32-g++ {
 #workaround for movaps alignment problem

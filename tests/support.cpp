@@ -14,7 +14,9 @@
 #include "support.h"
 #include "atomic.h"
 
-#include "../kame/allocator.cpp"
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+    #include "../kame/allocator.cpp"
+#endif
 
 bool g_bUseMLock = false;
 

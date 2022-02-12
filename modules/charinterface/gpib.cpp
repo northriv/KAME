@@ -279,8 +279,7 @@ XNIGPIBPort::receive(unsigned int length) {
 }
 
 unsigned int
-XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
-	throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length) {
 
 	gpib_spoll_before_read();
 	int len = 0;
