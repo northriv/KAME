@@ -1,3 +1,9 @@
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5-1)
+- M1 Mac
+- graph: 3D viewpoint can be reset by clicking right button.
+- magnetps: Fix behavior for sweep rate during persistent mode
+
 * Tue Dec 28 2021 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.4-1)
 - worked w/ C++17 and Qt 6 w/ Qt5 compatibility module

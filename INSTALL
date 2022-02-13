@@ -1,23 +1,23 @@
 KAME instllation notes
 
 KAME needs following libraries:
-kdelibs (ver. 4) and others depending on kdelibs
+Qt >= 5.7 or Qt 6 with Qt5 compatibility module
 boost
 ruby
 gsl
 fftw (ver.3)
 ftgl
+eigen3
 lapack/atlas/blas
 (optional) linux-gpib or National Instruments 488.2 library
 (optional) National Instruments DAQmx library 
-mikachanfont (included in source tree)
 
 KAME now uses some of C++11 functionalities, so the C++ compiler has to be eighther of:
 clang++ >= 2.1.
 g++ >= 4.5. 
 
 To build KAME, simply do:
-cmake (options) (path_to_source_dir)
+qmake (options) (path_to_source_dir)
 make
 make install (probably as a super user)
 

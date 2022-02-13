@@ -3,6 +3,7 @@ KAME instllation notes on Mac OS X.
 Open kame.pro from Qt Creator.
 MacPorts (assuming placed under /opt/local) versions of gsl, fftw3, libtool-ltdl, libusb, eigen3 are necessary for building.
 (If needed) Add /opt/local/bin to PATH in the build environment pane of Qt Creator.
-(importnant) Deactivate "Add build library search path..." in the executable environment pane.
-Do *NOT* install QT from MacPorts. Use the genuine QT.
+Do *NOT* install QT from MacPorts. Use the genuine open-source QT.
+(Note for Qt 6) Qt5 compatibility module must be bundled during installation of Qt.
+(Note for x86/x86_64) Deactivate "Add build library search path..." in the executable environment pane.
 Up-to-date Xcode command line tools is necessary.
