@@ -122,12 +122,7 @@ struct CyFXLibUSBDevice : public CyFXUSBDevice {
     };
 
     struct USBList {
-        USBList() noexcept {
-            size = libusb_get_device_list(NULL, &list);
-            if(size < 0 ) {
-                fprintf(stderr, "Error during dev. enum. of libusb: %s\n", libusb_error_name(size));
-            }
-        }
+        USBList() noexcept;
         ~USBList() {
             if(size >= 0)
                 libusb_free_device_list(list, 1);
@@ -159,6 +154,14 @@ private:
 };
 
 CyFXLibUSBDevice::Context CyFXLibUSBDevice::s_context;
+
+CyFXLibUSBDevice::USBList::USBList() noexcept {
+    size = libusb_get_device_list(s_context.context, &list);
+    if(size < 0 ) {
+        fprintf(stderr, "Error during dev. enum. of libusb: %s\n", libusb_error_name(size));
+    }
+}
+
 
 bool
 CyFXLibUSBDevice::AsyncIO::hasFinished() const noexcept {
