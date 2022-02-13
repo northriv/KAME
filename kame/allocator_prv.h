@@ -15,6 +15,8 @@
 #ifndef ALLOCATOR_PRV_H_
 #define ALLOCATOR_PRV_H_
 
+#ifndef USE_STD_ALLOCATOR
+
 #include <new>
 #include <stdint.h>
 #include <stdlib.h>
@@ -257,5 +259,7 @@ inline void* new_redirected(std::size_t size) {
 
 void release_pools();
 void report_statistics();
+
+#endif /* USE_STD_ALLOCATOR */
 
 #endif /* ALLOCATOR_PRV_H_ */

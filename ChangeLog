@@ -1,8 +1,10 @@
 * Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5.1-1)
+- Mac: Universal binary ready
+
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.5-1)
-- M1 Mac
-- graph: 3D viewpoint can be reset by clicking right button.
-- magnetps: Fix behavior for sweep rate during persistent mode
+- Native arm support for M1 Mac
 
 * Tue Dec 28 2021 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.4-1)
