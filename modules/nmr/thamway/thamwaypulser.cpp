@@ -80,7 +80,7 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
         tr[ *aswSetup()] = 0.2;
     });
 }
-
+#if defined USE_THAMWAY_USB
 XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
  : XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
@@ -92,7 +92,7 @@ XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction
 XThamwayUSBPulser::~XThamwayUSBPulser() {
     XThamwayFX3USBInterface::softwareTriggerManager().unregister(m_softwareTrigger);
 }
-
+#endif
 void
 XThamwayPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);

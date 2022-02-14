@@ -92,7 +92,7 @@ win32-msvc* {
     QMAKE_LFLAGS += /opt:noref
 }
 else {
-    contains(QMAKE_HOST.arch, x86_64) {
+    contains(QMAKE_HOST.arch, i386) {
         QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
     }
 }
