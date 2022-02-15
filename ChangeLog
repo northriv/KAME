@@ -1,6 +1,7 @@
 * Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.5.1-1)
 - Mac: Universal binary ready
+- thamway: fix bug on loading libusb
 
 * Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.5-1)
