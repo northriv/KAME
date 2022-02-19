@@ -115,6 +115,7 @@ private:
 	void changePauseState(bool pause);
 	void changePolarity(int p);
 	void ramp(const char *str);
+    void setRateInternal(double hpm);
 
 	std::string receiveMessage(const char *title, bool is_stamp_required = false);
 

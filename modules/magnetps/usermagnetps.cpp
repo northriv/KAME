@@ -336,12 +336,12 @@ XCryogenicSMS::toPersistent() {
 	interface()->send("HEATER OFF");
 	receiveMessage("HEATER STATUS");
 
-    setRate(10.0); //Setting very high rate.
+    setRateInternal(10.0); //Setting very high rate.
 }
 void
 XCryogenicSMS::toNonPersistent() {
 	XScopedLock<XInterface> lock( *interface());
-	setRate(Snapshot( *this)[ *sweepRate()]);
+    setRateInternal(Snapshot( *this)[ *sweepRate()]); //see setRate().
 	changePauseState(true);
 	interface()->send("HEATER ON");
 	receiveMessage("HEATER STATUS");
@@ -404,15 +404,19 @@ XCryogenicSMS::setPoint(double field) {
 		throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
-XCryogenicSMS::setRate(double hpm) {
-	XScopedLock<XInterface> lock( *interface());
-    if(Snapshot( *this)[ *persistent()])
-        return; //ignores if the supply is already in persistent mode. See toNonPersistent().
+XCryogenicSMS::setRateInternal(double hpm) {
 	double amp_per_sec = hpm / 60.0 / teslaPerAmp();
 	interface()->sendf("SET RAMP %.5g", amp_per_sec);
 	double x;
 	if(sscanf(receiveMessage("RAMP RATE", true).c_str(), "%lf", &x) != 1)
 		throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XCryogenicSMS::setRate(double hpm) {
+    XScopedLock<XInterface> lock( *interface());
+    if(Snapshot( *this)[ *persistent()])
+        return; //ignores if the supply is already in persistent mode. See toNonPersistent().
+    setRateInternal(hpm);
 }
 bool
 XCryogenicSMS::isOutputPositive() {
