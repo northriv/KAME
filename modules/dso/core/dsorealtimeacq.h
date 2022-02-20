@@ -28,7 +28,7 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XRealTimeAcqDSO() = default;
     //! Converts raw to record
-    virtual void convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) throw (typename tDriver::XRecordError&) override;
+    virtual void convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) override;
 protected:
     using tRawAI = int16_t;
     //! Changes the instrument state so that it can wait for a trigger (arm).
@@ -70,9 +70,9 @@ protected:
     virtual uint32_t readAcqBuffer(uint32_t size, tRawAI *buf) = 0;
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
     //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) override;
+    virtual void close() override;
 
     virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) override;
     virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *) override;

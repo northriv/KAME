@@ -487,7 +487,7 @@ XQGraphPainter::paintGL () {
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
 //    QOpenGLPaintDevice fboPaintDev(width(), height());
     QPainter qpainter(m_pItem);
-    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform | QPainter::HighQualityAntialiasing);
+    qpainter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
 //    qpainter.setCompositionMode(QPainter::CompositionMode_SourceOver); //This might cause huge memory leak on intel's GPU in OSX.
     qpainter.beginNativePainting();
 #endif

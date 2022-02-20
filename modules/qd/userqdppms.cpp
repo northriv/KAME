@@ -25,7 +25,7 @@ XQDPPMS6000::XQDPPMS6000(const char *name, bool runtime,
 }
 
 void
-XQDPPMS6000::open() throw (XKameError &) {
+XQDPPMS6000::open() {
     interface()->query("FIELD?");
     double field, field_rate;
     int field_approach_mode, magnet_mode;

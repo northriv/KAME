@@ -25,30 +25,31 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XAgilentNetworkAnalyzer() {}
 protected:
-	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override;
 
-	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) override {}
 
-	virtual void getMarkerPos(unsigned int num, double &x, double &y);
-	virtual void oneSweep();
-	virtual void startContSweep();
-	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
+    virtual void getMarkerPos(unsigned int num, double &x, double &y) override;
+    virtual void oneSweep() override;
+    virtual void startContSweep() override;
+    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) override;
 	//! Converts raw to dispaly-able
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+    virtual void open() override;
 
     virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len) = 0;
-	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
-		unsigned int len) throw (XRecordError&) = 0;
+    //! may throw XRecordError if mal-formatted.
+    virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
+        unsigned int len) = 0;
 private:
 };
 
@@ -62,7 +63,7 @@ public:
 
     virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len);
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
-		unsigned int len) throw (XRecordError&);
+		unsigned int len);
 private:
 };
 
@@ -76,7 +77,7 @@ public:
 
     virtual unsigned int acquireTraceData(unsigned int ch, unsigned int len);
 	virtual void convertRawBlock(RawDataReader &reader, Transaction &tr,
-		unsigned int len) throw (XRecordError&);
+		unsigned int len);
 private:
 };
 
@@ -96,26 +97,26 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XVNWA3ENetworkAnalyzer() {}
 protected:
-	virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
-	virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override {}
 
-	virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
-	virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) override {}
 
 	virtual void getMarkerPos(unsigned int num, double &x, double &y);
 	virtual void oneSweep();
 	virtual void startContSweep();
 	virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
 	//! Converts raw to dispaly-able
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+	virtual void open();
 };
 
 //! DG8SAQ VNWA3E via TCP/IP interface.
@@ -125,26 +126,26 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XVNWA3ENetworkAnalyzerTCPIP() {}
 protected:
-    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override {}
 
-    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) {}
-    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) {}
-    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) {}
-    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) {}
+    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) override {}
 
-    virtual void getMarkerPos(unsigned int num, double &x, double &y);
-    virtual void oneSweep();
-    virtual void startContSweep();
-    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch);
+    virtual void getMarkerPos(unsigned int num, double &x, double &y) override;
+    virtual void oneSweep() override;
+    virtual void startContSweep() override;
+    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) override;
     //! Converts raw to dispaly-able
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 
-    virtual void open() throw (XKameError &);
-    virtual void close() throw (XKameError &) override;
+    virtual void open() override;
+    virtual void close() override;
 
     virtual shared_ptr<XCharInterface> interface2() const {return m_interface2;}
 private:

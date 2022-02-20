@@ -45,9 +45,9 @@ public:
 		presetMultipleResistors(res_addr, 2, data);
 	}
 protected:
-	virtual void open() throw (XInterfaceError &);
+	virtual void open();
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
+	virtual void close();
 
     virtual bool isOpened() const {return !!m_openedPort;}
 

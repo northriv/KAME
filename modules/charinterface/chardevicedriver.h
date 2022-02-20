@@ -27,9 +27,9 @@ public:
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &) {this->start();}
-	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XKameError &) {interface()->stop();}
+    virtual void open() {this->start();}
+    //! Be called during stopping driver. Call interface()->stop() inside this routine.
+    virtual void close() {interface()->stop();}
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.

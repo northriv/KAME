@@ -173,7 +173,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         tr[ *autoWindow()] = true;
         tr[ *mInftyFit()] = true;
         tr[ *trackPeak()] = false;
-        tr[ *smoothSamples()] = 40;
+        tr[ *smoothSamples()] = 33;
 
 
         tr[ *mapMode()].add({"Off", "AllNonNegative", "Noise Analysis", "L Curve", "GCV"});
@@ -369,9 +369,9 @@ XNMRT1::obtainNextP1(Transaction &tr) {
             double p1min = shot[ *p1Min()];
             double p1max = shot[ *p1Max()];
             int lb = 0, ub = samples;
-            double k_0 = samples / log(p1max/p1min);
+            double k_0 = (samples - 1) / log(p1max/p1min);
             int idx_p1next = lrint(log(shot[ *p1Next()] / p1min) * k_0);
-            idx_p1next = std::min(std::max(idx_p1next, 0), samples);
+            idx_p1next = std::min(std::max(idx_p1next, 0), samples - 1);
             bool p1dist_linear = (shot[ *p1Dist()].to_str() == P1DIST_LINEAR);
             bool p1dist_log = (shot[ *p1Dist()].to_str() == P1DIST_LOG);
             const auto &sumpts = shot[ *this].m_sumpts;
@@ -623,7 +623,7 @@ XNMRT1::checkDependency(const Snapshot &shot_this,
 
 void
 XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     Snapshot &shot_this(tr);
 
     double p1min = shot_this[ *p1Min()];
@@ -822,13 +822,12 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
     tr[ *this].m_sumpts.resize(samples);
     auto &sumpts(tr[ *this].m_sumpts);
-
     {
-        Payload::Pt dummy;
-        dummy.c = 0; dummy.p1 = 0; dummy.isigma = 0;
+    //Building recovery curves after rounding log(P1) from all of aquirred points.
+        Payload::Pt dummy = {};
         dummy.value_by_cond.resize(shot_this[ *this].m_convolutionCache.size());
         std::fill(tr[ *this].m_sumpts.begin(), tr[ *this].m_sumpts.end(), dummy);
-        double k = shot_this[ *this].m_sumpts.size() / log(p1max/p1min);
+        double k = (shot_this[ *this].m_sumpts.size() - 1) / log(p1max/p1min);
         auto pts_begin(shot_this[ *this].m_pts.begin());
         auto pts_end(shot_this[ *this].m_pts.end());
         int sum_size = (int)shot_this[ *this].m_sumpts.size();
@@ -1196,6 +1195,9 @@ XNMRT1::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
                 tr[ *pulse2__->echoPeriod()] = (double)shot_pulse1[ *pulse1__->echoPeriod()];
             });
         }
+        shot_this = iterate_commit([=](Transaction &tr){
+            obtainNextP1(tr);
+        });
         setNextP1(shot_this);
         if(shot_this[ *mode()] == (int)MeasMode::T2_Multi){
             iterate_commit([=](Transaction &tr){

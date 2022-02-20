@@ -18,7 +18,14 @@
 #include <inttypes.h>
 #include <atomic>
 
-#include "atomic_prv_mfence_x86.h"
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
+    || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+    #include "atomic_prv_mfence_x86.h"
+#elif defined(__arm64__)
+    #include "atomic_prv_mfence_arm8.h"
+#else
+    #error
+#endif
 
 #if ATOMIC_LLONG_LOCK_FREE == 2
     typedef long long int_cas_max;

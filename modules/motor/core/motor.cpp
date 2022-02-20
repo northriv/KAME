@@ -111,7 +111,7 @@ XMotorDriver::showForms() {
 }
 
 void
-XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XMotorDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     double pos;
     bool slip, isready;
     pos = reader.pop<double>();

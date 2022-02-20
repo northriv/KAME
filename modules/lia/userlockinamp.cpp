@@ -83,7 +83,7 @@ XSR830::get(double *cos, double *sin) {
 		m_cCount = 10;
 }
 void
-XSR830::open() throw (XKameError &) {
+XSR830::open() {
 	interface()->query("OFLT?");
 	trans( *timeConst()) = interface()->toInt();
 	interface()->query("SENS?");
@@ -189,7 +189,7 @@ XLI5640::get(double *cos, double *sin) {
 		m_cCount = 10;
 }
 void
-XLI5640::open() throw (XKameError &) {
+XLI5640::open() {
 	interface()->query("TCON?");
 	trans( *timeConst()) = interface()->toInt();
 	interface()->query("AMPL?");
@@ -267,7 +267,7 @@ XHP4284A::get(double *x, double *y) {
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
-XHP4284A::open() throw (XKameError &) {
+XHP4284A::open() {
     interface()->send("*RST;*CLS");
     interface()->send("FORM ASCII");
     interface()->send("TRIG:SOUR BUS");
@@ -352,7 +352,7 @@ XAH2500A::get(double *cap, double *loss) {
 		throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
-XAH2500A::open() throw (XKameError &) {
+XAH2500A::open() {
 	interface()->query("SH AV");
 	int d;
 	if(interface()->scanf("%*s AVEREXP=%d", &d) != 1)

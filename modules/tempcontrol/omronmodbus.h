@@ -39,7 +39,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p);
     virtual void onIChanged(unsigned int loop, double i);

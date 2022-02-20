@@ -29,9 +29,9 @@ public:
     XThamwayFX2USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, uint8_t addr_offset, const char* id);
     virtual ~XThamwayFX2USBInterface();
 
-    virtual void open() throw (XInterfaceError &) override;
+    virtual void open() override;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) override;
+    virtual void close() override;
 
     struct ScopedBulkWriter{
         ScopedBulkWriter() = default;
@@ -95,9 +95,9 @@ public:
     XThamwayFX3USBInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
     virtual ~XThamwayFX3USBInterface();
 
-    virtual void open() throw (XInterfaceError &) override;
+    virtual void open() override;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) override;
+    virtual void close() override;
 
     virtual void send(const char *str) override;
     virtual void receive() override;

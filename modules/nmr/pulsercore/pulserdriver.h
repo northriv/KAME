@@ -242,7 +242,7 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr);
 	//! This function is called inside analyze() or analyzeRaw()
 	//! This might be called even if the record is broken (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -325,8 +325,8 @@ private:
 	void onPulseChanged(const Snapshot &shot, XValueNodeBase *node);
 
 	//! creates \a RelPatList
-	void createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&);
-	void createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&);
+	void createRelPatListNMRPulser(Transaction &tr);
+	void createRelPatListPulseAnalyzer(Transaction &tr);
 	//! \return maskbits for QPSK ports.
 	unsigned int bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned int qpskinv[4], bool invert);
 

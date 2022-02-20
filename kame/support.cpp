@@ -16,7 +16,6 @@
 #include <string.h>
 #ifndef _MSC_VER
     #include <unistd.h>
-    #include <cpuid.h>
 #endif
 
 #include "support.h"
@@ -287,6 +286,9 @@ XString dumpCString(const char *cstr) {
 #endif
 
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
+
+#include <cpuid.h>
+
 X86CPUSpec::X86CPUSpec() {
     uint32_t stepinfo, brand, features_ext, features;
 #ifdef _MSC_VER

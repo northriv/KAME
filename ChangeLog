@@ -1,5 +1,29 @@
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5.1-1)
+- Mac: Universal binary ready
+- thamway: fix bug on loading libusb
+
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5-1)
+- Native arm support for M1 Mac
+
+* Tue Dec 28 2021 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.4-1)
+- worked w/ C++17 and Qt 6 w/ Qt5 compatibility module
+- graph: 3D viewpoint can be reset by clicking right button.
+- magnetps: Fix behavior for sweep rate during persistent mode
+- TempControl: Fix behavior for "stabilized" value regarding "I"
+- NMR: tSVD fourier spectral analysis (experimental) 
+
+* Sun Dec 20 2020 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.3.2-1)
+- NMRT1: Fix for "Flatten generator", behavior near P1Max.
+- AutoLCTuner: improved strategy during tuning
+- Fix for threading on starting a driver
+- Fix for MonteCarlo
+
 * Sun Apr 26 2020 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
-- (5.3-1)
+- (5.3.1-1)
 - Pfeiffer TPG361/362 Gauge (RS485). 
 
 * Sun Dec 1 2019 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>

@@ -27,9 +27,9 @@ public:
 	template <typename T>
 	T query(uint8_t classid, uint8_t instanceid, uint8_t attributeid);
 protected:
-	virtual void open() throw (XInterfaceError &);
+	virtual void open();
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
+	virtual void close();
 
     virtual bool isOpened() const {return !!m_openedPort;}
 private:

@@ -80,7 +80,7 @@ XThamwayPulser::XThamwayPulser(const char *name, bool runtime,
         tr[ *aswSetup()] = 0.2;
     });
 }
-
+#if defined USE_THAMWAY_USB
 XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
  : XCharDeviceDriver<XThamwayPulser, XThamwayPGCUSBInterface>(name, runtime, ref(tr_meas), meas) {
 
@@ -92,7 +92,7 @@ XThamwayUSBPulser::XThamwayUSBPulser(const char *name, bool runtime, Transaction
 XThamwayUSBPulser::~XThamwayUSBPulser() {
     XThamwayFX3USBInterface::softwareTriggerManager().unregister(m_softwareTrigger);
 }
-
+#endif
 void
 XThamwayPulser::createNativePatterns(Transaction &tr) {
 	const Snapshot &shot(tr);
@@ -168,7 +168,7 @@ XThamwayCharPulser::getStatus(bool *running, bool *extclk_det) {
 }
 
 void
-XThamwayCharPulser::open() throw (XKameError &) {
+XThamwayCharPulser::open() {
     this->interface()->setEOS("\r\n");
     this->start();
 }
@@ -185,7 +185,7 @@ XThamwayUSBPulserWithQAM::XThamwayUSBPulserWithQAM(const char *name, bool runtim
 
 
 void
-XThamwayUSBPulser::open() throw (XKameError &) {
+XThamwayUSBPulser::open() {
     XString idn = this->interface()->getIDN();
     fprintf(stderr, "PG IDN=%s\n", idn.c_str());
     auto pos = idn.find("CLK=");
@@ -199,7 +199,7 @@ XThamwayUSBPulser::open() throw (XKameError &) {
 }
 
 void
-XThamwayUSBPulserWithQAM::open() throw (XKameError &) {
+XThamwayUSBPulserWithQAM::open() {
     interfaceQAM()->start();
     XString idn = this->interfaceQAM()->getIDN();
     gMessagePrint(formatString_tr(I18N_NOOP("%s successfully opened\n"), idn.c_str()));
@@ -217,7 +217,7 @@ XThamwayUSBPulserWithQAM::open() throw (XKameError &) {
     m_qamPeriod = 1e-3 / clk / resolution();
 }
 void
-XThamwayUSBPulserWithQAM::close() throw (XKameError &) {
+XThamwayUSBPulserWithQAM::close() {
     interfaceQAM()->stop();
     XThamwayUSBPulser::close();
 }

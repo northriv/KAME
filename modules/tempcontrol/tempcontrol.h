@@ -78,9 +78,9 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
-	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
-	//! This might be called even if the record is invalid (time() == false).
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
+    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+    //! This might be called even if the record is invalid (time() == false).
     virtual void visualize(const Snapshot &shot) override;
   
 	//! Prepares channel names in your constructor.
@@ -100,6 +100,8 @@ protected:
 	virtual double getHeater(unsigned int loop) = 0;
 	//! ex. "W", "dB", or so
 	virtual const char *m_heaterPowerUnit(unsigned int loop) = 0;
+    //! converts displayed interval setting to unit in second to calculate \a stabilized().
+    virtual double currentIntervalSettingInSec(const Snapshot &shot, unsigned int lp) {return shot[ *interval(lp)];}
   
 	bool hasExtDevice(const Snapshot &shot, unsigned int lp) const {return loop(lp)->hasExtDevice(shot);}
 

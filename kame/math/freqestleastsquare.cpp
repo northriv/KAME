@@ -13,6 +13,55 @@
 ***************************************************************************/
 #include "freqestleastsquare.h"
 
+#include <Eigen/LU>
+#include <Eigen/SVD>
+#include <iostream>
+
+void
+TSVDFourierSeries::genSpectrum(const std::vector<std::complex<double> >& memin,
+        std::vector<std::complex<double> >& memout,
+        int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) {
+    int t = memin.size();
+    int n = memout.size();
+    if((t != m_ylen) || (n != m_xlen)) {
+        m_ylen = t;
+        m_xlen = n;
+
+        //y_j = sum_k x_k exp(2pi i (j - t0) k / n) = sum_k A_jk x_k
+        //A_jk = exp(2pi i (j - t0) k / n)
+        Eigen::MatrixXcd matA = Eigen::MatrixXcd::Zero(m_xlen, m_ylen);
+//        Eigen::VectorXcd js = Eigen::VectorXcd::LinSpaced(m_ylen, 0, m_ylen - 1);
+//        std::cerr << js << std::endl;
+        for(unsigned int k = 0; k < m_xlen; ++k) {
+//            matA.row(k) = (2 * M_PI * k / (double)n * std::complex<double>(0,1) *
+//                   (js.array() - std::complex<double>(t0))).array().exp();
+            for(unsigned int j = 0; j < m_ylen; ++j) {
+                matA(k,j) = std::polar<double>(1.0, 2*M_PI*k/n*(j - t0));
+            }
+        }
+//        std::cerr << matA << std::endl;
+        auto svd = Eigen::BDCSVD<Eigen::MatrixXcd>(matA, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::MatrixXcd sigma = svd.singularValues();
+        long rank = std::min(t, n);
+        sigma = sigma.topRows(rank);
+        std::cerr << sigma << std::endl;
+        Eigen::MatrixXcd v = svd.matrixV().leftCols(rank);
+        Eigen::MatrixXcd uT = svd.matrixU().leftCols(rank).transpose();
+
+//        m_AinvReg = v * Eigen::VectorXcd(1.0 / sigma.array()).asDiagonal() * uT;//speed limiting line
+        m_AinvReg = v;
+        for(int i = 0; i < sigma.size(); ++i)
+            m_AinvReg.col(i) *= 1.0 / sigma.coeff(i);
+        m_AinvReg *= uT;
+        std::cerr << m_AinvReg.row(0) << std::endl;
+    }
+    Eigen::VectorXcd xtilde = m_AinvReg * Eigen::Map<Eigen::VectorXcd>(const_cast<std::complex<double>*>(&memin[0]), memin.size());
+    std::cerr << xtilde << std::endl;
+    Eigen::Map<Eigen::VectorXcd>( &memout[0], memout.size()) = xtilde;
+
+    m_ifftN->exec(memout, m_ifft);
+}
+
 void
 FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		std::vector<std::complex<double> >& memout,
@@ -60,7 +109,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 	double ic = 1e99;
 	for(int lp = 0; lp < 32; lp++) {
 		int npeaks = m_peaks.size();
-		double loglikelifood = -wpoints * (log(2*M_PI) + 1.0 + log(sigma2));
+        double loglikelifood = -wpoints * (log(2*M_PI) + 1.0 + log(sigma2));
 		double ic_new = m_funcIC(loglikelifood, npeaks * 3.0, wpoints * 2.0);
 		if(ic_new > ic) {
 			if(m_peaks.size()) {
@@ -83,7 +132,7 @@ FreqEstLeastSquare::genSpectrum(const std::vector<std::complex<double> >& memin,
 		}
 		freq *= t / (double)n;
 
-		//Prepare exp(-omega t)
+        //Prepares exp(-i omega t)
 		std::vector<std::complex<double> > coeff(t);
 		double p = -2.0 * M_PI / (double)t * freq;
 		for(int i = 0; i < t;) {

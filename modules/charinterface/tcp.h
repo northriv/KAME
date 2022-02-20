@@ -34,13 +34,13 @@ public:
     XTCPSocketPort(XCharInterface *interface);
     virtual ~XTCPSocketPort();
  
-    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
-	virtual void send(const char *str) throw (XInterface::XCommError &);
-	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-	virtual void receive() throw (XInterface::XCommError &);
-	virtual void receive(unsigned int length) throw (XInterface::XCommError &);  
+    virtual void open(const XCharInterface *pInterface);
+    virtual void send(const char *str);
+    virtual void write(const char *sendbuf, int size);
+    virtual void receive();
+    virtual void receive(unsigned int length);
 private:
-    void reopen_socket() throw (XInterface::XCommError &);
+    void reopen_socket();
 	int m_socket;
 };
 

@@ -39,7 +39,7 @@ protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter,
 		const Snapshot &shot_others,
-		XDriver *emitter) throw (XRecordError&);
+		XDriver *emitter);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -93,7 +93,7 @@ public:
         std::array<double, 2> targetSTMValues; //[deg]
         double smallestRLAtF0; //0 < RL < 1
         std::array<double, 2> bestSTMValues; //[deg]
-        static constexpr double TestDeltaFirst = 3; //[deg]
+        static constexpr double TestDeltaFirst = 10; //[deg]
         static constexpr double TestDeltaMax = 720; //[deg]
         static constexpr double DeltaMax = 6 * 360; //[deg]
         std::array<double, 2> stmDelta; //[deg], +:CW, -:CCW.

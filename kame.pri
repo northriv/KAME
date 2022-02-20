@@ -1,5 +1,8 @@
 CONFIG += qt exceptions
-CONFIG += sse sse2 rtti
+CONFIG += rtti
+contains(QMAKE_HOST.arch, x86_64) {
+    CONFIG += sse sse2
+}
 
 QT       += core gui
 
@@ -7,10 +10,16 @@ QT       += core gui
 #DEFINES += USE_QGLWIDGET
 #QT		 += opengl
 
+greaterThan(QT_MAJOR_VERSION, 5): QT += opengl openglwidgets
+#For QTextCodec
+greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 greaterThan(QT_MAJOR_VERSION, 3) {
 	CONFIG += c++11
+	#For ruby.h
+	QMAKE_CXXFLAGS += -Wno-register
 }
 else {
 # for g++ with C++0x spec.
@@ -18,7 +27,7 @@ else {
 #	 -stdlib=libc++
 }
 
-VERSTR = 5.2
+VERSTR = 5.5
 DEFINES += VERSION=\"quotedefined($${VERSTR})\"
 
 KAME_COREMODULES = coremodules
@@ -83,7 +92,9 @@ win32-msvc* {
     QMAKE_LFLAGS += /opt:noref
 }
 else {
-    QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    contains(QMAKE_HOST.arch, i386) {
+        QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    }
 }
 win32-g++ {
 #workaround for movaps alignment problem

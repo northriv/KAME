@@ -93,8 +93,7 @@ XRawStreamRecordReader::onOpen(const Snapshot &shot, XValueNodeBase *) {
 	m_pGFD = gzopen(QString(( **filename())->to_str()).toLocal8Bit().data(), "rb");
 }
 void
-XRawStreamRecordReader::readHeader(void *_fd)
-	throw (XRawStreamRecordReader::XRecordError &) {
+XRawStreamRecordReader::readHeader(void *_fd) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd))
@@ -112,8 +111,7 @@ XRawStreamRecordReader::readHeader(void *_fd)
 	m_time = XTime(sec, usec);
 }
 void
-XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex)
-	throw (XRawStreamRecordReader::XRecordError &) {
+XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	readHeader(fd);
@@ -172,8 +170,7 @@ XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex)
 	}
 }
 void
-XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int del)
-	throw (XIOError &) {
+XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len, int del) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	int c;
@@ -186,19 +183,16 @@ XRawStreamRecordReader::gzgetline(void* _fd, unsigned char*buf, unsigned int len
 	throw XBufferOverflowError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::first_(void *fd)
-	throw (XRawStreamRecordReader::XIOError &) {
+XRawStreamRecordReader::first_(void *fd) {
 	gzrewind(static_cast<gzFile>(fd));
 }
 void
-XRawStreamRecordReader::previous_(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &) {
+XRawStreamRecordReader::previous_(void *fd) {
 	if(gzseek(static_cast<gzFile>(fd), -sizeof(uint32_t), SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 	goToHeader(fd);
 }
 void
-XRawStreamRecordReader::next_(void *fd)
-	throw (XRawStreamRecordReader::XRecordError &) {
+XRawStreamRecordReader::next_(void *fd) {
 	readHeader(fd);
 	uint32_t headersize = sizeof(uint32_t) //allsize
 		+ sizeof(int32_t) //time().sec()
@@ -206,8 +200,7 @@ XRawStreamRecordReader::next_(void *fd)
 	if(gzseek(static_cast<gzFile>(fd), m_allsize - headersize, SEEK_CUR) == -1) throw XIOError(__FILE__, __LINE__);
 }
 void
-XRawStreamRecordReader::goToHeader(void *_fd)
-	throw (XRawStreamRecordReader::XRecordError &) {
+XRawStreamRecordReader::goToHeader(void *_fd) {
 	gzFile fd = static_cast<gzFile>(_fd);
 
 	if(gzeof(fd)) throw XIOError(__FILE__, __LINE__);

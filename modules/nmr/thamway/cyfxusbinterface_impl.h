@@ -48,7 +48,11 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     #ifdef WITH_KDE
             KStandardDirs::locate("appdata", filename);
     #else
+        #if QT_VERSION >= QT_VERSION_CHECK(5,4,0)
+            QStandardPaths::locate(QStandardPaths::AppDataLocation, filename);
+        #else
             QStandardPaths::locate(QStandardPaths::DataLocation, filename);
+        #endif
         if(path.isEmpty()) {
             //for macosx/win
             QDir dir(QApplication::applicationDirPath());
@@ -217,7 +221,7 @@ XCyFXUSBInterface<USBDevice>::finalize() {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
+XCyFXUSBInterface<USBDevice>::open() {
     Snapshot shot( *this);
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
@@ -230,6 +234,6 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
+XCyFXUSBInterface<USBDevice>::close() {
     m_usbDevice.reset();
 }

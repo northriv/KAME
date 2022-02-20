@@ -150,7 +150,7 @@ XTempControl::Loop::update(double temp) {
 	Snapshot shot( *tempctrl);
 
     //calculates std. deviations in some periods
-	double tau = shot[ *m_int] * 4.0;
+    double tau = tempctrl->currentIntervalSettingInSec(shot, m_idx) * 4.0;
 	if(tau <= 1)
 		tau = 4.0;
 	XTime newtime = XTime::now();
@@ -395,7 +395,7 @@ void XTempControl::showForms() {
 	m_form->raise();
 }
 
-void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+void XTempControl::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	try {
 		for(;;) {
 			//! Since raw buffer is Fast-in Fast-out, use the same sequence of push()es for pop()s

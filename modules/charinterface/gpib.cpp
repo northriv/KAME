@@ -150,14 +150,14 @@ XNIGPIBPort::~XNIGPIBPort() {
 }
 
 void
-XNIGPIBPort::gpib_reset() throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_reset() {
     gpib_close();
     msecsleep(100);
     gpib_open();
 }
 
 void
-XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
+XNIGPIBPort::open(const XCharInterface *pInterface) {
     Snapshot shot( *pInterface);
     m_address = shot[ *pInterface->address()];
     gpib_open();
@@ -170,7 +170,7 @@ XNIGPIBPort::open(const XCharInterface *pInterface) throw (XInterface::XCommErro
 }
 
 void
-XNIGPIBPort::gpib_open() throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_open() {
     int port = atoi(portString().c_str());
 	{
 		XScopedLock<XMutex> lock(s_lock);
@@ -205,7 +205,7 @@ XNIGPIBPort::gpib_open() throw (XInterface::XCommError &) {
 
 }
 void
-XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_close() {
 	if(m_ud >= 0) ibonl(m_ud, 0);
 	m_ud=-1;
 	{
@@ -219,14 +219,14 @@ XNIGPIBPort::gpib_close() throw (XInterface::XCommError &) {
 }
 
 void
-XNIGPIBPort::send(const char *str) throw (XInterface::XCommError &) {
+XNIGPIBPort::send(const char *str) {
 	XString buf(str);
     buf += eos();
     assert(buf.length() == strlen(str) + eos().length());
 	this->write(buf.c_str(), buf.length());
 }
 void
-XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+XNIGPIBPort::write(const char *sendbuf, int size) {
 	gpib_spoll_before_write();
   
 	for(int i = 0; ; i++) {
@@ -267,20 +267,19 @@ XNIGPIBPort::write(const char *sendbuf, int size) throw (XInterface::XCommError 
 	}
 }
 void
-XNIGPIBPort::receive() throw (XInterface::XCommError &) {
+XNIGPIBPort::receive() {
     unsigned int len = gpib_receive(MIN_BUF_SIZE, 1000000uL);
     buffer().resize(len + 1);
     buffer()[len] = '\0';
 }
 void
-XNIGPIBPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+XNIGPIBPort::receive(unsigned int length) {
     unsigned int len = gpib_receive(length, length);
     buffer().resize(len);
 }
 
 unsigned int
-XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
-	throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length) {
 
 	gpib_spoll_before_read();
 	int len = 0;
@@ -327,7 +326,7 @@ XNIGPIBPort::gpib_receive(unsigned int est_length, unsigned int max_length)
 	return len;
 }
 void
-XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_spoll_before_read() {
     if(m_bGPIBUseSerialPollOnRead) {
         for(int i = 0; ; i++) {
             if(i > 30) {
@@ -360,7 +359,7 @@ XNIGPIBPort::gpib_spoll_before_read() throw (XInterface::XCommError &) {
 	}
 }
 void 
-XNIGPIBPort::gpib_spoll_before_write() throw (XInterface::XCommError &) {
+XNIGPIBPort::gpib_spoll_before_write() {
     if(m_bGPIBUseSerialPollOnWrite) {
 		for(int i = 0; ; i++) {
 			if(i > 10) {

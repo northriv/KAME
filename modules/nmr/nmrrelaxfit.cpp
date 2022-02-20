@@ -255,7 +255,7 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
     create<XRelaxFuncPowExp>("Pow.Exp.0.5: exp(-t^0.5)", true, 0.5);
     create<XRelaxFuncPowExp>("Pow.Exp.0.6: exp(-t^0.6)", true, 0.6);
     create<XRelaxFuncPowExp>("Pow.Exp.0.7: exp(-t^0.7)", true, 0.7);
-    create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-t^0.8)", true, 0.7);
+    create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-t^0.8)", true, 0.8);
     create<XRelaxFuncPowExp>("Gaussian: exp(-t^2)", true, 2.0);
     create<XRelaxFuncPowExp>("Exp.: exp(-t)", true, 1.0);
 }

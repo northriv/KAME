@@ -59,7 +59,7 @@ SpectrumSolver::window(int t, int t0, FFT::twindowfunc windowfunc,
 }
 void
 SpectrumSolver::exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) throw (XKameError&) {
+	int t0, double torr, FFT::twindowfunc windowfunc, double windowlength) {
 	windowlength = std::max(0.0, windowlength);
 	unsigned int t = memin.size();
 	unsigned int n = memout.size();

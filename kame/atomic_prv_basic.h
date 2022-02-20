@@ -42,6 +42,8 @@ template <typename T, class Enable = void > class atomic;
 #else
     #if defined __ppc__ || defined __POWERPC__ || defined __powerpc__
         #include "atomic_prv_ppc.h"
+    #elif defined __arm__
+        #include "atomic_prv_arm.h"
     #else
         #error Unsupported processor
     #endif // __ppc__

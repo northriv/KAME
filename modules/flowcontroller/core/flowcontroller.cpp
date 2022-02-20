@@ -71,7 +71,7 @@ XFlowControllerDriver::showForms() {
 }
 
 void
-XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XFlowControllerDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     double flow, valve;
     flow = reader.pop<double>();
     valve = reader.pop<double>();

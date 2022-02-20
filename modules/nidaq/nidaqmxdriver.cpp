@@ -231,7 +231,7 @@ XNIDAQmxInterface::XNIDAQmxRoute::~XNIDAQmxRoute() {
 	}
 }
 void
-XNIDAQmxInterface::open() throw (XInterfaceError &) {
+XNIDAQmxInterface::open() {
 #ifdef HAVE_NI_DAQMX
 	char buf[256];
 
@@ -395,7 +395,7 @@ XNIDAQmxInterface::routeExternalClockSource(const char *dev, const char *inp_ter
 	return false;
 }
 void
-XNIDAQmxInterface::close() throw (XInterfaceError &) {
+XNIDAQmxInterface::close() {
 	m_productInfo = NULL;
 	if(m_devname.length()) {
 		m_devname.clear();

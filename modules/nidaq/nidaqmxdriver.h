@@ -98,11 +98,11 @@ public:
 
     static SoftwareTriggerManager &softwareTriggerManager() {return s_softwareTriggerManager;}
 protected:
-    virtual void open() throw (XInterfaceError &) override;
-	//! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) override;
+    virtual void open() override;
+    //! This can be called even if has already closed.
+    virtual void close() override;
 private:
-	//! \return true if an external source is detected and rounted.
+    //! \return true if an external source is detected and rounted.
 	bool routeExternalClockSource(const char *dev, const char *inp_term);
 
 	struct ProductInfo {
@@ -130,9 +130,9 @@ public:
 protected:
 	const shared_ptr<XNIDAQmxInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) {this->start();}
-	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &) {interface()->stop();}
+    virtual void open() {this->start();}
+    //! Be called during stopping driver. Call interface()->stop() inside this routine.
+    virtual void close() {interface()->stop();}
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.

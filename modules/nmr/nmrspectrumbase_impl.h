@@ -172,7 +172,7 @@ XNMRSpectrumBase<FRM>::checkDependency(const Snapshot &shot_this,
 template <class FRM>
 void
 XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
+	XDriver *emitter) {
 	const Snapshot &shot_this(tr);
 
 	shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];

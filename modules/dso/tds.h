@@ -25,7 +25,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	~XTDS() {}
 	//! Converts the raw to a display-able style.
-	virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	virtual void convertRaw(RawDataReader &reader, Transaction &tr);
 protected:
 	virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *) {}
 	virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *) {}
@@ -50,7 +50,7 @@ protected:
 	virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &);
+	virtual void open();
   
 	virtual double getTimeInterval();
 	//! clear count or start sequence measurement

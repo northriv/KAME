@@ -76,7 +76,7 @@ private:
             Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
         virtual ~XThamwayUSBPulser();
     protected:
-        virtual void open() throw (XKameError &) override;
+        virtual void open() override;
         //! Sends patterns to pulser or turns off.
         virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) override;
 
@@ -101,8 +101,8 @@ private:
             Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
         virtual ~XThamwayUSBPulserWithQAM() = default;
     protected:
-        virtual void open() throw (XKameError &) override;
-        virtual void close() throw (XKameError &) override;
+        virtual void open() override;
+        virtual void close() override;
 
         virtual double resolutionQAM() const override {return resolution();} //decimation by 20 is performed within changeOutput().
 
@@ -118,7 +118,7 @@ public:
         XCharDeviceDriver<XThamwayPulser>(name, runtime, ref(tr_meas), meas) {}
     virtual ~XThamwayCharPulser() = default;
 protected:
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
     //! Sends patterns to pulser or turns off.
     virtual void changeOutput(const Snapshot &shot, bool output, unsigned int blankpattern) override;
 

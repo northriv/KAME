@@ -297,7 +297,7 @@ XThamwayT300ImpedanceAnalyzer::XThamwayT300ImpedanceAnalyzer(const char *name, b
 }
 
 void
-XThamwayT300ImpedanceAnalyzer::open() throw (XKameError &) {
+XThamwayT300ImpedanceAnalyzer::open() {
     interface()->query("GET START?");
     double freq;
     if(interface()->scanf("START %lf", &freq) != 1)
@@ -400,7 +400,7 @@ XThamwayT300ImpedanceAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigne
     }
 }
 void
-XThamwayT300ImpedanceAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XThamwayT300ImpedanceAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) {
     const Snapshot &shot(tr);
     uint32_t stype = reader.pop<uint32_t>();
     uint32_t samples = reader.pop<uint32_t>();

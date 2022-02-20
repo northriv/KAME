@@ -39,7 +39,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p);
     virtual void onIChanged(unsigned int loop, double i);
@@ -76,7 +76,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "W";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
     //! Be called for closing interfaces.
     virtual void closeInterface();
 
@@ -140,7 +140,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p);
     virtual void onIChanged(unsigned int loop, double i);
@@ -175,7 +175,7 @@ public:
 
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPowerMaxChanged(unsigned int loop, double v);
     virtual const char *loopString(unsigned int loop) {
@@ -192,7 +192,7 @@ public:
 
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPowerMaxChanged(unsigned int loop, double v) {}
     virtual const char *loopString(unsigned int loop) {
@@ -219,7 +219,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p);
     virtual void onIChanged(unsigned int loop, double i);
@@ -256,7 +256,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p);
     virtual void onIChanged(unsigned int loop, double i);
@@ -293,6 +293,7 @@ protected:
     virtual double getTemp(shared_ptr<XChannel> &channel) override;
     //! ex. "W", "dB", or so
     virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
+    virtual double currentIntervalSettingInSec(const Snapshot &shot, unsigned int lp) override {return 1000.0 / shot[ *interval(lp)];}
     virtual void onPChanged(unsigned int loop, double p) override;
     virtual void onIChanged(unsigned int loop, double i) override;
     virtual void onDChanged(unsigned int loop, double d) override;
@@ -313,7 +314,7 @@ protected:
     virtual double getHeater(unsigned int loop) override;
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
 
     virtual void onTargetTempChanged(unsigned int loop, double temp) override;
     virtual void onHeaterModeChanged(unsigned int loop, int mode) override;
@@ -330,7 +331,7 @@ public:
     virtual ~XLakeShore350() = default;
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
 
     //! obtains current heater power
     //! \sa m_heaterPowerUnit()
@@ -362,7 +363,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) override {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
 
     virtual void onPChanged(unsigned int loop, double p) override;
     virtual void onIChanged(unsigned int loop, double i) override;
@@ -397,7 +398,7 @@ protected:
     virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
 
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open();
 
     virtual void onPChanged(unsigned int loop, double p) {}
     virtual void onIChanged(unsigned int loop, double i) {}

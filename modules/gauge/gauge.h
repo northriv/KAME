@@ -39,7 +39,7 @@ protected:
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
     //! \sa analyze()
-    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) override;
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
     //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
     //! This might be called even if the record is invalid (time() == false).
     virtual void visualize(const Snapshot &shot) override;

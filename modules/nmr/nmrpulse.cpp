@@ -350,7 +350,7 @@ bool XNMRPulseAnalyzer::checkDependency(const Snapshot &shot_this,
 }
 void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
+	XDriver *emitter) {
 	const Snapshot &shot_this(tr);
 	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
 	assert(dso__);

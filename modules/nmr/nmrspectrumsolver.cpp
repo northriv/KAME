@@ -19,6 +19,7 @@
 #include "freqestleastsquare.h"
 
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_ZF_FFT[] = "ZF-FFT";
+const char SpectrumSolverWrapper::SPECTRUM_SOLVER_TSVD_FS[] = "tSVD Fourier (expr.)";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT[] = "Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_STRICT_BURG[] = "Burg+Strict MEM";
 const char SpectrumSolverWrapper::SPECTRUM_SOLVER_MEM_BURG_AICc[] = "Burg's MEM AICc";
@@ -68,7 +69,7 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
         Snapshot shot = selector->iterate_commit([=](Transaction &tr){
 			if( !leastsquareonly) {
 				tr[ *selector].add(SPECTRUM_SOLVER_ZF_FFT);
-				tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT);
+                tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT);
 		//		tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT_EV);
 #ifdef USE_FREQ_ESTM
                 tr[ *selector].add(SPECTRUM_SOLVER_MVDL);
@@ -80,7 +81,8 @@ SpectrumSolverWrapper::SpectrumSolverWrapper(const char *name, bool runtime,
 				tr[ *selector].add(SPECTRUM_SOLVER_AR_YW_AICc);
 				tr[ *selector].add(SPECTRUM_SOLVER_AR_YW_MDL);
 		//		tr[ *selector].add(SPECTRUM_SOLVER_MEM_STRICT_BURG);
-			}
+                tr[ *selector].add(SPECTRUM_SOLVER_TSVD_FS);
+            }
 			tr[ *selector].add(SPECTRUM_SOLVER_LS_HQ);
 			tr[ *selector].add(SPECTRUM_SOLVER_LS_AICc);
 			tr[ *selector].add(SPECTRUM_SOLVER_LS_MDL);
@@ -172,7 +174,10 @@ SpectrumSolverWrapper::onSolverChanged(const Snapshot &shot, XValueNodeBase *) {
                 new CompositeSpectrumSolver<MEMStrict, EigenVectorMethod>()));
         }
 #endif
-		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
+        if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_TSVD_FS) {
+            wrapper.reset(new Payload::Wrapper<TSVDFourierSeries>(new TSVDFourierSeries));
+        }
+        if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT) {
 			wrapper.reset(new Payload::Wrapper<MEMStrict>(new MEMStrict));
 		}
 		if(shot[ *m_selector].to_str() == SPECTRUM_SOLVER_MEM_STRICT_BURG) {

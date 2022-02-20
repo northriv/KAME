@@ -69,17 +69,17 @@ private:
 	uint32_t m_allsize;
 	XTime m_time;
 
-	//! change position without parsing
-	void first_(void *) throw (XIOError &);
-	void previous_(void *) throw (XRecordError &);
-	void next_(void *) throw (XRecordError &);
-	void goToHeader(void *) throw (XRecordError &);
+    //! changes position without parsing
+    void first_(void *); // throw (XIOError &)
+    void previous_(void *); // throw (XRecordError &)
+    void next_(void *); // throw (XRecordError &)
+    void goToHeader(void *); // throw (XRecordError &)
 
-	void readHeader(void *) throw (XRecordError &);
+    void readHeader(void *); // throw (XRecordError &)
 	//! Parse current pos and go next
-	void parseOne(void *, XMutex &mutex)  throw (XRecordError &);
+    void parseOne(void *, XMutex &mutex); //  throw (XRecordError &)
 
-	void gzgetline(void*fd, unsigned char*buf, unsigned int len, int del) throw (XIOError &);
+    void gzgetline(void*fd, unsigned char*buf, unsigned int len, int del); // throw (XIOError &)
   
     std::vector<unique_ptr<XThread>> m_threads;
 	void *execute(const atomic<bool> &);      

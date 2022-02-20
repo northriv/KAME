@@ -62,7 +62,7 @@ XTCPSocketPort::~XTCPSocketPort() {
     }
 }
 void
-XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
+XTCPSocketPort::reopen_socket() {
     if(m_socket >= 0) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
         closesocket(m_socket);
@@ -74,7 +74,7 @@ XTCPSocketPort::reopen_socket() throw (XInterface::XCommError &) {
 }
 
 void
-XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &) {
+XTCPSocketPort::open(const XCharInterface *pInterface) {
     std::string ipaddr = portString();
 	int colpos = ipaddr.find_first_of(':');
 	if(colpos == std::string::npos)
@@ -123,13 +123,13 @@ XTCPSocketPort::open(const XCharInterface *pInterface) throw (XInterface::XCommE
 	}
 }
 void
-XTCPSocketPort::send(const char *str) throw (XInterface::XCommError &) {
+XTCPSocketPort::send(const char *str) {
     XString buf(str);
     buf += eos();
     this->write(buf.c_str(), buf.length());
 }
 void
-XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &) {
+XTCPSocketPort::write(const char *sendbuf, int size) {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     fd_set fs;
     FD_ZERO(&fs);
@@ -164,7 +164,7 @@ XTCPSocketPort::write(const char *sendbuf, int size) throw (XInterface::XCommErr
 	} while (wlen < size);
 }
 void
-XTCPSocketPort::receive() throw (XInterface::XCommError &) {
+XTCPSocketPort::receive() {
 #if defined WINDOWS || defined __WIN32__ || defined _WIN32
     fd_set fs;
     FD_ZERO(&fs);
@@ -221,7 +221,7 @@ XTCPSocketPort::receive() throw (XInterface::XCommError &) {
 	buffer().at(len) = '\0';
 }
 void
-XTCPSocketPort::receive(unsigned int length) throw (XInterface::XCommError &) {
+XTCPSocketPort::receive(unsigned int length) {
 	buffer().resize(length);
 	unsigned int len = 0;
    

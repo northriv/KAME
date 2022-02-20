@@ -33,22 +33,25 @@ public:
         __attribute__ ((format(scanf,2,3)))
 #endif
     ;
-    double toDouble() const throw (XConvError &);
-    int toInt() const throw (XConvError &);
-    unsigned int toUInt() const throw (XConvError &);
+    //! XConvError will be thrown if conversoin fails.
+    double toDouble() const;
+    int toInt() const;
+    unsigned int toUInt() const;
     XString toStr() const;
     XString toStrSimplified() const; //!< returns string white-spaces stripped.
 
     //! format version of send()
     //! \sa printf()
-    void sendf(const char *format, ...) throw (XInterfaceError &)
+    //! XInterfaceError will be thrown if IO fails.
+    void sendf(const char *format, ...)
 #if defined __GNUC__ || defined __clang__
         __attribute__ ((format(printf,2,3)))
 #endif
     ;
     //! format version of query()
     //! \sa printf()
-    void queryf(const char *format, ...) throw (XInterfaceError &)
+    //! XInterfaceError will be thrown if IO fails.
+    void queryf(const char *format, ...)
 #if defined __GNUC__ || defined __clang__
         __attribute__ ((format(printf,2,3)))
 #endif
@@ -67,9 +70,11 @@ public:
     //! only for XPort and internal use.
     static std::vector<char> &buffer_receive() {return *s_tlBuffer;}
 protected:
-    virtual void open() throw (XInterfaceError &) = 0;
+    //! XInterfaceError will be thrown if IO fails.
+    virtual void open() = 0;
     //! This can be called even if has already closed.
-    virtual void close() throw (XInterfaceError &) = 0;
+    //! XInterfaceError will be thrown if IO fails.
+    virtual void close() = 0;
 
 private:
     static XThreadLocal<std::vector<char> > s_tlBuffer;
@@ -122,9 +127,9 @@ public:
     virtual void receive(unsigned int length);
 	virtual bool isOpened() const {return !!m_xport;}
 protected:
-	virtual void open() throw (XInterfaceError &);
+    virtual void open();
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
+    virtual void close();
 
     shared_ptr<XPort> openedPort() const {return m_xport;}
 private:
@@ -158,11 +163,12 @@ class XPort {
 public:
     XPort(XCharInterface *interface) {m_portString = ***interface->port();}
     virtual ~XPort() = default;
-    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &) = 0;
-	virtual void send(const char *str) throw (XInterface::XCommError &) = 0;
-	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &) = 0;
-	virtual void receive() throw (XInterface::XCommError &) = 0;
-	virtual void receive(unsigned int length) throw (XInterface::XCommError &) = 0;
+    //! XInterface::XCommError will be thrown if IO fails.
+    virtual void open(const XCharInterface *pInterface) = 0;
+    virtual void send(const char *str) = 0;
+    virtual void write(const char *sendbuf, int size) = 0;
+    virtual void receive() = 0;
+    virtual void receive(unsigned int length) = 0;
 	//! Thread-Local-Storage Buffer.
 	//! \sa XThreadLocal
     std::vector<char>& buffer() {return XCharInterface::buffer_receive();}

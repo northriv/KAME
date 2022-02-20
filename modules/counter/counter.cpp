@@ -22,7 +22,7 @@ XCounter::XCounter(const char *name, bool runtime,
 }
 
 void
-XCounter::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XCounter::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	for(unsigned int ch = 0; ch < m_entries.size(); ch++) {
 		m_entries[ch]->value(tr, reader.pop<double>());
 	}

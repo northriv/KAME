@@ -26,6 +26,7 @@ INCLUDEPATH += \
 
 HEADERS += \
     allocator.h \
+    atomic_prv_mfence_arm8.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \
@@ -144,10 +145,10 @@ unix {
         math/matrix.h \
         math/freqest.h
     SOURCES += \
+        math/freqest.cpp \
+        math/matrix.cpp \
         allocator_prv.h \
         allocator.cpp \
-        math/freqest.cpp \
-        math/matrix.cpp
 }
 
 FORMS += \
