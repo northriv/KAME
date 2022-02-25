@@ -414,7 +414,7 @@ XCryogenicSMS::setRateInternal(double hpm) {
 void
 XCryogenicSMS::setRate(double hpm) {
     XScopedLock<XInterface> lock( *interface());
-    if(Snapshot( *this)[ *persistent()])
+    if( !isPCSHeaterOn() && isPCSFitted())
         return; //ignores if the supply is already in persistent mode. See toNonPersistent().
     setRateInternal(hpm);
 }
