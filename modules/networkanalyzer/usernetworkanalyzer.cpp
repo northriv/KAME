@@ -200,7 +200,6 @@ XCopperMtTRVNA::XCopperMtTRVNA(const char *name, bool runtime,
     trans( *interface()->port()) = "127.0.0.1:5025";
 }
 
-
 XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
