@@ -84,29 +84,44 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 	}
 }
 void
-XFlexCRK::getConditions(Transaction &tr) {
-	XScopedLock<XInterface> lock( *interface());
-	interface()->diagnostics();
-	tr[ *currentRunning()] = interface()->readHoldingSingleResistor(0x21e);
-	tr[ *currentStopping()] = interface()->readHoldingSingleResistor(0x21f);
-	tr[ *microStep()] = (interface()->readHoldingSingleResistor(0x311) != 0);
-	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x224) * 1e-3;
-	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x226) * 1e-3;
-	tr[ *stepEncoder()] = interface()->readHoldingTwoResistors(0x312);
-	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x314);
-	tr[ *speed()] = interface()->readHoldingTwoResistors(0x502);
-	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402))
-			* 360.0 / tr[ *stepMotor()];
-	tr[ *round()].setUIEnabled(false);
-	tr[ *roundBy()].setUIEnabled(false);
-    tr[ *active()] = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) == 1; //CON
-	interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
-	interface()->presetSingleResistor(0x200, 0); //START by RS485.
-	interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
-	interface()->presetSingleResistor(0x20c, 0); //HOME/FWD/RVS by RS485.
-	interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
-	interface()->presetSingleResistor(0x202, 1); //Dec. after STOP.
-	interface()->presetSingleResistor(0x601, 1); //Absolute.
+XFlexCRK::getConditions() {
+    double crun, cstop, mstep, tacc, tdec, senc, smotor, spd, tgt;
+    bool atv;
+    {
+        XScopedLock<XInterface> lock( *interface());
+        interface()->diagnostics();
+        crun = interface()->readHoldingSingleResistor(0x21e);
+        cstop = interface()->readHoldingSingleResistor(0x21f);
+        mstep = (interface()->readHoldingSingleResistor(0x311) != 0);
+        tacc = interface()->readHoldingTwoResistors(0x224) * 1e-3;
+        tdec = interface()->readHoldingTwoResistors(0x226) * 1e-3;
+        senc = interface()->readHoldingTwoResistors(0x312);
+        smotor = interface()->readHoldingTwoResistors(0x314);
+        spd = interface()->readHoldingTwoResistors(0x502);
+        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402));
+        atv = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) == 1; //CON
+        interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
+        interface()->presetSingleResistor(0x200, 0); //START by RS485.
+        interface()->presetSingleResistor(0x20b, 0); //C-ON by RS485.
+        interface()->presetSingleResistor(0x20c, 0); //HOME/FWD/RVS by RS485.
+        interface()->presetSingleResistor(0x20d, 0); //No. by RS485.
+        interface()->presetSingleResistor(0x202, 1); //Dec. after STOP.
+        interface()->presetSingleResistor(0x601, 1); //Absolute.
+    }
+    iterate_commit([=](Transaction &tr){
+        tr[ *currentRunning()] = crun;
+        tr[ *currentStopping()] = cstop;
+        tr[ *microStep()] = mstep;
+        tr[ *timeAcc()] = tacc;
+        tr[ *timeDec()] = tdec;
+        tr[ *stepEncoder()] = senc;
+        tr[ *stepMotor()] = smotor * 360.0 / tr[ *stepMotor()];
+        tr[ *speed()] = spd;
+        tr[ *target()] = tgt;
+        tr[ *round()].setUIEnabled(false);
+        tr[ *roundBy()].setUIEnabled(false);
+        tr[ *active()] = atv;
+    });
 }
 void
 XFlexCRK::stopRotation() {
@@ -257,38 +272,54 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 	}
 }
 void
-XFlexAR::getConditions(Transaction &tr) {
-	XScopedLock<XInterface> lock( *interface());
-    interface()->diagnostics();
-	tr[ *currentRunning()] = interface()->readHoldingTwoResistors(0x240) * 0.1;
-	tr[ *currentStopping()] = interface()->readHoldingTwoResistors(0x242) * 0.1;
-	tr[ *microStep()] = (interface()->readHoldingTwoResistors(0x1028) != 0);
-	tr[ *timeAcc()] = interface()->readHoldingTwoResistors(0x280) * 1e-3;
-	tr[ *timeDec()] = interface()->readHoldingTwoResistors(0x282) * 1e-3;
-	tr[ *stepMotor()] = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
-	tr[ *stepEncoder()] = tr[ *stepMotor()] * interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
-	tr[ *hasEncoder()] = true;
-	tr[ *speed()] = interface()->readHoldingTwoResistors(0x480);
-	tr[ *target()] = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400))
-			* 360.0 / tr[ *stepMotor()];
-	tr[ *round()] = (interface()->readHoldingTwoResistors(0x38e) == 1);
-	tr[ *roundBy()] = interface()->readHoldingTwoResistors(0x390);
-    tr[ *active()] = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
-
-	interface()->presetTwoResistors(0x500, 1); //Absolute.
-	interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
-	interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
-	interface()->presetTwoResistors(0x1142, 33); //OUT1 to R1
-//	interface()->presetTwoResistors(0x1144, 34); //OUT2 to R2
-	interface()->presetTwoResistors(0x1146, 35); //OUT3 to R3
-	interface()->presetTwoResistors(0x1148, 36); //OUT4 to R4
-	interface()->presetTwoResistors(0x114a, 37); //OUT5 to R5
-	interface()->presetTwoResistors(0x1160, 32); //NET-IN0 to R0
-	interface()->presetTwoResistors(0x1162, 33); //NET-IN1 to R1
-//	interface()->presetTwoResistors(0x1164, 34); //NET-IN2 to R2
-	interface()->presetTwoResistors(0x1166, 35); //NET-IN3 to R3
-	interface()->presetTwoResistors(0x1168, 36); //NET-IN4 to R4
-	interface()->presetTwoResistors(0x116a, 37); //NET-IN5 to R5
+XFlexAR::getConditions() {
+    double crun, cstop, mstep, tacc, tdec, senc, smotor, spd, tgt, rnd, rndby;
+    bool atv;
+    {
+        XScopedLock<XInterface> lock( *interface());
+        interface()->diagnostics();
+        crun = interface()->readHoldingTwoResistors(0x240) * 0.1;
+        cstop = interface()->readHoldingTwoResistors(0x242) * 0.1;
+        mstep = (interface()->readHoldingTwoResistors(0x1028) != 0);
+        tacc = interface()->readHoldingTwoResistors(0x280) * 1e-3;
+        tdec = interface()->readHoldingTwoResistors(0x282) * 1e-3;
+        smotor = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
+        senc = interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
+        spd = interface()->readHoldingTwoResistors(0x480);
+        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400));
+        rnd = (interface()->readHoldingTwoResistors(0x38e) == 1);
+        rndby = interface()->readHoldingTwoResistors(0x390);
+        atv = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
+        interface()->presetTwoResistors(0x500, 1); //Absolute.
+        interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
+        interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
+        interface()->presetTwoResistors(0x1142, 33); //OUT1 to R1
+    //	interface()->presetTwoResistors(0x1144, 34); //OUT2 to R2
+        interface()->presetTwoResistors(0x1146, 35); //OUT3 to R3
+        interface()->presetTwoResistors(0x1148, 36); //OUT4 to R4
+        interface()->presetTwoResistors(0x114a, 37); //OUT5 to R5
+        interface()->presetTwoResistors(0x1160, 32); //NET-IN0 to R0
+        interface()->presetTwoResistors(0x1162, 33); //NET-IN1 to R1
+    //	interface()->presetTwoResistors(0x1164, 34); //NET-IN2 to R2
+        interface()->presetTwoResistors(0x1166, 35); //NET-IN3 to R3
+        interface()->presetTwoResistors(0x1168, 36); //NET-IN4 to R4
+        interface()->presetTwoResistors(0x116a, 37); //NET-IN5 to R5
+    }
+    iterate_commit([=](Transaction &tr){
+        tr[ *currentRunning()] = crun;
+        tr[ *currentStopping()] = cstop;
+        tr[ *microStep()] = mstep;
+        tr[ *timeAcc()] = tacc;
+        tr[ *timeDec()] = tdec;
+        tr[ *stepEncoder()] = tr[ *stepMotor()] * senc;
+        tr[ *stepMotor()] = smotor * 360.0 / tr[ *stepMotor()];
+        tr[ *speed()] = spd;
+        tr[ *target()] = tgt;
+        tr[ *hasEncoder()] = true;
+        tr[ *round()] = rnd;
+        tr[ *roundBy()] = rndby;
+        tr[ *active()] = atv;
+    });
 }
 void
 XFlexAR::setTarget(const Snapshot &shot, double target) {
@@ -428,28 +459,38 @@ XEMP401::changeConditions(const Snapshot &shot) {
 	waitForCursor();
 }
 void
-XEMP401::getConditions(Transaction &tr) {
-	XScopedLock<XInterface> lock( *interface());
-	interface()->query("T");
-	int x;
-	if(interface()->scanf("%*d: T = %d", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	tr[ *timeAcc()] = x * 0.1;
+XEMP401::getConditions() {
+    double mstep, spd, tacc, smotor;
+    {
+        XScopedLock<XInterface> lock( *interface());
+        interface()->query("T");
+        int x;
+        if(interface()->scanf("%*d: T = %d", &x) != 1)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        tacc = x * 0.1;
 
-	waitForCursor();
-	interface()->query("V");
-	if(interface()->scanf("%*d: V = %d", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	tr[ *speed()] = x;
+        waitForCursor();
+        interface()->query("V");
+        if(interface()->scanf("%*d: V = %d", &x) != 1)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        spd = x;
 
-	waitForCursor();
-	interface()->query("UNIT");
-	double n1,n2;
-	if(interface()->scanf("%*d: UNIT = %lf,%lf", &n1, &n2) != 2)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	tr[ *microStep()] = (n2 > 1.1);
-	tr[ *stepMotor()] = 1.0 / n1;
-	waitForCursor();
+        waitForCursor();
+        interface()->query("UNIT");
+        double n1,n2;
+        if(interface()->scanf("%*d: UNIT = %lf,%lf", &n1, &n2) != 2)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        mstep = (n2 > 1.1);
+        smotor = 1.0 / n1;
+        waitForCursor();
+    }
+
+    iterate_commit([=](Transaction &tr){
+        tr[ *microStep()] = mstep;
+        tr[ *timeAcc()] = tacc;
+        tr[ *stepMotor()] = smotor;
+        tr[ *speed()] = spd;
+    });
 }
 void
 XEMP401::stopRotation() {

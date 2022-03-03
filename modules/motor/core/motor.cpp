@@ -229,9 +229,7 @@ XMotorDriver::onStopMotorTouched(const Snapshot &shot, XTouchableNode *) {
 void *
 XMotorDriver::execute(const atomic<bool> &terminated) {
     m_timeMovementStarted = {};
-    iterate_commit([=](Transaction &tr){
-		getConditions(tr);
-    });
+    getConditions();
 
 	m_position->setUIEnabled(true);
 	m_target->setUIEnabled(true);

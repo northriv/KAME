@@ -29,7 +29,7 @@ protected:
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
 	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
+    virtual void getConditions();
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
@@ -53,7 +53,7 @@ protected:
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
 	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
+    virtual void getConditions();
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);
@@ -77,7 +77,7 @@ protected:
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready);
 	virtual void changeConditions(const Snapshot &shot);
-	virtual void getConditions(Transaction &tr);
+    virtual void getConditions();
 	virtual void setTarget(const Snapshot &shot, double target);
 	virtual void setActive(bool active);
 	virtual void setAUXBits(unsigned int bits);

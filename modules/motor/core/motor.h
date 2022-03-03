@@ -67,7 +67,7 @@ public:
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) = 0;
 	virtual void changeConditions(const Snapshot &shot) = 0;
-	virtual void getConditions(Transaction &tr) = 0;
+    virtual void getConditions() = 0;
 	virtual void setTarget(const Snapshot &shot, double target) = 0;
 	virtual void setForward() = 0;
 	virtual void setReverse() = 0;
