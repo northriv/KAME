@@ -98,7 +98,7 @@ XFlexCRK::getConditions() {
         senc = interface()->readHoldingTwoResistors(0x312);
         smotor = interface()->readHoldingTwoResistors(0x314);
         spd = interface()->readHoldingTwoResistors(0x502);
-        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402));
+        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x402)) * 360.0 / smotor;
         atv = (interface()->readHoldingSingleResistor(0x1e) & 0x2000u) == 1; //CON
         interface()->presetSingleResistor(0x203, 0); //STOP I/O normally open.
         interface()->presetSingleResistor(0x200, 0); //START by RS485.
@@ -115,7 +115,7 @@ XFlexCRK::getConditions() {
         tr[ *timeAcc()] = tacc;
         tr[ *timeDec()] = tdec;
         tr[ *stepEncoder()] = senc;
-        tr[ *stepMotor()] = smotor * 360.0 / tr[ *stepMotor()];
+        tr[ *stepMotor()] = smotor;
         tr[ *speed()] = spd;
         tr[ *target()] = tgt;
         tr[ *round()].setUIEnabled(false);
@@ -284,9 +284,9 @@ XFlexAR::getConditions() {
         tacc = interface()->readHoldingTwoResistors(0x280) * 1e-3;
         tdec = interface()->readHoldingTwoResistors(0x282) * 1e-3;
         smotor = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
-        senc = interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
+        senc = smotor * interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
         spd = interface()->readHoldingTwoResistors(0x480);
-        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400));
+        tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400)) * 360.0 / smotor;
         rnd = (interface()->readHoldingTwoResistors(0x38e) == 1);
         rndby = interface()->readHoldingTwoResistors(0x390);
         atv = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
@@ -311,8 +311,8 @@ XFlexAR::getConditions() {
         tr[ *microStep()] = mstep;
         tr[ *timeAcc()] = tacc;
         tr[ *timeDec()] = tdec;
-        tr[ *stepEncoder()] = tr[ *stepMotor()] * senc;
-        tr[ *stepMotor()] = smotor * 360.0 / tr[ *stepMotor()];
+        tr[ *stepMotor()] = smotor;
+        tr[ *stepEncoder()] = senc;
         tr[ *speed()] = spd;
         tr[ *target()] = tgt;
         tr[ *hasEncoder()] = true;
