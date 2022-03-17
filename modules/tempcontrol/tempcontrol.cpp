@@ -151,8 +151,8 @@ XTempControl::Loop::update(double temp) {
 
     //calculates std. deviations in some periods
     double tau = tempctrl->currentIntervalSettingInSec(shot, m_idx) * 4.0;
-	if(tau <= 1)
-		tau = 4.0;
+    tau = std::max(1.0, tau);
+    tau = std::min(300.0, tau);
 	XTime newtime = XTime::now();
 	double dt = newtime - m_lasttime;
 	m_lasttime = newtime;
