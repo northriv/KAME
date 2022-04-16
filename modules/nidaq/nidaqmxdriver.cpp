@@ -62,6 +62,8 @@ XNIDAQmxInterface::sc_productInfoList[] = {
     {"PCIe-6353", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
     {"PCIe-6361", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
     {"PCIe-6363", "X", 0, 1000uL, 1000uL, 5000uL, 5000uL},
+    {"PCIe-6374", "X", 0, 3570uL, 3300uL, 10000uL, 10000uL},
+    {"PCIe-6376", "X", 0, 3570uL, 3300uL, 10000uL, 10000uL},
     {0, 0, 0, 0, 0, 0, 0},
 };
 
