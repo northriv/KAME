@@ -2,7 +2,7 @@ TEMPLATE = app
 
 CONFIG += exceptions
 CONFIG += rtti
-contains(QMAKE_HOST.arch, x86_64) {
+contains(QMAKE_HOST.arch, x86) | contains(QMAKE_HOST.arch, x86_64) {
     CONFIG += sse sse2
 }
 
@@ -25,7 +25,7 @@ win32-msvc* {
     QMAKE_CXXFLAGS += /arch:SSE2
 }
 else {
-    contains(QMAKE_HOST.arch, i386) {
+    contains(QMAKE_HOST.arch, x86) {
         QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
     }
 }
