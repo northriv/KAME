@@ -328,9 +328,14 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
 	int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
 	interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
-    interface()->presetTwoResistors(0x7c, netin | 0x100uL); //MS0
-    interface()->presetTwoResistors(0x7c, netin & ~0x100uL);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+//    interface()->presetTwoResistors(0x7c, netin | 0x100uL); //MS0
+//    interface()->presetTwoResistors(0x7c, netin & ~0x100uL);
+    interface()->presetTwoResistors(0x7c, netin);
+    msecsleep(4);
+    interface()->presetTwoResistors(0x7c, netin | 0x8uL); //START
+    msecsleep(4);
+    interface()->presetTwoResistors(0x7c, netin & ~0x8uL);
 }
 void
 XFlexAR::stopRotation() {
@@ -344,7 +349,7 @@ XFlexAR::sendStopSignal(bool wait) {
 		if(isready) break;
 		if(i ==0) {
             uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
+            netin &= ~(0x4000uL | 0x8000u | 0x8uL); //FWD | RVS | START
             interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
             msecsleep(4);
             interface()->presetTwoResistors(0x7c, netin & ~0x20uL);
@@ -361,14 +366,14 @@ void
 XFlexAR::setForward() {
 	XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
     interface()->presetTwoResistors(0x7c, netin | 0x4000uL); //FWD
 }
 void
 XFlexAR::setReverse() {
 	XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
     interface()->presetTwoResistors(0x7c, netin | 0x8000uL); //RVS
 }
 void
