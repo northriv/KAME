@@ -58,7 +58,7 @@ public:
         bool isAllReady;
         int codeLinePos;
         XTime estFinishTime;
-//        XTime lineStartedTime;
+        XTime lineStartedTime;
         shared_ptr<XString> codeLines;
     };
 

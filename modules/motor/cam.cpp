@@ -228,7 +228,9 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         tr[ *slipping()] = shot[ *this].isSlipping;
 
         if(shot[ *this].isRunning) {
-            if(shot[ *this].isAllReady) {
+            if(shot[ *this].isAllReady && (XTime::now() - shot[ *this].lineStartedTime > 1.0)) {
+                //runs every 1sec.
+                tr[ *this].lineStartedTime = XTime::now();
                 std::stringstream ss;
                 ss << shot[ *this].codeLines;
                 int lineno = 0;
@@ -251,20 +253,25 @@ void XMicroCAM::visualize(const Snapshot &shot) {
 
     });
 
+    if( !shot[ *this].isRunning || line_to_do.empty())
+        return;
+
     //execute one line.
     std::cerr << line_to_do << std::endl;
 
+    return;
+
     double x, z, f;
     int word;
-    if(sscanf(line_to_do.c_str(), "G01X%lfF%lf", &x, &f) != 2) {
+    if(sscanf(line_to_do.c_str(), "G01X%lfF%lf", &x, &f) == 2) {
         setSpeed(shot, Axis::X, f);
         setTarget(shot, Axis::X, x);
     }
-    else if(sscanf(line_to_do.c_str(), "G01Z%lfF%lf", &z, &f) != 2) {
+    else if(sscanf(line_to_do.c_str(), "G01Z%lfF%lf", &z, &f) == 2) {
         setSpeed(shot, Axis::Z, f);
         setTarget(shot, Axis::Z, z);
     }
-    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) != 3) {
+    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) == 3) {
         double dx = fabs(x - shot[ *this].values[static_cast<int>(Axis::X)]);
         double dz = fabs(z - shot[ *this].values[static_cast<int>(Axis::Z)]);
         double fx = f * dx / sqrt(dx*dx + dz*dz);
@@ -274,28 +281,28 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         setTarget(shot, Axis::X, x);
         setTarget(shot, Axis::Z, z);
     }
-    else if(sscanf(line_to_do.c_str(), "G00X%lf", &x) != 1) {
+    else if(sscanf(line_to_do.c_str(), "G00X%lf", &x) == 1) {
         setMaxSpeed(shot, Axis::X);
         setTarget(shot, Axis::X, x);
     }
-    else if(sscanf(line_to_do.c_str(), "G01Z%lf", &z) != 1) {
+    else if(sscanf(line_to_do.c_str(), "G01Z%lf", &z) == 1) {
         setMaxSpeed(shot, Axis::Z);
         setTarget(shot, Axis::Z, z);
     }
-    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lf", &x, &z) != 2) {
+    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lf", &x, &z) == 2) {
         setMaxSpeed(shot, Axis::X);
         setMaxSpeed(shot, Axis::Z);
         setTarget(shot, Axis::X, x);
         setTarget(shot, Axis::Z, z);
     }
-    else if(sscanf(line_to_do.c_str(), "S%lfM03", &f) != 1) {
+    else if(sscanf(line_to_do.c_str(), "S%lfM03", &f) == 1) {
         f *= 360.0; //deg/min
         const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
         if(!stm__)
             return;
         trans( *stm__->forwardMotor()).touch();
     }
-    else if(sscanf(line_to_do.c_str(), "M%2d", &word) != 1) {
+    else if(sscanf(line_to_do.c_str(), "M%2d", &word) == 1) {
         switch(word) {
         case 2:
             trans( *this).isRunning = false;
@@ -344,7 +351,7 @@ void XMicroCAM::execCut() {
         tr[ *this].isRunning = true;
         tr[ *this].codeLines = std::make_shared<XString>(m_form->m_txtCode->toPlainText());
         tr[ *this].codeLinePos = 0;
-//        tr[ *this].lineStartedTime = XTime::now();
+        tr[ *this].lineStartedTime = XTime::now();
         tr[ *this].estFinishTime = XTime::now();
         std::stringstream ss;
         ss << shot[ *this].codeLines;
@@ -353,15 +360,15 @@ void XMicroCAM::execCut() {
         while(std::getline(ss, line)) {
             double x, z, f;
             double dist = -1;
-            if(sscanf(line.c_str(), "G01X%lfF%lf", &x, &f) != 2) {
+            if(sscanf(line.c_str(), "G01X%lfF%lf", &x, &f) == 2) {
                 dist = fabs(x - currX);
                 currX = x;
             }
-            else if(sscanf(line.c_str(), "G01Z%lfF%lf", &z, &f) != 2) {
+            else if(sscanf(line.c_str(), "G01Z%lfF%lf", &z, &f) == 2) {
                 dist = fabs(z - currZ);
                 currZ = z;
             }
-            else if(sscanf(line.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) != 3) {
+            else if(sscanf(line.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) == 3) {
                 dist = sqrt(pow(x - currX, 2) + pow(z - currZ, 2));
                 currX = x; currZ = z;
             }
