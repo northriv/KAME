@@ -532,7 +532,7 @@ void XMicroCAM::onEscapeTouched(const Snapshot &shot, XTouchableNode *) {
                 break;
         }
         //Go to Z = Z_HOME
-        if(shot_this[ *currValue(Axis::Z)->value()] > HOME_Z)
+        if(shot_this[ *currValue(Axis::Z)->value()] < HOME_Z)
             throw XInterface::XInterfaceError(getLabel() +
                 i18n("Huh? z > home position."), __FILE__, __LINE__);
         setMaxSpeed(shot_this, Axis::Z);
