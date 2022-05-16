@@ -242,12 +242,19 @@ void XMicroCAM::visualize(const Snapshot &shot) {
                         tr[ *this].codeLinePos++;
                         break;
                     }
+                    line_to_do.clear();
                 }
-                if(line_to_do.empty())
+                if(line_to_do.empty()) {
                     tr[ *runningStatus()] = "Code underflows. Confusing...";
+                    tr[ *this].isRunning = false;
+                }
+                else {
+                    tr[ *this].lastLine = std::make_shared<XString>(line_to_do);
+                }
             }
             double rest = tr[ *this].estFinishTime - XTime::now();
-            tr[ *runningStatus()] = formatString("Line %d: Est. Time Remain %d min..", tr[ *this].codeLinePos, (int)lrint(rest/60.0));
+            if(shot[ *this].lastLine)
+                tr[ *runningStatus()] = formatString("Line %d: Est. Time Remain %d min..: ", shot[ *this].codeLinePos, (int)lrint(rest/60.0)) + *shot[ *this].lastLine;
         }
         else {
             tr[ *runningStatus()] = "Idle";
@@ -260,8 +267,6 @@ void XMicroCAM::visualize(const Snapshot &shot) {
 
     //execute one line.
     std::cerr << line_to_do << std::endl;
-
-    return;
 
     double x, z, f;
     int word;
@@ -287,11 +292,11 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         setMaxSpeed(shot, Axis::X);
         setTarget(shot, Axis::X, x);
     }
-    else if(sscanf(line_to_do.c_str(), "G01Z%lf", &z) == 1) {
+    else if(sscanf(line_to_do.c_str(), "G00Z%lf", &z) == 1) {
         setMaxSpeed(shot, Axis::Z);
         setTarget(shot, Axis::Z, z);
     }
-    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lf", &x, &z) == 2) {
+    else if(sscanf(line_to_do.c_str(), "G00X%lfZ%lf", &x, &z) == 2) {
         setMaxSpeed(shot, Axis::X);
         setMaxSpeed(shot, Axis::Z);
         setTarget(shot, Axis::X, x);
@@ -373,6 +378,15 @@ void XMicroCAM::execCut() {
             }
             else if(sscanf(line.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) == 3) {
                 dist = sqrt(pow(x - currX, 2) + pow(z - currZ, 2));
+                currX = x; currZ = z;
+            }
+            else if(sscanf(line.c_str(), "G00X%lf", &x) == 1) {
+                currX = x;
+            }
+            else if(sscanf(line.c_str(), "G00Z%lf", &z) == 1) {
+                currZ = z;
+            }
+            else if(sscanf(line.c_str(), "G00X%lfZ%lf", &x, &z) == 2) {
                 currX = x; currZ = z;
             }
             if(dist > 0)

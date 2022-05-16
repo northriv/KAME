@@ -60,6 +60,7 @@ public:
         XTime estFinishTime;
         XTime lineStartedTime;
         shared_ptr<XString> codeLines;
+        shared_ptr<XString> lastLine;
     };
 
     const shared_ptr<XScalarEntry> &currValue(Axis axis) const {return m_currValues[static_cast<int>(axis)];} //!< [mm] or [deg]
