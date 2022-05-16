@@ -401,12 +401,12 @@ void XMicroCAM::onCutNowTouched(const Snapshot &shot, XTouchableNode *) {
     }
 }
 XString XMicroCAM::genCode(const Snapshot &shot_this) {
-    if(shot_this[ *pos1(Axis::Z)] >= shot_this[ *startZ()])
+    if(shot_this[ *pos1(Axis::Z)] <= shot_this[ *startZ()])
         throw XInterface::XInterfaceError(getLabel() +
-            i18n("Z0 must be > Z1."), __FILE__, __LINE__);
-    if(shot_this[ *pos2(Axis::Z)] >= shot_this[ *startZ()])
+            i18n("Z0 must be < Z1."), __FILE__, __LINE__);
+    if(shot_this[ *pos2(Axis::Z)] <= shot_this[ *startZ()])
         throw XInterface::XInterfaceError(getLabel() +
-            i18n("Z0 must be > Z2."), __FILE__, __LINE__);
+            i18n("Z0 must be < Z2."), __FILE__, __LINE__);
 
     double z0 = shot_this[ *startZ()];
     double z1 = shot_this[ *pos1(Axis::Z)];
@@ -460,12 +460,12 @@ XString XMicroCAM::genCode(const Snapshot &shot_this) {
         for(bool finish_cut = false; !finish_cut;) {
             //x -> x1
             fn_code_ln(currZ, x1, feed_xy);
-            //z1' -= z_cut, z2' -= dz_cut, if z1' = z1 and z2' = z2, (r feed speed) = roughness
-            currZ1 -= cut_z;
-            if(currZ1 < z1)
+            //z1' += z_cut, z2' += dz_cut, if z1' = z1 and z2' = z2, (r feed speed) = roughness
+            currZ1 += cut_z;
+            if(currZ1 > z1)
                 currZ1 = z1;
-            currZ2 -= cut_z;
-            if(currZ2 < z2)
+            currZ2 += cut_z;
+            if(currZ2 > z2)
                 currZ2 = z2;
             if((currZ1 == z1) && (currZ2 == z2)) {
                 finish_cut = true;

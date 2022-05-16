@@ -75,7 +75,7 @@ public:
     const shared_ptr<XDoubleNode> &cutDepthXY() const {return m_cutDepthXY;}
     const shared_ptr<XDoubleNode> &cutDepthZ() const {return m_cutDepthZ;}
 
-    constexpr static double HOME_Z = +20; //!< [mm]
+    constexpr static double HOME_Z = -20; //!< [mm]
     const shared_ptr<XTouchableNode> &escapeToHome() const {return m_escapeToHome;}
     const shared_ptr<XTouchableNode> &setZeroPositions() const {return m_setZeroPositions;}
 
