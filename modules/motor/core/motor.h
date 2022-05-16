@@ -58,7 +58,7 @@ public:
 	const shared_ptr<XBoolNode> &hasEncoder() const {return m_hasEncoder;}
 	const shared_ptr<XTouchableNode> &store() const {return m_store;}
 	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
-	const shared_ptr<XUIntNode> &auxBits() const {return m_auxBits;}
+    const shared_ptr<XHexNode> &auxBits() const {return m_auxBits;}
 	const shared_ptr<XBoolNode> &round() const {return m_round;}
 	const shared_ptr<XUIntNode> &roundBy() const {return m_roundBy;}
 	const shared_ptr<XTouchableNode> &forwardMotor() const {return m_forwardMotor;}
@@ -93,7 +93,7 @@ private:
 	const shared_ptr<XBoolNode> m_slipping;
 	const shared_ptr<XBoolNode> m_microStep;
 	const shared_ptr<XBoolNode> m_hasEncoder;
-	const shared_ptr<XUIntNode> m_auxBits;
+    const shared_ptr<XHexNode> m_auxBits;
 	const shared_ptr<XTouchableNode> m_clear;
 	const shared_ptr<XTouchableNode> m_store;
 	const shared_ptr<XBoolNode> m_round;
