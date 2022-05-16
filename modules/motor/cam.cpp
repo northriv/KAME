@@ -228,13 +228,15 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         tr[ *slipping()] = shot[ *this].isSlipping;
 
         if(shot[ *this].isRunning) {
-            if(shot[ *this].isAllReady && (XTime::now() - shot[ *this].lineStartedTime > 1.0)) {
+            if(shot[ *this].isAllReady &&
+                (XTime::now() - shot[ *this].lineStartedTime > 1.0) && shot[ *this].codeLines) {
                 //runs every 1sec.
                 tr[ *this].lineStartedTime = XTime::now();
                 std::stringstream ss;
-                ss << shot[ *this].codeLines;
+                ss << *shot[ *this].codeLines;
                 int lineno = 0;
                 while(std::getline(ss, line_to_do)) {
+                    if(line_to_do.empty()) break;
                     lineno++;
                     if(lineno == tr[ *this].codeLinePos + 1) {
                         tr[ *this].codeLinePos++;
@@ -354,10 +356,11 @@ void XMicroCAM::execCut() {
         tr[ *this].lineStartedTime = XTime::now();
         tr[ *this].estFinishTime = XTime::now();
         std::stringstream ss;
-        ss << shot[ *this].codeLines;
+        ss << *shot[ *this].codeLines;
         std::string line;
         double currX = 0.0, currZ = HOME_Z;
         while(std::getline(ss, line)) {
+            if(line.empty()) break;
             double x, z, f;
             double dist = -1;
             if(sscanf(line.c_str(), "G01X%lfF%lf", &x, &f) == 2) {

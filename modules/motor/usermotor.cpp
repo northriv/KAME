@@ -237,6 +237,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     bool conf_needed = false;
     //electric gear
     {
+//        smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
         int a = 1000;
         int b = shot[ *stepMotor()];
         if((a != interface()->readHoldingTwoResistors(0x380)) ||
@@ -284,7 +285,8 @@ XFlexAR::getConditions() {
         mstep = (interface()->readHoldingTwoResistors(0x1028) != 0);
         tacc = interface()->readHoldingTwoResistors(0x280) * 1e-3;
         tdec = interface()->readHoldingTwoResistors(0x282) * 1e-3;
-        smotor = interface()->readHoldingTwoResistors(0x380) * 1000.0 /  interface()->readHoldingTwoResistors(0x382);
+        //EGear 1000B/A
+        smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
         senc = smotor * interface()->readHoldingTwoResistors(0x1002); //Multiplier is stored in MS2 No.
         spd = interface()->readHoldingTwoResistors(0x480);
         tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x400)) * 360.0 / smotor;
