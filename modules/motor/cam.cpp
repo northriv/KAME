@@ -343,7 +343,7 @@ bool XMicroCAM::checkDependency(const Snapshot &shot_this,
 
 void XMicroCAM::execCut() {
     iterate_commit([=](Transaction &tr){
-        Snapshot shot(tr);
+        Snapshot &shot(tr);
         if( !shot[ *this].isAllReady)
             throw XInterface::XInterfaceError(getLabel() +
                 i18n("Motor is not ready to go."), __FILE__, __LINE__);
