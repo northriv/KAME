@@ -37,6 +37,7 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
     m_slipping(create<XBoolNode>("Slipping", true)),
     m_microStep(create<XBoolNode>("MicroStep", true)),
     m_hasEncoder(create<XBoolNode>("HasEncoder", false)),
+    m_pushing(create<XBoolNode>("PushingMode", true)),
     m_auxBits(create<XHexNode>("AUXBits", false)),
     m_clear(create<XTouchableNode>("Clear", true)),
     m_store(create<XTouchableNode>("Store", true)),
@@ -77,30 +78,34 @@ XMotorDriver::XMotorDriver(const char *name, bool runtime,
 	m_forwardMotor->setUIEnabled(false);
 	m_reverseMotor->setUIEnabled(false);
 	m_stopMotor->setUIEnabled(false);
+    m_pushing->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
-	m_conPosition = xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition);
-    m_conTarget = xqcon_create<XQLineEditConnector>(m_target, m_form->m_edTarget);
-    m_conStepMotor = xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor);
-	m_conStepEncoder = xqcon_create<XQLineEditConnector>(m_stepEncoder, m_form->m_edStepEncoder);
-	m_conCurrentStopping = xqcon_create<XQLineEditConnector>(m_currentStopping, m_form->m_edCurrStopping);
-	m_conCurrentRunning = xqcon_create<XQLineEditConnector>(m_currentRunning, m_form->m_edCurrRunning);
-	m_conSpeed = xqcon_create<XQLineEditConnector>(m_speed, m_form->m_edSpeed);
-	m_conTimeAcc = xqcon_create<XQLineEditConnector>(m_timeAcc, m_form->m_edTimeAcc);
-	m_conTimeDec = xqcon_create<XQLineEditConnector>(m_timeDec, m_form->m_edTimeDec);
-	m_conActive = xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive);
-	m_conMicroStep = xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping);
-	m_conSlipping = xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipping);
-	m_conReady = xqcon_create<XQLedConnector>(m_ready, m_form->m_ledReady);
-	m_conHasEncoder = xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder);
-	m_conAUXBits = xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits);
-	m_conClear = xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear);
-	m_conStore = xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore);
-	m_conRound = xqcon_create<XQToggleButtonConnector>(m_round, m_form->m_ckbRound);
-	m_conRoundBy = xqcon_create<XQLineEditConnector>(m_roundBy, m_form->m_edRoundBy);
-	m_conForwardMotor = xqcon_create<XQButtonConnector>(m_forwardMotor, m_form->m_btnFWD);
-	m_conReverseMotor = xqcon_create<XQButtonConnector>(m_reverseMotor, m_form->m_btnRVS);
-	m_conStopMotor = xqcon_create<XQButtonConnector>(m_stopMotor, m_form->m_btnSTOP);
+    m_conUIs = {
+        xqcon_create<XQLCDNumberConnector>(m_position->value(), m_form->m_lcdPosition),
+        xqcon_create<XQLineEditConnector>(m_target, m_form->m_edTarget),
+        xqcon_create<XQLineEditConnector>(m_stepMotor, m_form->m_edStepMotor),
+        xqcon_create<XQLineEditConnector>(m_stepEncoder, m_form->m_edStepEncoder),
+        xqcon_create<XQLineEditConnector>(m_currentStopping, m_form->m_edCurrStopping),
+        xqcon_create<XQLineEditConnector>(m_currentRunning, m_form->m_edCurrRunning),
+        xqcon_create<XQLineEditConnector>(m_speed, m_form->m_edSpeed),
+        xqcon_create<XQLineEditConnector>(m_timeAcc, m_form->m_edTimeAcc),
+        xqcon_create<XQLineEditConnector>(m_timeDec, m_form->m_edTimeDec),
+        xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
+        xqcon_create<XQToggleButtonConnector>(m_microStep, m_form->m_ckbMicroStepping),
+        xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipping),
+        xqcon_create<XQLedConnector>(m_ready, m_form->m_ledReady),
+        xqcon_create<XQToggleButtonConnector>(m_hasEncoder, m_form->m_ckbHasEncoder),
+        xqcon_create<XQToggleButtonConnector>(m_pushing, m_form->m_ckbPushing),
+        xqcon_create<XQLineEditConnector>(m_auxBits, m_form->m_edAUXBits),
+        xqcon_create<XQButtonConnector>(m_clear, m_form->m_btnClear),
+        xqcon_create<XQButtonConnector>(m_store, m_form->m_btnStore),
+        xqcon_create<XQToggleButtonConnector>(m_round, m_form->m_ckbRound),
+        xqcon_create<XQLineEditConnector>(m_roundBy, m_form->m_edRoundBy),
+        xqcon_create<XQButtonConnector>(m_forwardMotor, m_form->m_btnFWD),
+        xqcon_create<XQButtonConnector>(m_reverseMotor, m_form->m_btnRVS),
+        xqcon_create<XQButtonConnector>(m_stopMotor, m_form->m_btnSTOP),
+    };
 }
 
 void
@@ -252,6 +257,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_forwardMotor->setUIEnabled(true);
 	m_reverseMotor->setUIEnabled(true);
 	m_stopMotor->setUIEnabled(true);
+    m_pushing->setUIEnabled(true);
 //	m_hasEncoder->setUIEnabled(true);
 
 	iterate_commit([=](Transaction &tr){
@@ -267,7 +273,8 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 		tr[ *microStep()].onValueChanged().connect(m_lsnConditions);
 		tr[ *round()].onValueChanged().connect(m_lsnConditions);
 		tr[ *roundBy()].onValueChanged().connect(m_lsnConditions);
-		m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
+        tr[ *pushing()].onValueChanged().connect(m_lsnConditions);
+        m_lsnClear = tr[ *clear()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onClearTouched);
 		m_lsnStore = tr[ *store()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onStoreTouched);
 		m_lsnForwardMotor = tr[ *forwardMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onForwardMotorTouched);
 		m_lsnReverseMotor = tr[ *reverseMotor()].onTouch().connectWeakly(shared_from_this(), &XMotorDriver::onReverseMotorTouched);
@@ -317,6 +324,7 @@ XMotorDriver::execute(const atomic<bool> &terminated) {
 	m_forwardMotor->setUIEnabled(false);
 	m_reverseMotor->setUIEnabled(false);
 	m_stopMotor->setUIEnabled(false);
+    m_pushing->setUIEnabled(false);
 //	m_hasEncoder->setUIEnabled(true);
 
 	m_lsnTarget.reset();

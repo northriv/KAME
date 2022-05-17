@@ -56,7 +56,8 @@ public:
 	const shared_ptr<XBoolNode> &slipping() const {return m_slipping;}
 	const shared_ptr<XBoolNode> &microStep() const {return m_microStep;}
 	const shared_ptr<XBoolNode> &hasEncoder() const {return m_hasEncoder;}
-	const shared_ptr<XTouchableNode> &store() const {return m_store;}
+    const shared_ptr<XBoolNode> &pushing() const {return m_pushing;}
+    const shared_ptr<XTouchableNode> &store() const {return m_store;}
 	const shared_ptr<XTouchableNode> &clear() const {return m_clear;}
     const shared_ptr<XHexNode> &auxBits() const {return m_auxBits;}
 	const shared_ptr<XBoolNode> &round() const {return m_round;}
@@ -93,6 +94,7 @@ private:
 	const shared_ptr<XBoolNode> m_slipping;
 	const shared_ptr<XBoolNode> m_microStep;
 	const shared_ptr<XBoolNode> m_hasEncoder;
+    const shared_ptr<XBoolNode> m_pushing;
     const shared_ptr<XHexNode> m_auxBits;
 	const shared_ptr<XTouchableNode> m_clear;
 	const shared_ptr<XTouchableNode> m_store;
@@ -104,12 +106,8 @@ private:
 
 	shared_ptr<Listener> m_lsnTarget, m_lsnConditions,
 		m_lsnClear, m_lsnStore, m_lsnForwardMotor, m_lsnReverseMotor, m_lsnStopMotor, m_lsnAUX;
-	xqcon_ptr m_conPosition, m_conTarget, m_conStepMotor, m_conStepEncoder,
-		m_conCurrentStopping, m_conCurrentRunning, m_conSpeed,
-		m_conTimeAcc, m_conTimeDec, m_conActive, m_conReady, m_conSlipping,
-		m_conMicroStep, m_conHasEncoder, m_conClear, m_conStore,
-		m_conForwardMotor, m_conReverseMotor, m_conStopMotor,
-		m_conAUXBits, m_conRound, m_conRoundBy;
+
+    std::deque<xqcon_ptr> m_conUIs;
 
 	const qshared_ptr<FrmMotorDriver> m_form;
 
