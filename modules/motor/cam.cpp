@@ -125,11 +125,11 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         tr[ *m_slipping] = false;
         tr[ *m_running] = false;
         tr[ *gearRatio(Axis::Z)] = 360.0 / 1.0; // Linear Actuator, thread pitch
-        tr[ *gearRatio(Axis::X)] = 48.0/16.0 * 360.0 / 0.1; //reduction ratio of timing belt * micrometer
+        tr[ *gearRatio(Axis::X)] = 48.0/16.0 * 360.0 / 0.5; //reduction ratio of timing belt * micrometer
         tr[ *gearRatio(Axis::A)] = 72.0/18.0 * 360.0 / 10.0; //reduction ratio of timing belt * rotary table
         tr[ *maxSpeed(Axis::Z)] = 10.0;
         tr[ *maxSpeed(Axis::X)] = 0.1;
-        tr[ *maxSpeed(Axis::A)] = 10.0;
+        tr[ *maxSpeed(Axis::A)] = 30.0;
         tr[ *cutDepthZ()] = 0.2;
         tr[ *cutDepthXY()] = 0.2;
         tr[ *feedZ()] = 0.1;
@@ -170,14 +170,14 @@ XMicroCAM::stmToPos(const Snapshot &shot, Axis axis, double stmpos) {
 
 double
 XMicroCAM::feedToSTMHz(const Snapshot &shot, Axis axis, double feed, const shared_ptr<XMotorDriver> &stm) {
-    double deg_per_sec = (posToSTM(shot, axis, feed) - posToSTM(shot, axis, 0.0)) * 60.0;
+    double deg_per_sec = (posToSTM(shot, axis, feed) - posToSTM(shot, axis, 0.0)) / 60.0;
     return deg_per_sec / 360.0 * Snapshot( *stm)[ *stm->stepMotor()];
 }
 
 void
 XMicroCAM::setSpeed(const Snapshot &shot, Axis axis, double rate) {
     if(rate < 0)
-        rate = shot[ *maxSpeed(axis)] / 60.0; //[mm/min]
+        rate = shot[ *maxSpeed(axis)] * 60.0; //[mm/min]
     const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
     if(!stm__)
         return;
@@ -307,6 +307,7 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
         if(!stm__)
             return;
+        setSpeed(shot, Axis::A, f);
         trans( *stm__->forwardMotor()).touch();
     }
     else if(sscanf(line_to_do.c_str(), "M%2d", &word) == 1) {
@@ -531,23 +532,21 @@ void XMicroCAM::onEscapeTouched(const Snapshot &shot, XTouchableNode *) {
                 continue;
             trans( *stm__->stopMotor()).touch();
         }
-        //Awaiting for all STMs ready
-        XTime time0 = XTime::now();
-        for(;;) {
-            if(XTime::now() - time0 > 1.0)
-                throw XInterface::XInterfaceError(getLabel() +
-                    i18n("Timeout while stopping motors."), __FILE__, __LINE__);
-            bool not_ready = false;
-            for(auto &stm: m_stms) {
-                const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm];
-                if(!stm__)
-                    continue;
-                if( !Snapshot( *stm__)[ *stm__->ready()])
-                    not_ready = true;
-            }
-            if( !not_ready)
-                break;
-        }
+//        //Awaiting for all STMs ready
+//        XTime time0 = XTime::now();
+//        for(;;) {
+//            if(XTime::now() - time0 > 2.0)
+//                throw XInterface::XInterfaceError(getLabel() +
+//                    i18n("Timeout while stopping motors."), __FILE__, __LINE__);
+//            bool not_ready = false;
+//            const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm(Axis::Z)];
+//            if(!stm__)
+//                continue;
+//            if( !Snapshot( *stm__)[ *stm__->ready()])
+//                not_ready = true;
+//            if( !not_ready)
+//                break;
+//        }
         //Go to Z = Z_HOME
         if(shot_this[ *currValue(Axis::Z)->value()] < HOME_Z)
             throw XInterface::XInterfaceError(getLabel() +
