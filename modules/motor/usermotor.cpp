@@ -85,7 +85,6 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 }
 void
 XFlexCRK::getConditions() {
-    pushing()->disable();
     double crun, cstop, mstep, tacc, tdec, senc, smotor, spd, tgt;
     bool atv;
     {
@@ -121,6 +120,7 @@ XFlexCRK::getConditions() {
         tr[ *target()] = tgt;
         tr[ *round()].setUIEnabled(false);
         tr[ *roundBy()].setUIEnabled(false);
+        tr[ *pushing()].setUIEnabled(false);
         tr[ *active()] = atv;
     });
 }
@@ -261,7 +261,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
         interface()->presetTwoResistors(0x38e,  b_round);
     }
     int num_round = std::max(lrint((double)shot[ *roundBy()]), 1L);
-    if(interface()->readHoldingTwoResistors(0x390) != num_round) {
+    if(b_round && (interface()->readHoldingTwoResistors(0x390) != num_round)) {
         conf_needed = true;
         interface()->presetTwoResistors(0x390,  num_round);
         interface()->presetTwoResistors(0x20a,  lrint((double)shot[ *roundBy()]) / 2); //AREA1+
