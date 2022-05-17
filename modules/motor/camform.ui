@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>980</width>
+    <width>936</width>
     <height>603</height>
    </rect>
   </property>
@@ -101,6 +101,11 @@
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>24</pointsize>
+             </font>
             </property>
             <property name="frameShape">
              <enum>QFrame::NoFrame</enum>
@@ -257,7 +262,7 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>deg. per mm</string>
+               <string>deg/mm</string>
               </property>
               <property name="wordWrap">
                <bool>false</bool>
@@ -287,6 +292,11 @@
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>24</pointsize>
+             </font>
             </property>
             <property name="text">
              <string>X</string>
@@ -437,7 +447,7 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>deg. per mm</string>
+               <string>deg/mm</string>
               </property>
               <property name="wordWrap">
                <bool>false</bool>
@@ -474,6 +484,11 @@
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>24</pointsize>
+             </font>
             </property>
             <property name="text">
              <string>A</string>
@@ -624,7 +639,7 @@
                </sizepolicy>
               </property>
               <property name="text">
-               <string>Reduction Ratio</string>
+               <string>Ratio</string>
               </property>
               <property name="wordWrap">
                <bool>false</bool>
