@@ -137,6 +137,20 @@ private:
     void setTarget(const Snapshot &shot, Axis axis, double target);
     void setSpeed(const Snapshot &shot, Axis axis, double rate = -1.0);
     void setMaxSpeed(const Snapshot &shot, Axis axis) {setSpeed(shot, axis);}
+
+    constexpr Axis letterToAxis(char c) {
+        switch(c) {case 'Z': return Axis::Z; case 'X': return Axis::X; case 'A': return Axis::A;
+        default: throw XInterface::XInterfaceError(i18n("Unknown Axis Letter."), __FILE__, __LINE__);}}
+    struct CodeBlock {
+        int gcode = -1;
+        double scode = -1;
+        int mcode = -1;
+        int axescount = 0;
+        Axis axes[2] = {};
+        double target[2] = {};
+        double feed = -1;
+    };
+    CodeBlock parseCode(std::string &line);
 };
 
 
