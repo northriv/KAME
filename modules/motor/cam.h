@@ -150,7 +150,8 @@ private:
         double target[2] = {};
         double feed = -1;
     };
-    CodeBlock parseCode(std::string &line);
+    void parseCode(CodeBlock &context, std::string &line);
+    CodeBlock m_context;
 };
 
 

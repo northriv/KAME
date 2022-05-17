@@ -272,7 +272,8 @@ void XMicroCAM::visualize(const Snapshot &shot) {
     //execute one line.
     std::cerr << line_to_do << std::endl;
 
-    auto blk = parseCode(line_to_do);
+    parseCode(m_context, line_to_do);
+    CodeBlock &blk(m_context);
 
     if(blk.scode > 0) {
         double f = blk.scode * 360.0; //deg/min
@@ -312,7 +313,6 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         if(blk.axescount == 1) {
             setSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : blk.feed);
             setTarget(shot, blk.axes[0], blk.target[0]);
-            break;
         }
         else if(blk.axescount == 2) {
             double dv1 = fabs(blk.target[0] - shot[ *this].values[static_cast<int>(blk.axes[0])]);
@@ -323,27 +323,28 @@ void XMicroCAM::visualize(const Snapshot &shot) {
             setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : f2);
             setTarget(shot, blk.axes[0], blk.target[0]);
             setTarget(shot, blk.axes[1], blk.target[1]);
-            break;
         }
+        break;
     default:
         throw XInterface::XInterfaceError(getLabel() +
             i18n(": Unsupported letter in ") + (XString)line_to_do, __FILE__, __LINE__);
     }
 }
-XMicroCAM::CodeBlock
-XMicroCAM::parseCode(std::string &line_to_do) {
+void
+XMicroCAM::parseCode(CodeBlock &context, std::string &line_to_do) {
     double v[9];
     char c[9];
     int conv = sscanf(line_to_do.c_str(), "%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf",
         &c[0], &v[0], &c[1], &v[1], &c[2], &v[2], &c[3], &v[3], &c[4], &v[4], &c[5], &v[5], &c[6], &v[6], &c[7], &v[7], &c[8], &v[8]);
     int pos = 0;
+
     CodeBlock blk;
+    blk.gcode = context.gcode; //supported code all mordal.
+    blk.feed = context.feed;
+
     for(; pos < conv / 2; ++pos) {
         switch(c[pos]) {
         case 'G':
-            if(blk.gcode >= 0)
-                throw XInterface::XInterfaceError(getLabel() +
-                    i18n(": Duplicated letter in ") + (XString)line_to_do, __FILE__, __LINE__);
             blk.gcode = lrint(v[pos]);
             break;
         case 'S':
@@ -370,14 +371,12 @@ XMicroCAM::parseCode(std::string &line_to_do) {
             blk.axescount++;
             break;
         case 'F':
-            if(blk.feed >= 0)
-                throw XInterface::XInterfaceError(getLabel() +
-                    i18n(": Duplicated letter in ") + (XString)line_to_do, __FILE__, __LINE__);
             blk.feed = v[pos];
             break;
         case 'O':
         case 'N':
         case '%': //start
+        case '/': //skip
         case '(': //comment
             if(pos == 0)
                 break;
@@ -386,7 +385,7 @@ XMicroCAM::parseCode(std::string &line_to_do) {
                 i18n(": Unknown letter in ") + (XString)line_to_do, __FILE__, __LINE__);
         }
     }
-    return blk;
+    context = blk;
 }
 
 bool XMicroCAM::checkDependency(const Snapshot &shot_this,
@@ -423,6 +422,8 @@ void XMicroCAM::execCut() {
         tr[ *this].codeLinePos = 0;
         tr[ *this].lineStartedTime = XTime::now();
         tr[ *this].estFinishTime = XTime::now();
+        m_context = CodeBlock{}; //initialize context
+
         std::stringstream ss;
         ss << *shot[ *this].codeLines;
         std::string line;
@@ -430,11 +431,12 @@ void XMicroCAM::execCut() {
         double currPos[NUM_AXES] = {};
         currPos[static_cast<int>(Axis::Z)] = HOME_Z;
 
+        CodeBlock blk;
         while(std::getline(ss, line)) {
             if(line.empty()) break;
             double dist = -1;
 
-            auto blk = parseCode(line);
+            parseCode(blk, line);
 
             switch(blk.gcode) {
             case -1:
@@ -446,7 +448,6 @@ void XMicroCAM::execCut() {
                     if(blk.gcode == 1)
                         dist = fabs(blk.target[0] - p1);
                     p1 = blk.target[0];
-                    break;
                 }
                 else if(blk.axescount == 2) {
                     auto &p1 = currPos[static_cast<int>(blk.axes[0])];
@@ -454,8 +455,8 @@ void XMicroCAM::execCut() {
                     if(blk.gcode == 1)
                         dist = sqrt(pow(blk.target[0] - p1, 2) + pow(blk.target[1] - p2, 2));
                     p1 = blk.target[0]; p2 = blk.target[1];
-                    break;
                 }
+                break;
             default:
                 throw XInterface::XInterfaceError(getLabel() +
                     i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
