@@ -25,7 +25,6 @@ XFlexCRK::XFlexCRK(const char *name, bool runtime,
     interface()->setSerialBaudRate(57600);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
-    pushing()->disable();
 }
 void
 XFlexCRK::storeToROM() {
@@ -86,6 +85,7 @@ XFlexCRK::changeConditions(const Snapshot &shot) {
 }
 void
 XFlexCRK::getConditions() {
+    pushing()->disable();
     double crun, cstop, mstep, tacc, tdec, senc, smotor, spd, tgt;
     bool atv;
     {
