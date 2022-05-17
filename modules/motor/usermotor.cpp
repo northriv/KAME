@@ -25,6 +25,7 @@ XFlexCRK::XFlexCRK(const char *name, bool runtime,
     interface()->setSerialBaudRate(57600);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+    pushing()->disable();
 }
 void
 XFlexCRK::storeToROM() {
@@ -233,6 +234,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     interface()->presetTwoResistors(0x282,  lrint(shot[ *timeDec()] * 1e3));
     interface()->presetTwoResistors(0x284,  0); //starting speed.
     interface()->presetTwoResistors(0x480,  lrint(shot[ *speed()]));
+    interface()->presetTwoResistors(0x580, shot[ *pushing()] ? 3 : 0);
 
     bool conf_needed = false;
     //electric gear
@@ -276,7 +278,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
 void
 XFlexAR::getConditions() {
     double crun, cstop, mstep, tacc, tdec, senc, smotor, spd, tgt, rnd, rndby;
-    bool atv;
+    bool atv, push;
     {
         XScopedLock<XInterface> lock( *interface());
         interface()->diagnostics();
@@ -293,6 +295,7 @@ XFlexAR::getConditions() {
         rnd = (interface()->readHoldingTwoResistors(0x38e) == 1);
         rndby = interface()->readHoldingTwoResistors(0x390);
         atv = (interface()->readHoldingTwoResistors(0x7c) & 0x40u) == 0; //FREE
+        push = interface()->readHoldingTwoResistors(0x580) == 3; //Pushing Mode or not
         interface()->presetTwoResistors(0x500, 1); //Absolute.
         interface()->presetTwoResistors(0x119e, 71); //NET-OUT15 = TLC
         interface()->presetTwoResistors(0x1140, 32); //OUT0 to R0
@@ -325,6 +328,7 @@ XFlexAR::getConditions() {
         tr[ *speed()] = spd;
         tr[ *target()] = tgt;
         tr[ *hasEncoder()] = true;
+        tr[ *pushing()] = push;
         tr[ *round()] = rnd;
         tr[ *roundBy()] = rndby;
         tr[ *active()] = atv;
@@ -435,6 +439,7 @@ XEMP401::XEMP401(const char *name, bool runtime,
     currentRunning()->disable();
     currentStopping()->disable();
     store()->disable();
+    pushing()->disable();
 }
 void
 XEMP401::storeToROM() {
