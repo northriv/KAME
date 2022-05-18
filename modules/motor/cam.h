@@ -158,6 +158,8 @@ private:
     void parseCode(CodeBlock &context, std::string &line);
     CodeBlock m_context;
 
+    double fixCurveAngle(CodeBlock &context, const double currPos[NUM_AXES],
+        int division = 0, std::vector<double> *pts = nullptr);
     std::deque<double> divideFeed(const Snapshot &shot, const std::deque<Axis> &axes, const std::deque<double> &lengths, double feed);
 };
 

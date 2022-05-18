@@ -18,6 +18,7 @@
 #include "analyzer.h"
 #include <iostream>
 #include <sstream>
+#include <complex>
 //---------------------------------------------------------------------------
 
 REGISTER_TYPE(XDriverList, MicroCAM, "Micro CAM z,x,phi");
@@ -358,6 +359,32 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         break;
     case 2: //CW
     case 3: //CCW
+        {
+            int divisions = 20;
+            std::vector<std::vector<double>> arcpts(2);
+            for(auto &x: arcpts)
+                x.resize(divisions);
+            fixCurveAngle(blk, shot[ *this].values, divisions, &arcpts[0]);
+            std::vector<std::vector<double>> arcspeeds(2);
+            for(int i = 0; i < divisions; ++i) {
+                double dv1, dv2;
+                if(i == 0) {
+                    dv1 = fabs(arcpts[0][0] - shot[ *this].values[static_cast<int>(blk.axes[0])]);
+                    dv2 = fabs(arcpts[1][0] - shot[ *this].values[static_cast<int>(blk.axes[1])]);
+                }
+                else {
+                    dv1 = fabs(arcpts[0][i] - arcpts[0][i - 1]);
+                    dv2 = fabs(arcpts[1][i] - arcpts[1][i - 1]);
+                }
+                auto feeds = divideFeed(shot, {blk.axes[0], blk.axes[1]}, {dv1, dv2}, blk.feed);
+                arcspeeds[0].push_back(getSpeed(shot, blk.axes[0], feeds[0]));
+                arcspeeds[1].push_back(getSpeed(shot, blk.axes[1], feeds[1]));
+            }
+            for(int i = 0; i < divisions; ++i) {
+
+            }
+
+         }
         break;
     case 18: //G02/03 in XZ
         break;
@@ -456,6 +483,51 @@ bool XMicroCAM::checkDependency(const Snapshot &shot_this,
     return true;
 }
 
+double
+XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
+    int division, std::vector<double> *pts) {
+    if(blk.axescount == 0) // || (blk.axescount > 2))
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(" target is not provided."), __FILE__, __LINE__);
+    auto z1 = std::complex<double>(currPos[static_cast<int>(Axis::Z)], currPos[static_cast<int>(Axis::X)]);
+    auto fn_idx = [this,&blk](Axis axis){
+      for(int i = 0; i < blk.axescount; ++i) {
+          if(blk.axes[i] == axis)
+              return i;
+      }
+      throw XInterface::XInterfaceError(getLabel() +
+          i18n(" axis is not provided."), __FILE__, __LINE__);
+    };
+    auto z2 = std::complex<double>(blk.target[fn_idx(Axis::Z)], blk.target[fn_idx(Axis::X)]);
+    if(blk.r != 0.0) {
+    //determines cx,cz
+        auto z0 = z1 + z2;
+        double r12 = std::abs(z1 - z0);
+        double sgn = (blk.gcode == 2) ? 1 : -1; //CW or CCW
+        sgn *= (blk.r > 0) ? 1 : -1;
+        z0 -= sgn * std::complex<double>(0.0, 1.0) * (z2 - z1)/r12 * sqrt(blk.r * blk.r - r12*r12/4);
+        blk.cz = z0.real();
+        blk.cx = z0.imag();
+    }
+    auto z0 = std::complex<double>(blk.cz, blk.cx);
+    double arg = std::arg((z2 - z0) / (z1 - z0));
+    if(blk.gcode == 3)
+        arg *= -1; //CCW
+    if(arg < 0)
+        arg += 2 * M_PI;
+    if(division) {
+    //calculate points in the curve.
+        double darg = arg / division;
+        darg *= (blk.gcode == 2) ? -1 : 1;
+        for(int i = 0; i < division; ++i) {
+            auto z = z0 + (z1 - z0) * std::polar<double>(1.0, darg * (i + 1));
+            pts[fn_idx(Axis::Z)][i] = z.real();
+            pts[fn_idx(Axis::X)][i] = z.imag();
+        }
+    }
+    return arg * std::abs(z1 - z0); //arc length
+}
+
 void XMicroCAM::execCut() {
     iterate_commit([=](Transaction &tr){
         Snapshot &shot(tr);
@@ -505,6 +577,15 @@ void XMicroCAM::execCut() {
                     p1 = blk.target[0]; p2 = blk.target[1];
                 }
                 break;
+            case 2:
+            case 3:
+            {
+                dist = fixCurveAngle(blk, currPos);
+                auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                auto &p2 = currPos[static_cast<int>(blk.axes[1])];
+                p1 = blk.target[0]; p2 = blk.target[1];
+                break;
+            }
             default:
                 throw XInterface::XInterfaceError(getLabel() +
                     i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
