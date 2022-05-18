@@ -361,8 +361,8 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         break;
     case 2: //CW
     case 3: //CCW
-        {
-            int divisions = 20;
+        if(blk.axescount) {
+            int divisions = 5;
             std::vector<std::vector<double>> arcpts(2);
             for(auto &x: arcpts)
                 x.resize(divisions);
@@ -493,9 +493,6 @@ bool XMicroCAM::checkDependency(const Snapshot &shot_this,
 double
 XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
     int division, std::vector<double> *pts) {
-    if(blk.axescount == 0) // || (blk.axescount > 2))
-        throw XInterface::XInterfaceError(getLabel() +
-            i18n(" target is not provided."), __FILE__, __LINE__);
     auto z1 = std::complex<double>(currPos[static_cast<int>(Axis::Z)], currPos[static_cast<int>(Axis::X)]);
     auto fn_idx = [this,&blk](Axis axis){
       for(int i = 0; i < blk.axescount; ++i) {
@@ -592,13 +589,13 @@ void XMicroCAM::execCut() {
                 break;
             case 2:
             case 3:
-            {
-                dist = fixCurveAngle(blk, currPos);
-                auto &p1 = currPos[static_cast<int>(blk.axes[0])];
-                auto &p2 = currPos[static_cast<int>(blk.axes[1])];
-                p1 = blk.target[0]; p2 = blk.target[1];
+                if(blk.axescount) {
+                    dist = fixCurveAngle(blk, currPos);
+                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                    auto &p2 = currPos[static_cast<int>(blk.axes[1])];
+                    p1 = blk.target[0]; p2 = blk.target[1];
+                }
                 break;
-            }
             default:
                 throw XInterface::XInterfaceError(getLabel() +
                     i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
