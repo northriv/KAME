@@ -351,6 +351,56 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
     interface()->presetTwoResistors(0x7c, netin & ~0x100uL);
 }
 void
+XFlexAR::prepairSequence(const Snapshot &shot, const std::vector<double> &points, const std::vector<double> &speeds) {
+    sendStopSignal(false);
+    int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
+    if(points.size() > 63) {
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Too many points."), __FILE__, __LINE__);
+    }
+    uint32_t acc, dec;
+    acc = interface()->readHoldingTwoResistors(0x600);
+    dec = interface()->readHoldingTwoResistors(0x680);
+    for(unsigned int i = 0; i < points.size(); ++i) {
+        interface()->presetTwoResistors(0x482 + 2 * i,  lrint(speeds[i]));
+        interface()->presetTwoResistors(0x402 + 2 * i, lrint(points[i] / 360.0 * steps));
+        interface()->presetTwoResistors(0x502 + 2 * i,  1); //absolute
+        interface()->presetTwoResistors(0x602 + 2 * i,  acc);
+        interface()->presetTwoResistors(0x682 + 2 * i,  dec);
+        interface()->presetTwoResistors(0x582 + 2 * i,  1); //sequential
+    }
+    interface()->presetTwoResistors(0x582 + 2 * (points.size() - 1),  0);
+    interface()->presetTwoResistors(0x1002,  1); //MS1 -> No.1--
+}
+
+void
+XFlexAR::runSequentially(const std::vector<const std::vector<double>> &points, const std::vector<const std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
+    XScopedLock<XInterface> lock( *interface());
+    Snapshot shot( *this);
+    prepairSequence(shot, points[0], speeds[0]);
+    int addr_master = shot[ *interface()->address()];
+    for(unsigned int i = 0; i < slaves.size(); ++i) {
+        auto slave = dynamic_pointer_cast<XFlexAR>(slaves[i]);
+        if( !slave)
+            throw XInterface::XInterfaceError(getLabel() +
+                i18n(": Different motor driver."), __FILE__, __LINE__);
+        slave->prepairSequence(shot, points[i + 1], speeds[i + 1]);
+        slave->interface()->presetTwoResistors(0x30,  addr_master); //grouped
+    }
+    //ignites.
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+    interface()->presetTwoResistors(0x7c, netin);
+    msecsleep(4);
+    interface()->presetTwoResistors(0x7c, netin | 0x200uL); //MS1
+    msecsleep(4);
+    interface()->presetTwoResistors(0x7c, netin & ~0x200uL);
+    for(unsigned int i = 0; i < slaves.size(); ++i) {
+        auto slave = dynamic_pointer_cast<XFlexAR>(slaves[i]);
+        slave->interface()->presetTwoResistors(0x30,  -1); //ungroup
+    }
+}
+void
 XFlexAR::stopRotation() {
      sendStopSignal(false);
 }

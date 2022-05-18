@@ -180,12 +180,19 @@ XMicroCAM::feedToSTMHz(const Snapshot &shot, Axis axis, double feed, const share
 
 void
 XMicroCAM::setSpeed(const Snapshot &shot, Axis axis, double rate) {
+    const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
+    if(!stm__)
+        return;
+    trans( *stm__->speed()) = getSpeed(shot, axis, rate);
+}
+double
+XMicroCAM::getSpeed(const Snapshot &shot, Axis axis, double rate) {
     if(rate < 0)
         rate = shot[ *maxSpeed(axis)] * 60.0; //[mm/min]
     const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
     if(!stm__)
-        return;
-    trans( *stm__->speed()) = feedToSTMHz(shot, axis, rate, stm__);
+        return -1;
+    return feedToSTMHz(shot, axis, rate, stm__);
 }
 
 void
@@ -194,6 +201,24 @@ XMicroCAM::setTarget(const Snapshot &shot, Axis axis, double target) {
     if(!stm__)
         return;
     trans( *stm__->target()) = posToSTM(shot, axis, target);
+}
+
+std::deque<double>
+XMicroCAM::divideFeed(const Snapshot &shot, const std::deque<Axis> &axes, const std::deque<double> &lengths, double feed) {
+    std::deque<double> vav;
+    double lsq = 0.0;
+    for(double length: lengths) {
+        lsq += length * length;
+    }
+    for(unsigned int i = 0; i < axes.size(); ++i) {
+        const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axes[i])];
+        assert(stm__);
+        Snapshot shot_stm( *stm__);
+//        double acc = shot_stm[ *stm__->timeAcc()];
+//        double dec = shot_stm[ *stm__->timeDec()];
+        vav.push_back(feed * lengths[i] / sqrt(lsq));
+    }
+    return vav;
 }
 
 void XMicroCAM::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -317,13 +342,24 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         else if(blk.axescount == 2) {
             double dv1 = fabs(blk.target[0] - shot[ *this].values[static_cast<int>(blk.axes[0])]);
             double dv2 = fabs(blk.target[1] - shot[ *this].values[static_cast<int>(blk.axes[1])]);
-            double f1 = blk.feed * dv1 / sqrt(dv1*dv1 + dv2*dv2);
-            double f2 = blk.feed * dv2 / sqrt(dv1*dv1 + dv2*dv2);
-            setSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : f1);
-            setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : f2);
-            setTarget(shot, blk.axes[0], blk.target[0]);
-            setTarget(shot, blk.axes[1], blk.target[1]);
+            auto feeds = divideFeed(shot, {blk.axes[0], blk.axes[1]}, {dv1, dv2}, blk.feed);
+//            setSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
+//            setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
+//            setTarget(shot, blk.axes[0], blk.target[0]);
+//            setTarget(shot, blk.axes[1], blk.target[1]);
+            double hz0 = getSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
+            double hz1 = getSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
+            const shared_ptr<XMotorDriver> stm1 = shot[ *stm(blk.axes[0])];
+            const shared_ptr<XMotorDriver> stm2 = shot[ *stm(blk.axes[1])];
+            if(!stm1 || !stm2)
+                return;
+            stm1->runSequentially({{blk.target[0]}, {blk.target[1]}}, {{hz0}, {hz1}}, {stm2});
         }
+        break;
+    case 2: //CW
+    case 3: //CCW
+        break;
+    case 18: //G02/03 in XZ
         break;
     default:
         throw XInterface::XInterfaceError(getLabel() +
@@ -372,6 +408,18 @@ XMicroCAM::parseCode(CodeBlock &context, std::string &line_to_do) {
             break;
         case 'F':
             blk.feed = v[pos];
+            break;
+        case 'I':
+            blk.cx = v[pos];
+            break;
+        case 'J':
+            blk.cy = v[pos];
+            break;
+        case 'K':
+            blk.cz = v[pos];
+            break;
+        case 'R':
+            blk.r = v[pos];
             break;
         case 'O':
         case 'N':

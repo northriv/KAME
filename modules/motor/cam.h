@@ -135,6 +135,7 @@ private:
     double feedToSTMHz(const Snapshot &shot, Axis axis, double feed, const shared_ptr<XMotorDriver> &stm);
 
     void setTarget(const Snapshot &shot, Axis axis, double target);
+    double getSpeed(const Snapshot &shot, Axis axis, double rate = -1.0);
     void setSpeed(const Snapshot &shot, Axis axis, double rate = -1.0);
     void setMaxSpeed(const Snapshot &shot, Axis axis) {setSpeed(shot, axis);}
 
@@ -149,9 +150,15 @@ private:
         Axis axes[2] = {};
         double target[2] = {};
         double feed = -1;
+        double cx = 0.0;
+        double cy = 0.0;
+        double cz = 0.0;
+        double r = 0.0;
     };
     void parseCode(CodeBlock &context, std::string &line);
     CodeBlock m_context;
+
+    std::deque<double> divideFeed(const Snapshot &shot, const std::deque<Axis> &axes, const std::deque<double> &lengths, double feed);
 };
 
 
