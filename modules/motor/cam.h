@@ -61,6 +61,7 @@ public:
         XTime lineStartedTime;
         shared_ptr<XString> codeLines;
         shared_ptr<XString> lastLine;
+        XTime slipMark;
     };
 
     const shared_ptr<XScalarEntry> &currValue(Axis axis) const {return m_currValues[static_cast<int>(axis)];} //!< [mm] or [deg]
@@ -92,6 +93,8 @@ public:
     const shared_ptr<XBoolNode> &slipping() const {return  m_slipping;}
     const shared_ptr<XBoolNode> &running() const {return  m_running;}
 
+    const shared_ptr<XDoubleNode> &abortAfter() const {return m_abortAfter;} //!< [s]
+
     const shared_ptr<XStringNode> &runningStatus() const {return  m_runningStatus;}
 
 private:
@@ -111,6 +114,8 @@ private:
 
     const shared_ptr<XBoolNode> m_slipping;
     const shared_ptr<XBoolNode> m_running;
+
+    const shared_ptr<XDoubleNode> m_abortAfter;
 
     const shared_ptr<XStringNode> m_runningStatus;
 

@@ -75,6 +75,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
       m_appendToList(create<XTouchableNode>("AppendToList", true)),
       m_slipping(create<XBoolNode>("Slipping", true)),
       m_running(create<XBoolNode>("Running", true)),
+      m_abortAfter(create<XDoubleNode>("AbortAfter", false)),
       m_runningStatus(create<XStringNode>("RunningStatus", true)),
       m_form(new FrmCAM) {
 
@@ -109,6 +110,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(pos2(Axis::A), m_form->m_edA2),
         xqcon_create<XQLineEditConnector>(startZ(), m_form->m_edZ0),
         xqcon_create<XQLineEditConnector>(roughness(), m_form->m_edRoughness),
+        xqcon_create<XQLineEditConnector>(abortAfter(), m_form->m_edAbortAfter),
         xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipped),
         xqcon_create<XQLedConnector>(m_running, m_form->m_ledRunning),
         xqcon_create<XQButtonConnector>(m_setZeroPositions, m_form->m_btnSetZeroPos),
@@ -137,6 +139,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         tr[ *feedXY()] = 0.1;
         tr[ *pos2(Axis::A)] = 360.0;
         tr[ *roughness()] = 10;
+        tr[ *abortAfter()] = 5.0;
         m_lsnOnEscapeTouched = tr[ *escapeToHome()].onTouch().connectWeakly(
             shared_from_this(), &XMicroCAM::onEscapeTouched);
         m_lsnOnSetZeroTouched = tr[ *setZeroPositions()].onTouch().connectWeakly(
@@ -248,7 +251,8 @@ void XMicroCAM::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
         if(shot_stm[ *stms[i]->slipping()])
             tr[ *this].isSlipping = true;
     }
-
+    if( !shot_this[ *this].isSlipping)
+        tr[ *this].slipMark = XTime::now();
 }
 
 void XMicroCAM::visualize(const Snapshot &shot) {
@@ -256,7 +260,6 @@ void XMicroCAM::visualize(const Snapshot &shot) {
     iterate_commit([=, &line_to_do](Transaction &tr){
         tr[ *running()] = shot[ *this].isRunning;
         tr[ *slipping()] = shot[ *this].isSlipping;
-
         if(shot[ *this].isRunning) {
             if(shot[ *this].isAllReady &&
                 (XTime::now() - shot[ *this].lineStartedTime > 1.0) && shot[ *this].codeLines) {
@@ -291,6 +294,11 @@ void XMicroCAM::visualize(const Snapshot &shot) {
         }
 
     });
+
+    if(XTime::now() - shot[ *this].slipMark > shot[ *abortAfter()] + 0.5) {
+        onEscapeTouched(shot, nullptr);
+        return;
+    }
 
     if( !shot[ *this].isRunning || line_to_do.empty())
         return;
@@ -552,6 +560,7 @@ void XMicroCAM::execCut() {
         tr[ *this].codeLinePos = 0;
         tr[ *this].lineStartedTime = XTime::now();
         tr[ *this].estFinishTime = XTime::now();
+        tr[ *this].slipMark = XTime::now();
         m_context = CodeBlock{}; //initialize context
 
         std::stringstream ss;
