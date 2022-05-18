@@ -228,6 +228,7 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
     interface()->presetTwoResistors(0x200,  1); //slowing down on STOP
     interface()->presetTwoResistors(0x240,  lrint(shot[ *currentRunning()] * 10.0));
+    interface()->presetTwoResistors(0x1380,  lrint(shot[ *currentRunning()] * 10.0)); //pushing mode
     interface()->presetTwoResistors(0x242,  lrint(shot[ *currentStopping()] * 10.0));
     interface()->presetTwoResistors(0x28c, 0); //common setting for acc/dec.
     interface()->presetTwoResistors(0x280,  lrint(shot[ *timeAcc()] * 1e3));

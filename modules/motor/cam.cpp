@@ -124,10 +124,10 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *m_slipping] = false;
         tr[ *m_running] = false;
-        tr[ *gearRatio(Axis::Z)] = 360.0 / 1.0; // Linear Actuator, thread pitch
+        tr[ *gearRatio(Axis::Z)] = 360.0 / 1.5; // Linear Actuator LX20, thread pitch
         tr[ *gearRatio(Axis::X)] = 48.0/16.0 * 360.0 / 0.5; //reduction ratio of timing belt * micrometer
         tr[ *gearRatio(Axis::A)] = 72.0/18.0 * 360.0 / 10.0; //reduction ratio of timing belt * rotary table
-        tr[ *maxSpeed(Axis::Z)] = 10.0;
+        tr[ *maxSpeed(Axis::Z)] = 500*360 / 60.0 / tr[ *gearRatio(Axis::Z)]; //max of pushing mode
         tr[ *maxSpeed(Axis::X)] = 0.1;
         tr[ *maxSpeed(Axis::A)] = 30.0;
         tr[ *cutDepthZ()] = 0.2;
