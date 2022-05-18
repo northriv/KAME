@@ -348,13 +348,15 @@ void XMicroCAM::visualize(const Snapshot &shot) {
 //            setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
 //            setTarget(shot, blk.axes[0], blk.target[0]);
 //            setTarget(shot, blk.axes[1], blk.target[1]);
+            double t0 = posToSTM(shot, blk.axes[0], blk.target[0]);
+            double t1 = posToSTM(shot, blk.axes[1], blk.target[1]);
             double hz0 = getSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
             double hz1 = getSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
             const shared_ptr<XMotorDriver> stm1 = shot[ *stm(blk.axes[0])];
             const shared_ptr<XMotorDriver> stm2 = shot[ *stm(blk.axes[1])];
             if(!stm1 || !stm2)
                 return;
-            stm1->runSequentially({{blk.target[0]}, {blk.target[1]}}, {{hz0}, {hz1}}, {stm2});
+            stm1->runSequentially({{t0}, {t1}}, {{hz0}, {hz1}}, {stm2});
         }
         break;
     case 2: //CW
@@ -366,7 +368,9 @@ void XMicroCAM::visualize(const Snapshot &shot) {
                 x.resize(divisions);
             fixCurveAngle(blk, shot[ *this].values, divisions, &arcpts[0]);
             std::vector<std::vector<double>> arcspeeds(2);
-            for(int i = 0; i < divisions; ++i) {
+            for(auto &x: arcspeeds)
+                x.resize(divisions);
+            for(int i = divisions - 1; i >= 0 ; --i) {
                 double dv1, dv2;
                 if(i == 0) {
                     dv1 = fabs(arcpts[0][0] - shot[ *this].values[static_cast<int>(blk.axes[0])]);
@@ -377,13 +381,16 @@ void XMicroCAM::visualize(const Snapshot &shot) {
                     dv2 = fabs(arcpts[1][i] - arcpts[1][i - 1]);
                 }
                 auto feeds = divideFeed(shot, {blk.axes[0], blk.axes[1]}, {dv1, dv2}, blk.feed);
-                arcspeeds[0].push_back(getSpeed(shot, blk.axes[0], feeds[0]));
-                arcspeeds[1].push_back(getSpeed(shot, blk.axes[1], feeds[1]));
+                arcspeeds[0][i] = getSpeed(shot, blk.axes[0], feeds[0]);
+                arcspeeds[1][i] = getSpeed(shot, blk.axes[1], feeds[1]);
+                arcpts[0][i] = posToSTM(shot, blk.axes[0], arcpts[0][i]);
+                arcpts[1][i] = posToSTM(shot, blk.axes[1], arcpts[1][i]);
             }
-            for(int i = 0; i < divisions; ++i) {
-
-            }
-
+            const shared_ptr<XMotorDriver> stm1 = shot[ *stm(blk.axes[0])];
+            const shared_ptr<XMotorDriver> stm2 = shot[ *stm(blk.axes[1])];
+            if(!stm1 || !stm2)
+                return;
+            stm1->runSequentially(arcpts, arcspeeds, {stm2});
          }
         break;
     case 18: //G02/03 in XZ
@@ -501,7 +508,7 @@ XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
     auto z2 = std::complex<double>(blk.target[fn_idx(Axis::Z)], blk.target[fn_idx(Axis::X)]);
     if(blk.r != 0.0) {
     //determines cx,cz
-        auto z0 = z1 + z2;
+        auto z0 = (z1 + z2) / 2.0;
         double r12 = std::abs(z1 - z0);
         double sgn = (blk.gcode == 2) ? 1 : -1; //CW or CCW
         sgn *= (blk.r > 0) ? 1 : -1;

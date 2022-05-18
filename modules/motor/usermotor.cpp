@@ -352,7 +352,8 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
     interface()->presetTwoResistors(0x7c, netin & ~0x100uL);
 }
 void
-XFlexAR::prepairSequence(const Snapshot &shot, const std::vector<double> &points, const std::vector<double> &speeds) {
+XFlexAR::prepairSequence(const std::vector<double> &points, const std::vector<double> &speeds) {
+    Snapshot shot( *this);
     sendStopSignal(false);
     int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
     if(points.size() > 63) {
@@ -375,17 +376,21 @@ XFlexAR::prepairSequence(const Snapshot &shot, const std::vector<double> &points
 }
 
 void
-XFlexAR::runSequentially(const std::vector<const std::vector<double>> &points, const std::vector<const std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
+XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
+                         const std::vector<std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
     XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": not opened."), __FILE__, __LINE__);
     Snapshot shot( *this);
-    prepairSequence(shot, points[0], speeds[0]);
+    prepairSequence(points[0], speeds[0]);
     int addr_master = shot[ *interface()->address()];
     for(unsigned int i = 0; i < slaves.size(); ++i) {
         auto slave = dynamic_pointer_cast<XFlexAR>(slaves[i]);
         if( !slave)
             throw XInterface::XInterfaceError(getLabel() +
                 i18n(": Different motor driver."), __FILE__, __LINE__);
-        slave->prepairSequence(shot, points[i + 1], speeds[i + 1]);
+        slave->prepairSequence(points[i + 1], speeds[i + 1]);
         slave->interface()->presetTwoResistors(0x30,  addr_master); //grouped
     }
     //ignites.
