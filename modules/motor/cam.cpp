@@ -34,9 +34,9 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
             "STMA", false, ref(tr_meas), meas->drivers(), true),
           },
       m_currValues{
-          create<XScalarEntry>("CurrZ", false, dynamic_pointer_cast<XDriver>(shared_from_this())),
-          create<XScalarEntry>("CurrX", false, dynamic_pointer_cast<XDriver>(shared_from_this())),
-          create<XScalarEntry>("CurrA", false, dynamic_pointer_cast<XDriver>(shared_from_this())),
+          create<XScalarEntry>("CurrZ", false, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4f"),
+          create<XScalarEntry>("CurrX", false, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4f"),
+          create<XScalarEntry>("CurrA", false, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.2f"),
           },
       m_gearRatios{
           create<XDoubleNode>("GearRatioZ", false),
@@ -134,6 +134,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         tr[ *cutDepthXY()] = 0.2;
         tr[ *feedZ()] = 0.1;
         tr[ *feedXY()] = 0.1;
+        tr[ *pos2(Axis::A)] = 360.0;
         tr[ *roughness()] = 10;
         m_lsnOnEscapeTouched = tr[ *escapeToHome()].onTouch().connectWeakly(
             shared_from_this(), &XMicroCAM::onEscapeTouched);
@@ -146,6 +147,9 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         m_lsnOnExecuteTouched = tr[ *execute()].onTouch().connectWeakly(
             shared_from_this(), &XMicroCAM::onExecuteTouched);
     });
+    pos1(Axis::A)->disable();
+    pos2(Axis::A)->disable();
+    endmillRadius()->disable();
 }
 
 void XMicroCAM::showForms() {
@@ -176,12 +180,19 @@ XMicroCAM::feedToSTMHz(const Snapshot &shot, Axis axis, double feed, const share
 
 void
 XMicroCAM::setSpeed(const Snapshot &shot, Axis axis, double rate) {
+    const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
+    if(!stm__)
+        return;
+    trans( *stm__->speed()) = getSpeed(shot, axis, rate);
+}
+double
+XMicroCAM::getSpeed(const Snapshot &shot, Axis axis, double rate) {
     if(rate < 0)
         rate = shot[ *maxSpeed(axis)] * 60.0; //[mm/min]
     const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
     if(!stm__)
-        return;
-    trans( *stm__->speed()) = feedToSTMHz(shot, axis, rate, stm__);
+        return -1;
+    return feedToSTMHz(shot, axis, rate, stm__);
 }
 
 void
@@ -190,6 +201,24 @@ XMicroCAM::setTarget(const Snapshot &shot, Axis axis, double target) {
     if(!stm__)
         return;
     trans( *stm__->target()) = posToSTM(shot, axis, target);
+}
+
+std::deque<double>
+XMicroCAM::divideFeed(const Snapshot &shot, const std::deque<Axis> &axes, const std::deque<double> &lengths, double feed) {
+    std::deque<double> vav;
+    double lsq = 0.0;
+    for(double length: lengths) {
+        lsq += length * length;
+    }
+    for(unsigned int i = 0; i < axes.size(); ++i) {
+        const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axes[i])];
+        assert(stm__);
+        Snapshot shot_stm( *stm__);
+//        double acc = shot_stm[ *stm__->timeAcc()];
+//        double dec = shot_stm[ *stm__->timeDec()];
+        vav.push_back(feed * lengths[i] / sqrt(lsq));
+    }
+    return vav;
 }
 
 void XMicroCAM::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
@@ -268,65 +297,145 @@ void XMicroCAM::visualize(const Snapshot &shot) {
     //execute one line.
     std::cerr << line_to_do << std::endl;
 
-    double x, z, f;
-    int word;
-    if(sscanf(line_to_do.c_str(), "G01X%lfF%lf", &x, &f) == 2) {
-        setSpeed(shot, Axis::X, f);
-        setTarget(shot, Axis::X, x);
-    }
-    else if(sscanf(line_to_do.c_str(), "G01Z%lfF%lf", &z, &f) == 2) {
-        setSpeed(shot, Axis::Z, f);
-        setTarget(shot, Axis::Z, z);
-    }
-    else if(sscanf(line_to_do.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) == 3) {
-        double dx = fabs(x - shot[ *this].values[static_cast<int>(Axis::X)]);
-        double dz = fabs(z - shot[ *this].values[static_cast<int>(Axis::Z)]);
-        double fx = f * dx / sqrt(dx*dx + dz*dz);
-        double fz = f * dz / sqrt(dx*dx + dz*dz);
-        setSpeed(shot, Axis::X, fx);
-        setSpeed(shot, Axis::Z, fz);
-        setTarget(shot, Axis::X, x);
-        setTarget(shot, Axis::Z, z);
-    }
-    else if(sscanf(line_to_do.c_str(), "G00X%lf", &x) == 1) {
-        setMaxSpeed(shot, Axis::X);
-        setTarget(shot, Axis::X, x);
-    }
-    else if(sscanf(line_to_do.c_str(), "G00Z%lf", &z) == 1) {
-        setMaxSpeed(shot, Axis::Z);
-        setTarget(shot, Axis::Z, z);
-    }
-    else if(sscanf(line_to_do.c_str(), "G00X%lfZ%lf", &x, &z) == 2) {
-        setMaxSpeed(shot, Axis::X);
-        setMaxSpeed(shot, Axis::Z);
-        setTarget(shot, Axis::X, x);
-        setTarget(shot, Axis::Z, z);
-    }
-    else if(sscanf(line_to_do.c_str(), "S%lfM03", &f) == 1) {
-        f *= 360.0; //deg/min
-        const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
-        if(!stm__)
-            return;
+    parseCode(m_context, line_to_do);
+    CodeBlock &blk(m_context);
+
+    if(blk.scode > 0) {
+        double f = blk.scode * 360.0; //deg/min
         setSpeed(shot, Axis::A, f);
-        trans( *stm__->forwardMotor()).touch();
     }
-    else if(sscanf(line_to_do.c_str(), "M%2d", &word) == 1) {
-        switch(word) {
-        case 2:
-            trans( *this).isRunning = false;
-        case 5:
-            {
-                const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
-                if(!stm__)
-                    return;
-                trans( *stm__->stopMotor()).touch();
-            }
-        default:
+    switch(blk.mcode) {
+    case -1:
+        break;
+    case 2:
+    case 30:
+        trans( *this).isRunning = false;
+        break;
+    case 3:
+        {
+           const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
+           if(stm__)
+               trans( *stm__->forwardMotor()).touch();
+        }
+        break;
+    case 5:
+        {
+            const shared_ptr<XMotorDriver> stm__ = shot[ *stm(Axis::A)];
+            if(!stm__)
+                return;
+            trans( *stm__->stopMotor()).touch();
+        }
+        break;
+    default:
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Unsupported letter in ") + (XString)line_to_do, __FILE__, __LINE__);
+    }
+    switch(blk.gcode) {
+    case -1:
+        break;
+    case 0:
+    case 1:
+        if(blk.axescount == 1) {
+            setSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : blk.feed);
+            setTarget(shot, blk.axes[0], blk.target[0]);
+        }
+        else if(blk.axescount == 2) {
+            double dv1 = fabs(blk.target[0] - shot[ *this].values[static_cast<int>(blk.axes[0])]);
+            double dv2 = fabs(blk.target[1] - shot[ *this].values[static_cast<int>(blk.axes[1])]);
+            auto feeds = divideFeed(shot, {blk.axes[0], blk.axes[1]}, {dv1, dv2}, blk.feed);
+//            setSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
+//            setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
+//            setTarget(shot, blk.axes[0], blk.target[0]);
+//            setTarget(shot, blk.axes[1], blk.target[1]);
+            double hz0 = getSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
+            double hz1 = getSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
+            const shared_ptr<XMotorDriver> stm1 = shot[ *stm(blk.axes[0])];
+            const shared_ptr<XMotorDriver> stm2 = shot[ *stm(blk.axes[1])];
+            if(!stm1 || !stm2)
+                return;
+            stm1->runSequentially({{blk.target[0]}, {blk.target[1]}}, {{hz0}, {hz1}}, {stm2});
+        }
+        break;
+    case 2: //CW
+    case 3: //CCW
+        break;
+    case 18: //G02/03 in XZ
+        break;
+    default:
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Unsupported letter in ") + (XString)line_to_do, __FILE__, __LINE__);
+    }
+}
+void
+XMicroCAM::parseCode(CodeBlock &context, std::string &line_to_do) {
+    double v[9];
+    char c[9];
+    int conv = sscanf(line_to_do.c_str(), "%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf%c%lf",
+        &c[0], &v[0], &c[1], &v[1], &c[2], &v[2], &c[3], &v[3], &c[4], &v[4], &c[5], &v[5], &c[6], &v[6], &c[7], &v[7], &c[8], &v[8]);
+    int pos = 0;
+
+    CodeBlock blk;
+    blk.gcode = context.gcode; //supported code all mordal.
+    blk.feed = context.feed;
+
+    for(; pos < conv / 2; ++pos) {
+        switch(c[pos]) {
+        case 'G':
+            blk.gcode = lrint(v[pos]);
             break;
+        case 'S':
+            if(blk.scode >= 0)
+                throw XInterface::XInterfaceError(getLabel() +
+                    i18n(": Duplicated letter in ") + (XString)line_to_do, __FILE__, __LINE__);
+            blk.scode = lrint(v[pos]);
+            break;
+        case 'M':
+            if(blk.mcode >= 0)
+                throw XInterface::XInterfaceError(getLabel() +
+                    i18n(": Duplicated letter in ") + (XString)line_to_do, __FILE__, __LINE__);
+            blk.mcode = lrint(v[pos]);
+            break;
+        case 'X':
+//        case 'Y':
+        case 'Z':
+        case 'A':
+            if(blk.axescount >= 2)
+                throw XInterface::XInterfaceError(getLabel() +
+                    i18n(": Too many axes in ") + (XString)line_to_do, __FILE__, __LINE__);
+            blk.target[blk.axescount] = v[pos];
+            blk.axes[blk.axescount] = letterToAxis(c[pos]);
+            blk.axescount++;
+            break;
+        case 'F':
+            blk.feed = v[pos];
+            break;
+        case 'I':
+            blk.cx = v[pos];
+            break;
+        case 'J':
+            blk.cy = v[pos];
+            break;
+        case 'K':
+            blk.cz = v[pos];
+            break;
+        case 'R':
+            blk.r = v[pos];
+            break;
+        case 'O':
+        case 'N':
+        case '%': //start
+        case '/': //skip
+        case '(': //comment
+            if(pos == 0)
+                break;
+        default:
+            throw XInterface::XInterfaceError(getLabel() +
+                i18n(": Unknown letter in ") + (XString)line_to_do, __FILE__, __LINE__);
         }
     }
-
+    context = blk;
 }
+
 bool XMicroCAM::checkDependency(const Snapshot &shot_this,
     const Snapshot &shot_emitter, const Snapshot &shot_others,
                                 XDriver *emitter) const {
@@ -361,40 +470,50 @@ void XMicroCAM::execCut() {
         tr[ *this].codeLinePos = 0;
         tr[ *this].lineStartedTime = XTime::now();
         tr[ *this].estFinishTime = XTime::now();
+        m_context = CodeBlock{}; //initialize context
+
         std::stringstream ss;
         ss << *shot[ *this].codeLines;
         std::string line;
-        double currX = 0.0, currZ = HOME_Z;
+        //Estimating total time.
+        double currPos[NUM_AXES] = {};
+        currPos[static_cast<int>(Axis::Z)] = HOME_Z;
+
+        CodeBlock blk;
         while(std::getline(ss, line)) {
             if(line.empty()) break;
-            double x, z, f;
             double dist = -1;
-            if(sscanf(line.c_str(), "G01X%lfF%lf", &x, &f) == 2) {
-                dist = fabs(x - currX);
-                currX = x;
+
+            parseCode(blk, line);
+
+            switch(blk.gcode) {
+            case -1:
+                break;
+            case 0:
+            case 1:
+                if(blk.axescount == 1) {
+                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                    if(blk.gcode == 1)
+                        dist = fabs(blk.target[0] - p1);
+                    p1 = blk.target[0];
+                }
+                else if(blk.axescount == 2) {
+                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                    auto &p2 = currPos[static_cast<int>(blk.axes[1])];
+                    if(blk.gcode == 1)
+                        dist = sqrt(pow(blk.target[0] - p1, 2) + pow(blk.target[1] - p2, 2));
+                    p1 = blk.target[0]; p2 = blk.target[1];
+                }
+                break;
+            default:
+                throw XInterface::XInterfaceError(getLabel() +
+                    i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
             }
-            else if(sscanf(line.c_str(), "G01Z%lfF%lf", &z, &f) == 2) {
-                dist = fabs(z - currZ);
-                currZ = z;
-            }
-            else if(sscanf(line.c_str(), "G01X%lfZ%lfF%lf", &x, &z, &f) == 3) {
-                dist = sqrt(pow(x - currX, 2) + pow(z - currZ, 2));
-                currX = x; currZ = z;
-            }
-            else if(sscanf(line.c_str(), "G00X%lf", &x) == 1) {
-                currX = x;
-            }
-            else if(sscanf(line.c_str(), "G00Z%lf", &z) == 1) {
-                currZ = z;
-            }
-            else if(sscanf(line.c_str(), "G00X%lfZ%lf", &x, &z) == 2) {
-                currX = x; currZ = z;
-            }
+
             if(dist > 0)
-                tr[ *this].estFinishTime += dist / f * 60.0;
+                tr[ *this].estFinishTime += dist / blk.feed * 60.0;
         }
     });
-
 }
 void XMicroCAM::onExecuteTouched(const Snapshot &shot, XTouchableNode *) {
     Snapshot shot_this( *this);

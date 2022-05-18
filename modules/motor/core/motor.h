@@ -65,6 +65,13 @@ public:
 	const shared_ptr<XTouchableNode> &forwardMotor() const {return m_forwardMotor;}
 	const shared_ptr<XTouchableNode> &reverseMotor() const {return m_reverseMotor;}
 	const shared_ptr<XTouchableNode> &stopMotor() const {return m_stopMotor;}
+
+    //! \arg points, speeds: [# of devices][# of points].
+    //! \arg slaves: if any, devices to be started simultatneously.
+    virtual void runSequentially(const std::vector<const std::vector<double>> &points,
+        const std::vector<const std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
+        throw XInterface::XInterfaceError(getLabel() +
+            i18n(": Unsupported feature."), __FILE__, __LINE__);    }
 protected:
 	virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) = 0;
 	virtual void changeConditions(const Snapshot &shot) = 0;
