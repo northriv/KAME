@@ -362,7 +362,7 @@ void XMicroCAM::visualize(const Snapshot &shot) {
     case 2: //CW
     case 3: //CCW
         if(blk.axescount) {
-            int divisions = 5;
+            int divisions = 4; //max. seq. move for AR
             std::vector<std::vector<double>> arcpts(2);
             for(auto &x: arcpts)
                 x.resize(divisions);
