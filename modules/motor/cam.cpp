@@ -518,8 +518,8 @@ XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
     }
     auto z0 = std::complex<double>(blk.cz, blk.cx);
     double arg = std::arg((z2 - z0) / (z1 - z0));
-    if(blk.gcode == 3)
-        arg *= -1; //CCW
+    if(blk.gcode == 2)
+        arg *= -1; //CW
     if(arg < 0)
         arg += 2 * M_PI;
     if(division) {
@@ -530,6 +530,12 @@ XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
             auto z = z0 + (z1 - z0) * std::polar<double>(1.0, darg * (i + 1));
             pts[fn_idx(Axis::Z)][i] = z.real();
             pts[fn_idx(Axis::X)][i] = z.imag();
+            if(i > 0){
+                if(((pts[0][i] - pts[0][i - 1]) * (pts[0][0] - currPos[static_cast<int>(blk.axes[0])]) < 0) ||
+                    ((pts[1][i] - pts[1][i - 1]) * (pts[1][0] - currPos[static_cast<int>(blk.axes[1])]) < 0))
+                    throw XInterface::XInterfaceError(getLabel() +
+                        i18n(" bidirectional move during G02/03 is not currently supported."), __FILE__, __LINE__);
+            }
         }
     }
     return arg * std::abs(z1 - z0); //arc length
