@@ -347,13 +347,15 @@ void XMicroCAM::visualize(const Snapshot &shot) {
 //            setSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
 //            setTarget(shot, blk.axes[0], blk.target[0]);
 //            setTarget(shot, blk.axes[1], blk.target[1]);
+            double t0 = posToSTM(shot, blk.axes[0], blk.target[0]);
+            double t1 = posToSTM(shot, blk.axes[1], blk.target[1]);
             double hz0 = getSpeed(shot, blk.axes[0], (blk.gcode == 0) ? -1.0 : feeds[0]);
             double hz1 = getSpeed(shot, blk.axes[1], (blk.gcode == 0) ? -1.0 : feeds[1]);
             const shared_ptr<XMotorDriver> stm1 = shot[ *stm(blk.axes[0])];
             const shared_ptr<XMotorDriver> stm2 = shot[ *stm(blk.axes[1])];
             if(!stm1 || !stm2)
                 return;
-            stm1->runSequentially({{blk.target[0]}, {blk.target[1]}}, {{hz0}, {hz1}}, {stm2});
+            stm1->runSequentially({{t0}, {t1}}, {{hz0}, {hz1}}, {stm2});
         }
         break;
     case 2: //CW
