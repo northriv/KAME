@@ -659,15 +659,21 @@ void XMicroCAM::onFreeAllTouched(const Snapshot &shot, XTouchableNode *) {
     Snapshot shot_this( *this);
     try {
         trans( *this).isRunning = false;
+        bool activate = (m_form->m_btnFreeAll->text() == i18n("Activate"));
+        if( !activate)
+            trans( *this).isRunning = false;
         //Stops all STMs
         for(auto &stm: m_stms) {
             const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm];
             if(!stm__)
                 continue;
-            trans( *stm__->stopMotor()).touch();
-            msecsleep(200);
-            trans( *stm__->active()) = false;
+            if( !activate) {
+                trans( *stm__->stopMotor()).touch();
+                msecsleep(200);
+            }
+            trans( *stm__->active()) = activate;
         }
+        m_form->m_btnFreeAll->setText(activate ? i18n("Free All") : i18n("Activate"));
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while starting, "));
