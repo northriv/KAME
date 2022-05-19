@@ -39,6 +39,11 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
           create<XScalarEntry>("CurrX", false, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.4f"),
           create<XScalarEntry>("CurrA", false, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.2f"),
           },
+      m_targetValues{
+          create<XDoubleNode>("TargetValueZ", true),
+          create<XDoubleNode>("TargetValueX", true),
+          create<XDoubleNode>("TargetValueA", true),
+          },
       m_gearRatios{
           create<XDoubleNode>("GearRatioZ", false),
           create<XDoubleNode>("GearRatioX", false),
@@ -57,6 +62,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
       m_cutDepthZ(create<XDoubleNode>("CutDepthZ", false)),
       m_escapeToHome(create<XTouchableNode>("EscapeToHome", true)),
       m_setZeroPositions(create<XTouchableNode>("SetZeroPositions", true)),
+      m_freeAllAxes(create<XTouchableNode>("FreeAllAxes", true)),
 
       m_pos1{
           create<XDoubleNode>("Position1Z", false),
@@ -90,6 +96,9 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQLCDNumberConnector>(currValue(Axis::Z)->value(), m_form->m_lcdZ),
         xqcon_create<XQLCDNumberConnector>(currValue(Axis::X)->value(), m_form->m_lcdX),
         xqcon_create<XQLCDNumberConnector>(currValue(Axis::A)->value(), m_form->m_lcdA),
+        xqcon_create<XQLineEditConnector>(targetValue(Axis::Z), m_form->m_edTargetZ),
+        xqcon_create<XQLineEditConnector>(targetValue(Axis::X), m_form->m_edTargetX),
+        xqcon_create<XQLineEditConnector>(targetValue(Axis::A), m_form->m_edTargetA),
         xqcon_create<XQLineEditConnector>(maxSpeed(Axis::Z), m_form->m_edMaxSpeedZ),
         xqcon_create<XQLineEditConnector>(maxSpeed(Axis::X), m_form->m_edMaxSpeedX),
         xqcon_create<XQLineEditConnector>(maxSpeed(Axis::A), m_form->m_edMaxSpeedA),
@@ -118,6 +127,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQButtonConnector>(m_cutNow, m_form->m_btnCutNow),
         xqcon_create<XQButtonConnector>(m_appendToList, m_form->m_btnAppend),
         xqcon_create<XQButtonConnector>(m_execute, m_form->m_btnExec),
+        xqcon_create<XQButtonConnector>(m_freeAllAxes, m_form->m_btnFreeAll),
         xqcon_create<XQLabelConnector>(runningStatus(), m_form->m_lblStatus),
     };
 
@@ -150,6 +160,12 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
             shared_from_this(), &XMicroCAM::onAppendToListTouched);
         m_lsnOnExecuteTouched = tr[ *execute()].onTouch().connectWeakly(
             shared_from_this(), &XMicroCAM::onExecuteTouched);
+        m_lsnOnFreeAllTouched = tr[ *freeAllAxes()].onTouch().connectWeakly(
+            shared_from_this(), &XMicroCAM::onFreeAllTouched);
+        m_lsnOnTargetChanged = tr[ *targetValue(Axis::Z)].onValueChanged().connectWeakly(
+            shared_from_this(), &XMicroCAM::onTargetChanged);
+        tr[ *targetValue(Axis::X)].onValueChanged().connect(m_lsnOnTargetChanged);
+        tr[ *targetValue(Axis::A)].onValueChanged().connect(m_lsnOnTargetChanged);
     });
     pos1(Axis::A)->disable();
     pos2(Axis::A)->disable();
@@ -205,6 +221,11 @@ XMicroCAM::setTarget(const Snapshot &shot, Axis axis, double target) {
     if(!stm__)
         return;
     trans( *stm__->target()) = posToSTM(shot, axis, target);
+
+    iterate_commit([=](Transaction &tr){
+        tr[ *targetValue(axis)] = target;
+        tr.unmark(m_lsnOnTargetChanged);
+    });
 }
 
 std::deque<double>
@@ -364,6 +385,11 @@ void XMicroCAM::visualize(const Snapshot &shot) {
             if(!stm1 || !stm2)
                 return;
             stm1->runSequentially({{t0}, {t1}}, {{hz0}, {hz1}}, {stm2});
+            iterate_commit([=](Transaction &tr){
+                tr[ *targetValue(blk.axes[0])] = blk.target[0];
+                tr[ *targetValue(blk.axes[1])] = blk.target[1];
+                tr.unmark(m_lsnOnTargetChanged);
+            });
         }
         break;
     case 2: //CW
@@ -398,6 +424,11 @@ void XMicroCAM::visualize(const Snapshot &shot) {
             if(!stm1 || !stm2)
                 return;
             stm1->runSequentially(arcpts, arcspeeds, {stm2});
+            iterate_commit([=](Transaction &tr){
+                tr[ *targetValue(blk.axes[0])] = blk.target[0];
+                tr[ *targetValue(blk.axes[1])] = blk.target[1];
+                tr.unmark(m_lsnOnTargetChanged);
+            });
          }
         break;
     case 18: //G02/03 in XZ
@@ -624,12 +655,44 @@ void XMicroCAM::onExecuteTouched(const Snapshot &shot, XTouchableNode *) {
         return;
     }
 }
-
+void XMicroCAM::onFreeAllTouched(const Snapshot &shot, XTouchableNode *) {
+    Snapshot shot_this( *this);
+    try {
+        trans( *this).isRunning = false;
+        //Stops all STMs
+        for(auto &stm: m_stms) {
+            const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm];
+            if(!stm__)
+                continue;
+            trans( *stm__->stopMotor()).touch();
+            msecsleep(200);
+            trans( *stm__->active()) = false;
+        }
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error while starting, "));
+        return;
+    }
+}
 void XMicroCAM::onCutNowTouched(const Snapshot &shot, XTouchableNode *) {
     Snapshot shot_this( *this);
     try {
         m_form->m_txtCode->setText(genCode(shot_this));
         execCut();
+    }
+    catch (XKameError& e) {
+        e.print(getLabel() + " " + i18n("Error while starting, "));
+        return;
+    }
+}
+void XMicroCAM::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
+    Snapshot shot_this( *this);
+    try {
+        for(int i = 0; i < NUM_AXES; ++i) {
+            Axis axis = static_cast<Axis>(i);
+            if(targetValue(axis).get() == node)
+                setTarget(shot_this, axis, shot_this[ *dynamic_cast<XDoubleNode*>(node)]);
+        }
     }
     catch (XKameError& e) {
         e.print(getLabel() + " " + i18n("Error while starting, "));

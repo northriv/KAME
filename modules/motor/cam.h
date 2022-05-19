@@ -66,6 +66,7 @@ public:
 
     const shared_ptr<XScalarEntry> &currValue(Axis axis) const {return m_currValues[static_cast<int>(axis)];} //!< [mm] or [deg]
 
+    const shared_ptr<XDoubleNode> &targetValue(Axis axis) const {return m_targetValues[static_cast<int>(axis)];} //!< [mm] or [deg]
     const shared_ptr<XDoubleNode> &gearRatio(Axis axis) const {return m_gearRatios[static_cast<int>(axis)];} //!< [deg/mm] or Reduction ratio[deg/deg]
     const shared_ptr<XDoubleNode> &maxSpeed(Axis axis) const {return m_maxSpeeds[static_cast<int>(axis)];} //!< [mm/s] or [deg/s]
 
@@ -80,6 +81,7 @@ public:
     constexpr static double HOME_Z = -20; //!< [mm]
     const shared_ptr<XTouchableNode> &escapeToHome() const {return m_escapeToHome;}
     const shared_ptr<XTouchableNode> &setZeroPositions() const {return m_setZeroPositions;}
+    const shared_ptr<XTouchableNode> &freeAllAxes() const {return m_freeAllAxes;}
 
     //! automatic cut
     const shared_ptr<XDoubleNode> &pos1(Axis axis) const {return m_pos1[static_cast<int>(axis)];} //!< [mm] or [deg]
@@ -101,11 +103,12 @@ private:
     const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stms[NUM_AXES];
     const shared_ptr<XScalarEntry> m_currValues[NUM_AXES];
 
+    const shared_ptr<XDoubleNode> m_targetValues[NUM_AXES];
     const shared_ptr<XDoubleNode> m_gearRatios[NUM_AXES];
     const shared_ptr<XDoubleNode> m_maxSpeeds[NUM_AXES];
 
     const shared_ptr<XDoubleNode> m_endmillRadius, m_offsetX, m_feedXY, m_feedZ, m_cutDepthXY, m_cutDepthZ;
-    const shared_ptr<XTouchableNode> m_escapeToHome, m_setZeroPositions;
+    const shared_ptr<XTouchableNode> m_escapeToHome, m_setZeroPositions, m_freeAllAxes;
 
     const shared_ptr<XDoubleNode> m_pos1[NUM_AXES], m_pos2[NUM_AXES], m_startZ;
     const shared_ptr<XDoubleNode> m_roughness;
@@ -122,15 +125,18 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
     shared_ptr<Listener> m_lsnOnCutNowTouched, m_lsnOnAppendToListTouched,
-        m_lsnOnEscapeTouched, m_lsnOnSetZeroTouched, m_lsnOnExecuteTouched;
+        m_lsnOnEscapeTouched, m_lsnOnFreeAllTouched, m_lsnOnTargetChanged,
+        m_lsnOnSetZeroTouched, m_lsnOnExecuteTouched;
 
     const qshared_ptr<FrmCAM> m_form;
 
     void onCutNowTouched(const Snapshot &shot, XTouchableNode *);
     void onAppendToListTouched(const Snapshot &shot, XTouchableNode *);
     void onEscapeTouched(const Snapshot &shot, XTouchableNode *);
+    void onFreeAllTouched(const Snapshot &shot, XTouchableNode *);
     void onSetZeroTouched(const Snapshot &shot, XTouchableNode *);
     void onExecuteTouched(const Snapshot &shot, XTouchableNode *);
+    void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 
     XString genCode(const Snapshot &shot);
     void execCut();
