@@ -295,13 +295,12 @@ void XMicroCAM::visualize(const Snapshot &shot) {
 
     });
 
+    if( !shot[ *this].isRunning || line_to_do.empty())
+        return;
     if(XTime::now() - shot[ *this].slipMark > shot[ *abortAfter()] + 0.5) {
         onEscapeTouched(shot, nullptr);
         return;
     }
-
-    if( !shot[ *this].isRunning || line_to_do.empty())
-        return;
 
     //execute one line.
     std::cerr << line_to_do << std::endl;
