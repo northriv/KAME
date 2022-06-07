@@ -54,6 +54,7 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
           create<XDoubleNode>("MaxSpeedX", false),
           create<XDoubleNode>("MaxSpeedA", false),
           },
+      m_speedReturnPath(create<XDoubleNode>("SpeedReturnPath", false)),
       m_endmillRadius(create<XDoubleNode>("EndmillRadius", false)),
       m_offsetX(create<XDoubleNode>("OffsetX", false)),
       m_feedXY(create<XDoubleNode>("FeedXY", false)),
@@ -105,7 +106,8 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::Z), m_form->m_edRatioZ),
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::X), m_form->m_edRatioX),
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::A), m_form->m_edRatioA),
-        xqcon_create<XQLineEditConnector>(endmillRadius(), m_form->m_edEndmillRadius),
+        xqcon_create<XQLineEditConnector>(speedReturnPath(), m_form->m_edSpeedReturn),
+//        xqcon_create<XQLineEditConnector>(endmillRadius(), m_form->m_edEndmillRadius),
         xqcon_create<XQLineEditConnector>(offsetX(), m_form->m_edOffsetX),
         xqcon_create<XQLineEditConnector>(feedZ(), m_form->m_edFeedZ),
         xqcon_create<XQLineEditConnector>(feedXY(), m_form->m_edFeedXY),
@@ -138,11 +140,12 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         tr[ *m_slipping] = false;
         tr[ *m_running] = false;
         tr[ *gearRatio(Axis::Z)] = 360.0 / 1.5; // Linear Actuator LX20, thread pitch
-        tr[ *gearRatio(Axis::X)] = 48.0/16.0 * 360.0 / 0.5; //reduction ratio of timing belt * micrometer
+        tr[ *gearRatio(Axis::X)] = 54.0/16.0 * 360.0 / 0.5; //reduction ratio of timing belt * micrometer
         tr[ *gearRatio(Axis::A)] = 72.0/18.0 * 360.0 / 10.0; //reduction ratio of timing belt * rotary table
         tr[ *maxSpeed(Axis::Z)] = 500*360 / 60.0 / tr[ *gearRatio(Axis::Z)]; //max of pushing mode
         tr[ *maxSpeed(Axis::X)] = 0.1;
         tr[ *maxSpeed(Axis::A)] = 30.0;
+        tr[ *speedReturnPath()] = 3.0;
         tr[ *cutDepthZ()] = 0.2;
         tr[ *cutDepthXY()] = 0.2;
         tr[ *feedZ()] = 0.1;
@@ -764,7 +767,7 @@ XString XMicroCAM::genCode(const Snapshot &shot_this) {
         //loop until z1' = z1 and z2' = z2
         for(bool finish_cut = false; !finish_cut;) {
             //x -> x1
-            fn_code_ln(currZ, x1, feed_xy);
+            fn_code_ln(currZ, x1, feed_xy * shot_this[ *speedReturnPath()]); //return path, already cut
             //z1' += z_cut, z2' += dz_cut, if z1' = z1 and z2' = z2, (r feed speed) = roughness
             currZ1 += cut_z;
             if(currZ1 > z1)

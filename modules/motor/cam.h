@@ -77,6 +77,7 @@ public:
     const shared_ptr<XDoubleNode> &feedZ() const {return m_feedZ;}
     const shared_ptr<XDoubleNode> &cutDepthXY() const {return m_cutDepthXY;}
     const shared_ptr<XDoubleNode> &cutDepthZ() const {return m_cutDepthZ;}
+    const shared_ptr<XDoubleNode> &speedReturnPath() const {return m_speedReturnPath;} //!< [um]
 
     constexpr static double HOME_Z = -20; //!< [mm]
     const shared_ptr<XTouchableNode> &escapeToHome() const {return m_escapeToHome;}
@@ -106,6 +107,7 @@ private:
     const shared_ptr<XDoubleNode> m_targetValues[NUM_AXES];
     const shared_ptr<XDoubleNode> m_gearRatios[NUM_AXES];
     const shared_ptr<XDoubleNode> m_maxSpeeds[NUM_AXES];
+    const shared_ptr<XDoubleNode> m_speedReturnPath;
 
     const shared_ptr<XDoubleNode> m_endmillRadius, m_offsetX, m_feedXY, m_feedZ, m_cutDepthXY, m_cutDepthZ;
     const shared_ptr<XTouchableNode> m_escapeToHome, m_setZeroPositions, m_freeAllAxes;
