@@ -308,7 +308,7 @@ void XMicroCAM::visualize(const Snapshot &shot) {
             }
             double rest = tr[ *this].estFinishTime - XTime::now();
             if(shot[ *this].lastLine)
-                tr[ *runningStatus()] = formatString("Line %d: Est. Time Remain %d min..: ", shot[ *this].codeLinePos, (int)lrint(rest/60.0)) + *shot[ *this].lastLine;
+                tr[ *runningStatus()] = formatString("%d min Left @Line %d: ", shot[ *this].codeLinePos, (int)lrint(rest/60.0)) + *shot[ *this].lastLine;
         }
         else {
             tr[ *runningStatus()] = "Idle";
@@ -667,10 +667,6 @@ void XMicroCAM::onFreeAllTouched(const Snapshot &shot, XTouchableNode *) {
             const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm];
             if(!stm__)
                 continue;
-            if( !activate) {
-                trans( *stm__->stopMotor()).touch();
-                msecsleep(200);
-            }
             trans( *stm__->active()) = activate;
         }
         m_form->m_btnFreeAll->setText(activate ? i18n("Free All") : i18n("Activate"));
@@ -819,21 +815,7 @@ void XMicroCAM::onEscapeTouched(const Snapshot &shot, XTouchableNode *) {
                 continue;
             trans( *stm__->stopMotor()).touch();
         }
-//        //Awaiting for all STMs ready
-//        XTime time0 = XTime::now();
-//        for(;;) {
-//            if(XTime::now() - time0 > 2.0)
-//                throw XInterface::XInterfaceError(getLabel() +
-//                    i18n("Timeout while stopping motors."), __FILE__, __LINE__);
-//            bool not_ready = false;
-//            const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm(Axis::Z)];
-//            if(!stm__)
-//                continue;
-//            if( !Snapshot( *stm__)[ *stm__->ready()])
-//                not_ready = true;
-//            if( !not_ready)
-//                break;
-//        }
+
         //Go to Z = Z_HOME
         if(shot_this[ *currValue(Axis::Z)->value()] < HOME_Z)
             throw XInterface::XInterfaceError(getLabel() +
