@@ -335,7 +335,7 @@ void XMicroCAM::visualize(const Snapshot &shot) {
             }
             double rest = tr[ *this].estFinishTime - XTime::now();
             if(shot[ *this].lastLine)
-                tr[ *runningStatus()] = formatString("%d min Left @Line %d: ", shot[ *this].codeLinePos, (int)lrint(rest/60.0)) + *shot[ *this].lastLine;
+                tr[ *runningStatus()] = formatString("%d min Left @Line %d: ", (int)lrint(rest/60.0), shot[ *this].codeLinePos) + *shot[ *this].lastLine;
         }
         else {
             tr[ *runningStatus()] = "Idle";
