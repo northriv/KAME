@@ -111,21 +111,21 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::Z), m_form->m_edRatioZ),
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::X), m_form->m_edRatioX),
         xqcon_create<XQLineEditConnector>(gearRatio(Axis::A), m_form->m_edRatioA),
-        xqcon_create<XQLineEditConnector>(speedReturnPath(), m_form->m_edSpeedReturn),
-//        xqcon_create<XQLineEditConnector>(endmillRadius(), m_form->m_edEndmillRadius),
-        xqcon_create<XQLineEditConnector>(offsetX(), m_form->m_edOffsetX),
-        xqcon_create<XQLineEditConnector>(feedZ(), m_form->m_edFeedZ),
-        xqcon_create<XQLineEditConnector>(feedXY(), m_form->m_edFeedXY),
-        xqcon_create<XQLineEditConnector>(cutDepthZ(), m_form->m_edCutDepthZ),
-        xqcon_create<XQLineEditConnector>(cutDepthXY(), m_form->m_edCutDepthXY),
-        xqcon_create<XQLineEditConnector>(pos1(Axis::Z), m_form->m_edZ1),
-        xqcon_create<XQLineEditConnector>(pos1(Axis::X), m_form->m_edX1),
-        xqcon_create<XQLineEditConnector>(pos1(Axis::A), m_form->m_edA1),
-        xqcon_create<XQLineEditConnector>(pos2(Axis::Z), m_form->m_edZ2),
-        xqcon_create<XQLineEditConnector>(pos2(Axis::X), m_form->m_edX2),
-        xqcon_create<XQLineEditConnector>(pos2(Axis::A), m_form->m_edA2),
-        xqcon_create<XQLineEditConnector>(startZ(), m_form->m_edZ0),
-        xqcon_create<XQLineEditConnector>(roughness(), m_form->m_edRoughness),
+        xqcon_create<XQLineEditConnector>(speedReturnPath(), m_form->m_edSpeedReturn, false),
+//        xqcon_create<XQLineEditConnector>(endmillRadius(), m_form->m_edEndmillRadius, false),
+        xqcon_create<XQLineEditConnector>(offsetX(), m_form->m_edOffsetX, false),
+        xqcon_create<XQLineEditConnector>(feedZ(), m_form->m_edFeedZ, false),
+        xqcon_create<XQLineEditConnector>(feedXY(), m_form->m_edFeedXY, false),
+        xqcon_create<XQLineEditConnector>(cutDepthZ(), m_form->m_edCutDepthZ, false),
+        xqcon_create<XQLineEditConnector>(cutDepthXY(), m_form->m_edCutDepthXY, false),
+        xqcon_create<XQLineEditConnector>(pos1(Axis::Z), m_form->m_edZ1, false),
+        xqcon_create<XQLineEditConnector>(pos1(Axis::X), m_form->m_edX1, false),
+        xqcon_create<XQLineEditConnector>(pos1(Axis::A), m_form->m_edA1, false),
+        xqcon_create<XQLineEditConnector>(pos2(Axis::Z), m_form->m_edZ2, false),
+        xqcon_create<XQLineEditConnector>(pos2(Axis::X), m_form->m_edX2, false),
+        xqcon_create<XQLineEditConnector>(pos2(Axis::A), m_form->m_edA2, false),
+        xqcon_create<XQLineEditConnector>(startZ(), m_form->m_edZ0, false),
+        xqcon_create<XQLineEditConnector>(roughness(), m_form->m_edRoughness, false),
         xqcon_create<XQLineEditConnector>(abortAfter(), m_form->m_edAbortAfter),
         xqcon_create<XQLedConnector>(m_slipping, m_form->m_ledSlipped),
         xqcon_create<XQLedConnector>(m_running, m_form->m_ledRunning),
@@ -338,9 +338,15 @@ void XMicroCAM::visualize(const Snapshot &shot) {
                 tr[ *runningStatus()] = formatString("%d min Left @Line %d: ", (int)lrint(rest/60.0), shot[ *this].codeLinePos) + *shot[ *this].lastLine;
         }
         else {
-            tr[ *runningStatus()] = "Idle";
+            if(XTime::now() - shot[ *this].labelMark > 1.0) {
+                int min = (int)lrint(estimateTime(XString(m_form->m_txtCode->toPlainText())) / 60.0);
+                if(min)
+                    tr[ *runningStatus()] = formatString("Idle, estimating %d min:", min);
+                else
+                    tr[ *runningStatus()] = "Idle";
+                tr[ *this].labelMark = XTime::now();
+            }
         }
-
     });
 
     if( !shot[ *this].isRunning || line_to_do.empty())
@@ -602,6 +608,60 @@ XMicroCAM::fixCurveAngle(CodeBlock &blk, const double currPos[NUM_AXES],
     }
     return arg * std::abs(z1 - z0); //arc length
 }
+double XMicroCAM::estimateTime(const std::string &lines){
+    double rest = 0.0;
+    std::stringstream ss;
+    ss << lines;
+    std::string line;
+    //Estimating total time.
+    double currPos[NUM_AXES] = {};
+    currPos[static_cast<int>(Axis::Z)] = HOME_Z;
+
+    CodeBlock blk;
+    while(std::getline(ss, line)) {
+        if(line.empty()) break;
+        double dist = -1;
+
+        parseCode(blk, line);
+
+        switch(blk.gcode) {
+        case -1:
+            break;
+        case 0:
+        case 1:
+            if(blk.axescount == 1) {
+                auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                if(blk.gcode == 1)
+                    dist = fabs(blk.target[0] - p1);
+                p1 = blk.target[0];
+            }
+            else if(blk.axescount == 2) {
+                auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                auto &p2 = currPos[static_cast<int>(blk.axes[1])];
+                if(blk.gcode == 1)
+                    dist = sqrt(pow(blk.target[0] - p1, 2) + pow(blk.target[1] - p2, 2));
+                p1 = blk.target[0]; p2 = blk.target[1];
+            }
+            break;
+        case 2:
+        case 3:
+            if(blk.axescount) {
+                dist = fixCurveAngle(blk, currPos);
+                auto &p1 = currPos[static_cast<int>(blk.axes[0])];
+                auto &p2 = currPos[static_cast<int>(blk.axes[1])];
+                p1 = blk.target[0]; p2 = blk.target[1];
+            }
+            break;
+        default:
+            throw XInterface::XInterfaceError(getLabel() +
+                i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
+        }
+
+        if(dist > 0)
+            rest += dist / blk.feed * 60.0;
+    }
+    return rest;
+}
 
 void XMicroCAM::execCut() {
     iterate_commit([=](Transaction &tr){
@@ -620,56 +680,7 @@ void XMicroCAM::execCut() {
         tr[ *this].slipMark = XTime::now();
         m_context = CodeBlock{}; //initialize context
 
-        std::stringstream ss;
-        ss << *shot[ *this].codeLines;
-        std::string line;
-        //Estimating total time.
-        double currPos[NUM_AXES] = {};
-        currPos[static_cast<int>(Axis::Z)] = HOME_Z;
-
-        CodeBlock blk;
-        while(std::getline(ss, line)) {
-            if(line.empty()) break;
-            double dist = -1;
-
-            parseCode(blk, line);
-
-            switch(blk.gcode) {
-            case -1:
-                break;
-            case 0:
-            case 1:
-                if(blk.axescount == 1) {
-                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
-                    if(blk.gcode == 1)
-                        dist = fabs(blk.target[0] - p1);
-                    p1 = blk.target[0];
-                }
-                else if(blk.axescount == 2) {
-                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
-                    auto &p2 = currPos[static_cast<int>(blk.axes[1])];
-                    if(blk.gcode == 1)
-                        dist = sqrt(pow(blk.target[0] - p1, 2) + pow(blk.target[1] - p2, 2));
-                    p1 = blk.target[0]; p2 = blk.target[1];
-                }
-                break;
-            case 2:
-            case 3:
-                if(blk.axescount) {
-                    dist = fixCurveAngle(blk, currPos);
-                    auto &p1 = currPos[static_cast<int>(blk.axes[0])];
-                    auto &p2 = currPos[static_cast<int>(blk.axes[1])];
-                    p1 = blk.target[0]; p2 = blk.target[1];
-                }
-                break;
-            default:
-                throw XInterface::XInterfaceError(getLabel() +
-                    i18n(": Unsupported letter in ") + (XString)line, __FILE__, __LINE__);
-            }
-
-            if(dist > 0)
-                tr[ *this].estFinishTime += dist / blk.feed * 60.0;
-        }
+        tr[ *this].estFinishTime += estimateTime( *shot[ *this].codeLines);
     });
 }
 void XMicroCAM::onExecuteTouched(const Snapshot &shot, XTouchableNode *) {

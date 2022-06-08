@@ -62,6 +62,7 @@ public:
         shared_ptr<XString> codeLines;
         shared_ptr<XString> lastLine;
         XTime slipMark;
+        XTime labelMark = {};
     };
 
     const shared_ptr<XScalarEntry> &currValue(Axis axis) const {return m_currValues[static_cast<int>(axis)];} //!< [mm] or [deg]
@@ -179,6 +180,7 @@ private:
     double fixCurveAngle(CodeBlock &context, const double currPos[NUM_AXES],
         int division = 0, std::vector<double> *pts = nullptr);
     std::deque<double> divideFeed(const Snapshot &shot, const std::deque<Axis> &axes, const std::deque<double> &lengths, double feed);
+    double estimateTime(const std::string &);
 };
 
 
