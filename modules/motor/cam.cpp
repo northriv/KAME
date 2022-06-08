@@ -813,7 +813,7 @@ XString XMicroCAM::genCode(const Snapshot &shot_this) {
         }
     }
     //z -> z0
-    fn_code_ln(z0, currX, feed_z);
+    fn_code_ln(z0, currX, feed_z * shot_this[ *speedReturnPath()]); //return path, already cut
 //    //escape
 //    fn_code_ln(HOME_Z, currX);
     newcodes += "M05\n";
