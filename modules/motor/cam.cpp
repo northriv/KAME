@@ -487,9 +487,6 @@ XMicroCAM::parseCode(CodeBlock &context, std::string &line_to_do) {
     CodeBlock blk;
     blk.gcode = context.gcode; //supported code all mordal.
     blk.feed = context.feed;
-    if(conv % 2 != 0)
-        throw XInterface::XInterfaceError(getLabel() +
-            i18n(": Extra letter in ") + (XString)line_to_do, __FILE__, __LINE__);
     for(; pos < conv / 2; ++pos) {
         switch(c[pos]) {
         case 'G':
