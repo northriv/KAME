@@ -671,11 +671,14 @@ void XMicroCAM::execCut() {
     iterate_commit([=](Transaction &tr){
         Snapshot &shot(tr);
         if( !shot[ *this].isAllReady)
-            throw XInterface::XInterfaceError(getLabel() +
+            throw XInterface::XInterfaceError(
                 i18n("Motor is not ready to go."), __FILE__, __LINE__);
         if(shot[ *this].isRunning)
-            throw XInterface::XInterfaceError(getLabel() +
+            throw XInterface::XInterfaceError(
                 i18n("Already running."), __FILE__, __LINE__);
+        double curr_z = tr[ *this].values[static_cast<int>(Axis::Z)];
+        if(fabs(curr_z) > 0.04 && (fabs(curr_z - HOME_Z) > 0.04))
+            throw XInterface::XInterfaceError(i18n("Need to start from z=0 or home position."), __FILE__, __LINE__);
         tr[ *this].isRunning = true;
         tr[ *this].codeLines = std::make_shared<XString>(m_form->m_txtCode->toPlainText());
         tr[ *this].codeLinePos = 0;
