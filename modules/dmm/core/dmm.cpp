@@ -20,14 +20,19 @@
 #include "xnodeconnector.h"
 
 XDMM::XDMM(const char *name, bool runtime, 
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, unsigned int max_num_channels) :
     XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
-    m_entry(create<XScalarEntry>("Value", false, 
-								 dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_function(create<XComboNode>("Function", false)),
     m_waitInms(create<XUIntNode>("WaitInms", false)),
-    m_form(new FrmDMM) {
-	meas->scalarEntries()->insert(tr_meas, m_entry);
+    m_form(new FrmDMM),
+    m_maxNumOfChannels(max_num_channels) {
+
+    for(unsigned int i = 0; i < maxNumOfChannels(); ++i) {
+        m_entries.push_back(create<XScalarEntry>(
+            (maxNumOfChannels() > 1) ? formatString("Channel%u", i + 1).c_str() : "Value",
+            false, dynamic_pointer_cast<XDriver>(shared_from_this())));
+        meas->scalarEntries()->insert(tr_meas, m_entries.back());
+    }
 	iterate_commit([=](Transaction &tr){
 		tr[ *m_waitInms] = 100;
     });
@@ -48,9 +53,19 @@ XDMM::showForms() {
 
 void
 XDMM::analyzeRaw(RawDataReader &reader, Transaction &tr) {
-	double x = reader.pop<double>();
-	tr[ *this].write_(x);
-	m_entry->value(tr, x);
+    if(maxNumOfChannels() > 1) {
+        unsigned int num_ch = reader.pop<uint32_t>();
+        for(unsigned int i = 0; i < num_ch; ++i) {
+            double x = reader.pop<double>();
+            m_entries[i]->value(tr, x);
+            tr[ *this].write_(x, i);
+        }
+    }
+    else {
+        double x = reader.pop<double>();
+        tr[ *this].write_(x);
+        m_entries[0]->value(tr, x);
+    }
 }
 void
 XDMM::visualize(const Snapshot &shot) {
@@ -83,17 +98,24 @@ XDMM::execute(const atomic<bool> &terminated) {
 		if(( **function())->to_str().empty()) continue;
       
 		auto writer = std::make_shared<RawData>();
-		double x;
 		XTime time_awared = XTime::now();
 		// try/catch exception of communication errors
 		try {
-			x = oneShotRead();
+            if(maxNumOfChannels() > 1) {
+                auto var = oneShotMultiRead();
+                writer->push(static_cast<uint32_t>(var.size()));
+                for(double x: var)
+                    writer->push(x);
+            }
+            else {
+                double x = oneShotRead();
+                writer->push(x);
+            }
 		}
 		catch (XKameError &e) {
 			e.print(getLabel() + " " + i18n("DMM Read Error"));
 			continue;
 		}
-		writer->push(x);
 		finishWritingRaw(writer, time_awared, XTime::now());
 	}
     

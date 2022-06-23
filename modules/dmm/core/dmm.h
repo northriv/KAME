@@ -25,7 +25,8 @@ typedef QForm<QMainWindow, Ui_FrmDMM> FrmDMM;
 class DECLSPEC_SHARED XDMM : public XPrimaryDriverWithThread {
 public:
 	XDMM(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas,
+        unsigned int max_num_channels = 1);
 
 	//! usually nothing to do
 	virtual ~XDMM() {}
@@ -33,10 +34,14 @@ public:
 	virtual void showForms();
 	
 	struct Payload : public XPrimaryDriver::Payload {
-		double value() const {return m_var;}
-		void write_(double var) {m_var = var;}
+        double value(unsigned int ch = 0) const {return m_var[ch];}
+        void write_(double var, unsigned int ch = 0) {
+            if(m_var.size() <= ch)
+                m_var.resize(ch);
+            m_var[ch] = var;
+        }
 	private:
-		double m_var;
+        std::vector<double> m_var;
 	};
 protected:
 	//! This function will be called when raw data are written.
@@ -51,24 +56,27 @@ protected:
 	const shared_ptr<XComboNode> &function() const {return m_function;}
 	const shared_ptr<XUIntNode> &waitInms() const {return m_waitInms;}
 protected:
-	//! one-shot reading
+    //! one-shot reading
 	virtual double oneShotRead() = 0; 
 	//! is called when m_function is changed
 	virtual void changeFunction() = 0;
+    //! one-shot multi-channel reading
+    virtual std::deque<double> oneShotMultiRead() {return {};}
 private:
 	//! is called when m_function is changed
 	void onFunctionChanged(const Snapshot &shot, XValueNodeBase *node);
   
-	const shared_ptr<XScalarEntry> m_entry;
+    std::deque<shared_ptr<XScalarEntry>> m_entries;
 	const shared_ptr<XComboNode> m_function;
 	const shared_ptr<XUIntNode> m_waitInms;
 	shared_ptr<Listener> m_lsnOnFunctionChanged;
 	xqcon_ptr m_conFunction, m_conWaitInms;
  
 	const qshared_ptr<FrmDMM> m_form;
+    void *execute(const atomic<bool> &);
   
-	void *execute(const atomic<bool> &);
-  
+    unsigned int maxNumOfChannels() const {return m_maxNumOfChannels;}
+    const unsigned int m_maxNumOfChannels;
 };
 
 #endif
