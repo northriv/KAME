@@ -34,7 +34,11 @@ public:
 	virtual void showForms();
 	
 	struct Payload : public XPrimaryDriver::Payload {
-        double value(unsigned int ch = 0) const {return m_var[ch];}
+        double value(unsigned int ch = 0) const {
+            if(m_var.size() <= ch)
+                throw XInterface::XInterfaceError(i18n("Wrong Channel No."), __FILE__, __LINE__);
+            return m_var[ch];
+        }
         void write_(double var, unsigned int ch = 0) {
             if(m_var.size() <= ch)
                 m_var.resize(ch);

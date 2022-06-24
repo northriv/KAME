@@ -27,7 +27,8 @@ XFourRes::XFourRes(const char *name, bool runtime,
 		  "DMM", false, ref(tr_meas), meas->drivers(), true)),
 	  m_dcsource(create<XItemNode < XDriverList, XDCSource> >(
 		  "DCSource", false, ref(tr_meas), meas->drivers(), true)),
-	  m_control(create<XBoolNode>("Control", true)),
+      m_dmmChannel(create<XUIntNode>("DMMChannel", false)),
+      m_control(create<XBoolNode>("Control", true)),
 	  m_form(new FrmFourRes) {
 
     m_form->setWindowTitle(i18n("Resistance Measurement with Switching Polarity - ") + getLabel() );
@@ -37,8 +38,9 @@ XFourRes::XFourRes(const char *name, bool runtime,
     connect(dmm());
     connect(dcsource());
 	iterate_commit([=](Transaction &tr){
-		tr[ *control()] = false;
-		tr[ *this].value_inverted = 0.0;
+        tr[ *dmmChannel()] = 1;
+        tr[ *control()] = false;
+        tr[ *this].value_inverted = 0.0;
     });
 	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
 	m_conDMM = xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas));
@@ -73,8 +75,8 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time())
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
-	double curr = shot_others[ *dcsource__->value()];
-	double var = shot_emitter[ *dmm__].value();
+    double curr = shot_others[ *dcsource__->value()];
+    double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] + 1);
 
 	if(curr < 0) {
 		tr[ *this].value_inverted = var;

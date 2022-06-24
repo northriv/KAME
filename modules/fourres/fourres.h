@@ -56,7 +56,8 @@ public:
 	const shared_ptr<XItemNode < XDriverList, XDMM > > &dmm() const {return m_dmm;}
 	const shared_ptr<XItemNode < XDriverList, XDCSource > > &dcsource() const {return m_dcsource;}
 
-	const shared_ptr<XBoolNode> &control() const {return m_control;}
+    const shared_ptr<XUIntNode> &dmmChannel() const {return m_dmmChannel;}
+    const shared_ptr<XBoolNode> &control() const {return m_control;}
 	//! Wait before reading value from DMM [s].
 
 private:
@@ -64,7 +65,8 @@ private:
 
 	const shared_ptr<XItemNode < XDriverList, XDMM> > m_dmm;
 	const shared_ptr<XItemNode < XDriverList, XDCSource > > m_dcsource;
-	const shared_ptr<XBoolNode> m_control;
+    const shared_ptr<XUIntNode> m_dmmChannel;
+    const shared_ptr<XBoolNode> m_control;
 
 	xqcon_ptr m_conDMM, m_conDCSource, m_conControl, m_conRes;
 
