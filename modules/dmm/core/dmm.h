@@ -41,7 +41,7 @@ public:
         }
         void write_(double var, unsigned int ch = 0) {
             if(m_var.size() <= ch)
-                m_var.resize(ch);
+                m_var.resize(ch + 1);
             m_var[ch] = var;
         }
 	private:
