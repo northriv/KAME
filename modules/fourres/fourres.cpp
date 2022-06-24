@@ -72,7 +72,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time())
+    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + 0.05)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
     double curr = shot_others[ *dcsource__->value()];
