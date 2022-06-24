@@ -76,7 +76,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
     double curr = shot_others[ *dcsource__->value()];
-    double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] + 1);
+    double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] - 1);
 
 	if(curr < 0) {
 		tr[ *this].value_inverted = var;
