@@ -42,6 +42,16 @@ XDMMSCPI::oneShotRead() {
     interface()->query(":READ?");
     return interface()->toDouble();
 }
+std::deque<double>
+XDMMSCPI::oneShotMultiRead() {
+    std::deque<double> var;
+    for(unsigned int i = 0; i < maxNumOfChannels(); ++i) {
+        interface()->sendf(":SENS:CHAN %u", i + 1);
+        interface()->query(":READ?");
+        var.push_back(interface()->toDouble());
+    }
+    return var;
+}
 /*
 double
 XDMMSCPI::measure(const XString &func)

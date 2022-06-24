@@ -31,6 +31,8 @@ public:
 	virtual double fetch();
 	//! one-shot reading
 	virtual double oneShotRead();
+    //! one-shot multi-channel reading
+    virtual std::deque<double> oneShotMultiRead();
 protected:
 	//! called when m_function is changed
 	virtual void changeFunction();

@@ -62,6 +62,7 @@ protected:
 	virtual void changeFunction() = 0;
     //! one-shot multi-channel reading
     virtual std::deque<double> oneShotMultiRead() {return {};}
+    unsigned int maxNumOfChannels() const {return m_maxNumOfChannels;}
 private:
 	//! is called when m_function is changed
 	void onFunctionChanged(const Snapshot &shot, XValueNodeBase *node);
@@ -75,7 +76,6 @@ private:
 	const qshared_ptr<FrmDMM> m_form;
     void *execute(const atomic<bool> &);
   
-    unsigned int maxNumOfChannels() const {return m_maxNumOfChannels;}
     const unsigned int m_maxNumOfChannels;
 };
 
