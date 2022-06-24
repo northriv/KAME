@@ -72,7 +72,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + 0.05)
+    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + shot_emitter[ *dmm__->waitInms()] * 1e-3)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
     double curr = shot_others[ *dcsource__->value()];
@@ -97,7 +97,6 @@ XFourRes::visualize(const Snapshot &shot) {
         dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
-            msecsleep(100);
         });
 	}
 }

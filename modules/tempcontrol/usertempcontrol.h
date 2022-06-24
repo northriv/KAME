@@ -379,39 +379,4 @@ protected:
 private:
 };
 
-//! Keithley Integra 2700 w/ 7700 switching module.
-class XKE2700w7700 : public XCharDeviceDriver<XTempControl> {
-public:
-    XKE2700w7700(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-    virtual ~XKE2700w7700() {}
-
-protected:
-    //! reads sensor value from the instrument
-    virtual double getRaw(shared_ptr<XChannel> &channel);
-    //! reads a value in Kelvin from the instrument
-    virtual double getTemp(shared_ptr<XChannel> &channel);
-    //! obtains current heater power
-    //! \sa m_heaterPowerUnit()
-    virtual double getHeater(unsigned int loop);
-    //! ex. "W", "dB", or so
-    virtual const char *m_heaterPowerUnit(unsigned int loop) {return "%";}
-
-    //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open();
-
-    virtual void onPChanged(unsigned int loop, double p) {}
-    virtual void onIChanged(unsigned int loop, double i) {}
-    virtual void onDChanged(unsigned int loop, double d) {}
-    virtual void onTargetTempChanged(unsigned int loop, double temp) {}
-    virtual void onManualPowerChanged(unsigned int loop, double pow) {}
-    virtual void onHeaterModeChanged(unsigned int loop, int mode) {}
-    virtual void onPowerRangeChanged(unsigned int loop, int range) {}
-    virtual void onPowerMaxChanged(unsigned int, double v) {}
-    virtual void onPowerMinChanged(unsigned int, double v) {}
-    virtual void onCurrentChannelChanged(unsigned int loop, const shared_ptr<XChannel> &ch) {}
-
-    virtual void onExcitationChanged(const shared_ptr<XChannel> &ch, int exc) {}
-private:
-};
 #endif

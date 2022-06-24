@@ -47,6 +47,9 @@ public:
 	private:
         std::vector<double> m_var;
 	};
+
+    const shared_ptr<XComboNode> &function() const {return m_function;}
+    const shared_ptr<XUIntNode> &waitInms() const {return m_waitInms;}
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
@@ -56,9 +59,6 @@ protected:
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
   
-	//! driver specific part below
-	const shared_ptr<XComboNode> &function() const {return m_function;}
-	const shared_ptr<XUIntNode> &waitInms() const {return m_waitInms;}
 protected:
     //! one-shot reading
 	virtual double oneShotRead() = 0; 

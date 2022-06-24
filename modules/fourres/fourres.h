@@ -58,7 +58,6 @@ public:
 
     const shared_ptr<XUIntNode> &dmmChannel() const {return m_dmmChannel;}
     const shared_ptr<XBoolNode> &control() const {return m_control;}
-	//! Wait before reading value from DMM [s].
 
 private:
 	const shared_ptr<XScalarEntry> m_resistance;
