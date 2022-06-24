@@ -67,8 +67,7 @@ private:
     const shared_ptr<XUIntNode> m_dmmChannel;
     const shared_ptr<XBoolNode> m_control;
 
-	xqcon_ptr m_conDMM, m_conDCSource, m_conControl, m_conRes;
-
+    std::deque<xqcon_ptr> m_conUIs;
 	const qshared_ptr<FrmFourRes> m_form;
 };
   

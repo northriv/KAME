@@ -40,8 +40,11 @@ XDMM::XDMM(const char *name, bool runtime,
 	m_form->setWindowTitle(i18n("DMM - ") + getLabel() );
 	m_function->setUIEnabled(false);
 	m_waitInms->setUIEnabled(false);
-	m_conFunction = xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function));
-	m_conWaitInms = xqcon_create<XQSpinBoxUnsignedConnector>(m_waitInms, m_form->m_numWait);
+
+    m_conUIs = {
+        xqcon_create<XQComboBoxConnector>(m_function, m_form->m_cmbFunction, Snapshot( *m_function)),
+        xqcon_create<XQSpinBoxUnsignedConnector>(m_waitInms, m_form->m_numWait),
+    };
 }
 
 void

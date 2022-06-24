@@ -42,10 +42,14 @@ XFourRes::XFourRes(const char *name, bool runtime,
         tr[ *control()] = false;
         tr[ *this].value_inverted = 0.0;
     });
-	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
-	m_conDMM = xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas));
-	m_conDCSource = xqcon_create<XQComboBoxConnector>(m_dcsource, m_form->m_cmbDCSource, ref(tr_meas));
-	m_conRes = xqcon_create<XQLCDNumberConnector> (m_resistance->value(), m_form->m_lcdRes);
+
+    m_conUIs = {
+        xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl),
+        xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_dcsource, m_form->m_cmbDCSource, ref(tr_meas)),
+        xqcon_create<XQLCDNumberConnector> (m_resistance->value(), m_form->m_lcdRes),
+        xqcon_create<XQSpinBoxUnsignedConnector>(m_dmmChannel, m_form->m_spbDMMCh),
+    };
 }
 XFourRes::~XFourRes () {
 }

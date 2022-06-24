@@ -75,7 +75,7 @@ private:
 	const shared_ptr<XComboNode> m_function;
 	const shared_ptr<XUIntNode> m_waitInms;
 	shared_ptr<Listener> m_lsnOnFunctionChanged;
-	xqcon_ptr m_conFunction, m_conWaitInms;
+    std::deque<xqcon_ptr> m_conUIs;
  
 	const qshared_ptr<FrmDMM> m_form;
     void *execute(const atomic<bool> &);
