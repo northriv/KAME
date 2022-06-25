@@ -1,3 +1,8 @@
+* Sat Jun 25 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.7.1-1)
+- DMM: support for multi channels, Keithley 2851, 2700.
+- CAM: better UI
+
 * Thu Jun 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.7-1)
 - CAM: fixed bugs.
