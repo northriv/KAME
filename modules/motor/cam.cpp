@@ -54,11 +54,6 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
           create<XDoubleNode>("MaxSpeedX", false),
           create<XDoubleNode>("MaxSpeedA", false),
           },
-      m_setMaxSpeeds{
-          create<XTouchableNode>("SetMaxSpeedZ", true),
-          create<XTouchableNode>("SetMaxSpeedX", true),
-          create<XTouchableNode>("SetMaxSpeedA", true),
-          },
       m_speedReturnPath(create<XDoubleNode>("SpeedReturnPath", false)),
       m_endmillRadius(create<XDoubleNode>("EndmillRadius", false)),
       m_offsetX(create<XDoubleNode>("OffsetX", false)),
@@ -136,9 +131,6 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         xqcon_create<XQButtonConnector>(m_execute, m_form->m_btnExec),
         xqcon_create<XQButtonConnector>(m_freeAllAxes, m_form->m_btnFreeAll),
         xqcon_create<XQLabelConnector>(runningStatus(), m_form->m_lblStatus),
-        xqcon_create<XQButtonConnector>(setMaxSpeed(Axis::Z), m_form->m_btnSetMaxSpeedZ),
-        xqcon_create<XQButtonConnector>(setMaxSpeed(Axis::X), m_form->m_btnSetMaxSpeedX),
-        xqcon_create<XQButtonConnector>(setMaxSpeed(Axis::A), m_form->m_btnSetMaxSpeedA),
     };
 
     for(auto &c: m_stms)
@@ -150,9 +142,9 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
         tr[ *gearRatio(Axis::Z)] = 360.0 / 1.0; // Linear Actuator LX20, thread pitch
         tr[ *gearRatio(Axis::X)] = 54.0/16.0 * 360.0 / 0.5; //reduction ratio of timing belt * micrometer
         tr[ *gearRatio(Axis::A)] = 72.0/18.0 * 360.0 / 10.0; //reduction ratio of timing belt * rotary table
-        tr[ *maxSpeed(Axis::Z)] = 500*360 / 60.0 / tr[ *gearRatio(Axis::Z)]; //max of pushing mode
-        tr[ *maxSpeed(Axis::X)] = 0.1;
-        tr[ *maxSpeed(Axis::A)] = 30.0;
+        tr[ *maxSpeed(Axis::Z)] = 500*360 / tr[ *gearRatio(Axis::Z)]; //max of pushing mode
+        tr[ *maxSpeed(Axis::X)] = 0.1 * 60.0;
+        tr[ *maxSpeed(Axis::A)] = 30.0 * 60.0;
         tr[ *speedReturnPath()] = 3.0;
         tr[ *cutDepthZ()] = 0.2;
         tr[ *cutDepthXY()] = 0.2;
@@ -177,10 +169,10 @@ XMicroCAM::XMicroCAM(const char *name, bool runtime,
             shared_from_this(), &XMicroCAM::onTargetChanged);
         tr[ *targetValue(Axis::X)].onValueChanged().connect(m_lsnOnTargetChanged);
         tr[ *targetValue(Axis::A)].onValueChanged().connect(m_lsnOnTargetChanged);
-        m_lsnOnSetMaxSpeedTouched = tr[ *setMaxSpeed(Axis::Z)].onTouch().connectWeakly(
-            shared_from_this(), &XMicroCAM::onSetMaxSpeedTouched);
-        tr[ *setMaxSpeed(Axis::X)].onTouch().connect(m_lsnOnSetMaxSpeedTouched);
-        tr[ *setMaxSpeed(Axis::A)].onTouch().connect(m_lsnOnSetMaxSpeedTouched);
+        m_lsnOnMaxSpeedChanged = tr[ *maxSpeed(Axis::Z)].onValueChanged().connectWeakly(
+            shared_from_this(), &XMicroCAM::onMaxSpeedChanged);
+        tr[ *maxSpeed(Axis::X)].onValueChanged().connect(m_lsnOnMaxSpeedChanged);
+        tr[ *maxSpeed(Axis::A)].onValueChanged().connect(m_lsnOnMaxSpeedChanged);
     });
     pos1(Axis::A)->disable();
     pos2(Axis::A)->disable();
@@ -223,7 +215,7 @@ XMicroCAM::setSpeed(const Snapshot &shot, Axis axis, double rate) {
 double
 XMicroCAM::getSpeed(const Snapshot &shot, Axis axis, double rate) {
     if(rate < 0)
-        rate = shot[ *maxSpeed(axis)] * 60.0; //[mm/min]
+        rate = shot[ *maxSpeed(axis)]; //[mm/min]
     const shared_ptr<XMotorDriver> stm__ = shot[ *stm(axis)];
     if(!stm__)
         return -1;
@@ -242,11 +234,11 @@ XMicroCAM::setTarget(const Snapshot &shot, Axis axis, double target) {
         tr.unmark(m_lsnOnTargetChanged);
     });
 }
-void XMicroCAM::onSetMaxSpeedTouched(const Snapshot &shot, XTouchableNode *node) {
+void XMicroCAM::onMaxSpeedChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
     try {
         for(auto axis: {Axis::Z, Axis::X, Axis::A}) {
-            if(node == setMaxSpeed(axis).get())
+            if(node == maxSpeed(axis).get())
                 setSpeed(shot_this, axis);
         }
     }
@@ -784,7 +776,7 @@ XString XMicroCAM::genCode(const Snapshot &shot_this) {
         newcodes += "\n";
     };
     //phi -> inf. rot. w/ max speed
-    double rpm_a = shot_this[ *maxSpeed(Axis::A)] * 60.0 / 360.0;
+    double rpm_a = shot_this[ *maxSpeed(Axis::A)] / 360.0;
     newcodes += formatString("S%.4fM03\n", rpm_a);
     //x -> x1 w/ max speed
     fn_code_ln(currZ, x1);

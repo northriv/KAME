@@ -69,9 +69,7 @@ public:
 
     const shared_ptr<XDoubleNode> &targetValue(Axis axis) const {return m_targetValues[static_cast<int>(axis)];} //!< [mm] or [deg]
     const shared_ptr<XDoubleNode> &gearRatio(Axis axis) const {return m_gearRatios[static_cast<int>(axis)];} //!< [deg/mm] or Reduction ratio[deg/deg]
-    const shared_ptr<XDoubleNode> &maxSpeed(Axis axis) const {return m_maxSpeeds[static_cast<int>(axis)];} //!< [mm/s] or [deg/s]
-
-    const shared_ptr<XTouchableNode> &setMaxSpeed(Axis axis) const {return m_setMaxSpeeds[static_cast<int>(axis)];}
+    const shared_ptr<XDoubleNode> &maxSpeed(Axis axis) const {return m_maxSpeeds[static_cast<int>(axis)];} //!< [mm/min] or [deg/min]
 
     //! cutting conditions:
     const shared_ptr<XDoubleNode> &endmillRadius() const {return m_endmillRadius;} //!< [mm]
@@ -110,7 +108,6 @@ private:
     const shared_ptr<XDoubleNode> m_targetValues[NUM_AXES];
     const shared_ptr<XDoubleNode> m_gearRatios[NUM_AXES];
     const shared_ptr<XDoubleNode> m_maxSpeeds[NUM_AXES];
-    const shared_ptr<XTouchableNode> m_setMaxSpeeds[NUM_AXES];
     const shared_ptr<XDoubleNode> m_speedReturnPath;
 
     const shared_ptr<XDoubleNode> m_endmillRadius, m_offsetX, m_feedXY, m_feedZ, m_cutDepthXY, m_cutDepthZ;
@@ -133,7 +130,7 @@ private:
     shared_ptr<Listener> m_lsnOnCutNowTouched, m_lsnOnAppendToListTouched,
         m_lsnOnEscapeTouched, m_lsnOnFreeAllTouched, m_lsnOnTargetChanged,
         m_lsnOnSetZeroTouched, m_lsnOnExecuteTouched,
-        m_lsnOnSetMaxSpeedTouched;
+        m_lsnOnMaxSpeedChanged;
 
     const qshared_ptr<FrmCAM> m_form;
 
@@ -144,7 +141,7 @@ private:
     void onSetZeroTouched(const Snapshot &shot, XTouchableNode *);
     void onExecuteTouched(const Snapshot &shot, XTouchableNode *);
     void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
-    void onSetMaxSpeedTouched(const Snapshot &shot, XTouchableNode *);
+    void onMaxSpeedChanged(const Snapshot &shot, XValueNodeBase *);
 
     XString genCode(const Snapshot &shot);
     void execCut();
