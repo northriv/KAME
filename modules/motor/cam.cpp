@@ -797,7 +797,7 @@ XString XMicroCAM::genCode(const Snapshot &shot_this) {
         //loop until z1' = z1 and z2' = z2
         for(bool finish_cut = false; !finish_cut;) {
             //x -> x1
-            fn_code_ln(currZ, x1, feed_xy * shot_this[ *speedReturnPath()]); //return path, already cut
+            fn_code_ln(currZ1, x1, feed_xy * shot_this[ *speedReturnPath()]); //return path, already cut
             //z1' += z_cut, z2' += dz_cut, if z1' = z1 and z2' = z2, (r feed speed) = roughness
             currZ1 += cut_z;
             if(currZ1 > z1)
