@@ -281,15 +281,16 @@ void XMicroCAM::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
         Snapshot shot_stm = shot_others;
         if(stms[i].get() == emitter)
             shot_stm = shot_emitter;
+        if(shot_stm[ *stms[i]->slipping()])
+            tr[ *this].isSlipping = true;
         var = shot_stm[ *stms[i]->position()->value()];
         var = stmToPos(shot_this, axis, var);
         tr[ *this].values[i] = var;
         currValue(axis)->value(tr, var);
-        if( !shot_stm[ *stms[i]->ready()])
+        if( !shot_stm[ *stms[i]->ready()] ||
+            (shot_stm[ *stms[i]].timeAwared() < shot_this[ *this].lineStartedTime))
             if(i != static_cast<unsigned int>(Axis::A))
                 tr[ *this].isAllReady = false;
-        if(shot_stm[ *stms[i]->slipping()])
-            tr[ *this].isSlipping = true;
     }
     if( !shot_this[ *this].isSlipping)
         tr[ *this].slipMark = XTime::now();
