@@ -49,19 +49,21 @@ public:
 
         std::vector<double> &waveLengths_() {return m_waveLengths;}
         std::vector<double> &counts_() {return m_counts;}
+        std::vector<double> &accumCounts_() {return m_counts;}
         std::vector<double> &darkCounts_() {return m_darkCounts;}
         double m_integrationTime;
+        unsigned int m_accumulated;
         std::deque<std::pair<double, double>> &markers() {return m_markers;}
     private:
         friend class XOpticalSpectrometer;
-        std::vector<double> m_counts, m_darkCounts, m_waveLengths;
+        std::vector<double> m_counts, m_accumCounts, m_darkCounts, m_waveLengths;
         std::deque<std::pair<double, double>> m_markers;
     };
 protected:
 
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
-	virtual void visualize(const Snapshot &shot);
+    virtual void visualize(const Snapshot &shot) override;
   
 	//! driver specific part below
 	const shared_ptr<XScalarEntry> &marker1X() const {return m_marker1X;}
@@ -70,11 +72,20 @@ protected:
     const shared_ptr<XDoubleNode> &stopWavelen() const {return m_stopWavelen;}
     const shared_ptr<XDoubleNode> &integrationTime() const {return m_integrationTime;}
 	const shared_ptr<XUIntNode> &average() const {return m_average;}
+    const shared_ptr<XTouchableNode> &storeDark() const {return m_storeDark;}
+    const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
 protected:
     virtual void onStartWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onStopWavelenChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
+
+    //! This function will be called when raw data are written.
+    //! Implement this function to convert the raw data to the record (Payload).
+    //! \sa analyze()
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
+    virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) = 0;
 
     virtual void acquireSpectrum(shared_ptr<RawData> &) = 0;
 
@@ -86,6 +97,8 @@ private:
     const shared_ptr<XDoubleNode> m_stopWavelen;
     const shared_ptr<XDoubleNode> m_integrationTime;
 	const shared_ptr<XUIntNode> m_average;
+    const shared_ptr<XTouchableNode> m_storeDark;
+    const shared_ptr<XBoolNode> m_subtractDark;
 
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
@@ -94,12 +107,15 @@ private:
     shared_ptr<Listener> m_lsnOnStopWavelenChanged;
 	shared_ptr<Listener> m_lsnOnAverageChanged;
     shared_ptr<Listener> m_lsnOnIntegrationTimeChanged;
+    shared_ptr<Listener> m_lsnOnStoreDarkTouched;
 
     std::deque<xqcon_ptr> m_conUIs;
 
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;
 	
+    bool m_storeDarkInvoked;
+
 	void *execute(const atomic<bool> &);
 };
 

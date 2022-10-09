@@ -80,7 +80,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
                      m_spectrumBuffer.begin(), m_spectrumBuffer.end());
 }
 void
-XOceanOpticsSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr) {
+XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
     uint8_t statussize = reader.pop<uint8_t>();
     uint16_t pixels = reader.pop<uint16_t>();
     tr[ *this].m_integrationTime = reader.pop<uint32_t>() * 1e-6; //sec
@@ -120,35 +120,17 @@ XOceanOpticsSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 
     unsigned int samples = reader.pop<uint32_t>();
     tr[ *this].waveLengths_().resize(samples);
-    tr[ *this].counts_().resize(samples);
-    tr[ *this].darkCounts_().resize(samples, 0.0);
+    tr[ *this].accumCounts_().resize(samples, 0.0);
     for(unsigned int i = 0; i < samples; ++i) {
         double lambda = fn_poly(wavelenCalibCoeffs, i);
         tr[ *this].waveLengths_()[i] = lambda;
         double v = 0x100 * reader.pop<uint8_t>();
         v += reader.pop<uint8_t>(); //little endian
         v = fn_poly(nonlinCorrCoeffs, v);
-        tr[ *this].counts_()[i] = v - tr[ *this].darkCounts_()[i];
+        tr[ *this].accumCounts_()[i] += v;
     }
+    tr[ *this].m_accumulated++;
+
 //    tr[ *this].counts_()[0] = tr[ *this].counts_()[1];
 
-    //markers
-    auto it = std::max_element(tr[ *this].counts_().begin(), tr[ *this].counts_().end());
-    int idx = std::distance(it, tr[ *this].counts_().begin());
-    tr[ *this].markers().clear();
-    tr[ *this].markers().emplace_back(tr[ *this].waveLengths()[idx], *it);
-    m_marker1X->value(tr, tr[ *this].waveLengths()[idx]);
-    m_marker1Y->value(tr, *it);
-    //ugly hack
-    double sum = 0.0;
-    int cnt = 0;
-    for(unsigned int i = 0; i < samples; ++i) {
-        double lambda = tr[ *this].waveLengths()[i];
-        if((lambda >= tr[ *startWavelen()]) && (lambda <= tr[ *stopWavelen()])) {
-            sum += tr[ *this].counts()[i];
-            cnt++;
-        }
-    }
-    if(cnt)
-        m_marker1Y->value(tr, sum / cnt);
 }

@@ -33,10 +33,7 @@ protected:
     virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
     virtual void onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) override;
 
-    //! This function will be called when raw data are written.
-    //! Implement this function to convert the raw data to the record (Payload).
-    //! \sa analyze()
-    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
+    virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
