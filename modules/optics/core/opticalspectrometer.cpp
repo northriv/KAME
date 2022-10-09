@@ -44,14 +44,17 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_conUIs = {
         xqcon_create<XQLineEditConnector>(startWavelen(), m_form->m_edStart),
         xqcon_create<XQLineEditConnector>(stopWavelen(), m_form->m_edStop),
-        xqcon_create<XQLineEditConnector>(average(), m_form->m_edAverage),
+        xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
         xqcon_create<XQLineEditConnector>(integrationTime(), m_form->m_edIntegrationTime),
+        xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
+        xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark)
     };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Wavelen [nm]", "Count"};
-        tr[ *m_waveForm].setColCount(2, labels);
+        const char *labels[] = {"Wavelen [nm]", "Count", "AveragingCount", "DarkCount"};
+        tr[ *m_waveForm].setColCount(4, labels);
 		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
+        tr[ *m_waveForm].insertPlot(labels[2], 0, 2);
 
 		m_graph = m_waveForm->graph();
 //		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x34).rgb();
@@ -65,9 +68,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 //		tr[ *axisy->ticColor()] = clWhite;
 //		tr[ *axisy->labelColor()] = clWhite;
 //		tr[ *axisy->ticLabelColor()] = clWhite;
-		tr[ *axisy->autoScale()] = false;
-		tr[ *axisy->maxValue()] = 13.0;
-		tr[ *axisy->minValue()] = -70.0;
+        tr[ *axisy->autoScale()] = true;
 //		tr[ *axisy2->ticColor()] = clWhite;
 //		tr[ *axisy2->labelColor()] = clWhite;
 //		tr[ *axisy2->ticLabelColor()] = clWhite;
@@ -75,7 +76,9 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 //		tr[ *tr[ *m_waveForm].plot(0)->lineColor()] = clGreen;
 //		tr[ *tr[ *m_waveForm].plot(0)->pointColor()] = clGreen;
 		tr[ *tr[ *m_waveForm].plot(0)->intensity()] = 2.0;
-		shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
+        tr[ *tr[ *m_waveForm].plot(1)->drawPoints()] = false;
+        tr[ *tr[ *m_waveForm].plot(1)->lineColor()] = clGreen;
+        shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 			tr, "Markers", true, tr, m_graph);
 		m_markerPlot = plot;
 		tr[ *plot->label()] = i18n("Markers");
@@ -123,19 +126,12 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     }
     convertRawAndAccum(reader, tr);
     unsigned int accumulated = tr[ *this].m_accumulated;
-    if(m_storeDarkInvoked) {
-        m_storeDarkInvoked = false;
-        tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
-        for(auto& x: tr[ *this].darkCounts_())
-            x /= accumulated;
-        gMessagePrint(i18n("Dark spectrum has been stored."));
-    }
-
-    const unsigned int length = tr[ *this].length();
+    const unsigned int length = tr[ *this].accumLength();
     const double *av = &tr[ *this].accumCounts_()[0];
+    tr[ *this].counts_().resize(length, 0.0);
     double *v = &tr[ *this].counts_()[0];
     const double *vd = nullptr;
-    if(tr[ *subtractDark()] && (tr[ *this].darkCounts_().size() == length))
+    if(tr[ *subtractDark()] && (tr[ *this].isDarkValid()))
         vd = tr[ *this].darkCounts();
     for(unsigned int i = 0; i < length; i++) {
         double y = *av++ / accumulated;
@@ -145,6 +141,16 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     }
     if(accumulated < tr[ *average()]) {
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
+    if(m_storeDarkInvoked) {
+        m_storeDarkInvoked = false;
+        tr[ *this].darkCounts_() = tr[ *this].accumCounts_();
+        for(auto& x: tr[ *this].darkCounts_())
+            x /= accumulated;
+        gMessagePrint(i18n("Dark spectrum has been stored."));
+    }
+    else {
+        tr[ *this].darkCounts_().clear();
     }
 
     //markers
@@ -172,7 +178,7 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
 	  if( !shot[ *this].time()) {
 		return;
 	  }
-	const unsigned int length = shot[ *this].length();
+    const unsigned int accum_length = shot[ *this].accumLength();
     m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_markerPlot->maxCount()] = shot[ *this].m_markers.size();
         auto &points(tr[ *m_markerPlot].points());
@@ -182,18 +188,26 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
 			points.push_back(XGraph::ValPoint(it->first, it->second));
 		}
 
-		tr[ *m_waveForm].setRowCount(length);
-        std::vector<float> wavelens(length), mags(length);
+        tr[ *m_waveForm].setRowCount(accum_length);
+        std::vector<float> wavelens(accum_length), counts(accum_length), darks(accum_length), averaging(accum_length);
 
-        const double *v = shot[ *this].counts();
+        const double *v = shot[ *this].isCountsValid() ? shot[ *this].counts() : nullptr;
+        const double *av = shot[ *this].accumCounts();
+        const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
         const double *wl = shot[ *this].waveLengths();
-		for(unsigned int i = 0; i < length; i++) {
+        unsigned int accumulated = shot[ *this].m_accumulated;
+        for(unsigned int i = 0; i < accum_length; i++) {
             wavelens[i] = *wl++;
-            double y = *v++;
-            mags[i] = y;
-		}
+            if(v)
+                counts[i] = *v++;
+            averaging[i] = *av++ / accumulated;
+            if(dv)
+                darks[i] = *dv++;
+        }
         tr[ *m_waveForm].setColumn(0, std::move(wavelens), 7);
-        tr[ *m_waveForm].setColumn(1, std::move(mags), 5);
+        tr[ *m_waveForm].setColumn(1, std::move(counts), 6);
+        tr[ *m_waveForm].setColumn(2, std::move(averaging), 5);
+        tr[ *m_waveForm].setColumn(3, std::move(darks), 6);
 
 		m_waveForm->drawGraph(tr);
     });

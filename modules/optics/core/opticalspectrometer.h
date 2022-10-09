@@ -42,9 +42,12 @@ public:
 
 	struct Payload : public XPrimaryDriver::Payload {
         double integrationTime() const {return m_integrationTime;} //! [s]
-        unsigned int length() const {return m_counts.size();}
-        const double *counts() const {return &m_counts.at(0);} //!< dark subtracted
+        const double *counts() const {return &m_counts.at(0);}
+        bool isCountsValid() const {return (m_counts.size() == accumLength());}
         const double *darkCounts() const {return &m_darkCounts.at(0);}
+        bool isDarkValid() const {return (m_darkCounts.size() == accumLength());}
+        const double *accumCounts() const {return &m_accumCounts.at(0);}
+        unsigned int accumLength() const {return std::min(m_waveLengths.size(), m_accumCounts.size());}
         const double *waveLengths() const {return &m_waveLengths.at(0);}
 
         std::vector<double> &waveLengths_() {return m_waveLengths;}
