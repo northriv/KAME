@@ -135,7 +135,7 @@ private:
     void openAllUSBdevices();
     void closeAllUSBdevices();
 
-    uint8_t m_ep_in_others = 1, m_ep_in_spec = 2, m_ep_in_spec_first2Kpixels = 6, m_ep_cmd = 1;
+    uint8_t m_ep_in_others = 1, m_ep_in_spec = 2, m_ep_in_spec_first1Kpixels = 6, m_ep_cmd = 1;
     enum class CMD {
         INIT=0x01, SET_INTEGRATION_TIME=0x02, SET_STROBE_ENABLE_STAT=0x03, SET_SHUTDOWN_MODE=0x04,QUERY_INFO=0x05,
         WRITE_INFO=0x06,WRITE_SERIALNO=0x07,GET_SERIALNO=0x08,REQUEST_SPECTRA=0x09,

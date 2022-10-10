@@ -240,7 +240,8 @@ typename XOceanOpticsUSBInterface::USBDevice::List XOceanOpticsUSBInterface::s_d
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
-    {0x1012, "HR4000"},
+    {0x1011, "HR4000"},
+    {0x1012, "HR2000+/4000"},
     {0x1016, "HR2000+"},
     {0x101e, "USB2000+"},
 };
@@ -561,7 +562,7 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixel
     int len = 0;
     if(usb_highspeed && (pixels > 2048)) {
         //HR4000
-        len += usb()->bulkRead(m_ep_in_spec_first2Kpixels, &buf[0], 2048 * 2);
+        len += usb()->bulkRead(m_ep_in_spec_first1Kpixels, &buf[0], 1024 * 2);
     }
     len += usb()->bulkRead(m_ep_in_spec, &buf[len], buf.size() - len);
 
