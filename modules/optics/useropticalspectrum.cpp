@@ -15,7 +15,7 @@
 #include "charinterface.h"
 #include "analyzer.h"
 
-REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze USB/HR2000+ spectrometer");
+REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze HR2000+/4000 spectrometer");
 
 //---------------------------------------------------------------------------
 XOceanOpticsSpectrometer::XOceanOpticsSpectrometer(const char *name, bool runtime,
@@ -114,8 +114,8 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     for(unsigned int i = 0; i < nonlinCorrCoeffs.size(); ++i)
         nonlinCorrCoeffs[i] = reader.pop<double>();
 
-    auto fn_poly = [](const auto &coeffs, double v) {
-        double y = 0.0, x = 1.0;
+    auto fn_poly = [](const auto &coeffs, double v, bool inc_zeroth) {
+        double y = 0.0, x = inc_zeroth ? 1.0 : v;
         for(auto coeff: coeffs) {
             y += coeff * x;
             x *= v;
@@ -128,11 +128,11 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     tr[ *this].waveLengths_().resize(samples);
     tr[ *this].accumCounts_().resize(samples, 0.0);
     for(unsigned int i = 0; i < samples; ++i) {
-        double lambda = fn_poly(wavelenCalibCoeffs, i);
+        double lambda = fn_poly(wavelenCalibCoeffs, i, true);
         tr[ *this].waveLengths_()[i] = lambda;
-        double v = 0x100 * reader.pop<uint8_t>();
+        double v = 0x100uL * reader.pop<uint8_t>();
         v += reader.pop<uint8_t>(); //little endian
-        v = fn_poly(nonlinCorrCoeffs, v);
+        v = fn_poly(nonlinCorrCoeffs, v, false);
         tr[ *this].accumCounts_()[i] += v;
     }
     if(reader.pop<uint8_t>() != 0x69)
