@@ -189,25 +189,27 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
 		}
 
         tr[ *m_waveForm].setRowCount(accum_length);
-        std::vector<float> wavelens(accum_length), counts(accum_length), darks(accum_length), averaging(accum_length);
+        if(accum_length) {
+            std::vector<float> wavelens(accum_length), counts(accum_length), darks(accum_length), averaging(accum_length);
 
-        const double *v = shot[ *this].isCountsValid() ? shot[ *this].counts() : nullptr;
-        const double *av = shot[ *this].accumCounts();
-        const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
-        const double *wl = shot[ *this].waveLengths();
-        unsigned int accumulated = shot[ *this].m_accumulated;
-        for(unsigned int i = 0; i < accum_length; i++) {
-            wavelens[i] = *wl++;
-            if(v)
-                counts[i] = *v++;
-            averaging[i] = *av++ / accumulated;
-            if(dv)
-                darks[i] = *dv++;
+            const double *v = shot[ *this].isCountsValid() ? shot[ *this].counts() : nullptr;
+            const double *av = shot[ *this].accumCounts();
+            const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
+            const double *wl = shot[ *this].waveLengths();
+            unsigned int accumulated = shot[ *this].m_accumulated;
+            for(unsigned int i = 0; i < accum_length; i++) {
+                wavelens[i] = *wl++;
+                if(v)
+                    counts[i] = *v++;
+                averaging[i] = *av++ / accumulated;
+                if(dv)
+                    darks[i] = *dv++;
+            }
+            tr[ *m_waveForm].setColumn(0, std::move(wavelens), 7);
+            tr[ *m_waveForm].setColumn(1, std::move(counts), 6);
+            tr[ *m_waveForm].setColumn(2, std::move(averaging), 5);
+            tr[ *m_waveForm].setColumn(3, std::move(darks), 6);
         }
-        tr[ *m_waveForm].setColumn(0, std::move(wavelens), 7);
-        tr[ *m_waveForm].setColumn(1, std::move(counts), 6);
-        tr[ *m_waveForm].setColumn(2, std::move(averaging), 5);
-        tr[ *m_waveForm].setColumn(3, std::move(darks), 6);
 
 		m_waveForm->drawGraph(tr);
     });

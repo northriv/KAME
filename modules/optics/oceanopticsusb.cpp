@@ -240,7 +240,7 @@ typename XOceanOpticsUSBInterface::USBDevice::List XOceanOpticsUSBInterface::s_d
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
-    {0x1012, "HR2000+"},
+    {0x1012, "HR4000"},
     {0x1016, "HR2000+"},
     {0x101e, "USB2000+"},
 };
@@ -291,19 +291,16 @@ XOceanOpticsUSBInterface::openAllUSBdevices() {
     s_devices = USBDevice::enumerateDevices();
 
     {
-        //loads firmware onto RAM, if needed.
         for(auto &&x : s_devices) {
             if( !x) continue;
             try {
                 if(x->vendorID() == OCEANOPTICS_VENDOR_ID) {
                     cs_oceanOpticsModels.at(x->productID());
-                    x->close();
                     continue;
                 }
             }
             catch (std::out_of_range &e) {
             }
-            x->close();
             x.reset();
             continue;
         }
@@ -313,10 +310,6 @@ XOceanOpticsUSBInterface::openAllUSBdevices() {
 
 void
 XOceanOpticsUSBInterface::closeAllUSBdevices() {
-    for(auto &&x : s_devices) {
-        if( !x) continue;
-        x->close();
-    }
     s_devices.clear();
 }
 
@@ -326,6 +319,7 @@ XOceanOpticsUSBInterface::open() {
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
         m_usbDevice = it->second;
+        usb()->open();
     }
     else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
@@ -334,6 +328,8 @@ XOceanOpticsUSBInterface::open() {
 
 void
 XOceanOpticsUSBInterface::close() {
+    if(usb())
+        usb()->close();
     m_usbDevice.reset();
 }
 
@@ -524,7 +520,7 @@ XOceanOpticsUSBInterface::readInstrumStatus() {
     uint8_t cmds[] = {(uint8_t)CMD::QUERY_OP_INFO};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
     std::vector<uint8_t> stat(16);
-    usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat, sizeof(stat));
+    usb()->bulkRead(m_ep_in_others, (uint8_t*)&stat[0], stat.size());
     return stat;
 }
 
@@ -536,11 +532,11 @@ XOceanOpticsUSBInterface::readConfigurations() {
         uint8_t cmds[] = {(uint8_t)CMD::QUERY_INFO, no};
         usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
         uint8_t buf[CMD_READ_SIZE + 1];
-        int size = usb()->bulkRead(m_ep_in_others, buf, sizeof(buf));
-        buf[size] = '\0';
+        buf[CMD_READ_SIZE] = '\0';
+        int size = usb()->bulkRead(m_ep_in_others, buf, CMD_READ_SIZE);
         if((buf[0] != cmds[0]) || (buf[1] != cmds[1]))
             throw XInterface::XConvError(__FILE__, __LINE__);
-        return std::string((char*)(buf + 2));
+        return std::string((char*)&buf[2]);
     };
     config.serialNo = fn_query_conf(0);
     for(unsigned int i = 0; i < 4; ++i)
@@ -561,11 +557,9 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf) {
     uint8_t cmds[] = {(uint8_t)CMD::REQUEST_SPECTRA};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 
-    buf.resize(m_packetsInSpec);
-    int len = usb()->bulkRead(m_ep_in_others, &buf[0], buf.size());
-    if((len != buf.size()) || (buf.back() != 0x69))
-        throw XInterface::XConvError(__FILE__, __LINE__);
+    buf.resize(m_bytesInSpec);
+    int len = usb()->bulkRead(m_ep_in_spec, &buf[0], buf.size());
 
-    return buf.size();
+    return len;
 }
 

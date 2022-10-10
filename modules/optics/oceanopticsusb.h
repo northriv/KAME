@@ -143,8 +143,8 @@ private:
         WRITE_REG=0x6a, READ_REG=0x6b, READ_PCB_TEMP=0x6c, READ_IRRAD_CALIB=0x6d, WRITE_IRRAD_CALIB=0x6e,
         QUERY_OP_INFO=0xfe};
 
-    constexpr static unsigned int CMD_READ_SIZE = 16;
-    unsigned int m_packetsInSpec = 4097;
+    constexpr static unsigned int CMD_READ_SIZE = 17;
+    unsigned int m_bytesInSpec = 4097 * 2;
 };
 
 #endif // OCEANOPTICSUSB_H

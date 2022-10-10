@@ -52,7 +52,7 @@ public:
 
         std::vector<double> &waveLengths_() {return m_waveLengths;}
         std::vector<double> &counts_() {return m_counts;}
-        std::vector<double> &accumCounts_() {return m_counts;}
+        std::vector<double> &accumCounts_() {return m_accumCounts;}
         std::vector<double> &darkCounts_() {return m_darkCounts;}
         double m_integrationTime;
         unsigned int m_accumulated;

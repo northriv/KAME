@@ -45,7 +45,7 @@ XOceanOpticsSpectrometer::open() {
     nlpoly++;
     m_nonlinCorrCoeffs.resize(nlpoly);
     for(unsigned int i = 0; i < nlpoly; ++i) {
-        if(sscanf(config.wavelenCalib[i].c_str(), "%lf", &m_nonlinCorrCoeffs[i]) != 1)
+        if(sscanf(config.nonlinCorr[i].c_str(), "%lf", &m_nonlinCorrCoeffs[i]) != 1)
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
 
@@ -68,16 +68,21 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     writer->push((uint8_t)status.size());
     writer->insert(writer->end(), status.begin(), status.end());
     writer->push((uint8_t)m_wavelenCalibCoeffs.size());
-    writer->insert(writer->end(), m_wavelenCalibCoeffs.begin(), m_wavelenCalibCoeffs.end());
+    for(double x:  m_wavelenCalibCoeffs)
+        writer->push(x);
     writer->push((uint8_t)m_strayLightCoeffs.size());
-    writer->insert(writer->end(), m_strayLightCoeffs.begin(), m_strayLightCoeffs.end());
+    for(double x:  m_strayLightCoeffs)
+        writer->push(x);
     writer->push((uint8_t)m_nonlinCorrCoeffs.size());
-    writer->insert(writer->end(), m_nonlinCorrCoeffs.begin(), m_nonlinCorrCoeffs.end());
+    for(double x:  m_nonlinCorrCoeffs)
+        writer->push(x);
 
-    interface()->readSpectrum(m_spectrumBuffer);
-    writer->push((uint32_t)m_spectrumBuffer.size()); //be actual pixels + 1(end delimiter 0x69).
+    int len = interface()->readSpectrum(m_spectrumBuffer);
+    if( !len)
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
     writer->insert(writer->end(),
-                     m_spectrumBuffer.begin(), m_spectrumBuffer.end());
+                     m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
 }
 void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
@@ -105,7 +110,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     for(unsigned int i = 0; i < strayLightCoeffs.size(); ++i)
         strayLightCoeffs[i] = reader.pop<double>();
     std::vector<double> nonlinCorrCoeffs(8); //polynominal func. coeff.
-    wavelenCalibCoeffs.resize(reader.pop<uint8_t>());
+    nonlinCorrCoeffs.resize(reader.pop<uint8_t>());
     for(unsigned int i = 0; i < nonlinCorrCoeffs.size(); ++i)
         nonlinCorrCoeffs[i] = reader.pop<double>();
 
@@ -119,6 +124,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     };
 
     unsigned int samples = reader.pop<uint32_t>();
+    samples /= 2; //uint16_t each + 0x69
     tr[ *this].waveLengths_().resize(samples);
     tr[ *this].accumCounts_().resize(samples, 0.0);
     for(unsigned int i = 0; i < samples; ++i) {
@@ -129,6 +135,8 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
         v = fn_poly(nonlinCorrCoeffs, v);
         tr[ *this].accumCounts_()[i] += v;
     }
+    if(reader.pop<uint8_t>() != 0x69)
+        throw XInterface::XConvError(__FILE__, __LINE__);
     tr[ *this].m_accumulated++;
 
 //    tr[ *this].counts_()[0] = tr[ *this].counts_()[1];
