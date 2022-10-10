@@ -510,7 +510,7 @@ XOceanOpticsUSBInterface::setIntegrationTime(unsigned int us) {
     uint8_t hl = (us / 0x10000uL) % 0x100uL;
     uint8_t lh = (us / 0x100uL) % 0x100uL;
     uint8_t ll = us % 0x100uL;
-    uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, hh, hl, lh, ll}; //littleendian
+    uint8_t cmds[] = {(uint8_t)CMD::SET_INTEGRATION_TIME, ll, lh, hl, hh}; //littleendian
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 }
 
@@ -552,14 +552,18 @@ XOceanOpticsUSBInterface::readConfigurations() {
 }
 
 int
-XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf) {
+XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixels, bool usb_highspeed) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *this);
     uint8_t cmds[] = {(uint8_t)CMD::REQUEST_SPECTRA};
     usb()->bulkWrite(m_ep_cmd, cmds, sizeof(cmds));
 
-    buf.resize(m_bytesInSpec);
-    int len = usb()->bulkRead(m_ep_in_spec, &buf[0], buf.size());
+    buf.resize(2 * pixels + 1);
+    int len = 0;
+    if(usb_highspeed && (pixels > 2048)) {
+        //HR4000
+        len += usb()->bulkRead(m_ep_in_spec_first2Kpixels, &buf[0], 2048 * 2);
+    }
+    len += usb()->bulkRead(m_ep_in_spec, &buf[len], buf.size() - len);
 
     return len;
 }
-

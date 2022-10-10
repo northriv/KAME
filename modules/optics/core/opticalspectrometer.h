@@ -56,6 +56,7 @@ public:
         std::vector<double> &darkCounts_() {return m_darkCounts;}
         double m_integrationTime;
         unsigned int m_accumulated;
+        double m_electric_dark;
         std::deque<std::pair<double, double>> &markers() {return m_markers;}
     private:
         friend class XOpticalSpectrometer;

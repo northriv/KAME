@@ -65,6 +65,10 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
 
     auto status = interface()->readInstrumStatus();
+    uint16_t pixels = status[0] + status[1] * 0x100u;
+    uint8_t packets_in_spectrum = status[9];
+    uint8_t packets_in_ep = status[11];
+    uint8_t usb_speed = status[14]; //0x80 if highspeed
     writer->push((uint8_t)status.size());
     writer->insert(writer->end(), status.begin(), status.end());
     writer->push((uint8_t)m_wavelenCalibCoeffs.size());
@@ -77,7 +81,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     for(double x:  m_nonlinCorrCoeffs)
         writer->push(x);
 
-    int len = interface()->readSpectrum(m_spectrumBuffer);
+    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
     if( !len)
         throw XSkippedRecordError(__FILE__, __LINE__);
     writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
@@ -97,7 +101,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     uint8_t packets_in_ep = reader.pop<uint8_t>();
     reader.pop<uint8_t>();
     reader.pop<uint8_t>();
-    uint8_t usb_speed = reader.pop<uint8_t>();
+    uint8_t usb_speed = reader.pop<uint8_t>(); //0x80 if highspeed
     for(unsigned int i = 15; i < statussize; ++i)
         reader.pop<uint8_t>();
 
@@ -125,20 +129,43 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
 
     unsigned int samples = reader.pop<uint32_t>();
     samples /= 2; //uint16_t each + 0x69
-    tr[ *this].waveLengths_().resize(samples);
-    tr[ *this].accumCounts_().resize(samples, 0.0);
-    for(unsigned int i = 0; i < samples; ++i) {
+    //Sony ILX511B CCD
+    unsigned int dark_pixel_begin = 0;
+    unsigned int dark_pixel_end = 18;
+    unsigned int active_pixel_begin = 20;
+    unsigned int active_pixel_end = 2048;
+    if(samples > 2048) {
+        //Toshiba TCD1304AP CCD
+        dark_pixel_begin = 5;
+        dark_pixel_end = 18;
+        active_pixel_begin = 21;
+        active_pixel_end = 3669;
+    }
+    tr[ *this].waveLengths_().resize(active_pixel_end - active_pixel_begin);
+    tr[ *this].accumCounts_().resize(active_pixel_end - active_pixel_begin, 0.0);
+    //todo HR2000 bundles LSB/MSB every one USB packet.
+    double dark = 0.0;
+    int dark_cnt = 0;
+    for(unsigned int i = 0; i < active_pixel_begin; ++i) {
+        double v = reader.pop<uint16_t>(); //little endian
+        if((i >= dark_pixel_begin) && (i < dark_pixel_end)) {
+            dark_cnt++;
+            dark += v;
+        }
+    }
+    dark /= dark_cnt;
+    tr[ *this].m_electric_dark = dark;
+    for(unsigned int i = active_pixel_begin; i < active_pixel_end; ++i) {
         double lambda = fn_poly(wavelenCalibCoeffs, i, true);
         tr[ *this].waveLengths_()[i] = lambda;
-        double v = 0x100uL * reader.pop<uint8_t>();
-        v += reader.pop<uint8_t>(); //little endian
-        v = fn_poly(nonlinCorrCoeffs, v, false);
+        double v = reader.pop<uint16_t>(); //little endian
+        v = fn_poly(nonlinCorrCoeffs, v, true);
         tr[ *this].accumCounts_()[i] += v;
+    }
+    for(unsigned int i = active_pixel_end; i < samples; ++i) {
+        reader.pop<uint16_t>();
     }
     if(reader.pop<uint8_t>() != 0x69)
         throw XInterface::XConvError(__FILE__, __LINE__);
     tr[ *this].m_accumulated++;
-
-//    tr[ *this].counts_()[0] = tr[ *this].counts_()[1];
-
 }
