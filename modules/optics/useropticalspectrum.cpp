@@ -117,13 +117,12 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     strayLightCoeffs.resize(reader.pop<uint8_t>());
     for(unsigned int i = 0; i < strayLightCoeffs.size(); ++i)
         strayLightCoeffs[i] = reader.pop<double>();
-    std::vector<double> nonlinCorrCoeffs(8); //polynominal func. coeff.
-    nonlinCorrCoeffs.resize(reader.pop<uint8_t>());
-    for(unsigned int i = 0; i < nonlinCorrCoeffs.size(); ++i)
-        nonlinCorrCoeffs[i] = reader.pop<double>();
+    tr[ *this].m_nonLinCorrCoeffs.resize(reader.pop<uint8_t>());
+    for(unsigned int i = 0; i < tr[ *this].m_nonLinCorrCoeffs.size(); ++i)
+        tr[ *this].m_nonLinCorrCoeffs[i] = reader.pop<double>();
 
-    auto fn_poly = [](const auto &coeffs, double v, bool inc_zeroth) {
-        double y = 0.0, x = inc_zeroth ? 1.0 : v;
+    auto fn_poly = [](const auto &coeffs, double v) {
+        double y = 0.0, x = 1.0;
         for(auto coeff: coeffs) {
             y += coeff * x;
             x *= v;
@@ -159,12 +158,15 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     }
     dark /= dark_cnt;
     tr[ *this].m_electric_dark = dark;
+    uint32_t vprev = 0;
     for(unsigned int i = 0; i < active_pixel_end - active_pixel_begin; ++i) {
-        double lambda = fn_poly(wavelenCalibCoeffs, i + active_pixel_begin, true);
+        double lambda = fn_poly(wavelenCalibCoeffs, i + active_pixel_begin);
         tr[ *this].waveLengths_()[i] = lambda;
-        uint32_t v = reader.pop<uint16_t>(); //little endian
-//        tr[ *this].accumCounts_()[i] += v + fn_poly(nonlinCorrCoeffs, v, true);
+        uint32_t v = (uint16_t)reader.pop<uint16_t>(); //little endian
+//        if(v > 0x4000uL)
+//            v = vprev;
         tr[ *this].accumCounts_()[i] += v;
+        vprev = v;
     }
     for(unsigned int i = active_pixel_end; i < samples; ++i) {
         reader.pop<uint16_t>();

@@ -57,6 +57,7 @@ public:
         double m_integrationTime;
         unsigned int m_accumulated;
         double m_electric_dark;
+        std::vector<double> m_nonLinCorrCoeffs;
         std::deque<std::pair<double, double>> &markers() {return m_markers;}
     private:
         friend class XOpticalSpectrometer;

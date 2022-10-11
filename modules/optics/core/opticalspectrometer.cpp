@@ -95,13 +95,15 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 
     });
     std::vector<shared_ptr<XNode>> runtime_ui{
-        startWavelen(),
-        stopWavelen(),
-        average(),
-        storeDark(),
-        subtractDark()
+//        startWavelen(),
+//        stopWavelen(),
+//        average(),
+//        storeDark(),
+//        subtractDark(),
+        integrationTime()
     };
     iterate_commit([=](Transaction &tr){
+        tr[ *average()] = 1;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
     });
@@ -135,6 +137,9 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         for(auto& v: tr[ *this].accumCounts_())
             v -= d;
     }
+    if(accumulated < tr[ *average()]) {
+        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
     tr[ *this].counts_().resize(length, 0.0);
     double *v = &tr[ *this].counts_()[0];
     const double *vd = nullptr;
@@ -145,9 +150,6 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
         if(vd)
             y -= *vd++;
         *v++ = y;
-    }
-    if(accumulated < tr[ *average()]) {
-        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     if(m_storeDarkInvoked) {
         m_storeDarkInvoked = false;
@@ -201,11 +203,20 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
             const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
             const double *wl = shot[ *this].waveLengths();
             unsigned int accumulated = shot[ *this].m_accumulated;
+            auto& poly_coeff = shot[ *this].m_nonLinCorrCoeffs;
+            auto fn_corr = [&poly_coeff](double v) {
+                double y = 0.0, x = 1.0;
+                for(auto coeff: poly_coeff) {
+                    y += coeff * x;
+                    x *= v;
+                }
+                return v / y;
+            };
             for(unsigned int i = 0; i < accum_length; i++) {
                 wavelens[i] = *wl++;
                 if(v)
-                    counts[i] = *v++;
-                averaging[i] = *av++ / accumulated;
+                    counts[i] = fn_corr(*v++);
+                averaging[i] = fn_corr(*av++ / accumulated);
                 if(dv) {
                     darks[i] = *dv++;
                     averaging[i] -= darks[i];
@@ -225,11 +236,12 @@ void *
 XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
 
     std::vector<shared_ptr<XNode>> runtime_ui{
-        startWavelen(),
-        stopWavelen(),
-        average(),
-        storeDark(),
-        subtractDark()
+//        startWavelen(),
+//        stopWavelen(),
+//        average(),
+//        storeDark(),
+//        subtractDark()
+        integrationTime()
         };
 
     m_storeDarkInvoked = false;
