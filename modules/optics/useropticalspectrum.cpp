@@ -1,15 +1,15 @@
 /***************************************************************************
         Copyright (C) 2002-2018 Kentaro Kitagawa
-		                   kitagawa@phys.s.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+                           kitagawa@phys.s.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "useropticalspectrum.h"
 #include "charinterface.h"
@@ -19,7 +19,7 @@ REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze HR200
 
 //---------------------------------------------------------------------------
 XOceanOpticsSpectrometer::XOceanOpticsSpectrometer(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XOpticalSpectrometer, XOceanOpticsUSBInterface>(name, runtime, ref(tr_meas), meas) {
 //    startWavelen()->disable();
 //    stopWavelen()->disable();
@@ -49,11 +49,11 @@ XOceanOpticsSpectrometer::open() {
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
 
-	start();
+    start();
 }
 void
 XOceanOpticsSpectrometer::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-	unsigned int avg = shot[ *average()];
+    unsigned int avg = shot[ *average()];
 }
 void
 XOceanOpticsSpectrometer::onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -158,14 +158,20 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     }
     dark /= dark_cnt;
     tr[ *this].m_electric_dark = dark;
+    auto &poly_coeff = tr[ *this].m_nonLinCorrCoeffs;
+    double efficiency = fn_poly(poly_coeff, dark);
     uint32_t vprev = 0;
     for(unsigned int i = 0; i < active_pixel_end - active_pixel_begin; ++i) {
         double lambda = fn_poly(wavelenCalibCoeffs, i + active_pixel_begin);
         tr[ *this].waveLengths_()[i] = lambda;
-        uint32_t v = (uint16_t)reader.pop<uint16_t>(); //little endian
-//        if(v > 0x4000uL)
-//            v = vprev;
-        tr[ *this].accumCounts_()[i] += v;
+        uint32_t v = reader.pop<uint16_t>(); //little endian
+//        if(fabs(lambda-694.18) < 0.03)
+//            v = v; //0x09? for intens signal.
+        if(v < dark / 2) {
+            //assuming overflow
+            v = vprev;
+        }
+        tr[ *this].accumCounts_()[i] += (v - dark) / efficiency + dark;
         vprev = v;
     }
     for(unsigned int i = active_pixel_end; i < samples; ++i) {

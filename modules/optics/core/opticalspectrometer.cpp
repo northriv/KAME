@@ -203,20 +203,20 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
             const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
             const double *wl = shot[ *this].waveLengths();
             unsigned int accumulated = shot[ *this].m_accumulated;
-            auto& poly_coeff = shot[ *this].m_nonLinCorrCoeffs;
-            auto fn_corr = [&poly_coeff](double v) {
-                double y = 0.0, x = 1.0;
-                for(auto coeff: poly_coeff) {
-                    y += coeff * x;
-                    x *= v;
-                }
-                return v / y;
-            };
+//            auto& poly_coeff = shot[ *this].m_nonLinCorrCoeffs;
+//            auto fn_corr = [&poly_coeff](double v) {
+//                double y = 0.0, x = 1.0;
+//                for(auto coeff: poly_coeff) {
+//                    y += coeff * x;
+//                    x *= v;
+//                }
+//                return y;
+//            };
             for(unsigned int i = 0; i < accum_length; i++) {
                 wavelens[i] = *wl++;
                 if(v)
-                    counts[i] = fn_corr(*v++);
-                averaging[i] = fn_corr(*av++ / accumulated);
+                    counts[i] = *v++;
+                averaging[i] = *av++ / accumulated;
                 if(dv) {
                     darks[i] = *dv++;
                     averaging[i] -= darks[i];
