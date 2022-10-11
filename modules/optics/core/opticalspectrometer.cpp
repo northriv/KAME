@@ -128,6 +128,13 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     unsigned int accumulated = tr[ *this].m_accumulated;
     const unsigned int length = tr[ *this].accumLength();
     const double *av = &tr[ *this].accumCounts_()[0];
+    if( !tr[ *subtractDark()]) {
+        tr[ *this].darkCounts_().clear();
+        //dark count estimated for unused pixels.
+        double d = tr[ *this].m_electric_dark;
+        for(auto& v: tr[ *this].accumCounts_())
+            v -= d;
+    }
     tr[ *this].counts_().resize(length, 0.0);
     double *v = &tr[ *this].counts_()[0];
     const double *vd = nullptr;
@@ -149,13 +156,10 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
             x /= accumulated;
         gMessagePrint(i18n("Dark spectrum has been stored."));
     }
-    else {
-        tr[ *this].darkCounts_().clear();
-    }
 
     //markers
     auto it = std::max_element(tr[ *this].counts_().begin(), tr[ *this].counts_().end());
-    int idx = std::distance(it, tr[ *this].counts_().begin());
+    int idx = std::distance(tr[ *this].counts_().begin(), it);
     tr[ *this].markers().clear();
     tr[ *this].markers().emplace_back(tr[ *this].waveLengths()[idx], *it);
     m_marker1X->value(tr, tr[ *this].waveLengths()[idx]);
@@ -202,8 +206,10 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
                 if(v)
                     counts[i] = *v++;
                 averaging[i] = *av++ / accumulated;
-                if(dv)
+                if(dv) {
                     darks[i] = *dv++;
+                    averaging[i] -= darks[i];
+                }
             }
             tr[ *m_waveForm].setColumn(0, std::move(wavelens), 7);
             tr[ *m_waveForm].setColumn(1, std::move(counts), 6);
@@ -235,6 +241,8 @@ XOpticalSpectrometer::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XOpticalSpectrometer::onStopWavelenChanged);
 		m_lsnOnAverageChanged = tr[ *average()].onValueChanged().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onAverageChanged);
+        m_lsnOnIntegrationTimeChanged = tr[ *integrationTime()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XOpticalSpectrometer::onIntegrationTimeChanged);
         m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
             shared_from_this(), &XOpticalSpectrometer::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
         for(auto &&x: runtime_ui)

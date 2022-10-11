@@ -81,6 +81,10 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     for(double x:  m_nonlinCorrCoeffs)
         writer->push(x);
 
+    //ugly hack
+    uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+    if(integration_time_us > 300000)
+        msecsleep(integration_time_us / 1000 - 100);
     int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
     if( !len)
         throw XSkippedRecordError(__FILE__, __LINE__);
@@ -155,11 +159,11 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     }
     dark /= dark_cnt;
     tr[ *this].m_electric_dark = dark;
-    for(unsigned int i = active_pixel_begin; i < active_pixel_end; ++i) {
-        double lambda = fn_poly(wavelenCalibCoeffs, i, true);
+    for(unsigned int i = 0; i < active_pixel_end - active_pixel_begin; ++i) {
+        double lambda = fn_poly(wavelenCalibCoeffs, i + active_pixel_begin, true);
         tr[ *this].waveLengths_()[i] = lambda;
-        double v = reader.pop<uint16_t>(); //little endian
-        v = fn_poly(nonlinCorrCoeffs, v, true);
+        uint32_t v = reader.pop<uint16_t>(); //little endian
+//        tr[ *this].accumCounts_()[i] += v + fn_poly(nonlinCorrCoeffs, v, true);
         tr[ *this].accumCounts_()[i] += v;
     }
     for(unsigned int i = active_pixel_end; i < samples; ++i) {

@@ -19,7 +19,7 @@
 //!todo sharing codes with cyfxusb.cpp cyfxusb_libusb.cpp
 
 
-static constexpr int USB_TIMEOUT = 4000; //ms
+static constexpr int USB_TIMEOUT = 8000; //ms
 
 struct OceanOpticsLibUSBDevice : public OceanOpticsUSBDevice {
     OceanOpticsLibUSBDevice(libusb_device *d) : handle(nullptr), dev(d) {
