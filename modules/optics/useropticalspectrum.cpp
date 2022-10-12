@@ -149,30 +149,30 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     //todo HR2000 bundles LSB/MSB every one USB packet.
     double dark = 0.0;
     int dark_cnt = 0;
+    uint32_t xor_bit = 0;
     for(unsigned int i = 0; i < active_pixel_begin; ++i) {
-        double v = reader.pop<uint16_t>(); //little endian
+        uint32_t v = reader.pop<uint16_t>(); //little endian
+        if(i == 0) {
+            //detecting bit13 flip for HR2000+
+            xor_bit = lrint(std::pow(2.0, floor(std::log2((double)v))));
+            if(xor_bit < 0x1000uL)
+                xor_bit = 0;
+        }
         if((i >= dark_pixel_begin) && (i < dark_pixel_end)) {
             dark_cnt++;
-            dark += v;
+            dark += v ^ xor_bit;
         }
     }
     dark /= dark_cnt;
     tr[ *this].m_electric_dark = dark;
     auto &poly_coeff = tr[ *this].m_nonLinCorrCoeffs;
-    double efficiency = fn_poly(poly_coeff, dark);
-    uint32_t vprev = 0;
     for(unsigned int i = 0; i < active_pixel_end - active_pixel_begin; ++i) {
         double lambda = fn_poly(wavelenCalibCoeffs, i + active_pixel_begin);
         tr[ *this].waveLengths_()[i] = lambda;
         uint32_t v = reader.pop<uint16_t>(); //little endian
-//        if(fabs(lambda-694.18) < 0.03)
-//            v = v; //0x09? for intens signal.
-        if(v < dark / 2) {
-            //assuming overflow
-            v = vprev;
-        }
+        v = v ^ xor_bit;
+        double efficiency = fn_poly(poly_coeff, v);
         tr[ *this].accumCounts_()[i] += (v - dark) / efficiency + dark;
-        vprev = v;
     }
     for(unsigned int i = active_pixel_end; i < samples; ++i) {
         reader.pop<uint16_t>();
