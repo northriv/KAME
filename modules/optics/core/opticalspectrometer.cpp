@@ -51,7 +51,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     };
 
     m_waveForm->iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Wavelen [nm]", "Count", "AveragingCount", "DarkCount"};
+        const char *labels[] = {"Wavelength [nm]", "Count", "Averaging Count", "Dark Count"};
         tr[ *m_waveForm].setColCount(4, labels);
 		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
         tr[ *m_waveForm].insertPlot(labels[2], 0, 2);
@@ -81,7 +81,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
 			tr, "Markers", true, tr, m_graph);
 		m_markerPlot = plot;
-		tr[ *plot->label()] = i18n("Markers");
+        tr[ *plot->label()] = i18n("Marker");
 		tr[ *plot->axisX()] = axisx;
 		tr[ *plot->axisY()] = axisy;
 		tr[ *plot->drawLines()] = false;
@@ -203,15 +203,7 @@ XOpticalSpectrometer::visualize(const Snapshot &shot) {
             const double *dv = (shot[ *subtractDark()] && shot[ *this].isDarkValid()) ? shot[ *this].darkCounts() : nullptr;
             const double *wl = shot[ *this].waveLengths();
             unsigned int accumulated = shot[ *this].m_accumulated;
-//            auto& poly_coeff = shot[ *this].m_nonLinCorrCoeffs;
-//            auto fn_corr = [&poly_coeff](double v) {
-//                double y = 0.0, x = 1.0;
-//                for(auto coeff: poly_coeff) {
-//                    y += coeff * x;
-//                    x *= v;
-//                }
-//                return y;
-//            };
+
             for(unsigned int i = 0; i < accum_length; i++) {
                 wavelens[i] = *wl++;
                 if(v)
