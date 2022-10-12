@@ -83,6 +83,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
 
     //ugly hack
     uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+
     if(integration_time_us > 300000)
         msecsleep(integration_time_us / 1000 - 100);
     int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);

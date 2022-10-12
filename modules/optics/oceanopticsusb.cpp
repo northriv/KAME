@@ -367,8 +367,8 @@ OceanOpticsLibUSBDevice::open() {
 
         int bus_num = libusb_get_bus_number(dev);
         int addr = libusb_get_device_address(dev);
-    //    fprintf(stderr, "USB %d: PID=0x%x,VID=0x%x,BUS#%d,ADDR=%d.\n",
-    //        n, desc.idProduct, desc.idVendor, bus_num, addr);
+        fprintf(stderr, "USB: PID=0x%x,VID=0x%x,BUS#%d,ADDR=%d.\n",
+             desc.idProduct, desc.idVendor, bus_num, addr);
 
         ret = libusb_open(dev, &handle);
         if(ret) {
@@ -424,6 +424,7 @@ OceanOpticsLibUSBDevice::close() {
 //        libusb_reset_device(handle);
         libusb_release_interface(handle,0);
         libusb_close(handle);
+        fprintf(stderr, "USB: closed.\n");
     }
     handle = nullptr;
 }
