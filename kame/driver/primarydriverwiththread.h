@@ -57,8 +57,10 @@ XPrimaryDriverWithThread::start() {
 
 inline void
 XPrimaryDriverWithThread::stop() {
-    if(m_thread) {
-        m_thread->terminate();
+    unique_ptr<XThread> thread = std::move(m_thread);
+    if(thread && !thread->isTerminated()) {
+        thread->terminate();
+        m_thread = std::move(thread);
     }
 	else
 		closeInterface(); //closes interface if any.
