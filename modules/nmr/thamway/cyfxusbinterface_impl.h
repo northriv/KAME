@@ -141,19 +141,19 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                     x.reset();
                     continue;
                 case DEVICE_STATUS::READY:
+                    if( !gpifWave(x).empty()) {
+                        x->open();
+                        char gpif[GPIFWAVE_SIZE];
+                        load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
+                        setWave(x, (uint8_t*)gpif);
+                        x->close();
+                    }
                     break;
                 case DEVICE_STATUS::FW_NOT_LOADED:
                     gErrPrint("USB FX: firmware download was failed.");
                     x.reset();
                     continue;
                 }
-            }
-            else
-                x->open();
-            if( !gpifWave(x).empty()) {
-                char gpif[GPIFWAVE_SIZE];
-                load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
-                setWave(x, (uint8_t*)gpif);
             }
         }
         catch (XInterface::XInterfaceError &e) {
@@ -169,10 +169,6 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
-    for(auto &&x : s_devices) {
-        if( !x) continue;
-        x->close();
-    }
     s_devices.clear();
 }
 
@@ -226,6 +222,7 @@ XCyFXUSBInterface<USBDevice>::open() {
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
         m_usbDevice = it->second;
+        usb()->open();
     }
     else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
@@ -235,5 +232,7 @@ XCyFXUSBInterface<USBDevice>::open() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() {
+    if(usb())
+        usb()->close();
     m_usbDevice.reset();
 }
