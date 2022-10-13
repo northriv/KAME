@@ -57,7 +57,12 @@ XOceanOpticsSpectrometer::onAverageChanged(const Snapshot &shot, XValueNodeBase 
 }
 void
 XOceanOpticsSpectrometer::onIntegrationTimeChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->setIntegrationTime(lrint(shot[ *integrationTime()] * 1e6));
+    try {
+        interface()->setIntegrationTime(lrint(shot[ *integrationTime()] * 1e6));
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
 }
 
 void
