@@ -114,7 +114,6 @@ std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     dev->open();
     uint8_t dipsw = readDIPSW(dev);
-    dev->close();
     XString idn;
     if(m_idString.empty()) {
         Snapshot shot( *this);
@@ -128,6 +127,7 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
         if( !idn.length()) return {};
     }
     idn = formatString("%d:%s", (int)dipsw, idn.c_str());
+    dev->close();
     return idn;
 }
 

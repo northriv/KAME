@@ -30,6 +30,15 @@ struct CyFXUSBDevice {
     virtual void open() = 0;
     virtual void close() = 0;
 
+    void openForSharing() {
+        //allows to be shared.
+        m_refcnt++;
+        open();
+    }
+    void unref() {
+        if(m_refcnt.decAndTest())
+            close();
+    }
     void halt();
     void run();
     virtual XString getString(int descid) = 0;
@@ -94,6 +103,7 @@ struct CyFXUSBDevice {
 protected:
     CyFXUSBDevice() = default;
     uint16_t m_vendorID, m_productID;
+    atomic<int> m_refcnt = 0;
 };
 
 //! interfaces Cypress FX2LP/FX3 devices

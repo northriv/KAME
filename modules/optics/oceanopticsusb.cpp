@@ -421,7 +421,7 @@ OceanOpticsLibUSBDevice::close() {
 //        libusb_clear_halt(handle, 0x2);
 //        libusb_clear_halt(handle, 0x6);
 //        libusb_clear_halt(handle, 0x8);
-//        libusb_reset_device(handle);
+        libusb_reset_device(handle); //this helped for HR4000 for reopening the device w/o conversion error.
         libusb_release_interface(handle,0);
         libusb_close(handle);
         fprintf(stderr, "USB: closed.\n");

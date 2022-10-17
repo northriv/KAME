@@ -222,7 +222,7 @@ XCyFXUSBInterface<USBDevice>::open() {
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
         m_usbDevice = it->second;
-        usb()->open();
+        usb()->openForSharing();
     }
     else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
@@ -233,6 +233,6 @@ template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::close() {
     if(usb())
-        usb()->close();
+        usb()->unref();
     m_usbDevice.reset();
 }

@@ -269,8 +269,8 @@ CyFXLibUSBDevice::open() {
     //    }
         ret = libusb_kernel_driver_active(handle, 0);
         if(ret < 0) {
-            libusb_close(handle); handle = nullptr;
-            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+//            libusb_close(handle); handle = nullptr;
+//            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
         }
         if(ret == 1) {
             fprintf(stderr, "USB: kernel driver is active, detaching...\n");
@@ -301,9 +301,10 @@ CyFXLibUSBDevice::close() {
 //        libusb_clear_halt(handle, 0x2);
 //        libusb_clear_halt(handle, 0x6);
 //        libusb_clear_halt(handle, 0x8);
-//        libusb_reset_device(handle);
+        libusb_reset_device(handle);
         libusb_release_interface(handle,0);
         libusb_close(handle);
+        fprintf(stderr, "USB: closed.\n");
     }
     handle = nullptr;
 }
