@@ -23,17 +23,19 @@
 class XDMMSCPI : public XCharDeviceDriver<XDMM> {
 public:
 	XDMMSCPI(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas) {}
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, unsigned int num_channels = 1) :
+        XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas, num_channels) {}
 	virtual ~XDMMSCPI() {}
 
 	//! requests the latest reading
 	virtual double fetch();
 	//! one-shot reading
-	virtual double oneShotRead();
+    virtual double oneShotRead() override;
+    //! one-shot multi-channel reading
+    virtual std::deque<double> oneShotMultiRead() override;
 protected:
 	//! called when m_function is changed
-	virtual void changeFunction();
+    virtual void changeFunction() override;
 };
 
 
@@ -43,7 +45,7 @@ class XKE2182:public XDMMSCPI {
 public:
 	XKE2182(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-		XDMMSCPI(name, runtime, ref(tr_meas), meas) {
+        XDMMSCPI(name, runtime, ref(tr_meas), meas, 2) { //2channels
 		iterate_commit([=](Transaction &tr){
 			tr[ *function()].add("VOLT");
 			tr[ *function()].add("TEMP");
@@ -74,6 +76,26 @@ public:
 
 		interface()->setGPIBWaitBeforeRead(20);
 	}
+};
+
+
+//! Keithley Integra 2700 w/ 7700 switching module.
+class XKE2700_7700 : public XCharDeviceDriver<XDMM> {
+public:
+    XKE2700_7700(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XKE2700_7700() {}
+
+protected:
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open() override;
+    //! one-shot multi-channel reading
+    virtual std::deque<double> oneShotMultiRead() override;
+    //! one-shot reading
+    virtual double oneShotRead() override {return 0.0;}
+    //! called when m_function is changed
+    virtual void changeFunction() override {}
+private:
 };
 
 //! Agilent(Hewlett-Packard) 34420A nanovolt meter

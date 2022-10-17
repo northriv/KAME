@@ -1,3 +1,61 @@
+* Sat Jun 25 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.7.1-1)
+- DMM: support for multi channels, Keithley 2851, 2700.
+- CAM: better UI
+
+* Thu Jun 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.7-1)
+- CAM: fixed bugs.
+
+* Thu May 19 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.6-1)
+- Flex AR: Support of pushing mode. Fix bug for STOP button.
+- CAM: CAM using STMs.
+
+* Sat Apr 16 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5.2-1)
+- NIDAQmx: PCIe-6374/6376 experimental support
+
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5.1-1)
+- Mac: Universal binary ready
+- thamway: fix bug on loading libusb
+
+* Sun Feb 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.5-1)
+- Native arm support for M1 Mac
+
+* Tue Dec 28 2021 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.4-1)
+- worked w/ C++17 and Qt 6 w/ Qt5 compatibility module
+- graph: 3D viewpoint can be reset by clicking right button.
+- magnetps: Fix behavior for sweep rate during persistent mode
+- TempControl: Fix behavior for "stabilized" value regarding "I"
+- NMR: tSVD fourier spectral analysis (experimental) 
+
+* Sun Dec 20 2020 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.3.2-1)
+- NMRT1: Fix for "Flatten generator", behavior near P1Max.
+- AutoLCTuner: improved strategy during tuning
+- Fix for threading on starting a driver
+- Fix for MonteCarlo
+
+* Sun Apr 26 2020 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.3.1-1)
+- Pfeiffer TPG361/362 Gauge (RS485). 
+
+* Sun Dec 1 2019 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.3-1)
+- Density mapping for T1,T2 by Tikhonov regularization. 
+
+* Fri Sep 6 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.2.2-1)
+- Workaround for Qt5.12
+- NMREcho: Fix for background warning, new warning against large voltage.
+- NMRT1: T2 measurement by CPMG
+- ThamwayRealtimeDSO: Fix for trigger position
+- new driver: two-axis goniometric stage
+
 * Sun Nov 25 2018 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.2.1-2)
 - Mac: Fix for text/draw collapse on MDI windows.

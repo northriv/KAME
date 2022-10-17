@@ -21,15 +21,16 @@ class XCharInterface;
 template<class tDriver, class tInterface = XCharInterface>
 class XCharDeviceDriver : public tDriver {
 public:
-	XCharDeviceDriver(const char *name, bool runtime, 
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    template <typename... Args>
+    XCharDeviceDriver(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args);
     virtual ~XCharDeviceDriver() = default;
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
-	virtual void open() throw (XKameError &) {this->start();}
-	//! Be called during stopping driver. Call interface()->stop() inside this routine.
-	virtual void close() throw (XKameError &) {interface()->stop();}
+    virtual void open() {this->start();}
+    //! Be called during stopping driver. Call interface()->stop() inside this routine.
+    virtual void close() {interface()->stop();}
 	void onOpen(const Snapshot &shot, XInterface *);
 	void onClose(const Snapshot &shot, XInterface *);
 	//! This should not cause an exception.
@@ -42,9 +43,10 @@ private:
 };
 
 template<class tDriver, class tInterface>
-XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime, 
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    tDriver(name, runtime, ref(tr_meas), meas),
+template <typename... Args>
+XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args) :
+    tDriver(name, runtime, ref(tr_meas), meas, std::forward<Args>(args)...),
 	m_interface(XNode::create<tInterface>("Interface", false,
 										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
 

@@ -15,27 +15,40 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+#if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__\
+    || defined __x86_64__ || defined _M_IX86 || defined _M_X64\
+    || defined __WIN32__ || defined WINDOWS || defined _WIN32
+#else
+    #define USE_STD_ALLOCATOR
+#endif
+#if defined WINDOWS || defined _WIN32
+    #define USE_STD_ALLOCATOR
+#endif
+
+#if defined USE_STD_ALLOCATOR
     inline void activateAllocator() {}
+    inline void release_pools() {}
 #else
     #include "allocator_prv.h"
+
+    //! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
+    //! Memory blocks in a unit of double-quad word less than 8KiB
+    //! can be allocated from fixed-size or variable-size memory pools.
+    //! The larger memory is provided by standard malloc().
+    //! \sa PoolAllocator, allocator_test.cpp.
+    #ifdef USE_EXTERN_INLINE
+    extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
+        return new_redirected(size);
+    }
+    extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
+        return new_redirected(size);
+    }
+    #endif
+
+    extern void release_pools();
+
 #endif
 
-//! Fast lock-free allocators for small objects: new(), new[](), delete(), delete[]() operators.\n
-//! Memory blocks in a unit of double-quad word less than 8KiB
-//! can be allocated from fixed-size or variable-size memory pools.
-//! The larger memory is provided by standard malloc().
-//! \sa PoolAllocator, allocator_test.cpp.
-#ifdef USE_EXTERN_INLINE
-extern inline void* operator new(std::size_t size) throw(std::bad_alloc) {
-	return new_redirected(size);
-}
-extern inline void* operator new[](std::size_t size) throw(std::bad_alloc) {
-	return new_redirected(size);
-}
-#endif
-
-extern void release_pools();
 
 #include <array>
 #include <vector>

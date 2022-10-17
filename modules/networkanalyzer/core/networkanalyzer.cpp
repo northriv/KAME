@@ -128,7 +128,7 @@ XNetworkAnalyzer::showForms() {
 }
 
 void
-XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	const Snapshot &shot(tr);
 	unsigned int numtr = reader.pop<unsigned int>();
 	if(numtr != 1)
@@ -143,6 +143,25 @@ XNetworkAnalyzer::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRec
     convertRaw(reader, tr);
 
     nummk = shot[*this].m_markers.size(); //# of markers may be changed by convertRaw()
+    if(nummk == 0) {
+        //searches for minimum in reflection around f0.
+        int trace_len = shot[ *this].length();
+        double trace_dfreq = shot[ *this].freqInterval();
+        double trace_start = shot[ *this].startFreq();
+        const std::complex<double> *trace = &shot[ *this].trace()[0];
+        double zmin = 1e10;
+        double fmin = 0.0;
+        for(int i = 0; i < trace_len; ++i) {
+            double z = std::abs(trace[i]);
+            double f = trace_start + i * trace_dfreq;
+            if(z < zmin) {
+                zmin = z;
+                fmin = f;
+            }
+        }
+        m_marker1X->value(tr, fmin);
+        m_marker1Y->value(tr, zmin);
+    }
     if(nummk >= 1) {
         m_marker1X->value(tr, shot[ *this].m_markers[0].first);
         m_marker1Y->value(tr, shot[ *this].m_markers[0].second);

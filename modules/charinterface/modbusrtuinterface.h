@@ -44,13 +44,14 @@ public:
 		data[1] = dword % 0x10000uL;
 		presetMultipleResistors(res_addr, 2, data);
 	}
-protected:
-	virtual void open() throw (XInterfaceError &);
+
+    virtual void open();
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &);
+	virtual void close();
 
     virtual bool isOpened() const {return !!m_openedPort;}
 
+protected:
 	void query_unicast(unsigned int func_code, const std::vector<unsigned char> &bytes, std::vector<unsigned char> &buf);
 private:
 	//Modbus utilizes Big endian.

@@ -24,7 +24,6 @@ REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 AC res. bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
 REGISTER_TYPE(XDriverList, LinearResearch700, "LinearResearch LR-700  AC res. bridge");
-REGISTER_TYPE(XDriverList, KE2700w7700, "Keithley 2700&7700 as temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -33,7 +32,7 @@ XITC503::XITC503(const char *name, bool runtime,
         {"1", "2", "3"},
         {}, {"HEATER", "GASFLOW"});
 }
-void XITC503::open() throw (XKameError &) {
+void XITC503::open() {
 	start();
 
     interface()->query("X");
@@ -207,7 +206,7 @@ double XAVS47IB::getRaw(shared_ptr<XChannel> &) {
 double XAVS47IB::getTemp(shared_ptr<XChannel> &) {
 	return getRes();
 }
-void XAVS47IB::open() throw (XKameError &) {
+void XAVS47IB::open() {
 	msecsleep(50);
 	interface()->send("REM 1;ARN 0;DIS 0");
 	trans( *currentChannel(0)).str(formatString("%d", (int) lrint(read("MUX"))));
@@ -336,7 +335,7 @@ XCryoconM32::XCryoconM32(const char *name, bool runtime,
         {"CI", "10MV", "3MV", "1MV"},
         {"Loop#1", "Loop#2"});
 }
-void XCryocon::open() throw (XKameError &) {
+void XCryocon::open() {
     Snapshot shot_ch( *channels());
     const XNode::NodeList &list( *shot_ch.list());
     assert(list.size() == 2);
@@ -376,7 +375,7 @@ void XCryocon::open() throw (XKameError &) {
 
     start();
 }
-void XCryoconM32::open() throw (XKameError &) {
+void XCryoconM32::open() {
     XCryocon::open();
 
     iterate_commit([=](Transaction &tr){
@@ -393,7 +392,7 @@ void XCryoconM32::open() throw (XKameError &) {
 void XCryoconM32::onPowerMaxChanged(unsigned int loop, double x) {
     interface()->sendf("%s:MAXPWR %f ", loopString(loop), x);
 }
-void XCryoconM62::open() throw (XKameError &) {
+void XCryoconM62::open() {
     XCryocon::open();
 
     for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
@@ -450,11 +449,13 @@ void XCryocon::setTemp(unsigned int loop, double temp) {
         stopControl();
 
     Snapshot shot( *this);
-    shared_ptr<XThermometer> thermo = shot[ *(shared_ptr<XChannel>(shot[ *currentChannel(loop)])->thermometer())];
-    if(thermo)
-        setHeaterSetPoint(loop, thermo->getRawValue(temp));
-    else
-        setHeaterSetPoint(loop, temp);
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
+        if(thermo)
+            setHeaterSetPoint(loop, thermo->getRawValue(temp));
+        else
+            setHeaterSetPoint(loop, temp);
+    }
 }
 double XCryocon::getRaw(shared_ptr<XChannel> &channel) {
     double x;
@@ -601,7 +602,7 @@ void XNeoceraLTC21::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	if( !interface()->isOpened())
 		return;
 }
-void XNeoceraLTC21::open() throw (XKameError &) {
+void XNeoceraLTC21::open() {
 	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		if( !hasExtDevice(shot, idx)) {
@@ -712,17 +713,19 @@ void XLakeShoreBridge::onDChanged(unsigned int loop, double d) {
 }
 void XLakeShore340::onTargetTempChanged(unsigned int loop, double temp) {
 	Snapshot shot( *this);
-	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(loop)])->thermometer()];
-	if(thermo) {
-		interface()->sendf("CSET %u,%s,3,1", loop + 1,
-			(const char*)shot[ *currentChannel(loop)].to_str().c_str());
-		temp = thermo->getRawValue(temp);
-	}
-	else {
-		interface()->sendf("CSET %u,%s,1,1", loop + 1,
-			(const char*)shot[ *currentChannel(loop)].to_str().c_str());
-	}
-	interface()->sendf("SETP %u,%f", loop + 1, temp);
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
+        if(thermo) {
+            interface()->sendf("CSET %u,%s,3,1", loop + 1,
+                (const char*)shot[ *ch->thermometer()].to_str().c_str());
+            temp = thermo->getRawValue(temp);
+        }
+        else {
+            interface()->sendf("CSET %u,%s,1,1", loop + 1,
+                (const char*)shot[ *ch->thermometer()].to_str().c_str());
+        }
+        interface()->sendf("SETP %u,%f", loop + 1, temp);
+    }
 }
 void XLakeShoreBridge::onManualPowerChanged(unsigned int loop, double pow) {
 	interface()->sendf("MOUT %u,%f", loop + 1, pow);
@@ -754,7 +757,7 @@ void XLakeShoreBridge::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	if( !interface()->isOpened())
 		return;
 }
-void XLakeShore340::open() throw (XKameError &) {
+void XLakeShore340::open() {
 	Snapshot shot( *this);
 	for(unsigned int idx = 0; idx < numOfLoops(); ++idx) {
 		interface()->queryf("CDISP? %u", idx + 1);
@@ -856,11 +859,13 @@ double XLakeShore350::getHeater(unsigned int loop) {
 }
 void XLakeShore350::onTargetTempChanged(unsigned int loop, double temp) {
     Snapshot shot( *this);
-    shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(loop)])->thermometer()];
-    if(thermo) {
-        temp = thermo->getRawValue(temp);
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
+        if(thermo) {
+            temp = thermo->getRawValue(temp);
+        }
+        interface()->sendf("SETP %u,%f", loop + 1, temp);
     }
-    interface()->sendf("SETP %u,%f", loop + 1, temp);
 }
 void XLakeShore350::onPowerMaxChanged(unsigned int loop, double pow) {
     if(loop == 0)
@@ -879,7 +884,7 @@ void XLakeShore350::onCurrentChannelChanged(unsigned int loop, const shared_ptr<
     int chno = ch->getName().c_str()[0] - 'A';
     interface()->sendf("OUTMODE %u,%d,%d", loop + 1, (unsigned int)shot[ *heaterMode(loop)], chno + 1);
 }
-void XLakeShore350::open() throw (XKameError &) {
+void XLakeShore350::open() {
     Snapshot shot( *this);
     int res, maxcurr_idx;
     double max_curr_loop1 = 0.0;
@@ -991,17 +996,19 @@ void XLakeShore370::onDChanged(unsigned int /*loop*/, double d) {
 }
 void XLakeShore370::onTargetTempChanged(unsigned int /*loop*/, double temp) {
 	Snapshot shot( *this);
-	shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(0)])->thermometer()];
-	if(thermo) {
-		interface()->sendf("CSET %s,,2",
-			(const char*)shot[ *currentChannel(0)].to_str().c_str());
-		temp = thermo->getRawValue(temp);
-	}
-	else {
-		interface()->sendf("CSET %s,,1",
-			(const char*)shot[ *currentChannel(0)].to_str().c_str());
-	}
-	interface()->sendf("SETP %f", temp);
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(0)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
+        if(thermo) {
+            interface()->sendf("CSET %s,,2",
+                (const char*)shot[ *currentChannel(0)].to_str().c_str());
+            temp = thermo->getRawValue(temp);
+        }
+        else {
+            interface()->sendf("CSET %s,,1",
+                (const char*)shot[ *currentChannel(0)].to_str().c_str());
+        }
+        interface()->sendf("SETP %f", temp);
+    }
 }
 void XLakeShore370::onManualPowerChanged(unsigned int /*loop*/, double pow) {
 	interface()->sendf("MOUT %f", pow);
@@ -1029,7 +1036,7 @@ void XLakeShore370::onExcitationChanged(const shared_ptr<XChannel> &, int) {
 	if( !interface()->isOpened())
 		return;
 }
-void XLakeShore370::open() throw (XKameError &) {
+void XLakeShore370::open() {
 	Snapshot shot( *this);;
 	interface()->query("CSET?");
 	int ctrl_ch, units, htr_limit;
@@ -1150,11 +1157,13 @@ void XLinearResearch700::onDChanged(unsigned int loop, double d) {
 }
 void XLinearResearch700::onTargetTempChanged(unsigned int loop, double temp) {
     Snapshot shot( *this);
-    shared_ptr<XThermometer> thermo = shot[ *shared_ptr<XChannel> ( shot[ *currentChannel(loop)])->thermometer()];
-    if(thermo) {
-        temp = thermo->getRawValue(temp);
+    if(shared_ptr<XChannel> ch = shot[ *currentChannel(loop)]) {
+        shared_ptr<XThermometer> thermo = shot[ *ch->thermometer()];
+        if(thermo) {
+            temp = thermo->getRawValue(temp);
+        }
+        interface()->sendf("OFFSET R=%f", temp);
     }
-    interface()->sendf("OFFSET R=%f", temp);
 }
 void XLinearResearch700::onManualPowerChanged(unsigned int loop, double pow) {
     interface()->sendf("HEATER Q=%+03d", (int)lrint(pow * 10.0));
@@ -1186,7 +1195,7 @@ void XLinearResearch700::onCurrentChannelChanged(unsigned int loop, const shared
 void XLinearResearch700::onExcitationChanged(const shared_ptr<XChannel> &, int exc) {
     interface()->sendf("EXCITATION %d", exc);
 }
-void XLinearResearch700::open() throw (XKameError &) {
+void XLinearResearch700::open() {
     Snapshot shot_ch( *channels());
     const XNode::NodeList &list( *shot_ch.list());
     assert(list.size() == 1);
@@ -1204,34 +1213,4 @@ void XLinearResearch700::open() throw (XKameError &) {
     start();
 }
 
-XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XCharDeviceDriver<XTempControl>(name, runtime, ref(tr_meas), meas) {
-    createChannels(ref(tr_meas), meas, true,
-        {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
-        {},
-        {});
-}
-void XKE2700w7700::open() throw (XKameError &) {
-	start();
-	interface()->send("TRAC:CLE"); //Clears buffer.
-	interface()->send("INIT:CONT OFF");
-	interface()->send("TRIG:SOUR IMM"); //Immediate trigger.
-	interface()->send("TRIG:COUN 1"); //1 scan.
-}
-double XKE2700w7700::getRaw(shared_ptr<XChannel> &channel) {
-	int ch = atoi(channel->getName().c_str());
-	interface()->sendf("ROUT:CLOS (@1%1d%1d)", ch / 10, ch % 10);
-	interface()->query("READ?");
-	double x;
-	if(interface()->scanf("%lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x;
-}
-double XKE2700w7700::getTemp(shared_ptr<XChannel> &channel) {
-	return getRaw(channel);
-}
-double XKE2700w7700::getHeater(unsigned int) {
-	return 0.0;
-}
 

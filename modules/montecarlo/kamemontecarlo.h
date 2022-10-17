@@ -34,10 +34,10 @@ public:
 	virtual void showForms();
 
 	struct Payload : public XPrimaryDriver::Payload {
-		Payload() : m_fftlen(-1) {}
+        Payload() : m_fftlen(-1) {}
 	private:
 		friend class XMonteCarloDriver;
-		shared_ptr<MonteCarlo> m_loop, m_store;
+        std::vector<char> m_spins;
 		int m_fftlen;
 		fftw_complex *m_pFFTin[3];
 		fftw_complex *m_pFFTout[3];
@@ -62,7 +62,7 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -96,6 +96,7 @@ private:
 	void onStepTouched(const Snapshot &shot, XTouchableNode *);
 	shared_ptr<Listener> m_lsnTargetChanged, m_lsnStepTouched, m_lsnGraphChanged;
 	shared_ptr<XStatusPrinter> m_statusPrinter;
+    shared_ptr<MonteCarlo> m_loop;
 };
 
 #endif /*KAMEMONTECARLO_H_*/

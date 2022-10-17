@@ -36,7 +36,7 @@ class DECLSPEC_KAME XQGraph :
 #endif
     Q_OBJECT
 public:
-    XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = 0 );
+    XQGraph( QWidget* parent = 0, Qt::WindowFlags fl = {} );
 	virtual ~XQGraph();
 	//! register XGraph instance just after creating
 	void setGraph(const shared_ptr<XGraph> &);

@@ -25,7 +25,7 @@ XLevelMeter::showForms() {
 }
 
 void
-XLevelMeter::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XLevelMeter::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	for(unsigned int ch = 0; ch < tr[ *this].m_levels.size(); ch++) {
 		tr[ *this].m_levels[ch] = reader.pop<double>();
 		m_entries[ch]->value(tr, tr[ *this].m_levels[ch]);

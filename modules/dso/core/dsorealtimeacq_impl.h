@@ -52,7 +52,7 @@ XRealTimeAcqDSO<tDriver>::onSoftTrigChanged(const shared_ptr<SoftwareTrigger> &)
 }
 template <class tDriver>
 void
-XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
+XRealTimeAcqDSO<tDriver>::open() {
     XScopedLock<XInterface> lock( *this->interface());
     m_running = false;
 
@@ -72,7 +72,7 @@ XRealTimeAcqDSO<tDriver>::open() throw (XKameError &) {
 }
 template <class tDriver>
 void
-XRealTimeAcqDSO<tDriver>::close() throw (XKameError &) {
+XRealTimeAcqDSO<tDriver>::close() {
     XScopedLock<XInterface> lock( *this->interface());
 
     m_lsnOnSoftTrigChanged.reset();
@@ -618,7 +618,7 @@ XRealTimeAcqDSO<tDriver>::getWave(shared_ptr<typename tDriver::RawData> &writer,
 }
 template <class tDriver>
 void
-XRealTimeAcqDSO<tDriver>::convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) throw (typename tDriver::XRecordError&) {
+XRealTimeAcqDSO<tDriver>::convertRaw(typename tDriver::RawDataReader &reader, Transaction &tr) {
     const unsigned int num_ch = reader.template pop<uint32_t>();
     const unsigned int pretrig = reader.template pop<uint32_t>();
     const unsigned int len = reader.template pop<uint32_t>();

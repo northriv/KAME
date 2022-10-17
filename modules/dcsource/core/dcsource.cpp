@@ -93,7 +93,7 @@ XDCSource::stop() {
 }
 
 void
-XDCSource::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&)  {
+XDCSource::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     m_entryValue->value(tr, tr[ *value()]);
 }
 void

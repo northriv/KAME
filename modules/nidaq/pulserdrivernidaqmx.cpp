@@ -75,7 +75,7 @@ XNIDAQmxPulser::~XNIDAQmxPulser() {
 }
 
 void
-XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XKameError &) {
+XNIDAQmxPulser::openDO(bool use_ao_clock) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
@@ -88,7 +88,7 @@ XNIDAQmxPulser::openDO(bool use_ao_clock) throw (XKameError &) {
 }
 
 void
-XNIDAQmxPulser::openAODO() throw (XKameError &) {
+XNIDAQmxPulser::openAODO() {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	if(intfDO()->maxDORate(1) == 0)
@@ -116,7 +116,7 @@ XNIDAQmxPulser::openAODO() throw (XKameError &) {
 }
 
 void
-XNIDAQmxPulser::close() throw (XKameError &) {
+XNIDAQmxPulser::close() {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 
 	try {
@@ -441,7 +441,7 @@ XNIDAQmxPulser::preparePatternGen(const Snapshot &shot,
 }
 
 void
-XNIDAQmxPulser::startPulseGen(const Snapshot &shot) throw (XKameError &) {
+XNIDAQmxPulser::startPulseGen(const Snapshot &shot) {
 	XScopedLock<XRecursiveMutex> tlock(m_stateLock);
 	if(m_running && m_softwareTrigger->isPersistentCoherentMode()) {
 		startPulseGenFromFreeRun(shot);

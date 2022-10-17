@@ -77,7 +77,7 @@ XThamwayDVUSBDSO::XThamwayDVUSBDSO(const char *name, bool runtime,
 XThamwayDVUSBDSO::~XThamwayDVUSBDSO() {
 }
 void
-XThamwayDVUSBDSO::open() throw (XKameError &) {
+XThamwayDVUSBDSO::open() {
     XScopedLock<XInterface> lock( *interface());
     XString idn = interface()->getIDN();
     gMessagePrint(formatString_tr(I18N_NOOP("%s successfully opened\n"), idn.c_str()));
@@ -113,7 +113,7 @@ XThamwayDVUSBDSO::open() throw (XKameError &) {
     startSequence();
 }
 void
-XThamwayDVUSBDSO::close() throw (XKameError &) {
+XThamwayDVUSBDSO::close() {
     interface()->stop();
 }
 void
@@ -210,7 +210,7 @@ XThamwayDVUSBDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &) {
     }
 }
 void
-XThamwayDVUSBDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XThamwayDVUSBDSO::convertRaw(RawDataReader &reader, Transaction &tr) {
     const unsigned int num_ch = reader.pop<uint16_t>();
     reader.pop<uint32_t>(); //reserve
     reader.pop<uint32_t>(); //reserve

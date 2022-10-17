@@ -201,7 +201,7 @@ XQLineEditConnector::onTextChanged2(const QString &text) {
     		tr[ *m_node].str(text);
     		tr.unmark(m_lsnValueChanged);
         });
-		palette.setColor(QPalette::Text, Qt::black);
+        palette.setColor(QPalette::Text, QApplication::palette(m_pItem).color(QPalette::Active, QPalette::Text));
     }
     catch (XKameError &e) {
     	palette.setColor(QPalette::Text, Qt::red);
@@ -216,7 +216,7 @@ XQLineEditConnector::onReturnPressed() {
 			tr[ *m_node].str(m_pItem->text());
 			tr.unmark(m_lsnValueChanged);
         });
-        palette.setColor(QPalette::Text, Qt::black);
+        palette.setColor(QPalette::Text, QApplication::palette(m_pItem).color(QPalette::Active, QPalette::Text));
     }
     catch (XKameError &e) {
         e.print();
@@ -229,8 +229,8 @@ void
 XQLineEditConnector::onExit() {
     if( !m_editing) return;
 	QPalette palette(m_pItem->palette());
-	palette.setColor(QPalette::Text, Qt::black);
-	m_pItem->setPalette(palette);
+    palette.setColor(QPalette::Text, QApplication::palette(m_pItem).color(QPalette::Active, QPalette::Text));
+    m_pItem->setPalette(palette);
 	Snapshot shot( *m_node);
 	if(QString(shot[ *m_node].to_str()) != m_pItem->text()) {
 	    m_pItem->blockSignals(true);

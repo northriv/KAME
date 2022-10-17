@@ -38,7 +38,7 @@ XLecroyDSO::XLecroyDSO(const char *name, bool runtime,
 }
 
 void
-XLecroyDSO::open() throw (XKameError &) {
+XLecroyDSO::open() {
 	interface()->send("COMM_HEADER OFF");
 	interface()->send("COMM_FORMAT DEF9,WORD,BIN");
     //LSB first for litte endian.
@@ -380,7 +380,7 @@ XLecroyDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) 
 //		interface()->send("TRIG_MODE NORM");
 }
 void
-XLecroyDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XLecroyDSO::convertRaw(RawDataReader &reader, Transaction &tr) {
 		Snapshot &shot(tr);
 
 #define WAVEDESC_WAVE_ARRAY_COUNT 116

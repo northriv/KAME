@@ -96,7 +96,7 @@ XQDPPMS::showForms() {
     m_form->raise();
 }
 void
-XQDPPMS::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XQDPPMS::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     tr[ *this].m_sampleTemp = reader.pop<float>();
     tr[ *this].m_sampleUserTemp = reader.pop<float>();
     tr[ *this].m_magnetField = reader.pop<float>();

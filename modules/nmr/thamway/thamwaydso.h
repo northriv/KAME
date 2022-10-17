@@ -34,12 +34,12 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XThamwayDVUSBDSO();
     //! Converts raw to record
-    virtual void convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&);
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &);
+    virtual void open() override;
     //! Be called during stopping driver. Call interface()->stop() inside this routine.
-    virtual void close() throw (XKameError &);
+    virtual void close() override;
 
     virtual void onTrace1Changed(const Snapshot &shot, XValueNodeBase *);
     virtual void onTrace2Changed(const Snapshot &shot, XValueNodeBase *);
@@ -63,15 +63,15 @@ protected:
     virtual void onRecordLengthChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onForceTriggerTouched(const Snapshot &shot, XTouchableNode *);
 
-    virtual double getTimeInterval();
+    virtual double getTimeInterval() override;
     //! Clears count or start sequence measurement
-    virtual void startSequence();
-    virtual int acqCount(bool *seq_busy);
+    virtual void startSequence() override;
+    virtual int acqCount(bool *seq_busy) override;
 
     //! Loads waveform and settings from instrument
-    virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels);
+    virtual void getWave(shared_ptr<RawData> &writer, std::deque<XString> &channels) override;
 
-    virtual bool isDRFCoherentSGSupported() const {return false;}
+    virtual bool isDRFCoherentSGSupported() const override {return false;}
 private:
     void acquire(const atomic<bool> &terminated);
     bool m_pending;

@@ -28,7 +28,7 @@ public:
 
 protected:
     //! Be called just after opening interface. Call start() inside this routine appropriately.
-    virtual void open() throw (XKameError &) override;
+    virtual void open() override;
 
     virtual void setField(double field, double rate, int approach_mode, int magnet_mode) override;
     virtual void setPosition(double position, int mode, int slow_down_code) override;

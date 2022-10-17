@@ -255,7 +255,7 @@ XRelaxFuncList::XRelaxFuncList(const char *name, bool runtime)
     create<XRelaxFuncPowExp>("Pow.Exp.0.5: exp(-t^0.5)", true, 0.5);
     create<XRelaxFuncPowExp>("Pow.Exp.0.6: exp(-t^0.6)", true, 0.6);
     create<XRelaxFuncPowExp>("Pow.Exp.0.7: exp(-t^0.7)", true, 0.7);
-    create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-t^0.8)", true, 0.7);
+    create<XRelaxFuncPowExp>("Pow.Exp.0.8: exp(-t^0.8)", true, 0.8);
     create<XRelaxFuncPowExp>("Gaussian: exp(-t^2)", true, 2.0);
     create<XRelaxFuncPowExp>("Exp.: exp(-t)", true, 1.0);
 }
@@ -328,9 +328,9 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
     double t1 = 0.001 / shot_this[ *this].m_params[0];
     double t1err = 0.001 / pow(shot_this[ *this].m_params[0], 2.0) * shot_this[ *this].m_errors[0];
     XString buf = "";
-    switch(shot_this[ *mode()]) {
-    case MEAS_ST_E:
-    case MEAS_T1:
+    switch((MeasMode)(int)shot_this[ *mode()]) {
+    case MeasMode::ST_E:
+    case MeasMode::T1:
         buf += formatString("1/T1[1/s] = %.5g +- %.3g(%.2f%%)\n",
                                  1000.0 * shot_this[ *this].m_params[0],
                                  1000.0 * shot_this[ *this].m_errors[0],
@@ -338,8 +338,8 @@ XNMRT1::iterate(Transaction &tr, shared_ptr<XRelaxFunc> &func, int itercnt) {
         buf += formatString("T1[s] = %.5g +- %.3g(%.2f%%)\n",
                                  t1, t1err, fabs(100.0 * t1err/t1));
         break;
-    case MEAS_T2:
-    case MEAS_T2_Multi:
+    case MeasMode::T2:
+    case MeasMode::T2_Multi:
         buf += formatString("1/T2[1/ms] = %.5g +- %.3g(%.2f%%)\n",
                                  1000.0 * shot_this[ *this].m_params[0],
                                  1000.0 * shot_this[ *this].m_errors[0],

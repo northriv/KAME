@@ -175,6 +175,7 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
     shared_ptr<XMotorDriver> rot2__ = shot[ *rot2()];
     const shared_ptr<XMotorDriver> rots[] = {rot1__, rot2__};
 
+    /*
     for(auto &&rot: rots) {
         if(rot) {
             rot->iterate_commit([=](Transaction &tr){
@@ -185,6 +186,7 @@ void XTwoAxis::initSweep(const Snapshot &shot) {
             });
         }
     }
+    */
     if(rot1__ && rot2__){
         iterate_commit([=](Transaction &tr){
 
@@ -256,7 +258,7 @@ XTwoAxis::onAbortTouched(const Snapshot &shot, XTouchableNode *) {
 
 void
 XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     Snapshot &shot_this(tr);
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
@@ -281,20 +283,22 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 
 
     if(shot_this[ *running()]) {
-        if(shot_this[ *ready()] && abs(shot_this[ *this].currentROT[0] - shot_this[ *this].targetROT[0]) < 1.0
-               && abs(shot_this[ *this].currentROT[1] - shot_this[ *this].targetROT[1]) < 1.0){
+        if(shot_this[ *ready()] && abs(shot_this[ *this].currentROT[0] - shot_this[ *this].targetROT[0]) < 5.0
+               && abs(shot_this[ *this].currentROT[1] - shot_this[ *this].targetROT[1]) < 5.0){
             if(!tr[ *this].isWaitStable){
                 tr[ *this].timeROTChanged = XTime::now();
                 tr[ *this].isWaitStable =  true;
+                msecsleep(50);
             } else if(tr[ *this].isWaitStable && !tr[ *this].isRecorded
                       && XTime::now() - tr[ *this].timeROTChanged > shot_this[ *wait()]){
                 record_step()->value(tr, tr[ *this].currentStep);
                 tr[ *this].timeRecorded = XTime::now();
                 tr[ *this].isRecorded = true;
+                msecsleep(50);
             } else if(tr[ *this].isRecorded && XTime::now() - tr[ *this].timeRecorded > shot_this[ *wait()]){
                 tr[ *this].isWaitStable = false;
                 tr[ *this].isRecorded = false;
-                tr[ *this].currentStep += 1;
+                tr[ *this].currentStep++;
                 if(tr[ *this].currentStep <= shot_this[ *step()]) {
                     for(int i: {0, 1}){
                         auto rot = rots[i];
@@ -302,6 +306,7 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
                         rot->iterate_commit([=](Transaction &tr){
                             tr[ *rot->target()] = shot_this[ *this].targetROT[i];
                         });
+                        msecsleep(150);
                     }
                 } else {
                      endSweep(tr);

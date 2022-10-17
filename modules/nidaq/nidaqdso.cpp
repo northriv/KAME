@@ -367,7 +367,7 @@ XNIDAQmxDSO::readAcqBuffer(uint32_t size, tRawAI *buf) {
 
 
 void
-XNIDAQmxDSO::open() throw (XKameError &) {
+XNIDAQmxDSO::open() {
 	XScopedLock<XInterface> lock( *interface());
 	char buf[2048];
 	{
@@ -384,7 +384,7 @@ XNIDAQmxDSO::open() throw (XKameError &) {
     XRealTimeAcqDSO<XNIDAQmxDriver<XDSO>>::open();
 }
 void
-XNIDAQmxDSO::close() throw (XKameError &) {
+XNIDAQmxDSO::close() {
 	XScopedLock<XInterface> lock( *interface());
 
     iterate_commit([=](Transaction &tr){

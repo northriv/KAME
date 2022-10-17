@@ -27,7 +27,7 @@ XOmronE5_CModbus::XOmronE5_CModbus(const char *name, bool runtime,
     createChannels(ref(tr_meas), meas, true,
         {"1"}, {}, {"Loop1"});
 }
-void XOmronE5_CModbus::open() throw (XKameError &) {
+void XOmronE5_CModbus::open() {
 	start();
 
     Snapshot shot_ch( *channels());

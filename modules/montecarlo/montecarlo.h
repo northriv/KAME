@@ -130,7 +130,7 @@ public:
         }
     }; 
 
-    MonteCarlo(int num_threads);
+    MonteCarlo(int num_threads, bool randomize = true);
     ~MonteCarlo();
     
     //! \return Delta U [J/A site].
@@ -176,7 +176,7 @@ public:
     //! write snapshot.
     void write(std::ostream &);
     void write(char *spins, 
-			   double *fields = 0, double *probabilities = 0);
+               double *fields = 0, double *probabilities = 0);
     void write_bsite(Vector3<double> *fields);
     void write_8asite(Vector3<double> *fields);
     void write_48fsite(Vector3<double> *fields);

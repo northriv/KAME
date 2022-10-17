@@ -39,7 +39,7 @@ XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
 }
 
 void
-XAgilentNetworkAnalyzer::open() throw (XKameError &) {
+XAgilentNetworkAnalyzer::open() {
 	interface()->query("SENS:FREQ:START?");
 	trans( *startFreq()) = interface()->toDouble() / 1e6;
 	interface()->query("SENS:FREQ:STOP?");
@@ -129,7 +129,7 @@ XAgilentNetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int 
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
 void
-XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) {
 	double start = reader.pop<double>();
 	double stop = reader.pop<double>();
 	unsigned int samples = reader.pop<uint32_t>();
@@ -156,7 +156,7 @@ XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
 }
 void
 XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
-	unsigned int len) throw (XRecordError&) {
+	unsigned int len) {
 	unsigned int samples = tr[ *this].trace_().size();
 	if(len / sizeof(float) < samples)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -183,7 +183,7 @@ XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
 }
 void
 XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
-	unsigned int len) throw (XRecordError&) {
+	unsigned int len) {
 	unsigned int samples = tr[ *this].trace_().size();
     if(len / sizeof(float) < samples * 2)
 		throw XBufferUnderflowRecordError(__FILE__, __LINE__);
@@ -199,7 +199,6 @@ XCopperMtTRVNA::XCopperMtTRVNA(const char *name, bool runtime,
     trans( *interface()->device()) = "TCP/IP";
     trans( *interface()->port()) = "127.0.0.1:5025";
 }
-
 
 XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -219,7 +218,7 @@ XVNWA3ENetworkAnalyzer::XVNWA3ENetworkAnalyzer(const char *name, bool runtime,
 }
 
 void
-XVNWA3ENetworkAnalyzer::open() throw (XKameError &) {
+XVNWA3ENetworkAnalyzer::open() {
 	start();
 }
 void
@@ -264,7 +263,7 @@ XVNWA3ENetworkAnalyzer::acquireTrace(shared_ptr<RawData> &writer, unsigned int c
 					 interface()->buffer().begin(), interface()->buffer().end());
 }
 void
-XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XVNWA3ENetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) {
 	const Snapshot &shot(tr);
     uint32_t hsize = reader.pop<uint32_t>();
 	int stype = reader.pop<int32_t>();
@@ -338,14 +337,14 @@ XVNWA3ENetworkAnalyzerTCPIP::XVNWA3ENetworkAnalyzerTCPIP(const char *name, bool 
 }
 
 void
-XVNWA3ENetworkAnalyzerTCPIP::open() throw (XKameError &) {
+XVNWA3ENetworkAnalyzerTCPIP::open() {
     interface2()->start();
 //    interface()->write("stop", 5); //with null.
 //    interface()->receive(); //"sweep stopped "
     start();
 }
 void
-XVNWA3ENetworkAnalyzerTCPIP::close() throw (XKameError &) {
+XVNWA3ENetworkAnalyzerTCPIP::close() {
     interface2()->stop();
     XCharDeviceDriver<XNetworkAnalyzer>::close();
 }
@@ -431,7 +430,7 @@ XVNWA3ENetworkAnalyzerTCPIP::acquireTrace(shared_ptr<RawData> &writer, unsigned 
     interface()->receive(); //sweep_complete
 }
 void
-XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) {
     const Snapshot &shot(tr);
 
     uint32_t samples = reader.pop<uint32_t>();

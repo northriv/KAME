@@ -657,7 +657,7 @@ bool XAutoLCTuner::checkDependency(const Snapshot &shot_this,
 void
 XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     const Snapshot &shot_others,
-    XDriver *emitter) throw (XRecordError&) {
+    XDriver *emitter) {
     const Snapshot &shot_this(tr);
     const Snapshot &shot_na(shot_emitter);
 
@@ -902,20 +902,36 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
             further_test = further_test || (backlash / fabs(testdelta) < -shot_this[ *backlushMinusTh()])
                     || (fabs(backlash / testdelta) > shot_this[ *backlushPlusTh()]);
         }
-        if(further_test) {
-        //Capacitance is sticking, test angle is too small, or poor fitting.
-            testdelta *= std::min(6L, 2L + lrint(fabs(backlash / testdelta) * 5));
+        double multiplier_to_reach_f0 = (f0 * 1e6 - shot_this[ *this].fitRotated->f0()) / (shot_this[ *this].fitRotated->f0() - shot_this[ *this].fitOrig->f0());
+        double rlmin_prev = std::abs(shot_this[ *this].fitOrig->rl(2.0 * M_PI * shot_this[ *this].fitOrig->f0()));
+        constexpr long MULTIPLIER_MAX = 6L;
+        const double MULTIPLIER_MIN = (fabs(testdelta) < Payload::TestDeltaFirst * 1.1) ? 0.15 : 0.6;
+        bool test_with_good_resonance = (std::max(rlmin, rlmin_prev) < tune_approach_goal) &&
+            (fabs(multiplier_to_reach_f0) < MULTIPLIER_MAX) && (fabs(multiplier_to_reach_f0) > MULTIPLIER_MIN) && !lcrfit;
+        if(further_test || test_with_good_resonance) {
+            if(test_with_good_resonance) {
+                //The last two steps satisfied the reflection level, but the resonant frequency needs to be tuned.
+                //good fit is expected after next 1-axis step.
+                testdelta *= multiplier_to_reach_f0;
+                message +=
+                     formatString("Adjusting test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
+            }
+            else {
+                //Capacitance is sticking, test angle is too small, or poor fitting.
+                testdelta *= std::min(MULTIPLIER_MAX, 2L + lrint(fabs(backlash / testdelta) * 5));
+                testdelta = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm); //follows the last direction to minimize backlash.
+                message +=
+                     formatString("Increasing test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
+            }
            if(fabs(testdelta) > Payload::TestDeltaMax) {
                abortTuningFromAnalyze(tr, rl_at_f0, std::move(message));//C1/C2 is useless. Aborts.
                return;
            }
-           message +=
-                formatString("Increasing test angle to %.1f, Testing +Delta.", (double)fabs(testdelta));
            //rotates C more and try again.
            if(lcrfit)
                 tr[ *this].fitRotated = std::move(lcrfit);
            tr[ *this].fitOrig = std::move(tr[ *this].fitRotated);
-           tr[ *this].stmDelta[target_stm] = fabs(testdelta) * shot_this[ *this].lastDirection(target_stm);
+           tr[ *this].stmDelta[target_stm] = testdelta;
            tr[ *this].targetSTMValues[target_stm] += shot_this[ *this].stmDelta[target_stm];
            tr[ *this].timeSTMChanged = XTime::now();
            tr[ *m_status] = message;

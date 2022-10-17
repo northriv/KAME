@@ -119,7 +119,7 @@ XFuncSynth::stop() {
 }
 
 void
-XFuncSynth::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XFuncSynth::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 }
 void
 XFuncSynth::visualize(const Snapshot &shot) {

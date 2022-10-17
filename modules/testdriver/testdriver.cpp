@@ -37,7 +37,7 @@ XTestDriver::showForms() {
 // impliment form->show() here
 }
 void
-XTestDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XTestDriver::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     // Since raw buffer is FIFO, use the same sequence of push()es for pop()s
 	tr[ *this].m_x = reader.pop<double>();
 	tr[ *this].m_y = reader.pop<double>();

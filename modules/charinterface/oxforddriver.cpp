@@ -62,7 +62,7 @@ XOxfordInterface::query(const char *str) {
 }
 
 void
-XOxfordInterface::open() throw (XInterfaceError &) {
+XOxfordInterface::open() {
     XCharInterface::open();
 	//    XDriver::Send("@0");
 	send("$Q2");
@@ -72,7 +72,7 @@ XOxfordInterface::open() throw (XInterfaceError &) {
 }
 
 void
-XOxfordInterface::close() throw (XInterfaceError &) {
+XOxfordInterface::close() {
     if(isOpened()) {
         try {
             send("C0"); //local

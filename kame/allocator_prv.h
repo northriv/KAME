@@ -15,6 +15,8 @@
 #ifndef ALLOCATOR_PRV_H_
 #define ALLOCATOR_PRV_H_
 
+#ifndef USE_STD_ALLOCATOR
+
 #include <new>
 #include <stdint.h>
 #include <stdlib.h>
@@ -202,7 +204,7 @@ extern bool g_sys_image_loaded;
 
 void activateAllocator();
 
-inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
+inline void* new_redirected(std::size_t size) {
 	//expecting a compile-time optimization because size is usually fixed to the object size.
     if( !g_sys_image_loaded)
         return malloc(size); //Not to allocate dyld objects.
@@ -257,5 +259,7 @@ inline void* new_redirected(std::size_t size) throw(std::bad_alloc) {
 
 void release_pools();
 void report_statistics();
+
+#endif /* USE_STD_ALLOCATOR */
 
 #endif /* ALLOCATOR_PRV_H_ */

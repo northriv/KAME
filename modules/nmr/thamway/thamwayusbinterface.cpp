@@ -75,11 +75,13 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
                 XString s1 = dev->getString(1);
                 dbgPrint(formatString("USB: Device: %s", s1.c_str()));
                 if(s1 == Manufacturer_sym) {
+                    dev->close();
                     return DEVICE_STATUS::READY;
                 }
             }
             catch (XInterface::XInterfaceError &) {
                 dbgPrint("USB: ???");
+                dev->close();
                 return DEVICE_STATUS::FW_NOT_LOADED;
             }
         }
@@ -91,10 +93,10 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
     constexpr char Serial_sym[] = "20070627";
     try {
         XString s2 = dev->getString(2);
+        dev->close();
         dbgPrint(formatString("USB: Ver: %s\n", s2.c_str()));
         if(s2[0] != Serial_sym[0]) {
             dbgPrint("USB: Not Thamway's device");
-            dev->close();
             return DEVICE_STATUS::UNSUPPORTED;
         }
         unsigned int version = atoi(s2.c_str());
@@ -110,6 +112,7 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 
 std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
+    dev->open();
     uint8_t dipsw = readDIPSW(dev);
     XString idn;
     if(m_idString.empty()) {
@@ -124,20 +127,23 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
         if( !idn.length()) return {};
     }
     idn = formatString("%d:%s", (int)dipsw, idn.c_str());
+    dev->close();
     return idn;
 }
 
 XString
 XThamwayFX2USBInterface::gpifWave(const shared_ptr<CyFXUSBDevice> &dev) {
-    try {
-        uint8_t dipsw = readDIPSW(dev);
-        if(dipsw != DEV_ADDR_PROT)
-//           return {THAMWAY_USB_GPIFWAVE2_FILE};
-            return {THAMWAY_USB_GPIFWAVE1_FILE}; //Thamway recommends slow_dat.bin always.
-    }
-    catch (XInterfaceError &) {
-        gWarnPrint("Reading DIPSW value resulted in failure, continuing...");
-    }
+//    try {
+//        dev->open();
+//        uint8_t dipsw = readDIPSW(dev);
+//        dev->close();
+//        if(dipsw != DEV_ADDR_PROT)
+//            return {THAMWAY_USB_GPIFWAVE2_FILE};
+//    }
+//    catch (XInterfaceError &) {
+//        gWarnPrint("Reading DIPSW value resulted in failure, continuing...");
+//    }
+     //Thamway recommends slow_dat.bin always.
     return {THAMWAY_USB_GPIFWAVE1_FILE};
 }
 
@@ -165,7 +171,7 @@ XThamwayFX2USBInterface::setWave(const shared_ptr<CyFXUSBDevice> &dev, const uin
 }
 
 void
-XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
+XThamwayFX2USBInterface::open() {
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::open();
 //    for(int i = 0; i < 1; ++i) {
 //        //blinks LED
@@ -187,7 +193,7 @@ XThamwayFX2USBInterface::open() throw (XInterfaceError &) {
 }
 
 void
-XThamwayFX2USBInterface::close() throw (XInterfaceError &) {
+XThamwayFX2USBInterface::close() {
 //    if(isOpened()) setLED(usb(), 0);
     XCyFXUSBInterface<ThamwayCyFX2USBDevice>::close();
 }
@@ -406,12 +412,12 @@ XThamwayFX3USBInterface::~XThamwayFX3USBInterface() {
 }
 
 void
-XThamwayFX3USBInterface::open() throw (XInterfaceError &) {
+XThamwayFX3USBInterface::open() {
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>::open();
 }
 
 void
-XThamwayFX3USBInterface::close() throw (XInterfaceError &) {
+XThamwayFX3USBInterface::close() {
     XCyFXUSBInterface<ThamwayCyFX3USBDevice>::close();
 }
 

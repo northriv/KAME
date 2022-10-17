@@ -21,11 +21,11 @@ class XDummyPort : public XPort {
 public:
 	XDummyPort(XCharInterface *interface);
 	virtual ~XDummyPort();
-    virtual void open(const XCharInterface *pInterface) throw (XInterface::XCommError &);
-	virtual void send(const char *str) throw (XInterface::XCommError &);
-	virtual void write(const char *sendbuf, int size) throw (XInterface::XCommError &);
-	virtual void receive() throw (XInterface::XCommError &);
-	virtual void receive(unsigned int length) throw (XInterface::XCommError &);
+    virtual void open(const XCharInterface *pInterface);
+    virtual void send(const char *str);
+    virtual void write(const char *sendbuf, int size);
+    virtual void receive();
+    virtual void receive(unsigned int length);
 private:
     std::ofstream m_stream;
 };

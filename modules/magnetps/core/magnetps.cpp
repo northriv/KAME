@@ -184,7 +184,7 @@ XMagnetPS::onConfigShow(const Snapshot &shot, XTouchableNode *) {
     m_formConfig->raise();
 }
 void
-XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XMagnetPS::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 	tr[ *this].m_magnetField = reader.pop<float>();
 	tr[ *this].m_outputCurrent = reader.pop<float>();
 	m_field->value(tr, tr[ *this].m_magnetField);
@@ -373,9 +373,9 @@ XMagnetPS::execute(const atomic<bool> &terminated) {
 			tr[ *outputVolt()] = output_volt;
 			tr[ *pcsHeater()] = pcs_heater && is_pcs_fitted;
 
-			tr[ *persistent()] = !pcs_heater && is_pcs_fitted && isPersistentStabilized(shot, shot_entries, pcsh_time);
+            tr[ *persistent()] = !pcs_heater && is_pcs_fitted && isPersistentStabilized(shot, shot_entries, pcsh_time);
 
-			if(shot[ *m_aborting]) {
+            if(shot[ *m_aborting]) {
 				//Aborting.
 				tr[ *targetField()].setUIEnabled(false);
 				tr[ *targetField()] = 0;

@@ -31,7 +31,7 @@ public:
 	
 	//! Perform spectrum analysis.
 	void exec(const std::vector<std::complex<double> >& memin, std::vector<std::complex<double> >& memout,
-		int t0, double tol, FFT::twindowfunc windowfunc, double windowlength) throw (XKameError&);
+        int t0, double tol, FFT::twindowfunc windowfunc, double windowlength); // throw (XKameError&)
 	const std::vector<std::complex<double> >& ifft() const {return m_ifft;}
 	//! \return (power, index) in descending order.
 	const std::vector<std::pair<double, double> >& peaks() const {return m_peaks;}

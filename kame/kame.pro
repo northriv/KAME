@@ -26,6 +26,7 @@ INCLUDEPATH += \
 
 HEADERS += \
     allocator.h \
+    atomic_prv_mfence_arm8.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \
@@ -86,7 +87,8 @@ HEADERS += \
     forms/nodebrowser.h \
     forms/recordreaderconnector.h \
     messagebox.h \
-    math/nllsfit.h
+    math/nllsfit.h \
+    math/tikhonovreg.h
 
 SOURCES += icons/icon.cpp \
     xthread.cpp \
@@ -135,17 +137,18 @@ SOURCES += icons/icon.cpp \
     analyzer/recordreader.cpp\
     kame.cpp \
     main.cpp \
-    messagebox.cpp
+    messagebox.cpp \
+    math/tikhonovreg.cpp
 
 unix {
     HEADERS += \
         math/matrix.h \
         math/freqest.h
     SOURCES += \
+        math/freqest.cpp \
+        math/matrix.cpp \
         allocator_prv.h \
         allocator.cpp \
-        math/freqest.cpp \
-        math/matrix.cpp
 }
 
 FORMS += \
@@ -282,6 +285,7 @@ macx {
     coremodulefiles.files += ../modules/sg/core/libsgcore.$${QMAKE_EXTENSION_SHLIB}
     coremodule2files.files += ../modules/dso/core/libdsocore.$${QMAKE_EXTENSION_SHLIB}
     coremodule2files.files += ../modules/qd/core/libqdcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodule2files.files += ../modules/optics/core/libopticscore.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/testdriver/libtestdriver.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/counter/libcounter.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/dcsource/libdcsource.$${QMAKE_EXTENSION_SHLIB}
@@ -304,7 +308,9 @@ macx {
     modulefiles.files += ../modules/nmr/thamway/libthamway.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/qd/libqd.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/digilentwf/libdigilentwf.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/gauge/libgauge.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/pumpcontroller/libpumpcontroller.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
 
     coremodulefiles.path = Contents/MacOS/$${KAME_COREMODULES}

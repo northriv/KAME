@@ -60,8 +60,9 @@ protected:
 		typedef std::vector<char>::const_iterator const_iterator;
 		//! reads raw record
 		//! \sa push(), rawData()
+        //! XBufferUnderflowRecordError will be thrown if buffer shorts.
 		template <typename tVar>
-		inline tVar pop() throw (XBufferUnderflowRecordError&);
+        inline tVar pop();
 
 		const_iterator begin() const {return m_data.begin();}
 		const_iterator end() const {return m_data.end();}
@@ -84,7 +85,8 @@ protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
-	virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) = 0;
+    //! XRecordError will be thrown if data is not propertly formatted.
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) = 0;
 
 	//! will call analyzeRaw()
 	//! \param rawdata the data being processed.
@@ -196,37 +198,37 @@ XPrimaryDriver::RawDataReader::pop_double() {
 }
 
 template <>
-inline char XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline char XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(char) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return pop_char();
 }
 template <>
-inline unsigned char XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline unsigned char XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(char) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<unsigned char>(pop_char());
 }
 template <>
-inline int16_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline int16_t XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(int16_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return pop_int16_t();
 }
 template <>
-inline uint16_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline uint16_t XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(int16_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<uint16_t>(pop_int16_t());
 }
 template <>
-inline int32_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline int32_t XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(int32_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return pop_int32_t();
 }
 template <>
-inline uint32_t XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline uint32_t XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(int32_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	return static_cast<uint32_t>(pop_int32_t());
 }
 template <>
-inline float XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline float XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(float) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	union {
 		int32_t x;
@@ -237,7 +239,7 @@ inline float XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordE
 	return uni.y;
 }
 template <>
-inline double XPrimaryDriver::RawDataReader::pop() throw (XBufferUnderflowRecordError&) {
+inline double XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(double) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	static_assert(sizeof(double) == 8, "Not 8-byte sized double");
 	return pop_double();

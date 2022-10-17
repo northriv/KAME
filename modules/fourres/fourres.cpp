@@ -27,7 +27,8 @@ XFourRes::XFourRes(const char *name, bool runtime,
 		  "DMM", false, ref(tr_meas), meas->drivers(), true)),
 	  m_dcsource(create<XItemNode < XDriverList, XDCSource> >(
 		  "DCSource", false, ref(tr_meas), meas->drivers(), true)),
-	  m_control(create<XBoolNode>("Control", true)),
+      m_dmmChannel(create<XUIntNode>("DMMChannel", false)),
+      m_control(create<XBoolNode>("Control", true)),
 	  m_form(new FrmFourRes) {
 
     m_form->setWindowTitle(i18n("Resistance Measurement with Switching Polarity - ") + getLabel() );
@@ -37,13 +38,18 @@ XFourRes::XFourRes(const char *name, bool runtime,
     connect(dmm());
     connect(dcsource());
 	iterate_commit([=](Transaction &tr){
-		tr[ *control()] = false;
-		tr[ *this].value_inverted = 0.0;
+        tr[ *dmmChannel()] = 1;
+        tr[ *control()] = false;
+        tr[ *this].value_inverted = 0.0;
     });
-	m_conControl = xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl);
-	m_conDMM = xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas));
-	m_conDCSource = xqcon_create<XQComboBoxConnector>(m_dcsource, m_form->m_cmbDCSource, ref(tr_meas));
-	m_conRes = xqcon_create<XQLCDNumberConnector> (m_resistance->value(), m_form->m_lcdRes);
+
+    m_conUIs = {
+        xqcon_create<XQToggleButtonConnector>(m_control, m_form->m_ckbControl),
+        xqcon_create<XQComboBoxConnector>(m_dmm, m_form->m_cmbDMM, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_dcsource, m_form->m_cmbDCSource, ref(tr_meas)),
+        xqcon_create<XQLCDNumberConnector> (m_resistance->value(), m_form->m_lcdRes),
+        xqcon_create<XQSpinBoxUnsignedConnector>(m_dmmChannel, m_form->m_spbDMMCh),
+    };
 }
 XFourRes::~XFourRes () {
 }
@@ -65,16 +71,16 @@ XFourRes::checkDependency(const Snapshot &shot_this,
 
 void
 XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
+	XDriver *emitter) {
 	Snapshot &shot_this(tr);
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time())
+    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + shot_emitter[ *dmm__->waitInms()] * 1e-3)
 		throw XSkippedRecordError(__FILE__, __LINE__);
 
-	double curr = shot_others[ *dcsource__->value()];
-	double var = shot_emitter[ *dmm__].value();
+    double curr = shot_others[ *dcsource__->value()];
+    double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] - 1);
 
 	if(curr < 0) {
 		tr[ *this].value_inverted = var;
@@ -95,7 +101,6 @@ XFourRes::visualize(const Snapshot &shot) {
         dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
-            msecsleep(100);
         });
 	}
 }

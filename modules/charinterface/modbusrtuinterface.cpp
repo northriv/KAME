@@ -14,7 +14,7 @@ XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const s
 XModbusRTUInterface::~XModbusRTUInterface() {
 }
 void
-XModbusRTUInterface::open() throw (XInterfaceError &) {
+XModbusRTUInterface::open() {
     XScopedLock<XModbusRTUInterface> lock( *this);
     {
 		Snapshot shot( *this);
@@ -46,7 +46,7 @@ XModbusRTUInterface::open() throw (XInterfaceError &) {
     }
 }
 void
-XModbusRTUInterface::close() throw (XInterfaceError &) {
+XModbusRTUInterface::close() {
 	XScopedLock<XModbusRTUInterface> lock( *this);
     m_openedPort.reset(); //release shared_ptr to the port if any.
     XCharInterface::close(); //release shared_ptr to the port if any.

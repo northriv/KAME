@@ -34,7 +34,7 @@ public:
 protected:
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) throw (XRecordError&);
+		XDriver *emitter);
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
@@ -56,18 +56,18 @@ public:
 	const shared_ptr<XItemNode < XDriverList, XDMM > > &dmm() const {return m_dmm;}
 	const shared_ptr<XItemNode < XDriverList, XDCSource > > &dcsource() const {return m_dcsource;}
 
-	const shared_ptr<XBoolNode> &control() const {return m_control;}
-	//! Wait before reading value from DMM [s].
+    const shared_ptr<XUIntNode> &dmmChannel() const {return m_dmmChannel;}
+    const shared_ptr<XBoolNode> &control() const {return m_control;}
 
 private:
 	const shared_ptr<XScalarEntry> m_resistance;
 
 	const shared_ptr<XItemNode < XDriverList, XDMM> > m_dmm;
 	const shared_ptr<XItemNode < XDriverList, XDCSource > > m_dcsource;
-	const shared_ptr<XBoolNode> m_control;
+    const shared_ptr<XUIntNode> m_dmmChannel;
+    const shared_ptr<XBoolNode> m_control;
 
-	xqcon_ptr m_conDMM, m_conDCSource, m_conControl, m_conRes;
-
+    std::deque<xqcon_ptr> m_conUIs;
 	const qshared_ptr<FrmFourRes> m_form;
 };
   

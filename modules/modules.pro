@@ -33,10 +33,13 @@ SUBDIRS += testdriver\
     tempcontrol\
     qdcore\
     qd\
+    gauge\
     pumpcontroller\
     twoaxis
 
 unix: SUBDIRS +=    montecarlo\
+        opticscore\
+        optics
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
@@ -69,5 +72,8 @@ thamway.file = nmr/thamway/thamway.pro
 thamway.depends += nmrpulsercore sgcore networkanalyzercore
 qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
+gauge.depends += charinterface
 pumpcontroller.depends += charinterface
 twoaxis.depends += motorcore
+opticscore.file = optics/core/opticscore.pro
+optics.depends += opticscore charinterface

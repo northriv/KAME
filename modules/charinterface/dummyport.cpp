@@ -29,25 +29,25 @@ XDummyPort::~XDummyPort()
     m_stream.close();
 }
 void
-XDummyPort::open(const XCharInterface *pInterface) throw (XInterface::XCommError &)
+XDummyPort::open(const XCharInterface *pInterface)
 {
     m_stream.open(DUMMYPORT_FILENAME, std::ios::out);
 }
 void
-XDummyPort::send(const char *str) throw (XInterface::XCommError &)
+XDummyPort::send(const char *str)
 {
     m_stream << "send:"
 			 << str << std::endl;
 }
 void
-XDummyPort::write(const char *sendbuf, int size) throw (XInterface::XCommError &)
+XDummyPort::write(const char *sendbuf, int size)
 {
     m_stream << "write:";
     m_stream.write(sendbuf, size);
     m_stream << std::endl;
 }
 void
-XDummyPort::receive() throw (XInterface::XCommError &)
+XDummyPort::receive()
 {
     m_stream << "receive:"
 			 << std::endl;
@@ -55,7 +55,7 @@ XDummyPort::receive() throw (XInterface::XCommError &)
     buffer()[0] = '\0';
 }
 void
-XDummyPort::receive(unsigned int length) throw (XInterface::XCommError &)
+XDummyPort::receive(unsigned int length)
 {
     m_stream << "receive length = :"
 			 << length << std::endl;

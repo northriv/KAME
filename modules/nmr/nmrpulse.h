@@ -38,10 +38,9 @@ protected:
 
 	//! This function is called when a connected driver emit a signal
 	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter,
-		const Snapshot &shot_others,
-        XDriver *emitter) throw (XRecordError&) override;
-	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
-	//! This might be called even if the record is invalid (time() == false).
+        const Snapshot &shot_others, XDriver *emitter) override;
+    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+    //! This might be called even if the record is invalid (time() == false).
     virtual void visualize(const Snapshot &shot) override;
 	//! Checks if the connected drivers have valid time stamps.
 	//! \return true if dependency is resolved.
@@ -57,6 +56,7 @@ public:
 		const std::vector<std::complex<double> > &wave() const {return m_wave;}
 		//! Power spectrum of the noise estimated from the background. [V^2/Hz].
 		const std::vector<double> &darkPSD() const {return m_darkPSD;}
+        double darkPSDFactorToVoltSq() const {return m_ftWavePSDCoeff / (m_wave.size() * interval());}
         //! Stored multi-echoes for T2 measurement
         const std::vector<std::vector<std::complex<double> > > &echoesT2() const {return m_echoesT2;}
 		//! freq. resolution [Hz]
@@ -69,14 +69,14 @@ public:
 		int waveWidth() const {return m_waveWidth;}
 		//! Position of the origin of FT.
 		int waveFTPos() const {return m_waveFTPos;}
-		//! Length of FT.
+        /// FFT Wave
+        const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
+        //! Length of FT.
 		int ftWidth() const {return m_ftWave.size();}
 	private:
 		friend class XNMRPulseAnalyzer;
 		std::vector<std::complex<double> > m_wave;
 		std::vector<double> m_darkPSD;
-		/// FFT Wave
-		const std::vector<std::complex<double> > &ftWave() const {return m_ftWave;}
 		double m_ftWavePSDCoeff;
 		std::vector<std::complex<double> > m_ftWave;
 		std::vector<std::complex<double> > m_dsoWave;

@@ -79,9 +79,12 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
         mode = XQGraphPainter::SelectionMode::SelAxis;
 		break;
 	case Qt::LeftButton:
-        mode = XQGraphPainter::SelectionMode::SelPlane;
+        if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+            mode = XQGraphPainter::SelectionMode::TiltTracking;
+        else
+            mode = XQGraphPainter::SelectionMode::SelPlane;
 		break;
-	case Qt::MidButton:
+    case Qt::MiddleButton:
         mode = XQGraphPainter::SelectionMode::TiltTracking;
 		break;
 	default:
@@ -112,6 +115,8 @@ void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 	e->accept();
 	if( !m_painter ) return;
+    if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+        return;
 	if(m_graph) { 
 		switch (e->button()) {
 		case Qt::RightButton:
@@ -123,7 +128,7 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
                 new DlgGraphSetup(parentWidget()));
             //\todo setAttribute Qt::WA_DeleteOnClose
 			break;
-		case Qt::MidButton:
+        case Qt::MiddleButton:
 			break;
 		default:
 			break;
@@ -135,7 +140,11 @@ XQGraph::wheelEvent ( QWheelEvent *e) {
     e->accept();
     makeCurrent();
     if(m_painter )
-		m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
+#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
+        m_painter->wheel(e->position().x(), e->position().y(), (double)e->angleDelta().y() / 8.0);
+#else
+        m_painter->wheel(e->pos().x(), e->pos().y(), (double)e->delta() / 8.0);
+#endif
     doneCurrent();
 }
 void

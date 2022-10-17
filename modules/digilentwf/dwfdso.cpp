@@ -56,12 +56,12 @@ char szVersion[32] = {};
     port()->disable();
 }
 void
-XDigilentWFInterface::open() throw (XInterfaceError &) {
+XDigilentWFInterface::open() {
     if( !FDwfDeviceOpen(***device(), &m_hdwf))
         throwWFError(i18n("WaveForms device open failed: "), __FILE__, __LINE__);
 }
 void
-XDigilentWFInterface::close() throw (XInterfaceError &) {
+XDigilentWFInterface::close() {
     FDwfDeviceClose(hdwf());
     m_hdwf = hdwfNone;
 }
@@ -86,7 +86,7 @@ XDigilentWFDSO::XDigilentWFDSO(const char *name, bool runtime,
 }
 
 void
-XDigilentWFDSO::open() throw (XKameError &) {
+XDigilentWFDSO::open() {
     int num_ch;
     if( !FDwfAnalogInChannelCount(hdwf(), &num_ch))
         throwWFError(i18n("WaveForms error: "), __FILE__, __LINE__);
@@ -153,7 +153,7 @@ XDigilentWFDSO::open() throw (XKameError &) {
     createChannels(Snapshot( *this));
 }
 void
-XDigilentWFDSO::close() throw (XKameError &) {
+XDigilentWFDSO::close() {
     XScopedLock<XInterface> lock( *interface());
 
     if(m_threadReadAI) {
@@ -551,7 +551,7 @@ XDigilentWFDSO::getWave(shared_ptr<RawData> &writer, std::deque<XString> &channe
     writer->insert(writer->end(), str.begin(), str.end());
 }
 void
-XDigilentWFDSO::convertRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XDigilentWFDSO::convertRaw(RawDataReader &reader, Transaction &tr) {
     const unsigned int num_ch = reader.pop<uint32_t>();
     const unsigned int pretrig = reader.pop<uint32_t>();
     const unsigned int len = reader.pop<uint32_t>();

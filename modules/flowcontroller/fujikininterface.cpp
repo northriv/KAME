@@ -15,7 +15,7 @@ XFujikinInterface::~XFujikinInterface() {
 }
 
 void
-XFujikinInterface::open() throw (XInterfaceError &) {
+XFujikinInterface::open() {
     XScopedLock<XFujikinInterface> lock( *this);
     {
         Snapshot shot( *this);
@@ -39,7 +39,7 @@ XFujikinInterface::open() throw (XInterfaceError &) {
     s_openedPorts.push_back(m_openedPort);
 }
 void
-XFujikinInterface::close() throw (XInterfaceError &) {
+XFujikinInterface::close() {
 	XScopedLock<XFujikinInterface> lock( *this);
 	XScopedLock<XMutex> glock(s_lock);
     m_openedPort.reset(); //release shared_ptr to the port if any.

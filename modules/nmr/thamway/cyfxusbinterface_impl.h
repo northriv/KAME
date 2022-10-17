@@ -48,7 +48,11 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
     #ifdef WITH_KDE
             KStandardDirs::locate("appdata", filename);
     #else
+        #if QT_VERSION >= QT_VERSION_CHECK(5,4,0)
+            QStandardPaths::locate(QStandardPaths::AppDataLocation, filename);
+        #else
             QStandardPaths::locate(QStandardPaths::DataLocation, filename);
+        #endif
         if(path.isEmpty()) {
             //for macosx/win
             QDir dir(QApplication::applicationDirPath());
@@ -137,19 +141,19 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
                     x.reset();
                     continue;
                 case DEVICE_STATUS::READY:
+                    if( !gpifWave(x).empty()) {
+                        x->open();
+                        char gpif[GPIFWAVE_SIZE];
+                        load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
+                        setWave(x, (uint8_t*)gpif);
+                        x->close();
+                    }
                     break;
                 case DEVICE_STATUS::FW_NOT_LOADED:
                     gErrPrint("USB FX: firmware download was failed.");
                     x.reset();
                     continue;
                 }
-            }
-            else
-                x->open();
-            if( !gpifWave(x).empty()) {
-                char gpif[GPIFWAVE_SIZE];
-                load_firm(gpif, sizeof(gpif), gpifWave(x).c_str());
-                setWave(x, (uint8_t*)gpif);
             }
         }
         catch (XInterface::XInterfaceError &e) {
@@ -165,10 +169,6 @@ XCyFXUSBInterface<USBDevice>::openAllEZUSBdevices() {
 template <class USBDevice>
 void
 XCyFXUSBInterface<USBDevice>::closeAllEZUSBdevices() {
-    for(auto &&x : s_devices) {
-        if( !x) continue;
-        x->close();
-    }
     s_devices.clear();
 }
 
@@ -217,11 +217,12 @@ XCyFXUSBInterface<USBDevice>::finalize() {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
+XCyFXUSBInterface<USBDevice>::open() {
     Snapshot shot( *this);
     auto it = m_candidates.find(shot[ *device()].to_str());
     if(it != m_candidates.end()) {
         m_usbDevice = it->second;
+        usb()->openForSharing();
     }
     else {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
@@ -230,6 +231,8 @@ XCyFXUSBInterface<USBDevice>::open() throw (XInterfaceError &) {
 
 template <class USBDevice>
 void
-XCyFXUSBInterface<USBDevice>::close() throw (XInterfaceError &) {
+XCyFXUSBInterface<USBDevice>::close() {
+    if(usb())
+        usb()->unref();
     m_usbDevice.reset();
 }

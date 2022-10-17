@@ -61,7 +61,7 @@ XCustomCharInterface::scanf(const char *fmt, ...) const {
     return ret;
 }
 double
-XCustomCharInterface::toDouble() const throw (XConvError &) {
+XCustomCharInterface::toDouble() const {
     double x;
     int ret = this->scanf("%lf", &x);
     if(ret != 1)
@@ -69,7 +69,7 @@ XCustomCharInterface::toDouble() const throw (XConvError &) {
     return x;
 }
 int
-XCustomCharInterface::toInt() const throw (XConvError &) {
+XCustomCharInterface::toInt() const {
     int x;
     int ret = this->scanf("%d", &x);
     if(ret != 1)
@@ -77,7 +77,7 @@ XCustomCharInterface::toInt() const throw (XConvError &) {
     return x;
 }
 unsigned int
-XCustomCharInterface::toUInt() const throw (XConvError &) {
+XCustomCharInterface::toUInt() const {
     unsigned int x;
     int ret = this->scanf("%u", &x);
     if(ret != 1)
@@ -99,7 +99,7 @@ XCustomCharInterface::query(const XString &str) {
 }
 
 void
-XCustomCharInterface::sendf(const char *fmt, ...) throw (XInterfaceError &) {
+XCustomCharInterface::sendf(const char *fmt, ...) {
     va_list ap;
     int buf_size = SNPRINT_BUF_SIZE;
     std::vector<char> buf;
@@ -129,7 +129,7 @@ XCustomCharInterface::query(const char *str) {
     receive();
 }
 void
-XCustomCharInterface::queryf(const char *fmt, ...) throw (XInterfaceError &) {
+XCustomCharInterface::queryf(const char *fmt, ...) {
     va_list ap;
     int buf_size = SNPRINT_BUF_SIZE;
     std::vector<char> buf;
@@ -191,7 +191,7 @@ XCharInterface::XCharInterface(const char *name, bool runtime, const shared_ptr<
 }
          
 void
-XCharInterface::open() throw (XInterfaceError &) {
+XCharInterface::open() {
 	m_xport.reset();
     Snapshot shot( *this);
 	{
@@ -228,7 +228,7 @@ XCharInterface::open() throw (XInterfaceError &) {
 	}
 }
 void
-XCharInterface::close() throw (XInterfaceError &) {
+XCharInterface::close() {
 	m_xport.reset();
 }
 
@@ -241,8 +241,11 @@ void
 XCharInterface::send(const char *str) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Sending:\"" + dumpCString(str) + "\"");
-        m_xport->send(str);
+        port->send(str);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -253,8 +256,11 @@ void
 XCharInterface::write(const char *sendbuf, int size) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + formatString(" Sending %d bytes", size));
-        m_xport->write(sendbuf, size);
+        port->write(sendbuf, size);
     }
     catch (XCommError &e) {
         e.print(driver()->getLabel() + i18n(" SendError, because "));
@@ -265,8 +271,11 @@ void
 XCharInterface::receive() {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + " Receiving...");
-        m_xport->receive();
+        port->receive();
         assert(buffer().size());
         dbgPrint(driver()->getLabel() + " Received;\"" +
                  dumpCString((const char*)&buffer()[0]) + "\"");
@@ -280,8 +289,11 @@ void
 XCharInterface::receive(unsigned int length) {
     XScopedLock<XCharInterface> lock(*this);
     try {
+        auto port = m_xport;
+        if( !port)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
         dbgPrint(driver()->getLabel() + QString(" Receiving %1 bytes...").arg(length));
-        m_xport->receive(length);
+        port->receive(length);
         dbgPrint(driver()->getLabel() + QString(" %1 bytes Received.").arg(buffer().size()));
     }
     catch (XCommError &e) {

@@ -7,6 +7,7 @@ HEADERS += \
     dummyport.h \
     gpib.h \
     oxforddriver.h \
+    pfeifferprotocol.h \
     serial.h \
     tcp.h \
     modbusrtuinterface.h
@@ -16,6 +17,7 @@ SOURCES += \
     dummyport.cpp \
     gpib.cpp \
     oxforddriver.cpp \
+    pfeifferprotocol.cpp \
     serial.cpp \
     tcp.cpp \
     modbusrtuinterface.cpp

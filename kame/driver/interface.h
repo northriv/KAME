@@ -73,9 +73,9 @@ public:
         Talker<XInterface*> m_tlkOnClose;
 	};
 protected:  
-	virtual void open() throw (XInterfaceError &) = 0;
+    virtual void open() = 0;
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &) = 0;
+    virtual void close() = 0;
 private:
 	void onControlChanged(const Snapshot &shot, XValueNodeBase *);
 

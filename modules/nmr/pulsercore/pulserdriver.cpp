@@ -211,11 +211,11 @@ XPulser::XPulser(const char *name, bool runtime,
     });
 
     //Ranges should be preset in prior to connectors.
-    m_form->m_dblP1Level->setRange(-20.0, 3.0);
+    m_form->m_dblP1Level->setRange(-40.0, 3.0);
     m_form->m_dblP1Level->setSingleStep(1.0);
-    m_form->m_dblP2Level->setRange(-20.0, 3.0);
+    m_form->m_dblP2Level->setRange(-40.0, 3.0);
     m_form->m_dblP2Level->setSingleStep(1.0);
-    m_form->m_dblCombLevel->setRange(-20.0, 3.0);
+    m_form->m_dblCombLevel->setRange(-40.0, 3.0);
     m_form->m_dblCombLevel->setSingleStep(1.0);
     m_form->m_dblMasterLevel->setRange(-30.0, 3.0);
     m_form->m_dblMasterLevel->setSingleStep(1.0);
@@ -457,7 +457,7 @@ XPulser::onTriggerRequested(uint64_t threshold) {
 }
 
 void
-XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) throw (XRecordError&) {
+XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     tr[ *this].m_combMode = reader.pop<int16_t>();
     int16_t pulser_mode = reader.pop<int16_t>();
     tr[ *this].m_pulserMode = pulser_mode;
@@ -673,7 +673,7 @@ XPulser::selectedPorts(const Snapshot &shot, int func) const {
 	return mask;
 }
 void
-XPulser::createRelPatListNMRPulser(Transaction &tr) throw (XRecordError&) {
+XPulser::createRelPatListNMRPulser(Transaction &tr) {
     //A pettern at absolute time
     class tpat {
     public:
@@ -1103,7 +1103,7 @@ XPulser::bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned 
 }
 
 void
-XPulser::createRelPatListPulseAnalyzer(Transaction &tr) throw (XRecordError&) {
+XPulser::createRelPatListPulseAnalyzer(Transaction &tr) {
 	const Snapshot &shot(tr);
 
 	unsigned int trig1mask = selectedPorts(shot, PORTSEL_TRIG1);

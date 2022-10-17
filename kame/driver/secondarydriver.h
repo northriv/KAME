@@ -47,9 +47,9 @@ protected:
 	void requestAnalysis();
 
 	//! This function is called when a connected driver emit a signal
-	virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-		XDriver *emitter) throw (typename T::XRecordError&) = 0;
-	//! This function is called inside analyze() or analyzeRaw()
+    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+        XDriver *emitter) = 0;
+    //! This function is called inside analyze() or analyzeRaw()
 	//! this must be reentrant unlike analyze()
 	virtual void visualize(const Snapshot &shot) = 0;
 	//! Checks if the connected drivers have valid time stamps.

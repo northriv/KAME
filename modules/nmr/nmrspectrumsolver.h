@@ -59,7 +59,8 @@ public:
 	};
 	  
 	static const char SPECTRUM_SOLVER_ZF_FFT[];
-	static const char SPECTRUM_SOLVER_MEM_STRICT[];
+    static const char SPECTRUM_SOLVER_TSVD_FS[];
+    static const char SPECTRUM_SOLVER_MEM_STRICT[];
 	static const char SPECTRUM_SOLVER_MEM_STRICT_BURG[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_AICc[];
 	static const char SPECTRUM_SOLVER_MEM_BURG_MDL[];
@@ -87,6 +88,8 @@ public:
 	static const char WINDOW_FUNC_KAISER_2[];
 	static const char WINDOW_FUNC_KAISER_3[];
 	
+    void selectSolver(const char *str);
+
 	FFT::twindowfunc windowFunc(const Snapshot &shot) const;
 	void windowFuncs(std::deque<FFT::twindowfunc> &funcs) const;
 private:

@@ -350,7 +350,7 @@ bool XNMRPulseAnalyzer::checkDependency(const Snapshot &shot_this,
 }
 void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	const Snapshot &shot_others,
-	XDriver *emitter) throw (XRecordError&) {
+	XDriver *emitter) {
 	const Snapshot &shot_this(tr);
 	const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
 	assert(dso__);
@@ -369,7 +369,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	}
 	int dso_len = shot_dso[ *dso__].length();
 
-	double interval = shot_dso[ *dso__].timeInterval();
+    double interval = shot_dso[ *dso__].timeInterval(); //[sec.]
 	if (interval <= 0) {
 		throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
 	}
@@ -411,7 +411,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	numechoes = std::max(1, numechoes);
     int numechoes_pulse = numechoes;
     if(pulse__) numechoes_pulse = shot_others[ *pulse__].echoNum();
-    bool bg_after_last_echo = pos + length + echoperiod * (numechoes_pulse - 1) < bgpos;
+    bool bg_after_last_echo = pos + length + echoperiod * (numechoes_pulse - 1) < pos + bgpos;
 
     if(bglength && (bglength < length * numechoes * 3))
 		m_statusPrinter->printWarning(i18n("Maybe, length for BG. sub. is too short."));
@@ -693,8 +693,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
 
 		tr[ *ftWaveGraph()].setRowCount(ftsize);
 		double normalize = 1.0 / shot[ *this].m_wave.size();
-		double darknormalize =
-			shot[ *this].m_ftWavePSDCoeff / (shot[ *this].m_wave.size() * shot[ *this].interval());
+        double darknormalize = shot[ *this].darkPSDFactorToVoltSq();
 		double dfreq = shot[ *this].m_dFreq;
 		const double *darkpsd( &shot[ *this].m_darkPSD[0]);
 		const std::complex<double> *ftwave( &shot[ *this].m_ftWave[0]);

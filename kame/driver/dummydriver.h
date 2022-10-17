@@ -24,11 +24,11 @@ public:
 	{}
 	virtual ~XDummyInterface() {}
 
-	virtual void open() throw (XInterfaceError &) {
+    virtual void open() {
 		m_bOpened = true;
 	}
 	//! This can be called even if has already closed.
-	virtual void close() throw (XInterfaceError &) {
+    virtual void close() {
 		m_bOpened = false;
 	}
 
