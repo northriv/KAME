@@ -16,17 +16,14 @@
 #include "interface.h"
 #include <cstring>
 
-//XMutex XOceanOpticsUSBInterface::s_mutex;
-//int XOceanOpticsUSBInterface::s_refcnt = 0;
-//typename XOceanOpticsUSBInterface::USBDevice::List XOceanOpticsUSBInterface::s_devices;
-
+//incl. static members, used for enumeration of supported devices, and intefaces
 template class XCyFXUSBInterface<OceanOpticsUSBDevice>;
 
 static constexpr unsigned int OCEANOPTICS_VENDOR_ID = 0x2457;
 static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
     {0x1011, "HR4000"},
-    {0x1012, "HR2000+/4000"},
-    {0x1016, "HR2000+"},
+    {0x1012, "HR2000+/4000"}, //tested
+    {0x1016, "HR2000+"}, //tested.
     {0x101e, "USB2000+"},
 };
 
@@ -110,7 +107,7 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixel
     buf.resize(2 * pixels + 1);
     int len = 0;
     if(usb_highspeed && (pixels > 2048)) {
-        //HR4000
+        //HR4000, first 2K pixels use the other end point.
         len += usb()->bulkRead(m_ep_in_spec_first1Kpixels, &buf[0], 1024 * 2);
     }
     len += usb()->bulkRead(m_ep_in_spec, &buf[len], buf.size() - len);
