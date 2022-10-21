@@ -113,6 +113,7 @@ XThamwayFX2USBInterface::examineDeviceBeforeFWLoad(const shared_ptr<CyFXUSBDevic
 std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     dev->open();
+    msecsleep(300);
     uint8_t dipsw = readDIPSW(dev);
     XString idn;
     if(m_idString.empty()) {
@@ -123,8 +124,11 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     }
     else {
         //for PG and DV series.
-        idn = getIDN(dev, 8);
+        dipsw = 0;
+//        idn = getIDN(dev, 8);
+        idn = getIDN(dev);
         if( !idn.length()) return {};
+        idn = idn.substr(0,8);
     }
     idn = formatString("%d:%s", (int)dipsw, idn.c_str());
     dev->close();
