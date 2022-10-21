@@ -14,8 +14,12 @@
 #include "cyfxusb_win32.h"
 
 #include <setupapi.h>
-#include "fx2fw.h"
+
 #include <cstring>
+
+#define TFIFO		0		//OUT2
+#define	CPIPE		1		//OUT8
+#define RFIFO		2		//IN6
 
 constexpr uint32_t IOCTL_EZUSB_GET_DEVICE_DESCRIPTOR =  0x222004;
 constexpr uint32_t IOCTL_EZUSB_GET_STRING_DESCRIPTOR = 0x222044;
