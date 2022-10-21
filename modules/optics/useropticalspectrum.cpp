@@ -127,7 +127,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     for(unsigned int i = 0; i < tr[ *this].m_nonLinCorrCoeffs.size(); ++i)
         tr[ *this].m_nonLinCorrCoeffs[i] = reader.pop<double>();
 
-    auto fn_poly = [](const auto &coeffs, double v) {
+    auto fn_poly = [](const std::vector<double> &coeffs, double v) {
         double y = 0.0, x = 1.0;
         for(auto coeff: coeffs) {
             y += coeff * x;
