@@ -19,6 +19,7 @@
 
 REGISTER_TYPE(XDriverList, KE2000, "Keithley 2000/2001 DMM");
 REGISTER_TYPE(XDriverList, KE2182, "Keithley 2182 nanovolt meter");
+REGISTER_TYPE(XDriverList, KE2700_7700, "Keithley 2700 w/ 7700");
 REGISTER_TYPE(XDriverList, KE6482, "Keithley 6482 picoam meter");
 REGISTER_TYPE(XDriverList, HP34420A, "Agilent 34420A nanovolt meter");
 REGISTER_TYPE(XDriverList, HP3458A, "Agilent 3458A DMM");
@@ -42,6 +43,16 @@ XDMMSCPI::oneShotRead() {
     interface()->query(":READ?");
     return interface()->toDouble();
 }
+std::deque<double>
+XDMMSCPI::oneShotMultiRead() {
+    std::deque<double> var;
+    for(unsigned int i = 0; i < maxNumOfChannels(); ++i) {
+        interface()->sendf(":SENS:CHAN %u", i + 1);
+        interface()->query(":READ?");
+        var.push_back(interface()->toDouble());
+    }
+    return var;
+}
 /*
 double
 XDMMSCPI::measure(const XString &func)
@@ -50,6 +61,30 @@ XDMMSCPI::measure(const XString &func)
     return interface()->toDouble();
 }
 */
+
+
+XKE2700_7700::XKE2700_7700(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XDMM>(name, runtime, ref(tr_meas), meas, 10) {
+    function()->disable();
+}
+void XKE2700_7700::open() {
+    XCharDeviceDriver<XDMM>::open();
+    interface()->send("TRAC:CLE"); //Clears buffer.
+    interface()->send("INIT:CONT OFF");
+    interface()->send("TRIG:SOUR IMM"); //Immediate trigger.
+    interface()->send("TRIG:COUN 1"); //1 scan.
+}
+std::deque<double>
+XKE2700_7700::oneShotMultiRead() {
+    std::deque<double> var;
+    for(unsigned int i = 0; i < maxNumOfChannels(); ++i) {
+        interface()->sendf("ROUT:CLOS (@1%1d%1d)", (i + 1) / 10, (i + 1) % 10);
+        interface()->query("READ?");
+        var.push_back(interface()->toDouble());
+    }
+    return var;
+}
 
 void
 XKE6482::changeFunction() {

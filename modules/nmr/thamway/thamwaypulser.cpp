@@ -201,7 +201,10 @@ XThamwayUSBPulser::open() {
 void
 XThamwayUSBPulserWithQAM::open() {
     interfaceQAM()->start();
+    if( !this->interfaceQAM()->isOpened())
+        throw XInterface::XInterfaceError(i18n("QAM device cannot be opened."), __FILE__, __LINE__);
     XString idn = this->interfaceQAM()->getIDN();
+
     gMessagePrint(formatString_tr(I18N_NOOP("%s successfully opened\n"), idn.c_str()));
     auto pos = idn.find("SPS=");
     if(pos == std::string::npos)

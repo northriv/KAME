@@ -38,6 +38,8 @@ SUBDIRS += testdriver\
     twoaxis
 
 unix: SUBDIRS +=    montecarlo\
+        opticscore\
+        optics
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
@@ -73,3 +75,5 @@ qd.depends += qdcore charinterface
 gauge.depends += charinterface
 pumpcontroller.depends += charinterface
 twoaxis.depends += motorcore
+opticscore.file = optics/core/opticscore.pro
+optics.depends += opticscore charinterface

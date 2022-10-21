@@ -21,8 +21,9 @@ class XCharInterface;
 template<class tDriver, class tInterface = XCharInterface>
 class XCharDeviceDriver : public tDriver {
 public:
-	XCharDeviceDriver(const char *name, bool runtime, 
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    template <typename... Args>
+    XCharDeviceDriver(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args);
     virtual ~XCharDeviceDriver() = default;
 protected:
 	const shared_ptr<tInterface> &interface() const {return m_interface;}
@@ -42,9 +43,10 @@ private:
 };
 
 template<class tDriver, class tInterface>
-XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime, 
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    tDriver(name, runtime, ref(tr_meas), meas),
+template <typename... Args>
+XCharDeviceDriver<tDriver, tInterface>::XCharDeviceDriver(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, Args&&... args) :
+    tDriver(name, runtime, ref(tr_meas), meas, std::forward<Args>(args)...),
 	m_interface(XNode::create<tInterface>("Interface", false,
 										  dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
 

@@ -24,7 +24,6 @@ REGISTER_TYPE(XDriverList, AVS47IB, "Picowatt AVS-47 AC res. bridge");
 REGISTER_TYPE(XDriverList, ITC503, "Oxford ITC-503 temp. controller");
 REGISTER_TYPE(XDriverList, NeoceraLTC21, "Neocera LTC-21 temp. controller");
 REGISTER_TYPE(XDriverList, LinearResearch700, "LinearResearch LR-700  AC res. bridge");
-REGISTER_TYPE(XDriverList, KE2700w7700, "Keithley 2700&7700 as temp. controller");
 
 XITC503::XITC503(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -1214,34 +1213,4 @@ void XLinearResearch700::open() {
     start();
 }
 
-XKE2700w7700::XKE2700w7700(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-	XCharDeviceDriver<XTempControl>(name, runtime, ref(tr_meas), meas) {
-    createChannels(ref(tr_meas), meas, true,
-        {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
-        {},
-        {});
-}
-void XKE2700w7700::open() {
-	start();
-	interface()->send("TRAC:CLE"); //Clears buffer.
-	interface()->send("INIT:CONT OFF");
-	interface()->send("TRIG:SOUR IMM"); //Immediate trigger.
-	interface()->send("TRIG:COUN 1"); //1 scan.
-}
-double XKE2700w7700::getRaw(shared_ptr<XChannel> &channel) {
-	int ch = atoi(channel->getName().c_str());
-	interface()->sendf("ROUT:CLOS (@1%1d%1d)", ch / 10, ch % 10);
-	interface()->query("READ?");
-	double x;
-	if(interface()->scanf("%lf", &x) != 1)
-		throw XInterface::XConvError(__FILE__, __LINE__);
-	return x;
-}
-double XKE2700w7700::getTemp(shared_ptr<XChannel> &channel) {
-	return getRaw(channel);
-}
-double XKE2700w7700::getHeater(unsigned int) {
-	return 0.0;
-}
 

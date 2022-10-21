@@ -515,7 +515,7 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
     shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
     shared_ptr<XMotorDriver> relay = shot_this [*relayDriver()];
     const shared_ptr<XMotorDriver> stms[] = {stm1__, stm2__};
-    const unsigned int tunebits = 0xffu;
+    const unsigned int tunebits = 0x1u;
     for(auto &&stm: stms) {
         if(stm) {
             stm->iterate_commit([=](Transaction &tr){

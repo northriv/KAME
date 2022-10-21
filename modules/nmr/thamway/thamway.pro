@@ -16,24 +16,17 @@ FORMS += \
     thamwayprotform.ui
 win32: {
     HEADERS += \
-        cyfxusb_win32.h\
         fx2fw.h\
-        cyfxusb.h\
         thamwayusbinterface.h \
-        cyfxusbinterface_impl.h \
         thamwayrealtimedso.h
         thamwaydso.h \
 
     SOURCES += \
-        cyfxusb_win32.cpp\
         thamwaydso.cpp \
-        cyfxusb.cpp\
         thamwayusbinterface.cpp \
         thamwayrealtimedso.cpp
 
     DEFINES += USE_THAMWAY_USB
-
-    LIBS += -lsetupapi
 }
 
 unix {
@@ -41,16 +34,12 @@ unix {
         LIBS += -lusb-1.0
         HEADERS += \
             fx2fw.h\
-            cyfxusb.h\
             thamwayusbinterface.h \
-            cyfxusbinterface_impl.h \
             thamwayrealtimedso.h
             thamwaydso.h \
 
         SOURCES += \
-            cyfxusb_libusb.cpp\
             thamwaydso.cpp \
-            cyfxusb.cpp\
             thamwayusbinterface.cpp \
             thamwayrealtimedso.cpp
 

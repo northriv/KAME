@@ -2,10 +2,15 @@ PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
 HEADERS += \
+    cam.h \
     usermotor.h
 
 SOURCES += \
+    cam.cpp \
     usermotor.cpp
+
+FORMS += \
+    camform.ui
 
 win32:LIBS += -lcharinterface
 
