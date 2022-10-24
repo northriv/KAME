@@ -377,7 +377,7 @@ XFlexAR::prepairSequence(const std::vector<double> &points, const std::vector<do
 
 void
 XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
-                         const std::vector<std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
+                         const std::vector<std::vector<double>> &speeds, const std::vector<shared_ptr<XMotorDriver>> &slaves) {
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         throw XInterface::XInterfaceError(getLabel() +
