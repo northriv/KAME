@@ -342,7 +342,7 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
     int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
     interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin);
     msecsleep(4);
 //    interface()->presetTwoResistors(0x7c, netin | 0x8uL); //START
@@ -395,7 +395,7 @@ XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
     }
     //ignites.
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin);
     msecsleep(4);
     interface()->presetTwoResistors(0x7c, netin | 0x200uL); //MS1
@@ -418,7 +418,7 @@ XFlexAR::sendStopSignal(bool wait) {
         if(isready) break;
         if(i ==0) {
             uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            netin &= ~(0x4000uL | 0x8000u | 0x8uL); //FWD | RVS | START
+            netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
             interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
 //            fprintf(stderr, "STOP%u\n", netin);
             msecsleep(4);
@@ -436,14 +436,14 @@ void
 XFlexAR::setForward() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin | 0x4000uL); //FWD
 }
 void
 XFlexAR::setReverse() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin | 0x8000uL); //RVS
 }
 void
@@ -462,8 +462,8 @@ void
 XFlexAR::setAUXBits(unsigned int bits) {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    if((bits < 0x40uL) || (bits == 0xffuL)) {
-        interface()->presetTwoResistors(0x7c, (netin & ~0x3fuL) | (bits & 0x3fuL));
+    if((bits < 0x20uL) || (bits == 0xffuL)) {
+        interface()->presetTwoResistors(0x7c, (netin & ~0x1fuL) | (bits & 0x1fuL));
     }
     else {
         //debug use
