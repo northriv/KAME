@@ -433,12 +433,6 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 				m_statusPrinter->printWarning(i18n("Invalid Multiecho settings."), true);
 		}
     }
-	if(pulse__) {
-		if(shot_others[ *pulse__].isPulseAnalyzerMode()) {
-			m_statusPrinter->printWarning(i18n("Built-In Network Analyzer Mode."), false);
-			throw XSkippedRecordError(__FILE__, __LINE__);
-		}
-	}
 
 	if((shot_this[ *this].m_startTime != starttime) || (length != shot_this[ *this].m_waveWidth)) {
 		double t = length * interval * 1e3;

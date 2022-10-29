@@ -42,8 +42,7 @@ public:
 
 	//! driver specific part below
 
-	//! \sa pulseAnalyzerMode()
-	enum {N_MODE_NMR_PULSER = 0, N_MODE_PULSE_ANALYZER = 1};
+    enum {N_MODE_NMR_PULSER = 0}; //PulseAnalyzerMode is deprecated and removed.
     //! \sa combMode(), Payload::combMode().
 	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3};
     //! \sa rtMode(), Payload::rtMode().
@@ -97,11 +96,10 @@ public:
 	    double masterLevel() const {return m_masterLevel;}
 	    double combOffRes() const {return m_combOffRes;}
 	    bool conserveStEPhase() const {return m_conserveStEPhase;}
-
-	    bool isPulseAnalyzerMode() const {return  m_paPulseBW > 0;}
-	    double paPulseRept() const {return m_rtime;}
-	    double paPulseBW() const {return m_paPulseBW;}
-	    double paPulseOrigin() const {return m_paPulseOrigin;}
+        //! ver 5 records.
+        double odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
+        double odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
+        double odmrSaturationTime() const {return m_odmrSaturationTime;}
 
 	    //! periodic term of one cycle [ms].
 	    double periodicTerm() const;
@@ -151,10 +149,10 @@ public:
 	    double m_p1Level, m_p2Level, m_combLevel, m_masterLevel;
 	    double m_combOffRes;
 	    bool m_conserveStEPhase;
-
-	    //! PA mode
-	    double m_paPulseBW;
-	    double m_paPulseOrigin; //!< [us]
+        //! ver 5 records for ODMR
+        double m_odmrReadPulseSetupTime; //!< [us]
+        double m_odmrReadPulseHoldTime; //!< [us]
+        double m_odmrSaturationTime; //!< [us]
 
 	    //! Patterns.
 	    RelPatList m_relPatList;
@@ -210,9 +208,9 @@ public:
     	assert(port < NUM_DO_PORTS);
     	return m_portSel[port];
     }
-    const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
-    const shared_ptr<XDoubleNode> &paPulseRept() const {return m_paPulseRept;}
-    const shared_ptr<XDoubleNode> &paPulseBW() const {return m_paPulseBW;}
+    const shared_ptr<XDoubleNode> &odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
+    const shared_ptr<XDoubleNode> &odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
+    const shared_ptr<XDoubleNode> &odmrSaturationTime() const {return m_odmrSaturationTime;}
     const shared_ptr<XUIntNode> &firstPhase() const {return m_firstPhase;} //!< 0-3, selects the first phase of QPSK.
 
     //! time resolution [ms]
@@ -227,7 +225,8 @@ protected:
 		  PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
 		  PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
 		  PORTSEL_QPSK_OLD_PSGATE = 15,
-		  PORTSEL_PULSE_ANALYZER_GATE = 16,
+          PORTSEL_ODMR_LIGHT = 16,
+          PORTSEL_ODMR_SATURATION = 17,
 		  /*PORTSEL_PAUSING = 17*/};
 	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
@@ -307,8 +306,9 @@ private:
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
-    const shared_ptr<XDoubleNode> m_paPulseRept; //!< [ms]
-    const shared_ptr<XDoubleNode> m_paPulseBW; //!< [kHz]
+    const shared_ptr<XDoubleNode> m_odmrReadPulseSetupTime; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrReadPulseHoldTime; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrSaturationTime; //!< [us]
     const shared_ptr<XUIntNode> m_firstPhase; //!< 0-3, selects QPSK for the first cycle.
 
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
@@ -326,7 +326,6 @@ private:
 
 	//! creates \a RelPatList
 	void createRelPatListNMRPulser(Transaction &tr);
-	void createRelPatListPulseAnalyzer(Transaction &tr);
 	//! \return maskbits for QPSK ports.
 	unsigned int bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned int qpskinv[4], bool invert);
 
@@ -342,7 +341,7 @@ private:
 	inline uint64_t rintSampsMicroSec(double us) const;
 	inline uint64_t rintSampsMilliSec(double ms) const;
 
-	void changeUIStatus(bool nmrmode, bool state);
+    void changeUIStatus(bool state);
 
     //! \sa SoftwareTrigger::onTriggerRequested()
     void onTriggerRequested(uint64_t threshold);

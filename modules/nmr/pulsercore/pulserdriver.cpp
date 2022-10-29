@@ -123,8 +123,9 @@ XPulser::XPulser(const char *name, bool runtime,
     m_conserveStEPhase(create<XBoolNode>("ConserveStEPhase", false)),
     m_qswPiPulseOnly(create<XBoolNode>("QSWPiPulseOnly", false)),
     m_pulseAnalyzerMode(create<XBoolNode>("PulseAnalyzerMode", true)),
-    m_paPulseRept(create<XDoubleNode>("PAPulseRept", false)),
-    m_paPulseBW(create<XDoubleNode>("PAPulseBW", false)),
+    m_odmrReadPulseSetupTime(create<XDoubleNode>("ODMRReadPulseSetupTime", false)),
+    m_odmrReadPulseHoldTime(create<XDoubleNode>("ODMRReadPulseHoldTime", false)),
+    m_odmrSaturationTime(create<XDoubleNode>("ODMRSaturationTime", false)),
     m_firstPhase(create<XUIntNode>("FirstPhase", true)),
     m_moreConfigShow(create<XTouchableNode>("MoreConfigShow", true)),
     m_form(new FrmPulser),
@@ -146,7 +147,7 @@ XPulser::XPulser(const char *name, bool runtime,
                        "Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
                        "QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
                        "QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
-                       "QPSK-PS-Gate", "PAnaGate"
+                       "QPSK-PS-Gate", "ODMR-Light", "ODMR-Sat"
                 });
 	//			m_portSel[i]->setUIEnabled(false);
 			}
@@ -200,8 +201,9 @@ XPulser::XPulser(const char *name, bool runtime,
 	    tr[ *p2Func()] = PULSE_NO_HAMMING; //Hamming
 	    tr[ *combFunc()] = PULSE_NO_HAMMING; //Hamming
 
-	    tr[ *paPulseRept()] = 1; //ms
-	    tr[ *paPulseBW()] = 1000.0; //kHz
+        tr[ *odmrReadPulseSetupTime()] = 0; //us
+        tr[ *odmrReadPulseHoldTime()] = 4; //us
+        tr[ *odmrSaturationTime()] = 300; //us
 
         tr[ *firstPhase()] = 0;
 
@@ -264,9 +266,9 @@ XPulser::XPulser(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_qswWidth, m_formMore->m_edQSWWidth),
         xqcon_create<XQLineEditConnector>(m_qswSoftSWOff, m_formMore->m_edQSWSoftSWOff),
         xqcon_create<XQToggleButtonConnector>(m_qswPiPulseOnly, m_formMore->m_ckbQSWPiPulseOnly),
-        xqcon_create<XQToggleButtonConnector>(m_pulseAnalyzerMode, m_formMore->m_ckbPulseAnalyzerMode),
-        xqcon_create<XQLineEditConnector>(m_paPulseRept, m_formMore->m_edPAPulseRept),
-        xqcon_create<XQLineEditConnector>(m_paPulseBW, m_formMore->m_edPAPulseBW),
+        xqcon_create<XQLineEditConnector>(m_odmrReadPulseSetupTime, m_formMore->m_edODMRReadPulseSetupTime),
+        xqcon_create<XQLineEditConnector>(m_odmrReadPulseHoldTime, m_formMore->m_edODMRReadPulseHoldTime),
+        xqcon_create<XQLineEditConnector>(m_odmrSaturationTime, m_formMore->m_edODMRSaturationTime),
         xqcon_create<XQPulserDriverConnector>(
             dynamic_pointer_cast<XPulser>(shared_from_this()), m_form->m_tblPulse, m_form->m_graph)
     };
@@ -280,7 +282,7 @@ XPulser::XPulser(const char *name, bool runtime,
         m_conUIs.push_back(xqcon_create<XQComboBoxConnector>(m_portSel[i], combo[i], shot));
     }
 
-	changeUIStatus(true, false);
+    changeUIStatus(false);
 
 }
 
@@ -300,8 +302,7 @@ void
 XPulser::start() {    
     m_totalSampsOfFreeRun = 0;
 
-	changeUIStatus( !***pulseAnalyzerMode(), true);
-	pulseAnalyzerMode()->setUIEnabled(true);
+    changeUIStatus(true);
 
 	iterate_commit([=](Transaction &tr){
 		m_lsnOnPulseChanged = tr[ *combMode()].onValueChanged().connectWeakly(
@@ -353,9 +354,9 @@ XPulser::start() {
 			tr[ *difFreq()].onValueChanged().connect(m_lsnOnPulseChanged);
 		}
 
-		tr[ *pulseAnalyzerMode()].onValueChanged().connect(m_lsnOnPulseChanged);
-		tr[ *paPulseRept()].onValueChanged().connect(m_lsnOnPulseChanged);
-		tr[ *paPulseBW()].onValueChanged().connect(m_lsnOnPulseChanged);
+        tr[ *odmrReadPulseSetupTime()].onValueChanged().connect(m_lsnOnPulseChanged);
+        tr[ *odmrReadPulseHoldTime()].onValueChanged().connect(m_lsnOnPulseChanged);
+        tr[ *odmrSaturationTime()].onValueChanged().connect(m_lsnOnPulseChanged);
     });
 }
 void
@@ -364,8 +365,7 @@ XPulser::stop() {
     m_lsnOnPulseChanged.reset();
     m_threadFreeRun.reset();
 
-	changeUIStatus(true, false);
-	pulseAnalyzerMode()->setUIEnabled(false);
+    changeUIStatus(false);
 
 	for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 		m_portSel[i]->setUIEnabled(true);
@@ -375,7 +375,7 @@ XPulser::stop() {
 }
 
 void
-XPulser::changeUIStatus(bool nmrmode, bool state) {
+XPulser::changeUIStatus(bool state) {
     iterate_commit([=](Transaction &tr){
         //Features with QAM in NMR.
         std::vector<shared_ptr<XNode>> runtime_ui{
@@ -383,7 +383,7 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
             p1Level(), p2Level(), combLevel(),
             masterLevel(), difFreq()
         };
-        bool uienable = state && hasQAMPorts() && nmrmode;
+        bool uienable = state && hasQAMPorts();
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(uienable);
 
@@ -398,7 +398,7 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
             tr[ *x].setUIEnabled(uienable);
 
         runtime_ui = {
-            output(), paPulseRept(), paPulseBW()
+            output()
         };
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(state);
@@ -415,9 +415,10 @@ XPulser::changeUIStatus(bool nmrmode, bool state) {
             numPhaseCycle(), combOffRes(),
             induceEmission(), induceEmissionPhase(),
             qswDelay(), qswWidth(), qswSoftSWOff(), qswPiPulseOnly(),
-            invertPhase(), conserveStEPhase()
+            invertPhase(), conserveStEPhase(),
+            odmrReadPulseSetupTime(), odmrReadPulseHoldTime(), odmrSaturationTime()
         };
-        uienable = state && nmrmode;
+        uienable = state;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(uienable);
     });
@@ -463,7 +464,6 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     tr[ *this].m_pulserMode = pulser_mode;
     switch(pulser_mode) {
     case N_MODE_NMR_PULSER:
-    default:
         tr[ *this].m_rtime = reader.pop<double>();
         tr[ *this].m_tau = reader.pop<double>();
         tr[ *this].m_pw1 = reader.pop<double>();
@@ -521,43 +521,22 @@ XPulser::analyzeRaw(RawDataReader &reader, Transaction &tr) {
         	tr[ *this].m_combOffRes= 0;
         	tr[ *this].m_conserveStEPhase = 0;
         }
-        tr[ *this].m_paPulseBW = -1;
-        tr[ *this].m_paPulseOrigin = 0;
-
+        try {
+            // ver 5 records
+            tr[ *this].m_odmrReadPulseSetupTime = reader.pop<double>();
+            tr[ *this].m_odmrReadPulseHoldTime = reader.pop<double>();
+            tr[ *this].m_odmrSaturationTime = reader.pop<double>();
+        }
+        catch (XRecordError &) {
+            const Snapshot &shot(tr);
+            tr[ *this].m_odmrReadPulseSetupTime = shot[ *odmrReadPulseSetupTime()];
+            tr[ *this].m_odmrReadPulseHoldTime = shot[ *odmrReadPulseHoldTime()];
+            tr[ *this].m_odmrSaturationTime = shot[ *odmrSaturationTime()];
+        }
         createRelPatListNMRPulser(tr);
     	break;
-    case N_MODE_PULSE_ANALYZER:
-        tr[ *this].m_rtime = tr[ *paPulseRept()];;
-        tr[ *this].m_tau = 0;
-        tr[ *this].m_pw1 = 6800.0 / tr[ *paPulseBW()]; //flattop_longlong
-        tr[ *this].m_pw2 = 0;
-        tr[ *this].m_combP1 = 0;
-        tr[ *this].m_altSep = 0;
-        tr[ *this].m_combP1Alt = 0;
-        tr[ *this].m_aswSetup = 0.1;
-        tr[ *this].m_aswHold = 0.1;
-		tr[ *this].m_difFreq = 0;
-		tr[ *this].m_combPW = 0;
-		tr[ *this].m_combPT = 0;
-		tr[ *this].m_echoNum = 1;
-		tr[ *this].m_combNum = 1;
-		tr[ *this].m_rtMode = N_COMB_MODE_OFF;
-		tr[ *this].m_numPhaseCycle = 2;
-		tr[ *this].m_invertPhase = 0.0;
-    	tr[ *this].m_p1Func = PULSE_NO_FLATTOP_LONG_LONG;
-    	tr[ *this].m_p2Func = PULSE_NO_FLATTOP_LONG_LONG;
-    	tr[ *this].m_combFunc = PULSE_NO_FLATTOP_LONG_LONG;
-    	tr[ *this].m_p1Level = 0;
-    	tr[ *this].m_p2Level = -5;
-    	tr[ *this].m_combLevel = 0;
-    	tr[ *this].m_masterLevel = -10;
-    	tr[ *this].m_combOffRes= 0;
-    	tr[ *this].m_conserveStEPhase = 0;
-
-        tr[ *this].m_paPulseBW = tr[ *paPulseBW()];
-        tr[ *this].m_paPulseOrigin = tr[ *this].m_pw1 / 2;
-        createRelPatListPulseAnalyzer(tr);
-    	break;
+    default:
+        break;
     }
     try {
         createNativePatterns(tr); //calling driver specific virtual funciton.
@@ -571,20 +550,6 @@ void
 XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	XTime time_awared = XTime::now();
 	Snapshot shot( *this);
-
-	if(node == pulseAnalyzerMode().get()) {
-		changeUIStatus( !shot[ *pulseAnalyzerMode()], true);
-	}
-	if(shot[ *pulseAnalyzerMode()]) {
-		auto writer = std::make_shared<RawData>();
-
-	// ver 1 records below
-	    writer->push((int16_t)0);
-	    writer->push((int16_t)N_MODE_PULSE_ANALYZER);
-
-		finishWritingRaw(writer, time_awared, XTime::now());
-		return;
-	}
   
 	const double tau__ = rintTermMicroSec(shot[ *tau()]);
 	const double asw_setup__ = rintTermMilliSec(shot[ *aswSetup()]);
@@ -653,6 +618,10 @@ XPulser::onPulseChanged(const Snapshot &shot_node, XValueNodeBase *node) {
 	writer->push((double)shot[ *masterLevel()]);
 	writer->push((double)shot[ *combOffRes()]);
 	writer->push((uint16_t)shot[ *conserveStEPhase()]);
+// ver 5 records below
+    writer->push((double)shot[ *odmrReadPulseSetupTime()]);
+    writer->push((double)shot[ *odmrReadPulseHoldTime()]);
+    writer->push((double)shot[ *odmrSaturationTime()]);
 
 	finishWritingRaw(writer, time_awared, XTime::now());
 }
@@ -698,8 +667,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 
 	unsigned int g3mask = selectedPorts(shot, PORTSEL_GATE3);
 	unsigned int g2mask = selectedPorts(shot, PORTSEL_PREGATE);
-	unsigned int pagmask = selectedPorts(shot, PORTSEL_PULSE_ANALYZER_GATE);
-	unsigned int g1mask = (selectedPorts(shot, PORTSEL_GATE) | g3mask | pagmask);
+    unsigned int g1mask = (selectedPorts(shot, PORTSEL_GATE) | g3mask);
 	unsigned int trig1mask = selectedPorts(shot, PORTSEL_TRIG1);
 	unsigned int trig2mask = selectedPorts(shot, PORTSEL_TRIG2);
 	unsigned int aswmask = selectedPorts(shot, PORTSEL_ASW);
@@ -708,6 +676,9 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 	unsigned int pulse2mask = selectedPorts(shot, PORTSEL_PULSE2);
 	unsigned int combmask = selectedPorts(shot, PORTSEL_COMB);
 	unsigned int combfmmask = selectedPorts(shot, PORTSEL_COMB_FM);
+
+    unsigned int odmrlightmask = selectedPorts(shot, PORTSEL_ODMR_LIGHT);
+    unsigned int odmrsatmask = selectedPorts(shot, PORTSEL_ODMR_SATURATION) | odmrlightmask;
 
 	bool invert_phase__ = shot[ *this].invertPhase();
 
@@ -755,6 +726,10 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 		num_phase_cycle__ = std::min(num_phase_cycle__, 4);
   
 	bool conserve_ste_phase__ = shot[ *this].conserveStEPhase();
+
+    uint64_t odmr_read_setup__ = rintSampsMicroSec(shot[ *this].odmrReadPulseSetupTime());
+    uint64_t odmr_read_hold__ = rintSampsMicroSec(shot[ *this].odmrReadPulseHoldTime());
+    uint64_t odmr_sat_pw__ = rintSampsMicroSec(shot[ *this].odmrSaturationTime());
 
 	//comb phases
 	const uint32_t comb_ste_cancel[MAX_NUM_PHASE_CYCLE] = {
@@ -822,13 +797,14 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
       
 		pos += rest;
       
+        uint64_t first_pos = pos;
 		//comb pulses
 		if((p1__ > 0) && !saturation_wo_comb) {
 			uint64_t combpt = std::max(comb_pt__, comb_pw__ + g2_setup__);
 			uint64_t cpos = pos - combpt * comb_num__;
-     
-			patterns_cheap.insert(tpat(cpos - comb_pw__/2 - g2_setup__, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
-			patterns_cheap.insert(tpat(cpos - comb_pw__/2 - g2_setup__, ~(uint32_t)0, combmask));
+            first_pos = cpos - comb_pw__/2 - g2_setup__;
+            patterns_cheap.insert(tpat(first_pos, comb_off_res ? ~(uint32_t)0 : 0, combfmmask));
+            patterns_cheap.insert(tpat(first_pos, ~(uint32_t)0, combmask));
 			bool g2_each__ = (g2_setup__ * 2 + comb_pw__) < combpt;
 			for(int k = 0; k < comb_num__; k++) {
 				const uint32_t *comb = (conserve_ste_phase__) ?
@@ -858,7 +834,11 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
             patterns_cheap.insert(tpat(cpos + comb_pw__/2, ~(uint32_t)0, combfmmask));
 		}   
 		pos += p1__;
-       
+
+        //ODMR saturation pulse
+        patterns_cheap.insert(tpat(first_pos - odmr_sat_pw__ - g2_setup__, ~(uint32_t)0, odmrsatmask)); //todo setuptime before ODMR sat. off
+        patterns_cheap.insert(tpat(first_pos - g2_setup__, 0, odmrsatmask));
+
 		//pi/2 pulse
 		bool g2_kept_p1p2 = false;
 		if(pw1__/2) {
@@ -896,7 +876,10 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 		patterns.insert(tpat(pos - asw_setup__, ~(uint32_t)0, aswmask));
 		patterns.insert(tpat(pos -
 			(( !former_of_alt && comb_mode_alt) ? alt_sep__ : 0), ~(uint32_t)0, trig1mask));
-                
+        //ODMR reading
+        patterns.insert(tpat(pos - odmr_read_setup__, ~(uint32_t)0, odmrlightmask));
+        patterns.insert(tpat(pos + odmr_read_hold__, 0, odmrlightmask));
+
 		//induce emission
 		if(induce_emission__) {
 			patterns.insert(tpat(pos - induce_emission___pw/2, ~(uint32_t)0, g3mask));
@@ -1100,62 +1083,6 @@ XPulser::bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned 
 		qpskinv[ph] = qpsk__((ph + 2) % 4);
 	}
 	return qpskmask;
-}
-
-void
-XPulser::createRelPatListPulseAnalyzer(Transaction &tr) {
-	const Snapshot &shot(tr);
-
-	unsigned int trig1mask = selectedPorts(shot, PORTSEL_TRIG1);
-	unsigned int trig2mask = selectedPorts(shot, PORTSEL_TRIG2);
-	unsigned int aswmask = selectedPorts(shot, PORTSEL_ASW);
-	unsigned int pulse1mask = selectedPorts(shot, PORTSEL_PULSE1);
-	unsigned int pulse2mask = selectedPorts(shot, PORTSEL_PULSE2);
-
-	unsigned int basebits = aswmask | selectedPorts(shot, PORTSEL_PULSE_ANALYZER_GATE);
-	unsigned int trigbits = trig1mask | trig2mask | pulse1mask | pulse2mask;
-	unsigned int onbits = 0, onmask = 0;
-    if(hasQAMPorts()) {
-    	onbits = PAT_QAM_PULSE_IDX_P1;
-    	onmask = PAT_QAM_PULSE_IDX_MASK;
-    }
-
-	//QPSK patterns correspoinding to 0, pi/2, pi, -pi/2
-	unsigned int qpsk[4];
-	unsigned int qpskinv[4];
-	unsigned int qpskmask;
-	qpskmask = bitpatternsOfQPSK(shot, qpsk, qpskinv, false);
-
-	uint64_t rtime__ = rintSampsMilliSec(shot[ *this].rtime());
-	uint64_t pw1__ = hasQAMPorts() ?
-		ceilSampsMicroSec(shot[ *this].pw1()/2)*2 : rintSampsMicroSec(shot[ *this].pw1()/2)*2;
-
-	if((rtime__ <= pw1__) || (rtime__ <= pw1__) || (rtime__ == 0))
-		throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
-
-	tr[ *this].m_relPatList.clear();
-	uint32_t pat = basebits | qpsk[0] | trigbits | onbits;
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__ - pw1__, rtime__ - pw1__));
-	pat &= ~onmask;
-	pat &= ~trigbits;
-	pat = (pat & ~qpskmask) | qpsk[2];
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, rtime__, pw1__));
-	pat |= onbits;
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 2 * rtime__ - pw1__, rtime__ - pw1__));
-	pat &= ~onmask;
-	pat &= ~trigbits;
-	pat = (pat & ~qpskmask) | qpsk[0];
-	tr[ *this].m_relPatList.push_back(Payload::RelPat(pat, 2 * rtime__, pw1__));
-
-    if(hasQAMPorts()) {
-    	for(unsigned int i = 0; i < PAT_QAM_PULSE_IDX_MASK/PAT_QAM_PULSE_IDX; i++)
-    		tr[ *this].m_qamWaveForm[i].clear();
-
-		makeWaveForm(tr, PAT_QAM_PULSE_IDX_P1/PAT_QAM_PULSE_IDX - 1,
-			shot[ *this].pw1()*1e-3,
-			pw1__/2, pulseFunc(shot[ *this].p1Func()),
-			shot[ *this].p1Level(), 0, 0);
-    }
 }
 
 void

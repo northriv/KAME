@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>632</width>
-    <height>512</height>
+    <width>588</width>
+    <height>559</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,6 +15,18 @@
   </property>
   <widget class="QWidget" name="widget">
    <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="topMargin">
+     <number>4</number>
+    </property>
+    <property name="rightMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>4</number>
+    </property>
     <item>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
@@ -224,7 +236,7 @@
          <string>Analog Switch</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="margin" stdset="0">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -404,7 +416,7 @@
          <string>Q-Switch</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="margin" stdset="0">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -599,7 +611,7 @@
        <string>Port Selector</string>
       </property>
       <layout class="QGridLayout">
-       <property name="margin">
+       <property name="margin" stdset="0">
         <number>2</number>
        </property>
        <property name="spacing">
@@ -984,7 +996,7 @@
          <string>QAM DC Offset</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="margin" stdset="0">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -1123,7 +1135,7 @@
          <number>3</number>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="margin" stdset="0">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -1215,7 +1227,7 @@
          <string>QAM Delay Tuning</string>
         </property>
         <layout class="QGridLayout">
-         <property name="margin">
+         <property name="margin" stdset="0">
           <number>2</number>
          </property>
          <item row="0" column="0">
@@ -1366,139 +1378,14 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="m_numInduceEmissionPhase" native="true">
+         <widget class="QDoubleSpinBox" name="m_numInduceEmissionPhase">
+          <property name="suffix">
+           <string> deg.</string>
+          </property>
           <property name="label" stdset="0">
            <string/>
           </property>
-          <property name="suffix" stdset="0">
-           <string> deg.</string>
-          </property>
          </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="m_ckbPulseAnalyzerMode">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Pulse Analyzer Mode</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="_2">
-        <item>
-         <widget class="QLabel" name="textLabel5_2_3_2_4_2_2_2_2_2_5">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>P.BW</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="_3">
-          <item>
-           <widget class="QLineEdit" name="m_edPAPulseBW">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>80</width>
-              <height>32767</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="textLabel2_3_2_2_3_2_4_2_2_2_2_2_4">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>kHz</string>
-            </property>
-            <property name="wordWrap">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="_4">
-        <item>
-         <widget class="QLabel" name="textLabel5_2_3_2_4_2_2_2_2_2_6">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Rept.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="_5">
-          <item>
-           <widget class="QLineEdit" name="m_edPAPulseRept">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>80</width>
-              <height>32767</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="textLabel2_3_2_2_3_2_4_2_2_2_2_2_5">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>ms</string>
-            </property>
-            <property name="wordWrap">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
         </item>
        </layout>
       </item>
@@ -1510,10 +1397,187 @@
         <property name="sizeHint" stdset="0">
          <size>
           <width>142</width>
-          <height>38</height>
+          <height>18</height>
          </size>
         </property>
        </spacer>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox6_2">
+        <property name="title">
+         <string>ODMR</string>
+        </property>
+        <layout class="QGridLayout" name="_2">
+         <item row="2" column="0">
+          <layout class="QHBoxLayout" name="_7">
+           <item>
+            <widget class="QLabel" name="textLabel_qsw_2_5">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Sat. PW</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="_8">
+             <item>
+              <widget class="QLineEdit" name="m_edODMRSaturationTime">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>32767</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="textLabel_qsw_2_2_3">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>us</string>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="0">
+          <layout class="QHBoxLayout" name="_5">
+           <item>
+            <widget class="QLabel" name="textLabel_qsw_4">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Read Hold</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="_6">
+             <item>
+              <widget class="QLineEdit" name="m_edODMRReadPulseHoldTime">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>32767</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="textLabel_qsw_2_4">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>us</string>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item row="0" column="0">
+          <layout class="QHBoxLayout" name="_3">
+           <item>
+            <widget class="QLabel" name="textLabel_qsw_3">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Read Setup</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="_4">
+             <item>
+              <widget class="QLineEdit" name="m_edODMRReadPulseSetupTime">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>32767</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="textLabel_qsw_1_3">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>us</string>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
       </item>
      </layout>
     </item>
@@ -1522,8 +1586,6 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <pixmapfunction>qPixmapFromMimeSource</pixmapfunction>
- <customwidgets>
- </customwidgets>
  <tabstops>
   <tabstop>m_cmbPhaseCycle</tabstop>
   <tabstop>m_ckbStEPhase</tabstop>
@@ -1563,8 +1625,6 @@
   <tabstop>m_edQAMDelay2</tabstop>
   <tabstop>m_ckbInduceEmission</tabstop>
  </tabstops>
- <includes>
- </includes>
  <resources/>
  <connections/>
 </ui>
