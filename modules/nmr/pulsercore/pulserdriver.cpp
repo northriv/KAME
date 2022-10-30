@@ -147,7 +147,8 @@ XPulser::XPulser(const char *name, bool runtime,
                        "Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
                        "QSW", "Pulse1", "Pulse2", "Comb", "CombFM",
                        "QPSK-A", "QPSK-B", "QPSK-NonInv", "QPSK-Inv",
-                       "QPSK-PS-Gate", "ODMR-Light", "ODMR-Sat"
+                       "QPSK-PS-Gate", "ODMR-Light", "ODMR-Sat",
+                       "ALWAYS H", "ALWAYS L"
                 });
 	//			m_portSel[i]->setUIEnabled(false);
 			}
@@ -681,6 +682,9 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
     unsigned int odmrsatmask = selectedPorts(shot, PORTSEL_ODMR_SATURATION) | odmrlightmask;
     bool odmr_mode = odmrlightmask || odmrsatmask;
 
+    unsigned int alwayshighmask = selectedPorts(shot, PORTSEL_ALWAYS_HIGH);
+    unsigned int alwayslowmask = selectedPorts(shot, PORTSEL_ALWAYS_LOW);
+
 	bool invert_phase__ = shot[ *this].invertPhase();
 
 	//QPSK patterns correspoinding to 0, pi/2, pi, -pi/2
@@ -769,10 +773,10 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 	typedef std::multiset<tpat, std::less<tpat> >::iterator tpatset_it;
     const uint64_t longest_patlen = 24*365*3600*1e3/resolution();
 
-	uint64_t pos = 0;
-            
+	uint64_t pos = 0;    
+
 	int echonum = echo_num__;
-  
+
 	bool former_of_alt = !invert_phase__;
 	for(int i = 0; i < num_phase_cycle__ * (comb_mode_alt ? 2 : 1); i++) {
         int j = (i / (comb_mode_alt ? 2 : 1) + first_phase__) % num_phase_cycle__; //index for phase cycling
@@ -798,6 +802,11 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
       
 		pos += rest;
       
+        if(alwayshighmask)
+            patterns_cheap.insert(tpat(pos, ~(uint32_t)0, alwayshighmask));
+        if(alwayslowmask)
+            patterns_cheap.insert(tpat(pos, 0, alwayslowmask));
+
         uint64_t first_pos = pos;
 		//comb pulses
 		if((p1__ > 0) && !saturation_wo_comb) {
@@ -1146,7 +1155,7 @@ XPulser::setPrefillingSampsBeforeArm(uint64_t cnt) {
 
 void
 XPulser::visualize(const Snapshot &shot) {
-	const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM);
+    const unsigned int blankpattern = selectedPorts(shot, PORTSEL_COMB_FM) | selectedPorts(shot, PORTSEL_ALWAYS_HIGH);
 	try {
         if(hasSoftwareTrigger()) {
             m_threadFreeRun.reset();

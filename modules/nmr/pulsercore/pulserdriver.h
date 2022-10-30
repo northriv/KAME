@@ -227,6 +227,8 @@ protected:
 		  PORTSEL_QPSK_OLD_PSGATE = 15,
           PORTSEL_ODMR_LIGHT = 16,
           PORTSEL_ODMR_SATURATION = 17,
+          PORTSEL_ALWAYS_HIGH = 18,
+          PORTSEL_ALWAYS_LOW = 19,
 		  /*PORTSEL_PAUSING = 17*/};
 	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
