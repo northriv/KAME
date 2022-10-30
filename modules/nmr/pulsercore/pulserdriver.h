@@ -99,7 +99,8 @@ public:
         //! ver 5 records.
         double odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
         double odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
-        double odmrSaturationTime() const {return m_odmrSaturationTime;}
+        double odmrSaturationPW() const {return m_odmrSaturationPW;}
+        double odmrReadTimeOriginShift() const {return m_odmrReadTimeOriginShift;}
 
 	    //! periodic term of one cycle [ms].
 	    double periodicTerm() const;
@@ -152,7 +153,8 @@ public:
         //! ver 5 records for ODMR
         double m_odmrReadPulseSetupTime; //!< [us]
         double m_odmrReadPulseHoldTime; //!< [us]
-        double m_odmrSaturationTime; //!< [us]
+        double m_odmrSaturationPW; //!< [us]
+        double m_odmrReadTimeOriginShift; //!< [us]
 
 	    //! Patterns.
 	    RelPatList m_relPatList;
@@ -189,8 +191,6 @@ public:
     const shared_ptr<XDoubleNode> &p1Level() const {return m_p1Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &p2Level() const {return m_p2Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
-    const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
-    const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
     const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
     const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;} //! < Quadrature Amplitude Modulation. Amplitude compensation factor.
@@ -210,7 +210,8 @@ public:
     }
     const shared_ptr<XDoubleNode> &odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
     const shared_ptr<XDoubleNode> &odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
-    const shared_ptr<XDoubleNode> &odmrSaturationTime() const {return m_odmrSaturationTime;}
+    const shared_ptr<XDoubleNode> &odmrSaturationPW() const {return m_odmrSaturationPW;}
+    const shared_ptr<XDoubleNode> &odmrReadTimeOriginShift() const {return m_odmrReadTimeOriginShift;}
     const shared_ptr<XUIntNode> &firstPhase() const {return m_firstPhase;} //!< 0-3, selects the first phase of QPSK.
 
     //! time resolution [ms]
@@ -298,8 +299,6 @@ private:
     const shared_ptr<XDoubleNode> m_qamDelay1;
     const shared_ptr<XDoubleNode> m_qamDelay2; //!< [us]
     const shared_ptr<XDoubleNode> m_difFreq; //!< [MHz]
-    const shared_ptr<XBoolNode> m_induceEmission; 
-    const shared_ptr<XDoubleNode> m_induceEmissionPhase; 
     const shared_ptr<XDoubleNode> m_qswDelay;
     const shared_ptr<XDoubleNode> m_qswWidth;
     const shared_ptr<XDoubleNode> m_qswSoftSWOff;
@@ -310,7 +309,8 @@ private:
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
     const shared_ptr<XDoubleNode> m_odmrReadPulseSetupTime; //!< [us]
     const shared_ptr<XDoubleNode> m_odmrReadPulseHoldTime; //!< [us]
-    const shared_ptr<XDoubleNode> m_odmrSaturationTime; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrSaturationPW; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrReadTimeOriginShift; //!< [us]
     const shared_ptr<XUIntNode> m_firstPhase; //!< 0-3, selects QPSK for the first cycle.
 
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
