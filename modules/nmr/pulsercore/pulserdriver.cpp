@@ -679,6 +679,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 
     unsigned int odmrlightmask = selectedPorts(shot, PORTSEL_ODMR_LIGHT);
     unsigned int odmrsatmask = selectedPorts(shot, PORTSEL_ODMR_SATURATION) | odmrlightmask;
+    bool odmr_mode = odmrlightmask || odmrsatmask;
 
 	bool invert_phase__ = shot[ *this].invertPhase();
 
@@ -879,6 +880,20 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
         //ODMR reading
         patterns.insert(tpat(pos - odmr_read_setup__, ~(uint32_t)0, odmrlightmask));
         patterns.insert(tpat(pos + odmr_read_hold__, 0, odmrlightmask));
+        if(odmr_mode && pw1__/2) {
+            // pi/2 before PD measurement
+            //on
+            patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, invert_phase__ ? qpskinv[p1[j]] : qpsk[p1[j]], qpskmask));
+            patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
+            patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+            patterns.insert(tpat(pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
+            patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
+            //off
+            patterns.insert(tpat(pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
+            patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
+            patterns.insert(tpat(pos + pw1__/2, 0, pulse1mask));
+            patterns.insert(tpat(pos + pw1__/2, 0, g2mask));
+        }
 
 		//induce emission
 		if(induce_emission__) {
