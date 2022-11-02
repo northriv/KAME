@@ -262,12 +262,10 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     Snapshot &shot_this(tr);
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
-    const shared_ptr<XMotorDriver> rots[] = {rot1__, rot2__};
 
     if(!rot1__ || !rot2__) {
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
-
 
     tr[ *this].currentROT[0] = shot_emitter[ *rot1__->position()->value()];
     tr[ *this].currentROT[1] = shot_others[ *rot2__->position()->value()];
@@ -288,25 +286,18 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
             if(!tr[ *this].isWaitStable){
                 tr[ *this].timeROTChanged = XTime::now();
                 tr[ *this].isWaitStable =  true;
-                msecsleep(50);
             } else if(tr[ *this].isWaitStable && !tr[ *this].isRecorded
                       && XTime::now() - tr[ *this].timeROTChanged > shot_this[ *wait()]){
                 record_step()->value(tr, tr[ *this].currentStep);
                 tr[ *this].timeRecorded = XTime::now();
                 tr[ *this].isRecorded = true;
-                msecsleep(50);
             } else if(tr[ *this].isRecorded && XTime::now() - tr[ *this].timeRecorded > shot_this[ *wait()]){
                 tr[ *this].isWaitStable = false;
                 tr[ *this].isRecorded = false;
                 tr[ *this].currentStep++;
                 if(tr[ *this].currentStep <= shot_this[ *step()]) {
                     for(int i: {0, 1}){
-                        auto rot = rots[i];
                         tr[ *this].targetROT[i] = shot_this[ *this].startROT[i] + shot_this[ *this].deltaROT[i] * shot_this[ *this].currentStep;
-                        rot->iterate_commit([=](Transaction &tr){
-                            tr[ *rot->target()] = shot_this[ *this].targetROT[i];
-                        });
-                        msecsleep(150);
                     }
                 } else {
                      endSweep(tr);
@@ -321,5 +312,18 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 
 void
 XTwoAxis::visualize(const Snapshot &shot_this) {
+    shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
+    shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
+    if(rot1__ || rot2__)
+        return;
+    if( !shot_this[ *running()] || shot_this[ *this].isWaitStable || shot_this[ *this].isRecorded)
+        return;
+    int i = 0;
+    for(auto &rot: {rot1__, rot2__}){
+        rot->iterate_commit([=](Transaction &tr){
+            tr[ *rot->target()] = shot_this[ *this].targetROT[i];
+        });
+        i++;
+    }
 }
 
