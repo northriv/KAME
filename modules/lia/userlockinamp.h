@@ -58,6 +58,24 @@ protected:
 	bool m_currMode;
 };
 
+//! Signal Recovery Model7265 Lock-in Amplifier
+class XSignalRecovery7265 : public XCharDeviceDriver<XLIA> {
+public:
+    XSignalRecovery7265(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+protected:
+    virtual void get(double *cos, double *sin);
+    virtual void changeOutput(double volt);
+    virtual void changeFreq(double freq);
+    virtual void changeSensitivity(int);
+    virtual void changeTimeConst(int);
+
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open();
+    //! Be called for closing interfaces.
+    virtual void closeInterface();
+};
+
 //! Agilent/HP4284A Precision LCR Meter
 class XHP4284A : public XCharDeviceDriver<XLIA> {
 public:

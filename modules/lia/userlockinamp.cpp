@@ -15,6 +15,7 @@
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
+REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery Model7265 lock-in amp.");
 REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
 REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
 REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
@@ -239,6 +240,72 @@ XLI5640::changeTimeConst(int x) {
 void
 XLI5640::changeFreq(double x) {
 	interface()->sendf("FREQ %g", x);
+}
+
+XSignalRecovery7265::XSignalRecovery7265(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XLIA>(name, runtime, ref(tr_meas), meas)  {
+
+    const char *tc[] = {"10us", "20us", "40us", "80us", "160us", "320us", "640us",
+                        "5ms", "10ms", "20ms", "50ms", "100ms", "200ms", "500ms",
+                        "1s", "2s", "5s", "10s", "20s", "50s", "100s", "200s", "500s",
+                        "1ks", "2ks", "5ks", "10ks", "20ks", "50ks", "100ks", ""};
+    const char *sens[] = {"2nV/fA", "5nV/fA", "10nV/fA", "20nV/fA", "50nV/fA", "100nV/fA",
+                          "200nV/fA", "500nV/fA", "1uV/pA", "2uV/pA", "5uV/pA", "10uV/pA", "20uV/pA",
+                          "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
+                          "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
+                          ""};
+    iterate_commit([=](Transaction &tr){
+        for(int i = 0; strlen(tc[i]) > 0; i++) {
+            tr[ *timeConst()].add(tc[i]);
+        }
+        for(int i = 0; strlen(sens[i]) > 0; i++) {
+            tr[ *sensitivity()].add(sens[i]);
+        }
+    });
+    autoScaleX()->disable();
+    autoScaleY()->disable();
+}
+void
+XSignalRecovery7265::get(double *cos, double *sin) {
+    interface()->query("X.");
+    *cos = interface()->toDouble();
+    interface()->query("Y.");
+    *sin = interface()->toDouble();
+}
+void
+XSignalRecovery7265::open() {
+    interface()->query("TC");
+    trans( *timeConst()) = interface()->toInt();
+    interface()->query("SEN");
+    trans( *sensitivity()) = interface()->toInt() - 1;
+    interface()->query("OA.");
+    trans( *output()) = interface()->toDouble();
+    interface()->query("OF.");
+    trans( *frequency()) = interface()->toDouble();
+
+    start();
+}
+void
+XSignalRecovery7265::closeInterface() {
+    XScopedLock<XInterface> lock( *interface());
+    close();
+}
+void
+XSignalRecovery7265::changeOutput(double x) {
+    interface()->sendf("OA. %.6g", x);
+}
+void
+XSignalRecovery7265::changeSensitivity(int x) {
+    interface()->sendf("SEN %d", x + 1);
+}
+void
+XSignalRecovery7265::changeTimeConst(int x) {
+    interface()->sendf("TC %d", x);
+}
+void
+XSignalRecovery7265::changeFreq(double x) {
+    interface()->sendf("OF. %.6g", x);
 }
 
 
