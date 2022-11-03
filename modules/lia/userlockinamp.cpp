@@ -15,7 +15,7 @@
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
-REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery Model7265 lock-in amp.");
+REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery/EG&G Model7265 lock-in amp.");
 REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
 REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
 REGISTER_TYPE(XDriverList, AH2500A, "Andeen-Hagerling 2500A capacitance bridge");
@@ -265,6 +265,12 @@ XSignalRecovery7265::XSignalRecovery7265(const char *name, bool runtime,
     });
     autoScaleX()->disable();
     autoScaleY()->disable();
+    interface()->setEOS("\r\n");
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+    interface()->setSerial7Bits(true);
+    interface()->setGPIBMAVbit(0x80);
 }
 void
 XSignalRecovery7265::get(double *cos, double *sin) {
