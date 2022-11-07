@@ -314,7 +314,7 @@ void
 XTwoAxis::visualize(const Snapshot &shot_this) {
     shared_ptr<XMotorDriver> rot1__ = shot_this[ *rot1()];
     shared_ptr<XMotorDriver> rot2__ = shot_this[ *rot2()];
-    if(rot1__ || rot2__)
+    if( !rot1__ || !rot2__)
         return;
     if( !shot_this[ *running()] || shot_this[ *this].isWaitStable || shot_this[ *this].isRecorded)
         return;
