@@ -281,8 +281,8 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 
 
     if(shot_this[ *running()]) {
-        if(shot_this[ *ready()] && abs(shot_this[ *this].currentROT[0] - shot_this[ *this].targetROT[0]) < 5.0
-               && abs(shot_this[ *this].currentROT[1] - shot_this[ *this].targetROT[1]) < 5.0){
+//        if(shot_this[ *ready()] && abs(shot_this[ *this].currentROT[0] - shot_this[ *this].targetROT[0]) < 5.0
+//               && abs(shot_this[ *this].currentROT[1] - shot_this[ *this].targetROT[1]) < 5.0){
             if(!tr[ *this].isWaitStable){
                 tr[ *this].timeROTChanged = XTime::now();
                 tr[ *this].isWaitStable =  true;
@@ -303,7 +303,7 @@ XTwoAxis::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
                      endSweep(tr);
                 }
             }
-        }
+//        }
         if(XTime::now() - tr[ *this].timeStarted > shot_this[ *timeout()]){
             endSweep(tr);
         }
