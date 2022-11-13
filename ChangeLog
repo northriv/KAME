@@ -1,3 +1,11 @@
+* Sun Nov 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.2-1)
+- NMRPulser: signals for ODMR
+- ThamwayUSB: improved initialization process
+- autotuner: fix bugs after ver5.6
+- twoaxis: Fix for race condition
+- fix compilation with old compilers.
+
 * Mon Oct 17 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8-1)
 - OceanOptics/Seabreeze HR2000+/4000 optical spectromters
