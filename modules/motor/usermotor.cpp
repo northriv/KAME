@@ -240,11 +240,10 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     bool conf_needed = false;
     //electric gear
     {
-//        smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
+        int smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
         int a = 1000;
         int b = shot[ *stepMotor()];
-        if((a != interface()->readHoldingTwoResistors(0x380)) ||
-            (b != interface()->readHoldingTwoResistors(0x382))) {
+        if(b != smotor) {
             conf_needed = true;
             interface()->presetTwoResistors(0x380,  a); //A
             interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
