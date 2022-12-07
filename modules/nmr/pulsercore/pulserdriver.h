@@ -229,8 +229,7 @@ protected:
           PORTSEL_ODMR_LIGHT = 16,
           PORTSEL_ODMR_SATURATION = 17,
           PORTSEL_ALWAYS_HIGH = 18,
-          PORTSEL_ALWAYS_LOW = 19,
-		  /*PORTSEL_PAUSING = 17*/};
+          PORTSEL_ALWAYS_LOW = 19};
 	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
 	unsigned int selectedPorts(const Snapshot &shot, int func) const;

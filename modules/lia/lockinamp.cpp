@@ -146,8 +146,16 @@ XLIA::execute(const atomic<bool> &terminated) {
 		double fetch_freq = ***fetchFreq();
 		double wait = 0;
 		if(fetch_freq > 0) {
-			sscanf(( **timeConst())->to_str().c_str(), "%lf", &wait);
-			wait *= 1000.0 / fetch_freq;
+            std::string tcstr = ( **timeConst())->to_str();
+            sscanf(tcstr.c_str(), "%lf", &wait);
+            if(tcstr.find("ms") != std::string::npos)
+                wait *= 1.0;
+            else if(tcstr.find("us") != std::string::npos)
+                wait *= 1e-3;
+            else
+                wait *= 1e3; //sec as default
+            wait /= std::max(fetch_freq, 0.1);
+            wait = std::min(3000.0, wait); //max 3sec
 		}
 		if(wait > 0) msecsleep(lrint(wait));
       
