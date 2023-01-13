@@ -1,3 +1,10 @@
+* Fri Dec 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.3-1)
+- DAQmxPulser: fix bug happened @5.8.2
+- Signal Recovery 7260 lockin amp
+- LIA: improve wait strategy
+- FlexAR: fix init. issue.
+
 * Sun Nov 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.2-1)
 - NMRPulser: signals for ODMR

@@ -68,18 +68,28 @@ protected:
 private:
 };
 
-//! Agilent 8664A, 8665A
-class XHP8664 : public XCharDeviceDriver<XSG> {
+//! Agilent E44*1B SCPI
+class XAgilentSGSCPI : public XCharDeviceDriver<XSG> {
 public:
-	XHP8664(const char *name, bool runtime,
+    XAgilentSGSCPI(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XHP8664() {}
+    virtual ~XAgilentSGSCPI() {}
 protected:
 	virtual void changeFreq(double mhz);
 	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+private:
+};
+
+//! Agilent 8664A, 8665A
+class XHP8664 : public XAgilentSGSCPI {
+public:
+    XHP8664(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XHP8664() {}
+protected:
 private:
 };
 

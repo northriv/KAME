@@ -20,6 +20,7 @@ REGISTER_TYPE(XDriverList, SG7200, "KENWOOD SG7200 signal generator");
 REGISTER_TYPE(XDriverList, HP8643, "HP/Agilent 8643/8644 signal generator");
 REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
 REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
+REGISTER_TYPE(XDriverList, AgilentSGSCPI, "Keysight/Agilent E44xB signal generator SCPI");
 REGISTER_TYPE(XDriverList, DPL32XGF, "DSTech. DPL-3.2XGF signal generator");
 REGISTER_TYPE(XDriverList, RhodeSchwartzSMLSMV, "Rhode-Schwartz SML01/02/03/SMV03 signal generator");
 
@@ -101,33 +102,40 @@ XHP8648::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("POW:AMPL %f DBM", (double)shot[ *oLevel()]);
 }
 
-XHP8664::XHP8664(const char *name, bool runtime,
+XAgilentSGSCPI::XAgilentSGSCPI(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
-	interface()->setGPIBUseSerialPollOnWrite(false);
+//	interface()->setGPIBUseSerialPollOnWrite(false);
+//	interface()->setGPIBWaitBeforeWrite(10);
+//	interface()->setGPIBWaitBeforeRead(10);
+}
+XHP8664::XHP8664(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XAgilentSGSCPI(name, runtime, ref(tr_meas), meas) {
+    interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(10);
 //	interface()->setGPIBWaitBeforeRead(10);
 }
 void
-XHP8664::changeFreq(double mhz) {
+XAgilentSGSCPI::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
 	interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
-XHP8664::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+XAgilentSGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AMPL:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
 }
 void
-XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+XAgilentSGSCPI::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
 }
 void
-XHP8664::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
+XAgilentSGSCPI::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("FM:STAT %s", shot[ *fmON()] ? "ON" : "OFF");
 }
 void
-XHP8664::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
+XAgilentSGSCPI::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
 }
 
