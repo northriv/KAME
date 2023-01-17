@@ -117,18 +117,26 @@ XHP8664::XHP8664(const char *name, bool runtime,
 //	interface()->setGPIBWaitBeforeRead(10);
 }
 void
+XHP8664::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("AMPL:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+}
+void
+XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
+}
+void
 XAgilentSGSCPI::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
-	interface()->sendf("FREQ:CW %f MHZ", mhz);
+    interface()->sendf("FREQ:CW %f MHZ", mhz);
 	msecsleep(50); //wait stabilization of PLL
 }
 void
 XAgilentSGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AMPL:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
+    interface()->sendf("OUTP:STAT %s", shot[ *rfON()] ? "ON" : "OFF");
 }
 void
 XAgilentSGSCPI::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-	interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
+    interface()->sendf("POW:AMPL %f DBM", (double)shot[ *oLevel()]);
 }
 void
 XAgilentSGSCPI::onFMONChanged(const Snapshot &shot, XValueNodeBase *) {

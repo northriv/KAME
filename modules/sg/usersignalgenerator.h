@@ -90,6 +90,8 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XHP8664() {}
 protected:
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
 private:
 };
 
