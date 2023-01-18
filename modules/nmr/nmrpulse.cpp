@@ -616,7 +616,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         }
     }
     double darknormalize = normalize * normalize;
-    if(bg_after_last_echo)
+    if(bg_off_echotrain)
         darknormalize /= (double)numechoes;
     double *darkpsd( &tr[ *this].m_darkPSD[0]);
     for(int i = 0; i < fftlen; i++) {
