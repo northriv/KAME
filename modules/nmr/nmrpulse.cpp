@@ -257,7 +257,7 @@ void XNMRPulseAnalyzer::backgroundSub(Transaction &tr,
 
     SpectrumSolver &solverPNR(tr[ *m_solverPNR].solver());
     if(bglength) {
-        if(shot[ *usePNR()]) {
+        if(shot[ *usePNR()] && (bgpos > 0)) { //PNR is disabled if bg is before echo train.
             int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
             std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
             for(unsigned int i = 0; i < bglength; i++) {
