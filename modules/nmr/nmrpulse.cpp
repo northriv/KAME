@@ -393,7 +393,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 	if(pos + bgpos >= dso_len) {
 		throw XSkippedRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
 	}
-	if(bgpos < 0) {
+    if(pos + bgpos < 0) {
 		throw XSkippedRecordError(i18n("Position for BG. sub. beyond waveforms."), __FILE__, __LINE__);
 	}
 	int bglength = lrint(shot_this[ *bgWidth()] / 1000 / interval);
