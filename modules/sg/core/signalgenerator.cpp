@@ -24,7 +24,11 @@ XSG::XSG(const char *name, bool runtime,
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),
 	  m_amON(create<XBoolNode>("AMON", true)),
-	  m_form(new FrmSG) {
+      m_amDepth(create<XDoubleNode>("AMDepth", true)),
+      m_fmDepth(create<XDoubleNode>("FMDepth", true)),
+      m_amIntSrcFreq(create<XDoubleNode>("AMIntSrcFreq", true)),
+      m_fmIntSrcFreq(create<XDoubleNode>("FMIntSrcFreq", true)),
+      m_form(new FrmSG) {
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Signal Gen. Control - ") + getLabel() );
 
@@ -36,11 +40,14 @@ XSG::XSG(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_fmON, m_form->m_ckbFMON)
     };
       
-	rfON()->setUIEnabled(false);
-	oLevel()->setUIEnabled(false);
-	freq()->setUIEnabled(false);
-	amON()->setUIEnabled(false);
-	fmON()->setUIEnabled(false);
+    iterate_commit([=](Transaction &tr){
+        std::vector<shared_ptr<XNode>> runtime_ui = {
+            rfON(), oLevel(), freq(), amON(), fmON(),
+            amDepth(), fmDepth(), amIntSrcFreq(), fmIntSrcFreq()
+        };
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
+    });
 }
 void
 XSG::showForms() {
@@ -50,13 +57,13 @@ XSG::showForms() {
 
 void
 XSG::start() {
-	m_rfON->setUIEnabled(true);
-	m_oLevel->setUIEnabled(true);
-	m_freq->setUIEnabled(true);
-	m_amON->setUIEnabled(true);
-	m_fmON->setUIEnabled(true);
-	
 	iterate_commit([=](Transaction &tr){
+        std::vector<shared_ptr<XNode>> runtime_ui = {
+            rfON(), oLevel(), freq(), amON(), fmON(),
+            amDepth(), fmDepth(), amIntSrcFreq(), fmIntSrcFreq()
+        };
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(true);
 		m_lsnRFON = tr[ *rfON()].onValueChanged().connectWeakly(
 			shared_from_this(), &XSG::onRFONChanged);
 		m_lsnOLevel = tr[ *oLevel()].onValueChanged().connectWeakly(
@@ -67,23 +74,37 @@ XSG::start() {
 			shared_from_this(), &XSG::onFMONChanged);
 		m_lsnFreq = tr[ *freq()].onValueChanged().connectWeakly(
 			shared_from_this(), &XSG::onFreqChanged);
+        m_lsnAMDepth = tr[ *amDepth()].onValueChanged().connectWeakly(
+            shared_from_this(), &XSG::onAMDepthChanged);
+        m_lsnFMDepth = tr[ *fmDepth()].onValueChanged().connectWeakly(
+            shared_from_this(), &XSG::onFMDepthChanged);
+        m_lsnAMIntSrcFreq = tr[ *amIntSrcFreq()].onValueChanged().connectWeakly(
+            shared_from_this(), &XSG::onAMIntSrcFreqChanged);
+        m_lsnFMIntSrcFreq = tr[ *fmIntSrcFreq()].onValueChanged().connectWeakly(
+            shared_from_this(), &XSG::onFMIntSrcFreqChanged);
     });
 }
 void
 XSG::stop() {
-	m_rfON->setUIEnabled(false);
-	m_oLevel->setUIEnabled(false);
-	m_freq->setUIEnabled(false);
-	m_amON->setUIEnabled(false);
-	m_fmON->setUIEnabled(false);
+    iterate_commit([=](Transaction &tr){
+        std::vector<shared_ptr<XNode>> runtime_ui = {
+            rfON(), oLevel(), freq(), amON(), fmON(),
+            amDepth(), fmDepth(), amIntSrcFreq(), fmIntSrcFreq()
+        };
+        for(auto &&x: runtime_ui)
+            tr[ *x].setUIEnabled(false);
+    });
 	
 	m_lsnRFON.reset();
 	m_lsnOLevel.reset();
 	m_lsnAMON.reset();
 	m_lsnFMON.reset();
 	m_lsnFreq.reset();
-
-	closeInterface();
+    m_lsnAMDepth.reset();
+    m_lsnFMDepth.reset();
+    m_lsnAMIntSrcFreq.reset();
+    m_lsnFMIntSrcFreq.reset();
+    closeInterface();
 }
 
 void

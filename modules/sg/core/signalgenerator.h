@@ -56,6 +56,10 @@ public:
 	const shared_ptr<XDoubleNode> &oLevel() const {return m_oLevel;} //!< Output Level [dBm]
 	const shared_ptr<XBoolNode> &fmON() const {return m_fmON;} //!< Activate FM
 	const shared_ptr<XBoolNode> &amON() const {return m_amON;} //!< Activate AM
+    const shared_ptr<XDoubleNode> &amDepth() const {return m_amDepth;} //!< [%]
+    const shared_ptr<XDoubleNode> &fmDepth() const {return m_fmDepth;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &amIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
+    const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
 protected:
 	virtual void changeFreq(double mhz) = 0;
 	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -63,6 +67,10 @@ protected:
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
 
 	const shared_ptr<XBoolNode> m_rfON;
@@ -70,9 +78,11 @@ private:
 	const shared_ptr<XDoubleNode> m_oLevel;
 	const shared_ptr<XBoolNode> m_fmON;
 	const shared_ptr<XBoolNode> m_amON;
-  
+    const shared_ptr<XDoubleNode> m_amDepth, m_fmDepth;
+    const shared_ptr<XDoubleNode> m_amIntSrcFreq, m_fmIntSrcFreq;
+
     std::deque<xqcon_ptr> m_conUIs;
-    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
+    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON, m_lsnAMDepth, m_lsnFMDepth, m_lsnAMIntSrcFreq, m_lsnFMIntSrcFreq;
   
 	const qshared_ptr<FrmSG> m_form;
 };//---------------------------------------------------------------------------

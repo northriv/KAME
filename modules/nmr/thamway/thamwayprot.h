@@ -81,6 +81,10 @@ protected:
     virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
     //! PROT features below
     virtual void onRXGainChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);

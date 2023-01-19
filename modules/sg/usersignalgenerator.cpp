@@ -29,6 +29,10 @@ XSG7200::XSG7200(const char *name, bool runtime,
     : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
+    amDepth()->disable();
+    fmDepth()->disable();
+    amIntSrcFreq()->disable();
+    fmIntSrcFreq()->disable();
 }
 XSG7130::XSG7130(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -62,6 +66,10 @@ XHP8643::XHP8643(const char *name, bool runtime,
 	interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(10);
 //	interface()->setGPIBWaitBeforeRead(10);
+    amDepth()->disable();
+    fmDepth()->disable();
+    amIntSrcFreq()->disable();
+    fmIntSrcFreq()->disable();
 }
 void
 XHP8643::changeFreq(double mhz) {
@@ -146,6 +154,22 @@ void
 XAgilentSGSCPI::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 	interface()->sendf("AM:STAT %s", shot[ *amON()] ? "ON" : "OFF");
 }
+void
+XAgilentSGSCPI::onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("AM:DEPTH %f %%", (double)shot[ *amDepth()]);
+}
+void
+XAgilentSGSCPI::onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("FM:DEPTH %f MHZ", (double)shot[ *fmDepth()]);
+}
+void
+XAgilentSGSCPI::onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("AM:INT:FREQ %f KHZ", (double)shot[ *amIntSrcFreq()]);
+}
+void
+XAgilentSGSCPI::onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("FM:INT:FREQ %f KHZ", (double)shot[ *fmIntSrcFreq()]);
+}
 
 XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -156,6 +180,10 @@ XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
 	interface()->setSerialFlushBeforeWrite(true);
     amON()->disable();
     fmON()->disable();
+    amDepth()->disable();
+    fmDepth()->disable();
+    amIntSrcFreq()->disable();
+    fmIntSrcFreq()->disable();
 }
 void
 XDPL32XGF::changeFreq(double mhz) {
@@ -185,6 +213,10 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
 	interface()->setSerialBaudRate(9600);
 	interface()->setSerialStopBits(1);
 	interface()->setSerialFlushBeforeWrite(true);
+    amDepth()->disable();
+    fmDepth()->disable();
+    amIntSrcFreq()->disable();
+    fmIntSrcFreq()->disable();
 
 }
 void
