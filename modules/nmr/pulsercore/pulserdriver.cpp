@@ -828,7 +828,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				cpos -= comb_pw__/2;
 				if(g2_each__ || (k == 0))
 					patterns_cheap.insert(tpat(cpos - g2_setup__, g2mask, g2mask));
-                patterns_cheap.insert(tpat(cpos, ~(uint32_t)0, g1mask));
+                if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement
+                    patterns_cheap.insert(tpat(cpos, ~(uint32_t)0, g1mask));
                 patterns_cheap.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
 				cpos += comb_pw__;
                 patterns_cheap.insert(tpat(cpos, 0 , g1mask));
@@ -862,7 +863,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, trig2mask));
 			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
 			patterns.insert(tpat(pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
+            if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement w/o MW
+                patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
 			//off
 			patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
 			patterns.insert(tpat(pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
@@ -904,13 +906,16 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				}
 
 				patterns.insert(tpat(pos - pw2__/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-				patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
+                if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement w/o MW
+                    patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
 				//off
 				patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
 				patterns.insert(tpat(pos + pw2__/2, 0, g1mask));
 				patterns.insert(tpat(pos + pw2__/2, 0, pulse2mask));
-				patterns.insert(tpat(pos + pw2__/2, 0, g2mask));
-				g2_kept_p1p2 = false;
+                if( !odmr_mode || !pw1__/2) {
+                    patterns.insert(tpat(pos + pw2__/2, 0, g2mask));
+                    g2_kept_p1p2 = false;
+                }
 				//QSW
 				patterns.insert(tpat(pos + pw2__/2 + qsw_delay__, ~(uint32_t)0 , qswmask));
 				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__/2 - qsw_softswoff__/2), 0 , qswmask));
@@ -918,8 +923,6 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				patterns.insert(tpat(pos + pw2__/2 + (qsw_delay__ + qsw_width__), 0 , qswmask));
 			}
 		}
-		if(g2_kept_p1p2)
-			throw XDriver::XRecordError("Inconsistent pattern of pulser setup.", __FILE__, __LINE__);
 
         patterns_cheap.insert(tpat(pos + tau__ + asw_hold__, 0, aswmask | trig1mask));
 
@@ -930,16 +933,25 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
         if(odmr_mode && pw1__/2) {
             // pi/2 MW before PD measurement
             //on
-            patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, qpsk[odmr_preadout[j]], qpskmask));
-            patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
-            patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+            if( !g2_kept_p1p2) {
+                patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, qpsk[odmr_preadout[j]], qpskmask));
+                patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
+                patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
+            }
             patterns.insert(tpat(odmr_read_pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-            patterns.insert(tpat(odmr_read_pos - pw1__/2, ~(uint32_t)0, g1mask));
+            if(!invert_phase__) //if else, ODMR background measurement w/o MW
+                patterns.insert(tpat(odmr_read_pos - pw1__/2, ~(uint32_t)0, g1mask));
             //off
             patterns.insert(tpat(odmr_read_pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));
             patterns.insert(tpat(odmr_read_pos + pw1__/2, 0, g1mask));
             patterns.insert(tpat(odmr_read_pos + pw1__/2, 0, pulse1mask));
             patterns.insert(tpat(odmr_read_pos + pw1__/2, 0, g2mask));
+            g2_kept_p1p2 = false;
+        }
+
+        if(g2_kept_p1p2) {
+            patterns.insert(tpat(pos, 0, g2mask)); //when pw2 == 0
+            g2_kept_p1p2 = false;
         }
 
 		if(driven_equilibrium) {
@@ -950,7 +962,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 			patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, ~(uint32_t)0, g2mask));
 			patterns_cheap.insert(tpat(pos - pw2__/2 - g2_setup__, ~(uint32_t)0, pulse2mask));
 			patterns.insert(tpat(pos - pw2__/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-			patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
+            patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
 			//off
 			patterns.insert(tpat(pos + pw2__/2, 0, pulse2mask));
 			patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
