@@ -37,7 +37,11 @@ XSG::XSG(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_oLevel, m_form->m_edOLevel),
         xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq),
         xqcon_create<XQToggleButtonConnector>(m_amON, m_form->m_ckbAMON),
-        xqcon_create<XQToggleButtonConnector>(m_fmON, m_form->m_ckbFMON)
+        xqcon_create<XQToggleButtonConnector>(m_fmON, m_form->m_ckbFMON),
+        xqcon_create<XQLineEditConnector>(m_amDepth, m_form->m_edAMDepth),
+        xqcon_create<XQLineEditConnector>(m_fmDepth, m_form->m_edFMDepth),
+        xqcon_create<XQLineEditConnector>(m_amIntSrcFreq, m_form->m_edAMIntSrcFreq),
+        xqcon_create<XQLineEditConnector>(m_fmIntSrcFreq, m_form->m_edFMIntSrcFreq),
     };
       
     iterate_commit([=](Transaction &tr){
