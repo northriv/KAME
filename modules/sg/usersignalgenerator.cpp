@@ -30,7 +30,7 @@ XSG7200::XSG7200(const char *name, bool runtime,
 	interface()->setGPIBUseSerialPollOnWrite(false);
 	interface()->setGPIBUseSerialPollOnRead(false);
     amDepth()->disable();
-    fmDepth()->disable();
+    fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
 }
@@ -67,7 +67,7 @@ XHP8643::XHP8643(const char *name, bool runtime,
 //	interface()->setGPIBWaitBeforeWrite(10);
 //	interface()->setGPIBWaitBeforeRead(10);
     amDepth()->disable();
-    fmDepth()->disable();
+    fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
 }
@@ -159,8 +159,8 @@ XAgilentSGSCPI::onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->sendf("AM:DEPTH %f %%", (double)shot[ *amDepth()]);
 }
 void
-XAgilentSGSCPI::onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf("FM:DEPTH %f MHZ", (double)shot[ *fmDepth()]);
+XAgilentSGSCPI::onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf("FM:DEV %f MHZ", (double)shot[ *fmDev()]);
 }
 void
 XAgilentSGSCPI::onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -181,7 +181,7 @@ XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
     amON()->disable();
     fmON()->disable();
     amDepth()->disable();
-    fmDepth()->disable();
+    fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
 }
@@ -214,7 +214,7 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
 	interface()->setSerialStopBits(1);
 	interface()->setSerialFlushBeforeWrite(true);
     amDepth()->disable();
-    fmDepth()->disable();
+    fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
 
