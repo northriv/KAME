@@ -59,7 +59,7 @@ public:
     const shared_ptr<XDoubleNode> &amDepth() const {return m_amDepth;} //!< [%]
     const shared_ptr<XDoubleNode> &fmDev() const {return m_fmDev;} //!< [MHz]
     const shared_ptr<XDoubleNode> &amIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
-    const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
+    const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_fmIntSrcFreq;} //!< freq [kHz]
 protected:
 	virtual void changeFreq(double mhz) = 0;
 	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
