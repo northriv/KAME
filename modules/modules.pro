@@ -35,11 +35,11 @@ SUBDIRS += testdriver\
     qd\
     gauge\
     pumpcontroller\
+    opticscore\
+    optics\
     twoaxis
 
 unix: SUBDIRS +=    montecarlo\
-        opticscore\
-        optics
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
