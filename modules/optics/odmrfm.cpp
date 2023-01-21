@@ -87,8 +87,6 @@ bool XODMRFMControl::checkDependency(const Snapshot &shot_this,
     const shared_ptr<XLIA> lia__ = shot_this[ *lia()];
     if (emitter != lia__.get())
         return false;
-//    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
-//        return false;
     return true;
 }
 void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
@@ -113,7 +111,9 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].m_accum_arg = 0.0;
         tr[ *this].m_accum_arg_sq = 0.0;
     }
-    int numread = (int)shot_this[ *this].m_accumCounts - countsToBeIgnored;
+    int numread = shot_this[ *this].m_accumCounts - (int)countsToBeIgnored;
+    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
+        throw XSkippedRecordError(__FILE__, __LINE__);
     if(numread < shot_this[ *numReadings()]) {
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
