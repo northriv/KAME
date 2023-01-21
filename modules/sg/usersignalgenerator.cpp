@@ -156,7 +156,7 @@ XAgilentSGSCPI::onAMONChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 void
 XAgilentSGSCPI::onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf("AM:DEPTH %f %%", (double)shot[ *amDepth()]);
+    interface()->sendf("AM:DEPTH %f", (double)shot[ *amDepth()]);
 }
 void
 XAgilentSGSCPI::onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) {
