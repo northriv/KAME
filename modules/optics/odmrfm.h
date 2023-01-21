@@ -53,15 +53,18 @@ public:
         double freq() const {return m_freq;}
         //! [T]
         double tesla() const {return m_tesla;}
-	private:
+        //! [T]
+        double fmIntens() const {return m_fmIntens;}
+    private:
         friend class XODMRFMControl;
-        double m_freq, m_tesla;
+        double m_freq, m_tesla, m_fmIntens;
         std::complex<double> m_accum;
         int m_accumCounts;
     };
   
     const shared_ptr<XScalarEntry> &entryFreq() const {return m_entryFreq;}
     const shared_ptr<XScalarEntry> &entryTesla() const {return m_entryTesla;}
+    const shared_ptr<XScalarEntry> &entryTeslaErr() const {return m_entryTeslaErr;}
     const shared_ptr<XScalarEntry> &entryFMIntens() const {return m_entryFMIntens;}
 
     const shared_ptr<XItemNode<XDriverList, XSG> > &sg() const {return m_sg;}
@@ -77,6 +80,7 @@ public:
 private:
     const shared_ptr<XScalarEntry> m_entryFreq;
     const shared_ptr<XScalarEntry> m_entryTesla;
+    const shared_ptr<XScalarEntry> m_entryTeslaErr;
     const shared_ptr<XScalarEntry> m_entryFMIntens;
 
     const shared_ptr<XItemNode<XDriverList, XSG> > m_sg;

@@ -28,323 +28,64 @@ XODMRFMControl::XODMRFMControl(const char *name, bool runtime,
             dynamic_pointer_cast<XDriver>(shared_from_this()))),
         m_entryTesla(create<XScalarEntry>("Tesla", false,
             dynamic_pointer_cast<XDriver>(shared_from_this()))),
+        m_entryTeslaErr(create<XScalarEntry>("TeslaErr", false,
+            dynamic_pointer_cast<XDriver>(shared_from_this()))),
+        m_entryFMIntens(create<XScalarEntry>("FMIntens", false,
+            dynamic_pointer_cast<XDriver>(shared_from_this()))),
         m_sg(create<XItemNode<XDriverList, XSG> >("SG", false, ref(tr_meas), meas->drivers(), true)),
         m_lia(create<XItemNode<XDriverList, XLIA> >("LIA", false, ref(tr_meas), meas->drivers(), true)),
-        m_fftPos(create<XDoubleNode>("FFTPos", false)),
-        m_fftLen(create<XUIntNode>("FFTLen", false)),
-        m_form(new FrmODMRFMControl) {
-    m_form->m_btnAvgClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
-    m_form->m_btnSpectrum->setIcon( *g_pIconGraph);
+        m_gamma2pi(create<XDoubleNode>("Gamma2pi", false)),
+        m_fmIntensRequired(create<XDoubleNode>("Gamma2pi", false)),
+        m_numReadings(create<XUIntNode>("NumReadings", false)),
+        m_form(new FrmODMRFM) {
 
-    connect(dso());
-    connect(pulser());
+    connect(sg());
+    connect(lia());
 
-    meas->scalarEntries()->insert(tr_meas, entryPeakAbs());
-    meas->scalarEntries()->insert(tr_meas, entryPeakFreq());
+    meas->scalarEntries()->insert(tr_meas, entryFreq());
+    meas->scalarEntries()->insert(tr_meas, entryTesla());
+    meas->scalarEntries()->insert(tr_meas, entryTeslaErr());
+    meas->scalarEntries()->insert(tr_meas, entryFMIntens());
 
     iterate_commit([=](Transaction &tr){
-        tr[ *m_pnrSolverList].str(XString(SpectrumSolverWrapper::SPECTRUM_SOLVER_LS_MDL));
-        tr[ *fromTrig()] = -0.005;
-        tr[ *width()] = 0.02;
-        tr[ *bgPos()] = 0.03;
-        tr[ *bgWidth()] = 0.03;
-        tr[ *fftPos()] = 0.004;
-        tr[ *fftLen()] = 16384;
-        tr[ *numEcho()] = 1;
-        tr[ *windowFunc()].str(XString(SpectrumSolverWrapper::WINDOW_FUNC_DEFAULT));
-        tr[ *windowWidth()] = 100.0;
-        tr[ *voltLimit()] = 1.5;
+        tr[ *gamma2pi()] = 28024.95142; //g=2.002319
+        tr[ *fmIntensRequired()] = 0.1;
+        tr[ *numReadings()] = 20;
     });
 
-    m_form->setWindowTitle(i18n("NMR Pulse - ") + getLabel() );
-
-    m_spectrumForm->setWindowTitle(i18n("NMR-Spectrum - ") + getLabel() );
-
-    //Ranges should be preset in prior to connectors.
-    m_form->m_dblWindowWidth->setRange(3.0, 200.0);
-    m_form->m_dblWindowWidth->setSingleStep(1.0);
-    m_form->m_numExtraAvg->setRange(0, 100000);
-    m_form->m_dblPhaseAdv->setRange(-180.0, 180.0);
-    m_form->m_dblPhaseAdv->setSingleStep(10.0);
+    m_form->setWindowTitle(i18n("ODMR peak tracker by FM - ") + getLabel() );
 
     m_conUIs = {
-        xqcon_create<XQButtonConnector>(m_avgClear, m_form->m_btnAvgClear),
-        xqcon_create<XQButtonConnector>(m_spectrumShow, m_form->m_btnSpectrum),
-        xqcon_create<XQLineEditConnector>(fromTrig(), m_form->m_edPos),
-        xqcon_create<XQLineEditConnector>(width(), m_form->m_edWidth),
-        xqcon_create<XQDoubleSpinBoxConnector>(phaseAdv(), m_form->m_dblPhaseAdv, m_form->m_slPhaseAdv),
-        xqcon_create<XQToggleButtonConnector>(usePNR(), m_form->m_ckbPNR),
-        xqcon_create<XQComboBoxConnector>(pnrSolverList(), m_form->m_cmbPNRSolver, Snapshot( *pnrSolverList())),
-        xqcon_create<XQComboBoxConnector>(solverList(), m_form->m_cmbSolver, Snapshot( *solverList())),
-        xqcon_create<XQLineEditConnector>(bgPos(), m_form->m_edBGPos),
-        xqcon_create<XQLineEditConnector>(bgWidth(), m_form->m_edBGWidth),
-        xqcon_create<XQLineEditConnector>(fftPos(), m_form->m_edFFTPos),
-        xqcon_create<XQLineEditConnector>(fftLen(), m_form->m_edFFTLen),
-        xqcon_create<XQSpinBoxUnsignedConnector>(extraAvg(), m_form->m_numExtraAvg),
-        xqcon_create<XQToggleButtonConnector>(exAvgIncr(), m_form->m_ckbIncrAvg),
-        xqcon_create<XQSpinBoxUnsignedConnector>(numEcho(), m_form->m_numEcho),
-        xqcon_create<XQLineEditConnector>(echoPeriod(), m_form->m_edEchoPeriod),
-        xqcon_create<XQComboBoxConnector>(windowFunc(),	m_form->m_cmbWindowFunc, Snapshot( *windowFunc())),
-        xqcon_create<XQDoubleSpinBoxConnector>(windowWidth(), m_form->m_dblWindowWidth, m_form->m_slWindowWIdth),
-        xqcon_create<XQLineEditConnector>(difFreq(), m_form->m_edDIFFreq),
-        xqcon_create<XQLineEditConnector>(voltLimit(), m_form->m_edVoltLimit),
-        xqcon_create<XQToggleButtonConnector>(m_picEnabled, m_form->m_ckbPICEnabled),
-        xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
-        xqcon_create<XQComboBoxConnector>(dso(), m_form->m_cmbDSO, ref(tr_meas))
+        xqcon_create<XQLineEditConnector>(m_gamma2pi, m_form->m_gamma2pi),
+        xqcon_create<XQLineEditConnector>(m_fmIntensRequired, m_form->m_fmIntensRequired),
+        xqcon_create<XQSpinBoxUnsignedConnector>(numReadings(), m_form->m_numReadings),
     };
 
-    waveGraph()->iterate_commit([=](Transaction &tr){
-        const char *labels[] = { "Time [ms]", "IFFT Re [V]", "IFFT Im [V]", "DSO CH1[V]", "DSO CH2[V]"};
-        tr[ *waveGraph()].setColCount(5, labels);
-        tr[ *waveGraph()].insertPlot(labels[1], 0, 1);
-        tr[ *waveGraph()].insertPlot(labels[2], 0, 2);
-        tr[ *waveGraph()].insertPlot(labels[3], 0, 3);
-        tr[ *waveGraph()].insertPlot(labels[4], 0, 4);
-        tr[ *tr[ *waveGraph()].axisy()->label()] = i18n("Intens. [V]");
-        tr[ *tr[ *waveGraph()].plot(0)->label()] = i18n("IFFT Re.");
-        tr[ *tr[ *waveGraph()].plot(0)->drawPoints()] = false;
-//        tr[ *tr[ *waveGraph()].plot(0)->lineColor()] = QColor(0xcc, 0x00, 0x80).rgb();
-        tr[ *tr[ *waveGraph()].plot(0)->intensity()] = 2.0;
-        tr[ *tr[ *waveGraph()].plot(1)->label()] = i18n("IFFT Im.");
-        tr[ *tr[ *waveGraph()].plot(1)->drawPoints()] = false;
-        tr[ *tr[ *waveGraph()].plot(1)->intensity()] = 2.0;
-//        tr[ *tr[ *waveGraph()].plot(1)->lineColor()] = QColor(0x00, 170, 0x00).rgb();
-        tr[ *tr[ *waveGraph()].plot(2)->label()] = i18n("DSO CH1");
-        tr[ *tr[ *waveGraph()].plot(2)->drawPoints()] = false;
-        tr[ *tr[ *waveGraph()].plot(2)->lineColor()] = QColor(0xff, 0xa0, 0x00).rgb();
-        tr[ *tr[ *waveGraph()].plot(2)->intensity()] = 0.4;
-        tr[ *tr[ *waveGraph()].plot(3)->label()] = i18n("DSO CH2");
-        tr[ *tr[ *waveGraph()].plot(3)->drawPoints()] = false;
-        tr[ *tr[ *waveGraph()].plot(3)->lineColor()] = QColor(0x9a, 0x68, 0xff).rgb();
-        tr[ *tr[ *waveGraph()].plot(3)->intensity()] = 0.4;
-        tr[ *waveGraph()->graph()->persistence()] = 0.0;
-        tr[ *waveGraph()].clearPoints();
-    });
-    ftWaveGraph()->iterate_commit([=](Transaction &tr){
-        const char *labels[] = { "Freq. [kHz]", "Re. [V]", "Im. [V]",
-            "Abs. [V]", "Phase [deg]", "Dark. [V]" };
-        tr[ *ftWaveGraph()].setColCount(6, labels);
-        tr[ *ftWaveGraph()].insertPlot(labels[3], 0, 3);
-        tr[ *ftWaveGraph()].insertPlot(labels[4], 0, -1, 4);
-        tr[ *ftWaveGraph()].insertPlot(labels[5], 0, 5);
-        tr[ *tr[ *ftWaveGraph()].axisy()->label()] = i18n("Intens. [V]");
-        tr[ *tr[ *ftWaveGraph()].plot(0)->label()] = i18n("abs.");
-//        tr[ *tr[ *ftWaveGraph()].plot(0)->lineColor()] = clRed;
-//        tr[ *tr[ *ftWaveGraph()].plot(0)->barColor()] = QColor(0xa0, 0x00, 0x00).rgb();
-        tr[ *tr[ *ftWaveGraph()].plot(0)->drawBars()] = true;
-        tr[ *tr[ *ftWaveGraph()].plot(0)->drawLines()] = true;
-        tr[ *tr[ *ftWaveGraph()].plot(0)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(0)->intensity()] = 0.8;
-        tr[ *tr[ *ftWaveGraph()].plot(1)->label()] = i18n("phase");
-        tr[ *tr[ *ftWaveGraph()].plot(1)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(1)->intensity()] = 0.8;
-        tr[ *tr[ *ftWaveGraph()].plot(2)->label()] = i18n("dark");
-        tr[ *tr[ *ftWaveGraph()].plot(2)->drawBars()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(2)->drawLines()] = true;
-        tr[ *tr[ *ftWaveGraph()].plot(2)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
-        tr[ *tr[ *ftWaveGraph()].plot(2)->drawPoints()] = false;
-        tr[ *tr[ *ftWaveGraph()].plot(2)->intensity()] = 0.8;
-        tr[ *ftWaveGraph()->graph()->persistence()] = 0.0;
-        {
-            shared_ptr<XXYPlot> plot = ftWaveGraph()->graph()->plots()->create<XXYPlot>(
-                tr, "Peaks", true, tr, ftWaveGraph()->graph());
-            m_peakPlot = plot;
-            tr[ *plot->label()] = i18n("Peaks");
-            tr[ *plot->axisX()] = tr[ *ftWaveGraph()].axisx();
-            tr[ *plot->axisY()] = tr[ *ftWaveGraph()].axisy();
-            tr[ *plot->drawPoints()] = false;
-            tr[ *plot->drawLines()] = false;
-            tr[ *plot->drawBars()] = true;
-            tr[ *plot->intensity()] = 1.0;
-            tr[ *plot->displayMajorGrid()] = false;
-            tr[ *plot->pointColor()] = clWhite; //QColor(0x40, 0x40, 0xa0).rgb();
-            tr[ *plot->barColor()] = QColor(0xf0, 0xf0, 0xc0).rgb(); //QColor(0x40, 0x40, 0xa0).rgb();
-            tr[ *plot->clearPoints()].setUIEnabled(false);
-            tr[ *plot->maxCount()].setUIEnabled(false);
-        }
-        tr[ *ftWaveGraph()].clearPoints();
-    });
 
-    iterate_commit([=](Transaction &tr){
-        m_lsnOnAvgClear = tr[ *m_avgClear].onTouch().connectWeakly(
-            shared_from_this(), &XODMRFMControl::onAvgClear);
-        m_lsnOnSpectrumShow = tr[ *m_spectrumShow].onTouch().connectWeakly(
-            shared_from_this(), &XODMRFMControl::onSpectrumShow,
-            Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
-
-        m_lsnOnCondChanged = tr[ *fromTrig()].onValueChanged().connectWeakly(
-            shared_from_this(), &XODMRFMControl::onCondChanged);
-        tr[ *width()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *phaseAdv()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *usePNR()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *pnrSolverList()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *solverList()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *bgPos()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *bgWidth()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *fftPos()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *fftLen()].onValueChanged().connect(m_lsnOnCondChanged);
-        //	extraAvg()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *exAvgIncr()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *numEcho()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *echoPeriod()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *windowFunc()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *windowWidth()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *difFreq()].onValueChanged().connect(m_lsnOnCondChanged);
-    });
 }
 XODMRFMControl::~XODMRFMControl() {
 }
-void XODMRFMControl::onSpectrumShow(const Snapshot &shot, XTouchableNode *) {
-    m_spectrumForm->showNormal();
-    m_spectrumForm->raise();
-}
-void XODMRFMControl::showForms() {
-    m_form->showNormal();
-    m_form->raise();
-}
 
-void XODMRFMControl::backgroundSub(Transaction &tr,
-    std::vector<std::complex<double> > &wave,
-    int pos, int length, int bgpos, int bglength) {
-    Snapshot &shot(tr);
 
-    std::complex<double> bg = 0;
-    if(bglength) {
-        double normalize = 0.0;
-        for(int i = 0; i < bglength; i++) {
-            double z = 1.0;
-            if( !shot[ *usePNR()])
-                z = FFT::windowFuncHamming( (double)i / bglength - 0.5);
-            bg += z * wave[pos + i + bgpos];
-            normalize += z;
-        }
-        bg /= normalize;
-    }
-
-    for(int i = 0; i < wave.size(); i++) {
-        wave[i] -= bg;
-    }
-
-    SpectrumSolver &solverPNR(tr[ *m_solverPNR].solver());
-    if(bglength) {
-        if(shot[ *usePNR()] && (bgpos > 0)) { //PNR is disabled if bg is before echo train.
-            int dnrlength = FFT::fitLength((bglength + bgpos) * 4);
-            std::vector<std::complex<double> > memin(bglength), memout(dnrlength);
-            for(unsigned int i = 0; i < bglength; i++) {
-                memin[i] = wave[pos + i + bgpos];
-            }
-            try {
-                solverPNR.exec(memin, memout, bgpos, 0.5e-2, &FFT::windowFuncRect, 1.0);
-                int imax = std::min((int)wave.size() - pos, (int)memout.size());
-                for(unsigned int i = 0; i < imax; i++) {
-                    wave[i + pos] -= solverPNR.ifft()[i];
-                }
-            }
-            catch (XKameError &e) {
-                e.print();
-//				throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
-            }
-        }
-    }
-}
-void XODMRFMControl::rotNFFT(Transaction &tr, int ftpos, double ph,
-    std::vector<std::complex<double> > &wave,
-    std::vector<std::complex<double> > &ftwave) {
-    Snapshot &shot(tr);
-
-    int length = wave.size();
-    //phase advance
-    std::complex<double> cph(std::polar(1.0, ph));
-    for(int i = 0; i < length; i++) {
-        wave[i] *= cph;
-    }
-
-    int fftlen = ftwave.size();
-    //fft
-    std::vector<std::complex<double> > fftout(fftlen);
-    SpectrumSolver &solver(tr[ *m_solver].solver());
-    FFT::twindowfunc wndfunc = m_solver->windowFunc(shot);
-    double wndwidth = shot[ *windowWidth()] / 100.0;
-    try {
-        solver.exec(wave, fftout, -ftpos, 0.3e-2, wndfunc, wndwidth);
-    }
-    catch (XKameError &e) {
-        throw XSkippedRecordError(e.msg(), __FILE__, __LINE__);
-    }
-
-    std::copy(fftout.begin(), fftout.end(), ftwave.begin());
-
-    if(solver.isFT()) {
-        std::vector<double> weight;
-        SpectrumSolver::window(length, -ftpos, wndfunc, wndwidth, weight);
-        double w = 0;
-        for(int i = 0; i < length; i++)
-            w += weight[i] * weight[i];
-        tr[ *this].m_ftWavePSDCoeff = w/(double)length;
-    }
-    else {
-        tr[ *this].m_ftWavePSDCoeff = 1.0;
-    }
-}
-void XODMRFMControl::onAvgClear(const Snapshot &shot, XTouchableNode *) {
-    trans( *this).m_timeClearRequested = XTime::now();
-
-    Snapshot shot_this( *this);
-    requestAnalysis();
-
-    const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
-    if(dso__)
-        trans( *dso__->restart()).touch(); //Restart averaging in DSO.
-}
-void XODMRFMControl::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
-    if(node == exAvgIncr().get())
-        trans( *extraAvg()) = 0;
-    if((node == numEcho().get()) || (node == difFreq().get()) || (node == exAvgIncr().get()))
-        onAvgClear(shot, avgClear().get());
-    else
-        requestAnalysis();
-}
 bool XODMRFMControl::checkDependency(const Snapshot &shot_this,
     const Snapshot &shot_emitter, const Snapshot &shot_others,
     XDriver *emitter) const {
-    const shared_ptr<XPulser> pulse__ = shot_this[ *pulser()];
-    if (emitter == pulse__.get())
+    const shared_ptr<XSG> sg__ = shot_this[ *sg()];
+    if( !sg__)
         return false;
-    const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
-    if( !dso__)
-        return false;
-    //    //Request for clear.
-    //    if(m_timeClearRequested > dso__->timeAwared()) return true;
-    //    if(pulse__ && (dso__->timeAwared() < pulse__->time())) return false;
-    return true;
+    const shared_ptr<XLIA> lia__ = shot_this[ *lia()];
+    if (emitter == lia__.get())
+        return true;
+    return false;
 }
 void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
     const Snapshot &shot_others,
     XDriver *emitter) {
     const Snapshot &shot_this(tr);
-    const shared_ptr<XDSO> dso__ = shot_this[ *dso()];
-    assert(dso__);
+    const shared_ptr<XLIA> lia__ = shot_this[ *lia()];
+    assert(lia__);
+    const shared_ptr<XSG> sg__ = shot_this[ *sg()];
 
-    const Snapshot &shot_dso((emitter == dso__.get()) ? shot_emitter : shot_others);
-    assert(shot_dso[ *dso__].time() );
-
-    if(shot_dso[ *dso__].numChannels() < 1) {
-        throw XSkippedRecordError(i18n("No record in DSO"), __FILE__, __LINE__);
-    }
-    if(shot_dso[ *dso__].numChannels() < 2) {
-        throw XSkippedRecordError(i18n("Two channels needed in DSO"), __FILE__, __LINE__);
-    }
-    if( !shot_dso[ *dso__->singleSequence()]) {
-        m_statusPrinter->printWarning(i18n("Use sequential average in DSO."));
-    }
-    int dso_len = shot_dso[ *dso__].length();
-
-    double interval = shot_dso[ *dso__].timeInterval(); //[sec.]
-    if (interval <= 0) {
-        throw XSkippedRecordError(i18n("Invalid time interval in waveforms."), __FILE__, __LINE__);
-    }
-    int pos = lrint(shot_this[ *fromTrig()] *1e-3 / interval + shot_dso[ *dso__].trigPos());
-    double starttime = (pos - shot_dso[ *dso__].trigPos()) * interval;
     if(pos >= dso_len) {
         throw XSkippedRecordError(i18n("Position beyond waveforms."), __FILE__, __LINE__);
     }
