@@ -101,8 +101,9 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].m_accumCounts = 0;
     else
         tr[ *this].m_accumCounts++;
+    unsigned int numread = shot_this[ *this].m_accumCounts;
     unsigned int countsToBeIgnored = shot_this[ *numReadings()] / 2 + 1; //transient data after SG change
-    if(shot_this[ *this].m_accumCounts > countsToBeIgnored) {
+    if(numread > countsToBeIgnored) {
         std::complex<double> z{shot_emitter[ *lia__].x(), shot_emitter[ *lia__].y()};
         tr[ *this].m_accum += z;
         double phase = shot_emitter[ *lia__].phase();
@@ -114,8 +115,7 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *this].m_accum_arg = 0.0;
         tr[ *this].m_accum_arg_sq = 0.0;
     }
-    int numread = (int)shot_this[ *this].m_accumCounts - countsToBeIgnored;
-    if(numread < shot_this[ *numReadings()]) {
+    if(numread < countsToBeIgnored + shot_this[ *numReadings()]) {
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
     tr[ *this].m_accumCounts = 0;
