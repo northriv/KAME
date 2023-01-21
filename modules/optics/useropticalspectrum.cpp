@@ -15,6 +15,9 @@
 #include "charinterface.h"
 #include "analyzer.h"
 
+#if defined USE_OCEANOPTICS_USB
+
+
 REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze HR2000+/4000 spectrometer");
 
 //---------------------------------------------------------------------------
@@ -187,3 +190,4 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
         throw XInterface::XConvError(__FILE__, __LINE__);
     tr[ *this].m_accumulated++;
 }
+#endif // OCEANOPTICSUSB_H

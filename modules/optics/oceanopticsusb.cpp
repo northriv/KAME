@@ -11,6 +11,9 @@
         Public License and a list of authors along with this program;
         see the files COPYING and AUTHORS.
 ***************************************************************************/
+
+#if defined USE_OCEANOPTICS_USB
+
 #include "oceanopticsusb.h"
 #include "cyfxusbinterface_impl.h"
 #include "interface.h"
@@ -114,3 +117,4 @@ XOceanOpticsUSBInterface::readSpectrum(std::vector<uint8_t> &buf, uint16_t pixel
 
     return len;
 }
+#endif // OCEANOPTICSUSB_H
