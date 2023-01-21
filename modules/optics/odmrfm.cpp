@@ -97,9 +97,9 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
     assert(lia__);
     const shared_ptr<XSG> sg__ = shot_this[ *sg()];
 
-    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
-        tr[ *this].m_accumCounts = 0;
-    else
+//    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
+//        tr[ *this].m_accumCounts = 0;
+//    else
         tr[ *this].m_accumCounts++;
     unsigned int numread = shot_this[ *this].m_accumCounts;
     unsigned int countsToBeIgnored = shot_this[ *numReadings()] / 2 + 1; //transient data after SG change
@@ -119,10 +119,11 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
     tr[ *this].m_accumCounts = 0;
-    double phase = shot_this[ *this].m_accum_arg / numread;
+    double phase = shot_this[ *this].m_accum_arg / numread; //std::arg, -pi < x < pi
     double phase_err = std::sqrt(shot_this[ *this].m_accum_arg_sq / numread - phase * phase);
 
     phase -= shot_this[ *fmPhaseOrigin()] / 180.0 * M_PI;
+    phase -= floor((phase + M_PI) / (2 * M_PI)) * (2 * M_PI); //-pi < x < pi, assuming ramp FM
     double freq = shot_others[ *sg__->freq()] + shot_others[ *sg__->fmDev()] * phase / 2 / M_PI;
     double freq_err = shot_others[ *sg__->fmDev()] * phase_err / 2 / M_PI;
     if((shot_others[ *sg__->fmDev()] <= 1e-3) || ( !shot_others[ *sg__->fmON()]) )
