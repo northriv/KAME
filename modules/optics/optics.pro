@@ -2,9 +2,11 @@ PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
 HEADERS += \
+    odmrfm.h \
     useropticalspectrum.h
 
 SOURCES += \
+    odmrfm.cpp \
     useropticalspectrum.cpp
 
 unix {
@@ -32,3 +34,16 @@ win32:LIBS += -lopticscore
 
 INCLUDEPATH += $$PWD/core
 DEPENDPATH += $$PWD/core
+
+win32:LIBS += -lsgcore
+
+INCLUDEPATH += $$PWD/../sg/core
+DEPENDPATH += $$PWD/../sg/core
+
+win32:LIBS += -llia
+
+INCLUDEPATH += $$PWD/../lia
+DEPENDPATH += $$PWD/../lia
+
+FORMS += \
+    core/odmrfmform.ui
