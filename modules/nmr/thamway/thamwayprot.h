@@ -82,7 +82,7 @@ protected:
     virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
     //! PROT features below

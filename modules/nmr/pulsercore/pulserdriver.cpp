@@ -811,6 +811,8 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
         if(alwayslowmask)
             patterns_cheap.insert(tpat(pos, 0, alwayslowmask));
 
+        bool odmr_suppress_rf = odmr_mode && invert_phase__ && (pw2__ == 0); //ODMR ref for T1 measurement
+
         uint64_t first_pos = pos;
 		//comb pulses
 		if((p1__ > 0) && !saturation_wo_comb) {
@@ -828,7 +830,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				cpos -= comb_pw__/2;
 				if(g2_each__ || (k == 0))
 					patterns_cheap.insert(tpat(cpos - g2_setup__, g2mask, g2mask));
-                if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement
+                if( !odmr_suppress_rf)
                     patterns_cheap.insert(tpat(cpos, ~(uint32_t)0, g1mask));
                 patterns_cheap.insert(tpat(cpos, PAT_QAM_PULSE_IDX_PCOMB, PAT_QAM_PULSE_IDX_MASK));
 				cpos += comb_pw__;
@@ -863,7 +865,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 			patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, trig2mask));
 			patterns_cheap.insert(tpat(pos - pw1__/2 - g2_setup__, ~(uint32_t)0, pulse1mask));
 			patterns.insert(tpat(pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-            if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement w/o MW
+            if( !odmr_suppress_rf)
                 patterns.insert(tpat(pos - pw1__/2, ~(uint32_t)0, g1mask));
 			//off
 			patterns.insert(tpat(pos + pw1__/2, 0, g1mask));
@@ -906,7 +908,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
 				}
 
 				patterns.insert(tpat(pos - pw2__/2, PAT_QAM_PULSE_IDX_P2, PAT_QAM_PULSE_IDX_MASK));
-                if( !odmr_mode || !invert_phase__) //if else, ODMR background measurement w/o MW
+                if( !odmr_suppress_rf) //always true
                     patterns.insert(tpat(pos - pw2__/2, ~(uint32_t)0, g1mask));
 				//off
 				patterns.insert(tpat(pos + pw2__/2, 0, PAT_QAM_PULSE_IDX_MASK));
@@ -939,7 +941,7 @@ XPulser::createRelPatListNMRPulser(Transaction &tr) {
                 patterns_cheap.insert(tpat(odmr_read_pos - pw1__/2 - g2_setup__, ~(uint32_t)0, g2mask));
             }
             patterns.insert(tpat(odmr_read_pos - pw1__/2, PAT_QAM_PULSE_IDX_P1, PAT_QAM_PULSE_IDX_MASK));
-            if(!invert_phase__) //if else, ODMR background measurement w/o MW
+            if( !odmr_suppress_rf)
                 patterns.insert(tpat(odmr_read_pos - pw1__/2, ~(uint32_t)0, g1mask));
             //off
             patterns.insert(tpat(odmr_read_pos + pw1__/2, 0, PAT_QAM_PULSE_IDX_MASK));

@@ -82,7 +82,7 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     this->amON()->disable();
     this->fmON()->disable();
     this->amDepth()->disable();
-    this->fmDepth()->disable();
+    this->fmDev()->disable();
     this->amIntSrcFreq()->disable();
     this->fmIntSrcFreq()->disable();
     rxGain()->setUIEnabled(false);

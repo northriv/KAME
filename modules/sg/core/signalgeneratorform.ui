@@ -346,7 +346,7 @@
           <item>
            <layout class="QHBoxLayout" name="_3">
             <item>
-             <widget class="QLineEdit" name="m_edFMDepth">
+             <widget class="QLineEdit" name="m_edFMDev">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                 <horstretch>0</horstretch>
