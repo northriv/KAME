@@ -51,14 +51,20 @@ public:
 	struct Payload : public XSecondaryDriver::Payload {
         //! [MHz]
         double freq() const {return m_freq;}
+        //! [MHz]
+        double freq_err() const {return m_freq_err;}
         //! [T]
         double tesla() const {return m_tesla;}
         //! [T]
         double fmIntens() const {return m_fmIntens;}
+        //! [rad]
+        double phase_err() const {return m_phase_err;}
     private:
         friend class XODMRFMControl;
-        double m_freq, m_tesla, m_fmIntens;
+        double m_freq, m_freq_err, m_tesla, m_fmIntens, m_phase_err;
         std::complex<double> m_accum;
+        double m_accum_arg;
+        double m_accum_arg_sq;
         int m_accumCounts;
     };
   
@@ -74,8 +80,11 @@ public:
     const shared_ptr<XDoubleNode> &gamma2pi() const {return m_gamma2pi;}
     //! # of LIA readings before changing SG frequency
     const shared_ptr<XUIntNode> &numReadings() const {return m_numReadings;}
-    //! required R to change SG frequency [V]
-    const shared_ptr<XDoubleNode> &fmIntensRequired() const {return m_fmIntensRequired;}
+    //! required smallness of phase error to change SG frequency [deg.]
+    const shared_ptr<XDoubleNode> &PhaseErrWithin() const {return m_PhaseErrWithin;}
+    //! LIA phase when peak is at the center of FM [deg]
+    const shared_ptr<XDoubleNode> &fmPhaseOrigin() const {return m_fmPhaseOrigin;}
+    const shared_ptr<XBoolNode> &ctrlSG() const {return m_ctrlSG;}
 
 private:
     const shared_ptr<XScalarEntry> m_entryFreq;
@@ -87,8 +96,9 @@ private:
     const shared_ptr<XItemNode<XDriverList, XLIA> > m_lia;
 
     const shared_ptr<XDoubleNode> m_gamma2pi;
-    const shared_ptr<XDoubleNode> m_fmIntensRequired;
+    const shared_ptr<XDoubleNode> m_PhaseErrWithin, m_fmPhaseOrigin;
     const shared_ptr<XUIntNode> m_numReadings;
+    const shared_ptr<XBoolNode> m_ctrlSG;
 
     std::deque<xqcon_ptr> m_conUIs;
     

@@ -9,6 +9,9 @@ SOURCES += \
     odmrfm.cpp \
     useropticalspectrum.cpp
 
+FORMS += \
+    odmrfmform.ui
+
 unix {
     exists("/opt/local/include/libusb-1.0/libusb.h") {
         LIBS += -lusb-1.0
@@ -44,6 +47,3 @@ win32:LIBS += -llia
 
 INCLUDEPATH += $$PWD/../lia
 DEPENDPATH += $$PWD/../lia
-
-FORMS += \
-    core/odmrfmform.ui

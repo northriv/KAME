@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>FrmOpticalSpectrometer</class>
- <widget class="QMainWindow" name="FrmOpticalSpectrometer">
+ <class>FrmODMRFM</class>
+ <widget class="QMainWindow" name="FrmODMRFM">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>887</width>
-    <height>335</height>
+    <width>263</width>
+    <height>256</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Network Analyzer Control</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QHBoxLayout" name="horizontalLayout_3">
-    <property name="spacing">
+   <layout class="QGridLayout" name="gridLayout">
+    <property name="leftMargin">
      <number>4</number>
     </property>
-    <property name="leftMargin">
+    <property name="topMargin">
      <number>4</number>
     </property>
     <property name="rightMargin">
@@ -27,48 +27,7 @@
     <property name="bottomMargin">
      <number>4</number>
     </property>
-    <item>
-     <layout class="QVBoxLayout">
-      <item>
-       <layout class="QHBoxLayout">
-        <property name="spacing">
-         <number>4</number>
-        </property>
-        <item>
-         <widget class="QLineEdit" name="m_edDump"/>
-        </item>
-        <item>
-         <widget class="QToolButton" name="m_tbDump">
-          <property name="text">
-           <string>...</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="m_btnDump">
-          <property name="text">
-           <string>DUMP</string>
-          </property>
-          <property name="autoDefault">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="XQGraph" name="m_graphwidget" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
+    <item row="0" column="0">
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
@@ -81,7 +40,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Start Wavelen</string>
+           <string>Gyromagnetic ratio(γ/2π)</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -89,7 +48,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edStart">
+         <widget class="QLineEdit" name="m_gamma2pi">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -113,59 +72,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>nm</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QLabel" name="textLabel1_2_5_3_3">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Stop Wavelen</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="m_edStop">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>40</width>
-            <height>0</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="textLabel1_2_2_4_3_2">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>nm</string>
+           <string>MHz/T</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -185,7 +92,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Average</string>
+           <string># of Average</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -215,7 +122,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Integration Time</string>
+           <string>FM phase origin.</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -223,7 +130,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="m_edIntegrationTime">
+         <widget class="QLineEdit" name="m_edFMPhaseOrigin">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -247,7 +154,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>sec.</string>
+           <string>deg.</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -256,48 +163,149 @@
         </item>
        </layout>
       </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout_5">
       <item>
-       <layout class="QVBoxLayout" name="verticalLayout">
-        <item>
-         <widget class="QCheckBox" name="m_ckbSubtractDark">
-          <property name="text">
-           <string>Subtract Dark</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="m_btnStoreDark">
-          <property name="text">
-           <string>Store Dark Spectrum</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
+       <widget class="QLabel" name="textLabel1_2_5_3_5">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>LIA</string>
+        </property>
+        <property name="wordWrap">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="m_cmbLIA"/>
       </item>
      </layout>
+    </item>
+    <item row="2" column="0">
+     <widget class="QGroupBox" name="groupBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="title">
+       <string>Signal Generator</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="leftMargin">
+        <number>4</number>
+       </property>
+       <property name="topMargin">
+        <number>4</number>
+       </property>
+       <property name="rightMargin">
+        <number>4</number>
+       </property>
+       <property name="bottomMargin">
+        <number>4</number>
+       </property>
+       <item>
+        <widget class="QCheckBox" name="m_ckbControl">
+         <property name="text">
+          <string>Control</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QLabel" name="textLabel1_2_5_3_3">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Phase Err. within</string>
+           </property>
+           <property name="wordWrap">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="m_edPhaseErrWithin">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>0</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="textLabel1_2_2_4_3_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>deg.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLabel" name="textLabel1_2_5_3_4">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>SG</string>
+           </property>
+           <property name="wordWrap">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="m_cmbSG"/>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
     </item>
    </layout>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <customwidgets>
-  <customwidget>
-   <class>XQGraph</class>
-   <extends>QWidget</extends>
-   <header>graphwidget.h</header>
-  </customwidget>
- </customwidgets>
  <tabstops>
-  <tabstop>m_edDump</tabstop>
-  <tabstop>m_tbDump</tabstop>
-  <tabstop>m_btnDump</tabstop>
-  <tabstop>m_edStart</tabstop>
-  <tabstop>m_edStop</tabstop>
-  <tabstop>m_edIntegrationTime</tabstop>
+  <tabstop>m_gamma2pi</tabstop>
+  <tabstop>m_edPhaseErrWithin</tabstop>
+  <tabstop>m_edFMPhaseOrigin</tabstop>
  </tabstops>
- <includes>
-  <include location="local">graphwidget.h</include>
- </includes>
  <resources/>
  <connections/>
 </ui>

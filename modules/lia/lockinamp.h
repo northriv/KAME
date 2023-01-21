@@ -16,6 +16,7 @@
 //---------------------------------------------------------------------------
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+#include <complex>
 
 class XScalarEntry;
 class QMainWindow;
@@ -30,6 +31,16 @@ public:
 	virtual ~XLIA() {}
 	//! Shows all forms belonging to driver
 	virtual void showForms();
+
+    struct Payload : public XPrimaryDriver::Payload {
+        double x() const {return std::real(m_z);}
+        double y() const {return std::imag(m_z);}
+        double r() const {return std::abs(m_z);}
+        double phase() const {return std::arg(m_z);}
+    private:
+        friend class XLIA;
+        std::complex<double> m_z;
+    };
 protected:
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).

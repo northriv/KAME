@@ -75,6 +75,7 @@ XLIA::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     y = reader.pop<double>();
     m_valueX->value(tr, x);
     m_valueY->value(tr, y);
+    tr[ *this].m_z = {x, y};
 }
 void
 XLIA::visualize(const Snapshot &shot) {
