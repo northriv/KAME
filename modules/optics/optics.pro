@@ -43,7 +43,7 @@ win32:LIBS += -lsgcore
 INCLUDEPATH += $$PWD/../sg/core
 DEPENDPATH += $$PWD/../sg/core
 
-win32:LIBS += -llia
+win32:LIBS += -lliacore
 
-INCLUDEPATH += $$PWD/../lia
-DEPENDPATH += $$PWD/../lia
+INCLUDEPATH += $$PWD/../lia/core
+DEPENDPATH += $$PWD/../lia/core

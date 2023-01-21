@@ -2,18 +2,22 @@ PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
 HEADERS += \
-    lockinamp.h \
     userlockinamp.h
 
 SOURCES += \
-    lockinamp.cpp \
     userlockinamp.cpp
 
-FORMS += \
-    lockinampform.ui
+macx {
+  QMAKE_LFLAGS += -all_load  -undefined dynamic_lookup
+}
+
 
 win32:LIBS += -lcharinterface
 
 INCLUDEPATH += $$PWD/../charinterface
 DEPENDPATH += $$PWD/../charinterface
 
+win32:LIBS += -lliacore
+
+INCLUDEPATH += $$PWD/core
+DEPENDPATH += $$PWD/core
