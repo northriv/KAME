@@ -62,10 +62,10 @@ public:
     private:
         friend class XODMRFMControl;
         double m_freq, m_freq_err, m_tesla, m_fmIntens, m_phase_err;
-        std::complex<double> m_accum;
-        double m_accum_arg;
-        double m_accum_arg_sq;
-        int m_accumCounts;
+        std::complex<double> m_accum = {};
+        double m_accum_arg = 0.0;
+        double m_accum_arg_sq = 0.0;
+        unsigned int m_accumCounts = 0;
     };
   
     const shared_ptr<XScalarEntry> &entryFreq() const {return m_entryFreq;}
