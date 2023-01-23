@@ -145,7 +145,7 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
 }
 void XODMRFMControl::visualize(const Snapshot &shot) {
     if(shot[ *m_ctrlSG]) {
-        if(shot[ *this].phase_err() < shot[ *PhaseErrWithin()] / 2 / M_PI) {
+        if(shot[ *this].phase_err() < shot[ *PhaseErrWithin()] / 180.0 * 2 * M_PI) {
             const shared_ptr<XSG> sg__ = shot[ *sg()];
             if(sg__) {
                 trans( *sg__->freq()) = shot[ *this].freq();
