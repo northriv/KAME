@@ -102,9 +102,6 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
     
     const qshared_ptr<FrmODMRFM> m_form;
-	const shared_ptr<XStatusPrinter> m_statusPrinter;
-
-	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 };
 
 #endif
