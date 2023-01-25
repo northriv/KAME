@@ -19,7 +19,9 @@
 XSG::XSG(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
     : XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
-	  m_rfON(create<XBoolNode>("RFON", true)),
+      m_entryFreq(create<XScalarEntry>("EntryFreq", false,
+                                    dynamic_pointer_cast<XDriver>(shared_from_this()))),
+      m_rfON(create<XBoolNode>("RFON", true)),
 	  m_freq(create<XDoubleNode>("Freq", true, "%.13g")),
 	  m_oLevel(create<XDoubleNode>("OutputLevel", true)),
 	  m_fmON(create<XBoolNode>("FMON", true)),
@@ -32,6 +34,9 @@ XSG::XSG(const char *name, bool runtime,
       m_sweepFreqMax(create<XDoubleNode>("SweepFreqMax", true)),
       m_sweepFreqMin(create<XDoubleNode>("SweepFreqMin", true)),
       m_form(new FrmSG) {
+
+    meas->scalarEntries()->insert(tr_meas, m_entryFreq);
+
 	m_form->statusBar()->hide();
 	m_form->setWindowTitle(i18n("Signal Gen. Control - ") + getLabel() );
 
@@ -68,7 +73,9 @@ XSG::showForms() {
 
 void
 XSG::analyzeRaw(RawDataReader &reader, Transaction &tr) {
-	tr[ *this].m_freq = reader.pop<double>();
+    double freq = reader.pop<double>();
+    tr[ *this].m_freq = freq;
+    m_entryFreq->value(tr, freq);
 }
 void
 XSG::visualize(const Snapshot &shot) {

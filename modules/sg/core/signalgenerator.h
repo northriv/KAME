@@ -17,6 +17,8 @@
 #include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
+class XScalarEntry;
+
 class Ui_FrmSG;
 typedef QForm<QMainWindow, Ui_FrmSG> FrmSG;
 
@@ -43,6 +45,10 @@ protected:
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
+
+    //! driver specific part below
+    const shared_ptr<XScalarEntry> &entryFreq() const {return m_entryFreq;}
+
 public:
 	//! driver specific part below
 	const shared_ptr<XBoolNode> &rfON() const {return m_rfON;} //!< Activate Output
@@ -71,6 +77,7 @@ protected:
     virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
+    const shared_ptr<XScalarEntry> m_entryFreq;
 
 	const shared_ptr<XBoolNode> m_rfON;
 	const shared_ptr<XDoubleNode> m_freq;
