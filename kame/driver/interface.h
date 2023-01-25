@@ -38,7 +38,7 @@ public:
     struct DECLSPEC_KAME XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
 	};
-    struct DECLSPEC_KAME XUnsupportedFeatureError : public XKameError {
+    struct DECLSPEC_KAME XUnsupportedFeatureError : public XInterfaceError {
         XUnsupportedFeatureError(const char *file, int line);
     };
 

@@ -25,17 +25,17 @@ public:
 	virtual ~XSG7200() {}
 
 protected:
-    virtual double getFreq() {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
-    virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual double getFreq() override {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -55,16 +55,16 @@ public:
 	virtual ~XHP8643() {}
 protected:
     virtual double getFreq(); //!< [MHz]
-    virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -75,8 +75,8 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XHP8648() {}
 protected:
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
 };
 
@@ -87,17 +87,17 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XAgilentSGSCPI() {}
 protected:
-    virtual double getFreq(); //!< [MHz]
-    virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual double getFreq() override; //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
 };
 
@@ -108,8 +108,8 @@ public:
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XHP8664() {}
 protected:
-    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
 };
 
@@ -122,15 +122,15 @@ public:
 protected:
     virtual double getFreq() {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
     virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -141,17 +141,17 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XRhodeSchwartzSMLSMV() {}
 protected:
-    virtual double getFreq() {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
-    virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual double getFreq() override {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 #endif

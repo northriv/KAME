@@ -28,7 +28,8 @@ XInterface::XCommError::XCommError(const XString &msg, const char *file, int lin
 	:  XInterfaceError(i18n("Communication Error") + ", " + msg, file, line) {}
 XInterface::XOpenInterfaceError::XOpenInterfaceError(const char *file, int line)
 	:  XInterfaceError(i18n("Open Interface Error"), file, line) {}
-
+XInterface::XUnsupportedFeatureError::XUnsupportedFeatureError(const char *file, int line)
+    :  XInterfaceError(i18n("Unsupported Feature Error"), file, line) {}
 
 XInterface::XInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) : 
     XNode(name, runtime), 

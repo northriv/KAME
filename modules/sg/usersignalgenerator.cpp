@@ -144,6 +144,11 @@ void
 XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->sendf("AMPL %f DBM", (double)shot[ *oLevel()]);
 }
+double
+XAgilentSGSCPI::getFreq() {
+    interface()->query("FREQ:CW?");
+    return interface()->toDouble();
+}
 void
 XAgilentSGSCPI::changeFreq(double mhz) {
 	XScopedLock<XInterface> lock( *interface());
