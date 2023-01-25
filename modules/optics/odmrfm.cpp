@@ -97,9 +97,9 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
     assert(lia__);
     const shared_ptr<XSG> sg__ = shot_this[ *sg()];
 
-    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
-        tr[ *this].m_accumCounts = 0;
-    else
+//    if(shot_others[sg__].time() + 0.05 > shot_emitter[lia__].timeAwared())
+//        tr[ *this].m_accumCounts = 0;
+//    else
         tr[ *this].m_accumCounts++;
     unsigned int numread = shot_this[ *this].m_accumCounts;
     unsigned int countsToBeIgnored = shot_this[ *numReadings()] / 2 + 1; //transient data after SG change
