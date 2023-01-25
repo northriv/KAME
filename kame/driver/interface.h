@@ -38,7 +38,10 @@ public:
     struct DECLSPEC_KAME XOpenInterfaceError : public XInterfaceError {
 		XOpenInterfaceError(const char *file, int line);
 	};
- 
+    struct DECLSPEC_KAME XUnsupportedFeatureError : public XKameError {
+        XUnsupportedFeatureError(const char *file, int line);
+    };
+
 	void setLabel(const XString& str) {m_label = str;}
     virtual XString getLabel() const override;
  

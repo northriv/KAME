@@ -106,27 +106,29 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if(numread > countsToBeIgnored) {
         std::complex<double> z{shot_emitter[ *lia__].x(), shot_emitter[ *lia__].y()};
         tr[ *this].m_accum += z;
-        double phase = shot_emitter[ *lia__].phase();
-        tr[ *this].m_accum_arg += phase;
-        tr[ *this].m_accum_arg_sq += phase * phase;
+        tr[ *this].m_accum_zsq += z * z;
     }
     else {
         tr[ *this].m_accum = 0.0;
-        tr[ *this].m_accum_arg = 0.0;
-        tr[ *this].m_accum_arg_sq = 0.0;
+        tr[ *this].m_accum_zsq = 0.0;
     }
     if(numread < countsToBeIgnored + shot_this[ *numReadings()]) {
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
     tr[ *this].m_accumCounts = 0;
-    double phase = shot_this[ *this].m_accum_arg / numread;
-    double phase_err = std::sqrt(shot_this[ *this].m_accum_arg_sq / numread - phase * phase);
+    std::complex<double> z_av = shot_this[ *this].m_accum / (double)numread;
+    std::complex<double> zsq_av = shot_this[ *this].m_accum_zsq / (double)numread;
+    double phase = std::arg(z_av); //std::arg, -pi < x < pi
+    double z_err = std::sqrt(std::real(zsq_av - 2.0*z_av*std::conj(z_av) + z_av*z_av));
+    double phase_err = z_err / std::abs(z_av);
 
     phase -= shot_this[ *fmPhaseOrigin()] / 180.0 * M_PI;
+    phase -= floor((phase + M_PI) / (2 * M_PI)) * (2 * M_PI); //-pi < x < pi, assuming ramp FM
     double freq = shot_others[ *sg__->freq()] + shot_others[ *sg__->fmDev()] * phase / 2 / M_PI;
     double freq_err = shot_others[ *sg__->fmDev()] * phase_err / 2 / M_PI;
     if((shot_others[ *sg__->fmDev()] <= 1e-3) || ( !shot_others[ *sg__->fmON()]) )
-        throw XSkippedRecordError(i18n("FM setting in SG driver may be not up-to-date"), __FILE__, __LINE__);
+        if(shot_this[ *m_ctrlSG])
+            throw XSkippedRecordError(i18n("FM setting in SG driver may be not up-to-date"), __FILE__, __LINE__);
 
     tr[ *this].m_phase_err = phase_err;
     tr[ *this].m_freq = freq;
@@ -134,7 +136,7 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
     double tesla = freq / shot_this[ *gamma2pi()];
     double tesla_err = freq_err / shot_this[ *gamma2pi()];
     tr[ *this].m_tesla = tesla;
-    tr[ *this].m_fmIntens = std::abs(shot_this[ *this].m_accum) / numread;
+    tr[ *this].m_fmIntens = std::abs(z_av);
 
     entryFreq()->value(tr, freq);
     entryTesla()->value(tr, tesla);
@@ -143,7 +145,7 @@ void XODMRFMControl::analyze(Transaction &tr, const Snapshot &shot_emitter,
 }
 void XODMRFMControl::visualize(const Snapshot &shot) {
     if(shot[ *m_ctrlSG]) {
-        if(shot[ *this].phase_err() < shot[ *PhaseErrWithin()] / 2 / M_PI) {
+        if(shot[ *this].phase_err() < shot[ *PhaseErrWithin()] / 180.0 * 2 * M_PI) {
             const shared_ptr<XSG> sg__ = shot[ *sg()];
             if(sg__) {
                 trans( *sg__->freq()) = shot[ *this].freq();

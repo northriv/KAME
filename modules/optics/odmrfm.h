@@ -63,8 +63,7 @@ public:
         friend class XODMRFMControl;
         double m_freq, m_freq_err, m_tesla, m_fmIntens, m_phase_err;
         std::complex<double> m_accum = {};
-        double m_accum_arg = 0.0;
-        double m_accum_arg_sq = 0.0;
+        std::complex<double> m_accum_zsq = {};
         unsigned int m_accumCounts = 0;
     };
   
@@ -103,9 +102,6 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
     
     const qshared_ptr<FrmODMRFM> m_form;
-	const shared_ptr<XStatusPrinter> m_statusPrinter;
-
-	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 };
 
 #endif

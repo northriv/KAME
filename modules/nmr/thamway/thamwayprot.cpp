@@ -85,6 +85,10 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     this->fmDev()->disable();
     this->amIntSrcFreq()->disable();
     this->fmIntSrcFreq()->disable();
+    this->sweepFreqMax()->disable();
+    this->sweepFreqMin()->disable();
+    this->sweepMode()->disable();
+
     rxGain()->setUIEnabled(false);
     rxPhase()->setUIEnabled(false);
     rxLPFBW()->setUIEnabled(false);
@@ -166,6 +170,12 @@ XThamwayPROT<tInterface>::query(const char *cmd) {
 }
 
 template <class tInterface>
+double
+XThamwayPROT<tInterface>::getFreq() {
+    return query("FREQR");
+}
+
+template <class tInterface>
 void
 XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool single) {
     for(;;) {
@@ -183,7 +193,7 @@ XThamwayPROT<tInterface>::fetchStatus(const atomic<bool>& terminated, bool singl
             double fwd = query("FWDPR");
             double bwd = query("BWDPR");
             int warn = (int)lrint(query("STTSR"));
-            double f = query("FREQR");
+            double f = getFreq();
 
             for(;;){
                 if(fabs(tr[ *this->freq()] - f) > 1e-6) {

@@ -33,6 +33,9 @@ XSG7200::XSG7200(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
+    sweepFreqMax()->disable();
+    sweepFreqMin()->disable();
+    sweepMode()->disable();
 }
 XSG7130::XSG7130(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -70,6 +73,14 @@ XHP8643::XHP8643(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
+    sweepFreqMax()->disable();
+    sweepFreqMin()->disable();
+    sweepMode()->disable();
+}
+double
+XHP8643::getFreq() {
+    interface()->query("FREQ:CW?");
+    return interface()->toDouble();
 }
 void
 XHP8643::changeFreq(double mhz) {
@@ -116,6 +127,7 @@ XAgilentSGSCPI::XAgilentSGSCPI(const char *name, bool runtime,
 //	interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(10);
 //	interface()->setGPIBWaitBeforeRead(10);
+    trans( *sweepMode()).add({"Off", "Freq.", "Ampl."});
 }
 XHP8664::XHP8664(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -170,6 +182,31 @@ void
 XAgilentSGSCPI::onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->sendf("FM:INT:FREQ %f KHZ", (double)shot[ *fmIntSrcFreq()]);
 }
+void
+XAgilentSGSCPI::onSweepCondChanged(const Snapshot &, XValueNodeBase *) {
+    XScopedLock<XInterface> lock( *interface());
+    Snapshot shot(*this);
+    switch(shot[ *sweepMode()]) {
+    case 0: //OFF
+    default:
+        interface()->send("FREQ:MODE CW");
+        interface()->send("POW:MODE FIXED");
+        break;
+    case 1: //Freq
+        interface()->send("FREQ:MODE LIST");
+        interface()->send("LIST:TYPE STEP");
+        interface()->sendf("FREQ:START %f MHZ", (double)shot[ *sweepFreqMin()]);
+        interface()->sendf("FREQ:STOP %f MHZ", (double)shot[ *sweepFreqMax()]);
+        interface()->send("INIT:CONT ON");
+        break;
+    case 2: //Ampl
+        interface()->send("POW:MODE LIST");
+        interface()->send("LIST:TYPE STEP");
+        interface()->send("INIT:CONT ON");
+        break;
+    }
+}
+
 
 XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -184,6 +221,9 @@ XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
+    sweepFreqMax()->disable();
+    sweepFreqMin()->disable();
+    sweepMode()->disable();
 }
 void
 XDPL32XGF::changeFreq(double mhz) {
@@ -217,7 +257,9 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-
+    sweepFreqMax()->disable();
+    sweepFreqMin()->disable();
+    sweepMode()->disable();
 }
 void
 XRhodeSchwartzSMLSMV::changeFreq(double mhz) {

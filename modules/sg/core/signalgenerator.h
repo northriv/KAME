@@ -14,13 +14,13 @@
 #ifndef signalgeneratorH
 #define signalgeneratorH
 
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
 
 class Ui_FrmSG;
 typedef QForm<QMainWindow, Ui_FrmSG> FrmSG;
 
-class DECLSPEC_SHARED XSG : public XPrimaryDriver {
+class DECLSPEC_SHARED XSG : public XPrimaryDriverWithThread {
 public:
 	XSG(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -60,7 +60,11 @@ public:
     const shared_ptr<XDoubleNode> &fmDev() const {return m_fmDev;} //!< [MHz]
     const shared_ptr<XDoubleNode> &amIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
     const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_fmIntSrcFreq;} //!< freq [kHz]
+    const shared_ptr<XComboNode> &sweepMode() const {return m_sweepMode;}
+    const shared_ptr<XDoubleNode> &sweepFreqMax() const {return m_sweepFreqMax;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &sweepFreqMin() const {return m_sweepFreqMin;} //!< [MHz]
 protected:
+    virtual double getFreq() = 0; //!< [MHz]
 	virtual void changeFreq(double mhz) = 0;
 	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) = 0;
@@ -71,6 +75,7 @@ protected:
     virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
 
 	const shared_ptr<XBoolNode> m_rfON;
@@ -80,9 +85,15 @@ private:
 	const shared_ptr<XBoolNode> m_amON;
     const shared_ptr<XDoubleNode> m_amDepth, m_fmDev;
     const shared_ptr<XDoubleNode> m_amIntSrcFreq, m_fmIntSrcFreq;
+    const shared_ptr<XComboNode> m_sweepMode;
+    const shared_ptr<XDoubleNode> m_sweepFreqMax, m_sweepFreqMin;
+
+    void *execute(const atomic<bool> &);
 
     std::deque<xqcon_ptr> m_conUIs;
-    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON, m_lsnAMDepth, m_lsnFMDev, m_lsnAMIntSrcFreq, m_lsnFMIntSrcFreq;
+    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel,
+        m_lsnFMON, m_lsnAMON, m_lsnAMDepth, m_lsnFMDev, m_lsnAMIntSrcFreq, m_lsnFMIntSrcFreq,
+        m_lsnSweepCond;
   
 	const qshared_ptr<FrmSG> m_form;
 };//---------------------------------------------------------------------------

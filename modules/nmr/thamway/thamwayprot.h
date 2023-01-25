@@ -75,6 +75,7 @@ protected:
     //! This function may be called even if driver has already stopped.
     virtual void stop();
 
+    virtual double getFreq(); //!< [MHz]
     virtual void changeFreq(double mhz);
     virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *node) {XSG::onFreqChanged(shot, node);}
     virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
@@ -85,6 +86,7 @@ protected:
     virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
     virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) {}
     //! PROT features below
     virtual void onRXGainChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);
