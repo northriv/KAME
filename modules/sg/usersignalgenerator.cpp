@@ -21,6 +21,7 @@ REGISTER_TYPE(XDriverList, HP8643, "HP/Agilent 8643/8644 signal generator");
 REGISTER_TYPE(XDriverList, HP8648, "HP/Agilent 8648 signal generator");
 REGISTER_TYPE(XDriverList, HP8664, "HP/Agilent 8664/8665 signal generator");
 REGISTER_TYPE(XDriverList, AgilentSGSCPI, "Keysight/Agilent E44xB signal generator SCPI");
+REGISTER_TYPE(XDriverList, LibreVNASGSCPI, "LiberVNA signal generator SCPI");
 REGISTER_TYPE(XDriverList, DPL32XGF, "DSTech. DPL-3.2XGF signal generator");
 REGISTER_TYPE(XDriverList, RhodeSchwartzSMLSMV, "Rhode-Schwartz SML01/02/03/SMV03 signal generator");
 
@@ -212,6 +213,44 @@ XAgilentSGSCPI::onSweepCondChanged(const Snapshot &, XValueNodeBase *) {
     }
 }
 
+XLibreVNASGSCPI::XLibreVNASGSCPI(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XSG>(name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("");
+    interface()->device()->setUIEnabled(false);
+    trans( *interface()->device()) = "TCP/IP";
+    trans( *interface()->port()) = "127.0.0.1:19542";
+    trans( *sweepMode()).add({"Off", "Freq.", "Ampl."});
+    amON()->disable();
+    fmON()->disable();
+    amDepth()->disable();
+    fmDev()->disable();
+    amIntSrcFreq()->disable();
+    fmIntSrcFreq()->disable();
+    sweepFreqMax()->disable();
+    sweepFreqMin()->disable();
+    sweepMode()->disable();
+}
+
+double
+XLibreVNASGSCPI::getFreq() {
+    interface()->query(":GEN:FREQ?");
+    return interface()->toDouble() * 1e-6;
+}
+void
+XLibreVNASGSCPI::changeFreq(double mhz) {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->sendf(":GEN:FREQ %f", mhz * 1e6);
+    msecsleep(50); //wait stabilization of PLL
+}
+void
+XLibreVNASGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":GEN:PORT %s", shot[ *rfON()] ? "1" : "0");
+}
+void
+XLibreVNASGSCPI::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":GEN:LVL %f", (double)shot[ *oLevel()]);
+}
 
 XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)

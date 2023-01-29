@@ -14,12 +14,15 @@
 #include "usernetworkanalyzer.h"
 #include "charinterface.h"
 #include "analyzer.h"
+#include <istream>
+#include <sstream>
 
 REGISTER_TYPE(XDriverList, HP8711, "HP/Agilent 8711/8712/8713/8714 Network Analyzer");
 REGISTER_TYPE(XDriverList, AgilentE5061, "Agilent E5061/E5062 Network Analyzer");
 REGISTER_TYPE(XDriverList, CopperMtTRVNA, "Copper Mountain TR1300/1,5048,4530 Network Analyzer");
 REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzer, "DG8SAQ VNWA3E/Custom Network Analyzer");
 REGISTER_TYPE(XDriverList, VNWA3ENetworkAnalyzerTCPIP, "DG8SAQ VNWA3E Network Analyzer TCP/IP");
+REGISTER_TYPE(XDriverList, LibreVNASCPI, "LiberVNA Network Analyzer SCPI");
 
 //---------------------------------------------------------------------------
 XAgilentNetworkAnalyzer::XAgilentNetworkAnalyzer(const char *name, bool runtime,
@@ -472,4 +475,128 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
     tr[ *this].markers()[0].second = 20.0 * log10(min_v);
     tr[ *this].markers()[1].first = max_f;
     tr[ *this].markers()[1].second = 20.0 * log10(max_v);
+}
+
+
+
+XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("");
+    interface()->device()->setUIEnabled(false);
+    trans( *interface()->device()) = "TCP/IP";
+    trans( *interface()->port()) = "127.0.0.1:19543";
+
+    iterate_commit([=](Transaction &tr){
+        tr[ *points()].add({"3", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"});
+        tr[ *points()].str("512");
+    });
+
+    calOpen()->disable();
+    calShort()->disable();
+    calTerm()->disable();
+    calThru()->disable();
+}
+
+
+void
+XLibreVNASCPI::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":VNA:FREQ:START %f", (double)shot[ *startFreq()] * 1e6);
+}
+void
+XLibreVNASCPI::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *node) {
+    interface()->sendf(":VNA:FREQ:STOP %f", (double)shot[ *stopFreq()] * 1e6);
+}
+void
+XLibreVNASCPI::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str());
+}
+void
+XLibreVNASCPI::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]);
+}
+void
+XLibreVNASCPI::onPowerChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->sendf(":VNA:STIM:LVL %f", (double)shot[ *power()]);
+}
+void
+XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
+    double re, im;
+    switch(num) {
+    case 0:
+        interface()->query(":VNA:TRAC:MINA? S11");
+        if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        y = 10 * std::log10(re*re + im*im);
+        break;
+    case 1:
+        interface()->query(":VNA:TRAC:MAXA? S11");
+        if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        y = 10 * std::log10(re*re + im*im);
+        break;
+    default:
+        throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+    }
+}
+void
+XLibreVNASCPI::oneSweep() {
+}
+void
+XLibreVNASCPI::startContSweep() {
+}
+void
+XLibreVNASCPI::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->query(":VNA:TRAC:LIST?");
+    std::vector<std::string> traces;
+    std::stringstream ss{&interface()->buffer()[0]};
+    std::string buf;
+    while (std::getline(ss, buf, ',')) {
+        traces.push_back(buf); //"S11" and so on
+    }
+    if(ch >= traces.size())
+        throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
+    interface()->query(":VNA:ACQ:POINTS?");
+    writer->push((uint32_t)interface()->toUInt());
+    interface()->query(":VNA:FREQ:START?");
+    writer->push((double)interface()->toDouble());
+    interface()->query(":VNA:FREQ:STOP?");
+    writer->push((double)interface()->toDouble());
+
+    auto tr = traces[ch];
+    writer->push((uint32_t)tr.size()); //3
+    writer->insert(writer->end(), tr.begin(), tr.end()); //"S11" or trace name
+    interface()->queryf(":VNA:TRAC:DATA? %s", tr.c_str());
+    writer->push((uint32_t)interface()->buffer().size());
+    writer->insert(writer->end(),
+                     interface()->buffer().begin(), interface()->buffer().end());
+}
+void
+XLibreVNASCPI::convertRaw(RawDataReader &reader, Transaction &tr) {
+    const Snapshot &shot(tr);
+    uint32_t samples = reader.pop<uint32_t>();
+    double start = reader.pop<double>() * 1e-6; //[MHz]
+    double stop = reader.pop<double>() * 1e-6; //[MHz]
+    double df = (stop - start) / (samples - 1);
+    tr[ *this].m_startFreq = start;
+    tr[ *this].m_freqInterval = df;
+    tr[ *this].trace_().resize(samples);
+
+    ssize_t cnt = reader.pop<uint32_t>();
+    std::string trace{reader.popIterator(), reader.popIterator() + cnt};
+
+    ssize_t size = reader.pop<uint32_t>();
+    std::stringstream ss{std::string(reader.popIterator(), reader.popIterator() + size)};
+    std::string buf;
+    unsigned int i = 0;
+    while (std::getline(ss, buf, ',')) { //comma separated
+        double x, re, im;
+        if(sscanf(buf.c_str(), "[%lf,%lf,%lf]", &x, &re, &im) != 3)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        tr[ *this].trace_()[i++] = std::complex<double>(re, im);
+        if(i >= samples)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+    }
 }
