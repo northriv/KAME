@@ -113,6 +113,26 @@ protected:
 private:
 };
 
+class XLibreVNASGSCPI : public XCharDeviceDriver<XSG> {
+public:
+    XLibreVNASGSCPI(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLibreVNASGSCPI() {}
+protected:
+    virtual double getFreq() override; //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
+private:
+};
+
 //! DS Technology DPL-3.2XGF
 class XDPL32XGF : public XCharDeviceDriver<XSG> {
 public:

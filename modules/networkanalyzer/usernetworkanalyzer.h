@@ -151,4 +151,34 @@ protected:
 private:
     const shared_ptr<XCharInterface> m_interface2;
 };
+
+//! LibreVNA via TCP/IP interface.
+class XLibreVNASCPI : public XCharDeviceDriver<XNetworkAnalyzer> {
+public:
+    XLibreVNASCPI(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLibreVNASCPI() {}
+protected:
+    virtual void onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onStopFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPointsChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override;
+
+    virtual void onCalOpenTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalShortTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalTermTouched(const Snapshot &shot, XTouchableNode *) override {}
+    virtual void onCalThruTouched(const Snapshot &shot, XTouchableNode *) override {}
+
+    virtual void getMarkerPos(unsigned int num, double &x, double &y) override;
+    virtual void oneSweep() override;
+    virtual void startContSweep() override;
+    virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) override;
+    //! Converts raw to dispaly-able
+    virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
+
+    virtual void open() override;
+    virtual void close() override;
+private:
+};
 #endif
