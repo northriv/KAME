@@ -176,9 +176,6 @@ protected:
     virtual void acquireTrace(shared_ptr<RawData> &, unsigned int ch) override;
     //! Converts raw to dispaly-able
     virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
-
-    virtual void open() override;
-    virtual void close() override;
 private:
 };
 #endif
