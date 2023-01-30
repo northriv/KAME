@@ -80,7 +80,7 @@ XHP8643::XHP8643(const char *name, bool runtime,
 double
 XHP8643::getFreq() {
     interface()->query("FREQ:CW?");
-    return interface()->toDouble();
+    return interface()->toDouble() * 1e-6;
 }
 void
 XHP8643::changeFreq(double mhz) {
@@ -147,7 +147,7 @@ XHP8664::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
 double
 XAgilentSGSCPI::getFreq() {
     interface()->query("FREQ:CW?");
-    return interface()->toDouble();
+    return interface()->toDouble() * 1e-6;
 }
 void
 XAgilentSGSCPI::changeFreq(double mhz) {
