@@ -507,7 +507,11 @@ XLibreVNASCPI::rearrangeIFBW() {
     interface()->query(":VNA:FREQ:STOP?");
     double stop = interface()->toDouble();
     double ifbw = (stop - start) / (pts - 1);
-    ifbw = std::min(ifbw, start);
+    interface()->query(":DEV:INF:LIM:MAXIFBW?");
+    double maxifbw = interface()->toDouble();
+    interface()->query(":DEV:INF:LIM:MINIFBW?");
+    double minifbw = interface()->toDouble();
+    ifbw = std::max(minifbw, std::min(ifbw, maxifbw));
     interface()->queryf(":VNA:ACQ:IFBW %.0f", ifbw);
 }
 
