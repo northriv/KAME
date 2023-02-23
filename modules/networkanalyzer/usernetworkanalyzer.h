@@ -177,5 +177,6 @@ protected:
     //! Converts raw to dispaly-able
     virtual void convertRaw(RawDataReader &reader, Transaction &tr) override;
 private:
+    void rearrangeIFBW();
 };
 #endif
