@@ -604,8 +604,10 @@ XLibreVNASCPI::convertRaw(RawDataReader &reader, Transaction &tr) {
     std::string buf;
     unsigned int i = 0;
     while (std::getline(ss, buf, ']')) { //sequence of [*,*,*],
+        if(buf[0] == ',')
+            buf = buf.substr(1);
         double x, re, im;
-        if(sscanf(buf.c_str(), "%*[,][%lf,%lf,%lf", &x, &re, &im) != 3)
+        if(sscanf(buf.c_str(), "[%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         tr[ *this].trace_()[i++] = std::complex<double>(re, im);
         if(i >= samples)
