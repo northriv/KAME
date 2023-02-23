@@ -596,9 +596,11 @@ XLibreVNASCPI::convertRaw(RawDataReader &reader, Transaction &tr) {
 
     ssize_t cnt = reader.pop<uint32_t>();
     std::string trace{reader.popIterator(), reader.popIterator() + cnt};
+    reader.popIterator() += cnt;
 
     ssize_t size = reader.pop<uint32_t>();
     std::stringstream ss{std::string(reader.popIterator(), reader.popIterator() + size)};
+    reader.popIterator() += size;
     std::string buf;
     unsigned int i = 0;
     while (std::getline(ss, buf, ',')) { //comma separated
