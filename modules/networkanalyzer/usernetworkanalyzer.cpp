@@ -610,7 +610,7 @@ XLibreVNASCPI::convertRaw(RawDataReader &reader, Transaction &tr) {
         if(sscanf(buf.c_str(), "[%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         tr[ *this].trace_()[i++] = std::complex<double>(re, im);
-        if(i >= samples)
+        if(i > samples)
             throw XInterface::XConvError(__FILE__, __LINE__);
     }
 }
