@@ -482,7 +482,7 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
 XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
-    interface()->setEOS("");
+    interface()->setEOS("\n");
     interface()->device()->setUIEnabled(false);
     trans( *interface()->device()) = "TCP/IP";
     trans( *interface()->port()) = "127.0.0.1:19542";
