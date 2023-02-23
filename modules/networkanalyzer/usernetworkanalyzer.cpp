@@ -534,15 +534,13 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
     double re, im;
     switch(num) {
     case 0:
-        interface()->send(":VNA:TRAC:MINA? S11");
-        interface()->receive(64);
+        interface()->query(":VNA:TRAC:MINA? S11");
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         y = 10 * std::log10(re*re + im*im);
         break;
     case 1:
-        interface()->send(":VNA:TRAC:MAXA? S11");
-        interface()->receive(64);
+        interface()->query(":VNA:TRAC:MAXA? S11");
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         y = 10 * std::log10(re*re + im*im);
