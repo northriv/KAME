@@ -509,6 +509,7 @@ XLibreVNASCPI::rearrangeIFBW() {
     double ifbw = (stop - start) / (pts - 1);
     interface()->query(":DEV:INF:LIM:MAXIFBW?");
     double maxifbw = interface()->toDouble();
+    maxifbw = std::min(maxifbw, 100e3); //guess >100kHz is unstable
     interface()->query(":DEV:INF:LIM:MINIFBW?");
     double minifbw = interface()->toDouble();
     ifbw = std::max(minifbw, std::min(ifbw, maxifbw));
