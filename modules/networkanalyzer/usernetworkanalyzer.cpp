@@ -482,10 +482,10 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
 XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
-    interface()->setEOS("");
+    interface()->setEOS("\r\n");
     interface()->device()->setUIEnabled(false);
     trans( *interface()->device()) = "TCP/IP";
-    trans( *interface()->port()) = "127.0.0.1:19543";
+    trans( *interface()->port()) = "127.0.0.1:19542";
 
     iterate_commit([=](Transaction &tr){
         tr[ *points()].add({"3", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"});
@@ -501,23 +501,33 @@ XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
 
 void
 XLibreVNASCPI::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":VNA:FREQ:START %f", (double)shot[ *startFreq()] * 1e6);
+    interface()->queryf(":VNA:FREQ:START %f", (double)shot[ *startFreq()] * 1e6);
+    if(interface()->toStr() == "ERROR")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *node) {
-    interface()->sendf(":VNA:FREQ:STOP %f", (double)shot[ *stopFreq()] * 1e6);
+    interface()->queryf(":VNA:FREQ:STOP %f", (double)shot[ *stopFreq()] * 1e6);
+    if(interface()->toStr() == "ERROR")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str());
+    interface()->queryf(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str());
+    if(interface()->toStr() == "ERROR")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]);
+    interface()->queryf(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]);
+    if(interface()->toStr() == "ERROR")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onPowerChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":VNA:STIM:LVL %f", (double)shot[ *power()]);
+    interface()->queryf(":VNA:STIM:LVL %f", (double)shot[ *power()]);
+    if(interface()->toStr() == "ERROR")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
