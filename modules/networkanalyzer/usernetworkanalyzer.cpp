@@ -482,7 +482,7 @@ XVNWA3ENetworkAnalyzerTCPIP::convertRaw(RawDataReader &reader, Transaction &tr) 
 XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XCharDeviceDriver<XNetworkAnalyzer>(name, runtime, ref(tr_meas), meas) {
-    interface()->setEOS("\r\n");
+    interface()->setEOS("");
     interface()->device()->setUIEnabled(false);
     trans( *interface()->device()) = "TCP/IP";
     trans( *interface()->port()) = "127.0.0.1:19542";
@@ -534,13 +534,15 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
     double re, im;
     switch(num) {
     case 0:
-        interface()->query(":VNA:TRAC:MINA? S11");
+        interface()->send(":VNA:TRAC:MINA? S11");
+        interface()->receive(64);
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         y = 10 * std::log10(re*re + im*im);
         break;
     case 1:
-        interface()->query(":VNA:TRAC:MAXA? S11");
+        interface()->send(":VNA:TRAC:MAXA? S11");
+        interface()->receive(64);
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
         y = 10 * std::log10(re*re + im*im);
