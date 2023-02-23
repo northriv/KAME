@@ -240,16 +240,22 @@ XLibreVNASGSCPI::getFreq() {
 void
 XLibreVNASGSCPI::changeFreq(double mhz) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->sendf(":GEN:FREQ %f", mhz * 1e6);
+    interface()->queryf(":GEN:FREQ %.0f", mhz * 1e6);
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
     msecsleep(50); //wait stabilization of PLL
 }
 void
 XLibreVNASGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":GEN:PORT %s", shot[ *rfON()] ? "1" : "0");
+    interface()->queryf(":GEN:PORT %s", shot[ *rfON()] ? "1" : "0");
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASGSCPI::onOLevelChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->sendf(":GEN:LVL %f", (double)shot[ *oLevel()]);
+    interface()->queryf(":GEN:LVL %.0f", (double)shot[ *oLevel()]);
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 
 XDPL32XGF::XDPL32XGF(const char *name, bool runtime,

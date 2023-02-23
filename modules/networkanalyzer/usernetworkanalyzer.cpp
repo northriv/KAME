@@ -488,8 +488,8 @@ XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
     trans( *interface()->port()) = "127.0.0.1:19542";
 
     iterate_commit([=](Transaction &tr){
-        tr[ *points()].add({"3", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"});
-        tr[ *points()].str("512");
+        tr[ *points()].add({"51", "101", "201", "501", "1001", "2001", "5001"});
+        tr[ *points()].str("501");
     });
 
     calOpen()->disable();
@@ -501,32 +501,32 @@ XLibreVNASCPI::XLibreVNASCPI(const char *name, bool runtime,
 
 void
 XLibreVNASCPI::onStartFreqChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":VNA:FREQ:START %f", (double)shot[ *startFreq()] * 1e6);
-    if(interface()->toStr() == "ERROR")
+    interface()->queryf(":VNA:FREQ:START %.0f", (double)shot[ *startFreq()] * 1e6);
+    if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onStopFreqChanged(const Snapshot &shot, XValueNodeBase *node) {
-    interface()->queryf(":VNA:FREQ:STOP %f", (double)shot[ *stopFreq()] * 1e6);
-    if(interface()->toStr() == "ERROR")
+    interface()->queryf(":VNA:FREQ:STOP %.0f", (double)shot[ *stopFreq()] * 1e6);
+    if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onPointsChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->queryf(":VNA:ACQ:POINTS %s", shot[ *points()].to_str().c_str());
-    if(interface()->toStr() == "ERROR")
+    if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onAverageChanged(const Snapshot &shot, XValueNodeBase *) {
     interface()->queryf(":VNA:ACQ:AVG %u", (unsigned int)shot[ *average()]);
-    if(interface()->toStr() == "ERROR")
+    if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::onPowerChanged(const Snapshot &shot, XValueNodeBase *) {
-    interface()->queryf(":VNA:STIM:LVL %f", (double)shot[ *power()]);
-    if(interface()->toStr() == "ERROR")
+    interface()->queryf(":VNA:STIM:LVL %.0f", (double)shot[ *power()]);
+    if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
@@ -537,17 +537,17 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
         interface()->query(":VNA:TRAC:MINA? S11");
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
-        y = 10 * std::log10(re*re + im*im);
         break;
     case 1:
         interface()->query(":VNA:TRAC:MAXA? S11");
         if(interface()->scanf("%lf,%lf,%lf", &x, &re, &im) != 3)
             throw XInterface::XConvError(__FILE__, __LINE__);
-        y = 10 * std::log10(re*re + im*im);
         break;
     default:
         throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
     }
+    x *= 1e-6; //[MHz]
+    y = 10 * std::log10(re*re + im*im);
 }
 void
 XLibreVNASCPI::oneSweep() {
