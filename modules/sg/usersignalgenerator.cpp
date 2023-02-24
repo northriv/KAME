@@ -247,6 +247,9 @@ XLibreVNASGSCPI::changeFreq(double mhz) {
 }
 void
 XLibreVNASGSCPI::onRFONChanged(const Snapshot &shot, XValueNodeBase *) {
+    interface()->queryf(":DEV:MODE %s", shot[ *rfON()] ? "SA" : "VNA");
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
     interface()->queryf(":GEN:PORT %s", shot[ *rfON()] ? "1" : "0");
     if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);

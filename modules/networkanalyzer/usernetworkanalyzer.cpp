@@ -574,9 +574,24 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
 }
 void
 XLibreVNASCPI::oneSweep() {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->query(":VNA:ACQ:SINGLE TRUE");
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
+    XTime started{XTime::now()};
+    while (XTime::now() - started < 1.0) {
+        interface()->query(":VNA:ACQ:FIN?");
+        if(interface()->toStr() == "ERROR\n")
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        if(interface()->toStr() == "TRUE\n")
+            break;
+    }
 }
 void
 XLibreVNASCPI::startContSweep() {
+    interface()->query(":VNA:ACQ:SINGLE FALSE");
+    if(interface()->toStr() == "ERROR\n")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }
 void
 XLibreVNASCPI::acquireTrace(shared_ptr<RawData> &writer, unsigned int ch) {
