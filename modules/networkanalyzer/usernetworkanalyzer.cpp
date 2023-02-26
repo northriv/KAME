@@ -574,12 +574,13 @@ XLibreVNASCPI::getMarkerPos(unsigned int num, double &x, double &y) {
 }
 void
 XLibreVNASCPI::oneSweep() {
-    XScopedLock<XInterface> lock( *interface());
+//    XScopedLock<XInterface> lock( *interface());
     interface()->query(":VNA:ACQ:SINGLE TRUE");
     if(interface()->toStr() == "ERROR\n")
         throw XInterface::XConvError(__FILE__, __LINE__);
     XTime started{XTime::now()};
     while (XTime::now() - started < 1.0) {
+        msecsleep(100);
         interface()->query(":VNA:ACQ:FIN?");
         if(interface()->toStr() == "ERROR\n")
             throw XInterface::XConvError(__FILE__, __LINE__);
