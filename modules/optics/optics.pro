@@ -3,10 +3,12 @@ include($${PRI_DIR}/modules.pri)
 
 HEADERS += \
     odmrfm.h \
+    userlasermodule.h \
     useropticalspectrum.h
 
 SOURCES += \
     odmrfm.cpp \
+    userlasermodule.cpp \
     useropticalspectrum.cpp
 
 FORMS += \
