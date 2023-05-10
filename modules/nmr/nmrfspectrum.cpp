@@ -29,7 +29,9 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
 		  "SG1", false, ref(tr_meas), meas->drivers(), true)),
 	  m_autoTuner(create<XItemNode<XDriverList, XAutoLCTuner> >(
           "AutoTuner", false, ref(tr_meas), meas->drivers(), true)),
-	  m_pulser(create<XItemNode<XDriverList, XPulser> >(
+      m_autoTunerSecondary(create<XItemNode<XDriverList, XAutoLCTuner> >(
+          "AutoTunerSecondary", false, ref(tr_meas), meas->drivers(), false)),
+      m_pulser(create<XItemNode<XDriverList, XPulser> >(
 		  "Pulser", false, ref(tr_meas), meas->drivers(), true)),
 	  m_sg1FreqOffset(create<XDoubleNode>("SG1FreqOffset", false)),
 	  m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
@@ -66,6 +68,7 @@ XNMRFSpectrum::XNMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep),
         xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_autoTuner, m_form->m_cmbAutoTuner, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_autoTunerSecondary, m_form->m_cmbAutoTunerSecondary, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_pulser, m_form->m_cmbPulser, ref(tr_meas)),
         xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
         xqcon_create<XQLineEditConnector>(m_tuneCycleStep, m_form->m_edTuneCycleStep),
@@ -207,7 +210,12 @@ XNMRFSpectrum::performTuning(const Snapshot &shot_this, double newf) {
                 shared_from_this(), &XNMRFSpectrum::onTuningChanged);
             tr[ *autotuner->target()] = newf;
         });
-	}
+        if(shared_ptr<XAutoLCTuner> autotuner2 = shot_this[ *autoTunerSecondary()]) {
+            autotuner2->iterate_commit([=](Transaction &tr){
+                tr[ *autotuner2->tuning()].onValueChanged().connect(m_lsnOnTuningChanged);
+            });
+        }
+    }
     m_tunedFreq = newf;
 }
 void
@@ -283,18 +291,29 @@ XNMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
     }
 }
 void
-XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *) {
+XNMRFSpectrum::onTuningChanged(const Snapshot &shot, XValueNodeBase *node) {
     Snapshot shot_this( *this);
     shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
     if( !pulser__) return;
 //    if(shot_this[ *tuneStrategy()] != TUNEAUTOTUNER) return;
     {
         shared_ptr<XAutoLCTuner> autotuner = shot_this[ *autoTuner()];
-        if(autotuner) {
+        if(autotuner && (autotuner->tuning().get() == node)) {
             Snapshot shot_tuner( *autotuner);
             if(shot_tuner[ *autotuner->tuning()])
                 return; //still tuner is running.
             if( !shot_tuner[ *autotuner->succeeded()])
+                return; //awaiting manual tuning.
+            //Primary tuning just finished.
+            if(shared_ptr<XAutoLCTuner> autotuner2 = shot_this[ *autoTunerSecondary()]) {
+                trans( *autotuner2->target()) = (double)shot_tuner[ *autotuner->target()];
+            }
+        }
+        else if(shared_ptr<XAutoLCTuner> autotuner2 = shot_this[ *autoTunerSecondary()]) {
+            Snapshot shot_tuner( *autotuner2);
+            if(shot_tuner[ *autotuner2->tuning()])
+                return; //still tuner is running.
+            if( !shot_tuner[ *autotuner2->succeeded()])
                 return; //awaiting manual tuning.
         }
     }
