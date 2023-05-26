@@ -15,6 +15,8 @@
 #include "userlasermodule.h"
 #include "charinterface.h"
 
+REGISTER_TYPE(XDriverList, CoherentStingray, "Coherent Stingray Laser module");
+
 XCoherentStingray::XCoherentStingray(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver<XLaserModule>(name, runtime, ref(tr_meas), meas) {
     trans(*interface()->device()) = "SERIAL";
