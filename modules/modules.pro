@@ -38,6 +38,7 @@ SUBDIRS += testdriver\
     pumpcontroller\
     opticscore\
     optics\
+    arbfunc\
     twoaxis
 
 unix: SUBDIRS +=    montecarlo\
@@ -77,6 +78,7 @@ qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
 gauge.depends += charinterface
 pumpcontroller.depends += charinterface
+arbfunc.depends += charinterface
 twoaxis.depends += motorcore
 opticscore.file = optics/core/opticscore.pro
 optics.depends += opticscore sgcore liacore charinterface

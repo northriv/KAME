@@ -311,6 +311,7 @@ macx {
     modulefiles.files += ../modules/digilentwf/libdigilentwf.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/gauge/libgauge.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/pumpcontroller/libpumpcontroller.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/arbfunc/libarbfunc.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
 
