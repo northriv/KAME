@@ -14,3 +14,5 @@ Do *NOT* install QT from MacPorts. Use the genuine open-source QT.
 (to build universal binary) maybe, fftw-3 requires variants: +universal +clang13 -gfortran
 	Qt creator: project->build step->Additional Arguments->ABIs: check both the ABIs.
 
+(Note for NI 488.2)
+https://www.ni.com/ja-jp/support/documentation/bugs/22/ni-488-2-21-5-known-issues.html#

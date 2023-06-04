@@ -26,7 +26,7 @@ XArbFuncGenSCPI::changeOutput(bool active) {
     if(active)
         interface()->send("OUTPUT ON");
     else
-        interface()->send("OUTPUT FF");
+        interface()->send("OUTPUT OFF");
 }
 void
 XArbFuncGenSCPI::changePulseCond() {
