@@ -46,6 +46,35 @@ XArbFuncGenSCPI::changePulseCond() {
 
 void
 XArbFuncGenSCPI::open() {
+    XString __func;
+    double __freq, __ampl, __offset, __duty, __period, __width;
+    interface()->query("FUNC?");
+    __func = interface()->toStr();
+    interface()->query("FREQ?");
+    __freq = interface()->toDouble();
+    interface()->query("VOLT?");
+    __ampl = interface()->toDouble();
+    interface()->query("VOLT:OFFSET?");
+    __offset = interface()->toDouble();
+    if(__func == "SQUARE")
+        interface()->query("FUNC:SQU:DCYC?");
+    else
+        interface()->query("FUNC:PULSE:DCYC?");
+    __duty = interface()->toDouble();
+    interface()->query("FUNC:PULSE:WIDTH?");
+    __width = interface()->toDouble();
+    interface()->query("PULSE:PER?");
+    __period = interface()->toDouble();
+
+    iterate_commit([=](Transaction &tr){
+        tr[ *freq()] = __freq;
+        tr[ *ampl()] = __ampl;
+        tr[ *offset()] = __offset;
+        tr[ *duty()] = __duty;
+        tr[ *pulsePeriod()] = __period;
+        tr[ *pulseWidth()] = __width;
+        tr[ *waveform()].str(__func);
+    });
 
     start();
 }
