@@ -76,28 +76,31 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + shot_emitter[ *dmm__->waitInms()] * 1e-3)
-		throw XSkippedRecordError(__FILE__, __LINE__);
+    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + shot_emitter[ *dmm__->waitInms()] * 1e-3) {
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+    m_dmm_unstable = false;
 
     double curr = shot_others[ *dcsource__->value()];
     double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] - 1);
 
 	if(curr < 0) {
 		tr[ *this].value_inverted = var;
-		throw XSkippedRecordError(__FILE__, __LINE__);
+        throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 	else {
 		if(shot_this[ *this].value_inverted == 0.0)
 			throw XSkippedRecordError(__FILE__, __LINE__);
 		resistance()->value(tr, (var - shot_this[ *this].value_inverted) / 2 / curr);
 		tr[ *this].value_inverted = 0.0;
-	}
+    }
 }
 
 void
 XFourRes::visualize(const Snapshot &shot) {
-	if(shot[ *control()]) {
-		shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
+    if(shot[ *control()] && !m_dmm_unstable) {
+        m_dmm_unstable = true;
+        shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
         dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
 			tr[ *dcsource__->value()] = -curr; //Invert polarity.
