@@ -142,7 +142,7 @@ XNMRFSpectrum::checkDependencyImpl(const Snapshot &shot_this,
     if( !sg1__) return false;
     shared_ptr<XNMRPulseAnalyzer> pulse__ = shot_this[ *pulse()];
     if(emitter != pulse__.get()) return false;
-    if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *sg1__].time()) return false;
+//    if(shot_emitter[ *pulse__].timeAwared() < shot_others[ *sg1__].time()) return false;
     double freq = getCurrentCenterFreq(shot_this, shot_others);
     if(m_lastFreqAcquired == freq) {
         return false; //skips for the same freq.
