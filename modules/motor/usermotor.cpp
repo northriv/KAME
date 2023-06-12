@@ -464,18 +464,18 @@ XFlexAR::setAUXBits(unsigned int bits) {
     if((bits < 0x20uL) || (bits == 0xffuL)) {
         interface()->presetTwoResistors(0x7c, (netin & ~0x1fuL) | (bits & 0x1fuL));
     }
-    else {
-        //debug use
-        if(bits > 0x10000uL) {
-            uint32_t addr = bits / 0x10000uL;
-            interface()->presetTwoResistors(addr, bits % 0x10000uL);
-        }
-        else {
-            uint32_t res = interface()->readHoldingTwoResistors(bits);
-            fprintf(stderr, "%x: 0x%x(%d)\n", bits, res, res);
-        }
-        fprintf(stderr, "7e: %x\n", interface()->readHoldingTwoResistors(0x7e));
-    }
+//    else {
+//        //debug use
+//        if(bits > 0x10000uL) {
+//            uint32_t addr = bits / 0x10000uL;
+//            interface()->presetTwoResistors(addr, bits % 0x10000uL);
+//        }
+//        else {
+//            uint32_t res = interface()->readHoldingTwoResistors(bits);
+//            fprintf(stderr, "%x: 0x%x(%d)\n", bits, res, res);
+//        }
+//        fprintf(stderr, "7e: %x\n", interface()->readHoldingTwoResistors(0x7e));
+//    }
 }
 
 XEMP401::XEMP401(const char *name, bool runtime,

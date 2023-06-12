@@ -1,3 +1,14 @@
+* Mon Jun 12 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.4-1)
+- E44xB SCPI SG
+- Experimental: ODMR
+- LivreVNA
+- Staged autotuner
+- Experimental: Coherent Stingray
+- LXI 3390
+- nmrfspectrum: bug fix
+- foures: bug fix
+
 * Fri Dec 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.3-1)
 - DAQmxPulser: fix bug happened @5.8.2
