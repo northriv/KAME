@@ -14,13 +14,15 @@
 #ifndef signalgeneratorH
 #define signalgeneratorH
 
-#include "primarydriver.h"
+#include "primarydriverwiththread.h"
 #include "xnodeconnector.h"
+
+class XScalarEntry;
 
 class Ui_FrmSG;
 typedef QForm<QMainWindow, Ui_FrmSG> FrmSG;
 
-class DECLSPEC_SHARED XSG : public XPrimaryDriver {
+class DECLSPEC_SHARED XSG : public XPrimaryDriverWithThread {
 public:
 	XSG(const char *name, bool runtime,
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
@@ -36,12 +38,6 @@ public:
 		double m_freq;
 	};
 protected:
-	//! Starts up your threads, connects GUI, and activates signals.
-	virtual void start();
-	//! Shuts down your threads, unconnects GUI, and deactivates signals
-	//! This function may be called even if driver has already stopped.
-	virtual void stop();
-  
 	//! This function will be called when raw data are written.
 	//! Implement this function to convert the raw data to the record (Payload).
 	//! \sa analyze()
@@ -49,6 +45,10 @@ protected:
 	//! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
 	//! This might be called even if the record is invalid (time() == false).
 	virtual void visualize(const Snapshot &shot);
+
+    //! driver specific part below
+    const shared_ptr<XScalarEntry> &entryFreq() const {return m_entryFreq;}
+
 public:
 	//! driver specific part below
 	const shared_ptr<XBoolNode> &rfON() const {return m_rfON;} //!< Activate Output
@@ -56,23 +56,45 @@ public:
 	const shared_ptr<XDoubleNode> &oLevel() const {return m_oLevel;} //!< Output Level [dBm]
 	const shared_ptr<XBoolNode> &fmON() const {return m_fmON;} //!< Activate FM
 	const shared_ptr<XBoolNode> &amON() const {return m_amON;} //!< Activate AM
+    const shared_ptr<XDoubleNode> &amDepth() const {return m_amDepth;} //!< [%]
+    const shared_ptr<XDoubleNode> &fmDev() const {return m_fmDev;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &amIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
+    const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_fmIntSrcFreq;} //!< freq [kHz]
+    const shared_ptr<XComboNode> &sweepMode() const {return m_sweepMode;}
+    const shared_ptr<XDoubleNode> &sweepFreqMax() const {return m_sweepFreqMax;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &sweepFreqMin() const {return m_sweepFreqMin;} //!< [MHz]
 protected:
+    virtual double getFreq() = 0; //!< [MHz]
 	virtual void changeFreq(double mhz) = 0;
 	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) = 0;
     virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
+    const shared_ptr<XScalarEntry> m_entryFreq;
 
 	const shared_ptr<XBoolNode> m_rfON;
 	const shared_ptr<XDoubleNode> m_freq;
 	const shared_ptr<XDoubleNode> m_oLevel;
 	const shared_ptr<XBoolNode> m_fmON;
 	const shared_ptr<XBoolNode> m_amON;
-  
+    const shared_ptr<XDoubleNode> m_amDepth, m_fmDev;
+    const shared_ptr<XDoubleNode> m_amIntSrcFreq, m_fmIntSrcFreq;
+    const shared_ptr<XComboNode> m_sweepMode;
+    const shared_ptr<XDoubleNode> m_sweepFreqMax, m_sweepFreqMin;
+
+    void *execute(const atomic<bool> &);
+
     std::deque<xqcon_ptr> m_conUIs;
-    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel, m_lsnFMON, m_lsnAMON;
+    shared_ptr<Listener> m_lsnRFON, m_lsnFreq, m_lsnOLevel,
+        m_lsnFMON, m_lsnAMON, m_lsnAMDepth, m_lsnFMDev, m_lsnAMIntSrcFreq, m_lsnFMIntSrcFreq,
+        m_lsnSweepCond;
   
 	const qshared_ptr<FrmSG> m_form;
 };//---------------------------------------------------------------------------

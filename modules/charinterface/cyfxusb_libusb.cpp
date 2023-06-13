@@ -267,19 +267,19 @@ CyFXLibUSBDevice::open() {
     //    if(ret) {
     //        fprintf(stderr, "USB %d: Warning auto detach is not supported: %s\n", n, libusb_error_name(ret));
     //    }
-        ret = libusb_kernel_driver_active(handle, 0);
-        if(ret < 0) {
-//            libusb_close(handle); handle = nullptr;
-//            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-        }
-        if(ret == 1) {
-            fprintf(stderr, "USB: kernel driver is active, detaching...\n");
-            ret = libusb_detach_kernel_driver(handle, 0);
-            if(ret < 0) {
-                libusb_close(handle); handle = nullptr;
-                throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
-            }
-        }
+//        ret = libusb_kernel_driver_active(handle, 0);
+//        if(ret < 0) {
+////            libusb_close(handle); handle = nullptr;
+////            throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+//        }
+//        if(ret == 1) {
+//            fprintf(stderr, "USB: kernel driver is active, detaching...\n");
+//            ret = libusb_detach_kernel_driver(handle, 0);
+//            if(ret < 0) {
+//                libusb_close(handle); handle = nullptr;
+//                throw XInterface::XInterfaceError(formatString("Error opening dev. in libusb: %s\n", libusb_error_name(ret)).c_str(), __FILE__, __LINE__);
+//            }
+//        }
     //    ret = libusb_set_configuration( *h, 1);
         ret = libusb_claim_interface(handle, 0);
         if(ret) {

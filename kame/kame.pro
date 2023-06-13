@@ -283,6 +283,7 @@ macx {
     coremodulefiles.files += ../modules/networkanalyzer/core/libnetworkanalyzercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/nmr/pulsercore/libnmrpulsercore.$${QMAKE_EXTENSION_SHLIB}
     coremodulefiles.files += ../modules/sg/core/libsgcore.$${QMAKE_EXTENSION_SHLIB}
+    coremodulefiles.files += ../modules/lia/core/libliacore.$${QMAKE_EXTENSION_SHLIB}
     coremodule2files.files += ../modules/dso/core/libdsocore.$${QMAKE_EXTENSION_SHLIB}
     coremodule2files.files += ../modules/qd/core/libqdcore.$${QMAKE_EXTENSION_SHLIB}
     coremodule2files.files += ../modules/optics/core/libopticscore.$${QMAKE_EXTENSION_SHLIB}
@@ -310,6 +311,7 @@ macx {
     modulefiles.files += ../modules/digilentwf/libdigilentwf.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/gauge/libgauge.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/pumpcontroller/libpumpcontroller.$${QMAKE_EXTENSION_SHLIB}
+    modulefiles.files += ../modules/arbfunc/libarbfunc.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/optics/liboptics.$${QMAKE_EXTENSION_SHLIB}
     modulefiles.files += ../modules/twoaxis/libtwoaxis.$${QMAKE_EXTENSION_SHLIB}
 

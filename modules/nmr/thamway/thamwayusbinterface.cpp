@@ -114,6 +114,7 @@ std::string
 XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice> &dev) {
     dev->open();
     uint8_t dipsw = readDIPSW(dev);
+    dipsw = readDIPSW(dev);
     XString idn;
     if(m_idString.empty()) {
         Snapshot shot( *this);
@@ -123,8 +124,10 @@ XThamwayFX2USBInterface::examineDeviceAfterFWLoad(const shared_ptr<CyFXUSBDevice
     }
     else {
         //for PG and DV series.
-        idn = getIDN(dev, 8);
+//        idn = getIDN(dev, 8);
+        idn = getIDN(dev);
         if( !idn.length()) return {};
+        idn = idn.substr(0,9); //8 is correct. but backward compatibility for .kam
     }
     idn = formatString("%d:%s", (int)dipsw, idn.c_str());
     dev->close();

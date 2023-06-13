@@ -43,9 +43,11 @@ XNIDAQmxPulser::XNIDAQmxPulser(const char *name, bool runtime,
 	m_taskGateCtr(TASK_UNDEF) {
 
 	iterate_commit([=](Transaction &tr){
-		for(unsigned int i = 0; i < NUM_DO_PORTS; i++)
-			tr[ *portSel(i)].add("Pausing(PFI4)");
-	    const int ports[] = {
+        for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
+            tr[ *portSel(i)].add("Pausing(PFI4)");
+        }
+        m_portSelPausing = tr[ *portSel(0)].itemStrings().size() - 1;
+        const int ports[] = {
 	    	PORTSEL_GATE, PORTSEL_PREGATE, PORTSEL_TRIG1, PORTSEL_TRIG2,
 	    	PORTSEL_GATE3, PORTSEL_COMB, PORTSEL_QSW, PORTSEL_ASW
 	    };
@@ -450,7 +452,7 @@ XNIDAQmxPulser::startPulseGen(const Snapshot &shot) {
 
 	stopPulseGen();
 
-	unsigned int pausingbit = selectedPorts(shot, PORTSEL_PAUSING);
+    unsigned int pausingbit = selectedPorts(shot, m_portSelPausing);
 	m_aswBit = selectedPorts(shot, PORTSEL_ASW);
 
 	if((m_taskDO == TASK_UNDEF) ||

@@ -60,7 +60,7 @@ public:
     virtual ~XThamwayPROT() {}
 
     //! show all forms belonging to driver
-    virtual void showForms(); //!< overrides XSG::showForms()
+    virtual void showForms() override; //!< overrides XSG::showForms()
 
     const shared_ptr<XDoubleNode> &rxGain() const {return m_rxGain;} //!< Receiver Gain [dB] (0 -- 95)
     const shared_ptr<XDoubleNode> &rxPhase() const {return m_rxPhase;} //!< Receiver phase [deg.]
@@ -70,17 +70,23 @@ public:
     const shared_ptr<XBoolNode> &ampWarn() const {return m_ampWarn;}
 protected:
     //! Starts up your threads, connects GUI, and activates signals.
-    virtual void start();
+    virtual void start() override;
     //! Shuts down your threads, unconnects GUI, and deactivates signals
     //! This function may be called even if driver has already stopped.
-    virtual void stop();
+    virtual void stop() override;
 
-    virtual void changeFreq(double mhz);
-    virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *node) {XSG::onFreqChanged(shot, node);}
-    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) {}
-    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) {}
+    virtual double getFreq() override; //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onFreqChanged(const Snapshot &shot, XValueNodeBase *node) override {XSG::onFreqChanged(shot, node);}
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
     //! PROT features below
     virtual void onRXGainChanged(const Snapshot &shot, XValueNodeBase *);
     virtual void onRXPhaseChanged(const Snapshot &shot, XValueNodeBase *);

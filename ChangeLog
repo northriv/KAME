@@ -1,3 +1,36 @@
+* Mon Jun 12 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.4-1)
+- E44xB SCPI SG
+- Experimental: ODMR
+- LivreVNA
+- Staged autotuner
+- Experimental: Coherent Stingray
+- LXI 3390
+- nmrfspectrum: bug fix
+- foures: bug fix
+
+* Fri Dec 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.3-1)
+- DAQmxPulser: fix bug happened @5.8.2
+- Signal Recovery 7260 lockin amp
+- LIA: improve wait strategy
+- FlexAR: fix init. issue.
+
+* Sun Nov 13 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.2-1)
+- NMRPulser: signals for ODMR
+- ThamwayUSB: improved initialization process
+- autotuner: fix bugs after ver5.6
+- twoaxis: Fix for race condition
+- fix compilation with old compilers.
+
+* Mon Oct 17 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8-1)
+- OceanOptics/Seabreeze HR2000+/4000 optical spectromters
+- Thamway: Worked with M1 mac. USB routines shared w/ oceanoptics.
+- CAM: several fixes.
+- Interfaces: fix bugs after STOP
+
 * Sat Jun 25 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.7.1-1)
 - DMM: support for multi channels, Keithley 2851, 2700.

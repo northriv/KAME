@@ -155,7 +155,8 @@ private:
     void setSpeed(const Snapshot &shot, Axis axis, double rate = -1.0);
     void setMaxSpeed(const Snapshot &shot, Axis axis) {setSpeed(shot, axis);}
 
-    constexpr Axis letterToAxis(char c) {
+//    constexpr Axis letterToAxis(char c) {
+    Axis letterToAxis(char c) const {
         switch(c) {case 'Z': return Axis::Z; case 'X': return Axis::X; case 'A': return Axis::A;
         default: throw XInterface::XInterfaceError(i18n("Unknown Axis Letter."), __FILE__, __LINE__);}}
     struct CodeBlock {

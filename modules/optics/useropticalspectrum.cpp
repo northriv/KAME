@@ -15,6 +15,9 @@
 #include "charinterface.h"
 #include "analyzer.h"
 
+#if defined USE_OCEANOPTICS_USB
+
+
 REGISTER_TYPE(XDriverList, OceanOpticsSpectrometer, "OceanOptics/Seabreeze HR2000+/4000 spectrometer");
 
 //---------------------------------------------------------------------------
@@ -127,7 +130,7 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
     for(unsigned int i = 0; i < tr[ *this].m_nonLinCorrCoeffs.size(); ++i)
         tr[ *this].m_nonLinCorrCoeffs[i] = reader.pop<double>();
 
-    auto fn_poly = [](const auto &coeffs, double v) {
+    auto fn_poly = [](const std::vector<double> &coeffs, double v) {
         double y = 0.0, x = 1.0;
         for(auto coeff: coeffs) {
             y += coeff * x;
@@ -187,3 +190,4 @@ XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction 
         throw XInterface::XConvError(__FILE__, __LINE__);
     tr[ *this].m_accumulated++;
 }
+#endif // OCEANOPTICSUSB_H

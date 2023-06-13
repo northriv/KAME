@@ -240,11 +240,10 @@ XFlexAR::changeConditions(const Snapshot &shot) {
     bool conf_needed = false;
     //electric gear
     {
-//        smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
+        int smotor = lrint(interface()->readHoldingTwoResistors(0x382) * 1000.0 /  interface()->readHoldingTwoResistors(0x380));
         int a = 1000;
         int b = shot[ *stepMotor()];
-        if((a != interface()->readHoldingTwoResistors(0x380)) ||
-            (b != interface()->readHoldingTwoResistors(0x382))) {
+        if(b != smotor) {
             conf_needed = true;
             interface()->presetTwoResistors(0x380,  a); //A
             interface()->presetTwoResistors(0x382,  b); //B, rot=1000B/A
@@ -342,7 +341,7 @@ XFlexAR::setTarget(const Snapshot &shot, double target) {
     int steps = shot[ *hasEncoder()] ? shot[ *stepEncoder()] : shot[ *stepMotor()];
     interface()->presetTwoResistors(0x400, lrint(target / 360.0 * steps));
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin);
     msecsleep(4);
 //    interface()->presetTwoResistors(0x7c, netin | 0x8uL); //START
@@ -377,7 +376,7 @@ XFlexAR::prepairSequence(const std::vector<double> &points, const std::vector<do
 
 void
 XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
-                         const std::vector<std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) {
+                         const std::vector<std::vector<double>> &speeds, const std::vector<shared_ptr<XMotorDriver>> &slaves) {
     XScopedLock<XInterface> lock( *interface());
     if( !interface()->isOpened())
         throw XInterface::XInterfaceError(getLabel() +
@@ -395,7 +394,7 @@ XFlexAR::runSequentially(const std::vector<std::vector<double>> &points,
     }
     //ignites.
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0xfuL); //FWD | RVS | STOP | START | M0-2
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin);
     msecsleep(4);
     interface()->presetTwoResistors(0x7c, netin | 0x200uL); //MS1
@@ -418,7 +417,7 @@ XFlexAR::sendStopSignal(bool wait) {
         if(isready) break;
         if(i ==0) {
             uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-            netin &= ~(0x4000uL | 0x8000u | 0x8uL); //FWD | RVS | START
+            netin &= ~(0x4000uL | 0x8000u); //FWD | RVS
             interface()->presetTwoResistors(0x7c, netin | 0x20uL); //STOP
 //            fprintf(stderr, "STOP%u\n", netin);
             msecsleep(4);
@@ -436,14 +435,14 @@ void
 XFlexAR::setForward() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin | 0x4000uL); //FWD
 }
 void
 XFlexAR::setReverse() {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    netin &= ~(0x4000uL | 0x8000uL | 0x20uL | 0x8uL); //FWD | RVS | STOP | START
+    netin &= ~(0x4000uL | 0x8000uL | 0x20uL); //FWD | RVS | STOP
     interface()->presetTwoResistors(0x7c, netin | 0x8000uL); //RVS
 }
 void
@@ -462,21 +461,21 @@ void
 XFlexAR::setAUXBits(unsigned int bits) {
     XScopedLock<XInterface> lock( *interface());
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    if((bits < 0x40uL) || (bits == 0xffuL)) {
-        interface()->presetTwoResistors(0x7c, (netin & ~0x3fuL) | (bits & 0x3fuL));
+    if((bits < 0x20uL) || (bits == 0xffuL)) {
+        interface()->presetTwoResistors(0x7c, (netin & ~0x1fuL) | (bits & 0x1fuL));
     }
-    else {
-        //debug use
-        if(bits > 0x10000uL) {
-            uint32_t addr = bits / 0x10000uL;
-            interface()->presetTwoResistors(addr, bits % 0x10000uL);
-        }
-        else {
-            uint32_t res = interface()->readHoldingTwoResistors(bits);
-            fprintf(stderr, "%x: 0x%x(%d)\n", bits, res, res);
-        }
-        fprintf(stderr, "7e: %x\n", interface()->readHoldingTwoResistors(0x7e));
-    }
+//    else {
+//        //debug use
+//        if(bits > 0x10000uL) {
+//            uint32_t addr = bits / 0x10000uL;
+//            interface()->presetTwoResistors(addr, bits % 0x10000uL);
+//        }
+//        else {
+//            uint32_t res = interface()->readHoldingTwoResistors(bits);
+//            fprintf(stderr, "%x: 0x%x(%d)\n", bits, res, res);
+//        }
+//        fprintf(stderr, "7e: %x\n", interface()->readHoldingTwoResistors(0x7e));
+//    }
 }
 
 XEMP401::XEMP401(const char *name, bool runtime,

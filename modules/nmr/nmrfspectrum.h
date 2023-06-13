@@ -47,7 +47,8 @@ public:
 	//! driver specific part below 
 	const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
 	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > &autoTuner() const {return m_autoTuner;}
-	const shared_ptr<XItemNode<XDriverList, XPulser> > &pulser() const {return m_pulser;}
+    const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > &autoTunerSecondary() const {return m_autoTunerSecondary;}
+    const shared_ptr<XItemNode<XDriverList, XPulser> > &pulser() const {return m_pulser;}
 	//! Offset for IF [MHz]
 	const shared_ptr<XDoubleNode> &sg1FreqOffset() const {return m_sg1FreqOffset;}
 	//! [MHz]
@@ -64,7 +65,7 @@ public:
                             CYCLE_DBL = 3, CYCLE_QUAD = 4, CYCLE_OCT = 5};
 private:
 	const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
-	const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner;
+    const shared_ptr<XItemNode<XDriverList, XAutoLCTuner> > m_autoTuner, m_autoTunerSecondary;
 	const shared_ptr<XItemNode<XDriverList, XPulser> > m_pulser;
 	const shared_ptr<XDoubleNode> m_sg1FreqOffset;
 

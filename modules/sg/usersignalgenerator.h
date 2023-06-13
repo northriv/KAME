@@ -25,11 +25,17 @@ public:
 	virtual ~XSG7200() {}
 
 protected:
-	virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual double getFreq() override {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -48,11 +54,17 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XHP8643() {}
 protected:
-	virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual double getFreq(); //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -63,23 +75,61 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XHP8648() {}
 protected:
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+private:
+};
+
+//! Agilent E44*1B SCPI
+class XAgilentSGSCPI : public XCharDeviceDriver<XSG> {
+public:
+    XAgilentSGSCPI(const char *name, bool runtime,
+		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XAgilentSGSCPI() {}
+protected:
+    virtual double getFreq() override; //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
 };
 
 //! Agilent 8664A, 8665A
-class XHP8664 : public XCharDeviceDriver<XSG> {
+class XHP8664 : public XAgilentSGSCPI {
 public:
-	XHP8664(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
-	virtual ~XHP8664() {}
+    XHP8664(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XHP8664() {}
 protected:
-	virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+private:
+};
+
+class XLibreVNASGSCPI : public XCharDeviceDriver<XSG> {
+public:
+    XLibreVNASGSCPI(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLibreVNASGSCPI() {}
+protected:
+    virtual double getFreq() override; //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -90,11 +140,17 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XDPL32XGF() {}
 protected:
-	virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual double getFreq() {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
+    virtual void changeFreq(double mhz);
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 
@@ -105,11 +161,17 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	virtual ~XRhodeSchwartzSMLSMV() {}
 protected:
-	virtual void changeFreq(double mhz);
-	virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *);
-	virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *);
+    virtual double getFreq() override {throw XInterface::XUnsupportedFeatureError(__FILE__, __LINE__);} //!< [MHz]
+    virtual void changeFreq(double mhz) override;
+    virtual void onRFONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onOLevelChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onFMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMONChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onAMDepthChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMDevChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onAMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onSweepCondChanged(const Snapshot &shot, XValueNodeBase *) override {}
 private:
 };
 #endif

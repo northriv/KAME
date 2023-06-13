@@ -15,6 +15,7 @@ SUBDIRS += testdriver\
     funcsynth\
     levelmetercore\
     levelmeter\
+    liacore\
     lia\
     magnetpscore\
     magnetps\
@@ -35,11 +36,12 @@ SUBDIRS += testdriver\
     qd\
     gauge\
     pumpcontroller\
+    opticscore\
+    optics\
+    arbfunc\
     twoaxis
 
 unix: SUBDIRS +=    montecarlo\
-        opticscore\
-        optics
 
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
@@ -53,6 +55,8 @@ magnetpscore.file = magnetps/core/magnetpscore.pro
 magnetps.depends += magnetpscore charinterface
 motorcore.file = motor/core/motorcore.pro
 motor.depends += motorcore charinterface
+liacore.file = lia/core/liacore.pro
+lia.depends += liacore charinterface
 sgcore.file = sg/core/sgcore.pro
 sg.depends += sgcore charinterface
 dsocore.file = dso/core/dsocore.pro
@@ -74,6 +78,7 @@ qdcore.file = qd/core/qdcore.pro
 qd.depends += qdcore charinterface
 gauge.depends += charinterface
 pumpcontroller.depends += charinterface
+arbfunc.depends += charinterface
 twoaxis.depends += motorcore
 opticscore.file = optics/core/opticscore.pro
-optics.depends += opticscore charinterface
+optics.depends += opticscore sgcore liacore charinterface

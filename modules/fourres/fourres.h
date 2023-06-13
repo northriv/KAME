@@ -69,6 +69,7 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 	const qshared_ptr<FrmFourRes> m_form;
+    bool m_dmm_unstable;
 };
   
 #endif

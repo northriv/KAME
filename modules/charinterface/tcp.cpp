@@ -186,7 +186,8 @@ XTCPSocketPort::receive() {
 	for(;;) {
 		if(buffer().size() <= len + 1) 
 			buffer().resize(len + MIN_BUFFER_SIZE);
-        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
+        char *bpos = &buffer().at(len);
+        int rlen = ::recv(m_socket, bpos , 1, 0);
 		if(rlen == 0) {
 			buffer().at(len) = '\0';
             throw XInterface::XCommError(i18n("read time-out, buf=;") + &buffer().at(0), __FILE__, __LINE__);

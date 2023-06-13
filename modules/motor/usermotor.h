@@ -54,7 +54,7 @@ public:
     //! \arg points, speeds: [# of devices][# of points].
     //! \arg slaves: if any, devices to be started simultatneously.
     virtual void runSequentially(const std::vector<std::vector<double>> &points,
-        const std::vector<std::vector<double>> &speeds, const std::vector<const shared_ptr<XMotorDriver>> &slaves) override;
+        const std::vector<std::vector<double>> &speeds, const std::vector<shared_ptr<XMotorDriver>> &slaves) override;
 protected:
 protected:
     virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) override;

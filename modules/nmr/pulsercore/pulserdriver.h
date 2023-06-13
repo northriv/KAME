@@ -42,8 +42,7 @@ public:
 
 	//! driver specific part below
 
-	//! \sa pulseAnalyzerMode()
-	enum {N_MODE_NMR_PULSER = 0, N_MODE_PULSE_ANALYZER = 1};
+    enum {N_MODE_NMR_PULSER = 0}; //PulseAnalyzerMode is deprecated and removed.
     //! \sa combMode(), Payload::combMode().
 	enum {N_COMB_MODE_OFF = 0, N_COMB_MODE_ON = 1, N_COMB_MODE_P1_ALT = 2, N_COMB_MODE_COMB_ALT = 3};
     //! \sa rtMode(), Payload::rtMode().
@@ -97,11 +96,11 @@ public:
 	    double masterLevel() const {return m_masterLevel;}
 	    double combOffRes() const {return m_combOffRes;}
 	    bool conserveStEPhase() const {return m_conserveStEPhase;}
-
-	    bool isPulseAnalyzerMode() const {return  m_paPulseBW > 0;}
-	    double paPulseRept() const {return m_rtime;}
-	    double paPulseBW() const {return m_paPulseBW;}
-	    double paPulseOrigin() const {return m_paPulseOrigin;}
+        //! ver 5 records.
+        double odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
+        double odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
+        double odmrSaturationPW() const {return m_odmrSaturationPW;}
+        double odmrReadTimeOriginShift() const {return m_odmrReadTimeOriginShift;}
 
 	    //! periodic term of one cycle [ms].
 	    double periodicTerm() const;
@@ -151,10 +150,11 @@ public:
 	    double m_p1Level, m_p2Level, m_combLevel, m_masterLevel;
 	    double m_combOffRes;
 	    bool m_conserveStEPhase;
-
-	    //! PA mode
-	    double m_paPulseBW;
-	    double m_paPulseOrigin; //!< [us]
+        //! ver 5 records for ODMR
+        double m_odmrReadPulseSetupTime; //!< [us]
+        double m_odmrReadPulseHoldTime; //!< [us]
+        double m_odmrSaturationPW; //!< [us]
+        double m_odmrReadTimeOriginShift; //!< [us]
 
 	    //! Patterns.
 	    RelPatList m_relPatList;
@@ -191,8 +191,6 @@ public:
     const shared_ptr<XDoubleNode> &p1Level() const {return m_p1Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &p2Level() const {return m_p2Level;} //!< [dB], Pulse Modulation
     const shared_ptr<XDoubleNode> &masterLevel() const {return m_masterLevel;} //!< [dB]
-    const shared_ptr<XBoolNode> &induceEmission() const {return m_induceEmission;}
-    const shared_ptr<XDoubleNode> &induceEmissionPhase() const {return m_induceEmissionPhase;}
     const shared_ptr<XDoubleNode> &qamOffset1() const {return m_qamOffset1;}
     const shared_ptr<XDoubleNode> &qamOffset2() const {return m_qamOffset2;} //!< [%F.S.]
     const shared_ptr<XDoubleNode> &qamLevel1() const {return m_qamLevel1;} //! < Quadrature Amplitude Modulation. Amplitude compensation factor.
@@ -210,9 +208,10 @@ public:
     	assert(port < NUM_DO_PORTS);
     	return m_portSel[port];
     }
-    const shared_ptr<XBoolNode> &pulseAnalyzerMode() const {return m_pulseAnalyzerMode;}
-    const shared_ptr<XDoubleNode> &paPulseRept() const {return m_paPulseRept;}
-    const shared_ptr<XDoubleNode> &paPulseBW() const {return m_paPulseBW;}
+    const shared_ptr<XDoubleNode> &odmrReadPulseSetupTime() const {return m_odmrReadPulseSetupTime;}
+    const shared_ptr<XDoubleNode> &odmrReadPulseHoldTime() const {return m_odmrReadPulseHoldTime;}
+    const shared_ptr<XDoubleNode> &odmrSaturationPW() const {return m_odmrSaturationPW;}
+    const shared_ptr<XDoubleNode> &odmrReadTimeOriginShift() const {return m_odmrReadTimeOriginShift;}
     const shared_ptr<XUIntNode> &firstPhase() const {return m_firstPhase;} //!< 0-3, selects the first phase of QPSK.
 
     //! time resolution [ms]
@@ -227,8 +226,10 @@ protected:
 		  PORTSEL_QPSK_A = 11, PORTSEL_QPSK_B = 12,
 		  PORTSEL_QPSK_OLD_NONINV = 13, PORTSEL_QPSK_OLD_INV = 14,
 		  PORTSEL_QPSK_OLD_PSGATE = 15,
-		  PORTSEL_PULSE_ANALYZER_GATE = 16,
-		  /*PORTSEL_PAUSING = 17*/};
+          PORTSEL_ODMR_LIGHT = 16,
+          PORTSEL_ODMR_SATURATION = 17,
+          PORTSEL_ALWAYS_HIGH = 18,
+          PORTSEL_ALWAYS_LOW = 19};
 	//! \param func e.g. PORTSEL_GATE.
 	//! \return bit mask.
 	unsigned int selectedPorts(const Snapshot &shot, int func) const;
@@ -297,8 +298,6 @@ private:
     const shared_ptr<XDoubleNode> m_qamDelay1;
     const shared_ptr<XDoubleNode> m_qamDelay2; //!< [us]
     const shared_ptr<XDoubleNode> m_difFreq; //!< [MHz]
-    const shared_ptr<XBoolNode> m_induceEmission; 
-    const shared_ptr<XDoubleNode> m_induceEmissionPhase; 
     const shared_ptr<XDoubleNode> m_qswDelay;
     const shared_ptr<XDoubleNode> m_qswWidth;
     const shared_ptr<XDoubleNode> m_qswSoftSWOff;
@@ -307,8 +306,10 @@ private:
     const shared_ptr<XBoolNode> m_qswPiPulseOnly;
     shared_ptr<XComboNode> m_portSel[NUM_DO_PORTS];
     const shared_ptr<XBoolNode> m_pulseAnalyzerMode;
-    const shared_ptr<XDoubleNode> m_paPulseRept; //!< [ms]
-    const shared_ptr<XDoubleNode> m_paPulseBW; //!< [kHz]
+    const shared_ptr<XDoubleNode> m_odmrReadPulseSetupTime; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrReadPulseHoldTime; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrSaturationPW; //!< [us]
+    const shared_ptr<XDoubleNode> m_odmrReadTimeOriginShift; //!< [us]
     const shared_ptr<XUIntNode> m_firstPhase; //!< 0-3, selects QPSK for the first cycle.
 
 	const shared_ptr<XTouchableNode> m_moreConfigShow;
@@ -326,7 +327,6 @@ private:
 
 	//! creates \a RelPatList
 	void createRelPatListNMRPulser(Transaction &tr);
-	void createRelPatListPulseAnalyzer(Transaction &tr);
 	//! \return maskbits for QPSK ports.
 	unsigned int bitpatternsOfQPSK(const Snapshot &shot, unsigned int qpsk[4], unsigned int qpskinv[4], bool invert);
 
@@ -342,7 +342,7 @@ private:
 	inline uint64_t rintSampsMicroSec(double us) const;
 	inline uint64_t rintSampsMilliSec(double ms) const;
 
-	void changeUIStatus(bool nmrmode, bool state);
+    void changeUIStatus(bool state);
 
     //! \sa SoftwareTrigger::onTriggerRequested()
     void onTriggerRequested(uint64_t threshold);

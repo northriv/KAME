@@ -121,7 +121,7 @@ protected:
 	TaskHandle m_taskAO, m_taskDO,
 		m_taskDOCtr, m_taskGateCtr;
 private:
-	enum {PORTSEL_PAUSING = 17};
+    unsigned int m_portSelPausing; //=20, last member in port selector.
 	//! Ring buffer storing AO/DO patterns being transfered to DAQmx lib.
 	template <typename T>
 	struct RingBuffer {
