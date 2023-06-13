@@ -43,6 +43,7 @@ SUBDIRS += testdriver\
 
 unix: SUBDIRS +=    montecarlo\
 
+counter.depends += charinterface
 dcsourcecore.file = dcsource/core/dcsourcecore.pro
 dcsource.depends += dcsourcecore
 dmmcore.file = dmm/core/dmmcore.pro
