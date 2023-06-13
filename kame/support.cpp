@@ -328,7 +328,7 @@ X86CPUSpec::X86CPUSpec() {
         monsize_l = cpuinfo[2];
 #else
         __cpuid(0x5, monsize_s, cpuinfo[1] , monsize_l, cpuinfo[2]);
-        //#if defined __LP64__ || defined __LLP64__
+        //#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
         //		asm volatile("push %%rbx; cpuid; mov %%ebx, %%ecx; pop %%rbx"
         //#else
         //		asm volatile("push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"
@@ -337,12 +337,12 @@ X86CPUSpec::X86CPUSpec() {
 #endif
 		monitorSizeSmallest = monsize_s;
 		monitorSizeLargest = monsize_l;
-	}
+    }
 	fprintf(stderr, "Target: "
 #if defined __LP64__
 		"x86-64, LP64"
 #else
-	#if defined __LLP64__
+    #if defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 			"x86-64, LLP64"
 	#else
 			"x86-32"

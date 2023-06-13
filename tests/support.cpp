@@ -29,7 +29,7 @@ int my_assert(char const*s, int d) {
 #if defined __i386__ || defined __i486__ || defined __i586__ || defined __i686__ || defined __x86_64__
 X86CPUSpec::X86CPUSpec() {
 	uint32_t stepinfo, features_ext, features;
-#if defined __LP64__ || defined __LLP64__
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 	asm volatile("push %%rbx; cpuid; pop %%rbx"
 #else
 	asm volatile("push %%ebx; cpuid; pop %%ebx"
@@ -49,7 +49,7 @@ X86CPUSpec::X86CPUSpec() {
 	monitorSizeLargest = 0L;
 	if(hasMonitor) {
 		uint32_t monsize_s, monsize_l;
-#if defined __LP64__ || defined __LLP64__
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 		asm volatile("push %%rbx; cpuid; mov %%ebx, %%ecx; pop %%rbx"
 #else
 		asm volatile("push %%ebx; cpuid; mov %%ebx, %%ecx; pop %%ebx"
@@ -62,7 +62,7 @@ X86CPUSpec::X86CPUSpec() {
 #if defined __LP64__
 		"x86-64, LP64 + "
 #else
-	#if defined __LLP64__
+    #if defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 			"x86-64, LLP64 + "
 	#else
 			"x86-32 + "

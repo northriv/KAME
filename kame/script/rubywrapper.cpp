@@ -1,8 +1,8 @@
-#ifndef _MSC_VER
+#if !defined _MSC_VER && !defined __MINGW64__
     #include <ruby.h>
 #endif
 #include "rubywrapper.h"
-#ifdef _MSC_VER
+#if defined _MSC_VER || defined __MINGW64__
     #include <ruby.h>
 #endif
 

@@ -37,7 +37,7 @@
     #define ALLOC_MIN_MMAP_SIZE ALLOC_MIN_CHUNK_SIZE
     #define ALLOC_MAX_MMAP_ENTRIES 24
 #else
-    #if defined __LP64__ || defined __LLP64__
+    #if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
         #define GROW_CHUNK_SIZE(x) ((size_t)(x / 4 * 5) / ALLOC_PAGE_SIZE * ALLOC_PAGE_SIZE)
         #define ALLOC_MIN_MMAP_SIZE (1024 * 1024 * 32) //32MiB
         #define ALLOC_MAX_MMAP_ENTRIES 24 //27GiB approx.
@@ -148,7 +148,7 @@ private:
 };
 
 #define ALLOC_ALIGN1 (ALLOC_ALIGNMENT * 2)
-#if defined __LP64__ || defined __LLP64__
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 	#define ALLOC_ALIGN2 (ALLOC_ALIGNMENT * 16)
 	#define ALLOC_ALIGN(size) (((size) % ALLOC_ALIGN2 != 0) || ((size) == ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)
 //	#define ALLOC_ALIGN(size) (((size) <= ALLOC_ALIGN1 * 64) ? ALLOC_ALIGN1 : ALLOC_ALIGN2)

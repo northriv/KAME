@@ -28,7 +28,7 @@ typedef int_cas2 int_cas_max;
 typedef uint_cas2 uint_cas_max;
 #endif
 
-#if !defined __LP64__ && !defined __LLP64__
+#if !defined __LP64__ && !defined __LLP64__ && !defined(_WIN64) &&! defined(__MINGW64__)
 	#ifdef __SSE2__
 		#define HAVE_ATOMIC_RW64
 	#endif
@@ -71,7 +71,7 @@ inline bool atomicCompareAndSet2(
 	T oldv0, T oldv1,
     T newv0, T newv1, T *target ) noexcept {
 	unsigned char ret;
-#if defined __LP64__ || defined __LLP64__
+#if defined __LP64__ || defined __LLP64__ || defined(_WIN64) || defined(__MINGW64__)
 	asm volatile (
 		" lock; cmpxchg16b (%%rsi);"
 		" sete %0;" // ret = zflag ? 1 : 0

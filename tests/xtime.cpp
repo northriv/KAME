@@ -128,7 +128,7 @@ XString
 XTime::getTimeStr(bool subsecond) const {
     if( *this) {
         char str[100];
-#ifdef _MSC_VER
+#if defined _MSC_VER || defined(__MINGW64__)
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
         if(sizeof(tv_sec) == 4)
@@ -151,7 +151,7 @@ XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
     if( *this) {
         struct tm time;
-#ifdef _MSC_VER
+#if defined _MSC_VER || defined(__MINGW64__)
         __time32_t t32 = tv_sec;
         __time64_t t64 = tv_sec;
         if(sizeof(tv_sec) == 4)
