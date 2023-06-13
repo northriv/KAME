@@ -71,7 +71,10 @@ public:
     const shared_ptr<XComboNode> &fitFunc() const {return m_fitFunc;}
     const shared_ptr<XDoubleNode> &backlashRecoveryFactor() const {return m_backlashRecoveryFactor;}
 
-
+    //holds preset angles for faster tuning.
+    const shared_ptr<XTouchableNode> &addPresetAngles() const {return m_addPresetAngles;}
+    const shared_ptr<XDoubleNode> &trustPresetAnglesInPercent() const {return m_trustPresetAnglesInPercent;} //[%]
+    const shared_ptr<XStringNode> &descPresetAngles() const {return m_descPresetAngles;}
 
 	class Payload : public XSecondaryDriver::Payload {
 	public:
@@ -127,9 +130,15 @@ private:
     const shared_ptr<XDoubleNode> m_backlashRecoveryFactor;
     const shared_ptr<XStringNode> m_l1, m_r1, m_r2, m_c1, m_c2;
 
+    //holds preset angles for faster tuning.
+    const shared_ptr<XTouchableNode> m_addPresetAngles;
+    const shared_ptr<XDoubleNode> m_trustPresetAnglesInPercent;
+    const shared_ptr<XStringNode> m_descPresetAngles;
+
+
     std::deque<xqcon_ptr> m_conUIs;
 
-    shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched, m_lsnOnStatusOut;
+    shared_ptr<Listener> m_lsnOnTargetChanged, m_lsnOnAbortTouched, m_lsnOnStatusOut, m_lsnOnAddPresetAngles;
     shared_ptr<XLCRPlot> m_lcrPlot;
 
 	const qshared_ptr<FrmAutoLCTuner> m_form;
@@ -137,6 +146,7 @@ private:
 	void onTargetChanged(const Snapshot &shot, XValueNodeBase *);
 	void onAbortTuningTouched(const Snapshot &shot, XTouchableNode *);
     void onStatusChanged(const Snapshot &shot, XValueNodeBase *);
+    void onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode *);
 
 	void determineNextC(double &deltaC1, double &deltaC2,
 		double x, double x_err,

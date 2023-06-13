@@ -434,6 +434,9 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         m_r2(create<XStringNode>("R2", true)),
         m_c1(create<XStringNode>("C1", true)),
         m_c2(create<XStringNode>("C2", true)),
+        m_addPresetAngles(create<XTouchableNode>("AddPresetAngles", true)),
+        m_trustPresetAnglesInPercent(create<XDoubleNode>("TrustPresetAnglesInPercent", false)),
+        m_descPresetAngles(create<XStringNode>("DescPresetAngles", false)),
         m_form(new FrmAutoLCTuner)  {
     connect(stm1());
     connect(stm2());
@@ -489,6 +492,8 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
             shared_from_this(), &XAutoLCTuner::onAbortTuningTouched);
         m_lsnOnStatusOut = tr[ *m_status].onValueChanged().connectWeakly(
                     shared_from_this(), &XAutoLCTuner::onStatusChanged, Listener::FLAG_MAIN_THREAD_CALL);
+        m_lsnOnAddPresetAngles = tr[ *m_addPresetAngles].onTouch().connectWeakly(
+            shared_from_this(), &XAutoLCTuner::onAddPresetAnglesTouched);
     });
 }
 void
@@ -526,6 +531,16 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
             });
         }
     }
+    if(shot_this[trustPresetAnglesInPercent()] > 0.1) {
+        //reads preset values for STMs
+        struct PresetAngles {
+            double stm1, stm2;
+            double targetFreq;
+            bool operator<(const PresetAngles &x) const {return targetFreq < x.targetFreq;}
+        };
+        std::set<PresetAngles> presetAngles;
+    }
+
     if(relay)
         relay->iterate_commit([=](Transaction &tr){
             tr[ *relay->auxBits()] = tunebits; //For external RF relays.
@@ -575,6 +590,20 @@ void XAutoLCTuner::onAbortTuningTouched(const Snapshot &shot, XTouchableNode *) 
         tr[ *m_tuning] = false;
         tr[ *this].timeSTMChanged = {};
         return true;
+    });
+}
+void XAutoLCTuner::onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode *) {
+    // Freq[MHz] STM1[deg] STM2[deg]
+    iterate_commit([=](Transaction &tr){
+        const Snapshot &shot_this(tr);
+        shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
+        shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
+        XString str = tr[ *m_descPresetAngles].to_str() + formatString(" %.4f\n", (double)shot_this[ *target()]);
+        if(stm1__)
+            str += formatString(" %.3f", shot_this[ *this].targetSTMValues[0]);
+        if(stm2__)
+            str += formatString(" %.3f", shot_this[ *this].targetSTMValues[1]);
+        tr[ *m_descPresetAngles] = str;
     });
 }
 
@@ -699,6 +728,13 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
     if( !stm1__ && !stm2__) {
         tr[ *m_tuning] = false;
         throw XSkippedRecordError(__FILE__, __LINE__);
+    }
+
+    if(shot_this[trustPresetAnglesInPercent()] > 99.9) {
+        //ignores results and goes anyway
+        tr[ *m_status] = "Fully trusting preset angles.";
+        tr[ *succeeded()] = true;
+        return;
     }
 
     const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
