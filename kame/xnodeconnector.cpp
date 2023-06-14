@@ -189,7 +189,7 @@ XQLineEditConnector::XQLineEditConnector(
 void
 XQLineEditConnector::onTextChanged(const QString &text) {
 	QPalette palette(m_pItem->palette());
-	palette.setColor(QPalette::Text, Qt::blue);
+    palette.setColor(QPalette::Text, QColor(135, 206, 250));
 	m_pItem->setPalette(palette);
     m_editing = true;
 }
@@ -424,14 +424,29 @@ XQLabelConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
     m_pItem->setText(shot[ *node].to_str());
 }
 
-XQTextBrowserConnector::XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node, QTextBrowser *item)
+XQTextEditConnector::XQTextEditConnector(const shared_ptr<XValueNodeBase> &node, QTextEdit *item)
 	: XValueQConnector(node, item),
 	  m_node(node), m_pItem(item) {
     onValueChanged(Snapshot( *node), node.get());
+    if( !item->isReadOnly())
+        connect(item, SIGNAL( textChanged() ),
+                this, SLOT( onTextChanged() ) );
 }
 void
-XQTextBrowserConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
+XQTextEditConnector::onValueChanged(const Snapshot &shot, XValueNodeBase *node) {
 	m_pItem->setText(shot[ *node].to_str());
+}
+void
+XQTextEditConnector::onTextChanged() {
+    try {
+        m_node->iterate_commit([=](Transaction &tr){
+            tr[ *m_node].str(m_pItem->toPlainText());
+            tr.unmark(m_lsnValueChanged);
+        });
+    }
+    catch (XKameError &e) {
+        e.print();
+    }
 }
   
 XQLCDNumberConnector::XQLCDNumberConnector(const shared_ptr<XDoubleNode> &node, QLCDNumber *item)

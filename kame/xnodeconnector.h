@@ -161,19 +161,21 @@ protected:
     bool m_editing;
 };
 
-class QTextBrowser;
+class QTextEdit;
 
-class DECLSPEC_KAME XQTextBrowserConnector : public XValueQConnector {
+class DECLSPEC_KAME XQTextEditConnector : public XValueQConnector {
 	Q_OBJECT
 public:
-	XQTextBrowserConnector(const shared_ptr<XValueNodeBase> &node,
-        QTextBrowser *item);
+    XQTextEditConnector(const shared_ptr<XValueNodeBase> &node,
+        QTextEdit *item);
 protected slots:
+    void onTextChanged();
 protected:
     virtual void onValueChanged(const Snapshot &shot, XValueNodeBase *node) override;
 	const shared_ptr<XValueNodeBase> m_node;
-    QTextBrowser *const m_pItem;
+    QTextEdit *const m_pItem;
 };
+using XQTextBrowserConnector = XQTextEditConnector;
 
 class QSlider;
 

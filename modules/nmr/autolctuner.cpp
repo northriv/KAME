@@ -468,7 +468,10 @@ XAutoLCTuner::XAutoLCTuner(const char *name, bool runtime,
         xqcon_create<XQLabelConnector>(m_r1, m_form->m_lblR1),
         xqcon_create<XQLabelConnector>(m_r2, m_form->m_lblR2),
         xqcon_create<XQLabelConnector>(m_c1, m_form->m_lblC1),
-        xqcon_create<XQLabelConnector>(m_c2, m_form->m_lblC2)
+        xqcon_create<XQLabelConnector>(m_c2, m_form->m_lblC2),
+        xqcon_create<XQTextBrowserConnector>(descPresetAngles(), m_form->m_txtDescPresetAngles),
+        xqcon_create<XQButtonConnector>(m_addPresetAngles, m_form->m_btnAddPresetAngles),
+        xqcon_create<XQDoubleSpinBoxConnector>(m_trustPresetAnglesInPercent, m_form->m_dblTrustPresetAnglesInPercent),
     };
 
     iterate_commit([=](Transaction &tr){
@@ -531,15 +534,6 @@ void XAutoLCTuner::onTargetChanged(const Snapshot &shot, XValueNodeBase *node) {
             });
         }
     }
-    if(shot_this[trustPresetAnglesInPercent()] > 0.1) {
-        //reads preset values for STMs
-        struct PresetAngles {
-            double stm1, stm2;
-            double targetFreq;
-            bool operator<(const PresetAngles &x) const {return targetFreq < x.targetFreq;}
-        };
-        std::set<PresetAngles> presetAngles;
-    }
 
     if(relay)
         relay->iterate_commit([=](Transaction &tr){
@@ -598,12 +592,12 @@ void XAutoLCTuner::onAddPresetAnglesTouched(const Snapshot &shot, XTouchableNode
         const Snapshot &shot_this(tr);
         shared_ptr<XMotorDriver> stm1__ = shot_this[ *stm1()];
         shared_ptr<XMotorDriver> stm2__ = shot_this[ *stm2()];
-        XString str = tr[ *m_descPresetAngles].to_str() + formatString(" %.4f\n", (double)shot_this[ *target()]);
+        XString str = tr[ *m_descPresetAngles].to_str() + formatString(" %.4f", (double)shot_this[ *target()]);
         if(stm1__)
             str += formatString(" %.3f", shot_this[ *this].targetSTMValues[0]);
         if(stm2__)
             str += formatString(" %.3f", shot_this[ *this].targetSTMValues[1]);
-        tr[ *m_descPresetAngles] = str;
+        tr[ *m_descPresetAngles] = str + "\n";
     });
 }
 
@@ -612,7 +606,7 @@ XAutoLCTuner::rollBack(Transaction &tr, XString &&message) {
 //    if(20.0 * log10(tr[ *this].smallestRLAtF0) < -3.0) {
 //        abortTuningFromAnalyze(tr, 0.0, std::move(message));
 //    }
-    if(tr[ *this].iterationCount > 5) {
+    if(tr[ *this].iterationCount > 6) {
         //Iteration count exceeds a limit.
         abortTuningFromAnalyze(tr, 1.0, std::move(message));
     }
@@ -730,23 +724,71 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
 
-    if(shot_this[trustPresetAnglesInPercent()] > 99.9) {
-        //ignores results and goes anyway
-        tr[ *m_status] = "Fully trusting preset angles.";
-        tr[ *succeeded()] = true;
-        return;
+    XString message;
+    double f0 = shot_this[ *target()];
+
+    if( !shot_this[ *this].fitOrig) {
+        double trust_preset_angles = shot_this[trustPresetAnglesInPercent()] * 0.01;
+        if(trust_preset_angles > 0.1e-2) {
+            //reads preset values for STMs
+            struct PresetAngles {
+                double stms[2];
+                double targetFreq;
+                bool operator<(const PresetAngles &x) const {return targetFreq < x.targetFreq;}
+            };
+            std::deque<PresetAngles> presetAngles;
+            std::stringstream ss;
+            ss << shot_this[ *descPresetAngles()].to_str();
+            std::string line;
+            while(std::getline(ss, line)) {
+                if(line.empty()) break;
+                PresetAngles p;
+                int ret = sscanf(line.c_str(), "%lf %lf %lf", &p.targetFreq, &p.stms[0], &p.stms[1]);
+                if((stm1__ && stm2__ && (ret < 3)) || (ret < 2)) {
+                    message += "Bad format in description of preset angles...";
+                    throw XSkippedRecordError(__FILE__, __LINE__);
+                }
+                presetAngles.push_back(p);
+            }
+            if(presetAngles.size()) {
+                std::sort(presetAngles.begin(), presetAngles.end());
+                double stms[1];
+                message += "Using preset angles.\n";
+                for(unsigned int i = 1; i <= presetAngles.size(); ++i) {
+                    if((presetAngles[i].targetFreq < f0) || (f0 >= presetAngles.back().targetFreq)) {
+                        //bilinear interpolation/extrapolation
+                        double a = (f0 - presetAngles[i - 1].targetFreq) / (presetAngles[i].targetFreq - presetAngles[i - 1].targetFreq);
+                        for(int j: {0,1})
+                            stms[j] = presetAngles[i - 1].stms[j] * (1 - a) + presetAngles[i].stms[j] * a;
+                    }
+                }
+                //modifies the original positions before an iteration.
+                for(int j: {0,1}) {
+                    tr[ *this].targetSTMValues[j] = shot_this[ *this].targetSTMValues[j] * (1 - trust_preset_angles) + stms[j] * trust_preset_angles;
+                }
+                tr[ *this].timeSTMChanged = XTime::now();
+            }
+        }
+        if(shot_this[ *this].timeSTMChanged && (trust_preset_angles > 0.99)) {
+            //ignores results and goes anyway
+            tr[ *m_status] = message + "Fully trusting preset angles.";
+            if(tr[ *this].iterationCount) {
+                tr[ *succeeded()] = true;
+                return;
+            }
+            //needs to rotate motors.
+            tr[ *this].iterationCount++;
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        }
     }
 
     const shared_ptr<XNetworkAnalyzer> na__ = shot_this[ *netana()];
-
-    XString message;
 
     int trace_len = shot_na[ *na__].length();
     double trace_dfreq = shot_na[ *na__].freqInterval();
     double trace_start = shot_na[ *na__].startFreq();
     double fmin = 0.0, fmin_err;
     double rlmin = 1e10;
-    double f0 = shot_this[ *target()];
     double rl_at_f0 = 0.0;
     double rl_at_f0_sigma;
     shared_ptr<LCRFit> lcrfit;
