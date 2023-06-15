@@ -49,7 +49,9 @@ public:
 	private:
 			friend class XFourRes;
 			double value_inverted;
-	};
+            XTime time_inverted;
+            bool awaiting_stabilization;
+    };
 
 	const shared_ptr<XScalarEntry> &resistance() const {return m_resistance;}
 
@@ -69,7 +71,6 @@ private:
 
     std::deque<xqcon_ptr> m_conUIs;
 	const qshared_ptr<FrmFourRes> m_form;
-    bool m_dmm_unstable;
 };
   
 #endif

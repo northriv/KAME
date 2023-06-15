@@ -76,10 +76,12 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_emitter[ *dmm__].timeAwared() < shot_others[ *dcsource__].time() + shot_emitter[ *dmm__->waitInms()] * 1e-3) {
+    if(shot_emitter[ *dmm__].timeAwared() < shot_this[ *this].time_inverted + shot_emitter[ *dmm__->waitInms()] * 1e-3) {
+        tr[ *this].awaiting_stabilization = true;
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
-    m_dmm_unstable = false;
+    tr[ *this].time_inverted = XTime::now();
+    tr[ *this].awaiting_stabilization = false;
 
     double curr = shot_others[ *dcsource__->value()];
     double var = shot_emitter[ *dmm__].value(shot_this[ *dmmChannel()] - 1);
@@ -98,8 +100,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
 
 void
 XFourRes::visualize(const Snapshot &shot) {
-    if(shot[ *control()] && !m_dmm_unstable) {
-        m_dmm_unstable = true;
+    if(shot[ *control()] && !shot[ *this].awaiting_stabilization) {
         shared_ptr<XDCSource> dcsource__ = shot[ *dcsource()];
         dcsource__->iterate_commit([=](Transaction &tr){
 			double curr = tr[ *dcsource__->value()];
