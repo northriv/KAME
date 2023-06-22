@@ -306,19 +306,19 @@ XNMRSpectrumBase<FRM>::visualize(const Snapshot &shot) {
 		double th = FFT::windowFuncHamming(0.1);
 		const std::complex<double> *wave( &shot[ *this].wave()[0]);
 		const double *weights( &shot[ *this].weights()[0]);
-        const double *darkpsd( &shot[ *this].darkPSD()[0]);
-        tr[ *m_spectrum].setRowCount(length);
+		const double *darkpsd( &shot[ *this].darkPSD()[0]);
+		tr[ *m_spectrum].setRowCount(length);
         std::vector<double> colx(length);
         std::vector<float> colr(length), coli(length), colw(length),
             colabs(length), coldark(length);
-        for(int i = 0; i < length; i++) {
-            colx[i] = values[i];
+		for(int i = 0; i < length; i++) {
+			colx[i] = values[i];
 			colr[i] = std::real(wave[i]);
 			coli[i] = std::imag(wave[i]);
 			colw[i] = (weights[i] > th) ? weights[i] : 0.0;
 			colabs[i] = std::abs(wave[i]);
-            coldark[i] = sqrt(darkpsd[i]);
-        }
+			coldark[i] = sqrt(darkpsd[i]);
+		}
         tr[ *m_spectrum].setColumn(0, std::move(colx), 9);
         tr[ *m_spectrum].setColumn(1, std::move(colr), 5);
         tr[ *m_spectrum].setColumn(2, std::move(coli), 5);

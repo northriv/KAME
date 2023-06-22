@@ -423,8 +423,8 @@ CyUSB3Device::setupSingleTransfer(uint8_t ep, CtrlReq request,
     } packet2 = {0, 0, 0, 0, SIZEOF_SINGLE_TRANSFER, (uint32_t)len};
     std::copy( (uint8_t*)(&packet2), (uint8_t*)(&packet2 + 1),
         &buf[sizeof(SetupPacket) + sizeof(Packet1)]); //SSE2 will crash w/ mal-alignment.
-    assert(sizeof(SetupPacket) + sizeof(Packet1) +
-        ((uint8_t*)(&packet2 + 1) - (uint8_t*)(&packet2)) == SIZEOF_SINGLE_TRANSFER);
+    static_assert(sizeof(SetupPacket) + sizeof(Packet1) +
+        ((uint8_t*)(&packet2 + 1) - (uint8_t*)(&packet2)) == SIZEOF_SINGLE_TRANSFER, "");
     return std::move(buf);
 }
 
