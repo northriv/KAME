@@ -103,4 +103,6 @@ win32-g++ {
     QMAKE_CXXFLAGS_DEBUG += -Os
 #increases stack size to 8MB, the same as Linux/OS X.
     QMAKE_CXXFLAGS += -Wl,--stack,8388608
+#for stupid mingw32
+    QMAKE_CXXFLAGS += -fpermissive
 }
