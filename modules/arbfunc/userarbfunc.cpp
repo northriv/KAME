@@ -70,12 +70,12 @@ XArbFuncGenSCPI::open() {
     bool __burst = false;
     double __freq, __ampl, __offset, __duty, __period, __width, __burstphase;
     interface()->query("BURST:STAT?");
-    if(interface()->toStr() == "ON")
+    if(interface()->toStrSimplified() == "ON")
         __burst = true;
     interface()->query("BURST:PHASE?");
     __burstphase = interface()->toDouble();
     interface()->query("FUNC?");
-    __func = interface()->toStr();
+    __func = interface()->toStrSimplified();
     interface()->query("FREQ?");
     __freq = interface()->toDouble();
     interface()->query("VOLT?");
