@@ -182,7 +182,7 @@ XQPulserDriverConnector::updateGraph(const Snapshot &shot, bool checkselection) 
 void
 XQPulserDriverConnector::onPulseChanged(const Snapshot &shot, XDriver *) {
     shared_ptr<XPulser> pulser(m_pulser);
-    if(shot[ *pulser].time()) {
+    if(shot[ *pulser].time().isSet()) {
         m_pTable->blockSignals(true);
         m_pTable->setRowCount(shot[ *pulser].relPatList().size());
         int i = 0;

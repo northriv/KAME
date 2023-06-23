@@ -21,6 +21,8 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XPrimaryDriver(name, runtime, ref(tr_meas), meas),
     m_output(create<XBoolNode>("Output", true)),
+    m_burst(create<XBoolNode>("Burst", true)),
+    m_burstPhase(create<XDoubleNode>("BurstPhase", true)),
     m_waveform(create<XComboNode>("Waveform", true)),
     m_freq(create<XDoubleNode>("Freq", true)),
     m_ampl(create<XDoubleNode>("Ampl", true)),
@@ -32,6 +34,8 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
 
     m_conUIs = {
         xqcon_create<XQToggleButtonConnector>(m_output, m_form->m_ckbOutput),
+        xqcon_create<XQToggleButtonConnector>(m_burst, m_form->m_ckbBurst),
+        xqcon_create<XQLineEditConnector>(m_burstPhase, m_form->m_edBurstPhase),
         xqcon_create<XQComboBoxConnector>(m_waveform, m_form->m_cmbWaveform, Snapshot( *m_waveform)),
         xqcon_create<XQLineEditConnector>(m_freq, m_form->m_edFreq),
         xqcon_create<XQLineEditConnector>(m_ampl, m_form->m_edAmpl),
@@ -43,7 +47,7 @@ XArbFuncGen::XArbFuncGen(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
         std::vector<shared_ptr<XNode>> runtime_ui{
-            m_output, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+            m_output, m_burst, m_burstPhase, m_waveform, m_freq, m_ampl, m_offset, m_duty,
             m_pulseWidth, m_pulsePeriod
         };
         for(auto &&x: runtime_ui)
@@ -87,7 +91,7 @@ void XArbFuncGen::visualize(const Snapshot &shot) {
 void
 XArbFuncGen::start() {
     std::vector<shared_ptr<XNode>> runtime_ui{
-        m_output, m_waveform, m_freq, m_ampl, m_offset, m_duty,
+        m_output, m_burst, m_burstPhase, m_waveform, m_freq, m_ampl, m_offset, m_duty,
         m_pulseWidth, m_pulsePeriod
     };
     iterate_commit([=](Transaction &tr){
@@ -99,6 +103,8 @@ XArbFuncGen::start() {
                     shared_from_this(), &XArbFuncGen::onOutputChanged);
         m_lsnOnCondChanged = tr[ *m_freq].onValueChanged().connectWeakly(
             shared_from_this(), &XArbFuncGen::onOutputChanged);
+        tr[ *m_burst].onValueChanged().connect(m_lsnOnCondChanged);
+        tr[ *m_burstPhase].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_ampl].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_offset].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *m_duty].onValueChanged().connect(m_lsnOnCondChanged);

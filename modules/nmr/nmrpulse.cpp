@@ -441,7 +441,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
         tr[ *tr[ *waveGraph()].axisx()->maxValue()] = starttime * 1e3 + t * 1.3;
     }
     tr[ *this].m_waveWidth = length;
-    bool skip = (shot_this[ *this].m_timeClearRequested);
+    bool skip = shot_this[ *this].m_timeClearRequested.isSet();
     tr[ *this].m_timeClearRequested = {};
     bool avgclear = skip;
 
@@ -659,7 +659,7 @@ void XNMRPulseAnalyzer::analyze(Transaction &tr, const Snapshot &shot_emitter,
 void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
     iterate_commit_while([=](Transaction &tr)->bool{
         Snapshot &shot(tr);
-        if(shot[ *this].time() && shot[ *this].m_avcount)
+        if(shot[ *this].time().isSet() && shot[ *this].m_avcount)
             return false;
 
         tr[ *ftWaveGraph()].clearPoints();
@@ -672,7 +672,7 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         shared_ptr<XPulser> pulse__ = shot[ *pulser()];
         if(pulse__) {
             pulse__->iterate_commit([=](Transaction &tr){
-                if(tr[ *pulse__].time()) {
+                if(tr[ *pulse__].time().isSet()) {
                     tr[ *pulse__->invertPhase()] = !tr[ *pulse__->invertPhase()];
                 }
             });

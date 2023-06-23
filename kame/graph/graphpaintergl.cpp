@@ -539,7 +539,7 @@ XQGraphPainter::paintGL () {
 
     double persist = shot[ *m_graph->persistence()]; //sec.
     if(persist > 0.0) {
-        if(m_updatedTime) {
+        if(m_updatedTime.isSet()) {
             double tau = persist / (-log(0.1)) * 2.0;
             double persist_scale = exp(-(time_started - m_updatedTime)/tau);
             drawPersistentFrame(persist_scale, bgc);

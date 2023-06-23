@@ -20,6 +20,8 @@ REGISTER_TYPE(XDriverList, ArbFuncGenSCPI, "LXI 3390 arbitrary function generato
 XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver<XArbFuncGen>(name, runtime, ref(tr_meas), meas) {
     trans( *waveform()).add({"SINUSOID", "SQUARE", "RAMP", "PULSE", "NOISE", "DC", "USER"});
+//    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setEOS("\n");
 }
 void
 XArbFuncGenSCPI::changeOutput(bool active) {
@@ -41,13 +43,32 @@ XArbFuncGenSCPI::changePulseCond() {
     interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
     interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
+    if(shot[ *burst()])
+        interface()->send("BURST:STAT ON");
+    else
+        interface()->send("BURST:STAT OFF");
+    interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
     changeOutput(shot[ *output()]);
+//    if(shot[ *burst()]) {
+//        interface()->query("BURST:NCYC?");
+//        if(interface()->toStr() == "INF") {
+//            interface()->query("TRIG:SOUR?");
+//            if(interface()->toStr() == "IMM")
+
+//        }
+//    }
 }
 
 void
 XArbFuncGenSCPI::open() {
     XString __func;
-    double __freq, __ampl, __offset, __duty, __period, __width;
+    bool __burst = false;
+    double __freq, __ampl, __offset, __duty, __period, __width, __burstphase;
+    interface()->query("BURST:STAT?");
+    if(interface()->toStr() == "ON")
+        __burst = true;
+    interface()->query("BURST:PHASE?");
+    __burstphase = interface()->toDouble();
     interface()->query("FUNC?");
     __func = interface()->toStr();
     interface()->query("FREQ?");
@@ -67,6 +88,8 @@ XArbFuncGenSCPI::open() {
     __period = interface()->toDouble();
 
     iterate_commit([=](Transaction &tr){
+        tr[ *burst()] = __burst;
+        tr[ *burstPhase()] = __burstphase;
         tr[ *freq()] = __freq;
         tr[ *ampl()] = __ampl;
         tr[ *offset()] = __offset;

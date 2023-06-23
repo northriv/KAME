@@ -184,7 +184,7 @@ XNMRSpectrumBase<FRM>::analyze(Transaction &tr, const Snapshot &shot_emitter, co
 		throw XSkippedRecordError(__FILE__, __LINE__);
 	}
 
-    bool clear = (shot_this[ *this].m_timeClearRequested);
+    bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
   
 //	double interval = shot_pulse[ *pulse__].interval();

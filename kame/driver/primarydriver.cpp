@@ -26,7 +26,7 @@ XPrimaryDriver::finishWritingRaw(const shared_ptr<const RawData> &rawdata,
     XKameError err;
     Snapshot shot = iterate_commit([=, &time_recorded, &err](Transaction &tr){
 		bool skipped = false;
-		if(time_recorded) {
+        if(time_recorded.isSet()) {
 			try {
 				RawDataReader reader( *rawdata);
 				tr[ *this].m_rawData = rawdata;

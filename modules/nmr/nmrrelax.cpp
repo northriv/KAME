@@ -650,7 +650,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
     shared_ptr<XPulser> pulser__ = shot_this[ *pulser()];
     const Snapshot &shot_pulser(shot_others);
     assert( pulser__ );
-    if(shot_pulser[ *pulser__].time()) {
+    if(shot_pulser[ *pulser__].time().isSet()) {
         //Check consitency.
         switch (mode__) {
         case MeasMode::T1:
@@ -672,7 +672,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
 
     //Prepares data for mapping.
-    if(shot_this[ *this].m_allPulses.empty() || shot_this[ *this].m_timeMapClearRequested) {
+    if(shot_this[ *this].m_allPulses.empty() || shot_this[ *this].m_timeMapClearRequested.isSet()) {
         tr[ *this].m_timeMapClearRequested = {};
         tr[ *this].m_allPulses.clear();
         if((MapMode)(int)shot_this[ *mapMode()] != MapMode::Off) {
@@ -802,7 +802,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
 
     tr[ *this].m_sumpts.clear();
 
-    if(shot_this[ *this].m_timeClearRequested) {
+    if(shot_this[ *this].m_timeClearRequested.isSet()) {
         tr[ *this].m_timeClearRequested = {};
         tr[ *this].m_pts.clear();
         tr[ *m_wave].clearPoints();
@@ -933,7 +933,7 @@ XNMRT1::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &s
         t1invErr()->value(tr, 1000.0 * shot_this[ *this].m_errors[0]);
     }
 
-    if(shot_this[ *this].m_timeMapFTCalcRequested) {
+    if(shot_this[ *this].m_timeMapFTCalcRequested.isSet()) {
         tr[ *this].m_timeMapFTCalcRequested = {};
         //recalculates all FT.
         std::vector<std::complex<double> > fftout;

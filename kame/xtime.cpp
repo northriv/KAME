@@ -108,7 +108,7 @@ XTime::now() noexcept {
 
 XString
 XTime::getTimeStr(bool subsecond) const {
-    if( *this) {
+    if(isSet()) {
         char str[100] = {};
 #if defined _MSC_VER || defined(__MINGW64__)
         __time32_t t32 = tv_sec;
@@ -131,7 +131,7 @@ XTime::getTimeStr(bool subsecond) const {
 }
 XString
 XTime::getTimeFmtStr(const char *fmt, bool subsecond) const {
-    if( *this) {
+    if(isSet()) {
         struct tm time;
 #if defined _MSC_VER || defined(__MINGW64__)
         __time32_t t32 = tv_sec;

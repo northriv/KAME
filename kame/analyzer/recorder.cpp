@@ -185,7 +185,7 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 	bool record_log = shot_this[ *logRecording()] &&
 		(logtime - m_loggedTime > shot_this[ *logEvery()]);
 	if(shot_this[ *recording()] || record_log) {
-		if(shot[ *driver].time()) {
+        if(shot[ *driver].time().isSet()) {
 			for(;;) {
 				Snapshot shot_entries( *m_entries);
 				if( !shot_entries.size())

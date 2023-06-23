@@ -80,7 +80,7 @@ public:
     bool operator!() const noexcept {
         return (tv_sec == 0) && (tv_usec == 0);
     }
-    operator bool() const noexcept {
+    bool isSet() const noexcept {
         return (tv_sec != 0) || (tv_usec != 0);
     }
     long sec() const noexcept {return tv_sec;}

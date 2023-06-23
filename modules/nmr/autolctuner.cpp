@@ -701,7 +701,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
         throw XSkippedRecordError(__FILE__, __LINE__); //STM is moving. skip.
     }
 
-    if(shot_this[ *this].timeSTMChanged) {
+    if(shot_this[ *this].timeSTMChanged.isSet()) {
         if((stm1__ && (shot_others[ *stm1__].timeAwared() < shot_this[ *this].timeSTMChanged)) ||
             (stm2__ && (shot_others[ *stm2__].timeAwared() < shot_this[ *this].timeSTMChanged))) {
             throw XSkippedRecordError(__FILE__, __LINE__); //STM ready status is too old. Useless.
@@ -769,7 +769,7 @@ XAutoLCTuner::analyze(Transaction &tr, const Snapshot &shot_emitter,
                 tr[ *this].timeSTMChanged = XTime::now();
             }
         }
-        if(shot_this[ *this].timeSTMChanged && (trust_preset_angles > 0.99)) {
+        if(shot_this[ *this].timeSTMChanged.isSet() && (trust_preset_angles > 0.99)) {
             //ignores results and goes anyway
             tr[ *m_status] = message + "Fully trusting preset angles.";
             if(tr[ *this].iterationCount) {
@@ -1145,7 +1145,7 @@ XAutoLCTuner::visualize(const Snapshot &shot_this) {
             });
         }
     }
-    if(shot_this[ *this].timeSTMChanged) {
+    if(shot_this[ *this].timeSTMChanged.isSet()) {
         for(int i: {0, 1}) {
             auto stm = stms[i];
             if(stm) {

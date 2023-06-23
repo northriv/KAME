@@ -57,7 +57,7 @@ XSecondaryDriverInterface<T>::onConnectedRecorded(const Snapshot &shot_emitter, 
 			bool found = false;
 			for(auto it = shot_this[ *this].m_connections.begin(); it != shot_this[ *this].m_connections.end(); ++it) {
 				if((shared_ptr<XNode>(shot_this[ *it->m_selecter]).get() == driver) &&
-					(shot_emitter[ *driver].time())) {
+                    (shot_emitter[ *driver].time().isSet())) {
 					found = true;
 					break;
 				}
