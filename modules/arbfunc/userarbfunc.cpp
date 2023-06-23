@@ -20,7 +20,8 @@ REGISTER_TYPE(XDriverList, ArbFuncGenSCPI, "LXI 3390 arbitrary function generato
 XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver<XArbFuncGen>(name, runtime, ref(tr_meas), meas) {
     trans( *waveform()).add({"SINUSOID", "SQUARE", "RAMP", "PULSE", "NOISE", "DC", "USER"});
-//    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBMAVbit(0x10);
+    interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setEOS("\n");
 }
 void

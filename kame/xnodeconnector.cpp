@@ -189,7 +189,7 @@ XQLineEditConnector::XQLineEditConnector(
 void
 XQLineEditConnector::onTextChanged(const QString &text) {
 	QPalette palette(m_pItem->palette());
-    palette.setColor(QPalette::Text, QColor(135, 206, 250));
+    palette.setColor(QPalette::Text, QColor(95, 186, 200));
 	m_pItem->setPalette(palette);
     m_editing = true;
 }
