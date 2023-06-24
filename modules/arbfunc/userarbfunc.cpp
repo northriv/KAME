@@ -54,14 +54,15 @@ XArbFuncGenSCPI::changePulseCond() {
         interface()->send("BURST:STAT OFF");
     interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
     changeOutput(shot[ *output()]);
-//    if(shot[ *burst()]) {
-//        interface()->query("BURST:NCYC?");
-//        if(interface()->toStr() == "INF") {
-//            interface()->query("TRIG:SOUR?");
-//            if(interface()->toStr() == "IMM")
-
-//        }
-//    }
+    if(shot[ *burst()]) {
+        interface()->query("BURST:NCYC?");
+        if(interface()->toStrSimplified() == "INF") {
+            interface()->query("TRIG:SOUR?");
+            if(interface()->toStrSimplified() == "IMM") {
+                interface()->send("TRIG"); //issue a trigger
+            }
+        }
+    }
 }
 
 void
