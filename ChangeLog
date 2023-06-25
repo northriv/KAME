@@ -1,3 +1,10 @@
+* Sun Jun 25 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.5-1)
+- LXI3390: starts working
+- foures: bug fix regarding XTime (implicit bool to double)
+- compiles with recent mingw32
+- autolctuner: supports preset values
+
 * Mon Jun 12 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.4-1)
 - E44xB SCPI SG
@@ -7,7 +14,6 @@
 - Experimental: Coherent Stingray
 - LXI 3390
 - nmrfspectrum: bug fix
-- foures: bug fix
 
 * Fri Dec 9 2022 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.3-1)
