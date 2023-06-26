@@ -20,6 +20,7 @@ REGISTER_TYPE(XDriverList, ArbFuncGenSCPI, "LXI 3390 arbitrary function generato
 XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XCharDeviceDriver<XArbFuncGen>(name, runtime, ref(tr_meas), meas) {
     trans( *waveform()).add({"SIN", "SQU", "RAMP", "PULS", "NOIS", "DC", "USER", "PATT"});
+    trans( *trigSrc()).add({"INT", "EXT", "BUS"});
 //    interface()->setGPIBMAVbit(0x10);
     interface()->setGPIBUseSerialPollOnWrite(false);
     interface()->setGPIBUseSerialPollOnRead(false);
@@ -27,6 +28,7 @@ XArbFuncGenSCPI::XArbFuncGenSCPI(const char *name, bool runtime,
     interface()->setGPIBWaitBeforeWrite(50);
     interface()->setGPIBWaitBeforeRead(50);
     interface()->setEOS("\n");
+    pulsePeriod()->disable();
 }
 void
 XArbFuncGenSCPI::changeOutput(bool active) {
@@ -39,27 +41,28 @@ void
 XArbFuncGenSCPI::changePulseCond() {
     XScopedLock<XInterface> lock( *interface());
     Snapshot shot( *this);
-    changeOutput(false);
-    interface()->send("FUNC " + shot[ *waveform()].to_str());
-    interface()->sendf("FREQ %g", (double)shot[ *freq()]);
-    interface()->sendf("VOLT %g", (double)shot[ *ampl()]);
-    interface()->sendf("VOLT:OFFSET %g", (double)shot[ *offset()]);
+//    changeOutput(false);
+    interface()->sendf("APPL:%s %g, %g, %g",
+        shot[ *waveform()].to_str().c_str(),
+        (double)shot[ *freq()],
+        (double)shot[ *ampl()],
+        (double)shot[ *offset()]);
     interface()->sendf("FUNC:SQU:DCYC %g", (double)shot[ *duty()]);
-    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
+//    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
     interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
     if(shot[ *burst()])
         interface()->send("BURST:STAT ON");
     else
         interface()->send("BURST:STAT OFF");
+    interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
     interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
-    changeOutput(shot[ *output()]);
-    if(shot[ *burst()]) {
+//    changeOutput(shot[ *output()]);
+    if(shot[ *output()] && shot[ *burst()]) {
         interface()->query("BURST:NCYC?");
         if(interface()->toStrSimplified() == "INF") {
-            interface()->query("TRIG:SOUR?");
-            if(interface()->toStrSimplified() == "IMM") {
-                interface()->send("TRIG"); //issue a trigger
+            if(shot[ *trigSrc()].to_str() == "BUS") {
+                interface()->send("*TRG"); //issue a trigger
             }
         }
     }
@@ -67,16 +70,19 @@ XArbFuncGenSCPI::changePulseCond() {
 
 void
 XArbFuncGenSCPI::open() {
-    XString __func;
+    interface()->send("*CLS");
+    XString __func, __trigsrc;
     bool __burst = false;
     double __freq, __ampl, __offset, __duty, __period, __width, __burstphase;
     interface()->query("BURST:STAT?");
-    if(interface()->toStrSimplified() == "ON")
+    if(interface()->toInt() == 1)
         __burst = true;
     interface()->query("BURST:PHASE?");
     __burstphase = interface()->toDouble();
     interface()->query("FUNC?");
     __func = interface()->toStrSimplified();
+    interface()->query("TRIG:SOUR?");
+    __trigsrc = interface()->toStrSimplified();
     interface()->query("FREQ?");
     __freq = interface()->toDouble();
     interface()->query("VOLT?");
@@ -103,6 +109,7 @@ XArbFuncGenSCPI::open() {
         tr[ *pulsePeriod()] = __period;
         tr[ *pulseWidth()] = __width;
         tr[ *waveform()].str(__func);
+        tr[ *trigSrc()].str(__trigsrc);
     });
 
     start();
