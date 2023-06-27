@@ -52,9 +52,9 @@ XArbFuncGenSCPI::changePulseCond() {
 //    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
     interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
+    interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
+    interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
     if(shot[ *burst()]) {
-        interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
-        interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
     //    changeOutput(shot[ *output()]);
         interface()->send("BURST:STAT ON");
         if(shot[ *output()]) {
