@@ -1,3 +1,7 @@
+* Tue Jun 27 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
+- (5.8.6-1)
+- foures: bug fix for multi channel simultaneous measurement
+
 * Sun Jun 25 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.5-1)
 - LXI3390: starts working
