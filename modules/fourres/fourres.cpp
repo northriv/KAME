@@ -76,7 +76,7 @@ XFourRes::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot 
     shared_ptr<XDMM> dmm__ = shot_this[ *dmm()];
     shared_ptr<XDCSource> dcsource__ = shot_this[ *dcsource()];
 
-    if(shot_this[ *this].time_inverted - shot_emitter[ *dmm__].timeAwared() + shot_emitter[ *dmm__->waitInms()] * 1e-3 > 0) {
+    if(shot_others[ *dcsource__].time() - shot_emitter[ *dmm__].timeAwared() + shot_emitter[ *dmm__->waitInms()] * 1e-3 > 0) {
         tr[ *this].awaiting_stabilization = true;
         throw XSkippedRecordError(__FILE__, __LINE__);
     }

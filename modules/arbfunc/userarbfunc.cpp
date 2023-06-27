@@ -43,6 +43,7 @@ XArbFuncGenSCPI::changePulseCond() {
     XScopedLock<XInterface> lock( *interface());
     Snapshot shot( *this);
 //    changeOutput(false);
+    interface()->send("BURST:STAT OFF");
     interface()->sendf("APPL:%s %g, %g, %g",
         shot[ *waveform()].to_str().c_str(),
         (double)shot[ *freq()],
@@ -52,18 +53,17 @@ XArbFuncGenSCPI::changePulseCond() {
 //    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
     interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
-    if(shot[ *burst()])
-        interface()->send("BURST:STAT ON");
-    else
-        interface()->send("BURST:STAT OFF");
     interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
     interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
-//    changeOutput(shot[ *output()]);
-    if(shot[ *output()] && shot[ *burst()]) {
-        interface()->query("BURST:NCYC?");
-        if(interface()->toStrSimplified() == "INF") {
-            if(shot[ *trigSrc()].to_str() == "BUS") {
-                interface()->send("*TRG"); //issue a trigger
+    if(shot[ *burst()]) {
+    //    changeOutput(shot[ *output()]);
+        interface()->send("BURST:STAT ON");
+        if(shot[ *output()]) {
+            interface()->query("BURST:NCYC?");
+            if((interface()->toStrSimplified() == "INF") || (interface()->toDouble() > 1e20)) {
+                if(shot[ *trigSrc()].to_str() == "BUS") {
+                    interface()->send("*TRG"); //issue a trigger
+                }
             }
         }
     }
