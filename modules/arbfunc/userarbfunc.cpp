@@ -52,19 +52,23 @@ XArbFuncGenSCPI::changePulseCond() {
 //    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
     interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
-    interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
-    interface()->sendf("BURST:PHASE %g", (double)shot[ *burstPhase()]);
     if(shot[ *burst()]) {
     //    changeOutput(shot[ *output()]);
+        interface()->sendf("BURS:PHAS %g", (double)shot[ *burstPhase()]);
+        interface()->send("TRIG:SOUR " + shot[ *trigSrc()].to_str());
         interface()->send("BURST:STAT ON");
         if(shot[ *output()]) {
             interface()->query("BURST:NCYC?");
             if((interface()->toStrSimplified() == "INF") || (interface()->toDouble() > 1e20)) {
                 if(shot[ *trigSrc()].to_str() == "BUS") {
-                    interface()->send("*TRG"); //issue a trigger
+                    interface()->send("*OPC;*TRG"); //issue a trigger
                 }
             }
         }
+    }
+    else {
+        //hack for studpid LXI3390
+        interface()->sendf("PHAS %g", (double)shot[ *burstPhase()]);
     }
 }
 
