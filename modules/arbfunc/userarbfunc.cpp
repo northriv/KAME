@@ -51,7 +51,7 @@ XArbFuncGenSCPI::changePulseCond() {
         (double)shot[ *offset()]);
     interface()->sendf("FUNC:SQU:DCYC %g", (double)shot[ *duty()]);
 //    interface()->sendf("PULSE:PER %g", (double)shot[ *pulsePeriod()]);
-    interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
+//    interface()->sendf("FUNC:PULSE:WIDTH %g", (double)shot[ *pulseWidth()]);
     interface()->sendf("FUNC:PULSE:DCYC %g", (double)shot[ *duty()]);
     if(shot[ *burst()]) {
     //    changeOutput(shot[ *output()]);
