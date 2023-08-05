@@ -72,34 +72,44 @@ void
 XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
     XScopedLock<XOceanOpticsUSBInterface> lock( *interface());
 
-    auto status = interface()->readInstrumStatus();
-    uint16_t pixels = status[0] + status[1] * 0x100u;
-    uint8_t packets_in_spectrum = status[9];
-    uint8_t packets_in_ep = status[11];
-    uint8_t usb_speed = status[14]; //0x80 if highspeed
-    writer->push((uint8_t)status.size());
-    writer->insert(writer->end(), status.begin(), status.end());
-    writer->push((uint8_t)m_wavelenCalibCoeffs.size());
-    for(double x:  m_wavelenCalibCoeffs)
-        writer->push(x);
-    writer->push((uint8_t)m_strayLightCoeffs.size());
-    for(double x:  m_strayLightCoeffs)
-        writer->push(x);
-    writer->push((uint8_t)m_nonlinCorrCoeffs.size());
-    for(double x:  m_nonlinCorrCoeffs)
-        writer->push(x);
+    XTime start = XTime::now();
+    for(;;) {
+        auto status = interface()->readInstrumStatus();
+        uint16_t pixels = status[0] + status[1] * 0x100u;
+        uint8_t packets_in_spectrum = status[9];
+        uint8_t packets_in_ep = status[11];
+        uint8_t usb_speed = status[14]; //0x80 if highspeed
 
-    //ugly hack
-    uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+        uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
+        if(packets_in_ep < packets_in_spectrum) {
+            //waits for completion
+            if(XTime::now() - start > integration_time_us)
+                throw XSkippedRecordError(__FILE__, __LINE__);
+            double wait = integration_time_us / packets_in_spectrum * (packets_in_spectrum - packets_in_ep) * 1e-6;
+            msecsleep(std::min(10.0, wait * 1e3 - 100.0));
+            continue;
+        }
 
-    if(integration_time_us > 300000)
-        msecsleep(integration_time_us / 1000 - 100);
-    int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
-    if( !len)
-        throw XSkippedRecordError(__FILE__, __LINE__);
-    writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
-    writer->insert(writer->end(),
-                     m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
+        writer->push((uint8_t)status.size());
+        writer->insert(writer->end(), status.begin(), status.end());
+        writer->push((uint8_t)m_wavelenCalibCoeffs.size());
+        for(double x:  m_wavelenCalibCoeffs)
+            writer->push(x);
+        writer->push((uint8_t)m_strayLightCoeffs.size());
+        for(double x:  m_strayLightCoeffs)
+            writer->push(x);
+        writer->push((uint8_t)m_nonlinCorrCoeffs.size());
+        for(double x:  m_nonlinCorrCoeffs)
+            writer->push(x);
+
+        int len = interface()->readSpectrum(m_spectrumBuffer, pixels, usb_speed == 0x80u);
+        if( !len)
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        writer->push((uint32_t)len); //be actual pixels + 1(end delimiter 0x69).
+        writer->insert(writer->end(),
+                         m_spectrumBuffer.begin(), m_spectrumBuffer.begin() + len);
+        break;
+    }
 }
 void
 XOceanOpticsSpectrometer::convertRawAndAccum(RawDataReader &reader, Transaction &tr) {
