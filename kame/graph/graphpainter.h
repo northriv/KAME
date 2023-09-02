@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2023 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -29,6 +29,15 @@
     #define USE_PBO
 #endif
 
+#include <QImage>
+class XQGraphTexture {
+public:
+   XQGraphTexture(GLuint tid, XQGraphPainter *const item) : id(tid), m_painter(item) {}
+   ~XQGraphTexture();
+   const GLuint id;
+   XQGraphPainter *const m_painter;
+};
+
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe
@@ -37,6 +46,7 @@ class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
         , protected QOpenGLFunctions
 #endif
 {
+ friend class XQGraphTexture;
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -85,6 +95,9 @@ public:
  void drawText(const XGraph::ScrPoint &p, const XString &str) {
      drawText(p, QString(str));
  }
+
+ unique_ptr<XQGraphTexture> createTexture(const QImage &image);
+ void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint &p, double width, double height);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.

@@ -492,7 +492,12 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	setColor(shot[ *m_graph->titleColor()]);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
+    if(shot[ *m_graph->osdStrings()].to_str().length()) {
+        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()].to_str() + " " + shot[ *m_graph->osdStrings()].to_str());
+    }
+    else {
+        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
+    }
   
 	if(m_onScreenMsg.length() ) {
 		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);

@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2023 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -53,7 +53,8 @@ XGraph::XGraph(const char *name, bool runtime) :
     m_backGround(create<XHexNode>("BackGround", true)),
     m_titleColor(create<XHexNode>("TitleColor", true)),
     m_drawLegends(create<XBoolNode>("DrawLegends", true)),
-    m_persistence(create<XDoubleNode>("Persistence", true)) {
+    m_persistence(create<XDoubleNode>("Persistence", true)),
+    m_osdStrings(create<XStringNode>("OSDStrings", true)) {
 
     iterate_commit([=](Transaction &tr){
 		m_lsnPropertyChanged = tr[ *label()].onValueChanged().connect(*this,
@@ -62,7 +63,8 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *titleColor()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *drawLegends()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *persistence()].onValueChanged().connect(lsnPropertyChanged());
-		tr[ *drawLegends()] = true;
+        tr[ *osdStrings()].onValueChanged().connect(lsnPropertyChanged());
+        tr[ *drawLegends()] = true;
         tr[ *persistence()] = 0.3;
 
 		tr[ *label()] = name;
@@ -1247,3 +1249,28 @@ XFuncPlot::snapshot(const Snapshot &shot) {
 	}
 }
 
+void
+X2DImagePlot::setImage(Transaction &tr, QImage&& image, double scr_width, double scr_height) {
+    if(scr_width == 0) {
+        scr_width = image.width();
+        scr_height = image.height();
+    }
+    tr[ *this].m_scrWidth = scr_width;
+    tr[ *this].m_scrHeight = scr_height;
+    tr[ *this].m_image = std::make_shared<QImage>(std::move(image));
+}
+void
+X2DImagePlot::snapshot(const Snapshot &shot) {
+    m_image = shot[ *this].m_image;
+}
+int
+X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
+    if(m_image) {
+        if(m_image != m_image_textured) {
+            m_texture = painter->createTexture( *m_image);
+            m_image_textured = m_image;
+        }
+        painter->drawTexture( *m_texture, XGraph::ScrPoint{0,0}, shot[ *this].scrWidth(), shot[ *this].scrHeight());
+    }
+    return XPlot::drawPlot(shot, painter);
+}

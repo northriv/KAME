@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2023 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -265,6 +265,53 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, QString &&str) {
     txt.fontsize = m_curFontSize;
     txt.rgba = m_curTextColor;
     m_textOverpaint.push_back(std::move(txt));
+}
+
+XQGraphTexture::~XQGraphTexture() {
+    m_painter->glDeleteTextures(1, &id);
+}
+unique_ptr<XQGraphTexture>
+XQGraphPainter::createTexture(const QImage &image) {
+    GLuint id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+    std::map<QImage::Format, GLenum> aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB32, 4}, {QImage::Format_ARGB32, 4}};
+    std::map<QImage::Format, GLenum> int_fmts = {{QImage::Format_Grayscale8, GL_RED}, {QImage::Format_Grayscale16, GL_RED}, {QImage::Format_RGB32, GL_RGB}, {QImage::Format_ARGB32, GL_RGBA}};
+    std::map<QImage::Format, GLenum> data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB32, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_BYTE}};
+    glPixelStorei(GL_UNPACK_ALIGNMENT, aligns.at(image.format()));
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //GL_LINEAR
+    glTexImage2D(GL_TEXTURE_2D, 0, int_fmts.at(image.format()), image.width(), image.height(),
+               0, int_fmts.at(image.format()), data_fmts.at(image.format()), image.bits());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return std::make_unique<XQGraphTexture>(id, this);
+}
+void
+XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoint &p, double width, double height) {
+    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texture.id);
+
+    beginQuad(true);
+    glNormal3f(0, 0, 1);
+    XGraph::ScrPoint p1(p);
+    glTexCoord2f(0.0, 0.0);
+    setVertex(p1);
+    p1.x += width;
+    glTexCoord2f(1.0, 0.0);
+    setVertex(p1);
+    p1.y += height;
+    glTexCoord2f(1.0, 1.0);
+    setVertex(p1);
+    p1.x -= width;
+    glTexCoord2f(0.0, 1.0);
+    setVertex(p1);
+    endQuad();
+    glDisable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 #define VIEW_NEAR -1.5

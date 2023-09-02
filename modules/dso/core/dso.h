@@ -102,6 +102,10 @@ public:
 		double trigPosDisp() const {return m_trigPosDisp;} ///< unit is interval
 		unsigned int numChannelsDisp() const {return m_numChannelsDisp;}
 		double timeIntervalDisp() const {return m_timeIntervalDisp;} //! [sec]
+
+        XString shortDescription() const {
+            return formatString("%.5g MSPS", 1e-6/m_timeIntervalDisp);
+        }
 	private:
 		friend class XDSO;
 		double m_trigPos; ///< unit is interval
@@ -110,7 +114,7 @@ public:
         std::vector<double> m_waves;
 
 		//! for displaying.
-		bool m_rawDisplayOnly; ///< flag for skipping to record.
+        bool m_rawDisplayOnly; ///< flag, record will be skipped.
 		double m_trigPosDisp; ///< unit is interval
 		unsigned int m_numChannelsDisp;
 		double m_timeIntervalDisp; //! [sec]

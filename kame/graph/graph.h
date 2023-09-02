@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2023 Kentaro Kitagawa
 		                   kitagawa@phys.s.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -103,61 +103,64 @@ typedef XAliasListNode<XPlot> XPlotList;
 //! \sa XPlot, XAxis, XQGraphPainter
 class DECLSPEC_KAME XGraph : public XNode {
 public:
-	XGraph(const char *name, bool runtime);
+    XGraph(const char *name, bool runtime);
     virtual XString getLabel() const override {return ( **label())->to_str();}
 
-	typedef float SFloat;
-	typedef float GFloat;
+    typedef float SFloat;
+    typedef float GFloat;
     typedef double VFloat;
-	typedef Vector4<SFloat> ScrPoint;
-	typedef Vector4<GFloat> GPoint;
-	typedef Vector4<VFloat> ValPoint;
- 
-	//! Fixes axes and performs autoscaling of the axes.
-	//! Call this function before redrawal of the graph.
-	void setupRedraw(Transaction &tr, float resolution);
-  
-	void zoomAxes(Transaction &tr, float resolution, XGraph::SFloat zoomscale,
-				  const XGraph::ScrPoint &zoomcenter);
+    typedef Vector4<SFloat> ScrPoint;
+    typedef Vector4<GFloat> GPoint;
+    typedef Vector4<VFloat> ValPoint;
+
+    //! Fixes axes and performs autoscaling of the axes.
+    //! Call this function before redrawal of the graph.
+    void setupRedraw(Transaction &tr, float resolution);
+
+    void zoomAxes(Transaction &tr, float resolution, XGraph::SFloat zoomscale,
+                  const XGraph::ScrPoint &zoomcenter);
 
     enum class Theme {Night, DayLight, Current};
     void applyTheme(Transaction &tr, bool reset_to_default = false, Theme theme = Theme::Current);
     static Theme currentTheme() {return s_theme;}
     static void setCurrentTheme(Theme theme) {s_theme = theme;}
 
-	const shared_ptr<XAxisList> &axes() const {return m_axes;}
-	const shared_ptr<XPlotList> &plots() const {return m_plots;} 
+    const shared_ptr<XAxisList> &axes() const {return m_axes;}
+    const shared_ptr<XPlotList> &plots() const {return m_plots;}
 
-	const shared_ptr<XStringNode> &label() const {return m_label;}
-	const shared_ptr<XHexNode> &backGround() const {return m_backGround;}
-	const shared_ptr<XHexNode> &titleColor() const {return m_titleColor;}
+    const shared_ptr<XStringNode> &label() const {return m_label;}
+    const shared_ptr<XHexNode> &backGround() const {return m_backGround;}
+    const shared_ptr<XHexNode> &titleColor() const {return m_titleColor;}
 
-	const shared_ptr<XBoolNode> &drawLegends() const {return m_drawLegends;}
+    const shared_ptr<XBoolNode> &drawLegends() const {return m_drawLegends;}
 
-	const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
+    const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
 
-	const shared_ptr<Listener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
+    const shared_ptr<XStringNode> &osdStrings() const {return m_osdStrings;}
 
-	struct Payload : public XNode::Payload {
+    const shared_ptr<Listener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
+
+    struct Payload : public XNode::Payload {
         Talker<XGraph*> &onUpdate() {return m_tlkOnUpdate;}
         const Talker<XGraph*> &onUpdate() const {return m_tlkOnUpdate;}
-	private:
+    private:
         TalkerOnce<XGraph*> m_tlkOnUpdate;
-	};
+    };
 
 protected:
 private:
-	void onPropertyChanged(const Snapshot &shot, XValueNodeBase *);
+    void onPropertyChanged(const Snapshot &shot, XValueNodeBase *);
 
-	const shared_ptr<XStringNode> m_label;
-	const shared_ptr<XAxisList> m_axes;
-	const shared_ptr<XPlotList> m_plots; 
-	const shared_ptr<XHexNode> m_backGround;
-	const shared_ptr<XHexNode> m_titleColor;
-	const shared_ptr<XBoolNode> m_drawLegends;
-	const shared_ptr<XDoubleNode> m_persistence;
+    const shared_ptr<XStringNode> m_label;
+    const shared_ptr<XAxisList> m_axes;
+    const shared_ptr<XPlotList> m_plots;
+    const shared_ptr<XHexNode> m_backGround;
+    const shared_ptr<XHexNode> m_titleColor;
+    const shared_ptr<XBoolNode> m_drawLegends;
+    const shared_ptr<XDoubleNode> m_persistence;
+    const shared_ptr<XStringNode> m_osdStrings;
 
-	shared_ptr<Listener> m_lsnPropertyChanged;
+    shared_ptr<Listener> m_lsnPropertyChanged;
 
     static Theme s_theme;
 };
@@ -206,7 +209,7 @@ public:
 	//! auto-scale
 	virtual int validateAutoScale(const Snapshot &shot);
 	//! Draws points from snapshot
-	int drawPlot(const Snapshot &shot, XQGraphPainter *painter);
+    virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter);
 	//! Draws a point for legneds.
 	//! \a spt the center of the point.
 	//! \a dx,dy the size of the area.
@@ -258,7 +261,7 @@ private:
 	//! z value without AxisZ
 	const shared_ptr<XDoubleNode> m_zwoAxisZ;
 	const shared_ptr<XDoubleNode> m_intensity;
-  
+
 	shared_ptr<Listener> m_lsnClearPoints;
   
 	void onClearPoints(const Snapshot &, XTouchableNode *);
@@ -424,6 +427,36 @@ protected:
 	//! Takes a snap-shot all points for rendering
     virtual void snapshot(const Snapshot &shot) override;
 private:
+};
+
+class XQGraphTexture;
+//! displays pixmap as texture.
+class DECLSPEC_KAME X2DImagePlot : public XPlot {
+public:
+    X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
+    void clearAllPoints(Transaction &) override {}
+    virtual int validateAutoScale(const Snapshot &) override {return 0;}
+
+    void setImage(Transaction &tr, QImage&& image, double scr_width = 0.0, double scr_height = 0.0);
+
+    struct Payload : public XNode::Payload {
+        Payload() : XNode::Payload() {}
+        //! image dimensions in screen coordinate.
+        double scrWidth() const {return m_scrWidth;}
+        double scrHeight() const {return m_scrHeight;}
+        shared_ptr<QImage> image() const {return m_image;}
+    private:
+        friend class X2DImagePlot;
+        shared_ptr<QImage> m_image;
+        double m_scrWidth, m_scrHeight;
+    };
+protected:
+    virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter) override;
+    //! Takes a snap-shot all points for rendering
+    virtual void snapshot(const Snapshot &shot) override;
+private:
+    shared_ptr<QImage> m_image, m_image_textured;
+    unique_ptr<XQGraphTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif

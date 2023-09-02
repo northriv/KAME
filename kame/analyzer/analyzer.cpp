@@ -102,6 +102,7 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
         double val = shot[ *m_entry->value()];
         iterate_commit([=](Transaction &tr){
             m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
+//            tr[ *m_graph->osdStrings()] = time.getTimeStr();
         });
     }
 }
@@ -109,6 +110,7 @@ void
 XValChart::showChart(void) {
 	m_graphForm->setWindowTitle(i18n("Chart - ") + getLabel() );
     m_graphForm->showNormal();
+    m_graphForm->raise();
 }
 
 XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
@@ -295,7 +297,8 @@ XValGraph::showGraph() {
 	if(m_graphForm) {
 		m_graphForm->setWindowTitle(i18n("Graph - ") + getLabel() );
         m_graphForm->showNormal();
-	}
+        m_graphForm->raise();
+    }
 }
 
 XGraphList::XGraphList(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries)
