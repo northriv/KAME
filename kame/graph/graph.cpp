@@ -29,8 +29,6 @@ using std::max;
 
 #define AxisToLabel 0.09
 #define AxisToTicLabel 0.015
-#define UNZOOM_ABIT 0.95
-
 #define PLOT_POINT_SIZE 5.0
 
 #ifdef USE_QGLWIDGET
@@ -164,7 +162,7 @@ XGraph::setupRedraw(Transaction &tr, float resolution) {
 		for(auto it = axes_list.begin(); it != axes_list.end(); ++it) {
 			auto axis = static_pointer_cast<XAxis>( *it);
 			if(shot[ *axis->autoScale()])
-				axis->zoom(true, true, UNZOOM_ABIT);
+                axis->zoom(true, true, 1 - shot[ *axis->marginDuringAutoScale()]);
 			axis->fixScale(tr, resolution, true);
 		}
 	}
@@ -820,8 +818,9 @@ XAxis::XAxis(const char *name, bool runtime,
 	m_ticLabelColor(create<XHexNode>("TicLabelColor", true)),
 	m_autoFreq(create<XBoolNode>("AutoFreq", true)),
 	m_autoScale(create<XBoolNode>("AutoScale", true)),
-	m_logScale(create<XBoolNode>("LogScale", true)) {
-	m_ticLabelFormat->setValidator(&formatDoubleValidator);
+    m_logScale(create<XBoolNode>("LogScale", true)),
+    m_marginDuringAutoScale(create<XDoubleNode>("MarginDuringAutoScale", true)) {
+    m_ticLabelFormat->setValidator(&formatDoubleValidator);
   
     iterate_commit([=](Transaction &tr){
 		tr[ *x()] = 0.15;
@@ -832,6 +831,7 @@ XAxis::XAxis(const char *name, bool runtime,
 		tr[ *minValue()] = 0;
 		tr[ *ticLabelFormat()] = "";
 		tr[ *logScale()] = false;
+        tr[ *marginDuringAutoScale()] = 0.04;
 		tr[ *displayLabel()] = true;
 		tr[ *displayTicLabels()] = true;
 		tr[ *displayMajorTics()] = true;
@@ -1273,4 +1273,11 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
         painter->drawTexture( *m_texture, XGraph::ScrPoint{0,0}, shot[ *this].scrWidth(), shot[ *this].scrHeight());
     }
     return XPlot::drawPlot(shot, painter);
+}
+int
+X2DImagePlot::validateAutoScale(const Snapshot &shot) {
+    m_curAxisX->tryInclude(0);
+    m_curAxisX->tryInclude(shot[ *this].m_scrWidth);
+    m_curAxisY->tryInclude(0);
+    m_curAxisY->tryInclude(shot[ *this].m_scrHeight);
 }

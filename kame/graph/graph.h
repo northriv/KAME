@@ -331,6 +331,7 @@ public:
 	const shared_ptr<XBoolNode> &autoFreq() const {return m_autoFreq;}
 	const shared_ptr<XBoolNode> &autoScale() const {return m_autoScale;}
 	const shared_ptr<XBoolNode> &logScale() const {return m_logScale;}
+    const shared_ptr<XDoubleNode> &marginDuringAutoScale() const {return m_marginDuringAutoScale;}
 
 	void zoom(bool minchange, bool maxchange, XGraph::GFloat zoomscale,
 			  XGraph::GFloat center = 0.5);
@@ -385,7 +386,8 @@ private:
 	const shared_ptr<XBoolNode> m_autoFreq;
 	const shared_ptr<XBoolNode> m_autoScale;
 	const shared_ptr<XBoolNode> m_logScale;
-  
+    const shared_ptr<XDoubleNode> m_marginDuringAutoScale;
+
 	XGraph::VFloat m_minFixed, m_maxFixed;
 	XGraph::VFloat m_majorFixed, m_minorFixed;
 	XGraph::VFloat m_invLogMaxOverMinFixed, m_invMaxMinusMinFixed;
@@ -435,7 +437,7 @@ class DECLSPEC_KAME X2DImagePlot : public XPlot {
 public:
     X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
     void clearAllPoints(Transaction &) override {}
-    virtual int validateAutoScale(const Snapshot &) override {return 0;}
+    virtual int validateAutoScale(const Snapshot &) override;
 
     void setImage(Transaction &tr, QImage&& image, double scr_width = 0.0, double scr_height = 0.0);
 
