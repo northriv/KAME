@@ -1,20 +1,20 @@
 /***************************************************************************
         Copyright (C) 2002-2023 Kentaro Kitagawa
-		                   kitagawa@phys.s.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+                           kitagawa@phys.s.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 //---------------------------------------------------------------------------
 
-#ifndef xwavengraphH
-#define xwavengraphH
+#ifndef x2dimageH
+#define x2dimageH
 //---------------------------------------------------------------------------
 
 #include "xnodeconnector.h"
@@ -26,22 +26,22 @@ class XXYPlot;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
-class DECLSPEC_KAME XWaveNGraph: public XGraphNToolBox {
+class DECLSPEC_KAME X2DImage: public XGraphNToolBox {
 public:
-    XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
-    XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
+    X2DImage(const char *name, bool runtime, FrmGraphNURL *item);
+    X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
-    virtual ~XWaveNGraph() {}
+    virtual ~X2DImage() {}
 
-	void drawGraph(Transaction &tr);
+    void drawGraph(Transaction &tr);
 
     struct DECLSPEC_KAME Payload : public XGraphNToolBox::Payload {
-		void clearPoints();
-		void clearPlots();
-		void insertPlot(const XString &label, int colx = 0, int coly1 = 1,
-			int coly2 = -1, int colweight = -1, int colz = -1);
+        void clearPoints();
+        void clearPlots();
+        void insertPlot(const XString &label, int colx = 0, int coly1 = 1,
+            int coly2 = -1, int colweight = -1, int colz = -1);
 
-		void setLabel(unsigned int col, const char *label);
+        void setLabel(unsigned int col, const char *label);
         const std::vector<XString> &labels() const {return m_labels;}
         unsigned int precision(unsigned int col) const {return m_cols[col]->precision;}
         void setRowCount(unsigned int rowcnt);
@@ -54,13 +54,13 @@ public:
         void setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision = std::numeric_limits<VALUE>::digits10 + 1);
 
         shared_ptr<XPlot> plot(unsigned int plotnum) const { return m_plots[plotnum];}
-		const shared_ptr<XAxis> &axisx() const { return m_axisx;}
-		const shared_ptr<XAxis> &axisy() const { return m_axisy;}
-		const shared_ptr<XAxis> &axisy2() const { return m_axisy2;}
-		const shared_ptr<XAxis> &axisz() const { return m_axisz;}
-		const shared_ptr<XAxis> &axisw() const { return m_axisw;}
-	private:
-        friend class XWaveNGraph;
+        const shared_ptr<XAxis> &axisx() const { return m_axisx;}
+        const shared_ptr<XAxis> &axisy() const { return m_axisy;}
+        const shared_ptr<XAxis> &axisy2() const { return m_axisy2;}
+        const shared_ptr<XAxis> &axisz() const { return m_axisz;}
+        const shared_ptr<XAxis> &axisw() const { return m_axisw;}
+    private:
+        friend class X2DImage;
         int m_colw;
         std::vector<XString> m_labels;
         std::vector<unsigned int> m_precisions;
@@ -111,12 +111,12 @@ public:
             virtual void clearAllPoints(Transaction &) override {}
             //! Takes a snap-shot all points for rendering
             virtual void snapshot(const Snapshot &shot) override;
-            weak_ptr<XWaveNGraph> m_parent;
+            weak_ptr<X2DImage> m_parent;
             int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
         };
         std::vector<shared_ptr<XPlotWrapper>> m_plots;
-		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
-	};
+        shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
+    };
 protected:
     virtual void dumpToFileThreaded(std::fstream &);
 private:
@@ -124,7 +124,7 @@ private:
 
 template <typename VALUE>
 void
-XWaveNGraph::Payload::setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision) {
+X2DImage::Payload::setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision) {
     assert(column.size() == m_rowCount);
     m_cols.at(n) = std::make_shared<Column<VALUE>>(std::move(column), precision);
 }

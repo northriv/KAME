@@ -27,6 +27,8 @@ INCLUDEPATH += \
 HEADERS += \
     allocator.h \
     atomic_prv_mfence_arm8.h \
+    graph/graphntoolbox.h \
+    graph/x2dimage.h \
     kame.h \
     threadlocal.h \
     transaction_impl.h \
@@ -91,6 +93,8 @@ HEADERS += \
     math/tikhonovreg.h
 
 SOURCES += icons/icon.cpp \
+    graph/graphntoolbox.cpp \
+    graph/x2dimage.cpp \
     xthread.cpp \
     xtime.cpp \
     support.cpp \

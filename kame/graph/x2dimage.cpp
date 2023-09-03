@@ -11,19 +11,19 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#include "xwavengraph.h"
+#include "X2DImage.h"
 
 #include "ui_graphnurlform.h"
 #include "graphwidget.h"
 #include "graph.h"
 #include <iomanip>
 
-XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
-    XWaveNGraph(name, runtime, item->m_graphwidget, item->m_edUrl,
+X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
+    X2DImage(name, runtime, item->m_graphwidget, item->m_edUrl,
         item->m_btnUrl, item->m_btnDump) {
 
 }
-XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
+X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
     iterate_commit([=](Transaction &tr){
         tr[ *dump()].setUIEnabled(false);
@@ -32,17 +32,17 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     });
 }
 
-XWaveNGraph::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
+X2DImage::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
     Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
     XPlot(name, runtime, tr_graph, graph) {
 
 }
 void
-XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
+X2DImage::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
     auto waves = m_parent.lock();
     if( !waves) return;
     //Snapshot only for the parent. Otherwise, transaction of graph will fail.
-    SingleSnapshot<XWaveNGraph> shot_waves( *waves);
+    SingleSnapshot<X2DImage> shot_waves( *waves);
     int rowcnt = shot_waves->rowCount();
     m_ptsSnapped.clear();
     m_ptsSnapped.reserve(rowcnt);
@@ -82,15 +82,15 @@ XWaveNGraph::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
 }
 
 void
-XWaveNGraph::Payload::clearPoints() {
+X2DImage::Payload::clearPoints() {
 	setRowCount(0);
 
-	shared_ptr<XGraph> graph(static_cast<XWaveNGraph*>( &node())->graph());
+    shared_ptr<XGraph> graph(static_cast<X2DImage*>( &node())->graph());
 	tr().mark(tr()[ *graph].onUpdate(), graph.get());
 }
 void
-XWaveNGraph::Payload::clearPlots() {
-    const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
+X2DImage::Payload::clearPlots() {
+    const auto &graph(static_cast<X2DImage &>(node()).graph());
     for(auto &&x: m_plots) {
         graph->plots()->release(tr(), x);
 	}
@@ -112,9 +112,9 @@ XWaveNGraph::Payload::clearPlots() {
     m_colw = -1;
 }
 void
-XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
+X2DImage::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	int weight, int z) {
-    const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
+    const auto &graph(static_cast<X2DImage &>(node()).graph());
 	assert( (y1 < 0) || (y2 < 0) );
 
 	if(weight >= 0) {
@@ -130,7 +130,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	unsigned int plotnum = m_plots.size() + 1;
     auto plot = graph->plots()->create<XPlotWrapper>(tr(), formatString("Plot%u",
 		plotnum).c_str(), true, ref(tr()), graph);
-    plot->m_parent = static_pointer_cast<XWaveNGraph>(node().shared_from_this());
+    plot->m_parent = static_pointer_cast<X2DImage>(node().shared_from_this());
     plot->m_colx = x;
     plot->m_coly1 = y1;
     plot->m_coly2 = y2;
@@ -191,7 +191,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 }
 
 void
-XWaveNGraph::Payload::setColCount(unsigned int colcnt, const char **labels) {
+X2DImage::Payload::setColCount(unsigned int colcnt, const char **labels) {
     m_cols.resize(colcnt);
     m_labels.resize(colcnt);
     m_precisions.resize(colcnt, 6);
@@ -199,11 +199,11 @@ XWaveNGraph::Payload::setColCount(unsigned int colcnt, const char **labels) {
         label = *labels++;
 }
 void
-XWaveNGraph::Payload::setLabel(unsigned int col, const char *label) {
+X2DImage::Payload::setLabel(unsigned int col, const char *label) {
     m_labels.at(col) = label;
 }
 void
-XWaveNGraph::Payload::setRowCount(unsigned int n) {
+X2DImage::Payload::setRowCount(unsigned int n) {
     m_rowCount = n;
     for(auto &&plot: m_plots) {
         tr()[ *plot->maxCount()] = n;
@@ -212,7 +212,7 @@ XWaveNGraph::Payload::setRowCount(unsigned int n) {
 
 
 void
-XWaveNGraph::dumpToFileThreaded(std::fstream &stream) {
+X2DImage::dumpToFileThreaded(std::fstream &stream) {
     Snapshot shot( *this);
 
     int rowcnt = shot[ *this].rowCount();
@@ -245,7 +245,7 @@ XWaveNGraph::dumpToFileThreaded(std::fstream &stream) {
     stream << std::endl;
     gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %d rows written into %s."), written_rows, shot[ *filename()].to_str().c_str()));
 }
-void XWaveNGraph::drawGraph(Transaction &tr) {
+void X2DImage::drawGraph(Transaction &tr) {
 	const Snapshot &shot(tr);
     if(shot[ *this].m_colw >= 0) {
         XGraph::VFloat weight_max = shot[ *this].m_cols[shot[ *this].m_colw]->max();
