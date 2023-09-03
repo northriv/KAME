@@ -31,9 +31,53 @@ class XXYPlot;
 class Ui_FrmGraphNURL;
 typedef QForm<QWidget, Ui_FrmGraphNURL> FrmGraphNURL;
 
+class DECLSPEC_KAME XQGraphExtender: public XNode {
+public:
+    XQGraphExtender(const char *name, bool runtime, FrmGraphNURL *item);
+    XQGraphExtender(const char *name, bool runtime, XQGraph *graphwidget,
+        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
+    virtual ~XQGraphExtender();
+
+    const shared_ptr<XGraph> &graph() const { return m_graph;}
+    const shared_ptr<XStringNode> &filename() const { return m_filename;}
+
+    const shared_ptr<XTouchableNode> &dump() const { return m_dump;}
+
+    struct DECLSPEC_KAME Payload : public XNode::Payload {
+        const Talker<bool> &onIconChanged() const { return m_tlkOnIconChanged;}
+        Talker<bool> &onIconChanged() { return m_tlkOnIconChanged;}
+    private:
+        friend class XQGraphExtender;
+        Talker<bool> m_tlkOnIconChanged;
+    };
+protected:
+    virtual void dumpToFileThreaded(std::fstream &) = 0;
+
+    std::deque<xqcon_ptr> m_conUIs;
+private:
+    QPushButton * const m_btnDump;
+
+    const shared_ptr<XGraph> m_graph;
+
+    const shared_ptr<XTouchableNode> m_dump;
+    const shared_ptr<XStringNode> m_filename;
+
+    shared_ptr<Listener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged,
+        m_lsnOnIconChanged;
+
+    void onDumpTouched(const Snapshot &shot, XTouchableNode *);
+    void onFilenameChanged(const Snapshot &shot, XValueNodeBase *);
+    void onIconChanged(const Snapshot &shot, bool );
+
+    xqcon_ptr m_conFilename, m_conDump;
+
+    unique_ptr<XThread> m_threadDump;
+    std::fstream m_stream;
+    XMutex m_filemutex;
+};
+
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
-
 class DECLSPEC_KAME XWaveNGraph: public XNode {
 public:
 	XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);

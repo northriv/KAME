@@ -213,7 +213,7 @@ public:
 	//! Draws a point for legneds.
 	//! \a spt the center of the point.
 	//! \a dx,dy the size of the area.
-    int drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy);
+    virtual int drawLegend(const Snapshot &shot, XQGraphPainter *painter, const XGraph::ScrPoint &spt, float dx, float dy);
 	void drawGrid(const Snapshot &shot, XQGraphPainter *painter, bool drawzaxis = true);
 	//! Takes a snap-shot all points for rendering
 	virtual void snapshot(const Snapshot &shot) = 0;
@@ -454,6 +454,7 @@ public:
     };
 protected:
     virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter) override;
+    virtual int drawLegend(const Snapshot &shot, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {};
     //! Takes a snap-shot all points for rendering
     virtual void snapshot(const Snapshot &shot) override;
 private:
