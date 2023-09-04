@@ -275,9 +275,9 @@ XQGraphPainter::createTexture(const QImage &image) {
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
-    std::map<QImage::Format, GLenum> aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB32, 4}, {QImage::Format_ARGB32, 4}};
-    std::map<QImage::Format, GLenum> int_fmts = {{QImage::Format_Grayscale8, GL_RED}, {QImage::Format_Grayscale16, GL_RED}, {QImage::Format_RGB32, GL_RGB}, {QImage::Format_ARGB32, GL_RGBA}};
-    std::map<QImage::Format, GLenum> data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB32, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_BYTE}};
+    std::map<QImage::Format, GLenum> aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB888, 1}, {QImage::Format_RGB32, 4}, {QImage::Format_ARGB32, 4}};
+    std::map<QImage::Format, GLenum> int_fmts = {{QImage::Format_Grayscale8, GL_LUMINANCE8}, {QImage::Format_Grayscale16, GL_LUMINANCE16}, {QImage::Format_RGB888, GL_RGB8}, {QImage::Format_RGB32, GL_RGB}, {QImage::Format_ARGB32, GL_RGBA}};
+    std::map<QImage::Format, GLenum> data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB888, GL_UNSIGNED_BYTE}, {QImage::Format_RGB32, GL_UNSIGNED_INT}, {QImage::Format_ARGB32, GL_FLOAT}};
     glPixelStorei(GL_UNPACK_ALIGNMENT, aligns.at(image.format()));
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
