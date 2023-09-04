@@ -11,7 +11,7 @@
 		Public License and a list of authors along with this program; 
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
-#include "X2DImage.h"
+#include "x2dimage.h"
 
 #include "ui_graphnurlform.h"
 #include "graphwidget.h"
@@ -26,7 +26,6 @@ X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
     iterate_commit([=](Transaction &tr){
-        tr[ *dump()].setUIEnabled(false);
         tr[ *graph()->persistence()] = 0.4;
         tr[ *this].clearPlots();
     });

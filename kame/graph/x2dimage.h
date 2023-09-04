@@ -18,11 +18,7 @@
 //---------------------------------------------------------------------------
 
 #include "xnodeconnector.h"
-#include <vector>
 #include "graphntoolbox.h"
-
-class XAxis;
-class XXYPlot;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
@@ -36,97 +32,12 @@ public:
     void drawGraph(Transaction &tr);
 
     struct DECLSPEC_KAME Payload : public XGraphNToolBox::Payload {
-        void clearPoints();
-        void clearPlots();
-        void insertPlot(const XString &label, int colx = 0, int coly1 = 1,
-            int coly2 = -1, int colweight = -1, int colz = -1);
-
-        void setLabel(unsigned int col, const char *label);
-        const std::vector<XString> &labels() const {return m_labels;}
-        unsigned int precision(unsigned int col) const {return m_cols[col]->precision;}
-        void setRowCount(unsigned int rowcnt);
-        void setColCount(unsigned int colcnt, const char** labels);
-        unsigned int rowCount() const {return m_rowCount; }
-        unsigned int colCount() const {return m_cols.size();}
-        unsigned int numPlots() const { return m_plots.size();}
-
-        template <typename VALUE>
-        void setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision = std::numeric_limits<VALUE>::digits10 + 1);
-
-        shared_ptr<XPlot> plot(unsigned int plotnum) const { return m_plots[plotnum];}
-        const shared_ptr<XAxis> &axisx() const { return m_axisx;}
-        const shared_ptr<XAxis> &axisy() const { return m_axisy;}
-        const shared_ptr<XAxis> &axisy2() const { return m_axisy2;}
-        const shared_ptr<XAxis> &axisz() const { return m_axisz;}
-        const shared_ptr<XAxis> &axisw() const { return m_axisw;}
     private:
         friend class X2DImage;
-        int m_colw;
-        std::vector<XString> m_labels;
-        std::vector<unsigned int> m_precisions;
-        size_t m_rowCount;
-        struct ColumnBase {
-            ColumnBase(unsigned int prec) : precision(prec) {}
-            virtual ~ColumnBase() = default;
-            virtual double max() const = 0;
-            virtual bool moreThanZero(size_t i) const = 0;
-            virtual const XGraph::VFloat *fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const = 0;
-            virtual void toOFStream(std::fstream &s, size_t idx) = 0;
-            unsigned int precision;
-            template <typename VALUE>
-            static const XGraph::VFloat *fillOrPointToGraphPointsBasic(std::vector<XGraph::VFloat>& buf,
-                const std::vector<VALUE>& vector) {
-                buf.resize(vector.size());
-                std::copy(vector.cbegin(), vector.cend(), buf.begin());
-                return &buf[0];
-            }
-            static const XGraph::VFloat *fillOrPointToGraphPointsBasic(std::vector<XGraph::VFloat>&,
-                const std::vector<XGraph::VFloat>&vector) {
-                return &vector[0];
-            }
-        };
-        template <typename VALUE>
-        struct Column : public ColumnBase {
-            Column(std::vector<VALUE> &&vec, unsigned int prec) : ColumnBase(prec), vector(std::move(vec)) {}
-            virtual ~Column() = default;
-            virtual double max() const {
-                if(vector.empty()) return 0.0;
-                return *std::max_element(vector.cbegin(), vector.cend());
-            }
-            virtual bool moreThanZero(size_t i) const {
-                return vector[i] > 0;
-            }
-            virtual const XGraph::VFloat *fillOrPointToGraphPoints(std::vector<XGraph::VFloat>& buf) const {
-                return fillOrPointToGraphPointsBasic(buf, vector);
-            }
-            virtual void toOFStream(std::fstream &s, size_t idx) {
-                s << vector[idx];
-            }
-            std::vector<VALUE> vector;
-        };
-        std::vector<shared_ptr<ColumnBase>> m_cols;
-
-        struct XPlotWrapper : public XPlot {
-            XPlotWrapper(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
-            virtual void clearAllPoints(Transaction &) override {}
-            //! Takes a snap-shot all points for rendering
-            virtual void snapshot(const Snapshot &shot) override;
-            weak_ptr<X2DImage> m_parent;
-            int m_colx, m_coly1, m_coly2, m_colweight, m_colz;
-        };
-        std::vector<shared_ptr<XPlotWrapper>> m_plots;
-        shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
     };
 protected:
-    virtual void dumpToFileThreaded(std::fstream &);
+    virtual void dumpToFileThreaded(std::fstream &) override;
 private:
 };
-
-template <typename VALUE>
-void
-X2DImage::Payload::setColumn(unsigned int n, std::vector<VALUE> &&column, unsigned int precision) {
-    assert(column.size() == m_rowCount);
-    m_cols.at(n) = std::make_shared<Column<VALUE>>(std::move(column), precision);
-}
 
 #endif
