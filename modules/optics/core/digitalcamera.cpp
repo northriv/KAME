@@ -13,7 +13,7 @@
 ***************************************************************************/
 #include "digitalcamera.h"
 #include "ui_digitalcameraform.h"
-#include "xwavengraph.h"
+#include "x2dimage.h"
 #include "graph.h"
 #include "graphwidget.h"
 
@@ -29,7 +29,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_form(new FrmDigitalCamera),
-	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
+    m_liveImage(create<X2DImage>("LiveImage", false,
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
 
@@ -40,49 +40,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark)
     };
 
-    m_waveForm->iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Wavelength [nm]", "Count", "Averaging Count", "Dark Count"};
-        tr[ *m_waveForm].setColCount(4, labels);
-		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
-        tr[ *m_waveForm].insertPlot(labels[2], 0, 2);
-
-		m_graph = m_waveForm->graph();
-//		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x34).rgb();
-//		tr[ *m_graph->titleColor()] = clWhite;
-		shared_ptr<XAxis> axisx = tr[ *m_waveForm].axisx();
-		shared_ptr<XAxis> axisy = tr[ *m_waveForm].axisy();
-		shared_ptr<XAxis> axisy2 = tr[ *m_waveForm].axisy2();
-//		tr[ *axisx->ticColor()] = clWhite;
-//		tr[ *axisx->labelColor()] = clWhite;
-//		tr[ *axisx->ticLabelColor()] = clWhite;
-//		tr[ *axisy->ticColor()] = clWhite;
-//		tr[ *axisy->labelColor()] = clWhite;
-//		tr[ *axisy->ticLabelColor()] = clWhite;
-        tr[ *axisy->autoScale()] = true;
-//		tr[ *axisy2->ticColor()] = clWhite;
-//		tr[ *axisy2->labelColor()] = clWhite;
-//		tr[ *axisy2->ticLabelColor()] = clWhite;
-		tr[ *tr[ *m_waveForm].plot(0)->drawPoints()] = false;
-//		tr[ *tr[ *m_waveForm].plot(0)->lineColor()] = clGreen;
-//		tr[ *tr[ *m_waveForm].plot(0)->pointColor()] = clGreen;
-		tr[ *tr[ *m_waveForm].plot(0)->intensity()] = 2.0;
-        tr[ *tr[ *m_waveForm].plot(1)->drawPoints()] = false;
-        tr[ *tr[ *m_waveForm].plot(1)->lineColor()] = clGreen;
-        shared_ptr<XXYPlot> plot = m_graph->plots()->create<XXYPlot>(
-			tr, "Markers", true, tr, m_graph);
-        tr[ *plot->label()] = i18n("Marker");
-		tr[ *plot->axisX()] = axisx;
-		tr[ *plot->axisY()] = axisy;
-		tr[ *plot->drawLines()] = false;
-		tr[ *plot->drawBars()] = true;
-		tr[ *plot->pointColor()] = clRed;
-		tr[ *plot->barColor()] = clRed;
-		tr[ *plot->intensity()] = 2.0;
-		tr[ *plot->clearPoints()].setUIEnabled(false);
-		tr[ *plot->maxCount()].setUIEnabled(false);
-		tr[ *m_waveForm].clearPoints();
-
-    });
     std::vector<shared_ptr<XNode>> runtime_ui{
 //        startWavelen(),
 //        stopWavelen(),
@@ -149,8 +106,22 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
-            acquireSpectrum(writer);
-		}
+//            unique_ptr<QImage> image = acquireRaw(writer);
+            iterate_commit([&](Transaction &tr){
+                QImage image(300, 300, QImage::Format_RGB32);
+                QRgb value;
+                image.fill(qRgb(0,0,0));
+
+                value = qRgb(189, 149, 39); // 0xffbd9527
+                for(int x = 10; x < 150; ++x)
+                    image.setPixel(x, x, value);
+
+                m_liveImage->setImage(tr, std::move(image));
+            });
+//            iterate_commit([&](Transaction &tr){
+//                m_liveImage->setImage(tr, std::move( *image));
+//            });
+        }
 		catch (XDriver::XSkippedRecordError&) {
 			msecsleep(10);
 			continue;

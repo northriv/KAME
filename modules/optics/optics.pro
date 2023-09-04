@@ -15,6 +15,19 @@ FORMS += \
     odmrfmform.ui
 
 unix {
+    exists("/opt/local/include/dc1394/dc1394.h") {
+        LIBS += -ldc1394
+        HEADERS += \
+            iidccamera.h \
+
+        SOURCES += \
+            iidccamera.cpp \
+
+        DEFINES += USE_LIBDC1394
+    }
+    else {
+        message("Missing library for libdc1394")
+    }
     exists("/opt/local/include/libusb-1.0/libusb.h") {
         LIBS += -lusb-1.0
         HEADERS += \

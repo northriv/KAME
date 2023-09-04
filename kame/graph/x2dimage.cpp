@@ -26,230 +26,30 @@ X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
     iterate_commit([=](Transaction &tr){
-        tr[ *graph()->persistence()] = 0.4;
-        tr[ *this].clearPlots();
+        tr[ *graph()->label()] = getLabel();
+        tr[ *graph()->persistence()] = 0;
+        tr[ *graph()->drawLegends()] = false;
+        auto plot = graph()->plots()->create<X2DImagePlot>(tr, "ImagePlot", true, ref(tr), graph());
+        tr[ *plot->label()] = getLabel();
+        m_plot = plot;
+        const XNode::NodeList &axes_list( *tr.list(graph()->axes()));
+        auto axisx = static_pointer_cast<XAxis>(axes_list.at(0));
+        auto axisy = static_pointer_cast<XAxis>(axes_list.at(1));
+        tr[ *plot->axisX()] = axisx;
+        tr[ *axisx->label()] = "X";
+        tr[ *plot->axisY()] = axisy;
+        tr[ *axisy->label()] = "Y";
     });
 }
-
-X2DImage::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
-    Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
-    XPlot(name, runtime, tr_graph, graph) {
-
-}
-void
-X2DImage::Payload::XPlotWrapper::snapshot(const Snapshot &shot_graph) {
-    auto waves = m_parent.lock();
-    if( !waves) return;
-    //Snapshot only for the parent. Otherwise, transaction of graph will fail.
-    SingleSnapshot<X2DImage> shot_waves( *waves);
-    int rowcnt = shot_waves->rowCount();
-    m_ptsSnapped.clear();
-    m_ptsSnapped.reserve(rowcnt);
-    if( !rowcnt)
-        return;
-
-    std::vector<XGraph::VFloat> cols[4];
-    const XGraph::VFloat *pcolx = nullptr, *pcoly = nullptr,
-            *pcolz = nullptr, *pcolweight = nullptr;
-
-    auto prepare_column_data =
-        [&](int colidx, std::vector<XGraph::VFloat>&buf, const XGraph::VFloat *&pcolumn) {
-        if(colidx >= 0) {
-            pcolumn = shot_waves->m_cols[colidx]->fillOrPointToGraphPoints(buf);
-        }
-    };
-    prepare_column_data(m_colx, cols[0], pcolx);
-    prepare_column_data(m_coly1, cols[1], pcoly);
-    prepare_column_data(m_coly2, cols[1], pcoly);
-    prepare_column_data(m_colz, cols[2], pcolz);
-    prepare_column_data(m_colweight, cols[3], pcolweight);
-
-    for(int i = 0; i < rowcnt; ++i) {
-        double z = 0.0;
-        if(pcolz)
-            z = pcolz[i];
-        if(pcolweight) {
-            if(pcolweight[i] > 0) {
-                m_ptsSnapped.push_back(XGraph::ValPoint(pcolx[i],
-                    pcoly[i], z, pcolweight[i]));
-            }
-        }
-        else {
-            m_ptsSnapped.push_back(XGraph::ValPoint(pcolx[i], pcoly[i], z));
-        }
-    }
-}
-
-void
-X2DImage::Payload::clearPoints() {
-	setRowCount(0);
-
-    shared_ptr<XGraph> graph(static_cast<X2DImage*>( &node())->graph());
-	tr().mark(tr()[ *graph].onUpdate(), graph.get());
-}
-void
-X2DImage::Payload::clearPlots() {
-    const auto &graph(static_cast<X2DImage &>(node()).graph());
-    for(auto &&x: m_plots) {
-        graph->plots()->release(tr(), x);
-	}
-	if(m_axisw)
-		graph->axes()->release(tr(), m_axisw);
-	if(m_axisz)
-		graph->axes()->release(tr(), m_axisz);
-	if(m_axisy2)
-		graph->axes()->release(tr(), m_axisy2);
-
-	if(m_axisx)
-		tr()[ *m_axisx->label()] = "";
-	if(m_axisy)
-		tr()[ *m_axisy->label()] = "";
-	m_plots.clear();
-	m_axisy2.reset();
-	m_axisz.reset();
-	m_axisw.reset();
-    m_colw = -1;
-}
-void
-X2DImage::Payload::insertPlot(const XString &label, int x, int y1, int y2,
-	int weight, int z) {
-    const auto &graph(static_cast<X2DImage &>(node()).graph());
-	assert( (y1 < 0) || (y2 < 0) );
-
-	if(weight >= 0) {
-		if((m_colw >= 0) && (m_colw != weight))
-			m_colw = -1;
-		else
-			m_colw = weight;
-	}
-
-	// graph->setName(getName());
-	tr()[ *graph->label()] = node().getLabel();
-
-	unsigned int plotnum = m_plots.size() + 1;
-    auto plot = graph->plots()->create<XPlotWrapper>(tr(), formatString("Plot%u",
-		plotnum).c_str(), true, ref(tr()), graph);
-    plot->m_parent = static_pointer_cast<X2DImage>(node().shared_from_this());
-    plot->m_colx = x;
-    plot->m_coly1 = y1;
-    plot->m_coly2 = y2;
-    plot->m_colweight = weight;
-    plot->m_colz = z;
-
-    tr()[ *plot->label()] = label;
-	const XNode::NodeList &axes_list( *tr().list(graph->axes()));
-	m_axisx = static_pointer_cast<XAxis>(axes_list.at(0));
-	m_axisy = static_pointer_cast<XAxis>(axes_list.at(1));
-    tr()[ *plot->axisX()] = m_axisx;
-    tr()[ *m_axisx->label()] = m_labels[plot->m_colx];
-    if(plot->m_coly1 >= 0) {
-        tr()[ *plot->axisY()] = m_axisy;
-        tr()[ *m_axisy->label()] = m_labels[plot->m_coly1];
-	}
-    tr()[ *plot->maxCount()] = rowCount();
-    tr()[ *plot->maxCount()].setUIEnabled(false);
-    tr()[ *plot->clearPoints()].setUIEnabled(false);
-    tr()[ *plot->intensity()] = 1.0;
-//	if(m_plots.size()) {
-//        tr()[ *plot.xyplot->pointColor()] = clAqua; //Green;
-//        tr()[ *plot.xyplot->lineColor()] = clAqua; //Green;
-//        tr()[ *plot.xyplot->barColor()] = clAqua; //Green;
-//		tr()[ *plot.xyplot->displayMajorGrid()] = false;
-//	}
-
-    if(plot->m_colz >= 0) {
-		if( !m_axisz) {
-			m_axisz = graph->axes()->create<XAxis>(tr(), "Z Axis", true,
-                XAxis::AxisDirection::Z, true, ref(tr()), graph);
-		}
-        tr()[ *plot->axisZ()] = m_axisz;
-        tr()[ *m_axisz->label()] = m_labels[plot->m_colz];
-	}
-    if(plot->m_colweight >= 0) {
-		if( !m_axisw) {
-			m_axisw = graph->axes()->create<XAxis>(tr(), "Weight", true,
-                XAxis::AxisDirection::Weight, true, ref(tr()), graph);
-		}
-		tr()[ *m_axisw->autoScale()] = false;
-		tr()[ *m_axisw->autoScale()].setUIEnabled(false);
-        tr()[ *plot->axisW()] = m_axisw;
-        tr()[ *m_axisw->label()] = m_labels[plot->m_colweight];
-	}
-    if(plot->m_coly2 >= 0) {
-		if( !m_axisy2) {
-			m_axisy2 = graph->axes()->create<XAxis>(tr(), "Y2 Axis", true,
-                XAxis::AxisDirection::Y, true, ref(tr()), graph);
-		}
-        tr()[ *plot->axisY()] = m_axisy2;
-        tr()[ *m_axisy2->label()] = m_labels[plot->m_coly2];
-	}
-
-	m_plots.push_back(plot);
-
-    graph->applyTheme(tr(), true);
-}
-
-void
-X2DImage::Payload::setColCount(unsigned int colcnt, const char **labels) {
-    m_cols.resize(colcnt);
-    m_labels.resize(colcnt);
-    m_precisions.resize(colcnt, 6);
-    for(auto &&label: m_labels)
-        label = *labels++;
-}
-void
-X2DImage::Payload::setLabel(unsigned int col, const char *label) {
-    m_labels.at(col) = label;
-}
-void
-X2DImage::Payload::setRowCount(unsigned int n) {
-    m_rowCount = n;
-    for(auto &&plot: m_plots) {
-        tr()[ *plot->maxCount()] = n;
-	}
-}
-
 
 void
 X2DImage::dumpToFileThreaded(std::fstream &stream) {
     Snapshot shot( *this);
 
-    int rowcnt = shot[ *this].rowCount();
-    int colcnt = shot[ *this].colCount();
-
-    stream << "#" << getLabel() << std::endl;
-    stream << "#";
-    for(unsigned int i = 0; i < colcnt; i++) {
-        stream << shot[ *this].labels()[i] << KAME_DATAFILE_DELIMITER;
-    }
-//		stream << std::endl;
-    stream << "#at " << (XTime::now()).getTimeFmtStr(
-        "%Y/%m/%d %H:%M:%S") << std::endl;
-
-    auto &p(shot[ *this]);
-    shared_ptr<Payload::ColumnBase> colw;
-    if(p.m_colw >= 0) colw = p.m_cols[p.m_colw];
-    int written_rows = 0;
-    for(unsigned int i = 0; i < rowcnt; i++) {
-        if( !colw || (colw->moreThanZero(i))) {
-            for(unsigned int j = 0; j < colcnt; j++) {
-                stream << std::setprecision(p.m_cols[j]->precision);
-                p.m_cols[j]->toOFStream(stream, i);
-                stream << KAME_DATAFILE_DELIMITER;
-            }
-            stream << std::endl;
-            written_rows++;
-        }
-    }
-    stream << std::endl;
-    gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %d rows written into %s."), written_rows, shot[ *filename()].to_str().c_str()));
 }
-void X2DImage::drawGraph(Transaction &tr) {
-	const Snapshot &shot(tr);
-    if(shot[ *this].m_colw >= 0) {
-        XGraph::VFloat weight_max = shot[ *this].m_cols[shot[ *this].m_colw]->max();
-        tr[ *shot[ *this].axisw()->maxValue()] = weight_max;
-        tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
-    }
+
+void
+X2DImage::setImage(Transaction &tr, QImage&& image, double scr_width, double scr_height) {
+    m_plot->setImage(tr, std::move(image), scr_width, scr_height);
     tr.mark(tr[ *graph()].onUpdate(), graph().get());
 }

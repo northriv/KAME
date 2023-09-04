@@ -24,9 +24,8 @@ class QMainWindow;
 class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 
-class XGraph;
-class XWaveNGraph;
-class X2DImagePlot;
+class XGraph;;
+class X2DImage;
 
 //! Base class for scientific/machine vision digital camera.
 class DECLSPEC_SHARED XDigitalCamera : public XPrimaryDriverWithThread {
@@ -69,19 +68,18 @@ protected:
     //! Implement this function to convert the raw data to the record (Payload).
     //! \sa analyze()
     virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
-    virtual void convertRawAndAccum(RawDataReader &reader, Transaction &tr) = 0;
 
-    virtual void acquireSpectrum(shared_ptr<RawData> &) = 0;
+    virtual unique_ptr<QImage> acquireRaw(shared_ptr<RawData> &) = 0;
 
 private:
-	const shared_ptr<XWaveNGraph> &waveForm() const {return m_waveForm;}
+    const shared_ptr<X2DImage> &waveForm() const {return m_liveImage;}
     const shared_ptr<XDoubleNode> m_exposure;
 	const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XBoolNode> m_subtractDark;
 
     const qshared_ptr<FrmDigitalCamera> m_form;
-	const shared_ptr<XWaveNGraph> m_waveForm;
+    const shared_ptr<X2DImage> m_liveImage;
 
 	shared_ptr<Listener> m_lsnOnAverageChanged;
     shared_ptr<Listener> m_lsnOnExposureChanged;
@@ -90,8 +88,7 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
 	shared_ptr<XGraph> m_graph;
-    shared_ptr<X2DImagePlot> m_imagePlot;
-	
+
     bool m_storeDarkInvoked;
 
     void *execute(const atomic<bool> &) override;

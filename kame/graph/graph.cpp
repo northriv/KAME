@@ -1249,6 +1249,11 @@ XFuncPlot::snapshot(const Snapshot &shot) {
 	}
 }
 
+X2DImagePlot::X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph)
+    : XPlot(name, runtime, tr_graph, graph) {
+    iterate_commit([=](Transaction &tr){
+    });
+}
 void
 X2DImagePlot::setImage(Transaction &tr, QImage&& image, double scr_width, double scr_height) {
     if(scr_width == 0) {
@@ -1270,7 +1275,23 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
             m_texture = painter->createTexture( *m_image);
             m_image_textured = m_image;
         }
-        painter->drawTexture( *m_texture, XGraph::ScrPoint{0,0}, shot[ *this].scrWidth(), shot[ *this].scrHeight());
+        if(fixScales(shot)) {
+            XGraph::ScrPoint spt[4];
+            XGraph::ValPoint v1(0, 0);
+            XGraph::GPoint g;
+            valToGraphFast(v1, &g);
+            graphToScreenFast(g, &spt[0]);
+            XGraph::ValPoint v2(m_image->width(), 0);
+            valToGraphFast(v2, &g);
+            graphToScreenFast(g, &spt[1]);
+            XGraph::ValPoint v3(m_image->width(), m_image->height());
+            valToGraphFast(v3, &g);
+            graphToScreenFast(g, &spt[2]);
+            XGraph::ValPoint v4(0, m_image->height());
+            valToGraphFast(v4, &g);
+            graphToScreenFast(g, &spt[3]);
+            painter->drawTexture( *m_texture, spt);
+        }
     }
     return XPlot::drawPlot(shot, painter);
 }
@@ -1280,4 +1301,5 @@ X2DImagePlot::validateAutoScale(const Snapshot &shot) {
     m_curAxisX->tryInclude(shot[ *this].m_scrWidth);
     m_curAxisY->tryInclude(0);
     m_curAxisY->tryInclude(shot[ *this].m_scrHeight);
+    return 0;
 }

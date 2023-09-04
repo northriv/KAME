@@ -32,9 +32,11 @@
 #include <QImage>
 class XQGraphTexture {
 public:
-   XQGraphTexture(GLuint tid, XQGraphPainter *const item) : id(tid), m_painter(item) {}
+   XQGraphTexture(GLuint tid, XQGraphPainter *const item, unsigned int w, unsigned int h)
+       : id(tid), width(w), height(h), m_painter(item) {}
    ~XQGraphTexture();
    const GLuint id;
+   unsigned int width, height;
    XQGraphPainter *const m_painter;
 };
 
@@ -97,7 +99,7 @@ public:
  }
 
  unique_ptr<XQGraphTexture> createTexture(const QImage &image);
- void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint &p, double width, double height);
+ void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint p[4]);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.

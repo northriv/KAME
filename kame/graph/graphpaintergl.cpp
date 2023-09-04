@@ -286,10 +286,10 @@ XQGraphPainter::createTexture(const QImage &image) {
     glTexImage2D(GL_TEXTURE_2D, 0, int_fmts.at(image.format()), image.width(), image.height(),
                0, int_fmts.at(image.format()), data_fmts.at(image.format()), image.bits());
     glBindTexture(GL_TEXTURE_2D, 0);
-    return std::make_unique<XQGraphTexture>(id, this);
+    return std::make_unique<XQGraphTexture>(id, this, image.width(), image.height());
 }
 void
-XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoint &p, double width, double height) {
+XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoint p[4]) {
     static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glEnable(GL_TEXTURE_2D);
@@ -297,18 +297,14 @@ XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoin
 
     beginQuad(true);
     glNormal3f(0, 0, 1);
-    XGraph::ScrPoint p1(p);
     glTexCoord2f(0.0, 0.0);
-    setVertex(p1);
-    p1.x += width;
-    glTexCoord2f(1.0, 0.0);
-    setVertex(p1);
-    p1.y += height;
-    glTexCoord2f(1.0, 1.0);
-    setVertex(p1);
-    p1.x -= width;
-    glTexCoord2f(0.0, 1.0);
-    setVertex(p1);
+    setVertex(p[0]);
+    glTexCoord2f(1, 0.0);
+    setVertex(p[1]);
+    glTexCoord2f(1, 1);
+    setVertex(p[2]);
+    glTexCoord2f(0.0, 1);
+    setVertex(p[3]);
     endQuad();
     glDisable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
