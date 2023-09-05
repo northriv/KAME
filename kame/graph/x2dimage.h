@@ -29,7 +29,7 @@ public:
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
     virtual ~X2DImage() {}
 
-    void setImage(Transaction &tr, QImage&& image, double scr_width = 0.0, double scr_height = 0.0);
+    void setImage(Transaction &tr, const shared_ptr<QImage> &image);
 
     struct DECLSPEC_KAME Payload : public XGraphNToolBox::Payload {
     private:

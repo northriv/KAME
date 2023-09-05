@@ -15,15 +15,20 @@
 #define iidccameraH
 
 #include "digitalcamera.h"
-#include "dc1394/dc1394.h"
 //---------------------------------------------------------------------------
 
 #if defined USE_LIBDC1394
+
+struct dc1394camera_t;
 class XDC1394Interface : public XInterface {
 public:
     XDC1394Interface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
 
-    virtual bool isOpened() const override {return m_devname.length();}
+    virtual bool isOpened() const override {return camera;}
+
+    void lock() {s_mutex.lock();} //!<overrides XInterface::lock().
+    void unlock() {s_mutex.unlock();}
+    bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
 
     //! e.g. "Dev1".
     const char*devName() const {return m_devname.c_str();}
@@ -32,7 +37,9 @@ protected:
     //! This can be called even if has already closed.
     virtual void close() override;
 private:
+    static XRecursiveMutex s_mutex;
     XString m_devname;
+    dc1394camera_t *camera = nullptr;
 };
 
 template<class tDriver>

@@ -49,7 +49,6 @@ X2DImage::dumpToFileThreaded(std::fstream &stream) {
 }
 
 void
-X2DImage::setImage(Transaction &tr, QImage&& image, double scr_width, double scr_height) {
-    m_plot->setImage(tr, std::move(image), scr_width, scr_height);
-    tr.mark(tr[ *graph()].onUpdate(), graph().get());
+X2DImage::setImage(Transaction &tr, const shared_ptr<QImage> &image) {
+    m_plot->setImage(tr, image);
 }

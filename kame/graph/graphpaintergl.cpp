@@ -271,27 +271,51 @@ XQGraphTexture::~XQGraphTexture() {
     m_painter->glDeleteTextures(1, &id);
 }
 unique_ptr<XQGraphTexture>
-XQGraphPainter::createTexture(const QImage &image) {
+XQGraphPainter::createTexture(const shared_ptr<QImage> &imdddddage) {
+    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
+
+    auto image = std::make_shared<QImage>(300, 300, QImage::Format_RGB888);
+    QRgb value;
+    image->fill(qRgb(0,0,0xff));
+    value = qRgb(0, 0, 0xff);
+    for(int x = 0; x < 300; ++x)
+        for(int y = 0; y < 300; ++y)
+            image->setPixel(x, y, value);
+
+    value = qRgb(0, 0xff, 0);
+    for(int x = 0; x < 200; ++x)
+        for(int y = 40; y < 100; ++y)
+            image->setPixel(x, y, value);
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
-    std::map<QImage::Format, GLenum> aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB888, 1}, {QImage::Format_RGB32, 4}, {QImage::Format_ARGB32, 4}};
-    std::map<QImage::Format, GLenum> int_fmts = {{QImage::Format_Grayscale8, GL_LUMINANCE8}, {QImage::Format_Grayscale16, GL_LUMINANCE16}, {QImage::Format_RGB888, GL_RGB8}, {QImage::Format_RGB32, GL_RGB}, {QImage::Format_ARGB32, GL_RGBA}};
-    std::map<QImage::Format, GLenum> data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB888, GL_UNSIGNED_BYTE}, {QImage::Format_RGB32, GL_UNSIGNED_INT}, {QImage::Format_ARGB32, GL_FLOAT}};
-    glPixelStorei(GL_UNPACK_ALIGNMENT, aligns.at(image.format()));
+    std::map<QImage::Format, GLenum> aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB888, 1},
+                                               {QImage::Format_BGR888, 1}, {QImage::Format_RGBA8888, 4}};
+    std::map<QImage::Format, GLenum> int_fmts = {{QImage::Format_Grayscale8, GL_R8}, {QImage::Format_Grayscale16, GL_R16}, {QImage::Format_RGB888, GL_RGB8},
+                                                 {QImage::Format_BGR888, GL_RGB8}, {QImage::Format_RGBA8888, GL_RGBA8}};
+    std::map<QImage::Format, GLenum> fmts = {{QImage::Format_Grayscale8, GL_RED}, {QImage::Format_Grayscale16, GL_RED}, {QImage::Format_RGB888, GL_BGR},
+                                                 {QImage::Format_BGR888, GL_RGB}, {QImage::Format_RGBA8888, GL_BGRA}};
+    std::map<QImage::Format, GLenum> data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB888, GL_UNSIGNED_BYTE},
+                                                  {QImage::Format_BGR888, GL_UNSIGNED_BYTE}, {QImage::Format_RGBA8888, GL_UNSIGNED_BYTE}}; //GL_UNSIGNED_INT_8_8_8_8
+    glPixelStorei(GL_UNPACK_ALIGNMENT, aligns.at(image->format()));
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //GL_LINEAR
-    glTexImage2D(GL_TEXTURE_2D, 0, int_fmts.at(image.format()), image.width(), image.height(),
-               0, int_fmts.at(image.format()), data_fmts.at(image.format()), image.bits());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+//    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, image->width(), image->height());
+//    glTexSubImage2D(GL_TEXTURE_2D, 0​, 0, 0, image->width(), image->height(),
+    glTexImage2D(GL_TEXTURE_2D, 0, int_fmts.at(image->format()), image->width(), image->height(),
+               0, fmts.at(image->format()), data_fmts.at(image->format()), image->bits());
     glBindTexture(GL_TEXTURE_2D, 0);
-    return std::make_unique<XQGraphTexture>(id, this, image.width(), image.height());
+    checkGLError();
+    return std::make_unique<XQGraphTexture>(id, this, image);
 }
 void
 XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoint p[4]) {
-    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
-    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
+//    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
+//    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, texture.id);
 
@@ -308,6 +332,7 @@ XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoin
     endQuad();
     glDisable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
+    checkGLError();
 }
 
 #define VIEW_NEAR -1.5
@@ -596,7 +621,7 @@ XQGraphPainter::paintGL () {
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glMatrixMode(GL_MODELVIEW);
 
-    if(m_bIsRedrawNeeded.compare_set_strong(true, false)) {
+    if(m_bIsRedrawNeeded.compare_set_strong(true, false) || m_bAvoidCallingLists) {
         shot = startDrawing();
 
         //For stupid OpenGL implementations.

@@ -1252,17 +1252,16 @@ XFuncPlot::snapshot(const Snapshot &shot) {
 X2DImagePlot::X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph)
     : XPlot(name, runtime, tr_graph, graph) {
     iterate_commit([=](Transaction &tr){
+        tr[ *displayMajorGrid()] = false;
+        tr[ *displayMinorGrid()] = false;
+        tr[ *intensity()] = 1.0;
     });
 }
 void
-X2DImagePlot::setImage(Transaction &tr, QImage&& image, double scr_width, double scr_height) {
-    if(scr_width == 0) {
-        scr_width = image.width();
-        scr_height = image.height();
-    }
-    tr[ *this].m_scrWidth = scr_width;
-    tr[ *this].m_scrHeight = scr_height;
-    tr[ *this].m_image = std::make_shared<QImage>(std::move(image));
+X2DImagePlot::setImage(Transaction &tr, const shared_ptr<QImage>& image) {
+    tr[ *this].m_image = image;
+    shared_ptr<XGraph> graph(m_graph.lock());
+    tr.mark(tr[ *graph].onUpdate(), graph.get());
 }
 void
 X2DImagePlot::snapshot(const Snapshot &shot) {
@@ -1270,9 +1269,12 @@ X2DImagePlot::snapshot(const Snapshot &shot) {
 }
 int
 X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
+    unique_ptr<XQGraphTexture> texture_prev; //preserves texture until drawing.
     if(m_image) {
         if(m_image != m_image_textured) {
-            m_texture = painter->createTexture( *m_image);
+            texture_prev = painter->createTexture(m_image);
+            texture_prev.swap(m_texture);
+            m_texture_prev.swap(texture_prev);
             m_image_textured = m_image;
         }
         if(fixScales(shot)) {
@@ -1298,8 +1300,10 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
 int
 X2DImagePlot::validateAutoScale(const Snapshot &shot) {
     m_curAxisX->tryInclude(0);
-    m_curAxisX->tryInclude(shot[ *this].m_scrWidth);
+    if(shot[ *this].image())
+        m_curAxisX->tryInclude(shot[ *this].image()->width());
     m_curAxisY->tryInclude(0);
-    m_curAxisY->tryInclude(shot[ *this].m_scrHeight);
+    if(shot[ *this].image())
+        m_curAxisY->tryInclude(shot[ *this].image()->height());
     return 0;
 }

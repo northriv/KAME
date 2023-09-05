@@ -32,12 +32,12 @@
 #include <QImage>
 class XQGraphTexture {
 public:
-   XQGraphTexture(GLuint tid, XQGraphPainter *const item, unsigned int w, unsigned int h)
-       : id(tid), width(w), height(h), m_painter(item) {}
+   XQGraphTexture(GLuint tid, XQGraphPainter *const item, const shared_ptr<QImage> &image)
+       : id(tid), m_painter(item), qimage(image) {}
    ~XQGraphTexture();
    const GLuint id;
-   unsigned int width, height;
    XQGraphPainter *const m_painter;
+   shared_ptr<QImage> qimage;
 };
 
 //! A painter which holds off-screen pixmap
@@ -98,7 +98,7 @@ public:
      drawText(p, QString(str));
  }
 
- unique_ptr<XQGraphTexture> createTexture(const QImage &image);
+ unique_ptr<XQGraphTexture> createTexture(const shared_ptr<QImage> &image);
  void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint p[4]);
 
  //! make point outer perpendicular to \a dir by offset
@@ -189,6 +189,7 @@ Snapshot startDrawing();
     m_listaxismarkers, m_listgrids, m_listplanemarkers;
  
  atomic<bool> m_bIsRedrawNeeded;
+ bool m_bAvoidCallingLists = false;
  bool m_bIsAxisRedrawNeeded;
  bool m_bTilted;
  bool m_bReqHelp;

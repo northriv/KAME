@@ -18,10 +18,39 @@
 #if defined USE_LIBDC1394
 
 REGISTER_TYPE(XDriverList, IIDCCamera, "IEEE1394 IIDC camera");
+#include "dc1394/dc1394.h"
 
 //---------------------------------------------------------------------------
 XDC1394Interface::XDC1394Interface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XInterface(name, runtime, driver) {
+    dc1394featureset_t features;
+    dc1394framerates_t framerates;
+    dc1394video_modes_t video_modes;
+    dc1394color_coding_t coding;
+    unsigned int width, height;
+    dc1394video_frame_t *frame;
+
+    dc1394_t *dc1394 = dc1394_new();
+    if(dc1394) {
+        dc1394camera_list_t *list;
+        dc1394error_t err = dc1394_camera_enumerate(dc1394, &list);
+        if( !err) {
+            for(unsigned int i = 0; i < dc1394->num_cameras; ++i) {
+                list[i].model;
+
+            }
+        }
+        dc1394_free(dc1394);
+    }
+
+    camera = dc1394_camera_new (dc1394, list->ids[0].guid);
+    if (!camera) {
+        dc1394_log_error("Failed to initialize camera with guid %"PRIx64, list->ids[0].guid);
+        return 1;
+    }
+    dc1394_camera_free_list (list);
+
+    printf("Using camera with GUID %"PRIx64"\n", camera->guid);
 
 }
 void

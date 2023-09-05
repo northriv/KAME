@@ -440,27 +440,25 @@ public:
     void clearAllPoints(Transaction &) override {}
     virtual int validateAutoScale(const Snapshot &) override;
 
-    void setImage(Transaction &tr, QImage&& image, double scr_width = 0.0, double scr_height = 0.0);
+    void setImage(Transaction &tr, const shared_ptr<QImage> &image);
 
     struct Payload : public XNode::Payload {
         Payload() : XNode::Payload() {}
         //! image dimensions in screen coordinate.
-        double scrWidth() const {return m_scrWidth;}
-        double scrHeight() const {return m_scrHeight;}
         shared_ptr<QImage> image() const {return m_image;}
     private:
         friend class X2DImagePlot;
         shared_ptr<QImage> m_image;
-        double m_scrWidth, m_scrHeight;
     };
 protected:
     virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter) override;
-    virtual int drawLegend(const Snapshot &shot, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {};
+    virtual int drawLegend(const Snapshot &, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {};
     //! Takes a snap-shot all points for rendering
     virtual void snapshot(const Snapshot &shot) override;
 private:
+    friend class XGraph;
     shared_ptr<QImage> m_image, m_image_textured;
-    unique_ptr<XQGraphTexture> m_texture;
+    unique_ptr<XQGraphTexture> m_texture, m_texture_prev;
 };
 //---------------------------------------------------------------------------
 #endif
