@@ -212,6 +212,28 @@ void
 XIIDCCamera::setShutter(unsigned int shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
 }
+//printf("------ Frame information ------\n");
+//printf("Size x                             :        %u\n", frame->size[0]);
+//printf("Size y                             :        %u\n", frame->size[1]);
+//printf("Pos x                              :        %u\n", frame->position[0]);
+//printf("Pos y                              :        %u\n", frame->position[1]);
+//printf("Color coding                       :        %u\n", frame->color_coding);
+//printf("Color filter                       :        %u\n", frame->color_filter);
+//printf("yuv byte order                     :        %u\n", frame->yuv_byte_order);
+//printf("data depth                         :        %u\n", frame->data_depth);
+//printf("stride                             :        %u\n", frame->stride);
+//printf("video mode                         :        %d\n", frame->video_mode);
+//printf("total bytes                        :        %lu\n", frame->total_bytes);
+//printf("image bytes                        :        %u\n", frame->image_bytes);
+//printf("padding bytes                      :        %u\n", frame->padding_bytes);
+//printf("packet size                        :        %u\n", frame->packet_size);
+//printf("packets per frame                  :        %u\n", frame->packets_per_frame);
+//printf("timestamp                          :        %lu\n", frame->timestamp);
+//printf("frames behind                      :        %u\n", frame->frames_behind);
+//printf("id                                 :        %u\n", frame->id);
+//printf("allocated image bytes              :        %lu\n", frame->allocated_image_bytes);
+//printf("little emdian                      :        %s\n", frame->little_endian == DC1394_TRUE ? "Yes" : "No");
+//printf("data in padding                    :        %s\n", frame->data_in_padding == DC1394_TRUE ? "Yes" : "No");
 unique_ptr<QImage>
 XIIDCCamera::acquireRaw(shared_ptr<RawData> &) {
     unsigned int width, height;
