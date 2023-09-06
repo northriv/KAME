@@ -53,7 +53,8 @@ protected:
 		inline void push_char(char);
 		inline void push_int16_t(int16_t);
 		inline void push_int32_t(int32_t);
-		inline void push_double(double);
+        inline void push_int64_t(int64_t);
+        inline void push_double(double);
 	};
 
     struct DECLSPEC_KAME RawDataReader {
@@ -79,7 +80,8 @@ protected:
 		inline char pop_char();
 		inline int16_t pop_int16_t();
 		inline int32_t pop_int32_t();
-		inline double pop_double();
+        inline int64_t pop_int64_t();
+        inline double pop_double();
 	};
 
 	//! This function will be called when raw data are written.
@@ -134,6 +136,18 @@ XPrimaryDriver::RawData::push_int32_t(int32_t x) {
 	}
 }
 inline void
+XPrimaryDriver::RawData::push_int64_t(int64_t x) {
+    int64_t y = x;
+    char *p = reinterpret_cast<char *>(&y);
+#ifdef __BIG_ENDIAN__
+    for(char *z = p + sizeof(x) - 1; z >= p; z--) {
+#else
+    for(char *z = p; z < p + sizeof(x); z++) {
+#endif
+        push_back( *z);
+    }
+}
+inline void
 XPrimaryDriver::RawData::push_double(double x) {
 	static_assert(sizeof(double) == 8, "Not 8-byte sized double"); // for compatibility.
 	double y = x;
@@ -180,6 +194,21 @@ XPrimaryDriver::RawDataReader::pop_int32_t() {
 		*z = *(it++);
 	}
 	return uni.x;
+}
+inline int64_t
+XPrimaryDriver::RawDataReader::pop_int64_t() {
+    union {
+        int64_t x;
+        char p[sizeof(int64_t)];
+    } uni;
+#ifdef __BIG_ENDIAN__
+    for(char *z = uni.p + sizeof(uni) - 1; z >= uni.p; z--) {
+#else
+    for(char *z = uni.p; z < uni.p + sizeof(uni); z++) {
+#endif
+        *z = *(it++);
+    }
+    return uni.x;
 }
 inline double
 XPrimaryDriver::RawDataReader::pop_double() {
@@ -228,6 +257,16 @@ inline uint32_t XPrimaryDriver::RawDataReader::pop() {
 	return static_cast<uint32_t>(pop_int32_t());
 }
 template <>
+inline int64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return pop_int64_t();
+}
+template <>
+inline uint64_t XPrimaryDriver::RawDataReader::pop() {
+    if(it + sizeof(int64_t) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
+    return static_cast<uint64_t>(pop_int64_t());
+}
+template <>
 inline float XPrimaryDriver::RawDataReader::pop() {
 	if(it + sizeof(float) > end()) throw XBufferUnderflowRecordError(__FILE__, __LINE__);
 	union {
@@ -268,6 +307,14 @@ inline void XPrimaryDriver::RawData::push(int32_t x) {
 template <>
 inline void XPrimaryDriver::RawData::push(uint32_t x) {
 	push_int32_t(static_cast<int32_t>(x));
+}
+template <>
+inline void XPrimaryDriver::RawData::push(int64_t x) {
+    push_int64_t(x);
+}
+template <>
+inline void XPrimaryDriver::RawData::push(uint64_t x) {
+    push_int64_t(static_cast<int64_t>(x));
 }
 template <>
 inline void XPrimaryDriver::RawData::push(float f) {

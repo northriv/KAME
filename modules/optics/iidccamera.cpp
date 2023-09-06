@@ -212,30 +212,44 @@ void
 XIIDCCamera::setShutter(unsigned int shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
 }
-//printf("------ Frame information ------\n");
-//printf("Size x                             :        %u\n", frame->size[0]);
-//printf("Size y                             :        %u\n", frame->size[1]);
-//printf("Pos x                              :        %u\n", frame->position[0]);
-//printf("Pos y                              :        %u\n", frame->position[1]);
-//printf("Color coding                       :        %u\n", frame->color_coding);
-//printf("Color filter                       :        %u\n", frame->color_filter);
-//printf("yuv byte order                     :        %u\n", frame->yuv_byte_order);
-//printf("data depth                         :        %u\n", frame->data_depth);
-//printf("stride                             :        %u\n", frame->stride);
-//printf("video mode                         :        %d\n", frame->video_mode);
-//printf("total bytes                        :        %lu\n", frame->total_bytes);
-//printf("image bytes                        :        %u\n", frame->image_bytes);
-//printf("padding bytes                      :        %u\n", frame->padding_bytes);
-//printf("packet size                        :        %u\n", frame->packet_size);
-//printf("packets per frame                  :        %u\n", frame->packets_per_frame);
-//printf("timestamp                          :        %lu\n", frame->timestamp);
-//printf("frames behind                      :        %u\n", frame->frames_behind);
-//printf("id                                 :        %u\n", frame->id);
-//printf("allocated image bytes              :        %lu\n", frame->allocated_image_bytes);
-//printf("little emdian                      :        %s\n", frame->little_endian == DC1394_TRUE ? "Yes" : "No");
-//printf("data in padding                    :        %s\n", frame->data_in_padding == DC1394_TRUE ? "Yes" : "No");
-unique_ptr<QImage>
-XIIDCCamera::acquireRaw(shared_ptr<RawData> &) {
+
+void
+XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
+    uint32_t width = reader->pop<uint32_t>();
+    tr[ *this].m_width = width;
+    uint32_t height = reader->pop<uint32_t>();
+    tr[ *this].m_height = height;
+    tr[ *this].m_xpos = reader->pop<uint32_t>();
+    tr[ *this].m_ypos = reader->pop<uint32_t>();
+    auto color_coding = static_cast<dc1394color_coding_t>(reader.pop<uint32_t>());          /* the color coding used. This field is valid for all video modes. */
+    auto color_filter = static_cast<dc1394color_filter_t>(reader.pop<uint32_t>());          /* the color filter used. This field is valid only for RAW modes and IIDC 1.31 */
+    uint32_t                 yuv_byte_order = reader.pop<uint32_t>();        /* the order of the fields for 422 formats: YUYV or UYVY */
+    uint32_t                 data_depth = reader.pop<uint32_t>();            /* the number of bits per pixel. The number of grayscale levels is 2^(this_number).
+                                                       This is independent from the colour coding */
+    uint32_t                 stride = reader.pop<uint32_t>();                /* the number of bytes per image line */
+    auto video_mode = static_cast<dc1394video_mode_t>(reader.pop<uint32_t>());            /* the video mode used for capturing this frame */
+    uint64_t                 total_bytes = reader.pop<uint64_t>();           /* the total size of the frame buffer in bytes. May include packet-
+                                                       multiple padding and intentional padding (vendor specific) */
+    uint32_t                 image_bytes = reader.pop<uint32_t>();          /* the number of bytes used for the image (image data only, no padding) */
+    uint32_t                 padding_bytes = reader.pop<uint32_t>();         /* the number of extra bytes, i.e. total_bytes-image_bytes.  */
+    uint32_t                 packet_size = reader.pop<uint32_t>();           /* the size of a packet in bytes. (IIDC data) */
+    uint32_t                 packets_per_frame = reader.pop<uint32_t>();     /* the number of packets per frame. (IIDC data) */
+    uint64_t                 timestamp = reader.pop<uint64_t>();             /* the unix time [microseconds] at which the frame was captured in
+                                                       the video1394 ringbuffer */
+    uint32_t                 frames_behind = reader.pop<uint32_t>();         /* the number of frames in the ring buffer that are yet to be accessed by the user */
+    uint32_t                 id = reader.pop<uint32_t>();                    /* the frame position in the ring buffer */
+    uint64_t                 allocated_image_bytes = reader.pop<uint64_t>(); /* amount of memory allocated in for the *image field. */
+    auto little_endian = static_cast<dc1394bool_t>(reader.pop<uint32_t>());         /* DC1394_TRUE if little endian (16bpp modes only),
+                                                       DC1394_FALSE otherwise */
+    auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
+                                                       DC1394_FALSE otherwise */
+    unsigned int bpp = (image_bytes - padding_bytes) / (width * height);
+    tr[ *this].m_status = formatString("%ux%u", width, height)
+    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame + frame->image_bytes);
+}
+
+void
+XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     unsigned int width, height;
 
     Snapshot shot( *this);
@@ -274,36 +288,54 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &) {
     if(dc1394_get_image_size_from_video_mode(interface()->camera(), video_mode, &width, &height))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get geometry."), __FILE__, __LINE__);
 
-    /*-----------------------------------------------------------------------
-     *  save image as 'Image.pgm'
-     *-----------------------------------------------------------------------*/
-//    imagefile=fopen(IMAGE_FILE_NAME, "wb");
-
-//    if( imagefile == NULL) {
-//        perror( "Can't create '" IMAGE_FILE_NAME "'");
-//        cleanup_and_exit(interface()->camera());
-//    }
-
-//    fprintf(imagefile,"P5\n%u %u 255\n", width, height);
-//    fwrite(frame->image, 1, height*width, imagefile);
-//    fclose(imagefile);
-//    printf("wrote: " IMAGE_FILE_NAME "\n");
-
-
-
-    QImage image(300, 300, QImage::Format_RGB32);
-    QRgb value;
-
-    value = qRgb(189, 149, 39); // 0xffbd9527
-    image.setPixel(1, 1, value);
-
-    value = qRgb(122, 163, 39); // 0xff7aa327
-    image.setPixel(0, 1, value);
-    image.setPixel(1, 0, value);
-
-    value = qRgb(237, 187, 51); // 0xffedba31
-    image.setPixel(2, 1, value);
-    return std::make_unique<QImage>(std::move(image));
+    writer->push((uint32_t)frame->size[0]);
+    writer->push((uint32_t)frame->size[1]);
+    writer->push((uint32_t)frame->position[0]);
+    writer->push((uint32_t)frame->position[1]);
+    writer->push((uint32_t)frame->color_coding);
+    writer->push((uint32_t)frame->color_filter);
+    writer->push((uint32_t)frame->yuv_byte_order);
+    writer->push((uint32_t)frame->data_depth);
+    writer->push((uint32_t)frame->stride);
+    writer->push((uint32_t)frame->video_mode);
+    writer->push((uint64_t)frame->total_bytes);
+    writer->push((uint32_t)frame->image_bytes);
+    writer->push((uint32_t)frame->padding_bytes);
+    writer->push((uint32_t)frame->packet_size);
+    writer->push((uint32_t)frame->packets_per_frame);
+    writer->push((uint64_t)frame->timestamp);
+    writer->push((uint32_t)frame->frames_behind);
+    writer->push((uint32_t)frame->id);
+    writer->push((uint64_t)frame->allocated_image_bytes);
+    writer->push((uint32_t)frame->little_endian);
+    writer->push((uint32_t)frame->data_in_padding);
+    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame + frame->image_bytes);
 }
-
+//unsigned char          * image;                 /* the image. May contain padding data too (vendor specific). Read/write allowed. Free NOT allowed if
+//                           returned by dc1394_capture_dequeue() */
+//uint32_t                 size[2];               /* the image size [width, height] */
+//uint32_t                 position[2];           /* the WOI/ROI position [horizontal, vertical] == [0,0] for full frame */
+//dc1394color_coding_t     color_coding;          /* the color coding used. This field is valid for all video modes. */
+//dc1394color_filter_t     color_filter;          /* the color filter used. This field is valid only for RAW modes and IIDC 1.31 */
+//uint32_t                 yuv_byte_order;        /* the order of the fields for 422 formats: YUYV or UYVY */
+//uint32_t                 data_depth;            /* the number of bits per pixel. The number of grayscale levels is 2^(this_number).
+//                                                   This is independent from the colour coding */
+//uint32_t                 stride;                /* the number of bytes per image line */
+//dc1394video_mode_t       video_mode;            /* the video mode used for capturing this frame */
+//uint64_t                 total_bytes;           /* the total size of the frame buffer in bytes. May include packet-
+//                                                   multiple padding and intentional padding (vendor specific) */
+//uint32_t                 image_bytes;           /* the number of bytes used for the image (image data only, no padding) */
+//uint32_t                 padding_bytes;         /* the number of extra bytes, i.e. total_bytes-image_bytes.  */
+//uint32_t                 packet_size;           /* the size of a packet in bytes. (IIDC data) */
+//uint32_t                 packets_per_frame;     /* the number of packets per frame. (IIDC data) */
+//uint64_t                 timestamp;             /* the unix time [microseconds] at which the frame was captured in
+//                                                   the video1394 ringbuffer */
+//uint32_t                 frames_behind;         /* the number of frames in the ring buffer that are yet to be accessed by the user */
+//dc1394camera_t           *camera;               /* the parent camera of this frame */
+//uint32_t                 id;                    /* the frame position in the ring buffer */
+//uint64_t                 allocated_image_bytes; /* amount of memory allocated in for the *image field. */
+//dc1394bool_t             little_endian;         /* DC1394_TRUE if little endian (16bpp modes only),
+//                                                   DC1394_FALSE otherwise */
+//dc1394bool_t             data_in_padding;       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
+//                                                   DC1394_FALSE otherwise */
 #endif // USE_LIBDC1394

@@ -85,12 +85,7 @@ protected:
     virtual void setBrightness(unsigned int brightness) = 0;
     virtual void setShutter(unsigned int shutter) = 0;
 
-    //! This function will be called when raw data are written.
-    //! Implement this function to convert the raw data to the record (Payload).
-    //! \sa analyze()
-    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
-
-    virtual unique_ptr<QImage> acquireRaw(shared_ptr<RawData> &) = 0;
+    virtual void acquireRaw(shared_ptr<RawData> &) = 0;
 
 private:
     const shared_ptr<XUIntNode> m_brightness;

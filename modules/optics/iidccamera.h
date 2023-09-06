@@ -128,7 +128,9 @@ protected:
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
-    virtual unique_ptr<QImage> acquireRaw(shared_ptr<RawData> &) override;
+
+    virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
+    virtual void acquireRaw(shared_ptr<RawData> &) override;
 private:
 
     static const std::map<dc1394video_mode_t, const char *> s_iidcVideoModes;

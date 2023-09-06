@@ -103,13 +103,14 @@ XDigitalCamera::onShutterChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 
 void
-XDigitalCamera::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
-}
-void
 XDigitalCamera::visualize(const Snapshot &shot) {
 	  if( !shot[ *this].time()) {
 		return;
 	  }
+      //            iterate_commit([&](Transaction &tr){
+      //                m_liveImage->setImage(tr, std::move( *image));
+      //            });
+
 }
 
 void *
@@ -142,21 +143,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 		auto writer = std::make_shared<RawData>();
 		// try/catch exception of communication errors
 		try {
-//            unique_ptr<QImage> image = acquireRaw(writer);
-            iterate_commit([&](Transaction &tr){
-                auto image = std::make_shared<QImage>(300, 300, QImage::Format_RGB32);
-                QRgb value;
-                image->fill(qRgb(0,0,0));
-
-                value = qRgb(189, 149, 39); // 0xffbd9527
-                for(int x = 10; x < 150; ++x)
-                    image->setPixel(x, x, value);
-
-                m_liveImage->setImage(tr, image);
-            });
-//            iterate_commit([&](Transaction &tr){
-//                m_liveImage->setImage(tr, std::move( *image));
-//            });
+            acquireRaw(writer);
         }
 		catch (XDriver::XSkippedRecordError&) {
 			msecsleep(10);
