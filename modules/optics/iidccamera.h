@@ -18,13 +18,14 @@
 //---------------------------------------------------------------------------
 
 #if defined USE_LIBDC1394
+#include "dc1394/dc1394.h"
 
-struct dc1394camera_t;
 class XDC1394Interface : public XInterface {
 public:
     XDC1394Interface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    virtual ~XDC1394Interface();
 
-    virtual bool isOpened() const override {return camera;}
+    virtual bool isOpened() const override {return m_camera;}
 
     void lock() {s_mutex.lock();} //!<overrides XInterface::lock().
     void unlock() {s_mutex.unlock();}
@@ -32,6 +33,8 @@ public:
 
     //! e.g. "Dev1".
     const char*devName() const {return m_devname.c_str();}
+
+    dc1394camera_t *camera() const {return m_camera;}
 protected:
     virtual void open() override;
     //! This can be called even if has already closed.
@@ -39,7 +42,9 @@ protected:
 private:
     static XRecursiveMutex s_mutex;
     XString m_devname;
-    dc1394camera_t *camera = nullptr;
+    dc1394camera_t *m_camera = nullptr;
+    static dc1394_t *s_dc1394;
+    static int s_refcnt;
 };
 
 template<class tDriver>
@@ -117,13 +122,16 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XIIDCCamera() {}
 protected:
-    virtual void onAverageChanged(const Snapshot &shot, XValueNodeBase *) override;
-    virtual void onExposureChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void setVideoMode(unsigned int mode) override;
+    virtual void setBrightness(unsigned int brightness) override;
+    virtual void setShutter(unsigned int shutter) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
     virtual unique_ptr<QImage> acquireRaw(shared_ptr<RawData> &) override;
 private:
+
+    static const std::map<dc1394video_mode_t, const char *> s_iidcVideoModes;
 };
 #endif //USE_LIBDC1394
 
