@@ -131,6 +131,8 @@ XIIDCCamera::XIIDCCamera(const char *name, bool runtime,
 
 void
 XIIDCCamera::open() {
+    if( !interface()->camera())
+        throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     // get video modes:
     dc1394video_modes_t video_modes;
     if(dc1394_video_get_supported_modes(interface()->camera(),&video_modes)) {
@@ -218,7 +220,7 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start ISO transmission."), __FILE__, __LINE__);
 }
 void
-XIIDCCamera::setBrightness(unsigned int brightness) {
+XIIDCCamera::setGain(unsigned int gain) {
     XScopedLock<XDC1394Interface> lock( *interface());
 
 //    unsigned int avg = shot[ *average()];
@@ -257,12 +259,12 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
     unsigned int bpp = (image_bytes - padding_bytes) / (width * height);
-    tr[ *this].m_status = formatString("%ux%u", width, height);
+    tr[ *this].m_status = formatString("%ux%u ", width, height) + s_iidcVideoModes.at(video_mode) + formatString(" stamp:%llu behind:%u", timestamp, frames_behind);
 
-    setGray16Image(reader, tr, width, height, little_endian != DC1394_TRUE);
+    setGrayImage(reader, tr, width, height, little_endian != DC1394_TRUE, bpp == 2);
 }
 
-void
+XTime
 XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     XScopedLock<XDC1394Interface> lock( *interface());
     Snapshot shot( *this);
@@ -298,6 +300,7 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
 
     if(dc1394_capture_enqueue(interface()->camera(), frame))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
+    return XTime{(long)(frame->timestamp / 1000000uLL), (long)(frame->timestamp % 1000000uLL)};
 }
 //unsigned char          * image;                 /* the image. May contain padding data too (vendor specific). Read/write allowed. Free NOT allowed if
 //                           returned by dc1394_capture_dequeue() */

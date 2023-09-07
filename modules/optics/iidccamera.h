@@ -123,14 +123,14 @@ public:
     virtual ~XIIDCCamera() {}
 protected:
     virtual void setVideoMode(unsigned int mode) override;
-    virtual void setBrightness(unsigned int brightness) override;
+    virtual void setGain(unsigned int gain) override;
     virtual void setShutter(unsigned int shutter) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
 
     virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
-    virtual void acquireRaw(shared_ptr<RawData> &) override;
+    virtual XTime acquireRaw(shared_ptr<RawData> &) override;
 private:
 
     static const std::map<dc1394video_mode_t, const char *> s_iidcVideoModes;
