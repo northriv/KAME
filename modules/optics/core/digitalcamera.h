@@ -70,9 +70,11 @@ public:
         XString m_status;
         unsigned int m_accumulated;
         double m_electric_dark;
-        shared_ptr<std::vector<int32_t>> m_darkCounts;
-        shared_ptr<std::vector<int32_t>> m_summedCounts;
+        unsigned int m_darkAccumulated;
+        local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
+        local_shared_ptr<std::vector<uint32_t>> m_summedCounts;
         shared_ptr<QImage> m_liveImage, m_processedImage;
+        int32_t m_avMin, m_avMax;
     };
 protected:
 
@@ -87,11 +89,13 @@ protected:
 
     virtual void acquireRaw(shared_ptr<RawData> &) = 0;
 
+    void setGray16Image(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian = false);
 private:
     const shared_ptr<XUIntNode> m_brightness;
     const shared_ptr<XUIntNode> m_shutter;
     const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
+    const shared_ptr<XTouchableNode> m_clearAverage;
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_frameRate;
@@ -107,6 +111,7 @@ private:
     shared_ptr<Listener> m_lsnOnBrightnessChanged;
     shared_ptr<Listener> m_lsnOnShutterChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
+    shared_ptr<Listener> m_lsnOnClearAverageTouched;
 
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onBrightnessChanged(const Snapshot &shot, XValueNodeBase *);
@@ -117,10 +122,13 @@ private:
 	shared_ptr<XGraph> m_graph;
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
+    void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
 
     bool m_storeDarkInvoked;
-    constexpr static unsigned int NumAverageCountsPool = 2;
-    std::shared_ptr<std::vector<int32_t>> m_averageCountsPool[NumAverageCountsPool];
+    bool m_clearAverageInvoked;
+    constexpr static unsigned int NumSummedCountsPool = 2;
+    atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
+    local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
 
     void *execute(const atomic<bool> &) override;
 };

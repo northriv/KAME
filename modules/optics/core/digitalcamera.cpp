@@ -28,6 +28,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_shutter(create<XUIntNode>("Shutter", true)),
     m_average(create<XUIntNode>("Average", false)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
+    m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_videoMode(create<XComboNode>("VideoMode", true)),
     m_frameRate(create<XComboNode>("FrameRate", true)),
@@ -36,15 +37,22 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_status(create<XStringNode>("Status", true)),
     m_form(new FrmDigitalCamera),
     m_liveImage(create<X2DImage>("LiveImage", false,
-                                   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)),
+                                   m_form->m_graphwidgetLive)),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
-                                   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
+                                   m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
 
     m_conUIs = {
+        xqcon_create<XQComboBoxConnector>(videoMode(), m_form->m_cmbVideomode, Snapshot( *videoMode())),
+        xqcon_create<XQComboBoxConnector>(frameRate(), m_form->m_cmbFrameRate, Snapshot( *frameRate())),
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
+        xqcon_create<XQSpinBoxUnsignedConnector>(shutter(), m_form->m_spbShutter),
+        xqcon_create<XQSpinBoxUnsignedConnector>(brightness(), m_form->m_spbBrightness),
+        xqcon_create<XQDoubleSpinBoxConnector>(gainForAverage(), m_form->m_dblGain),
 //        xqcon_create<XQLineEditConnector>((), m_form->m_edIntegrationTime),
+        xqcon_create<XQButtonConnector>(m_clearAverage, m_form->m_btnClearAverage),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
-        xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark)
+        xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
+        xqcon_create<XQToggleButtonConnector>(m_autoGainForAverage, m_form->m_ckbAutoGain)
     };
 
     std::vector<shared_ptr<XNode>> runtime_ui{
@@ -72,6 +80,10 @@ XDigitalCamera::showForms() {
 void
 XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
     m_storeDarkInvoked = true;
+}
+void
+XDigitalCamera::onClearAverageTouched(const Snapshot &shot, XTouchableNode *) {
+    m_clearAverageInvoked = true;
 }
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
@@ -107,10 +119,98 @@ XDigitalCamera::visualize(const Snapshot &shot) {
 	  if( !shot[ *this].time()) {
 		return;
 	  }
-      //            iterate_commit([&](Transaction &tr){
-      //                m_liveImage->setImage(tr, std::move( *image));
-      //            });
+      iterate_commit([&](Transaction &tr){
+        m_liveImage->setImage(tr, tr[ *this].liveImage());
+      });
+}
 
+local_shared_ptr<std::vector<uint32_t>>
+XDigitalCamera::summedCountsFromPool(int imagesize) {
+    local_shared_ptr<std::vector<uint32_t>> summedCountsNext, p;
+    for(int i = 0; i < NumSummedCountsPool; ++i) {
+        if( !m_summedCountsPool[i])
+            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
+        p = m_summedCountsPool[i];
+        if(p.use_count() == 2) { //not owned by other threads.
+            summedCountsNext = p;
+            p->resize(imagesize);
+        }
+    }
+    if( !summedCountsNext)
+        summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
+    return summedCountsNext;
+}
+
+void
+XDigitalCamera::setGray16Image(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian) {
+    auto summedCountsNext = summedCountsFromPool(width * height);
+    if(m_clearAverageInvoked || !tr[ *this].m_summedCounts || (tr[ *this].m_summedCounts->size() != width * height)) {
+        tr[ *this].m_summedCounts = make_local_shared<std::vector<uint32_t>>(width * height, 0);
+        m_clearAverageInvoked = false;
+        tr[ *this].m_accumulated = 0;
+    }
+    tr[ *this].m_electric_dark = 0.0; //unsupported
+    uint32_t *summedNext = &summedCountsNext->at(0);
+    const uint32_t *summed = &tr[ *this].m_summedCounts->at(0);
+    auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
+    auto processedimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
+    uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
+    uint32_t vmin = 0xffffffffu;
+    uint32_t vmax = 0u;
+    uint32_t gain_disp = lrint(0x100u * tr[ *gainForAverage()]);
+    for(unsigned int i  = 0; i < width * height; ++i) {
+         auto gray = reader.pop<uint16_t>();
+#ifdef __BIG_ENDIAN__
+         if( !big_endian) {
+#else
+         if(big_endian) {
+#endif
+             uint8_t *b = reinterpret_cast<uint8_t *>( &gray);
+             uint8_t b0 = b[0];
+             b[0] = b[1];
+             b[1] = b0;
+         }
+         uint32_t w = gray * gain_disp / 0x100u;
+         if(w >= 0x10000u)
+             w = 0xffffu;
+         *words++ = w;
+         uint64_t v = gray + *summed++;
+         if(v > 0x100000000uL)
+             v = 0xffffffffu;
+         if(v > vmax)
+             vmax = v;
+         if(v < vmin)
+             vmin = v;
+         *summedNext++ = v;
+    }
+    tr[ *this].m_accumulated++;
+    tr[ *this].m_summedCounts = summedCountsNext;
+    tr[ *this].m_avMax = vmax / tr[ *this].accumulated();
+    tr[ *this].m_avMin = vmin / tr[ *this].accumulated();
+    tr[ *this].m_liveImage = liveimage;
+    tr[ *this].m_processedImage = processedimage;
+    if(m_storeDarkInvoked) {
+        tr[ *this].m_darkCounts = summedCountsNext;
+        m_storeDarkInvoked = false;
+    }
+    if(tr[ *m_autoGainForAverage]) {
+        tr[ *gainForAverage()]  = (double)0xffffu / (vmax / tr[ *this].m_accumulated);
+    }
+    uint64_t gain_av = lrint(0x100000000uL * tr[ *gainForAverage()] / tr[ *this].m_accumulated);
+    uint16_t *processed = reinterpret_cast<uint16_t*>(processedimage->bits());
+    summed = &tr[ *this].m_summedCounts->at(0);
+    if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
+        for(unsigned int i  = 0; i < width * height; ++i) {
+            *processed++ = (*summed++ * gain_av)  / 0x100000000uL;
+        }
+    }
+    else {
+        uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
+        uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] / tr[ *this].m_darkAccumulated);
+        for(unsigned int i  = 0; i < width * height; ++i) {
+            *processed++ = (*summed++ * gain_av - *dark++ * gain_dark)  / 0x100000000uL;
+        }
+    }
 }
 
 void *
@@ -128,6 +228,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_storeDarkInvoked = false;
 
 	iterate_commit([=](Transaction &tr){
+        m_lsnOnVideoModeChanged = tr[ *videoMode()].onValueChanged().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onVideoModeChanged);
         m_lsnOnBrightnessChanged = tr[ *brightness()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onBrightnessChanged);
         m_lsnOnShutterChanged = tr[ *shutter()].onValueChanged().connectWeakly(

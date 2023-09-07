@@ -154,10 +154,15 @@ XIIDCCamera::open() {
 //            DC1394_COLOR_CODING_RGB16S,
 //            DC1394_COLOR_CODING_RAW8,
 //            DC1394_COLOR_CODING_RAW16
-            if(coding == DC1394_COLOR_CODING_MONO16) {
+//            if(coding == DC1394_COLOR_CODING_MONO16) {
                 dc1394video_mode_t video_mode=video_modes.modes[i];
-                modestrings.push_back(s_iidcVideoModes.at(video_mode));
-            }
+                try {
+                    modestrings.push_back(s_iidcVideoModes.at(video_mode));
+                }
+                catch(std::out_of_range &) {
+                    modestrings.push_back(formatString("Mode %u", (unsigned int)video_mode));
+                }
+//            }
         }
     }
 
@@ -183,8 +188,12 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
             video_mode = s.first;
         }
     }
-    if(video_mode ==  dc1394video_mode_t{})
-        return;
+    if(video_mode ==  dc1394video_mode_t{}) {
+        unsigned int m;
+        if(sscanf(shot[ *videoMode()].to_str().c_str(), "Mode %u", &m) != 1)
+            return;
+        video_mode = static_cast<dc1394video_mode_t>(m);
+    }
     if(dc1394_video_set_mode(interface()->camera(), video_mode))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
     // get highest framerate
@@ -195,12 +204,18 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
     if(dc1394_video_set_framerate(interface()->camera(), framerate))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
 
-    if(dc1394_capture_setup(interface()->camera(), 4, DC1394_CAPTURE_FLAGS_DEFAULT))
+    if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
     dc1394featureset_t features;
     if(dc1394_feature_get_all(interface()->camera(), &features) == DC1394_SUCCESS)
         dc1394_feature_print_all(&features, stdout);
+
+    /*-----------------------------------------------------------------------
+     *  have the interface()->camera() start sending us data
+     *-----------------------------------------------------------------------*/
+    if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start ISO transmission."), __FILE__, __LINE__);
 }
 void
 XIIDCCamera::setBrightness(unsigned int brightness) {
@@ -215,12 +230,10 @@ XIIDCCamera::setShutter(unsigned int shutter) {
 
 void
 XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
-    uint32_t width = reader->pop<uint32_t>();
-    tr[ *this].m_width = width;
-    uint32_t height = reader->pop<uint32_t>();
-    tr[ *this].m_height = height;
-    tr[ *this].m_xpos = reader->pop<uint32_t>();
-    tr[ *this].m_ypos = reader->pop<uint32_t>();
+    uint32_t width = reader.pop<uint32_t>();
+    uint32_t height = reader.pop<uint32_t>();
+    auto xpos = reader.pop<uint32_t>();
+    auto ypos = reader.pop<uint32_t>();
     auto color_coding = static_cast<dc1394color_coding_t>(reader.pop<uint32_t>());          /* the color coding used. This field is valid for all video modes. */
     auto color_filter = static_cast<dc1394color_filter_t>(reader.pop<uint32_t>());          /* the color filter used. This field is valid only for RAW modes and IIDC 1.31 */
     uint32_t                 yuv_byte_order = reader.pop<uint32_t>();        /* the order of the fields for 422 formats: YUYV or UYVY */
@@ -244,49 +257,21 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
     unsigned int bpp = (image_bytes - padding_bytes) / (width * height);
-    tr[ *this].m_status = formatString("%ux%u", width, height)
-    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame + frame->image_bytes);
+    tr[ *this].m_status = formatString("%ux%u", width, height);
+
+    setGray16Image(reader, tr, width, height, little_endian != DC1394_TRUE);
 }
 
 void
 XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
-    unsigned int width, height;
-
+    XScopedLock<XDC1394Interface> lock( *interface());
     Snapshot shot( *this);
-    dc1394video_mode_t video_mode = {};
-    for(auto &s: s_iidcVideoModes) {
-        if(s.second == shot[ *videoMode()].to_str()) {
-            video_mode = s.first;
-        }
-    }
-    if(video_mode ==  dc1394video_mode_t{})
-        throw XPrimaryDriver::XSkippedRecordError(__FILE__, __LINE__);
-
-//    if(dc1394_get_color_coding_from_video_mode(interface()->camera(), video_mode, &coding))
-//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get coding."), __FILE__, __LINE__);
-
-
-    /*-----------------------------------------------------------------------
-     *  have the interface()->camera() start sending us data
-     *-----------------------------------------------------------------------*/
-    if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start ISO transmission."), __FILE__, __LINE__);
-
-    /*-----------------------------------------------------------------------
-     *  capture one frame
-     *-----------------------------------------------------------------------*/
     dc1394video_frame_t *frame;
-    if(dc1394_capture_dequeue(interface()->camera(), DC1394_CAPTURE_POLICY_WAIT, &frame))
+    auto ret = dc1394_capture_dequeue(interface()->camera(), DC1394_CAPTURE_POLICY_POLL, &frame);
+    if((ret < 0) || !frame)
+        throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+    if(ret)
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not capture."), __FILE__, __LINE__);
-
-    /*-----------------------------------------------------------------------
-     *  stop data transmission
-     *-----------------------------------------------------------------------*/
-    if(dc1394_video_set_transmission(interface()->camera(),DC1394_OFF))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop."), __FILE__, __LINE__);
-
-    if(dc1394_get_image_size_from_video_mode(interface()->camera(), video_mode, &width, &height))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get geometry."), __FILE__, __LINE__);
 
     writer->push((uint32_t)frame->size[0]);
     writer->push((uint32_t)frame->size[1]);
@@ -309,7 +294,10 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     writer->push((uint64_t)frame->allocated_image_bytes);
     writer->push((uint32_t)frame->little_endian);
     writer->push((uint32_t)frame->data_in_padding);
-    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame + frame->image_bytes);
+    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame->image + frame->image_bytes);
+
+    if(dc1394_capture_enqueue(interface()->camera(), frame))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
 }
 //unsigned char          * image;                 /* the image. May contain padding data too (vendor specific). Read/write allowed. Free NOT allowed if
 //                           returned by dc1394_capture_dequeue() */

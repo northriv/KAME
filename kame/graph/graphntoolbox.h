@@ -32,7 +32,7 @@ class DECLSPEC_KAME XGraphNToolBox: public XNode {
 public:
     XGraphNToolBox(const char *name, bool runtime, FrmGraphNURL *item);
     XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwidget,
-        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
+        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr);
     virtual ~XGraphNToolBox();
 
     const shared_ptr<XGraph> &graph() const { return m_graph;}

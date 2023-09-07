@@ -37,9 +37,11 @@ XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwid
         false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
         XStringNode> ("FileName", true)) {
     graphwidget->setGraph(m_graph);
-    m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
-        "Data files (*.dat);;All files (*.*)", true);
-    m_conDump = xqcon_create<XQButtonConnector> (m_dump, btndump);
+    if(ed && btn)
+        m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
+            "Data files (*.dat);;All files (*.*)", true);
+    if(btndump)
+        m_conDump = xqcon_create<XQButtonConnector> (m_dump, btndump);
 
     iterate_commit([=](Transaction &tr){
         m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
@@ -64,6 +66,8 @@ XGraphNToolBox::~XGraphNToolBox() {
 
 void
 XGraphNToolBox::onIconChanged(const Snapshot &shot, bool v) {
+    if( !m_conDump)
+        return;
     if( !m_conDump->isAlive()) return;
     if( !v)
         m_btnDump->setIcon(QApplication::style()->

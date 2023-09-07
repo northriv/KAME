@@ -26,7 +26,7 @@ class DECLSPEC_KAME X2DImage: public XGraphNToolBox {
 public:
     X2DImage(const char *name, bool runtime, FrmGraphNURL *item);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
-        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
+        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr);
     virtual ~X2DImage() {}
 
     void setImage(Transaction &tr, const shared_ptr<QImage> &image);
