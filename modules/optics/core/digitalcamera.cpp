@@ -33,7 +33,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_videoMode(create<XComboNode>("VideoMode", true)),
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
     m_frameRate(create<XComboNode>("FrameRate", true)),
-    m_coloringMethod(create<XComboNode>("ColoringMethod", false)),
+    m_coloringMethod(create<XComboNode>("ColoringMethod", false, true)),
     m_autoGainForAverage(create<XBoolNode>("AutoGainForAverage", false)),
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
     m_colorIndex(create<XUIntNode>("ColorIndex", true)),
@@ -73,6 +73,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *triggerMode()].add({"Continueous", "Single-shot", "Ext. Pos. Edge", "Ext. Neg. Edge"});
         tr[ *coloringMethod()].add({"Monochrome", "RGB Wheel", "DeltaPL/PL"});
+        tr[ *coloringMethod()] = 0;
         tr[ *average()] = 1;
         tr[ *autoGainForAverage()] = true;
         for(auto &&x: runtime_ui)

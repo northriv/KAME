@@ -22,7 +22,7 @@
 
 #include <fstream>
 
-#define MAX_RAW_RECORD_SIZE 1000000
+#define MAX_RAW_RECORD_SIZE 100000000uL
 
 class XRawStream : public XNode {
 public:

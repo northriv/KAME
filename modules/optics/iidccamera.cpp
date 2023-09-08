@@ -145,36 +145,69 @@ XIIDCCamera::open() {
         if( !dc1394_is_video_mode_scalable(video_modes.modes[i])) {
             dc1394color_coding_t coding;
             dc1394_get_color_coding_from_video_mode(interface()->camera(),video_modes.modes[i], &coding);
-//            DC1394_COLOR_CODING_MONO8= 352,
-//            DC1394_COLOR_CODING_YUV411,
-//            DC1394_COLOR_CODING_YUV422,
-//            DC1394_COLOR_CODING_YUV444,
-//            DC1394_COLOR_CODING_RGB8,
-//            DC1394_COLOR_CODING_MONO16,
-//            DC1394_COLOR_CODING_RGB16,
-//            DC1394_COLOR_CODING_MONO16S,
-//            DC1394_COLOR_CODING_RGB16S,
-//            DC1394_COLOR_CODING_RAW8,
-//            DC1394_COLOR_CODING_RAW16
-//            if(coding == DC1394_COLOR_CODING_MONO16) {
-                dc1394video_mode_t video_mode=video_modes.modes[i];
-                try {
-                    modestrings.push_back(s_iidcVideoModes.at(video_mode));
-                }
-                catch(std::out_of_range &) {
-                    modestrings.push_back(formatString("Mode %u", (unsigned int)video_mode));
-                }
-//            }
+            dc1394video_mode_t video_mode=video_modes.modes[i];
+            try {
+                modestrings.push_back(s_iidcVideoModes.at(video_mode));
+            }
+            catch(std::out_of_range &) {
+                modestrings.push_back(formatString("Mode %u", (unsigned int)video_mode));
+            }
         }
+    }
+
+    TriggerMode trigmode = TriggerMode::CONTINUEOUS;
+    dc1394switch_t powered;
+    if(dc1394_external_trigger_get_power(interface()->camera(), &powered))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+    if(powered) {
+        dc1394trigger_polarity_t pl;
+        if(dc1394_external_trigger_get_polarity(interface()->camera(), &pl))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        if(pl ==  DC1394_TRIGGER_ACTIVE_HIGH)
+            trigmode = TriggerMode::EXT_POS_EDGE;
+        else
+            trigmode = TriggerMode::EXT_NEG_EDGE;
+    }
+    else {
+        dc1394bool_t is_on;
+        if(dc1394_video_get_one_shot(interface()->camera(), &is_on))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        if(is_on == DC1394_TRUE)
+            trigmode = TriggerMode::SINGLE;
     }
 
     if(dc1394_video_set_iso_speed(interface()->camera(), DC1394_ISO_SPEED_400))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set 400 Msps."), __FILE__, __LINE__);
 
+    auto fn_is_feature_present = [&](dc1394feature_t feature){
+        dc1394bool_t v;
+        if(dc1394_feature_is_present(interface()->camera(), feature, &v))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        return v;
+    };
+    auto fn_get_feature_values = [&](dc1394feature_t feature){
+        unsigned int vmin, vmax, v;
+        if(dc1394_feature_get_boundaries(interface()->camera(), feature, &vmin, &vmax))
+                    throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        if(dc1394_feature_get_value(interface()->camera(), feature, &v))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        return std::tuple<unsigned int, unsigned int, unsigned int>{v, vmin, vmax};
+    };
+    if(fn_is_feature_present(DC1394_FEATURE_GAIN)) {
+        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_GAIN);
+        trans( *gain()) = v;
+    }
+    if(fn_is_feature_present(DC1394_FEATURE_SHUTTER)) {
+        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_SHUTTER);
+        trans( *shutter()) = v;
+    }
+
+
     iterate_commit([=](Transaction &tr){
         tr[ *videoMode()].clear();
         for(auto &s: modestrings)
             tr[ *videoMode()].add(s);
+        tr[ *triggerMode()] = (unsigned int)trigmode;
     });
 
     start();
@@ -213,21 +246,37 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
     if(dc1394_feature_get_all(interface()->camera(), &features) == DC1394_SUCCESS)
         dc1394_feature_print_all(&features, stdout);
 
-    /*-----------------------------------------------------------------------
-     *  have the interface()->camera() start sending us data
-     *-----------------------------------------------------------------------*/
-    if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start ISO transmission."), __FILE__, __LINE__);
+    setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
+}
+
+void
+XIIDCCamera::setTriggerMode(TriggerMode mode) {
+    XScopedLock<XDC1394Interface> lock( *interface());
+    if(mode == TriggerMode::CONTINUEOUS) {
+        if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
+        return;
+    }
+    if(mode == TriggerMode::SINGLE){
+        if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
+        return;
+    }
+    dc1394trigger_polarity_t pl = (mode == TriggerMode::EXT_POS_EDGE) ? DC1394_TRIGGER_ACTIVE_HIGH : DC1394_TRIGGER_ACTIVE_LOW;
+    if(dc1394_external_trigger_set_polarity(interface()->camera(), pl))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
 }
 void
 XIIDCCamera::setGain(unsigned int gain) {
     XScopedLock<XDC1394Interface> lock( *interface());
-
-//    unsigned int avg = shot[ *average()];
+    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 void
 XIIDCCamera::setShutter(unsigned int shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 
 void
