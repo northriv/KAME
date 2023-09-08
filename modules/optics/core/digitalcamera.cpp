@@ -139,8 +139,8 @@ XDigitalCamera::visualize(const Snapshot &shot) {
 		return;
 	  }
       iterate_commit([&](Transaction &tr){
-          unsigned int cidx = shot[ *this].m_colorIndex + 1u;
-          tr[ *m_colorIndex] = (cidx > shot[ *this].m_maxColorIndex) ? 0 : cidx;
+//          unsigned int cidx = shot[ *this].m_colorIndex + 1u;
+//          tr[ *m_colorIndex] = (cidx > shot[ *this].m_maxColorIndex) ? 0 : cidx;
           tr[ *m_liveImage->graph()->osdStrings()] = shot[ *this].m_status;
           m_liveImage->setImage(tr, shot[ *this].liveImage());
           tr[ *m_processedImage->graph()->osdStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].accumulated());
@@ -151,15 +151,15 @@ XDigitalCamera::visualize(const Snapshot &shot) {
 local_shared_ptr<std::vector<uint32_t>>
 XDigitalCamera::summedCountsFromPool(int imagesize) {
     local_shared_ptr<std::vector<uint32_t>> summedCountsNext, p;
-    for(int i = 0; i < NumSummedCountsPool; ++i) {
-        if( !m_summedCountsPool[i])
-            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
-        p = m_summedCountsPool[i];
-        if(p.use_count() == 2) { //not owned by other threads.
-            summedCountsNext = p;
-            p->resize(imagesize);
-        }
-    }
+//    for(int i = 0; i < NumSummedCountsPool; ++i) {
+//        if( !m_summedCountsPool[i])
+//            m_summedCountsPool[i] = make_local_shared<std::vector<uint32_t>>(imagesize);
+//        p = m_summedCountsPool[i];
+//        if(p.use_count() == 2) { //not owned by other threads.
+//            summedCountsNext = p;
+//            p->resize(imagesize);
+//        }
+//    }
     if( !summedCountsNext)
         summedCountsNext = make_local_shared<std::vector<uint32_t>>(imagesize);
     return summedCountsNext;
@@ -203,7 +203,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     const uint32_t *summed = &tr[ *this].m_summedCounts[cidx]->at(0);
     auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
     auto processedimage = std::make_shared<QImage>(width, height,
-        (tr[ *coloringMethod()] == (unsigned int)ColoringMethod::MONO) ?  QImage::Format_Grayscale8 : QImage::Format_RGBA8888);
+        (tr[ *coloringMethod()] == (unsigned int)ColoringMethod::MONO) ?  QImage::Format_Grayscale16 : QImage::Format_RGBA8888);
     uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
     uint32_t vmin = 0xffffffffu;
     uint32_t vmax = 0u;
@@ -256,6 +256,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
              *summedNext++ = v;
         }
     }
+    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_accumulated[cidx]++;
     tr[ *this].m_summedCounts[cidx] = summedCountsNext;
     tr[ *this].m_avMax = vmax / tr[ *this].accumulated();

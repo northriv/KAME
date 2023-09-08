@@ -133,8 +133,7 @@ protected:
     virtual void analyzeRaw(RawDataReader &reader, Transaction &tr) override;
     virtual XTime acquireRaw(shared_ptr<RawData> &) override;
 private:
-
-    static const std::map<dc1394video_mode_t, const char *> s_iidcVideoModes;
+    std::deque<std::pair<dc1394video_mode_t, dc1394color_coding_t>> m_availableVideoModes;
 };
 #endif //USE_LIBDC1394
 

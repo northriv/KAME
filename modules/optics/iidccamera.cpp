@@ -23,41 +23,6 @@ dc1394_t *XDC1394Interface::s_dc1394 = nullptr;
 int XDC1394Interface::s_refcnt = 0;
 XRecursiveMutex XDC1394Interface::s_mutex;
 
-const std::map<dc1394video_mode_t, const char *> XIIDCCamera::s_iidcVideoModes = {
-    //                DC1394_VIDEO_MODE_160x120_YUV444= 64,
-    //                DC1394_VIDEO_MODE_320x240_YUV422,
-    //                DC1394_VIDEO_MODE_640x480_YUV411,
-    //                DC1394_VIDEO_MODE_640x480_YUV422,
-    //                DC1394_VIDEO_MODE_640x480_RGB8,
-    {DC1394_VIDEO_MODE_640x480_MONO8, "640x480 MONO8"},
-    {DC1394_VIDEO_MODE_640x480_MONO16, "640x480 MONO16"},
-    //                DC1394_VIDEO_MODE_800x600_YUV422,
-    //                DC1394_VIDEO_MODE_800x600_RGB8,
-    {DC1394_VIDEO_MODE_800x600_MONO8, "800x600_MONO8"},
-    //                DC1394_VIDEO_MODE_1024x768_YUV422,
-    //                DC1394_VIDEO_MODE_1024x768_RGB8,
-    {DC1394_VIDEO_MODE_1024x768_MONO8, "1024x768_MONO8"},
-    {DC1394_VIDEO_MODE_800x600_MONO16, "800x600_MONO16"},
-    {DC1394_VIDEO_MODE_1024x768_MONO16, "1024x768_MONO16"},
-    //                DC1394_VIDEO_MODE_1280x960_YUV422,
-    //                DC1394_VIDEO_MODE_1280x960_RGB8,
-    {DC1394_VIDEO_MODE_1280x960_MONO8, "1280x960_MONO8"},
-    //                DC1394_VIDEO_MODE_1600x1200_YUV422,
-    //                DC1394_VIDEO_MODE_1600x1200_RGB8,
-    {DC1394_VIDEO_MODE_1600x1200_MONO8, "1600x1200_MONO8"},
-    {DC1394_VIDEO_MODE_1280x960_MONO16, "1280x960_MONO16"},
-    {DC1394_VIDEO_MODE_1600x1200_MONO16, "1600x1200_MONO16"},
-    //                DC1394_VIDEO_MODE_EXIF,
-    {DC1394_VIDEO_MODE_FORMAT7_0, "FORMAT7 0"},
-    {DC1394_VIDEO_MODE_FORMAT7_1, "FORMAT7 1"},
-    {DC1394_VIDEO_MODE_FORMAT7_2, "FORMAT7 2"},
-    {DC1394_VIDEO_MODE_FORMAT7_3, "FORMAT7 3"},
-    {DC1394_VIDEO_MODE_FORMAT7_4, "FORMAT7 4"},
-    {DC1394_VIDEO_MODE_FORMAT7_5, "FORMAT7 5"},
-    {DC1394_VIDEO_MODE_FORMAT7_6, "FORMAT7 6"},
-    {DC1394_VIDEO_MODE_FORMAT7_7, "FORMAT7 7"},
-};
-
 //---------------------------------------------------------------------------
 XDC1394Interface::XDC1394Interface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
     XInterface(name, runtime, driver) {
@@ -115,7 +80,8 @@ void
 XDC1394Interface::close() {
     if(m_camera) {
         dc1394_video_set_transmission(m_camera, DC1394_OFF);
-        dc1394_capture_stop(m_camera);
+        if(m_camera->has_vmode_error_status != DC1394_TRUE)
+            dc1394_capture_stop(m_camera);
         dc1394_camera_free(m_camera);
     }
     m_camera = nullptr;
@@ -139,18 +105,79 @@ XIIDCCamera::open() {
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get video modes."), __FILE__, __LINE__);
     }
 
+    const std::map<dc1394video_mode_t, const char *> iidcVideoModes = {
+        {DC1394_VIDEO_MODE_160x120_YUV444, "160x120 YUV444"},
+        {DC1394_VIDEO_MODE_320x240_YUV422, "320x240 YUV422"},
+        {DC1394_VIDEO_MODE_640x480_YUV411, "640x480 YUV411"},
+        {DC1394_VIDEO_MODE_640x480_YUV422, "640x480 YUV422"},
+        {DC1394_VIDEO_MODE_640x480_RGB8, "640x480 RGB8"},
+        {DC1394_VIDEO_MODE_640x480_MONO8, "640x480 MONO8"},
+        {DC1394_VIDEO_MODE_640x480_MONO16, "640x480 MONO16"},
+        //                DC1394_VIDEO_MODE_800x600_YUV422,
+        //                DC1394_VIDEO_MODE_800x600_RGB8,
+        {DC1394_VIDEO_MODE_800x600_MONO8, "800x600_MONO8"},
+        //                DC1394_VIDEO_MODE_1024x768_YUV422,
+        //                DC1394_VIDEO_MODE_1024x768_RGB8,
+        {DC1394_VIDEO_MODE_1024x768_MONO8, "1024x768_MONO8"},
+        {DC1394_VIDEO_MODE_800x600_MONO16, "800x600_MONO16"},
+        {DC1394_VIDEO_MODE_1024x768_MONO16, "1024x768_MONO16"},
+        //                DC1394_VIDEO_MODE_1280x960_YUV422,
+        //                DC1394_VIDEO_MODE_1280x960_RGB8,
+        {DC1394_VIDEO_MODE_1280x960_MONO8, "1280x960_MONO8"},
+        //                DC1394_VIDEO_MODE_1600x1200_YUV422,
+        //                DC1394_VIDEO_MODE_1600x1200_RGB8,
+        {DC1394_VIDEO_MODE_1600x1200_MONO8, "1600x1200_MONO8"},
+        {DC1394_VIDEO_MODE_1280x960_MONO16, "1280x960_MONO16"},
+        {DC1394_VIDEO_MODE_1600x1200_MONO16, "1600x1200_MONO16"},
+        //                DC1394_VIDEO_MODE_EXIF,
+        {DC1394_VIDEO_MODE_FORMAT7_0, "FORMAT7 0"},
+        {DC1394_VIDEO_MODE_FORMAT7_1, "FORMAT7 1"},
+        {DC1394_VIDEO_MODE_FORMAT7_2, "FORMAT7 2"},
+        {DC1394_VIDEO_MODE_FORMAT7_3, "FORMAT7 3"},
+        {DC1394_VIDEO_MODE_FORMAT7_4, "FORMAT7 4"},
+        {DC1394_VIDEO_MODE_FORMAT7_5, "FORMAT7 5"},
+        {DC1394_VIDEO_MODE_FORMAT7_6, "FORMAT7 6"},
+        {DC1394_VIDEO_MODE_FORMAT7_7, "FORMAT7 7"},
+    };
 
+    const std::map<dc1394color_coding_t, const char *> iidcColorCodings = {
+        {DC1394_COLOR_CODING_MONO8, "MONO8"},
+        {DC1394_COLOR_CODING_YUV411, "YUV411"},
+        {DC1394_COLOR_CODING_YUV422, "YUV422"},
+        {DC1394_COLOR_CODING_YUV444, "YUV444"},
+        {DC1394_COLOR_CODING_RGB8, "RGB8"},
+        {DC1394_COLOR_CODING_MONO16, "MONO16"},
+        {DC1394_COLOR_CODING_RGB16, "RGB16"},
+        {DC1394_COLOR_CODING_MONO16S, "MONO16S"},
+        {DC1394_COLOR_CODING_RGB16S, "RGB16S"},
+        {DC1394_COLOR_CODING_RAW8, "RAW8"},
+        {DC1394_COLOR_CODING_RAW16, "RAW16"}
+    };
+
+    m_availableVideoModes.clear();
     std::vector<XString> modestrings;
-    for(int i = video_modes.num - 1; i >= 0; --i) {
-        if( !dc1394_is_video_mode_scalable(video_modes.modes[i])) {
+    for(unsigned int i = 0; i < video_modes.num; ++i) {
+        dc1394video_mode_t video_mode=video_modes.modes[i];
+        if( !dc1394_is_video_mode_scalable(video_mode)) {
             dc1394color_coding_t coding;
-            dc1394_get_color_coding_from_video_mode(interface()->camera(),video_modes.modes[i], &coding);
-            dc1394video_mode_t video_mode=video_modes.modes[i];
+            dc1394_get_color_coding_from_video_mode(interface()->camera(),video_mode, &coding);
             try {
-                modestrings.push_back(s_iidcVideoModes.at(video_mode));
+                modestrings.push_back(iidcVideoModes.at(video_mode));
+                m_availableVideoModes.push_back({video_mode, coding});
             }
             catch(std::out_of_range &) {
                 modestrings.push_back(formatString("Mode %u", (unsigned int)video_mode));
+                m_availableVideoModes.push_back({video_mode, coding});
+            }
+        }
+        else {
+            unsigned int w, h;
+            dc1394_format7_get_max_image_size(interface()->camera(), video_mode, &w, &h);
+            dc1394color_codings_t codings;
+            dc1394_format7_get_color_codings(interface()->camera(), video_mode, &codings);
+            for(unsigned int j = 0; j < codings.num; ++j) {
+                modestrings.push_back(formatString("%ux%u ", w, h) + iidcColorCodings.at(codings.codings[j]));
+                m_availableVideoModes.push_back({video_mode, codings.codings[j]});
             }
         }
     }
@@ -213,6 +240,10 @@ XIIDCCamera::open() {
         trans( *shutter()) = v;
     }
 
+//    dc1394_avt_set_timebase(interface()->camera(), 9); // 9=1ms, 8=500us, 7=200us, 6=100us, 5=50us, 4=20us
+//    uint32_t extexp;
+//    extexp = exp_time*1000;
+//    dc1394_avt_set_extented_shutter(interface()->camera(), extexp);
 
     iterate_commit([=](Transaction &tr){
         tr[ *videoMode()].clear();
@@ -227,28 +258,39 @@ XIIDCCamera::open() {
 void
 XIIDCCamera::setVideoMode(unsigned int mode) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
     Snapshot shot( *this);
-    dc1394video_mode_t video_mode = {};
-    for(auto &s: s_iidcVideoModes) {
-        if(s.second == shot[ *videoMode()].to_str()) {
-            video_mode = s.first;
-        }
+    dc1394video_mode_t video_mode;
+    dc1394color_coding_t coding;
+    try {
+        auto p = m_availableVideoModes.at(mode);
+        video_mode = p.first;
+        coding = p.second;
     }
-    if(video_mode ==  dc1394video_mode_t{}) {
-        unsigned int m;
-        if(sscanf(shot[ *videoMode()].to_str().c_str(), "Mode %u", &m) != 1)
-            return;
-        video_mode = static_cast<dc1394video_mode_t>(m);
+    catch(std::out_of_range &) {
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
     }
     if(dc1394_video_set_mode(interface()->camera(), video_mode))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
-    // get highest framerate
-    dc1394framerates_t framerates;
-    if(dc1394_video_get_supported_framerates(interface()->camera(),video_mode,&framerates))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get framerates."), __FILE__, __LINE__);
-    dc1394framerate_t framerate=framerates.framerates[framerates.num - 1];
-    if(dc1394_video_set_framerate(interface()->camera(), framerate))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
+
+    if(dc1394_is_video_mode_scalable(video_mode)) {
+        unsigned int w, h;
+        dc1394_format7_get_max_image_size(interface()->camera(), video_mode, &w, &h);
+//        if(dc1394_format7_set_color_coding(interface()->camera(), video_mode, coding))
+        if(dc1394_format7_set_roi(interface()->camera(), video_mode, coding,
+                                     DC1394_USE_MAX_AVAIL, 0, 0, w, h))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
+    }
+    else {
+        // get highest framerate
+        dc1394framerates_t framerates;
+        if(dc1394_video_get_supported_framerates(interface()->camera(), video_mode,&framerates))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get framerates."), __FILE__, __LINE__);
+        dc1394framerate_t framerate=framerates.framerates[framerates.num - 1];
+        if(dc1394_video_set_framerate(interface()->camera(), framerate))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
+    }
 
     dc1394featureset_t features;
     if(dc1394_feature_get_all(interface()->camera(), &features) == DC1394_SUCCESS)
@@ -269,7 +311,7 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
         if(dc1394_capture_setup(interface()->camera(), 4, DC1394_CAPTURE_FLAGS_DEFAULT))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
-        msecsleep(500); //exposure
+        msecsleep(50); //exposure
         if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not take a shot."), __FILE__, __LINE__);
         return;
@@ -335,8 +377,10 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
                                                        DC1394_FALSE otherwise */
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
-    unsigned int bpp = (image_bytes - padding_bytes) / (width * height);
-    tr[ *this].m_status = formatString("%ux%u ", width, height) + s_iidcVideoModes.at(video_mode) + formatString(" stamp:%llu behind:%u", timestamp, frames_behind);
+    unsigned int bpp = image_bytes / (width * height);
+//    tr[ *this].m_status = formatString("%ux%u ", width, height)+  tr[ *this].time().getTimeStr() + formatString(" stamp:%llu behind:%u", timestamp, frames_behind);
+
+    reader.popIterator() += padding_bytes;
 
     setGrayImage(reader, tr, width, height, little_endian != DC1394_TRUE, bpp == 2);
 }
@@ -373,7 +417,7 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     writer->push((uint64_t)frame->allocated_image_bytes);
     writer->push((uint32_t)frame->little_endian);
     writer->push((uint32_t)frame->data_in_padding);
-    writer->insert(writer->end(), (char*)frame->image + frame->padding_bytes, (char*)frame->image + frame->image_bytes);
+    writer->insert(writer->end(), (char*)frame->image, (char*)frame->image + frame->padding_bytes + frame->image_bytes);
 
     if(dc1394_capture_enqueue(interface()->camera(), frame))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
@@ -381,57 +425,3 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
 }
 
 #endif // USE_LIBDC1394
-//camera_status = CAMERA_ON;
-//res=DC1394_VIDEO_MODE_FORMAT7_2; // 2x2 binning
-//dc1394_video_set_operation_mode(camera, DC1394_OPERATION_MODE_LEGACY);
-//dc1394_video_set_iso_speed(camera, DC1394_ISO_SPEED_400);
-//dc1394_video_set_mode(camera,res);
-//dc1394_format7_set_color_coding(camera, res, DC1394_COLOR_CODING_MONO8);
-//dc1394_avt_set_timebase(camera,9); // 9=1ms, 8=500us, 7=200us,
-//6=100us, 5=50us, 4=20us
-//dc1394_avt_set_extented_shutter(camera, extexp);
-//dc1394switch_t pwr = DC1394_ON;
-//dc1394_feature_set_value(camera, DC1394_FEATURE_GAIN, gain);
-//// The line below needs to be commented if we use an external trigger.
-//dc1394_software_trigger_set_power(camera, DC1394_ON);
-////dc1394_external_trigger_set_mode(camera, 0);
-//62APPENDIX B. SOFTWARE TO PROGRAM AND CONTROL THE CAMERA
-////dc1394_external_trigger_set_power(camera, pwr);
-//// The two lines above are used when we got an external trigger
-//// rigged to the system.
-//if (dc1394_capture_setup(camera, 4,DC1394_CAPTURE_FLAGS_DEFAULT)
-//!= DC1394_SUCCESS) {
-//fprintf(stderr, "unable to setup camera- check line %d of %s to make
-//sure\n",__LINE__,__FILE__);
-//perror("that the video mode,framerate and format are supported\n");
-//printf("is one supported by your camera\n");
-//cleanup();
-//exit(-1);
-//}
-////If we use an external trigger we need to comment out the
-//// ve lines below marked with: "//comment"
-///* main event loop */
-//gettimeofday(&start, NULL); //comment
-//loop = 0;
-//while(loop<imageloop){
-//while(t<100000*y){ //comment
-//gettimeofday(&end, NULL); //comment
-//t = (end.tv_sec*1000000 + end.tv_usec)-(start.tv_sec*1000000
-//+ start.tv_usec); //comment
-//} //comment
-//y=y++;
-//// The line below starts the exposure in the case of a
-//// software trigger, if else it waits here for the trigger
-//// signal in the case of an external trigger.
-//shotresult = dc1394_video_set_one_shot(camera, DC1394_ON);
-//if (shotresult == DC1394_SUCCESS) {
-//if (dc1394_capture_dequeue(camera, DC1394_CAPTURE_POLICY_WAIT,
-//&Videoframe)!=DC1394_SUCCESS)
-//printf("Error: Failed to capture from GUPPY\n");
-//if (Videoframe) {
-//63
-//sprintf(datal, "\n", loop);
-//skriv_datal(Videoframe, datal); // here we write to le.
-//dc1394_capture_enqueue (camera, Videoframe);
-//}
-}

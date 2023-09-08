@@ -271,21 +271,21 @@ XQGraphTexture::~XQGraphTexture() {
     m_painter->glDeleteTextures(1, &id);
 }
 unique_ptr<XQGraphTexture>
-XQGraphPainter::createTexture(const shared_ptr<QImage> &imdddddage) {
+XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
     m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
 
-    auto image = std::make_shared<QImage>(300, 300, QImage::Format_RGB888);
-    QRgb value;
-    image->fill(qRgb(0,0,0xff));
-    value = qRgb(0, 0, 0xff);
-    for(int x = 0; x < 300; ++x)
-        for(int y = 0; y < 300; ++y)
-            image->setPixel(x, y, value);
+//    auto image = std::make_shared<QImage>(300, 300, QImage::Format_RGB888);
+//    QRgb value;
+//    image->fill(qRgb(0,0,0xff));
+//    value = qRgb(0, 0, 0xff);
+//    for(int x = 0; x < 300; ++x)
+//        for(int y = 0; y < 300; ++y)
+//            image->setPixel(x, y, value);
 
-    value = qRgb(0, 0xff, 0);
-    for(int x = 0; x < 200; ++x)
-        for(int y = 40; y < 100; ++y)
-            image->setPixel(x, y, value);
+//    value = qRgb(0, 0xff, 0);
+//    for(int x = 0; x < 200; ++x)
+//        for(int y = 40; y < 100; ++y)
+//            image->setPixel(x, y, value);
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
