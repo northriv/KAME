@@ -160,13 +160,24 @@ XIIDCCamera::open() {
     if(dc1394_external_trigger_get_power(interface()->camera(), &powered))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
     if(powered) {
+        dc1394trigger_mode_t mode;
+        if(dc1394_external_trigger_get_mode(interface()->camera(), &mode))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
         dc1394trigger_polarity_t pl;
         if(dc1394_external_trigger_get_polarity(interface()->camera(), &pl))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
-        if(pl ==  DC1394_TRIGGER_ACTIVE_HIGH)
-            trigmode = TriggerMode::EXT_POS_EDGE;
-        else
-            trigmode = TriggerMode::EXT_NEG_EDGE;
+        if(pl ==  DC1394_TRIGGER_ACTIVE_HIGH) {
+            if(mode == DC1394_TRIGGER_MODE_0)
+                trigmode = TriggerMode::EXT_POS_EDGE;
+            else
+                trigmode = TriggerMode::EXT_POS_EXPOSURE;
+        }
+        else {
+            if(mode == DC1394_TRIGGER_MODE_0)
+                trigmode = TriggerMode::EXT_NEG_EDGE;
+            else
+                trigmode = TriggerMode::EXT_NEG_EXPOSURE;
+        }
     }
     else {
         dc1394bool_t is_on;
@@ -262,8 +273,18 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
         return;
     }
-    dc1394trigger_polarity_t pl = (mode == TriggerMode::EXT_POS_EDGE) ? DC1394_TRIGGER_ACTIVE_HIGH : DC1394_TRIGGER_ACTIVE_LOW;
-    if(dc1394_external_trigger_set_polarity(interface()->camera(), pl))
+
+     std::map<TriggerMode, std::pair<dc1394trigger_mode_t, dc1394trigger_polarity_t>> modes = {
+         {TriggerMode::EXT_POS_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_HIGH}},
+         {TriggerMode::EXT_NEG_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_LOW}},
+         {TriggerMode::EXT_POS_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_HIGH}},
+         {TriggerMode::EXT_NEG_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_LOW}},
+     };
+
+
+    if(dc1394_external_trigger_set_mode(interface()->camera(), modes.at(mode).first))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
+    if(dc1394_external_trigger_set_polarity(interface()->camera(), modes.at(mode).second))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
 }
 void

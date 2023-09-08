@@ -47,7 +47,7 @@ public:
     const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
     const shared_ptr<XBoolNode> &incrementalAverage() const {return m_incrementalAverage;}
     const shared_ptr<XComboNode> &videoMode() const {return m_videoMode;}
-    enum class TriggerMode {CONTINUEOUS = 0, SINGLE = 1, EXT_POS_EDGE = 2, EXT_NEG_EDGE = 3};
+    enum class TriggerMode {CONTINUEOUS = 0, SINGLE = 1, EXT_POS_EDGE = 2, EXT_NEG_EDGE = 3, EXT_POS_EXPOSURE = 4, EXT_NEG_EXPOSURE = 5};
     const shared_ptr<XComboNode> &triggerMode() const {return m_triggerMode;}
     enum class ColoringMethod {MONO = 0, RGBWHEEL = 1, DPL_PL = 2};
     constexpr static unsigned int MAX_COLORS = 3;

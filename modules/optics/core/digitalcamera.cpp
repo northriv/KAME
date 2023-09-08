@@ -71,7 +71,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         frameRate(),
     };
     iterate_commit([=](Transaction &tr){
-        tr[ *triggerMode()].add({"Continueous", "Single-shot", "Ext. Pos. Edge", "Ext. Neg. Edge"});
+        tr[ *triggerMode()].add({"Continueous", "Single-shot", "Ext. Pos. Edge", "Ext. Neg. Edge", "Ext. Pos. Exposure", "Ext. Neg. Exposure"});
         tr[ *coloringMethod()].add({"Monochrome", "RGB Wheel", "DeltaPL/PL"});
         tr[ *coloringMethod()] = 0;
         tr[ *average()] = 1;
