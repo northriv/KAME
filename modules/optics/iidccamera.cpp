@@ -250,42 +250,49 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
     if(dc1394_video_set_framerate(interface()->camera(), framerate))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
 
-    if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
-
     dc1394featureset_t features;
     if(dc1394_feature_get_all(interface()->camera(), &features) == DC1394_SUCCESS)
         dc1394_feature_print_all(&features, stdout);
 
     setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
 }
-
 void
 XIIDCCamera::setTriggerMode(TriggerMode mode) {
     XScopedLock<XDC1394Interface> lock( *interface());
-    if(mode == TriggerMode::CONTINUEOUS) {
-        if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
-            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
-        return;
-    }
+    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+    if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_OFF))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+
     if(mode == TriggerMode::SINGLE){
-        if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
+        if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
+        if(dc1394_capture_setup(interface()->camera(), 4, DC1394_CAPTURE_FLAGS_DEFAULT))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
+        msecsleep(500); //exposure
+        if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not take a shot."), __FILE__, __LINE__);
         return;
     }
 
-     std::map<TriggerMode, std::pair<dc1394trigger_mode_t, dc1394trigger_polarity_t>> modes = {
-         {TriggerMode::EXT_POS_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_HIGH}},
-         {TriggerMode::EXT_NEG_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_LOW}},
-         {TriggerMode::EXT_POS_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_HIGH}},
-         {TriggerMode::EXT_NEG_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_LOW}},
-     };
+    if(mode != TriggerMode::CONTINUEOUS) {
+         std::map<TriggerMode, std::pair<dc1394trigger_mode_t, dc1394trigger_polarity_t>> modes = {
+             {TriggerMode::EXT_POS_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_HIGH}},
+             {TriggerMode::EXT_NEG_EDGE, {DC1394_TRIGGER_MODE_0, DC1394_TRIGGER_ACTIVE_LOW}},
+             {TriggerMode::EXT_POS_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_HIGH}},
+             {TriggerMode::EXT_NEG_EXPOSURE, {DC1394_TRIGGER_MODE_1, DC1394_TRIGGER_ACTIVE_LOW}},
+         };
+        if(dc1394_external_trigger_set_mode(interface()->camera(), modes.at(mode).first))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
+        if(dc1394_external_trigger_set_polarity(interface()->camera(), modes.at(mode).second))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
+    }
 
+    if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
-    if(dc1394_external_trigger_set_mode(interface()->camera(), modes.at(mode).first))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
-    if(dc1394_external_trigger_set_polarity(interface()->camera(), modes.at(mode).second))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
+    if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
 }
 void
 XIIDCCamera::setGain(unsigned int gain) {
@@ -372,31 +379,59 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
     return XTime{(long)(frame->timestamp / 1000000uLL), (long)(frame->timestamp % 1000000uLL)};
 }
-//unsigned char          * image;                 /* the image. May contain padding data too (vendor specific). Read/write allowed. Free NOT allowed if
-//                           returned by dc1394_capture_dequeue() */
-//uint32_t                 size[2];               /* the image size [width, height] */
-//uint32_t                 position[2];           /* the WOI/ROI position [horizontal, vertical] == [0,0] for full frame */
-//dc1394color_coding_t     color_coding;          /* the color coding used. This field is valid for all video modes. */
-//dc1394color_filter_t     color_filter;          /* the color filter used. This field is valid only for RAW modes and IIDC 1.31 */
-//uint32_t                 yuv_byte_order;        /* the order of the fields for 422 formats: YUYV or UYVY */
-//uint32_t                 data_depth;            /* the number of bits per pixel. The number of grayscale levels is 2^(this_number).
-//                                                   This is independent from the colour coding */
-//uint32_t                 stride;                /* the number of bytes per image line */
-//dc1394video_mode_t       video_mode;            /* the video mode used for capturing this frame */
-//uint64_t                 total_bytes;           /* the total size of the frame buffer in bytes. May include packet-
-//                                                   multiple padding and intentional padding (vendor specific) */
-//uint32_t                 image_bytes;           /* the number of bytes used for the image (image data only, no padding) */
-//uint32_t                 padding_bytes;         /* the number of extra bytes, i.e. total_bytes-image_bytes.  */
-//uint32_t                 packet_size;           /* the size of a packet in bytes. (IIDC data) */
-//uint32_t                 packets_per_frame;     /* the number of packets per frame. (IIDC data) */
-//uint64_t                 timestamp;             /* the unix time [microseconds] at which the frame was captured in
-//                                                   the video1394 ringbuffer */
-//uint32_t                 frames_behind;         /* the number of frames in the ring buffer that are yet to be accessed by the user */
-//dc1394camera_t           *camera;               /* the parent camera of this frame */
-//uint32_t                 id;                    /* the frame position in the ring buffer */
-//uint64_t                 allocated_image_bytes; /* amount of memory allocated in for the *image field. */
-//dc1394bool_t             little_endian;         /* DC1394_TRUE if little endian (16bpp modes only),
-//                                                   DC1394_FALSE otherwise */
-//dc1394bool_t             data_in_padding;       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
-//                                                   DC1394_FALSE otherwise */
+
 #endif // USE_LIBDC1394
+//camera_status = CAMERA_ON;
+//res=DC1394_VIDEO_MODE_FORMAT7_2; // 2x2 binning
+//dc1394_video_set_operation_mode(camera, DC1394_OPERATION_MODE_LEGACY);
+//dc1394_video_set_iso_speed(camera, DC1394_ISO_SPEED_400);
+//dc1394_video_set_mode(camera,res);
+//dc1394_format7_set_color_coding(camera, res, DC1394_COLOR_CODING_MONO8);
+//dc1394_avt_set_timebase(camera,9); // 9=1ms, 8=500us, 7=200us,
+//6=100us, 5=50us, 4=20us
+//dc1394_avt_set_extented_shutter(camera, extexp);
+//dc1394switch_t pwr = DC1394_ON;
+//dc1394_feature_set_value(camera, DC1394_FEATURE_GAIN, gain);
+//// The line below needs to be commented if we use an external trigger.
+//dc1394_software_trigger_set_power(camera, DC1394_ON);
+////dc1394_external_trigger_set_mode(camera, 0);
+//62APPENDIX B. SOFTWARE TO PROGRAM AND CONTROL THE CAMERA
+////dc1394_external_trigger_set_power(camera, pwr);
+//// The two lines above are used when we got an external trigger
+//// rigged to the system.
+//if (dc1394_capture_setup(camera, 4,DC1394_CAPTURE_FLAGS_DEFAULT)
+//!= DC1394_SUCCESS) {
+//fprintf(stderr, "unable to setup camera- check line %d of %s to make
+//sure\n",__LINE__,__FILE__);
+//perror("that the video mode,framerate and format are supported\n");
+//printf("is one supported by your camera\n");
+//cleanup();
+//exit(-1);
+//}
+////If we use an external trigger we need to comment out the
+//// ve lines below marked with: "//comment"
+///* main event loop */
+//gettimeofday(&start, NULL); //comment
+//loop = 0;
+//while(loop<imageloop){
+//while(t<100000*y){ //comment
+//gettimeofday(&end, NULL); //comment
+//t = (end.tv_sec*1000000 + end.tv_usec)-(start.tv_sec*1000000
+//+ start.tv_usec); //comment
+//} //comment
+//y=y++;
+//// The line below starts the exposure in the case of a
+//// software trigger, if else it waits here for the trigger
+//// signal in the case of an external trigger.
+//shotresult = dc1394_video_set_one_shot(camera, DC1394_ON);
+//if (shotresult == DC1394_SUCCESS) {
+//if (dc1394_capture_dequeue(camera, DC1394_CAPTURE_POLICY_WAIT,
+//&Videoframe)!=DC1394_SUCCESS)
+//printf("Error: Failed to capture from GUPPY\n");
+//if (Videoframe) {
+//63
+//sprintf(datal, "\n", loop);
+//skriv_datal(Videoframe, datal); // here we write to le.
+//dc1394_capture_enqueue (camera, Videoframe);
+//}
+}
