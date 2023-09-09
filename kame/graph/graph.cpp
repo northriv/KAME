@@ -1257,6 +1257,8 @@ X2DImagePlot::X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph
         tr[ *intensity()] = 1.0;
     });
 }
+X2DImagePlot::~X2DImagePlot() {
+}
 void
 X2DImagePlot::setImage(Transaction &tr, const shared_ptr<QImage>& image) {
     tr[ *this].m_image = image;
@@ -1269,12 +1271,17 @@ X2DImagePlot::snapshot(const Snapshot &shot) {
 }
 int
 X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
-    unique_ptr<XQGraphTexture> texture_prev; //preserves texture until drawing.
     if(m_image) {
+        auto texture = m_texture.lock();
         if(m_image != m_image_textured) {
-            texture_prev = painter->createTexture(m_image);
-            texture_prev.swap(m_texture);
-            m_texture_prev.swap(texture_prev);
+            if(texture && m_image_textured && (m_image_textured->width() == m_image->width())
+                    && (m_image_textured->height() == m_image->height())
+                    && (m_image_textured->format() == m_image->format()))
+                texture->repaint(m_image);
+            else {
+                m_texture = painter->createTexture(m_image);
+                texture = m_texture.lock();
+            }
             m_image_textured = m_image;
         }
         if(fixScales(shot)) {
@@ -1292,7 +1299,7 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
             XGraph::ValPoint v4(0, m_image->height());
             valToGraphFast(v4, &g);
             graphToScreenFast(g, &spt[3]);
-            painter->drawTexture( *m_texture, spt);
+            painter->drawTexture( *texture, spt);
         }
     }
     return XPlot::drawPlot(shot, painter);

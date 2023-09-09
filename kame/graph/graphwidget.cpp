@@ -91,7 +91,7 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
         mode = XQGraphPainter::SelectionMode::SelNone;
 		break;
 	}
-    makeCurrent();
+    makeCurrent(); //needed to select objects.
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelStart, mode);
     doneCurrent();
 }
@@ -100,9 +100,9 @@ XQGraph::mouseMoveEvent ( QMouseEvent* e) {
     static XTime lasttime = XTime::now();
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
-    makeCurrent();
+//    makeCurrent(); //this makes collapse of texture during mouse over.
     m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting);
-    doneCurrent();
+//    doneCurrent();
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {

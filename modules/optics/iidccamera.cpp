@@ -378,7 +378,9 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
     unsigned int bpp = image_bytes / (width * height);
-//    tr[ *this].m_status = formatString("%ux%u ", width, height)+  tr[ *this].time().getTimeStr() + formatString(" stamp:%llu behind:%u", timestamp, frames_behind);
+    tr[ *this].m_status = formatString("%ux%u ", width, height)+  tr[ *this].time().getTimeStr() + formatString(" stamp:%llu behind:%u", timestamp, frames_behind);
+
+    XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
 
     reader.popIterator() += padding_bytes;
 
@@ -421,6 +423,8 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
 
     if(dc1394_capture_enqueue(interface()->camera(), frame))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
+
+    //time?
     return XTime{(long)(frame->timestamp / 1000000uLL), (long)(frame->timestamp % 1000000uLL)};
 }
 

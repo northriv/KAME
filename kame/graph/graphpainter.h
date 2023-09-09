@@ -35,6 +35,7 @@ public:
    XQGraphTexture(GLuint tid, XQGraphPainter *const item, const shared_ptr<QImage> &image)
        : id(tid), m_painter(item), qimage(image) {}
    ~XQGraphTexture();
+   void repaint(const shared_ptr<QImage> &image);
    const GLuint id;
    XQGraphPainter *const m_painter;
    shared_ptr<QImage> qimage;
@@ -98,7 +99,7 @@ public:
      drawText(p, QString(str));
  }
 
- unique_ptr<XQGraphTexture> createTexture(const shared_ptr<QImage> &image);
+ shared_ptr<XQGraphTexture> createTexture(const shared_ptr<QImage> &image);
  void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint p[4]);
 
  //! make point outer perpendicular to \a dir by offset
@@ -189,7 +190,7 @@ Snapshot startDrawing();
     m_listaxismarkers, m_listgrids, m_listplanemarkers;
  
  atomic<bool> m_bIsRedrawNeeded;
- bool m_bAvoidCallingLists = false;
+// bool m_bAvoidCallingLists = false;
  bool m_bIsAxisRedrawNeeded;
  bool m_bTilted;
  bool m_bReqHelp;
@@ -219,6 +220,8 @@ Snapshot startDrawing();
     std::vector<Text> m_textOverpaint; //stores text to be overpainted.
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
+
+    std::deque<shared_ptr<XQGraphTexture>> m_textures;
 };
 
 #endif

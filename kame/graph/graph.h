@@ -437,6 +437,7 @@ class XQGraphTexture;
 class DECLSPEC_KAME X2DImagePlot : public XPlot {
 public:
     X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph, const shared_ptr<XGraph> &graph);
+    virtual ~X2DImagePlot();
     void clearAllPoints(Transaction &) override {}
     virtual int validateAutoScale(const Snapshot &) override;
 
@@ -458,7 +459,7 @@ protected:
 private:
     friend class XGraph;
     shared_ptr<QImage> m_image, m_image_textured;
-    unique_ptr<XQGraphTexture> m_texture, m_texture_prev;
+    weak_ptr<XQGraphTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif

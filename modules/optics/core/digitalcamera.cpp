@@ -58,11 +58,11 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQButtonConnector>(m_clearAverage, m_form->m_btnClearAverage),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
+        xqcon_create<XQToggleButtonConnector>(m_incrementalAverage, m_form->m_ckbIncrementalAverage),
         xqcon_create<XQToggleButtonConnector>(m_autoGainForAverage, m_form->m_ckbAutoGainProcessed)
     };
 
     std::vector<shared_ptr<XNode>> runtime_ui{
-        storeDark(),
         gain(),
         shutter(),
         videoMode(),
@@ -78,6 +78,10 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         tr[ *autoGainForAverage()] = true;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
+        m_lsnOnClearAverageTouched = tr[ *clearAverage()].onTouch().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onClearAverageTouched, Listener::FLAG_MAIN_THREAD_CALL);
+        m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
     });
 }
 void
@@ -256,16 +260,18 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
              *summedNext++ = v;
         }
     }
+    assert(summedNext == &summedCountsNext->at(0) + width * height);
+    assert(summed == &tr[ *this].m_summedCounts[cidx]->at(0) + width * height);
     fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_accumulated[cidx]++;
     tr[ *this].m_summedCounts[cidx] = summedCountsNext;
-    tr[ *this].m_avMax = vmax / tr[ *this].accumulated();
-    tr[ *this].m_avMin = vmin / tr[ *this].accumulated();
+    tr[ *this].m_avMax = vmax / tr[ *this].accumulated(cidx);
+    tr[ *this].m_avMin = vmin / tr[ *this].accumulated(cidx);
     tr[ *this].m_liveImage = liveimage;
     tr[ *this].m_processedImage = processedimage;
     if(m_storeDarkInvoked && (cidx == 0)) {
         tr[ *this].m_darkCounts = summedCountsNext;
-        tr[ *this].m_darkAccumulated = tr[ *this].accumulated();
+        tr[ *this].m_darkAccumulated = tr[ *this].accumulated(cidx);
         m_storeDarkInvoked = false;
     }
     switch((unsigned int)tr[ *coloringMethod()]) {
@@ -340,17 +346,21 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         }
         for(unsigned int cidx: {0,1})
             summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
-        uint64_t dpl_gain[3];
+        uint64_t dpl_gain[3] = {};
         gain_av[0] /= 2;
-        dpl_gain[0] = lrint(0x80 / std::max(dpl_max, -dpl_min));
-        dpl_gain[1] = 0;
-        dpl_gain[2] = -lrint(0x80 / std::max(dpl_max, -dpl_min));
+        if(std::max(dpl_max, -dpl_min)) {
+            dpl_gain[0] = lrint(0x80 / std::max(dpl_max, -dpl_min));
+            dpl_gain[1] = 0;
+            dpl_gain[2] = -lrint(0x80 / std::max(dpl_max, -dpl_min));
+        }
         if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
             for(unsigned int i  = 0; i < width * height; ++i) {
                 int64_t dpl = (int32_t)(*summed[1] * gain_av[1] - *summed[0] * gain_av[0]);
                 for(unsigned int cidx: {0,1,2})
                     *processed++ = (*summed[0] * gain_av[0] + dpl * dpl_gain[cidx])  / 0x100000000uL;
                 *processed++ = 0xffu;
+                for(unsigned int cidx: {0,1})
+                    summed[cidx]++;
             }
         }
         else {
@@ -361,8 +371,11 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 for(unsigned int cidx: {0,1,2})
                     *processed++ = (*summed[0] * gain_av[0] - *dark++ * gain_dark + dpl * dpl_gain[cidx])  / 0x100000000uL;
                 *processed++ = 0xffu;
+                for(unsigned int cidx: {0,1})
+                        summed[cidx]++;
             }
         }
+        assert(processed == processedimage->constBits() + width * height * 4);
         break;
     }
     }
@@ -381,7 +394,6 @@ void *
 XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     std::vector<shared_ptr<XNode>> runtime_ui{
-        storeDark(),
         gain(),
         shutter(),
         videoMode(),
@@ -399,8 +411,6 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onGainChanged);
         m_lsnOnShutterChanged = tr[ *shutter()].onValueChanged().connectWeakly(
                     shared_from_this(), &XDigitalCamera::onShutterChanged);
-        m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
-            shared_from_this(), &XDigitalCamera::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -432,6 +442,6 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     m_lsnOnGainChanged.reset();
     m_lsnOnShutterChanged.reset();
-    m_lsnOnStoreDarkTouched.reset();
-	return NULL;
+    m_lsnOnVideoModeChanged.reset();
+    return NULL;
 }

@@ -44,6 +44,7 @@ public:
     const shared_ptr<XUIntNode> &shutter() const {return m_shutter;} //!< [s]
     const shared_ptr<XUIntNode> &average() const {return m_average;} //
     const shared_ptr<XTouchableNode> &storeDark() const {return m_storeDark;}
+    const shared_ptr<XTouchableNode> &clearAverage() const {return m_clearAverage;}
     const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
     const shared_ptr<XBoolNode> &incrementalAverage() const {return m_incrementalAverage;}
     const shared_ptr<XComboNode> &videoMode() const {return m_videoMode;}
