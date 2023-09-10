@@ -116,15 +116,18 @@ XQGraphPainter::findPlane(const Snapshot &shot, const XGraph::ScrPoint &s1,
     return plot_found;
 }
 
-void
-XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode) {
+std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mode,
+    const XString& tool_desc) {
+    m_toolDescForSelection = tool_desc;
+    std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> ret{};
+
 	m_pointerLastPos[0] = x;
 	m_pointerLastPos[1] = y;
 
 	if(m_bReqHelp) {
-        if(state != SelectionState::SelStart) return;
+        if(state != SelectionState::SelStart) return ret;
 		m_bReqHelp = false;
-		return;
+        return ret;
 	}
 	double z;
     
@@ -165,11 +168,11 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		mode = m_selectionModeNow;
 		break;
     case SelectionState::SelFinish:
-		//restore mode
+        //restore mode
 		mode = m_selectionModeNow;
         m_selectionModeNow = SelectionMode::SelNone;
 		break;
-	}
+    }
 	switch(mode) {
     case SelectionMode::SelNone:
 		m_foundPlane.reset();
@@ -215,7 +218,8 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 		break;
 	}
     if(state == SelectionState::SelFinish) {
-	    if((abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
+        if(tool_desc.empty() && (abs(x - m_selStartPos[0]) < 3) && (abs(y - m_selStartPos[1]) < 3)) {
+            //mouse movement was nearly zero.
 			switch(mode) {
             case SelectionMode::SelPlane:
 				break;
@@ -254,7 +258,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 			}
 	    }
 	    else {
-            m_graph->iterate_commit([=](Transaction &tr){
+            m_graph->iterate_commit([&](Transaction &tr){
 				switch(mode) {
                 case SelectionMode::SelPlane:
 					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
@@ -262,6 +266,10 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 						XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(tr, m_startScrPos);
 						XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
 						XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
+                        if(tool_desc.length()) {
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundPlaneAxis1, src1, dst1}, {m_foundPlaneAxis2, src2, dst2}};
+                            return;
+                        }
 
 						if(tr[ *m_foundPlaneAxis1->minValue()].isUIEnabled())
 							tr[ *m_foundPlaneAxis1->minValue()] = double(min(src1, dst1));
@@ -282,9 +290,13 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
 					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
 						XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
 						XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
-						double _min = std::min(src, dst);
+                        if(tool_desc.length()) {
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundAxis, src, dst}, {}};
+                            return;
+                        }
+                        double _min = std::min(src, dst);
 						double _max = std::max(src, dst);
-						if(tr[ *m_foundAxis->minValue()].isUIEnabled())
+                        if(tr[ *m_foundAxis->minValue()].isUIEnabled())
 							tr[ *m_foundAxis->minValue()] = _min;
 						if(tr[ *m_foundAxis->maxValue()].isUIEnabled())
 							tr[ *m_foundAxis->maxValue()] = _max;
@@ -302,6 +314,7 @@ XQGraphPainter::selectObjs(int x, int y, SelectionState state, SelectionMode mod
         requestRepaint(); //supresses frequent update.
     else
         m_pItem->update();
+    return ret;
 }
 
 void
@@ -350,6 +363,8 @@ XQGraphPainter::onRedraw(const Snapshot &, XGraph *graph) {
 void
 XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
     QString msg = "";
+    if(m_toolDescForSelection.length())
+        msg = m_toolDescForSelection + ": ";
 //   if(SelectionStateNow != Selecting) return;
 	switch ( m_selectionModeNow ) {
     case SelectionMode::SelNone:
@@ -368,7 +383,10 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 				.arg(m_foundPlaneAxis2->valToString(dst2).c_str());
 		}
 		else {
-			msg = i18n("R-DBL-CLICK TO SHOW HELP");
+            if(m_toolDescForSelection.length())
+                msg = i18n("Select!");
+            else
+                msg = i18n("R-DBL-CLICK TO SHOW HELP");
 		}
 		break;
     case SelectionMode::SelPlane:

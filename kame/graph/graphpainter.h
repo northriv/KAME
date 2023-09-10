@@ -56,8 +56,10 @@ public:
  
  //! Selections  
  enum class SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
- enum class SelectionState {SelStart, SelFinish, Selecting};
- void selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelectionMode::SelNone);
+ enum class SelectionState {SelStart, SelFinish, SelFinishByTool, Selecting};
+ using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::VFloat, XGraph::VFloat>;
+ std::pair<SelectedResult, SelectedResult> selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelectionMode::SelNone,
+    const XString &tool_desc = {});
  
  void wheel(int x, int y, double deg);
  void zoom(double zoomscale, int x, int y);
@@ -178,6 +180,7 @@ Snapshot startDrawing();
  XGraph::ScrPoint m_startScrPos, m_startScrDX, m_startScrDY;
  XGraph::ScrPoint m_finishScrPos, m_finishScrDX, m_finishScrDY;
  XString m_onScreenMsg;
+ XString m_toolDescForSelection;
  int m_selStartPos[2];
  int m_tiltLastPos[2];
  int m_pointerLastPos[2];

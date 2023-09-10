@@ -83,6 +83,8 @@ public:
         unsigned int m_maxColorIndex;
         local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[MAX_COLORS];
+        double m_coefficients[MAX_COLORS];
+        double m_darkCoefficient;
         shared_ptr<QImage> m_liveImage, m_processedImage;
         int32_t m_avMin, m_avMax;
     };

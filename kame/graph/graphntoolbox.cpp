@@ -33,9 +33,10 @@ XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, FrmGraphNURL *ite
 }
 XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
-    XNode(name, runtime), m_btnDump(btndump), m_graph(create<XGraph> (name,
-        false)), m_dump(create<XTouchableNode> ("Dump", true)), m_filename(create<
-        XStringNode> ("FileName", true)) {
+    XNode(name, runtime), m_btnDump(btndump),
+    m_graph(create<XGraph> (name, false)),
+    m_dump(create<XTouchableNode> ("Dump", true)),
+    m_filename(create<XStringNode> ("FileName", true)) {
     graphwidget->setGraph(m_graph);
     if(ed && btn)
         m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
@@ -46,9 +47,6 @@ XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwid
     iterate_commit([=](Transaction &tr){
         m_lsnOnFilenameChanged = tr[ *filename()].onValueChanged().connectWeakly(
             shared_from_this(), &XGraphNToolBox::onFilenameChanged);
-    });
-
-    iterate_commit([=](Transaction &tr){
         m_lsnOnIconChanged = tr[ *this].onIconChanged().connectWeakly(
             shared_from_this(),
             &XGraphNToolBox::onIconChanged, Listener::FLAG_MAIN_THREAD_CALL

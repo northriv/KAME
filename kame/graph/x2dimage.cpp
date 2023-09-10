@@ -12,17 +12,34 @@
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "x2dimage.h"
-
+#include "xnodeconnector.h"
 #include "ui_graphnurlform.h"
 #include "graphwidget.h"
 #include "graph.h"
 #include <iomanip>
+#include "graphmathtool.h"
+#include <QToolButton>
+#include "graphmathtoolconnector.h"
 
 X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
     X2DImage(name, runtime, item->m_graphwidget, item->m_edUrl,
         item->m_btnUrl, item->m_btnDump) {
 
 }
+X2DImage::~X2DImage() {}
+
+X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
+    unsigned int max_color_index, QToolButton *btnmath,
+    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
+    X2DImage(name, runtime, graphwidget, ed, btn, btndump) {
+    m_btnMathTool = btnmath;
+    for(unsigned int i = 0; i < max_color_index; ++i)
+        m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("MathTools%u", i).c_str(), false, meas, driver));
+
+    m_conTools = std::make_unique<XQGraph2DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
+}
+
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
     iterate_commit([=](Transaction &tr){
@@ -49,6 +66,12 @@ X2DImage::dumpToFileThreaded(std::fstream &stream) {
 }
 
 void
-X2DImage::setImage(Transaction &tr, const shared_ptr<QImage> &image) {
+X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
+    const std::vector<const uint32_t *> &rawimages, const std::vector<double> coefficients) {
     m_plot->setImage(tr, image);
+    if(m_toolLists.size())
+        for(unsigned int cidx = 0; cidx < rawimages.size(); ++cidx) {
+            unsigned int stride = image->width();
+            m_toolLists[cidx]->update(tr, rawimages[cidx], stride, stride, image->height(), coefficients[cidx]);
+        }
 }

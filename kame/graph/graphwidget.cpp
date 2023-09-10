@@ -69,6 +69,32 @@ XQGraph::setGraph(const shared_ptr<XGraph> &graph) {
 //    if(graph && !isHidden()) {
 //		showEvent(NULL);
 //    }
+
+//    graph->iterate_commit([=](Transaction &tr){
+//        m_planeSelectionTool = XNode::createOrphan<XBoolNode>("", true, tr);
+//        m_axisSelectionTool = XNode::createOrphan<XBoolNode>("", true, tr);
+//    });
+
+//    m_activate1DAreaTool->iterate_commit([=](Transaction &tr){
+//        m_lsn1DAreaTouched = tr[ *m_activate2DAreaTool].onValueChanged().connectWeakly
+//            (shared_from_this(), &XQGraph::onSelAxisChanged, Listener::FLAG_MAIN_THREAD_CALL);
+//    });
+
+}
+void
+XQGraph::activateAxisSelectionTool(XAxis::AxisDirection dir, const XString &tool_desc) {
+    m_toolDesc = tool_desc;
+    m_toolDirX = dir;
+    m_isAxisSelectionByTool = true;
+    m_isPlaneSelectionByTool = false;
+}
+void
+XQGraph::activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirection diry, const XString &tool_desc) {
+    m_toolDesc = tool_desc;
+    m_toolDirX = dirx;
+    m_toolDirY = diry;
+    m_isPlaneSelectionByTool = true;
+    m_isAxisSelectionByTool = false;
 }
 void
 XQGraph::mousePressEvent ( QMouseEvent* e) {
@@ -76,15 +102,26 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
 	XQGraphPainter::SelectionMode mode;
 	switch (e->button()) {
 	case Qt::RightButton:
+        if(m_isPlaneSelectionByTool) {
+            m_toolDesc = {};
+            m_isPlaneSelectionByTool = false;
+        }
         mode = XQGraphPainter::SelectionMode::SelAxis;
 		break;
 	case Qt::LeftButton:
+        if(m_isAxisSelectionByTool) {
+            m_toolDesc = {};
+            m_isAxisSelectionByTool = false;
+        }
         if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
             mode = XQGraphPainter::SelectionMode::TiltTracking;
         else
             mode = XQGraphPainter::SelectionMode::SelPlane;
 		break;
     case Qt::MiddleButton:
+        m_isPlaneSelectionByTool = false;
+        m_isAxisSelectionByTool = false;
+        m_toolDesc = {};
         mode = XQGraphPainter::SelectionMode::TiltTracking;
 		break;
 	default:
@@ -92,7 +129,7 @@ XQGraph::mousePressEvent ( QMouseEvent* e) {
 		break;
 	}
     makeCurrent(); //needed to select objects.
-    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelStart, mode);
+    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelStart, mode, m_toolDesc);
     doneCurrent();
 }
 void
@@ -101,20 +138,45 @@ XQGraph::mouseMoveEvent ( QMouseEvent* e) {
 	if(XTime::now() - lasttime < 0.033) return;
 	if( !m_painter ) return;
 //    makeCurrent(); //this makes collapse of texture during mouse over.
-    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting);
+    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::Selecting, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
 //    doneCurrent();
 }
 void
 XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 	if( !m_painter ) return;
-    makeCurrent();
-    m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish);
-    doneCurrent();
+//    makeCurrent();
+    auto [r1, r2] = m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
+    auto [axis1, src1, dst1] = r1;
+    auto [axis2, src2, dst2] = r2;
+    if(m_isAxisSelectionByTool
+        && axis1 && (axis1->direction() == m_toolDirX)) {
+        onAxisSelectedByTool().talk(Snapshot( *m_graph), std::pair<XString, XGraph::ValPoint>{m_toolDesc, XGraph::ValPoint{src1, dst1}});
+    }
+    if(m_isPlaneSelectionByTool && axis1 && axis2) {
+        if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {
+             //swaps 1 and 2.
+//            std::tie(axis1, src1, dst1) = r2;
+//            std::tie(axis2, src2, dst2) = r1;
+            onPlaneSelectedByTool().talk(Snapshot( *m_graph),
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>{m_toolDesc, {src2, src1}, {dst2, dst1}});
+        }
+        else if((axis1->direction() == m_toolDirX) && (axis2->direction() == m_toolDirY)) {
+            onPlaneSelectedByTool().talk(Snapshot( *m_graph),
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>{m_toolDesc, {src1, src2}, {dst1, dst2}});
+        }
+    }
+    m_isPlaneSelectionByTool = false;
+    m_isAxisSelectionByTool = false;
+    m_toolDesc = {};
+//    doneCurrent();
 }
 void
 XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
 	e->accept();
-	if( !m_painter ) return;
+    m_isPlaneSelectionByTool = false;
+    m_isAxisSelectionByTool = false;
+    m_toolDesc = {};
+    if( !m_painter ) return;
     if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
         return;
 	if(m_graph) { 
@@ -152,7 +214,10 @@ XQGraph::showEvent ( QShowEvent *) {
 }
 void
 XQGraph::hideEvent ( QHideEvent * ) {
-	m_conDialog.reset();
+    m_isPlaneSelectionByTool = false;
+    m_isAxisSelectionByTool = false;
+    m_toolDesc = {};
+    m_conDialog.reset();
 }
 //! openGL stuff
 void

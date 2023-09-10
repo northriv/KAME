@@ -27,6 +27,8 @@ INCLUDEPATH += \
 HEADERS += \
     allocator.h \
     atomic_prv_mfence_arm8.h \
+    graph/graphmathtool.h \
+    graph/graphmathtoolconnector.h \
     graph/graphntoolbox.h \
     graph/x2dimage.h \
     kame.h \
@@ -93,6 +95,8 @@ HEADERS += \
     math/tikhonovreg.h
 
 SOURCES += icons/icon.cpp \
+    graph/graphmathtool.cpp \
+    graph/graphmathtoolconnector.cpp \
     graph/graphntoolbox.cpp \
     graph/x2dimage.cpp \
     xthread.cpp \

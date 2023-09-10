@@ -14,7 +14,7 @@
 #ifndef GRAPHWIDGET_H
 #define GRAPHWIDGET_H
 
-class XGraph;
+#include "graph.h"
 class XQGraphPainter;
 
 #include "support.h"
@@ -41,6 +41,12 @@ public:
 	//! register XGraph instance just after creating
 	void setGraph(const shared_ptr<XGraph> &);
 
+    void activateAxisSelectionTool(XAxis::AxisDirection dir, const XString &tool_desc);
+    void activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirection diry, const XString &tool_desc);
+
+    Talker<std::pair<XString, XGraph::ValPoint>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
+
 protected:
     virtual void mousePressEvent ( QMouseEvent*) override;
     virtual void mouseReleaseEvent ( QMouseEvent*) override;
@@ -60,7 +66,17 @@ private:
 	friend class XQGraphPainter;
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XQGraphPainter> m_painter;
+
+
+    Talker<std::pair<XString, XGraph::ValPoint>> m_onAxisSelectedByTool;
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> m_onPlaneSelectedByTool;
+
 	xqcon_ptr m_conDialog;
+
+    bool m_isAxisSelectionByTool = false;
+    bool m_isPlaneSelectionByTool = false;
+    XAxis::AxisDirection m_toolDirX, m_toolDirY;
+    XString m_toolDesc;
 };
 
 class Ui_FrmGraph;

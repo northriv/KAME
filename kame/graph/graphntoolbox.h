@@ -59,6 +59,8 @@ private:
     const shared_ptr<XTouchableNode> m_dump;
     const shared_ptr<XStringNode> m_filename;
 
+//    const shared_ptr<XBoolNode> m_axisSelectionTool, m_planeSelectionTool;
+
     shared_ptr<Listener> m_lsnOnDumpTouched, m_lsnOnFilenameChanged,
         m_lsnOnIconChanged;
 

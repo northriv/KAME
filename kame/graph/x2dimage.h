@@ -20,16 +20,26 @@
 #include "xnodeconnector.h"
 #include "graphntoolbox.h"
 
+class XGraph2DMathToolList;
+class XDriver;
+class XMeasure;
+class XQGraph2DMathToolConnector;
+
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
 class DECLSPEC_KAME X2DImage: public XGraphNToolBox {
 public:
     X2DImage(const char *name, bool runtime, FrmGraphNURL *item);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
+        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
+        unsigned int max_color_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+    X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr);
-    virtual ~X2DImage() {}
 
-    void setImage(Transaction &tr, const shared_ptr<QImage> &image);
+    virtual ~X2DImage();
+
+    void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
+        const std::vector<const uint32_t *> &rawimages = {}, const std::vector<double> coefficients = {});
 
     struct DECLSPEC_KAME Payload : public XGraphNToolBox::Payload {
     private:
@@ -38,7 +48,12 @@ public:
 protected:
     virtual void dumpToFileThreaded(std::fstream &) override;
 private:
+    QToolButton *m_btnMathTool = nullptr;
+
     shared_ptr<X2DImagePlot> m_plot;
+    std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
+
+    unique_ptr<XQGraph2DMathToolConnector> m_conTools;
 };
 
 #endif
