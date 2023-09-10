@@ -250,6 +250,13 @@ XIIDCCamera::open() {
         for(auto &s: modestrings)
             tr[ *videoMode()].add(s);
         tr[ *triggerMode()] = (unsigned int)trigmode;
+        tr[ *frameRate()].clear();
+        for(double rate = 240.0; rate > 1.7; rate /= 2) {
+            tr[ *frameRate()].add(formatString("%f fps", rate));
+        }
+        for(double rate = 1.0; rate > 0.001; rate /= 2) {
+            tr[ *frameRate()].add(formatString("%f fps", rate));
+        }
     });
 
     start();
@@ -281,14 +288,24 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
         if(dc1394_format7_set_roi(interface()->camera(), video_mode, coding,
                                      DC1394_USE_MAX_AVAIL, 0, 0, w, h))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
+
+        double rate = 5;
+        sscanf(shot[ *frameRate()].to_str().c_str(), "%lf", &rate);
+        uint32_t bits;
+        dc1394_get_color_coding_bit_size(coding, &bits);
+        uint32_t bytepersec = rate * w * h * (bits/8) * 125e-6;
+        if(dc1394_format7_set_packet_size(interface()->camera(), video_mode, bytepersec))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set frame rate."), __FILE__, __LINE__);
     }
     else {
-        // get highest framerate
-        dc1394framerates_t framerates;
-        if(dc1394_video_get_supported_framerates(interface()->camera(), video_mode,&framerates))
-            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get framerates."), __FILE__, __LINE__);
-        dc1394framerate_t framerate=framerates.framerates[framerates.num - 1];
-        if(dc1394_video_set_framerate(interface()->camera(), framerate))
+//        // get highest framerate
+//        dc1394framerates_t framerates;
+//        if(dc1394_video_get_supported_framerates(interface()->camera(), video_mode,&framerates))
+//            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get framerates."), __FILE__, __LINE__);
+        dc1394framerate_t rate = (dc1394framerate_t)(DC1394_FRAMERATE_240 - (int)shot[ *frameRate()]);
+        if(rate < DC1394_FRAMERATE_1_875)
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
+        if(dc1394_video_set_framerate(interface()->camera(), rate))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
     }
 
