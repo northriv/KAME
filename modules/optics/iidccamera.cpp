@@ -295,7 +295,7 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
         dc1394_get_color_coding_bit_size(coding, &bits);
         uint32_t bytepersec = rate * w * h * (bits/8) * 125e-6;
         if(dc1394_format7_set_packet_size(interface()->camera(), video_mode, bytepersec))
-            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set frame rate."), __FILE__, __LINE__);
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
     }
     else {
 //        // get highest framerate

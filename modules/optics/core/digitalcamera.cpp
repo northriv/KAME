@@ -43,7 +43,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
                                    m_form->m_graphwidgetLive)),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                   MAX_COLORS,
+                                   MAX_COLORS + 1, //w/dark
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
     m_conUIs = {
@@ -145,8 +145,9 @@ XDigitalCamera::visualize(const Snapshot &shot) {
 		return;
 	  }
       iterate_commit([&](Transaction &tr){
-//          unsigned int cidx = shot[ *this].m_colorIndex + 1u;
-//          tr[ *m_colorIndex] = (cidx > shot[ *this].m_maxColorIndex) ? 0 : cidx;
+          unsigned int cidx = shot[ *this].m_colorIndex + 1u;
+          tr[ *m_colorIndex] = (cidx > shot[ *this].m_maxColorIndex) ? 0 : cidx;
+
           tr[ *m_liveImage->graph()->osdStrings()] = shot[ *this].m_status;
           std::vector<double> coeffs;
           std::vector<const uint32_t *> rawimages;
