@@ -108,7 +108,7 @@ XRawStreamRecordReader::readHeader(void *_fd) {
 	m_allsize = reader.pop<uint32_t>();
 	long sec = reader.pop<int32_t>();
 	long usec = reader.pop<int32_t>();
-    m_time = XTime::now(); //XTime(sec, usec);
+    m_time = XTime(sec, usec);
 }
 void
 XRawStreamRecordReader::parseOne(void *_fd, XMutex &mutex) {
