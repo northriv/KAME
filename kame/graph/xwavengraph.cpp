@@ -31,7 +31,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     XWaveNGraph(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
     for(unsigned int i = 0; i < max_wave_index; ++i)
-        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Col%u", i).c_str(), false, meas, driver));
+        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Plot%u", i).c_str(), false, meas, driver));
 
     m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }

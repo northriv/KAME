@@ -38,9 +38,13 @@
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
-     <property name="spacing">
-      <number>0</number>
-     </property>
+     <item>
+      <widget class="QToolButton" name="m_btnMathTool">
+       <property name="text">
+        <string>MATH</string>
+       </property>
+      </widget>
+     </item>
      <item>
       <widget class="QLineEdit" name="m_edUrl"/>
      </item>

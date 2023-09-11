@@ -33,6 +33,8 @@ public:
 
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
+
+    virtual void releaseEntries(Transaction &tr) {}
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
@@ -53,6 +55,8 @@ public:
     const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
     const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
+
+    virtual void releaseEntries(Transaction &tr) {}
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
@@ -74,6 +78,7 @@ public:
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
     }
+    virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
 private:
     const shared_ptr<XScalarEntry> m_entry;
 };
@@ -93,6 +98,7 @@ public:
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
     }
+    virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
 private:
     const shared_ptr<XScalarEntry> m_entry;
 };
