@@ -80,8 +80,8 @@ void
 XDC1394Interface::close() {
     if(m_camera) {
         dc1394_video_set_transmission(m_camera, DC1394_OFF);
-        if(m_camera->has_vmode_error_status != DC1394_TRUE)
-            dc1394_capture_stop(m_camera);
+//        if(m_camera->has_vmode_error_status != DC1394_TRUE)
+        dc1394_capture_stop(m_camera);
         dc1394_camera_free(m_camera);
     }
     m_camera = nullptr;
@@ -247,6 +247,7 @@ XIIDCCamera::open() {
 //    dc1394_avt_set_extented_shutter(interface()->camera(), extexp);
 
     iterate_commit([=](Transaction &tr){
+        tr[ *videoMode()] = -1;
         tr[ *videoMode()].clear();
         for(auto &s: modestrings)
             tr[ *videoMode()].add(s);
@@ -264,11 +265,18 @@ XIIDCCamera::open() {
 }
 
 void
-XIIDCCamera::setVideoMode(unsigned int mode) {
+XIIDCCamera::stopTransmission() {
     XScopedLock<XDC1394Interface> lock( *interface());
     m_isTrasmitting = false;
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+//    if(interface()->camera()->has_vmode_error_status != DC1394_TRUE)
+    dc1394_capture_stop(interface()->camera());
+}
+void
+XIIDCCamera::setVideoMode(unsigned int mode) {
+    XScopedLock<XDC1394Interface> lock( *interface());
+    stopTransmission();
     Snapshot shot( *this);
     dc1394video_mode_t video_mode;
     dc1394color_coding_t coding;
@@ -296,6 +304,7 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
         uint32_t bits;
         dc1394_get_color_coding_bit_size(coding, &bits);
         uint32_t bytepersec = rate * w * h * (bits/8) * 125e-6;
+        bytepersec = 8;
         if(dc1394_format7_set_packet_size(interface()->camera(), video_mode, bytepersec))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
     }
@@ -320,9 +329,7 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
 void
 XIIDCCamera::setTriggerMode(TriggerMode mode) {
     XScopedLock<XDC1394Interface> lock( *interface());
-    m_isTrasmitting = false;
-    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+    stopTransmission();
     if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_OFF))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
 
@@ -363,12 +370,14 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
 void
 XIIDCCamera::setGain(unsigned int gain) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    stopTransmission();
     if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 void
 XIIDCCamera::setShutter(unsigned int shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    stopTransmission();
     if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
