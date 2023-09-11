@@ -35,7 +35,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     X2DImage(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
     for(unsigned int i = 0; i < max_color_index; ++i)
-        m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("MathTools%u", i).c_str(), false, meas, driver));
+        m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("CH%u", i).c_str(), false, meas, driver));
 
     m_conTools = std::make_unique<XQGraph2DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }

@@ -24,8 +24,33 @@ class QPushButton;
 class QAction;
 class QActionGroup;
 class QMenu;
+class XGraph1DMathToolList;
 class XGraph2DMathToolList;
 class XQGraph;
+
+//Q_OBJECT cannot be used in template class!!!!
+
+class DECLSPEC_KAME XQGraph1DMathToolConnector : public QObject {
+    Q_OBJECT
+public:
+    XQGraph1DMathToolConnector(const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget);
+    virtual ~XQGraph1DMathToolConnector();
+private:
+    QToolButton *const m_pItem;
+    QMenu *m_menu;
+    XQGraph *m_graphwidget;
+
+    std::map<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, XString>> m_actionToToolMap;
+    std::map<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
+public:
+
+private:
+    std::deque<shared_ptr<XGraph1DMathToolList>> m_lists;
+    shared_ptr<Listener> m_activeListener;
+public slots:
+    virtual void menuOpenActionActivated();
+    virtual void toolActivated(QAction *);
+};
 
 class DECLSPEC_KAME XQGraph2DMathToolConnector : public QObject {
     Q_OBJECT
@@ -48,4 +73,6 @@ public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
 };
+
+
 #endif

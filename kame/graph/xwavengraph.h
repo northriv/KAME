@@ -24,14 +24,22 @@
 class XAxis;
 class XXYPlot;
 
+class XDriver;
+class XMeasure;
+class XGraph1DMathToolList;
+class XQGraph1DMathToolConnector;
+
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
 class DECLSPEC_KAME XWaveNGraph: public XGraphNToolBox {
 public:
     XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
     XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
+        QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
+        unsigned int max_color_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+    XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
-    virtual ~XWaveNGraph() {}
+    virtual ~XWaveNGraph();
 
 	void drawGraph(Transaction &tr);
 
@@ -120,6 +128,9 @@ public:
 protected:
     virtual void dumpToFileThreaded(std::fstream &) override;
 private:
+    QToolButton *m_btnMathTool = nullptr;
+    std::deque<shared_ptr<XGraph1DMathToolList>> m_toolLists;
+    unique_ptr<XQGraph1DMathToolConnector> m_conTools;
 };
 
 template <typename VALUE>

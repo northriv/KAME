@@ -237,6 +237,8 @@ private:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
+    friend class XQGraph1DMathToolConnector;
+    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat>&);
 };
 
 class XQGraph2DMathToolConnector;

@@ -20,9 +20,9 @@
 #include "xnodeconnector.h"
 #include "graphntoolbox.h"
 
-class XGraph2DMathToolList;
 class XDriver;
 class XMeasure;
+class XGraph2DMathToolList;
 class XQGraph2DMathToolConnector;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
@@ -41,18 +41,13 @@ public:
     void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
         const std::vector<const uint32_t *> &rawimages = {}, const std::vector<double> coefficients = {});
 
-    struct DECLSPEC_KAME Payload : public XGraphNToolBox::Payload {
-    private:
-        friend class X2DImage;
-    };
 protected:
     virtual void dumpToFileThreaded(std::fstream &) override;
 private:
-    QToolButton *m_btnMathTool = nullptr;
-
     shared_ptr<X2DImagePlot> m_plot;
-    std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
 
+    QToolButton *m_btnMathTool = nullptr;
+    std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
     unique_ptr<XQGraph2DMathToolConnector> m_conTools;
 };
 

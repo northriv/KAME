@@ -135,6 +135,21 @@ XGraph2DMathToolList::update(Transaction &tr, const uint32_t *leftupper, unsigne
 }
 
 void
+XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat>& res) {
+    auto label = std::get<0>(res);
+    auto src = std::get<1>(res);
+    auto dst = std::get<2>(res);
+    auto node = createByTypename("Graph1DMathTool" + label, formatString("%s (%.4g)-(%.4g)", label.c_str(), src, dst));
+    auto tool = static_pointer_cast<XGraph1DMathTool>(node);
+    iterate_commit([&](Transaction &tr){
+        if(src > dst)
+            std::swap(src, dst);
+        tr[ *tool->begin()] = src;
+        tr[ *tool->end()] = dst;
+    });
+}
+
+void
 XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint> &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);

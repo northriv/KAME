@@ -150,7 +150,7 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
     auto [axis2, src2, dst2] = r2;
     if(m_isAxisSelectionByTool
         && axis1 && (axis1->direction() == m_toolDirX)) {
-        onAxisSelectedByTool().talk(Snapshot( *m_graph), std::pair<XString, XGraph::ValPoint>{m_toolDesc, XGraph::ValPoint{src1, dst1}});
+        onAxisSelectedByTool().talk(Snapshot( *m_graph), std::tuple<XString, XGraph::VFloat, XGraph::VFloat>{m_toolDesc, src1, dst1});
     }
     if(m_isPlaneSelectionByTool && axis1 && axis2) {
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {

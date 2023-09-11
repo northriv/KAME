@@ -17,11 +17,23 @@
 #include "graphwidget.h"
 #include "graph.h"
 #include <iomanip>
+#include "graphmathtoolconnector.h"
 
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
     XWaveNGraph(name, runtime, item->m_graphwidget, item->m_edUrl,
         item->m_btnUrl, item->m_btnDump) {
 
+}
+XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
+    unsigned int max_wave_index, QToolButton *btnmath,
+    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
+    XWaveNGraph(name, runtime, graphwidget, ed, btn, btndump) {
+    m_btnMathTool = btnmath;
+    for(unsigned int i = 0; i < max_wave_index; ++i)
+        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Col%u", i).c_str(), false, meas, driver));
+
+    m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
@@ -31,6 +43,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         tr[ *this].clearPlots();
     });
 }
+XWaveNGraph::~XWaveNGraph() {}
 
 XWaveNGraph::Payload::XPlotWrapper::XPlotWrapper(const char *name, bool runtime,
     Transaction &tr_graph, const shared_ptr<XGraph> &graph) :
@@ -253,4 +266,14 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
         tr[ *shot[ *this].axisw()->minValue()] =  -0.4 * weight_max;
     }
     tr.mark(tr[ *graph()].onUpdate(), graph().get());
+
+    int cnt = shot[ *this].m_plots.size();
+    cnt = std::min(cnt, (int)m_toolLists.size());
+    for(unsigned int j = 0; j < cnt; j++) {
+        auto plot = shot[ *this].m_plots[j];
+        std::vector<XGraph::VFloat> colx, coly;
+        shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx);
+        shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
+        m_toolLists[j]->update(tr, colx.begin(), colx.end(), coly.begin(), coly.end());
+    }
 }

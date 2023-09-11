@@ -44,7 +44,7 @@ public:
     void activateAxisSelectionTool(XAxis::AxisDirection dir, const XString &tool_desc);
     void activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirection diry, const XString &tool_desc);
 
-    Talker<std::pair<XString, XGraph::ValPoint>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
+    Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
     Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
 
 protected:
@@ -68,7 +68,7 @@ private:
 	shared_ptr<XQGraphPainter> m_painter;
 
 
-    Talker<std::pair<XString, XGraph::ValPoint>> m_onAxisSelectedByTool;
+    Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> m_onAxisSelectedByTool;
     Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> m_onPlaneSelectedByTool;
 
 	xqcon_ptr m_conDialog;
