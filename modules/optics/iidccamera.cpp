@@ -99,6 +99,7 @@ void
 XIIDCCamera::open() {
     if( !interface()->camera())
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+    m_isTrasmitting = false;
     // get video modes:
     dc1394video_modes_t video_modes;
     if(dc1394_video_get_supported_modes(interface()->camera(),&video_modes)) {
@@ -265,6 +266,7 @@ XIIDCCamera::open() {
 void
 XIIDCCamera::setVideoMode(unsigned int mode) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    m_isTrasmitting = false;
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
     Snapshot shot( *this);
@@ -318,6 +320,7 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
 void
 XIIDCCamera::setTriggerMode(TriggerMode mode) {
     XScopedLock<XDC1394Interface> lock( *interface());
+    m_isTrasmitting = false;
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
     if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_OFF))
@@ -331,6 +334,8 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
         msecsleep(50); //exposure
         if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not take a shot."), __FILE__, __LINE__);
+
+        m_isTrasmitting = true;
         return;
     }
 
@@ -352,6 +357,8 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
 
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
+
+    m_isTrasmitting = true;
 }
 void
 XIIDCCamera::setGain(unsigned int gain) {
@@ -408,6 +415,9 @@ XTime
 XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     XScopedLock<XDC1394Interface> lock( *interface());
     Snapshot shot( *this);
+    if( !m_isTrasmitting)
+        throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+
     dc1394video_frame_t *frame;
     auto ret = dc1394_capture_dequeue(interface()->camera(), DC1394_CAPTURE_POLICY_POLL, &frame);
     if((ret < 0) || !frame)
