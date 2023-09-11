@@ -195,7 +195,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Gain</string>
+           <string>Brightness</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -203,7 +203,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QSpinBox" name="m_spbGain">
+         <widget class="QSpinBox" name="m_spbBrightness">
           <property name="minimum">
            <number>0</number>
           </property>

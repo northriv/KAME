@@ -241,9 +241,9 @@ XIIDCCamera::open() {
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
         return std::tuple<float, float, float>{v, vmin, vmax};
     };
-    if(fn_is_feature_present(DC1394_FEATURE_GAIN)) {
-        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_GAIN);
-        trans( *gain()) = v;
+    if(fn_is_feature_present(DC1394_FEATURE_BRIGHTNESS)) {
+        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_BRIGHTNESS);
+        trans( *brightness()) = v;
     }
     if(fn_is_feature_present(DC1394_FEATURE_SHUTTER)) {
         auto [v, vmin, vmax] = fn_get_feature_absolute_values(DC1394_FEATURE_SHUTTER);
@@ -375,10 +375,10 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     m_isTrasmitting = true;
 }
 void
-XIIDCCamera::setGain(unsigned int gain) {
+XIIDCCamera::setBrightness(unsigned int brightness) {
     XScopedLock<XDC1394Interface> lock( *interface());
 //    stopTransmission();
-    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
+    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_BRIGHTNESS, brightness))
 //    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }

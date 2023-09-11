@@ -124,7 +124,7 @@ public:
 protected:
     virtual void setVideoMode(unsigned int mode) override;
     virtual void setTriggerMode(TriggerMode mode) override;
-    virtual void setGain(unsigned int gain) override;
+    virtual void setBrightness(unsigned int gain) override;
     virtual void setExposureTime(double time) override;
 
 	//! Be called just after opening interface. Call start() inside this routine appropriately.
