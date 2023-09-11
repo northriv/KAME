@@ -429,6 +429,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 	iterate_commit([=](Transaction &tr){
         m_lsnOnVideoModeChanged = tr[ *videoMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onVideoModeChanged);
+        m_lsnOnTriggerModeChanged = tr[ *triggerMode()].onValueChanged().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onTriggerModeChanged);
         m_lsnOnGainChanged = tr[ *gain()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onGainChanged);
         m_lsnOnExposureTimeChanged = tr[ *exposureTime()].onValueChanged().connectWeakly(
@@ -464,6 +466,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     m_lsnOnGainChanged.reset();
     m_lsnOnExposureTimeChanged.reset();
+    m_lsnOnTriggerModeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     return NULL;
 }

@@ -341,6 +341,8 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     stopTransmission();
     if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_OFF))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+    if(dc1394_external_trigger_set_power(interface()->camera(), DC1394_OFF))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
 
     if(mode == TriggerMode::SINGLE){
         if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_ON))
@@ -365,6 +367,8 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
         if(dc1394_external_trigger_set_mode(interface()->camera(), modes.at(mode).first))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
         if(dc1394_external_trigger_set_polarity(interface()->camera(), modes.at(mode).second))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
+        if(dc1394_external_trigger_set_power(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
     }
 //    Snapshot shot( *this);
