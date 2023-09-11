@@ -232,13 +232,21 @@ XIIDCCamera::open() {
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
         return std::tuple<unsigned int, unsigned int, unsigned int>{v, vmin, vmax};
     };
+    auto fn_get_feature_absolute_values = [&](dc1394feature_t feature){
+        float vmin, vmax, v;
+        if(dc1394_feature_get_absolute_boundaries(interface()->camera(), feature, &vmin, &vmax))
+                    throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        if(dc1394_feature_get_absolute_value(interface()->camera(), feature, &v))
+            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+        return std::tuple<float, float, float>{v, vmin, vmax};
+    };
     if(fn_is_feature_present(DC1394_FEATURE_GAIN)) {
         auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_GAIN);
         trans( *gain()) = v;
     }
     if(fn_is_feature_present(DC1394_FEATURE_SHUTTER)) {
-        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_SHUTTER);
-        trans( *shutter()) = v;
+        auto [v, vmin, vmax] = fn_get_feature_absolute_values(DC1394_FEATURE_SHUTTER);
+        trans( *exposureTime()) = v;
     }
 
 //    dc1394_avt_set_timebase(interface()->camera(), 9); // 9=1ms, 8=500us, 7=200us, 6=100us, 5=50us, 4=20us
@@ -256,9 +264,9 @@ XIIDCCamera::open() {
         for(double rate = 240.0; rate > 1.7; rate /= 2) {
             tr[ *frameRate()].add(formatString("%f fps", rate));
         }
-        for(double rate = 1.0; rate > 0.001; rate /= 2) {
-            tr[ *frameRate()].add(formatString("%f fps", rate));
-        }
+//        for(double rate = 1.0; rate > 0.001; rate /= 2) {
+//            tr[ *frameRate()].add(formatString("%f fps", rate));
+//        }
     });
 
     start();
@@ -299,14 +307,14 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
                                      DC1394_USE_MAX_AVAIL, 0, 0, w, h))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
 
-        double rate = 5;
-        sscanf(shot[ *frameRate()].to_str().c_str(), "%lf", &rate);
-        uint32_t bits;
-        dc1394_get_color_coding_bit_size(coding, &bits);
-        uint32_t bytepersec = rate * w * h * (bits/8) * 125e-6;
-        bytepersec = 8;
-        if(dc1394_format7_set_packet_size(interface()->camera(), video_mode, bytepersec))
-            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
+//        double rate = 5;
+//        sscanf(shot[ *frameRate()].to_str().c_str(), "%lf", &rate);
+//        uint32_t bits;
+//        dc1394_get_color_coding_bit_size(coding, &bits);
+//        uint32_t bytepersec = rate * w * h * (bits/8) * 125e-6;
+
+//        if(dc1394_format7_set_packet_size(interface()->camera(), video_mode, bytepersec))
+//            throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set framerate."), __FILE__, __LINE__);
     }
     else {
 //        // get highest framerate
@@ -358,6 +366,11 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
         if(dc1394_external_trigger_set_polarity(interface()->camera(), modes.at(mode).second))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
     }
+//    Snapshot shot( *this);
+//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, shot[ *gain()]))
+//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shot[ *shutter()]))
+//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 
     if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
@@ -370,15 +383,17 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
 void
 XIIDCCamera::setGain(unsigned int gain) {
     XScopedLock<XDC1394Interface> lock( *interface());
-    stopTransmission();
+//    stopTransmission();
     if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
+//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 void
-XIIDCCamera::setShutter(unsigned int shutter) {
+XIIDCCamera::setExposureTime(double shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
-    stopTransmission();
-    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
+//    stopTransmission();
+    if(dc1394_feature_set_absolute_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
+//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 

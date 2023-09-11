@@ -25,7 +25,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_gain(create<XUIntNode>("Gain", true)),
-    m_shutter(create<XUIntNode>("Shutter", true)),
+    m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_average(create<XUIntNode>("Average", false)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
@@ -52,7 +52,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(triggerMode(), m_form->m_cmbTrigger, Snapshot( *triggerMode())),
         xqcon_create<XQComboBoxConnector>(coloringMethod(), m_form->m_cmbColoringMethod, Snapshot( *coloringMethod())),
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
-        xqcon_create<XQSpinBoxUnsignedConnector>(shutter(), m_form->m_spbShutter),
+        xqcon_create<XQLineEditConnector>(exposureTime(), m_form->m_edExposure),
         xqcon_create<XQSpinBoxUnsignedConnector>(gain(), m_form->m_spbGain),
         xqcon_create<XQSpinBoxUnsignedConnector>(colorIndex(), m_form->m_spbColorIndex),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForAverage(), m_form->m_dblGainProcessed),
@@ -66,7 +66,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 
     std::vector<shared_ptr<XNode>> runtime_ui{
         gain(),
-        shutter(),
+        exposureTime(),
         videoMode(),
         triggerMode(),
         colorIndex(),
@@ -130,9 +130,9 @@ XDigitalCamera::onGainChanged(const Snapshot &shot, XValueNodeBase *) {
     }
 }
 void
-XDigitalCamera::onShutterChanged(const Snapshot &shot, XValueNodeBase *) {
+XDigitalCamera::onExposureTimeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        setShutter(shot[ *shutter()]);
+        setExposureTime(shot[ *exposureTime()]);
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -417,7 +417,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 
     std::vector<shared_ptr<XNode>> runtime_ui{
         gain(),
-        shutter(),
+        exposureTime(),
         videoMode(),
         triggerMode(),
         colorIndex(),
@@ -431,8 +431,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onVideoModeChanged);
         m_lsnOnGainChanged = tr[ *gain()].onValueChanged().connectWeakly(
             shared_from_this(), &XDigitalCamera::onGainChanged);
-        m_lsnOnShutterChanged = tr[ *shutter()].onValueChanged().connectWeakly(
-                    shared_from_this(), &XDigitalCamera::onShutterChanged);
+        m_lsnOnExposureTimeChanged = tr[ *exposureTime()].onValueChanged().connectWeakly(
+                    shared_from_this(), &XDigitalCamera::onExposureTimeChanged);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -463,7 +463,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     });
 
     m_lsnOnGainChanged.reset();
-    m_lsnOnShutterChanged.reset();
+    m_lsnOnExposureTimeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     return NULL;
 }
