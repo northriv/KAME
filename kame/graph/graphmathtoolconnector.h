@@ -40,13 +40,13 @@ private:
     QMenu *m_menu;
     XQGraph *m_graphwidget;
 
-    std::map<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, XString>> m_actionToToolMap;
-    std::map<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
+    std::map<QAction *, XString> m_actionToToolMap;
+    std::multimap<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
 public:
 
 private:
     std::deque<shared_ptr<XGraph1DMathToolList>> m_lists;
-    shared_ptr<Listener> m_activeListener;
+    std::deque<shared_ptr<Listener>> m_activeListeners;
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
