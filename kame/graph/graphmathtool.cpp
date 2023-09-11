@@ -139,7 +139,8 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto node = createByTypename("Graph1DMathTool" + label, formatString("%s (%.4g)-(%.4g)", label.c_str(), src, dst));
+    auto node = createByTypename("Graph1DMathTool" + label, formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
+        label.c_str(), src, dst));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
     iterate_commit([&](Transaction &tr){
         if(src > dst)
@@ -154,7 +155,8 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tup
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto node = createByTypename("Graph2DMathTool" + label, formatString("%s (%.0f,%.0f)-(%.0f,%.0f)", label.c_str(), src.x, src.y, dst.x, dst.y));
+    auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
+        label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
     iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)

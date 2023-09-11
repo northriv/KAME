@@ -274,9 +274,9 @@ XQGraphTexture::~XQGraphTexture() {
 
 static const std::map<QImage::Format, GLenum> s_texture_aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB888, 1},
                                            {QImage::Format_BGR888, 1}, {QImage::Format_RGBA8888, 4}, {QImage::Format_ARGB32, 4}};
-static const std::map<QImage::Format, GLenum> s_texture_int_fmts = {{QImage::Format_Grayscale8, GL_R8}, {QImage::Format_Grayscale16, GL_R16}, {QImage::Format_RGB888, GL_RGB8},
+static const std::map<QImage::Format, GLenum> s_texture_int_fmts = {{QImage::Format_Grayscale8, GL_LUMINANCE8}, {QImage::Format_Grayscale16, GL_LUMINANCE16}, {QImage::Format_RGB888, GL_RGB8},
                                              {QImage::Format_BGR888, GL_RGB8}, {QImage::Format_RGBA8888, GL_RGBA8}, {QImage::Format_ARGB32, GL_RGBA8}};
-static const std::map<QImage::Format, GLenum> s_texture_fmts = {{QImage::Format_Grayscale8, GL_RED}, {QImage::Format_Grayscale16, GL_RED}, {QImage::Format_RGB888, GL_RGB},
+static const std::map<QImage::Format, GLenum> s_texture_fmts = {{QImage::Format_Grayscale8, GL_LUMINANCE}, {QImage::Format_Grayscale16, GL_LUMINANCE}, {QImage::Format_RGB888, GL_RGB},
                                          {QImage::Format_BGR888, GL_BGR}, {QImage::Format_RGBA8888, GL_RGBA}, {QImage::Format_ARGB32, GL_RGBA}};
 static const std::map<QImage::Format, GLenum> s_texture_data_fmts = {{QImage::Format_Grayscale8, GL_UNSIGNED_BYTE}, {QImage::Format_Grayscale16, GL_UNSIGNED_SHORT}, {QImage::Format_RGB888, GL_UNSIGNED_BYTE},
                                               {QImage::Format_BGR888, GL_UNSIGNED_BYTE}, {QImage::Format_RGBA8888, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_INT_8_8_8_8_REV}};
@@ -306,17 +306,6 @@ XQGraphTexture::repaint(const shared_ptr<QImage> &image) {
 shared_ptr<XQGraphTexture>
 XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
-
-//    auto image = std::make_shared<QImage>(256, 256, QImage::Format_RGB888);
-//    QRgb value;
-//    value = qRgb(0, 0x40, 0x40);
-//    for(int x = 0; x < 3; ++x)
-//        for(int y = 0; y < 30; ++y)
-//            image->setPixel(x, y, value);
-//    value = qRgb(0, 0, 0);
-//    for(int x = 0; x < 2; ++x)
-//        for(int y = 40; y < 100; ++y)
-//            image->setPixel(x, y, value);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
     GLuint id;
@@ -350,20 +339,19 @@ XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoin
     glEnable(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, texture.id);
-
     beginQuad(true);
 //    glNormal3f(0, 0, 1);
 //    glTexCoord2f(0.0, 0.0);
-    glMultiTexCoord2f(GL_TEXTURE1, 1.0, 0.0);
+    glMultiTexCoord2f(GL_TEXTURE1, 0.0, 1.0);
     setVertex(p[0]);
 //    glTexCoord2f(1, 0.0);
-    glMultiTexCoord2f(GL_TEXTURE1, 0.0, 0.0);
+    glMultiTexCoord2f(GL_TEXTURE1, 1.0, 1.0);
     setVertex(p[1]);
 //    glTexCoord2f(1, 1);
-    glMultiTexCoord2f(GL_TEXTURE1, 0.0, 1.0);
+    glMultiTexCoord2f(GL_TEXTURE1, 1.0, 0.0);
     setVertex(p[2]);
 //    glTexCoord2f(0.0, 1);
-    glMultiTexCoord2f(GL_TEXTURE1, 1.0, 1.0);
+    glMultiTexCoord2f(GL_TEXTURE1, 0.0, 0.0);
     setVertex(p[3]);
     endQuad();
     glBindTexture(GL_TEXTURE_2D, 0);

@@ -250,11 +250,6 @@ XIIDCCamera::open() {
         trans( *exposureTime()) = v;
     }
 
-//    dc1394_avt_set_timebase(interface()->camera(), 9); // 9=1ms, 8=500us, 7=200us, 6=100us, 5=50us, 4=20us
-//    uint32_t extexp;
-//    extexp = exp_time*1000;
-//    dc1394_avt_set_extented_shutter(interface()->camera(), extexp);
-
     iterate_commit([=](Transaction &tr){
         tr[ *videoMode()] = -1;
         tr[ *videoMode()].clear();
@@ -371,12 +366,6 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
         if(dc1394_external_trigger_set_power(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
     }
-//    Snapshot shot( *this);
-//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, shot[ *gain()]))
-//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
-//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shot[ *shutter()]))
-//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
-
     if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
@@ -480,7 +469,6 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     if(dc1394_capture_enqueue(interface()->camera(), frame))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
 
-    //time?
     return XTime{(long)(frame->timestamp / 1000000uLL), (long)(frame->timestamp % 1000000uLL)};
 }
 
