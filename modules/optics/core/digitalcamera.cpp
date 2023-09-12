@@ -312,10 +312,13 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
             uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
-                *processed++ = (*summed++ * gain_av - *dark++ * gain_dark)  / 0x100000000uL;
+                int64_t v = ((int64_t)*summed++ * gain_av - (int64_t)*dark++ * gain_dark)  / 0x100000000uL;
+                *processed++ = std::max((int64_t)0, v);
+                //todo zero
             }
             assert(dark == &tr[ *this].m_darkCounts->at(0) + width * height);
         }
+        assert((uint8_t*)processed == processedimage->constBits() + width * height * 2);
         break;
     }
     case (unsigned int)ColoringMethod::RGBWHEEL: {
@@ -339,8 +342,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
             uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
-                for(unsigned int cidx: {0,1,2})
-                    *processed++ = (*(summed[cidx])++ * gain_av[cidx] - *dark * gain_dark)  / 0x100000000uL;
+                for(unsigned int cidx: {0,1,2}) {
+                    int64_t v = ((int64_t)*(summed[cidx])++ * gain_av[cidx] - (int64_t)*dark * gain_dark)  / 0x100000000uL;
+                    *processed++ = std::max((int64_t)0, v);
+                }
                 *processed++ = 0xffu;
                 dark++;
             }
@@ -400,8 +405,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             gain_dark /= 2;
             for(unsigned int i  = 0; i < width * height; ++i) {
                 int64_t dpl = (int64_t)*summed[1] * accum[0] - (int64_t)*summed[0] * accum[1];
-                for(unsigned int cidx: {0,1,2})
-                    *processed++ = (*summed[0] * gain_av[0] - *dark * gain_dark + dpl * dpl_gain[cidx])  / 0x100000000uL;
+                for(unsigned int cidx: {0,1,2}) {
+                    int64_t v = ((int64_t)*summed[0] * gain_av[0] - (int64_t)*dark * gain_dark + dpl * dpl_gain[cidx])  / 0x100000000uL;
+                    *processed++ = std::max((int64_t)0, v);
+                }
                 *processed++ = 0xffu;
                 for(unsigned int cidx: {0,1})
                     (summed[cidx])++;

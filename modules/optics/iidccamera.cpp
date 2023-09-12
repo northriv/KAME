@@ -82,7 +82,7 @@ XDC1394Interface::close() {
         dc1394_video_set_transmission(m_camera, DC1394_OFF);
 //        if(m_camera->has_vmode_error_status != DC1394_TRUE)
         dc1394_capture_stop(m_camera);
-        msecsleep(100); //some waits needed when buffer is not empty!!!!!
+        msecsleep(200); //some waits needed when buffer is not empty!!!!!
         dc1394_camera_free(m_camera);
     }
     m_camera = nullptr;
