@@ -56,7 +56,12 @@ void
 XEntryListConnector::onRecord(const Snapshot &shot, XDriver *driver) {
 	for(tconslist::iterator it = m_cons.begin(); it != m_cons.end(); it++) {
 		if(( *it)->entry->driver().get() == driver) {
-			( *it)->label->setText(shot[ *( *it)->entry->value()].to_str());
+            try {
+                ( *it)->label->setText(shot[ *( *it)->entry->value()].to_str());
+            }
+            catch (XNode::NodeNotFoundError &e) {
+                gErrPrint(i18n("Unknown err for driver ") + driver->getLabel());
+            }
 		}
 	}
 }

@@ -28,16 +28,14 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinPosition, "MinPosition");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
 
-XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
+XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
     XNode(name, runtime),
     m_begin(create<XDoubleNode>("Begin", false)),
     m_end(create<XDoubleNode>("End", false)),
     m_entries(entries)
 {}
 
-XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
+XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
     XNode(name, runtime),
     m_beginX(create<XDoubleNode>("BeginX", false)),
     m_beginY(create<XDoubleNode>("BeginY", false)),
@@ -59,7 +57,7 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XNode> ptr;
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, tr, meas->scalarEntries(), m_driver.lock());
+            (name.c_str(), false, meas->scalarEntries());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -103,7 +101,7 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XNode> ptr;
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, tr, meas->scalarEntries(), m_driver.lock());
+            (name.c_str(), false, meas->scalarEntries());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -142,11 +140,13 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
     auto node = createByTypename("Graph1DMathTool" + label, formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
         label.c_str(), src, dst));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
-    iterate_commit([&](Transaction &tr){
+    shared_ptr<XMeasure> meas(m_measure.lock());
+    meas->iterate_commit([&](Transaction &tr){
         if(src > dst)
             std::swap(src, dst);
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
+        tool->insertEntries(tr, m_driver.lock());
     });
 }
 
@@ -158,7 +158,8 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tup
     auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
-    iterate_commit([&](Transaction &tr){
+    shared_ptr<XMeasure> meas(m_measure.lock());
+    meas->iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)
             std::swap(src.x, dst.x);
         if(src.y > dst.y)
@@ -167,5 +168,6 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tup
         tr[ *tool->endX()] = dst.x;
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
+        tool->insertEntries(tr, m_driver.lock());
     });
 }
