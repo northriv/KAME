@@ -244,8 +244,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                  w = 0xffffu;
              *words++ = w;
              uint64_t v = gray + *summed++; //raw values w/o gain
-             if(v > 0x100000000uL)
-                 v = 0xffffffffu;
+             if(v > 0x100000000uLL)
+                 v = 0xffffffffuL;
              if(v > vmax)
                  vmax = v;
              if(v < vmin)
@@ -261,8 +261,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                  w = 0xffffu;
              *words++ = w;
              uint64_t v = gray + *summed++;
-             if(v > 0x100000000uL)
-                 v = 0xffffffffu;
+             if(v > 0x100000000uLL)
+                 v = 0xffffffffuL;
              if(v > vmax)
                  vmax = v;
              if(v < vmin)
@@ -270,6 +270,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
              *summedNext++ = v;
         }
     }
+    assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
     assert(summedNext == &summedCountsNext->at(0) + width * height);
     assert(summed == &tr[ *this].m_summedCounts[cidx]->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
@@ -300,24 +301,25 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     case (unsigned int)ColoringMethod::MONO: {
         uint16_t *processed = reinterpret_cast<uint16_t*>(processedimage->bits());
         tr[ *this].m_coefficients[0] = 1.0 / tr[ *this].m_accumulated[cidx];
-        uint64_t gain_av = lrint(0x100000000uL * tr[ *gainForAverage()] * tr[ *this].m_coefficients[cidx]);
+        uint64_t gain_av = lrint(0x100000000uLL * tr[ *gainForAverage()] * tr[ *this].m_coefficients[cidx]);
         summed = &tr[ *this].m_summedCounts[cidx]->at(0);
         if( !tr[ *this].m_darkCounts) {
             for(unsigned int i  = 0; i < width * height; ++i) {
-                *processed++ = (*summed++ * gain_av)  / 0x100000000uL;
+                uint64_t v = (*summed++ * gain_av)  / 0x100000000uLL;
+                *processed++ = std::min(v, 0xffffuLL);
             }
         }
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
-                int64_t v = ((int64_t)*summed++ * gain_av - (int64_t)*dark++ * gain_dark)  / 0x100000000uL;
-                *processed++ = std::max((int64_t)0, v);
-                //todo zero
+                int64_t v = (int64_t)(*summed++ * gain_av - *dark++ * gain_dark)  / 0x100000000LL;
+                *processed++ = std::max((int64_t)0, std::min(v, 0xffffLL));
             }
             assert(dark == &tr[ *this].m_darkCounts->at(0) + width * height);
         }
+        assert(summed == &tr[ *this].m_summedCounts[0]->at(0) + width * height);
         assert((uint8_t*)processed == processedimage->constBits() + width * height * 2);
         break;
     }
@@ -327,24 +329,26 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         const uint32_t *summed[3];
         for(unsigned int cidx: {0,1,2}) {
             tr[ *this].m_coefficients[cidx] = 1.0 / tr[ *this].m_accumulated[cidx];
-            gain_av[cidx] = lrint(0x100000000uL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
+            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
             summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
         }
         if( !tr[ *this].m_darkCounts) {
             for(unsigned int i  = 0; i < width * height; ++i) {
-                for(unsigned int cidx: {0,1,2})
-                    *processed++ = (*(summed[cidx])++ * gain_av[cidx])  / 0x100000000uL;
+                for(unsigned int cidx: {0,1,2}) {
+                    uint64_t v = (*(summed[cidx])++ * gain_av[cidx])  / 0x100000000uLL;
+                    *processed++ = std::min(v, 0xffuLL);
+                }
                 *processed++ = 0xffu;
             }
         }
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
                 for(unsigned int cidx: {0,1,2}) {
-                    int64_t v = ((int64_t)*(summed[cidx])++ * gain_av[cidx] - (int64_t)*dark * gain_dark)  / 0x100000000uL;
-                    *processed++ = std::max((int64_t)0, v);
+                    int64_t v = (int64_t)(*(summed[cidx])++ * gain_av[cidx] - *dark * gain_dark)  / 0x100000000LL;
+                    *processed++ = std::max((int64_t)0, std::min(v, 0xffLL));
                 }
                 *processed++ = 0xffu;
                 dark++;
@@ -366,33 +370,38 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
         }
         const unsigned int *accum = tr[ *this].m_accumulated;
-        int64_t dpl_min = 0x100000000000L, dpl_max = 0;
+        int64_t dpl_min = 0x100000000000LL, dpl_max = 0;
         for(unsigned int i  = 0; i < width * height; ++i) {
-            int64_t dpl = (int64_t)*(summed[1])++ * accum[0] - (int64_t)*(summed[0])++ * accum[1];
+            int64_t dpl = (int64_t)(*(summed[1])++ * accum[0] - *(summed[0])++ * accum[1]);
             if(dpl > dpl_max)
                 dpl_max = dpl;
             if(dpl < dpl_min)
                 dpl_min = dpl;
         }
-        dpl_max /= accum[0] * accum[1];// max(PL[1] - PL[0])
-        dpl_min /= accum[0] * accum[1];
+        assert(summed[0] == &tr[ *this].m_summedCounts[0]->at(0) + width * height);
+        assert(summed[1] == &tr[ *this].m_summedCounts[1]->at(0) + width * height);
+//        dpl_max /= accum[0] * accum[1];// max(PL[1] - PL[0])
+//        dpl_min /= accum[0] * accum[1];
         for(unsigned int cidx: {0,1}) {
-            gain_av[cidx] = lrint(0x100000000uL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
+            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
             gain_av[cidx] /= 2;
         }
         for(unsigned int cidx: {0,1})
             summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
-        uint64_t dpl_gain[3] = {};
+        int64_t dpl_gain[3] = {};
         if(std::max(dpl_max, -dpl_min)) {
-            dpl_gain[0] = lrint(128.0 * 0x100000000uL / std::max(dpl_max, -dpl_min) / accum[0] / accum[1]);
+            dpl_gain[0] = lrint(0x100000000LL * 1.0 / std::max(dpl_max, -dpl_min));
+//            dpl_gain[0] = lrint(128.0 / std::max(dpl_max, -dpl_min) / accum[0] / accum[1]);
             dpl_gain[1] = 0;
-            dpl_gain[2] = -lrint(128.0 * 0x100000000uL / std::max(dpl_max, -dpl_min) / accum[0] / accum[1]);
+            dpl_gain[2] = -dpl_gain[0];
         }
         if( !tr[ *this].m_darkCounts) {
             for(unsigned int i  = 0; i < width * height; ++i) {
                 int64_t dpl = (int64_t)*summed[1] * accum[0] - (int64_t)*summed[0] * accum[1];
-                for(unsigned int cidx: {0,1,2})
-                    *processed++ = (*summed[0] * gain_av[0] + dpl * dpl_gain[cidx])  / 0x100000000uL;
+                for(unsigned int cidx: {0,1,2}) {
+                    int64_t v = (*summed[0] * gain_av[0] + dpl * dpl_gain[cidx])  / 0x100000000LL;
+                    *processed++ = std::min(v, 0xffLL);
+                }
                 *processed++ = 0xffu;
                 for(unsigned int cidx: {0,1})
                     (summed[cidx])++;
@@ -401,13 +410,14 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
             gain_dark /= 2;
             for(unsigned int i  = 0; i < width * height; ++i) {
-                int64_t dpl = (int64_t)*summed[1] * accum[0] - (int64_t)*summed[0] * accum[1];
+                int64_t dpl = (int64_t)(*summed[1] * accum[0] - *summed[0] * accum[1]);
+                int64_t green = (int64_t)(*summed[0] * gain_av[0] - *dark * gain_dark)  / 0x100000000LL;
                 for(unsigned int cidx: {0,1,2}) {
-                    int64_t v = ((int64_t)*summed[0] * gain_av[0] - (int64_t)*dark * gain_dark + dpl * dpl_gain[cidx])  / 0x100000000uL;
-                    *processed++ = std::max((int64_t)0, v);
+                    int64_t v = green + (green * dpl * dpl_gain[cidx]) / 0x100000000LL;
+                    *processed++ = std::max((int64_t)0, std::min(v, 0xffLL));
                 }
                 *processed++ = 0xffu;
                 for(unsigned int cidx: {0,1})

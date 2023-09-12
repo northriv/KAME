@@ -150,7 +150,13 @@ SignalBuffer::synchronize__() {
 		catch (XKameError &e) {
 			e.print();
 		}
-		if(skip) {
+        catch (std::domain_error &) {
+            gErrPrint(i18n("Unhandeled exception!"));
+        }
+        catch (std::out_of_range &) {
+            gErrPrint(i18n("Unhandeled exception!"));
+        }
+        if(skip) {
             m_skippedQueue.emplace(std::move(event), XTime::now());
             skipped_cnt++;
             assert( !event);

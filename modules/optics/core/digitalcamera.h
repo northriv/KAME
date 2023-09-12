@@ -141,8 +141,8 @@ private:
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
 
-    bool m_storeDarkInvoked;
-    bool m_clearAverageInvoked; //todo time
+    atomic<bool> m_storeDarkInvoked;
+    atomic<bool> m_clearAverageInvoked;
     constexpr static unsigned int NumSummedCountsPool = MAX_COLORS + 1;
     atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
     local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
