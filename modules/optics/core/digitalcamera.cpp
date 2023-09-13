@@ -29,6 +29,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_average(create<XUIntNode>("Average", false)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
+    m_roiSelectionTool(create<XTouchableNode>("ROISelectionTool", true)),
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_videoMode(create<XComboNode>("VideoMode", true)),
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
@@ -59,6 +60,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 //        xqcon_create<XQLineEditConnector>((), m_form->m_edIntegrationTime),
         xqcon_create<XQButtonConnector>(m_clearAverage, m_form->m_btnClearAverage),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
+        xqcon_create<XQButtonConnector>(m_roiSelectionTool, m_form->m_tbROI),
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
         xqcon_create<XQToggleButtonConnector>(m_incrementalAverage, m_form->m_ckbIncrementalAverage),
         xqcon_create<XQToggleButtonConnector>(m_autoGainForAverage, m_form->m_ckbAutoGainProcessed)
@@ -71,6 +73,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         triggerMode(),
         colorIndex(),
         frameRate(),
+        m_roiSelectionTool,
     };
     iterate_commit([=](Transaction &tr){
         tr[ *triggerMode()].add({"Continueous", "Single-shot", "Ext. Pos. Edge", "Ext. Neg. Edge", "Ext. Pos. Exposure", "Ext. Neg. Exposure"});
@@ -133,6 +136,27 @@ void
 XDigitalCamera::onExposureTimeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
         setExposureTime(shot[ *exposureTime()]);
+    }
+    catch (XKameError &e) {
+        e.print(getLabel() + " " + i18n(" Error"));
+    }
+}
+void
+XDigitalCamera::onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *) {
+    m_lsnOnROISelectionToolFinished = m_form->m_graphwidgetLive->onPlaneSelectedByTool().connectWeakly(
+        shared_from_this(), &XDigitalCamera::onROISelectionToolFinished);
+    m_form->m_graphwidgetLive->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y,
+        "ROI");
+}
+void
+XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint>&res) {
+    auto label = std::get<0>(res);
+    auto src = std::get<1>(res);
+    auto dst = std::get<2>(res);
+    m_lsnOnROISelectionToolFinished.reset();
+    try {
+        setVideoMode(Snapshot( *this)[ *videoMode()], std::min(src.x, dst.x), std::min(src.y, dst.y),
+                abs(src.x - dst.x), abs(src.y - dst.y));
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -453,6 +477,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         triggerMode(),
         colorIndex(),
         frameRate(),
+        m_roiSelectionTool,
     };
 
     m_storeDarkInvoked = false;
@@ -466,6 +491,8 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XDigitalCamera::onBrightnessChanged);
         m_lsnOnExposureTimeChanged = tr[ *exposureTime()].onValueChanged().connectWeakly(
                     shared_from_this(), &XDigitalCamera::onExposureTimeChanged);
+        m_lsnOnROISelectionToolTouched = tr[ *m_roiSelectionTool].onTouch().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onROISelectionToolTouched, Listener::FLAG_MAIN_THREAD_CALL);
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(true);
     });
@@ -499,5 +526,6 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_lsnOnExposureTimeChanged.reset();
     m_lsnOnTriggerModeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
+    m_lsnOnROISelectionToolTouched.reset();
     return NULL;
 }

@@ -278,7 +278,7 @@ XIIDCCamera::stopTransmission() {
     dc1394_capture_stop(interface()->camera());
 }
 void
-XIIDCCamera::setVideoMode(unsigned int mode) {
+XIIDCCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XDC1394Interface> lock( *interface());
     stopTransmission();
     Snapshot shot( *this);
@@ -299,8 +299,11 @@ XIIDCCamera::setVideoMode(unsigned int mode) {
         unsigned int w, h;
         dc1394_format7_get_max_image_size(interface()->camera(), video_mode, &w, &h);
 //        if(dc1394_format7_set_color_coding(interface()->camera(), video_mode, coding))
+        if((roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+            roix = 0; roiy = 0; roiw = w; roih = h;
+        }
         if(dc1394_format7_set_roi(interface()->camera(), video_mode, coding,
-                                     DC1394_USE_MAX_AVAIL, 0, 0, w, h))
+                                     DC1394_USE_MAX_AVAIL, roix, roiy, roiw, roih))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set video modes."), __FILE__, __LINE__);
 
 //        double rate = 5;

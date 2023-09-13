@@ -63,6 +63,13 @@
          </widget>
         </item>
         <item>
+         <widget class="QToolButton" name="m_tbROI">
+          <property name="text">
+           <string>ROI</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QToolButton" name="m_tbMathMenu">
           <property name="text">
            <string>MATH</string>

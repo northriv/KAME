@@ -20,11 +20,12 @@
 #include "xnodeconnector.h"
 
 class XScalarEntry;
+class XGraph;
+template<class T> struct Vector4;
 class QMainWindow;
 class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 
-class XGraph;;
 class X2DImage;
 
 //! Base class for scientific/machine vision digital camera.
@@ -94,7 +95,8 @@ protected:
     virtual void visualize(const Snapshot &shot) override;
   
 protected:
-    virtual void setVideoMode(unsigned int mode) = 0;
+    virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0,
+        unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;
     virtual void setBrightness(unsigned int gain ) = 0;
     virtual void setExposureTime(double time) = 0;
@@ -108,6 +110,7 @@ private:
     const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XTouchableNode> m_clearAverage;
+    const shared_ptr<XTouchableNode> m_roiSelectionTool;
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_triggerMode;
@@ -128,6 +131,8 @@ private:
     shared_ptr<Listener> m_lsnOnExposureTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
     shared_ptr<Listener> m_lsnOnClearAverageTouched;
+    shared_ptr<Listener> m_lsnOnROISelectionToolTouched;
+    shared_ptr<Listener> m_lsnOnROISelectionToolFinished;
 
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *);
@@ -140,6 +145,9 @@ private:
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
+
+    void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
+    void onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, Vector4<double>, Vector4<double>>&);
 
     atomic<bool> m_storeDarkInvoked;
     atomic<bool> m_clearAverageInvoked;
