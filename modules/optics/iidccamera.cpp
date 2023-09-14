@@ -273,8 +273,8 @@ XIIDCCamera::stopTransmission() {
     XScopedLock<XDC1394Interface> lock( *interface());
     m_isTrasmitting = false;
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
-    msecsleep(100);
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+    msecsleep(100);
 //    if(interface()->camera()->has_vmode_error_status != DC1394_TRUE)
     dc1394_capture_stop(interface()->camera());
 }
