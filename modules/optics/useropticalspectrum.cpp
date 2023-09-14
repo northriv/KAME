@@ -82,12 +82,12 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
 
         uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
         if(packets_in_ep < packets_in_spectrum) {
-            //waits for completion
-            if(XTime::now() - start > integration_time_us)
-                throw XSkippedRecordError(__FILE__, __LINE__);
+//            //waits for completion
+//            if(XTime::now() - start > integration_time_us * 1e-6)
+//                throw XSkippedRecordError(__FILE__, __LINE__);
             double wait = integration_time_us / packets_in_spectrum * (packets_in_spectrum - packets_in_ep) * 1e-6;
-            msecsleep(std::min(10.0, wait * 1e3 - 100.0));
-            continue;
+            msecsleep(std::max(0.0, std::min(10.0, wait * 1e3 - 100.0)));
+//            continue;
         }
 
         writer->push((uint8_t)status.size());
