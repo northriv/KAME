@@ -432,9 +432,8 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 
     XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
 
-    reader.popIterator() += padding_bytes;
-
     setGrayImage(reader, tr, width, height, little_endian != DC1394_TRUE, bpp == 2);
+    reader.popIterator() += padding_bytes;
 }
 
 XTime
