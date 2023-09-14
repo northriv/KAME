@@ -438,6 +438,11 @@ public:
     //! \return Payload instance for \a node, which should be included in the snapshot.
     template <class T>
     const typename T::Payload &operator[](const T &node) const noexcept {
+        return this->at(node);
+    }
+    //! may raise NodeNotFoundError;
+    template <class T>
+    const typename T::Payload &at(const T &node) const {
         const local_shared_ptr<typename Node<XN>::Packet> &packet(node.reverseLookup(m_packet));
         const local_shared_ptr<typename Node<XN>::Payload> &payload(packet->payload());
         return *static_cast<const typename T::Payload*>(payload.get());

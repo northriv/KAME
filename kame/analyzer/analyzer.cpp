@@ -99,11 +99,15 @@ void
 XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
     XTime time = shot[ *driver].time();
     if(time.isSet()) {
-        double val = shot[ *m_entry->value()];
-        iterate_commit([=](Transaction &tr){
-            m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
-//            tr[ *m_graph->osdStrings()] = time.getTimeStr();
-        });
+        try {
+            double val = shot.at( *m_entry->value());
+            iterate_commit([=](Transaction &tr){
+                m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
+    //            tr[ *m_graph->osdStrings()] = time.getTimeStr();
+            });
+        }
+        catch (XNode::NodeNotFoundError &e) {
+        }
     }
 }
 void

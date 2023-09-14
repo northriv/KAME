@@ -273,6 +273,7 @@ XIIDCCamera::stopTransmission() {
     XScopedLock<XDC1394Interface> lock( *interface());
     m_isTrasmitting = false;
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
+    msecsleep(100);
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
 //    if(interface()->camera()->has_vmode_error_status != DC1394_TRUE)
     dc1394_capture_stop(interface()->camera());
@@ -299,7 +300,11 @@ XIIDCCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roi
         unsigned int w, h;
         dc1394_format7_get_max_image_size(interface()->camera(), video_mode, &w, &h);
 //        if(dc1394_format7_set_color_coding(interface()->camera(), video_mode, coding))
-        if((roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+        roix = roix / 4 * 4;
+        roiy = roiy / 4 * 4;
+        roiw = (roiw + 3) / 4 * 4;
+        roih = (roih + 3) / 4 * 4;
+        if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
             roix = 0; roiy = 0; roiw = w; roih = h;
         }
         if(dc1394_format7_set_roi(interface()->camera(), video_mode, coding,
@@ -423,7 +428,7 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
     unsigned int bpp = image_bytes / (width * height);
-    tr[ *this].m_status = formatString("%ux%u ", width, height)+  tr[ *this].time().getTimeStr() + formatString(" behind:%u", frames_behind);
+    tr[ *this].m_status = formatString("%ux%u @(%u,%u)", width, height, xpos, ypos)+  tr[ *this].time().getTimeStr() + formatString(" behind:%u", frames_behind);
 
     XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
 

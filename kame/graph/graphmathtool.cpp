@@ -28,14 +28,14 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinPosition, "MinPosition");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
 
-XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
+XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
     XNode(name, runtime),
     m_begin(create<XDoubleNode>("Begin", false)),
     m_end(create<XDoubleNode>("End", false)),
     m_entries(entries)
 {}
 
-XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
+XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
     XNode(name, runtime),
     m_beginX(create<XDoubleNode>("BeginX", false)),
     m_beginY(create<XDoubleNode>("BeginY", false)),
@@ -57,7 +57,7 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XNode> ptr;
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, meas->scalarEntries());
+            (name.c_str(), false, meas->scalarEntries(), m_driver.lock());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -101,7 +101,7 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     shared_ptr<XNode> ptr;
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, meas->scalarEntries());
+            (name.c_str(), false, meas->scalarEntries(), m_driver.lock());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -146,7 +146,7 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
             std::swap(src, dst);
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
-        tool->insertEntries(tr, m_driver.lock());
+        tool->insertEntries(tr);
     });
 }
 
@@ -168,6 +168,6 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tup
         tr[ *tool->endX()] = dst.x;
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
-        tool->insertEntries(tr, m_driver.lock());
+        tool->insertEntries(tr);
     });
 }

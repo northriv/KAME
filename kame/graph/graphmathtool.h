@@ -22,7 +22,7 @@
 
 class DECLSPEC_KAME XGraph1DMathTool: public XNode {
 public:
-    XGraph1DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
+    XGraph1DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver);
     virtual ~XGraph1DMathTool() {}
 
 //    enum class MathTool1D {Sum, Average, CoG, Moment2nd, MaxValue, MinValue};
@@ -33,7 +33,7 @@ public:
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
 
-    virtual void insertEntries(Transaction &tr_meas, const shared_ptr<XDriver> &driver) {}
+    virtual void insertEntries(Transaction &tr_meas) {}
     virtual void releaseEntries(Transaction &tr) {}
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
@@ -44,7 +44,7 @@ private:
 
 class DECLSPEC_KAME XGraph2DMathTool: public XNode {
 public:
-    XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries);
+    XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver);
     virtual ~XGraph2DMathTool() {}
 
     virtual void update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
@@ -55,7 +55,7 @@ public:
     const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
 
-    virtual void insertEntries(Transaction &tr_meas, const shared_ptr<XDriver> &driver) {}
+    virtual void insertEntries(Transaction &tr_meas) {}
     virtual void releaseEntries(Transaction &tr) {}
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
@@ -67,15 +67,16 @@ private:
 template <class F>
 class XGraph1DMathToolX: public XGraph1DMathTool {
 public:
-    XGraph1DMathToolX(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
-        XGraph1DMathTool(name, runtime, entries) {}
+    XGraph1DMathToolX(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
+        XGraph1DMathTool(name, runtime, entries, driver) {
+         m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
+    }
     virtual ~XGraph1DMathToolX() {}
     virtual void update(Transaction &tr, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
     }
-    virtual void insertEntries(Transaction &tr_meas, const shared_ptr<XDriver> &driver) {
-        m_entry = create<XScalarEntry>(tr_meas, getName().c_str(), false, driver);
+    virtual void insertEntries(Transaction &tr_meas) override {
         entries()->insert(tr_meas, m_entry);
     }
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
@@ -86,16 +87,17 @@ private:
 template <class F>
 class XGraph2DMathToolX: public XGraph2DMathTool {
 public:
-    XGraph2DMathToolX(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries) :
-        XGraph2DMathTool(name, runtime, entries) {}
+    XGraph2DMathToolX(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
+        XGraph2DMathTool(name, runtime, entries, driver) {
+        m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
+    }
     virtual ~XGraph2DMathToolX() {}
     virtual void update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) override {
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
     }
-    virtual void insertEntries(Transaction &tr_meas, const shared_ptr<XDriver> &driver) override {
-        m_entry = create<XScalarEntry>(tr_meas, getName().c_str(), false, driver);
+    virtual void insertEntries(Transaction &tr_meas) override {
         entries()->insert(tr_meas, m_entry);
     }
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
@@ -234,7 +236,7 @@ public:
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
 
     DEFINE_TYPE_HOLDER(
-        const shared_ptr<XScalarEntryList> &
+        const shared_ptr<XScalarEntryList> &, const shared_ptr<XDriver> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 private:
@@ -255,7 +257,7 @@ public:
         unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
 
     DEFINE_TYPE_HOLDER(
-        const shared_ptr<XScalarEntryList> &
+        const shared_ptr<XScalarEntryList> &, const shared_ptr<XDriver> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 private:

@@ -122,7 +122,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     virtual ~XIIDCCamera() {}
 protected:
-    virtual void setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) override;
+    virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
     virtual void setBrightness(unsigned int gain) override;
     virtual void setExposureTime(double time) override;
