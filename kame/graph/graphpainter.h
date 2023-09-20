@@ -41,6 +41,32 @@ public:
    shared_ptr<QImage> qimage;
 };
 
+class OSDObjectWithMarker : public OSDObject {
+public:
+    virtual bool hasMarker() const override {return true;}
+    //draws objects/bounding box for GL_SELECT
+    virtual void drawOffScreenMarker() = 0;
+    enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide, RequestMoreOffset};
+    void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_rightbottom, HowToEvade direction, XGraph::SFloat space);
+//    void evadeOSDObjects(const std::deque<std::weak_ptr<OSDObject>> &list, XGraph::SFloat space);
+    static bool evadeMousePointer(const std::deque<std::weak_ptr<OSDObject>> &list);
+    XGraph::ScrPoint &leftTop() {return m_leftTop;}
+    XGraph::ScrPoint &rightBottom() {return m_rightBottom;}
+private:
+    XGraph::ScrPoint m_leftTop, m_rightBottom;
+    XGraph::SFloat m_space;
+    HowToEvade m_direction;
+};
+class OSDTextObject : public OSDObjectWithMarker {
+public:
+    virtual void drawNative() override;
+    virtual void drawByPainter(QPainter *) override;
+    virtual void drawOffScreenMarker() override;
+    void updateText(XString &&text, int sizehint = 0);
+private:
+    XString m_text;
+};
+
 //! A painter which holds off-screen pixmap
 //! and provides a way to draw
 //! not thread-safe

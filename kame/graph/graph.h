@@ -99,6 +99,21 @@ class XQGraphPainter;
 typedef XAliasListNode<XAxis> XAxisList;
 typedef XAliasListNode<XPlot> XPlotList;
 
+class QPainter;
+class OSDObject {
+public:
+    OSDObject(XQGraphPainter* p) : m_painter(p) {}
+    //! draws in OpenGL.
+    virtual void drawNative() = 0;
+    //! draws by QPainter.
+    virtual void drawByPainter(QPainter *) = 0;
+    //! true if object can be picked by GL_SELECT
+    virtual bool hasMarker() const {return false;}
+    XQGraphPainter *painter() const {return m_painter;}
+private:
+    XQGraphPainter *m_painter;
+};
+
 //! XGraph object can have one or more plots and two or more axes.
 //! \sa XPlot, XAxis, XQGraphPainter
 class DECLSPEC_KAME XGraph : public XNode {
