@@ -41,6 +41,20 @@ public:
    shared_ptr<QImage> qimage;
 };
 
+class OSDObject {
+public:
+    OSDObject(XQGraphPainter* p) : m_painter(p) {}
+    //! draws in OpenGL.
+    virtual void drawNative() = 0;
+    //! draws by QPainter.
+    virtual void drawByPainter(QPainter *) = 0;
+    //! true if object can be picked by GL_SELECT
+    virtual bool hasMarker() const {return false;}
+    XQGraphPainter *painter() const {return m_painter;}
+private:
+    XQGraphPainter *m_painter;
+};
+
 class OSDObjectWithMarker : public OSDObject {
 public:
     virtual bool hasMarker() const override {return true;}
@@ -251,6 +265,8 @@ Snapshot startDrawing();
     void drawTextOverpaint(QPainter &qpainter);
 
     std::deque<shared_ptr<XQGraphTexture>> m_textures;
+    std::deque<weak_ptr<OSDObject>> m_persistentOSDs;
+    std::deque<shared_ptr<OSDObject>> m_paintedOSDs;
 };
 
 #endif
