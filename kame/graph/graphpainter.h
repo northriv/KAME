@@ -29,48 +29,56 @@
     #define USE_PBO
 #endif
 
-#include <QImage>
-class XQGraphTexture {
-public:
-   XQGraphTexture(GLuint tid, XQGraphPainter *const item, const shared_ptr<QImage> &image)
-       : id(tid), m_painter(item), qimage(image) {}
-   ~XQGraphTexture();
-   void repaint(const shared_ptr<QImage> &image);
-   const GLuint id;
-   XQGraphPainter *const m_painter;
-   shared_ptr<QImage> qimage;
-};
-
 class OSDObject {
 public:
     OSDObject(XQGraphPainter* p) : m_painter(p) {}
+    virtual ~OSDObject() {}
     //! draws in OpenGL.
     virtual void drawNative() = 0;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) = 0;
-    //! true if object can be picked by GL_SELECT
-    virtual bool hasMarker() const {return false;}
+    virtual void drawOffScreenMarker() {}
     XQGraphPainter *painter() const {return m_painter;}
 private:
-    XQGraphPainter *m_painter;
+    XQGraphPainter *const m_painter;
 };
 
 class OSDObjectWithMarker : public OSDObject {
 public:
-    virtual bool hasMarker() const override {return true;}
+    OSDObjectWithMarker(XQGraphPainter* p) : OSDObject(p) {}
     //draws objects/bounding box for GL_SELECT
-    virtual void drawOffScreenMarker() = 0;
+    virtual void drawOffScreenMarker() override;
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide, RequestMoreOffset};
-    void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_rightbottom, HowToEvade direction, XGraph::SFloat space);
+    void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
+        const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
 //    void evadeOSDObjects(const std::deque<std::weak_ptr<OSDObject>> &list, XGraph::SFloat space);
-    static bool evadeMousePointer(const std::deque<std::weak_ptr<OSDObject>> &list);
+//    static bool evadeMousePointer(const std::deque<std::weak_ptr<OSDObject>> &list);
     XGraph::ScrPoint &leftTop() {return m_leftTop;}
+    XGraph::ScrPoint &rightTop() {return m_rightTop;}
     XGraph::ScrPoint &rightBottom() {return m_rightBottom;}
+    XGraph::ScrPoint &leftBottom() {return m_leftBottom;}
 private:
-    XGraph::ScrPoint m_leftTop, m_rightBottom;
+    XGraph::ScrPoint m_leftTop, m_rightBottom, m_leftBottom, m_rightTop;
     XGraph::SFloat m_space;
     HowToEvade m_direction;
 };
+
+#include <QImage>
+class XOSDTexture : public OSDObjectWithMarker {
+public:
+   XOSDTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
+       : OSDObjectWithMarker(item), id(tid), qimage(image) {}
+   virtual ~XOSDTexture();
+   //! update texture by new image.
+   void repaint(const shared_ptr<QImage> &image);
+   //! draws in OpenGL.
+   virtual void drawNative() override;
+   //! draws by QPainter.
+   virtual void drawByPainter(QPainter *) override {}
+   const GLuint id;
+   shared_ptr<QImage> qimage;
+};
+
 class OSDTextObject : public OSDObjectWithMarker {
 public:
     virtual void drawNative() override;
@@ -89,7 +97,7 @@ class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
         , protected QOpenGLFunctions
 #endif
 {
- friend class XQGraphTexture;
+ friend class XOSDTexture;
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -141,8 +149,8 @@ public:
      drawText(p, QString(str));
  }
 
- shared_ptr<XQGraphTexture> createTexture(const shared_ptr<QImage> &image);
- void drawTexture(const XQGraphTexture& texture, const XGraph::ScrPoint p[4]);
+ shared_ptr<XOSDTexture> createTexture(const shared_ptr<QImage> &image);
+ void drawTexture(const XOSDTexture& texture, const XGraph::ScrPoint p[4]);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -264,7 +272,6 @@ Snapshot startDrawing();
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
 
-    std::deque<shared_ptr<XQGraphTexture>> m_textures;
     std::deque<weak_ptr<OSDObject>> m_persistentOSDs;
     std::deque<shared_ptr<OSDObject>> m_paintedOSDs;
 };

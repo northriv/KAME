@@ -268,8 +268,8 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, QString &&str) {
     m_textOverpaint.push_back(std::move(txt));
 }
 
-XQGraphTexture::~XQGraphTexture() {
-    m_painter->glDeleteTextures(1, &id);
+XOSDTexture::~XOSDTexture() {
+    painter()->glDeleteTextures(1, &id);
 }
 
 static const std::map<QImage::Format, GLenum> s_texture_aligns = {{QImage::Format_Grayscale8, 1}, {QImage::Format_Grayscale16, 2}, {QImage::Format_RGB888, 1},
@@ -282,7 +282,7 @@ static const std::map<QImage::Format, GLenum> s_texture_data_fmts = {{QImage::Fo
                                               {QImage::Format_BGR888, GL_UNSIGNED_BYTE}, {QImage::Format_RGBA8888, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_INT_8_8_8_8_REV}};
 
 void
-XQGraphTexture::repaint(const shared_ptr<QImage> &image) {
+XOSDTexture::repaint(const shared_ptr<QImage> &image) {
 //    auto image = std::make_shared<QImage>(256, 256, QImage::Format_RGB888);
 //    QRgb value;
 //    value = qRgb(0, 0x40, 0x40);
@@ -303,7 +303,7 @@ XQGraphTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-shared_ptr<XQGraphTexture>
+shared_ptr<XOSDTexture>
 XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -326,39 +326,82 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    auto p = std::make_shared<XQGraphTexture>(id, this, image);
-    m_textures.push_back(p);
+    auto p = std::make_shared<XOSDTexture>(this, id, image);
+    m_persistentOSDs.push_back(p);
     return p;
 }
 void
-XQGraphPainter::drawTexture(const XQGraphTexture &texture, const XGraph::ScrPoint p[4]) {
+XOSDTexture::drawNative() {
 //    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
 //    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
     glEnable(GL_TEXTURE_2D);
 
-    glBindTexture(GL_TEXTURE_2D, texture.id);
-    beginQuad(true);
+    glBindTexture(GL_TEXTURE_2D, id);
+    painter()->beginQuad(true);
 //    glNormal3f(0, 0, 1);
 //    glTexCoord2f(0.0, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 1.0);
-    setVertex(p[0]);
+    painter()->setVertex(leftTop());
 //    glTexCoord2f(1, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 1.0);
-    setVertex(p[1]);
+    painter()->setVertex(rightTop());
 //    glTexCoord2f(1, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 0.0);
-    setVertex(p[2]);
+    painter()->setVertex(rightBottom());
 //    glTexCoord2f(0.0, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 0.0);
-    setVertex(p[3]);
-    endQuad();
+    painter()->setVertex(leftBottom());
+    painter()->endQuad();
     glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_TEXTURE_2D);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
 }
+
+void
+OSDObjectWithMarker::drawOffScreenMarker() {
+    painter()->beginQuad(true);
+    painter()->setVertex(leftTop());
+    painter()->setVertex(rightTop());
+    painter()->setVertex(rightBottom());
+    painter()->setVertex(leftBottom());
+    painter()->endQuad();
+}
+void
+OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
+                                 const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
+                                 HowToEvade direction, XGraph::SFloat space) {
+    m_leftTop = init_lefttop;
+    m_rightTop = init_righttop;
+    m_rightBottom = init_rightbottom;
+    m_leftBottom = init_leftbottom;
+    m_direction = direction;
+    m_space = space;
+    switch (direction) {
+    case HowToEvade::Never:
+        break;
+    case HowToEvade::ByAscent:
+        break;
+    case HowToEvade::ByDescent:
+        break;
+    case HowToEvade::ToLeft:
+        break;
+    case HowToEvade::ToRight:
+        break;
+    case HowToEvade::ByCorner:
+        break;
+    case HowToEvade::Hide:
+        break;
+    case HowToEvade::RequestMoreOffset:
+        break;
+    default:
+        break;
+    }
+}
+
+
 
 #define VIEW_NEAR -1.5
 #define VIEW_FAR 0.5
@@ -697,6 +740,14 @@ XQGraphPainter::paintGL () {
         glEndList();
 
         checkGLError();
+
+//        for(auto &&osd_w: m_persistentOSDs) {
+//            if(auto osd = osd_w.lock()) {
+//                osd->drawOffScreenMarker();
+//            }
+//        }
+//        checkGLError();
+
         m_bIsAxisRedrawNeeded = false;
     }
     else {        
@@ -725,14 +776,31 @@ XQGraphPainter::paintGL () {
         QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
+    for(auto &&osd: m_paintedOSDs) {
+        osd->drawNative();
+    }
+    //removes non-existing OSDs, not thread-safe.
+    for(auto it = m_persistentOSDs.begin(); it != m_persistentOSDs.end();) {
+        if( !it->lock())
+            it = m_persistentOSDs.erase(it);
+        else
+            it++;
+    }
+    for(auto &&osd_w: m_persistentOSDs) {
+        if(auto osd = osd_w.lock()) {
+            osd->drawNative();
+        }
+    }
+    checkGLError();
+
     drawOnScreenObj(shot);
 
-    glMatrixMode(GL_PROJECTION);
-GLdouble proj_orig[16];
-    glGetDoublev(GL_PROJECTION_MATRIX, proj_orig);
-    setInitView();
-    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
-    glMatrixMode(GL_MODELVIEW);
+//    glMatrixMode(GL_PROJECTION);
+//GLdouble proj_orig[16];
+//    glGetDoublev(GL_PROJECTION_MATRIX, proj_orig);
+//    setInitView();
+//    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
+//    glMatrixMode(GL_MODELVIEW);
     
     drawOnScreenViewObj(shot);
 
@@ -759,6 +827,11 @@ GLdouble proj_orig[16];
     QPainter qpainter(m_pItem);
 #endif
 
+    for(auto &&osd_w: m_persistentOSDs) {
+        if(auto osd = osd_w.lock()) {
+            osd->drawByPainter( &qpainter);
+        }
+    }
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
         drawOnScreenHelp(shot, &qpainter);
@@ -766,7 +839,7 @@ GLdouble proj_orig[16];
     }
     qpainter.end();
 
-    memcpy(m_proj, proj_orig, sizeof(proj_orig));
+//    memcpy(m_proj, proj_orig, sizeof(proj_orig));
 }
 
 void

@@ -124,7 +124,7 @@ XGraph2DMathToolList::update(Transaction &tr, const uint32_t *leftupper, unsigne
             ssize_t y0 = lrint(ymin);
             ssize_t x1 = std::min((long)width - 1, lrint(xmax));
             ssize_t y1 = std::min((long)stride - 1, lrint(ymax));
-            if((x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
+            if((x0 >= 0) && (y0 >= 0) && (x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
                 tool->update(tr, leftupper + x0 + y0 * stride, x1 - x0 + 1,
                     stride, y1 - y0 + 1, coefficient);
             }
