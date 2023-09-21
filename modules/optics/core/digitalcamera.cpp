@@ -165,9 +165,6 @@ XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot, const std::tupl
 
 void
 XDigitalCamera::visualize(const Snapshot &shot) {
-	  if( !shot[ *this].time()) {
-		return;
-	  }
       iterate_commit([&](Transaction &tr){
           unsigned int cidx = shot[ *this].m_colorIndex + 1u;
           tr[ *m_colorIndex] = (cidx > shot[ *this].m_maxColorIndex) ? 0 : cidx;
@@ -175,19 +172,22 @@ XDigitalCamera::visualize(const Snapshot &shot) {
           tr[ *m_liveImage->graph()->osdStrings()] = shot[ *this].m_status;
           m_liveImage->updateImage(tr, shot[ *this].liveImage());
 
-          if(cidx > shot[ *this].m_maxColorIndex) {
-              std::vector<double> coeffs;
-              std::vector<const uint32_t *> rawimages;
-              for(unsigned int cidx = 0; cidx <= shot[ *this].m_maxColorIndex; ++cidx) {
-                  coeffs.push_back(shot[ *this].m_coefficients[cidx]);
-                  rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
+          if( !!shot[ *this].time()) {
+
+              if(cidx > shot[ *this].m_maxColorIndex) {
+                  std::vector<double> coeffs;
+                  std::vector<const uint32_t *> rawimages;
+                  for(unsigned int cidx = 0; cidx <= shot[ *this].m_maxColorIndex; ++cidx) {
+                      coeffs.push_back(shot[ *this].m_coefficients[cidx]);
+                      rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
+                  }
+                  if(shot[ *this].m_darkCounts) {
+                      coeffs.push_back(shot[ *this].m_darkCoefficient);
+                      rawimages.push_back( &shot[ *this].m_darkCounts->at(0));
+                  }
+                  tr[ *m_processedImage->graph()->osdStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].accumulated());
+                  m_processedImage->updateImage(tr, shot[ *this].processedImage(), rawimages, coeffs);
               }
-              if(shot[ *this].m_darkCounts) {
-                  coeffs.push_back(shot[ *this].m_darkCoefficient);
-                  rawimages.push_back( &shot[ *this].m_darkCounts->at(0));
-              }
-              tr[ *m_processedImage->graph()->osdStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].accumulated());
-              m_processedImage->updateImage(tr, shot[ *this].processedImage(), rawimages, coeffs);
           }
       });
 }
