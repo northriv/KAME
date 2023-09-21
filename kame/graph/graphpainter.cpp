@@ -733,3 +733,119 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 		}
 	}
 }
+
+void
+OSDTextObject::updateText(XString &&text, int sizehint) {
+    m_text = std::move(text);
+}
+
+void
+OSDTextObject::clear() {
+    m_text.clear();
+    m_textOverpaint.clear();
+}
+void
+OSDTextObject::drawText(const XGraph::ScrPoint &p, QString &&str) {
+    double x,y,z;
+//    painter()->screenToWindow(p, &x, &y, &z);
+
+//    QFont font(painter()->font());
+//    font.setPointSize(m_curFontSize);
+//    QFontMetrics fm(font);
+//    QRect bb = fm.boundingRect(str);
+//    if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
+//    if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
+//    if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
+//    if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
+//    if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
+
+    //draws texts later.
+    Text txt;
+//    txt.text = std::move(str);
+//    txt.x = lrint(x);
+//    txt.y = lrint(y);
+//    txt.fontsize = m_curFontSize;
+//    txt.rgba = m_curTextColor;
+    m_textOverpaint.push_back(std::move(txt));
+}
+
+void
+OSDTextObject::defaultFont() {
+    m_curAlign = 0;
+//    QFont font(painter()->font());
+//    m_curFontSize = std::min(14L, std::max(9L,
+//        lrint(DEFAULT_FONT_SIZE * m_pItem->height() / m_pItem->logicalDpiY() / 3.5)));
+}
+
+int
+OSDTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start,
+                          const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint) {
+//    XGraph::ScrPoint d = dir;
+//	d.normalize();
+//	XGraph::ScrPoint s1 = start;
+//	double x, y, z;
+//    if(screenToWindow(s1, &x, &y, &z)) return -1;
+//	XGraph::ScrPoint s2 = s1;
+//	d *= 0.001;
+//	s2 += d;
+//	double x1, y1, z1;
+//	if(screenToWindow(s2, &x1, &y1, &z1)) return -1;
+//	XGraph::ScrPoint s3 = s1;
+//	XGraph::ScrPoint wo2 = swidth;
+//	wo2 *= 0.5;
+//	s3 += wo2;
+//	double x2, y2, z2;
+//	if(screenToWindow(s3, &x2, &y2, &z2)) return -1;
+//	XGraph::ScrPoint s4 = s1;
+//	s4 -= wo2;
+//	double x3, y3, z3;
+//	if(screenToWindow(s4, &x3, &y3, &z3)) return -1;
+//	int align = 0;
+//// width and height, restrict text
+//	double w = fabs(x3 - x2), h = fabs(y3 - y2);
+//	if( fabs(x - x1) > fabs( y - y1) ) {
+//		//dir is horizontal
+//		align |= Qt::AlignVCenter;
+//		h = min(h, 2 * min(y, m_pItem->height() - y));
+//		if( x > x1 ) {
+//			align |= Qt::AlignRight;
+//			w = x;
+//		}
+//		else {
+//			align |= Qt::AlignLeft;
+//			w = m_pItem->width() - x;
+//		}
+//	}
+//	else {
+//		//dir is vertical
+//		align |= Qt::AlignHCenter;
+//		w = min(w, 2 * min(x, m_pItem->width() - x));
+//		if( y < y1 ) {
+//			align |= Qt::AlignTop;
+//			h = m_pItem->height() - y;
+//		}
+//		else {
+//			align |= Qt::AlignBottom;
+//			h = y;
+//		}
+//	}
+//    defaultFont();
+
+//    m_curFontSize += sizehint;
+//    int fontsize_org = m_curFontSize;
+//	m_curAlign = align;
+
+//    {
+//        QFont font(m_pItem->font());
+//        for(;;) {
+//            font.setPointSize(m_curFontSize);
+//            QFontMetrics fm(font);
+//            QRect bb = fm.boundingRect(str);
+//            if(m_curFontSize < fontsize_org - 6) return -1;
+//            if((bb.width() < w ) && (bb.height() < h)) break;
+//            m_curFontSize -= 2;
+//        }
+//    }
+//	return 0;
+}
+

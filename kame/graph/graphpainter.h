@@ -84,9 +84,31 @@ public:
     virtual void drawNative() override;
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
+
     void updateText(XString &&text, int sizehint = 0);
+
+    void clear();
+    void drawText(const XGraph::ScrPoint &p, QString &&str);
+    void drawText(const XGraph::ScrPoint &p, const XString &str) {
+        drawText(p, QString(str));
+    }
+    void defaultFont();
+    //! \param start where text be aligned
+    //! \param dir a direction where text be aligned
+    //! \param width perp. to \a dir, restricting font size
+    //! \return return 0 if succeeded
+    int selectFont(const XString &str, const XGraph::ScrPoint &start,
+                   const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
 private:
     XString m_text;
+    int m_curFontSize;
+    int m_curAlign;
+    struct Text {
+        XGraph::ScrPoint pos;
+        QRgb rgba;
+        ssize_t strpos, length;
+    };
+    std::vector<Text> m_textOverpaint; //stores text to be overpainted.
 };
 
 //! A painter which holds off-screen pixmap
