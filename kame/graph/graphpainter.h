@@ -48,7 +48,7 @@ public:
     OSDObjectWithMarker(XQGraphPainter* p) : OSDObject(p) {}
     //draws objects/bounding box for GL_SELECT
     virtual void drawOffScreenMarker() override;
-    enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide, RequestMoreOffset};
+    enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
 //    void evadeOSDObjects(const std::deque<std::weak_ptr<OSDObject>> &list, XGraph::SFloat space);
@@ -64,11 +64,11 @@ private:
 };
 
 #include <QImage>
-class XOSDTexture : public OSDObjectWithMarker {
+class OSDTexture : public OSDObjectWithMarker {
 public:
-   XOSDTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
+   OSDTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
        : OSDObjectWithMarker(item), id(tid), qimage(image) {}
-   virtual ~XOSDTexture();
+   virtual ~OSDTexture();
    //! update texture by new image.
    void repaint(const shared_ptr<QImage> &image);
    //! draws in OpenGL.
@@ -88,10 +88,7 @@ public:
     void updateText(XString &&text, int sizehint = 0);
 
     void clear();
-    void drawText(const XGraph::ScrPoint &p, QString &&str);
-    void drawText(const XGraph::ScrPoint &p, const XString &str) {
-        drawText(p, QString(str));
-    }
+    void drawText(const XGraph::ScrPoint &p, const XString &str);
     void defaultFont();
     //! \param start where text be aligned
     //! \param dir a direction where text be aligned
@@ -119,7 +116,7 @@ class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
         , protected QOpenGLFunctions
 #endif
 {
- friend class XOSDTexture;
+ friend class OSDTexture;
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -166,13 +163,19 @@ public:
  void beginQuad(bool fill = false);
  void endQuad();
 
+ void secureWindow(const XGraph::ScrPoint &p);
+
+ //obsolete
  void drawText(const XGraph::ScrPoint &p, QString &&str);
+ //obsolete
  void drawText(const XGraph::ScrPoint &p, const XString &str) {
      drawText(p, QString(str));
  }
 
- shared_ptr<XOSDTexture> createTexture(const shared_ptr<QImage> &image);
- void drawTexture(const XOSDTexture& texture, const XGraph::ScrPoint p[4]);
+ shared_ptr<OSDTexture> createTexture(const shared_ptr<QImage> &image);
+ void drawTexture(const OSDTexture& texture, const XGraph::ScrPoint p[4]);
+
+ void removeOSDObject(const shared_ptr<OSDObject> &p);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -182,6 +185,7 @@ public:
  //! \param dir a direction where text be aligned
  //! \param width perp. to \a dir, restricting font size
  //! \return return 0 if succeeded
+ //obsolete
  int selectFont(const XString &str, const XGraph::ScrPoint &start,
 				const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
  
@@ -195,6 +199,9 @@ public:
  //for retina support.
  double m_pixel_ratio;
 private:
+ friend class OSDObject;
+ friend class OSDTextObject;
+
  //! coordinate conversions
  //! \ret zero for success
  int windowToScreen(int x, int y, double z, XGraph::ScrPoint *scr);
@@ -294,8 +301,10 @@ Snapshot startDrawing();
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
 
-    std::deque<weak_ptr<OSDObject>> m_persistentOSDs;
+    std::deque<shared_ptr<OSDObject>> m_persistentOSDs;
     std::deque<shared_ptr<OSDObject>> m_paintedOSDs;
+
+    int m_minX, m_maxX, m_minY, m_maxY; //!< to determin window size by secureWinwdow().
 };
 
 #endif

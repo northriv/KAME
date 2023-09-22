@@ -167,6 +167,16 @@ XQGraphPainter::endQuad() {
 }
 
 void
+XQGraphPainter::secureWindow(const XGraph::ScrPoint &p) {
+    double x,y,z;
+    screenToWindow(p, &x, &y, &z);
+    m_minX = std::min(m_minX, (int)lrint(x));
+    m_maxX = std::max(m_maxX, (int)lrint(x));
+    m_minY = std::min(m_minY, (int)lrint(y));
+    m_maxY = std::max(m_maxY, (int)lrint(y));
+}
+
+void
 XQGraphPainter::defaultFont() {
 	m_curAlign = 0;
     m_curFontSize = std::min(14L, std::max(9L,
@@ -268,7 +278,7 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, QString &&str) {
     m_textOverpaint.push_back(std::move(txt));
 }
 
-XOSDTexture::~XOSDTexture() {
+OSDTexture::~OSDTexture() {
     painter()->glDeleteTextures(1, &id);
 }
 
@@ -282,7 +292,7 @@ static const std::map<QImage::Format, GLenum> s_texture_data_fmts = {{QImage::Fo
                                               {QImage::Format_BGR888, GL_UNSIGNED_BYTE}, {QImage::Format_RGBA8888, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_INT_8_8_8_8_REV}};
 
 void
-XOSDTexture::repaint(const shared_ptr<QImage> &image) {
+OSDTexture::repaint(const shared_ptr<QImage> &image) {
 //    auto image = std::make_shared<QImage>(256, 256, QImage::Format_RGB888);
 //    QRgb value;
 //    value = qRgb(0, 0x40, 0x40);
@@ -303,7 +313,7 @@ XOSDTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-shared_ptr<XOSDTexture>
+shared_ptr<OSDTexture>
 XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -326,12 +336,12 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    auto p = std::make_shared<XOSDTexture>(this, id, image);
+    auto p = std::make_shared<OSDTexture>(this, id, image);
     m_persistentOSDs.push_back(p);
     return p;
 }
 void
-XOSDTexture::drawNative() {
+OSDTexture::drawNative() {
 //    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
 //    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -394,11 +404,13 @@ OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGr
         break;
     case HowToEvade::Hide:
         break;
-    case HowToEvade::RequestMoreOffset:
-        break;
     default:
         break;
     }
+    painter()->secureWindow(m_leftTop);
+    painter()->secureWindow(m_rightTop);
+    painter()->secureWindow(m_leftBottom);
+    painter()->secureWindow(m_rightBottom);
 }
 
 
@@ -779,17 +791,8 @@ XQGraphPainter::paintGL () {
     for(auto &&osd: m_paintedOSDs) {
         osd->drawNative();
     }
-    //removes non-existing OSDs, not thread-safe.
-    for(auto it = m_persistentOSDs.begin(); it != m_persistentOSDs.end();) {
-        if( !it->lock())
-            it = m_persistentOSDs.erase(it);
-        else
-            it++;
-    }
-    for(auto &&osd_w: m_persistentOSDs) {
-        if(auto osd = osd_w.lock()) {
-            osd->drawNative();
-        }
+    for(auto &&osd: m_persistentOSDs) {
+        osd->drawNative();
     }
     checkGLError();
 
@@ -827,10 +830,8 @@ XQGraphPainter::paintGL () {
     QPainter qpainter(m_pItem);
 #endif
 
-    for(auto &&osd_w: m_persistentOSDs) {
-        if(auto osd = osd_w.lock()) {
-            osd->drawByPainter( &qpainter);
-        }
+    for(auto &&osd: m_persistentOSDs) {
+        osd->drawByPainter( &qpainter);
     }
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {

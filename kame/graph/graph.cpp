@@ -1272,17 +1272,20 @@ X2DImagePlot::snapshot(const Snapshot &shot) {
 int
 X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
     if(m_image) {
+        auto texture = m_texture.lock();
         if(m_image != m_image_textured) {
-            if(m_texture && m_image_textured && (m_image_textured->width() == m_image->width())
+            if(texture && m_image_textured && (m_image_textured->width() == m_image->width())
                     && (m_image_textured->height() == m_image->height())
                     && (m_image_textured->format() == m_image->format()))
-                m_texture->repaint(m_image);
+                texture->repaint(m_image);
             else {
-                m_texture = painter->createTexture(m_image);
+                painter->removeOSDObject(texture);
+                texture = painter->createTexture(m_image);
+                m_texture = texture;
             }
             m_image_textured = m_image;
         }
-        if(fixScales(shot)) {
+        if(texture && fixScales(shot)) {
             XGraph::ScrPoint spt[4];
             XGraph::ValPoint v1(0, 0);
             XGraph::GPoint g;
@@ -1297,7 +1300,7 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
             XGraph::ValPoint v4(0, m_image->height());
             valToGraphFast(v4, &g);
             graphToScreenFast(g, &spt[3]);
-            m_texture->placeObject(spt[0], spt[1], spt[2], spt[3], XOSDTexture::HowToEvade::Never, {});
+            texture->placeObject(spt[0], spt[1], spt[2], spt[3], OSDTexture::HowToEvade::Never, {});
         }
     }
     return XPlot::drawPlot(shot, painter);

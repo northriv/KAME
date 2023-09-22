@@ -434,7 +434,7 @@ protected:
 private:
 };
 
-class XOSDTexture;
+class OSDTexture;
 //! displays pixmap as texture.
 class DECLSPEC_KAME X2DImagePlot : public XPlot {
 public:
@@ -461,7 +461,7 @@ protected:
 private:
     friend class XGraph;
     shared_ptr<QImage> m_image, m_image_textured;
-    shared_ptr<XOSDTexture> m_texture;
+    weak_ptr<OSDTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif
