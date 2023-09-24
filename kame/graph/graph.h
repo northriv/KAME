@@ -455,7 +455,7 @@ public:
     };
 protected:
     virtual int drawPlot(const Snapshot &shot, XQGraphPainter *painter) override;
-    virtual int drawLegend(const Snapshot &, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {};
+    virtual int drawLegend(const Snapshot &, XQGraphPainter *, const XGraph::ScrPoint &, float, float) override {return 0;};
     //! Takes a snap-shot all points for rendering
     virtual void snapshot(const Snapshot &shot) override;
 private:

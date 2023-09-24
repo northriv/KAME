@@ -45,7 +45,7 @@ private:
 class DECLSPEC_KAME XGraph2DMathTool: public XNode {
 public:
     XGraph2DMathTool(const char *name, bool runtime, const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver);
-    virtual ~XGraph2DMathTool() {}
+    virtual ~XGraph2DMathTool();
 
     virtual void update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) = 0;
@@ -57,11 +57,14 @@ public:
 
     virtual void insertEntries(Transaction &tr_meas) {}
     virtual void releaseEntries(Transaction &tr) {}
+
+    void addOSDObject(weak_ptr<OSDObject> osd) {m_osds.push_back(osd);}
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
     const weak_ptr<XScalarEntryList> m_entries;
+    std::deque<weak_ptr<OSDObject>> m_osds;
 };
 
 template <class F>
@@ -264,7 +267,7 @@ private:
     friend class XQGraph2DMathToolConnector;
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XDriver> m_driver;
-    void onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint>&);
+    void onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObject>>&);
 };
 
 #endif

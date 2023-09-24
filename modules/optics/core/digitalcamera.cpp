@@ -16,7 +16,7 @@
 #include "x2dimage.h"
 #include "graph.h"
 #include "graphwidget.h"
-
+#include "graphpainter.h"
 #include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
@@ -107,6 +107,9 @@ XDigitalCamera::onClearAverageTouched(const Snapshot &shot, XTouchableNode *) {
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
+        if(auto roi = m_roiOSD.lock())
+            roi->release(roi);
+        m_roiOSD.reset();
         setVideoMode(shot[ *videoMode()]);
     }
     catch (XKameError &e) {
@@ -149,14 +152,18 @@ XDigitalCamera::onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *
         "ROI");
 }
 void
-XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint>&res) {
+XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObject>>&res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
+    auto osd = std::get<3>(res);
     m_lsnOnROISelectionToolFinished.reset();
     try {
         setVideoMode(Snapshot( *this)[ *videoMode()], std::min(src.x, dst.x), std::min(src.y, dst.y),
                 abs(src.x - dst.x), abs(src.y - dst.y));
+        if(auto roi = m_roiOSD.lock())
+            roi->release(roi);
+        m_roiOSD = osd;
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -527,5 +534,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_lsnOnTriggerModeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     m_lsnOnROISelectionToolTouched.reset();
+    if(auto roi = m_roiOSD.lock())
+        roi->release(roi);
     return NULL;
 }

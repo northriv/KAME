@@ -1258,6 +1258,9 @@ X2DImagePlot::X2DImagePlot(const char *name, bool runtime, Transaction &tr_graph
     });
 }
 X2DImagePlot::~X2DImagePlot() {
+    if(auto texture = m_texture.lock()) {
+        texture->release(texture);
+    }
 }
 void
 X2DImagePlot::setImage(Transaction &tr, const shared_ptr<QImage>& image) {
@@ -1279,7 +1282,8 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
                     && (m_image_textured->format() == m_image->format()))
                 texture->repaint(m_image);
             else {
-                painter->removeOSDObject(texture);
+                if(texture)
+                    texture->release(texture);
                 texture = painter->createTexture(m_image);
                 m_texture = texture;
             }

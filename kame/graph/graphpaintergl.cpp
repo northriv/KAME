@@ -134,10 +134,15 @@ XQGraphPainter::onRepaint(const Snapshot &shot) {
     m_pItem->update();
 }
 void
-XQGraphPainter::beginLine(double size) {
+XQGraphPainter::beginLine(double size, unsigned short stipple) {
     glLineWidth(size * m_pixel_ratio);
     checkGLError(); 
-	glBegin(GL_LINES);
+    if(stipple) {
+        glLineStipple(1, stipple);
+        glBegin(GL_LINE_STIPPLE);
+    }
+    else
+        glBegin(GL_LINES);
 }
 void
 XQGraphPainter::endLine() {
@@ -314,7 +319,7 @@ OSDTexture::repaint(const shared_ptr<QImage> &image) {
     qimage = image;
 }
 shared_ptr<OSDTexture>
-XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
+XQGraphPainter::createTexture(const shared_ptr<QImage> &image, bool onetime) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
@@ -337,7 +342,10 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
     auto p = std::make_shared<OSDTexture>(this, id, image);
-    m_persistentOSDs.push_back(p);
+    if(onetime)
+        m_paintedOSDs.push_back(p);
+    else
+        m_persistentOSDs.push_back(p);
     return p;
 }
 void
@@ -379,6 +387,67 @@ OSDObjectWithMarker::drawOffScreenMarker() {
     painter()->setVertex(leftBottom());
     painter()->endQuad();
 }
+
+shared_ptr<OSDRectObject>
+XQGraphPainter::createRectObject(OSDRectObject::Type type, bool onetime) {
+    auto p = std::make_shared<OSDRectObject>(this, type);
+    if(onetime)
+        m_paintedOSDs.push_back(p);
+    else
+        m_persistentOSDs.push_back(p);
+    return p;
+}
+
+void
+OSDRectObject::drawNative() {
+    Snapshot shot_graph( *painter()->m_graph);
+    switch(m_type) {
+    case Type::Selection:
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
+            painter()->beginQuad(true);
+            painter()->setColor(c, 0.1);
+            painter()->setVertex(leftTop());
+            painter()->setVertex(rightTop());
+            painter()->setVertex(rightBottom());
+            painter()->setVertex(leftBottom());
+            painter()->endQuad();
+        }
+        break;
+    case Type::AreaTool:
+//        glEnable(GL_LINE_STIPPLE);
+//        unsigned short pat = 0x0f0fu;
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
+//            painter()->beginLine(1.0, pat);
+            painter()->beginLine(1.0);
+            painter()->setColor(c, 0.3);
+            painter()->setVertex(leftTop());
+            painter()->setVertex(rightTop());
+            painter()->setVertex(rightTop());
+            painter()->setVertex(rightBottom());
+            painter()->setVertex(rightBottom());
+            painter()->setVertex(leftBottom());
+            painter()->setVertex(leftBottom());
+            painter()->setVertex(leftTop());
+            painter()->endLine();
+//            pat = ~pat;
+        }
+//        glDisable(GL_LINE_STIPPLE);
+        break;
+    }
+}
+
+void
+OSDTextObject::drawOffScreenMarker() {
+    for(auto &&txt: m_textOverpaint) {
+        painter()->beginQuad(true);
+        painter()->setVertex(txt.corners[0]);
+        painter()->setVertex(txt.corners[1]);
+        painter()->setVertex(txt.corners[2]);
+        painter()->setVertex(txt.corners[3]);
+        painter()->endQuad();
+    }
+}
+
 void
 OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
                                  const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
@@ -829,7 +898,10 @@ XQGraphPainter::paintGL () {
 #else
     QPainter qpainter(m_pItem);
 #endif
-
+    for(auto &&osd: m_paintedOSDs) {
+        osd->drawNative();
+    }
+    m_paintedOSDs.clear();
     for(auto &&osd: m_persistentOSDs) {
         osd->drawByPainter( &qpainter);
     }

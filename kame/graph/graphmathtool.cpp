@@ -13,6 +13,7 @@
  ***************************************************************************/
 #include "graphmathtool.h"
 #include "measure.h"
+#include "graphpainter.h"
 //---------------------------------------------------------------------------
 DECLARE_TYPE_HOLDER(XGraph1DMathToolList)
 DECLARE_TYPE_HOLDER(XGraph2DMathToolList)
@@ -43,6 +44,12 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, const shared_
     m_endY(create<XDoubleNode>("EndY", false)),
     m_entries(entries) {
 
+}
+XGraph2DMathTool::~XGraph2DMathTool() {
+    for(auto &&x: m_osds) {
+        if(auto osd = x.lock())
+            osd->release(osd);
+    }
 }
 
 XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
@@ -151,10 +158,11 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
 }
 
 void
-XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint> &res) {
+XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OSDObject> > &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
+    auto osd = std::get<3>(res);
     auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
@@ -170,4 +178,5 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tup
         tr[ *tool->endY()] = dst.y;
         tool->insertEntries(tr);
     });
+    tool->addOSDObject(osd);
 }

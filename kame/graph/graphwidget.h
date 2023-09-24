@@ -16,6 +16,7 @@
 
 #include "graph.h"
 class XQGraphPainter;
+class OSDObject;
 
 #include "support.h"
 #include "xnodeconnector.h"
@@ -45,7 +46,7 @@ public:
     void activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirection diry, const XString &tool_desc);
 
     Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
-    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
 
 protected:
     virtual void mousePressEvent ( QMouseEvent*) override;
@@ -69,7 +70,7 @@ private:
 
 
     Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> m_onAxisSelectedByTool;
-    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint>> m_onPlaneSelectedByTool;
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>> m_onPlaneSelectedByTool;
 
 	xqcon_ptr m_conDialog;
 

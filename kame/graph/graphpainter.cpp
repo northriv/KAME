@@ -262,12 +262,18 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 				switch(mode) {
                 case SelectionMode::SelPlane:
 					if(m_foundPlane && !(m_startScrPos == m_finishScrPos) ) {
-						XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(tr, m_startScrPos);
-						XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(tr, m_startScrPos);
-						XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
-						XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
+                        XGraph::VFloat src1 = m_foundPlaneAxis1->screenToVal(tr, m_startScrPos);
+                        XGraph::VFloat src2 = m_foundPlaneAxis2->screenToVal(tr, m_startScrPos);
+                        XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
+                        XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
                         if(tool_desc.length()) {
-                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundPlaneAxis1, src1, dst1}, {m_foundPlaneAxis2, src2, dst2}};
+                            XGraph::ScrPoint offdiag1, offdiag2;
+                            m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(src1),
+                                m_foundPlaneAxis2->valToAxis(dst2)), &offdiag1);
+                            m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(dst1),
+                                m_foundPlaneAxis2->valToAxis(src2)), &offdiag2);
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundPlaneAxis1, m_startScrPos, m_finishScrPos},
+                                {m_foundPlaneAxis2, offdiag1, offdiag2}};
                             return;
                         }
 
@@ -288,12 +294,12 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 					break;
                 case SelectionMode::SelAxis:
 					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
-						XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
-						XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
                         if(tool_desc.length()) {
-                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundAxis, src, dst}, {}};
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundAxis, m_startScrPos, m_finishScrPos}, {}};
                             return;
                         }
+                        XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
+                        XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
                         double _min = std::min(src, dst);
 						double _max = std::max(src, dst);
                         if(tr[ *m_foundAxis->minValue()].isUIEnabled())
@@ -745,10 +751,45 @@ XQGraphPainter::removeOSDObject(const shared_ptr<OSDObject> &p) {
 }
 
 void
-OSDTextObject::updateText(XString &&text, int sizehint) {
-    m_text = std::move(text);
+OSDObject::release(const shared_ptr<OSDObject> &me) {
+    painter()->removeOSDObject(me);
+}
+void
+OSDTextObject::drawNative() {
+}
+void
+OSDTextObject::drawByPainter(QPainter *qpainter) {
+    bool firsttime = true;
+    QFont font(qpainter->font());
+    font.setPointSize(m_curFontSize);
+    qpainter->setFont(font);
+    QFontMetrics fm(font);
+    for(auto &&text: m_textOverpaint) {
+        auto str = m_text.mid(text.strpos, text.length);
+        double x,y,z;
+        painter()->screenToWindow(text.pos, &x, &y, &z);
+        QRect bb = fm.boundingRect(str);
+        if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
+        if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
+        if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
+        if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
+        if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
+
+        if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
+            qpainter->setPen(QColor(text.rgba));
+        firsttime = false;
+        qpainter->drawText(x, y, str);
+    }
 }
 
+void
+OSDTextObject::updateText(const XString &text) {
+    assert(m_textOverpaint.size() == 1);
+    auto &txt(m_textOverpaint[0]);
+    m_text = text;
+    txt.length = text.length();
+    txt.strpos = 0;
+}
 void
 OSDTextObject::clear() {
     m_text.clear();
@@ -756,26 +797,31 @@ OSDTextObject::clear() {
 }
 void
 OSDTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
-//    double x,y,z;
-//    painter()->screenToWindow(p, &x, &y, &z);
-
-//    QFont font(painter()->font());
-//    font.setPointSize(m_curFontSize);
-//    QFontMetrics fm(font);
-//    QRect bb = fm.boundingRect(str);
-//    if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
-//    if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
-//    if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
-//    if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
-//    if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
-
-    //draws texts later.
     Text txt;
     txt.strpos = m_text.length();
     m_text.append(str);
     txt.length = str.length();
     txt.pos = p;
     txt.rgba = painter()->m_curTextColor;
+
+    QFont font(painter()->m_pItem->font());
+    font.setPointSize(m_curFontSize);
+    QFontMetrics fm(font);
+    QRect bb = fm.boundingRect(str);
+    //draws texts later.
+    double x,y,z;
+    painter()->screenToWindow(p, &x, &y, &z);
+    if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
+    if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
+    if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
+    if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
+    if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
+    //todo min/max xy -> placeobj
+    painter()->windowToScreen(x, y, z, &txt.corners[0]);
+    painter()->windowToScreen(x + bb.width(), y, z, &txt.corners[1]);
+    painter()->windowToScreen(x + bb.width(), y + bb.height(), z, &txt.corners[2]);
+    painter()->windowToScreen(x, y + bb.height(), z, &txt.corners[3]);
+
     m_textOverpaint.push_back(std::move(txt));
 }
 
@@ -852,10 +898,13 @@ OSDTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start,
             QFontMetrics fm(font);
             QRect bb = fm.boundingRect(str);
             if(m_curFontSize < fontsize_org - 6) return -1;
-            if((bb.width() < w ) && (bb.height() < h)) break;
+            if((bb.width() < w ) && (bb.height() < h)) {
+                break;
+            }
             m_curFontSize -= 2;
         }
     }
+
     return 0;
 }
 

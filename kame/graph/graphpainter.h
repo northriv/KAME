@@ -38,6 +38,9 @@ public:
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) = 0;
     virtual void drawOffScreenMarker() {}
+    //! unlinks from XQGraphPainter.
+    void release(const shared_ptr<OSDObject> &me);
+protected:
     XQGraphPainter *painter() const {return m_painter;}
 private:
     XQGraphPainter *const m_painter;
@@ -63,6 +66,18 @@ private:
     HowToEvade m_direction;
 };
 
+class OSDRectObject : public OSDObjectWithMarker {
+public:
+    enum class Type {Selection, AreaTool};
+    OSDRectObject(XQGraphPainter* p, Type type) : OSDObjectWithMarker(p), m_type(type) {}
+    //! draws in OpenGL.
+    virtual void drawNative() override;
+    //! draws by QPainter.
+    virtual void drawByPainter(QPainter *) override {}
+private:
+    Type m_type;
+};
+
 #include <QImage>
 class OSDTexture : public OSDObjectWithMarker {
 public:
@@ -85,7 +100,7 @@ public:
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
 
-    void updateText(XString &&text, int sizehint = 0);
+    void updateText(const XString &text);
 
     void clear();
     void drawText(const XGraph::ScrPoint &p, const XString &str);
@@ -97,11 +112,11 @@ public:
     int selectFont(const XString &str, const XGraph::ScrPoint &start,
                    const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
 private:
-    XString m_text;
+    QString m_text;
     int m_curFontSize;
     int m_curAlign;
     struct Text {
-        XGraph::ScrPoint pos;
+        XGraph::ScrPoint pos, corners[4];
         QRgb rgba;
         ssize_t strpos, length;
     };
@@ -124,7 +139,7 @@ public:
  //! Selections  
  enum class SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
  enum class SelectionState {SelStart, SelFinish, SelFinishByTool, Selecting};
- using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::VFloat, XGraph::VFloat>;
+ using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::ScrPoint, XGraph::ScrPoint>;
  std::pair<SelectedResult, SelectedResult> selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelectionMode::SelNone,
     const XString &tool_desc = {});
  
@@ -154,7 +169,7 @@ public:
     glVertex3f(p.x, p.y, p.z);
  }
  
- void beginLine(double size = 1.0);
+ void beginLine(double size = 1.0, unsigned short stipple = 0u);
  void endLine();
  
  void beginPoint(double size = 1.0);
@@ -172,9 +187,10 @@ public:
      drawText(p, QString(str));
  }
 
- shared_ptr<OSDTexture> createTexture(const shared_ptr<QImage> &image);
+ //OSD Objects
+ shared_ptr<OSDTexture> createTexture(const shared_ptr<QImage> &image, bool onetime = false);
  void drawTexture(const OSDTexture& texture, const XGraph::ScrPoint p[4]);
-
+ shared_ptr<OSDRectObject> createRectObject(OSDRectObject::Type type, bool onetime = false);
  void removeOSDObject(const shared_ptr<OSDObject> &p);
 
  //! make point outer perpendicular to \a dir by offset
@@ -200,6 +216,7 @@ public:
  double m_pixel_ratio;
 private:
  friend class OSDObject;
+ friend class OSDRectObject;
  friend class OSDTextObject;
 
  //! coordinate conversions
