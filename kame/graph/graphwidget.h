@@ -27,6 +27,8 @@ class OSDObject;
     #include <QOpenGLWidget>
 #endif
 
+class OSDObjectWithMarker;
+
 //! Graph widget with a dialog which is initially hidden.
 //! \sa XGraph, XQGraphPainter
 class DECLSPEC_KAME XQGraph :
@@ -46,7 +48,7 @@ public:
     void activatePlaneSelectionTool(XAxis::AxisDirection dirx, XAxis::AxisDirection diry, const XString &tool_desc);
 
     Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
-    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
 
 protected:
     virtual void mousePressEvent ( QMouseEvent*) override;
@@ -70,7 +72,7 @@ private:
 
 
     Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> m_onAxisSelectedByTool;
-    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>> m_onPlaneSelectedByTool;
+    Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>> m_onPlaneSelectedByTool;
 
 	xqcon_ptr m_conDialog;
 

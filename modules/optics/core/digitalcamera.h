@@ -27,7 +27,7 @@ class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 
 class X2DImage;
-class OSDObject;
+class OSDObjectWithMarker;
 
 //! Base class for scientific/machine vision digital camera.
 class DECLSPEC_SHARED XDigitalCamera : public XPrimaryDriverWithThread {
@@ -148,8 +148,9 @@ private:
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
 
     void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
-    void onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, Vector4<double>, Vector4<double>, weak_ptr<OSDObject>>&);
-    weak_ptr<OSDObject> m_roiOSD;
+    void onROISelectionToolFinished(const Snapshot &shot,
+        const std::tuple<XString, Vector4<double>, Vector4<double>, weak_ptr<OSDObjectWithMarker>>&);
+    weak_ptr<OSDObjectWithMarker> m_roiOSD;
 
     atomic<bool> m_storeDarkInvoked;
     atomic<bool> m_clearAverageInvoked;

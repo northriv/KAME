@@ -54,6 +54,7 @@ public:
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
+    void placeObject(const XGraph::ValPoint corners[4]);
 //    void evadeOSDObjects(const std::deque<std::weak_ptr<OSDObject>> &list, XGraph::SFloat space);
 //    static bool evadeMousePointer(const std::deque<std::weak_ptr<OSDObject>> &list);
     XGraph::ScrPoint &leftTop() {return m_leftTop;}

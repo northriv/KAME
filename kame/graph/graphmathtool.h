@@ -19,6 +19,7 @@
 
 #include "graph.h"
 #include "analyzer.h"
+class OSDObjectWithMarker;
 
 class DECLSPEC_KAME XGraph1DMathTool: public XNode {
 public:
@@ -58,13 +59,14 @@ public:
     virtual void insertEntries(Transaction &tr_meas) {}
     virtual void releaseEntries(Transaction &tr) {}
 
-    void addOSDObject(weak_ptr<OSDObject> osd) {m_osds.push_back(osd);}
+    void addOSDObject(weak_ptr<OSDObjectWithMarker> osd) {m_osds.push_back(osd);}
+    void updateOSDObjects();
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
     const weak_ptr<XScalarEntryList> m_entries;
-    std::deque<weak_ptr<OSDObject>> m_osds;
+    std::deque<weak_ptr<OSDObjectWithMarker>> m_osds;
 };
 
 template <class F>
@@ -267,7 +269,8 @@ private:
     friend class XQGraph2DMathToolConnector;
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XDriver> m_driver;
-    void onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObject>>&);
+    void onPlaneSelectedByTool(const Snapshot &shot,
+        const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>&);
 };
 
 #endif

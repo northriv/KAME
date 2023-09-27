@@ -152,7 +152,8 @@ XDigitalCamera::onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *
         "ROI");
 }
 void
-XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObject>>&res) {
+XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>&res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);

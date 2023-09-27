@@ -51,6 +51,19 @@ XGraph2DMathTool::~XGraph2DMathTool() {
             osd->release(osd);
     }
 }
+void
+XGraph2DMathTool::updateOSDObjects() {
+    Snapshot shot( *this);
+    double bgx = shot[ *beginX()];
+    double bgy = shot[ *beginY()];
+    double edx = shot[ *endX()];
+    double edy = shot[ *endY()];
+    XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
+    for(auto &&x: m_osds) {
+        if(auto osd = x.lock())
+            osd->placeObject(corners);
+    }
+}
 
 XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
                          const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
@@ -158,7 +171,8 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
 }
 
 void
-XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OSDObject> > &res) {
+XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OSDObjectWithMarker> > &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);

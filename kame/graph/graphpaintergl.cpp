@@ -361,16 +361,24 @@ OSDTexture::drawNative() {
 //    glNormal3f(0, 0, 1);
 //    glTexCoord2f(0.0, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 1.0);
-    painter()->setVertex(leftTop());
+    auto pt = leftTop();
+    pt += XGraph::ScrPoint(0, 0, -0.01, 0); //drawing at the same Z-order is buggy.
+    painter()->setVertex(pt);
 //    glTexCoord2f(1, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 1.0);
-    painter()->setVertex(rightTop());
+    pt = rightTop();
+    pt += XGraph::ScrPoint(0, 0, -0.01, 0);
+    painter()->setVertex(pt);
 //    glTexCoord2f(1, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 0.0);
-    painter()->setVertex(rightBottom());
+    pt = rightBottom();
+    pt += XGraph::ScrPoint(0, 0, -0.01, 0);
+    painter()->setVertex(pt);
 //    glTexCoord2f(0.0, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 0.0);
-    painter()->setVertex(leftBottom());
+    pt = leftBottom();
+    pt += XGraph::ScrPoint(0, 0, -0.01, 0);
+    painter()->setVertex(pt);
     painter()->endQuad();
     glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_TEXTURE_2D);
@@ -448,6 +456,10 @@ OSDTextObject::drawOffScreenMarker() {
     }
 }
 
+void
+OSDObjectWithMarker::placeObject(const XGraph::ValPoint corners[4]) {
+
+}
 void
 OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
                                  const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,

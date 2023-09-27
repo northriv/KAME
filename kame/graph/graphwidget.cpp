@@ -170,11 +170,13 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {
              //swaps 1 and 2.
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>{m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, osd});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>
+                                         {m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, osd});
         }
         else if((axis1->direction() == m_toolDirX) && (axis2->direction() == m_toolDirY)) {
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObject>>{m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, osd});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>
+                                         {m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, osd});
         }
     }
     m_isPlaneSelectionByTool = false;
@@ -189,8 +191,9 @@ XQGraph::mouseDoubleClickEvent ( QMouseEvent* e) {
     m_isAxisSelectionByTool = false;
     m_toolDesc = {};
     if( !m_painter ) return;
-    if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+    if(QApplication::queryKeyboardModifiers() & Qt::ShiftModifier) {
         return;
+    }
 	if(m_graph) { 
 		switch (e->button()) {
 		case Qt::RightButton:
