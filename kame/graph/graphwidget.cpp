@@ -160,10 +160,10 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
         XGraph::VFloat vsrc2 = axis2->screenToVal(shot, src1);
         XGraph::VFloat vdst1 = axis1->screenToVal(shot, dst1);
         XGraph::VFloat vdst2 = axis2->screenToVal(shot, dst1);
-        src1.z += 0.01;
-        src2.z += 0.01;
-        dst1.z += 0.01;
-        dst2.z += 0.01;
+//        src1.z += 0.01;
+//        src2.z += 0.01;
+//        dst1.z += 0.01;
+//        dst2.z += 0.01;
         auto osd = m_painter->createRectObject(OSDRectObject::Type::AreaTool, false);
 //        auto osd = m_painter->createRectObject(OSDRectObject::Type::Selection, false);
         osd->placeObject(src1, src2, dst1, dst2, OSDTexture::HowToEvade::Never, {});
