@@ -36,7 +36,7 @@ public:
     XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
     XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-        unsigned int max_color_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        unsigned int max_wave_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
     XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
     virtual ~XWaveNGraph();

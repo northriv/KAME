@@ -527,6 +527,13 @@ Analyzer</string>
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QToolButton" name="m_tlbMath">
+          <property name="text">
+           <string>MATH</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>

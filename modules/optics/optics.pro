@@ -1,17 +1,25 @@
 PRI_DIR = ../
 include($${PRI_DIR}/modules.pri)
 
+QT += widgets
+
+INCLUDEPATH += \
+    $${_PRO_FILE_PWD_}/../../kame/graph\
+
 HEADERS += \
     odmrfm.h \
     userlasermodule.h \
-    useropticalspectrum.h
+    useropticalspectrum.h \
+    odmrfspectrum.h
 
 SOURCES += \
     odmrfm.cpp \
     userlasermodule.cpp \
-    useropticalspectrum.cpp
+    useropticalspectrum.cpp \
+    odmrfspectrum.cpp
 
 FORMS += \
+    odmrfspectrumform.ui \
     odmrfmform.ui
 
 unix {

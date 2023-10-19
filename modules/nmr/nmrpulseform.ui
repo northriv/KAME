@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>685</width>
+    <width>739</width>
     <height>484</height>
    </rect>
   </property>
@@ -766,6 +766,13 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QToolButton" name="m_tlbMath">
+          <property name="text">
+           <string>MATH</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>
@@ -1196,7 +1203,6 @@
   <tabstop>m_edFFTLen</tabstop>
   <tabstop>m_ckbIncrAvg</tabstop>
   <tabstop>m_numExtraAvg</tabstop>
-  <tabstop>m_edDIFFreq_2</tabstop>
  </tabstops>
  <resources/>
  <connections/>

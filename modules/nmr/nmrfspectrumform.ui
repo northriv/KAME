@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>887</width>
+    <width>942</width>
     <height>487</height>
    </rect>
   </property>
@@ -433,6 +433,12 @@
          <item row="0" column="0">
           <widget class="QComboBox" name="m_cmbTuneCycleStrategy"/>
          </item>
+         <item row="3" column="0">
+          <widget class="QComboBox" name="m_cmbAutoTunerSecondary"/>
+         </item>
+         <item row="4" column="0">
+          <widget class="QComboBox" name="m_cmbPulser"/>
+         </item>
          <item row="2" column="0">
           <widget class="QComboBox" name="m_cmbAutoTuner"/>
          </item>
@@ -503,12 +509,6 @@
            </item>
           </layout>
          </item>
-         <item row="4" column="0">
-          <widget class="QComboBox" name="m_cmbPulser"/>
-         </item>
-         <item row="3" column="0">
-          <widget class="QComboBox" name="m_cmbAutoTunerSecondary"/>
-         </item>
         </layout>
        </widget>
       </item>
@@ -548,6 +548,13 @@
           </property>
           <property name="autoDefault">
            <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="m_tlbMath">
+          <property name="text">
+           <string>MATH</string>
           </property>
          </widget>
         </item>
