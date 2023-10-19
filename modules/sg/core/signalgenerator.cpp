@@ -31,8 +31,12 @@ XSG::XSG(const char *name, bool runtime,
       m_amIntSrcFreq(create<XDoubleNode>("AMIntSrcFreq", true)),
       m_fmIntSrcFreq(create<XDoubleNode>("FMIntSrcFreq", true)),
       m_sweepMode(create<XComboNode>("SweepMode", true, true)),
-      m_sweepFreqMax(create<XDoubleNode>("SweepFreqMax", true)),
-      m_sweepFreqMin(create<XDoubleNode>("SweepFreqMin", true)),
+      m_sweepFreqStart(create<XDoubleNode>("SweepFreqStart", true)),
+      m_sweepFreqStop(create<XDoubleNode>("SweepFreqStop", true)),
+      m_sweepAmplStart(create<XDoubleNode>("SweepAmplStart", true)),
+      m_sweepAmplStop(create<XDoubleNode>("SweepAmplStop", true)),
+      m_sweepDwellTime(create<XDoubleNode>("SweepDwellTime", true)),
+      m_sweepPoints(create<XUIntNode>("SweepPoints", true)),
       m_form(new FrmSG) {
 
     meas->scalarEntries()->insert(tr_meas, m_entryFreq);
@@ -51,16 +55,23 @@ XSG::XSG(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_amIntSrcFreq, m_form->m_edAMIntSrcFreq),
         xqcon_create<XQLineEditConnector>(m_fmIntSrcFreq, m_form->m_edFMIntSrcFreq),
         xqcon_create<XQComboBoxConnector>(m_sweepMode, m_form->m_cmbSweepMode, Snapshot( *m_sweepMode)),
-        xqcon_create<XQLineEditConnector>(m_sweepFreqMax, m_form->m_edSweepFreqMax),
-        xqcon_create<XQLineEditConnector>(m_sweepFreqMin, m_form->m_edSweepFreqMin),
+        xqcon_create<XQLineEditConnector>(m_sweepFreqStart, m_form->m_edSweepFreqStart),
+        xqcon_create<XQLineEditConnector>(m_sweepFreqStop, m_form->m_edSweepFreqStop),
+        xqcon_create<XQLineEditConnector>(m_sweepAmplStart, m_form->m_edSweepAmplStart),
+        xqcon_create<XQLineEditConnector>(m_sweepAmplStop, m_form->m_edSweepAmplStop),
+        xqcon_create<XQLineEditConnector>(m_sweepDwellTime, m_form->m_edSweepDwellTime),
+        xqcon_create<XQLineEditConnector>(m_sweepPoints, m_form->m_edSweepPoints),
     };
       
     iterate_commit([=](Transaction &tr){
         std::vector<shared_ptr<XNode>> runtime_ui = {
             rfON(), oLevel(), freq(), amON(), fmON(),
             amDepth(), fmDev(), amIntSrcFreq(), fmIntSrcFreq(),
-            sweepMode(), sweepFreqMax(), sweepFreqMin()
+            sweepMode(), sweepFreqStart(), sweepFreqStop(),
+            sweepAmplStart(), sweepAmplStop(),
+            sweepDwellTime(), sweepPoints()
         };
+
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
     });
@@ -100,7 +111,9 @@ XSG::execute(const atomic<bool> &terminated) {
     std::vector<shared_ptr<XNode>> runtime_ui = {
         rfON(), oLevel(), freq(), amON(), fmON(),
         amDepth(), fmDev(), amIntSrcFreq(), fmIntSrcFreq(),
-        sweepMode(), sweepFreqMax(), sweepFreqMin()
+        sweepMode(), sweepFreqStart(), sweepFreqStop(),
+        sweepAmplStart(), sweepAmplStop(),
+        sweepDwellTime(), sweepPoints()
     };
     iterate_commit([=](Transaction &tr){
         for(auto &&x: runtime_ui)
@@ -125,8 +138,12 @@ XSG::execute(const atomic<bool> &terminated) {
             shared_from_this(), &XSG::onFMIntSrcFreqChanged);
         m_lsnSweepCond = tr[ *sweepMode()].onValueChanged().connectWeakly(
             shared_from_this(), &XSG::onSweepCondChanged);
-        tr[ *sweepFreqMax()].onValueChanged().connect(m_lsnSweepCond);
-        tr[ *sweepFreqMin()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepFreqStart()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepFreqStop()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepAmplStart()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepAmplStop()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepDwellTime()].onValueChanged().connect(m_lsnSweepCond);
+        tr[ *sweepPoints()].onValueChanged().connect(m_lsnSweepCond);
     });
 
     while( !terminated) {

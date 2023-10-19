@@ -85,8 +85,12 @@ XThamwayPROT<tInterface>::XThamwayPROT(const char *name, bool runtime,
     this->fmDev()->disable();
     this->amIntSrcFreq()->disable();
     this->fmIntSrcFreq()->disable();
-    this->sweepFreqMax()->disable();
-    this->sweepFreqMin()->disable();
+    this->sweepFreqStart()->disable();
+    this->sweepFreqStop()->disable();
+    this->sweepAmplStart()->disable();
+    this->sweepAmplStop()->disable();
+    this->sweepDwellTime()->disable();
+    this->sweepPoints()->disable();
     this->sweepMode()->disable();
 
     rxGain()->setUIEnabled(false);

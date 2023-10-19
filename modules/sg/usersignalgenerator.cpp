@@ -34,8 +34,12 @@ XSG7200::XSG7200(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-    sweepFreqMax()->disable();
-    sweepFreqMin()->disable();
+    sweepFreqStart()->disable();
+    sweepFreqStop()->disable();
+    sweepAmplStart()->disable();
+    sweepAmplStop()->disable();
+    sweepDwellTime()->disable();
+    sweepPoints()->disable();
     sweepMode()->disable();
 }
 XSG7130::XSG7130(const char *name, bool runtime,
@@ -74,8 +78,12 @@ XHP8643::XHP8643(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-    sweepFreqMax()->disable();
-    sweepFreqMin()->disable();
+    sweepFreqStart()->disable();
+    sweepFreqStop()->disable();
+    sweepAmplStart()->disable();
+    sweepAmplStop()->disable();
+    sweepDwellTime()->disable();
+    sweepPoints()->disable();
     sweepMode()->disable();
 }
 double
@@ -128,7 +136,7 @@ XAgilentSGSCPI::XAgilentSGSCPI(const char *name, bool runtime,
 //	interface()->setGPIBUseSerialPollOnWrite(false);
 //	interface()->setGPIBWaitBeforeWrite(10);
 //	interface()->setGPIBWaitBeforeRead(10);
-    trans( *sweepMode()).add({"Off", "Freq.", "Ampl."});
+    trans( *sweepMode()).add({"Off", "Freq.", "Ampl.", "Ampl Alt.", "Ampl Alt.&Freq"});
 }
 XHP8664::XHP8664(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -200,14 +208,42 @@ XAgilentSGSCPI::onSweepCondChanged(const Snapshot &, XValueNodeBase *) {
         break;
     case 1: //Freq
         interface()->send("FREQ:MODE LIST");
+        interface()->send("POW:MODE FIXED");
         interface()->send("LIST:TYPE STEP");
-        interface()->sendf("FREQ:START %f MHZ", (double)shot[ *sweepFreqMin()]);
-        interface()->sendf("FREQ:STOP %f MHZ", (double)shot[ *sweepFreqMax()]);
+        interface()->sendf("FREQ:START %f MHZ", (double)shot[ *sweepFreqStart()]);
+        interface()->sendf("FREQ:STOP %f MHZ", (double)shot[ *sweepFreqStop()]);
+        interface()->sendf("SWE:DWEL %f S", (double)shot[ *sweepDwellTime()]);
+        interface()->sendf("SWE:POIN %u", (unsigned int)shot[ *sweepPoints()]);
         interface()->send("INIT:CONT ON");
         break;
     case 2: //Ampl
         interface()->send("POW:MODE LIST");
+        interface()->send("FREQ:MODE CW");
         interface()->send("LIST:TYPE STEP");
+        interface()->sendf("POW:START %f DB", (double)shot[ *sweepAmplStart()]);
+        interface()->sendf("POW:STOP %f DB", (double)shot[ *sweepAmplStop()]);
+        interface()->sendf("SWE:DWEL %f S", (double)shot[ *sweepDwellTime()]);
+        interface()->sendf("SWE:POIN %u", (unsigned int)shot[ *sweepPoints()]);
+        interface()->send("INIT:CONT ON");
+        break;
+    case 3: //Ampl Alt.
+        interface()->send("LIST:TYPE LIST");
+        XString buf = "SWE:LIST:POW ";
+        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
+            double db = (i % 2) ? (double)shot[ *sweepAmplStop()] : (double)shot[ *sweepAmplStop()];
+            buf.append(formatString("%f,", db));
+        }
+        interface()->send(buf);
+        buf = "SWE:LIST:FREQ ";
+        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
+            buf.append(formatString("%f,", (double)shot[ *sweepFreqStart()]));
+        }
+        interface()->send(buf);
+        buf = "SWE:LIST:DWEL ";
+        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
+            buf.append(formatString("%f,", (double)shot[ *sweepDwellTime()]));
+        }
+        interface()->send(buf);
         interface()->send("INIT:CONT ON");
         break;
     }
@@ -227,8 +263,12 @@ XLibreVNASGSCPI::XLibreVNASGSCPI(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-    sweepFreqMax()->disable();
-    sweepFreqMin()->disable();
+    sweepFreqStart()->disable();
+    sweepFreqStop()->disable();
+    sweepAmplStart()->disable();
+    sweepAmplStop()->disable();
+    sweepDwellTime()->disable();
+    sweepPoints()->disable();
     sweepMode()->disable();
 }
 
@@ -274,8 +314,12 @@ XDPL32XGF::XDPL32XGF(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-    sweepFreqMax()->disable();
-    sweepFreqMin()->disable();
+    sweepFreqStart()->disable();
+    sweepFreqStop()->disable();
+    sweepAmplStart()->disable();
+    sweepAmplStop()->disable();
+    sweepDwellTime()->disable();
+    sweepPoints()->disable();
     sweepMode()->disable();
 }
 void
@@ -310,8 +354,12 @@ XRhodeSchwartzSMLSMV::XRhodeSchwartzSMLSMV(const char *name, bool runtime,
     fmDev()->disable();
     amIntSrcFreq()->disable();
     fmIntSrcFreq()->disable();
-    sweepFreqMax()->disable();
-    sweepFreqMin()->disable();
+    sweepFreqStart()->disable();
+    sweepFreqStop()->disable();
+    sweepAmplStart()->disable();
+    sweepAmplStop()->disable();
+    sweepDwellTime()->disable();
+    sweepPoints()->disable();
     sweepMode()->disable();
 }
 void

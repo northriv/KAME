@@ -42,6 +42,7 @@ public:
     const shared_ptr<XGraph> &graph() const {return m_graph;}
 
     //! driver specific part below
+    const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //!< [dB]
     const shared_ptr<XUIntNode> &brightness() const {return m_brightness;} //!< brightness for device
     const shared_ptr<XDoubleNode> &exposureTime() const {return m_exposureTime;} //!< [s]
     const shared_ptr<XUIntNode> &average() const {return m_average;} //
@@ -56,6 +57,7 @@ public:
     constexpr static unsigned int MAX_COLORS = 3;
     const shared_ptr<XComboNode> &coloringMethod() const {return m_coloringMethod;}
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
+    const shared_ptr<XUIntNode> &antiVibrationPixels() const {return m_antiVibrationPixels;}
     const shared_ptr<XBoolNode> &autoGainForAverage() const {return m_autoGainForAverage;}
     const shared_ptr<XUIntNode> &colorIndex() const {return m_colorIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
     const shared_ptr<XDoubleNode> &gainForAverage() const {return m_gainForAverage;}
@@ -64,6 +66,7 @@ public:
     const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
 
     struct Payload : public XPrimaryDriver::Payload {
+//        double cameraGain() const {return m_cameraGain;}
         unsigned int brightness() const {return m_brightness;}
         double exposureTime() const {return m_exposureTime;} //! [s]
         unsigned int accumulated(unsigned int cidx) const {return m_accumulated[cidx];}
@@ -74,6 +77,7 @@ public:
         shared_ptr<QImage> processedImage() const {return m_processedImage;}
 //    private:
 //        friend class XDigitalCamera;
+//        double m_cameraGain;
         unsigned int m_brightness;
         double m_exposureTime;
         double m_gainForAverage;
@@ -100,18 +104,21 @@ protected:
         unsigned int roiw = 0, unsigned int roih = 0) = 0;
     virtual void setTriggerMode(TriggerMode mode) = 0;
     virtual void setBrightness(unsigned int gain ) = 0;
+    virtual void setCameraGain(double db) = 0;
     virtual void setExposureTime(double time) = 0;
 
     virtual XTime acquireRaw(shared_ptr<RawData> &) = 0;
 
     void setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian = false, bool mono16 = false);
 private:
+    const shared_ptr<XDoubleNode> m_cameraGain;
     const shared_ptr<XUIntNode> m_brightness;
     const shared_ptr<XDoubleNode> m_exposureTime;
     const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XTouchableNode> m_clearAverage;
     const shared_ptr<XTouchableNode> m_roiSelectionTool;
+    const shared_ptr<XUIntNode> m_antiVibrationPixels;
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_triggerMode;
@@ -128,6 +135,7 @@ private:
 
     shared_ptr<Listener> m_lsnOnVideoModeChanged;
     shared_ptr<Listener> m_lsnOnTriggerModeChanged;
+    shared_ptr<Listener> m_lsnOnCameraGainChanged;
     shared_ptr<Listener> m_lsnOnBrightnessChanged;
     shared_ptr<Listener> m_lsnOnExposureTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
@@ -137,6 +145,7 @@ private:
 
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *);
+    void onCameraGainChanged(const Snapshot &shot, XValueNodeBase *);
     void onBrightnessChanged(const Snapshot &shot, XValueNodeBase *);
     void onExposureTimeChanged(const Snapshot &shot, XValueNodeBase *);
 

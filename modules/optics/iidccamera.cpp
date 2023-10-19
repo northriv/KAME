@@ -249,6 +249,12 @@ XIIDCCamera::open() {
         auto [v, vmin, vmax] = fn_get_feature_absolute_values(DC1394_FEATURE_SHUTTER);
         trans( *exposureTime()) = v;
     }
+    if(fn_is_feature_present(DC1394_FEATURE_GAIN)) {
+        auto [v, vmin, vmax] = fn_get_feature_values(DC1394_FEATURE_GAIN);
+        //Hamamatsu ORCA
+        v = lrint(20 * v / 255.0);
+        trans( *cameraGain()) = v;
+    }
 
     iterate_commit([=](Transaction &tr){
         tr[ *videoMode()] = -1;
@@ -387,7 +393,6 @@ XIIDCCamera::setBrightness(unsigned int brightness) {
     XScopedLock<XDC1394Interface> lock( *interface());
 //    stopTransmission();
     if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_BRIGHTNESS, brightness))
-//    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 void
@@ -396,6 +401,16 @@ XIIDCCamera::setExposureTime(double shutter) {
 //    stopTransmission();
     if(dc1394_feature_set_absolute_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
 //    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+}
+void
+XIIDCCamera::setCameraGain(double db) {
+    XScopedLock<XDC1394Interface> lock( *interface());
+//    stopTransmission();
+    //Hamamatsu ORCA
+    int gain = lrint(255.0 * db / 20.0);
+    gain = std::min(std::max(0, gain), 255);
+    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_GAIN, gain))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
 }
 

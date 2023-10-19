@@ -61,8 +61,12 @@ public:
     const shared_ptr<XDoubleNode> &amIntSrcFreq() const {return m_amIntSrcFreq;} //!< freq [kHz]
     const shared_ptr<XDoubleNode> &fmIntSrcFreq() const {return m_fmIntSrcFreq;} //!< freq [kHz]
     const shared_ptr<XComboNode> &sweepMode() const {return m_sweepMode;}
-    const shared_ptr<XDoubleNode> &sweepFreqMax() const {return m_sweepFreqMax;} //!< [MHz]
-    const shared_ptr<XDoubleNode> &sweepFreqMin() const {return m_sweepFreqMin;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &sweepFreqStart() const {return m_sweepFreqStart;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &sweepFreqStop() const {return m_sweepFreqStop;} //!< [MHz]
+    const shared_ptr<XDoubleNode> &sweepAmplStart() const {return m_sweepAmplStart;} //!< [dB]
+    const shared_ptr<XDoubleNode> &sweepAmplStop() const {return m_sweepAmplStop;} //!< [dB]
+    const shared_ptr<XDoubleNode> &sweepDwellTime() const {return m_sweepDwellTime;} //!< [s]
+    const shared_ptr<XUIntNode> &sweepPoints() const {return m_sweepPoints;}
 protected:
     virtual double getFreq() = 0; //!< [MHz]
 	virtual void changeFreq(double mhz) = 0;
@@ -87,7 +91,10 @@ private:
     const shared_ptr<XDoubleNode> m_amDepth, m_fmDev;
     const shared_ptr<XDoubleNode> m_amIntSrcFreq, m_fmIntSrcFreq;
     const shared_ptr<XComboNode> m_sweepMode;
-    const shared_ptr<XDoubleNode> m_sweepFreqMax, m_sweepFreqMin;
+    const shared_ptr<XDoubleNode> m_sweepFreqStart, m_sweepFreqStop;
+    const shared_ptr<XDoubleNode> m_sweepAmplStart, m_sweepAmplStop;
+    const shared_ptr<XDoubleNode> m_sweepDwellTime;
+    const shared_ptr<XUIntNode> m_sweepPoints;
 
     void *execute(const atomic<bool> &);
 
