@@ -42,6 +42,12 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("ODMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
     iterate_commit([=](Transaction &tr){
+        const char *labels[] = {"Ch", "Freq. [MHz]", "Intens", "Weights"};
+        tr[ *m_spectrum].setColCount(4, labels);
+        tr[ *m_spectrum].insertPlot(labels[2], 1, 2, -1, 3, 0);
+        tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens.");
+        tr[ *m_spectrum].clearPoints();
+
         tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
         tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
 
@@ -67,14 +73,6 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
         tr[ *centerFreq()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *freqSpan()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *freqStep()].onValueChanged().connect(m_lsnOnCondChanged);
-    });
-    iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Ch", "Freq. [MHz]", "Intens", "Weights"};
-        tr[ *m_spectrum].setColCount(4, labels);
-        tr[ *m_spectrum].insertPlot(labels[2], 1, 2, 0, 3);
-        tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens.");
-        tr[ *m_spectrum].clearPoints();
-
     });
 
     m_conBaseUIs = {
@@ -306,9 +304,20 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		double newf = freq; //MHz
 		newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
-
-        if(sg1__)
-            trans( *sg1__->freq()) = newf;
+        if((newf - (cfreq - freq_span / 2)) / freq_step > 0.99) {
+            trans( *active()) = false; //finish
+            return;
+        }
+        shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
+        Snapshot shot_camera( *camera__);
+        if(sg1__ && camera__) {
+            sg1__->iterate_commit([=](Transaction &tr){
+                tr[ *sg1__->freq()] = newf;
+                unsigned int avg = shot_camera[ *camera__->average()];
+                avg = std::max(1u, avg);
+                tr[ *sg1__->sweepPoints()] = 2 * avg;
+            });
+        }
     }
 }
 

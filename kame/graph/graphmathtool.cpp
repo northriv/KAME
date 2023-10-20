@@ -88,24 +88,26 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
 void
 XGraph1DMathToolList::update(Transaction &tr,
     cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) {
-    for(auto &x: *tr.list()) {
-        auto tool = static_pointer_cast<XGraph1DMathTool>(x);
-        //limits to selected region. xmin <= x <= xmax.
-        double xmin = tr[ *tool->begin()];
-        double xmax = tr[ *tool->end()];
-        cv_iterator xbegin_lim = xbegin;
-        for(; xbegin_lim != xend; ++xbegin_lim) {
-            if( *xbegin_lim >= xmin)
-                break;
+    if(tr.size(shared_from_this())) {
+        for(auto &x: *tr.list(shared_from_this())) {
+            auto tool = static_pointer_cast<XGraph1DMathTool>(x);
+            //limits to selected region. xmin <= x <= xmax.
+            double xmin = tr[ *tool->begin()];
+            double xmax = tr[ *tool->end()];
+            cv_iterator xbegin_lim = xbegin;
+            for(; xbegin_lim != xend; ++xbegin_lim) {
+                if( *xbegin_lim >= xmin)
+                    break;
+            }
+            cv_iterator xend_lim = xbegin;
+            for(; xend_lim != xend; ++xend_lim) {
+                if( *xend_lim > xmax)
+                    break;
+            }
+            cv_iterator ybegin_lim = ybegin + (xbegin_lim - xbegin);
+            cv_iterator yend_lim = ybegin + (xend_lim - xbegin);
+            tool->update(tr, xbegin_lim, xend_lim, ybegin_lim, yend_lim);
         }
-        cv_iterator xend_lim = xbegin;
-        for(; xend_lim != xend; ++xend_lim) {
-            if( *xend_lim > xmax)
-                break;
-        }
-        cv_iterator ybegin_lim = ybegin + (xbegin_lim - xbegin);
-        cv_iterator yend_lim = ybegin + (xend_lim - xbegin);
-        tool->update(tr, xbegin_lim, xend_lim, ybegin_lim, yend_lim);
     }
 }
 

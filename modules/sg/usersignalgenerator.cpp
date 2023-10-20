@@ -227,28 +227,51 @@ XAgilentSGSCPI::onSweepCondChanged(const Snapshot &, XValueNodeBase *) {
         interface()->send("INIT:CONT ON");
         break;
     case 3: //Ampl Alt.
+    {
         interface()->send("LIST:TYPE LIST");
         interface()->send("POW:MODE LIST");
-        XString buf = "SWE:LIST:POW ";
+        XString buf = "LIST:POW ";
         for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
-            double db = (i % 2) ? (double)shot[ *sweepAmplStop()] : (double)shot[ *sweepAmplStop()];
-            buf.append(formatString("%f,", db));
+            double db = (i % 2 == 0) ? (double)shot[ *sweepAmplStart()] : (double)shot[ *sweepAmplStop()];
+            if(i != 0)
+                buf.append(",");
+            buf.append(formatString("%f", db));
         }
         interface()->send(buf);
         interface()->send("FREQ:MODE CW");
-//        buf = "SWE:LIST:FREQ ";
-//        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
-//            buf.append(formatString("%f,", (double)shot[ *sweepFreqStart()]));
-//        }
-//        interface()->send(buf);
-        interface()->send("SWE:DWEL STEP");
-//        buf = "SWE:LIST:DWEL ";
-//        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
-//            buf.append(formatString("%f,", (double)shot[ *sweepDwellTime()]));
-//        }
-//        interface()->send(buf);
+        interface()->send("LIST:DWEL:TYPE STEP");
+        interface()->sendf("SWE:DWEL %f S", (double)shot[ *sweepDwellTime()]);
         interface()->send("INIT:CONT OFF");
         interface()->send("INIT:IMM");
+    }
+        break;
+    case 4: //Ampl Alt. & freq
+    {
+        interface()->send("LIST:TYPE LIST");
+        interface()->send("POW:MODE LIST");
+        XString buf = "LIST:POW ";
+        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
+            double db = (i % 2 == 0) ? (double)shot[ *sweepAmplStart()] : (double)shot[ *sweepAmplStop()];
+            if(i != 0)
+                buf.append(",");
+            buf.append(formatString("%f", db));
+        }
+        interface()->send(buf);
+        interface()->send("FREQ:MODE LIST");
+        buf = "LIST:FREQ ";
+        for(unsigned int i = 0; i < shot[ *sweepPoints()]; ++i) {
+            double x = (double)(i / 2 * 2) / ((shot[ *sweepPoints()] - 1) / 2 * 2);
+            double freq = (1 - x) * shot[ *sweepFreqStart()] + x * shot[ *sweepFreqStop()];
+            if(i != 0)
+                buf.append(",");
+            buf.append(formatString("%f", freq * 1e6));
+        }
+        interface()->send(buf);
+        interface()->send("LIST:DWEL:TYPE STEP");
+        interface()->sendf("SWE:DWEL %f S", (double)shot[ *sweepDwellTime()]);
+        interface()->send("INIT:CONT OFF");
+        interface()->send("INIT:IMM");
+    }
         break;
     }
 }

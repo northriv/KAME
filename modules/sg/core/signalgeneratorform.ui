@@ -458,7 +458,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Freq. Stop</string>
+             <string>Freq. Start</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -468,7 +468,7 @@
           <item>
            <layout class="QHBoxLayout" name="_11">
             <item>
-             <widget class="QLineEdit" name="m_edSweepFreqStop">
+             <widget class="QLineEdit" name="m_edSweepFreqStart">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -514,7 +514,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Freq. Start</string>
+             <string>Freq. Stop</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -524,7 +524,7 @@
           <item>
            <layout class="QHBoxLayout" name="_13">
             <item>
-             <widget class="QLineEdit" name="m_edSweepFreqStart">
+             <widget class="QLineEdit" name="m_edSweepFreqStop">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -570,7 +570,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Ampl. Stop</string>
+             <string>Ampl. Start</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -580,7 +580,7 @@
           <item>
            <layout class="QHBoxLayout" name="_15">
             <item>
-             <widget class="QLineEdit" name="m_edSweepAmplStop">
+             <widget class="QLineEdit" name="m_edSweepAmplStart">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -626,7 +626,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Ampl. Start</string>
+             <string>Ampl. Stop</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -636,7 +636,7 @@
           <item>
            <layout class="QHBoxLayout" name="_17">
             <item>
-             <widget class="QLineEdit" name="m_edSweepAmplStart">
+             <widget class="QLineEdit" name="m_edSweepAmplStop">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                 <horstretch>0</horstretch>

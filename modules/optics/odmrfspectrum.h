@@ -42,7 +42,7 @@ public:
     XODMRFSpectrum(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
     //! ususally nothing to do
-    virtual ~XODMRFSpectrum();
+    virtual ~XODMRFSpectrum() {}
 
     //! Shows all forms belonging to driver
     virtual void showForms() override;
@@ -133,7 +133,6 @@ private:
 
     void onActiveChanged(const Snapshot &shot, XValueNodeBase *);
     void onTuningChanged(const Snapshot &shot, XValueNodeBase *); //!< receives signals from AutoLCTuner.
-    void performTuning(const Snapshot &shot_this, double newf);
 
     double m_lastFreqAcquired; //!< to avoid inifite averaging after a sweep.
 };
