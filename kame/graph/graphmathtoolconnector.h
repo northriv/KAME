@@ -46,7 +46,7 @@ public:
 
 private:
     std::deque<shared_ptr<XGraph1DMathToolList>> m_lists;
-    std::deque<shared_ptr<Listener>> s_activeListeners;
+    static std::deque<shared_ptr<Listener>> s_activeListeners;
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);

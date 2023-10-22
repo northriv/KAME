@@ -18,6 +18,10 @@
 #include <QToolButton>
 #include "measure.h"
 //---------------------------------------------------------------------------
+
+std::deque<shared_ptr<Listener>> XQGraph1DMathToolConnector::s_activeListeners;
+std::deque<shared_ptr<Listener>> XQGraph2DMathToolConnector::s_activeListeners;
+
 XQGraph1DMathToolConnector::XQGraph1DMathToolConnector
 (const std::deque<shared_ptr<XGraph1DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget) :
     m_pItem(item), m_graphwidget(graphwidget), m_lists(lists) {
