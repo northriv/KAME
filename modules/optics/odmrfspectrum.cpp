@@ -128,10 +128,10 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     const Snapshot &shot_camera((emitter == camera__.get()) ? shot_emitter : shot_others);
 
-    if(shot_camera[ *camera__->incrementalAverage()]) {
-        gWarnPrint(i18n("Do NOT use incremental avg. Skipping."));
-        throw XSkippedRecordError(__FILE__, __LINE__);
-    }
+//    if(shot_camera[ *camera__->incrementalAverage()]) {
+//        gWarnPrint(i18n("Do NOT use incremental avg. Skipping."));
+//        throw XSkippedRecordError(__FILE__, __LINE__);
+//    }
 
     bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
@@ -314,9 +314,9 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         if(sg1__ && camera__) {
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
-                unsigned int avg = shot_camera[ *camera__->average()];
-                avg = std::max(1u, avg);
-                tr[ *sg1__->sweepPoints()] = 2 * avg;
+//                unsigned int avg = shot_camera[ *camera__->average()];
+//                avg = std::max(1u, avg);
+//                tr[ *sg1__->sweepPoints()] = 2 * avg;
             });
         }
     }

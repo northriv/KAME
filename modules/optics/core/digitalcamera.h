@@ -46,53 +46,38 @@ public:
     const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //!< [dB]
     const shared_ptr<XUIntNode> &brightness() const {return m_brightness;} //!< brightness for device
     const shared_ptr<XDoubleNode> &exposureTime() const {return m_exposureTime;} //!< [s]
-    const shared_ptr<XUIntNode> &average() const {return m_average;} //
     const shared_ptr<XTouchableNode> &storeDark() const {return m_storeDark;}
-    const shared_ptr<XTouchableNode> &clearAverage() const {return m_clearAverage;}
     const shared_ptr<XBoolNode> &subtractDark() const {return m_subtractDark;}
-    const shared_ptr<XBoolNode> &incrementalAverage() const {return m_incrementalAverage;}
     const shared_ptr<XComboNode> &videoMode() const {return m_videoMode;}
     enum class TriggerMode {CONTINUEOUS = 0, SINGLE = 1, EXT_POS_EDGE = 2, EXT_NEG_EDGE = 3, EXT_POS_EXPOSURE = 4, EXT_NEG_EXPOSURE = 5};
     const shared_ptr<XComboNode> &triggerMode() const {return m_triggerMode;}
-    enum class ColoringMethod {MONO = 0, RGBWHEEL = 1, DPL_PL = 2};
-    constexpr static unsigned int MAX_COLORS = 3;
-    const shared_ptr<XComboNode> &coloringMethod() const {return m_coloringMethod;}
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
     const shared_ptr<XUIntNode> &antiVibrationPixels() const {return m_antiVibrationPixels;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
     const shared_ptr<XUIntNode> &colorIndex() const {return m_colorIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
 
-    const shared_ptr<X2DImage> &liveImage() const {return m_liveImage;}
-    const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
-
     struct Payload : public XPrimaryDriver::Payload {
 //        double cameraGain() const {return m_cameraGain;}
         unsigned int brightness() const {return m_brightness;}
         double exposureTime() const {return m_exposureTime;} //! [s]
-        unsigned int accumulated(unsigned int cidx) const {return m_accumulated[cidx];}
-        unsigned int accumulated() const {return m_accumulated[m_maxColorIndex];}
         double electricDark() const {return m_electric_dark;} //dark count
-        double gainForAverage() const {return m_gainForAverage;}
-        shared_ptr<QImage> liveImage() const {return m_liveImage;}
-        shared_ptr<QImage> processedImage() const {return m_processedImage;}
+        unsigned int width() const {return m_width;}
+        unsigned int height() const {return m_height;}
+        local_shared_ptr<std::vector<uint32_t>> rawCounts() const {return m_rawCounts;}
+        local_shared_ptr<std::vector<uint32_t>> darkCounts() const {return m_darkCounts;}
 //    private:
 //        friend class XDigitalCamera;
 //        double m_cameraGain;
         unsigned int m_brightness;
         double m_exposureTime;
-        double m_gainForAverage;
         XString m_status;
-        unsigned int m_accumulated[MAX_COLORS];
         double m_electric_dark;
-        unsigned int m_darkAccumulated;
+        unsigned int m_dark;
         unsigned int m_colorIndex;
-        unsigned int m_maxColorIndex;
+        unsigned int m_width, m_height;
         local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[MAX_COLORS];
-        double m_coefficients[MAX_COLORS];
-        double m_darkCoefficient;
-        shared_ptr<QImage> m_liveImage, m_processedImage;
+        local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
     };
 protected:
 
@@ -115,24 +100,21 @@ private:
     const shared_ptr<XDoubleNode> m_cameraGain;
     const shared_ptr<XUIntNode> m_brightness;
     const shared_ptr<XDoubleNode> m_exposureTime;
-    const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XTouchableNode> m_storeDark;
-    const shared_ptr<XTouchableNode> m_clearAverage;
     const shared_ptr<XTouchableNode> m_roiSelectionTool;
     const shared_ptr<XUIntNode> m_antiVibrationPixels;
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_triggerMode;
     const shared_ptr<XComboNode> m_frameRate;
-    const shared_ptr<XComboNode> m_coloringMethod;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
-    const shared_ptr<XBoolNode> m_incrementalAverage;
     const shared_ptr<XUIntNode> m_colorIndex;
     const shared_ptr<XDoubleNode> m_gainForDisp;
 
 
     const qshared_ptr<FrmDigitalCamera> m_form;
-    const shared_ptr<X2DImage> m_liveImage, m_processedImage;
+    const shared_ptr<X2DImage> m_liveImage;
+    shared_ptr<QImage> m_qimage;
 
     shared_ptr<Listener> m_lsnOnVideoModeChanged;
     shared_ptr<Listener> m_lsnOnTriggerModeChanged;
@@ -140,7 +122,6 @@ private:
     shared_ptr<Listener> m_lsnOnBrightnessChanged;
     shared_ptr<Listener> m_lsnOnExposureTimeChanged;
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
-    shared_ptr<Listener> m_lsnOnClearAverageTouched;
     shared_ptr<Listener> m_lsnOnROISelectionToolTouched;
     shared_ptr<Listener> m_lsnOnROISelectionToolFinished;
 
@@ -157,7 +138,6 @@ private:
     shared_ptr<XGraph2DMathToolList> m_graphToolList;
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
-    void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
 
     void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
     void onROISelectionToolFinished(const Snapshot &shot,
@@ -165,10 +145,9 @@ private:
     weak_ptr<OSDObjectWithMarker> m_roiOSD;
 
     atomic<bool> m_storeDarkInvoked;
-    atomic<bool> m_clearAverageInvoked;
-    constexpr static unsigned int NumSummedCountsPool = MAX_COLORS + 1;
-    atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
-    local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
+    constexpr static unsigned int NumSummedCountsPool = 2;
+    atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumSummedCountsPool];
+    local_shared_ptr<std::vector<uint32_t>> rawCountsFromPool(int imagebytes);
 
     void *execute(const atomic<bool> &) override;
 };

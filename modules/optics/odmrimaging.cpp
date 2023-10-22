@@ -15,10 +15,8 @@
 #include "odmrimaging.h"
 #include "ui_odmrimagingform.h"
 #include "x2dimage.h"
-#include "graph.h"
+#include "graph.h"0
 #include "graphwidget.h"
-#include "graphpainter.h"
-#include "interface.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
 #include "graphmathtool.h"
@@ -152,17 +150,12 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     const Snapshot &shot_camera((emitter == camera__.get()) ? shot_emitter : shot_others);
 
-    if(shot_camera[ *camera__->incrementalAverage()]) {
-        gWarnPrint(i18n("Do NOT use incremental avg. Skipping."));
-        throw XSkippedRecordError(__FILE__, __LINE__);
-    }
-
     bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
 
-    const auto &image = shot_camera[ *camera__].liveImage();
-    unsigned int width = image->width();
-    unsigned int height = image->height();
+    const auto rawimage = shot_camera[ *camera__].rawCounts();
+    unsigned int width = shot_camera[ *camera__].width();
+    unsigned int height = shot_camera[ *camera__].height();
     if( !tr[ *incrementalAverage()] && !clear && (emitter == camera__.get())) {
         clear = true;
         for(unsigned int i: {0, 1}) {
@@ -190,15 +183,14 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         uint32_t *summedNext = &summedCountsNext->at(0);
         const uint32_t *summed = &tr[ *this].m_summedCounts[cidx]->at(0);
 
-        assert(image->format() == QImage::Format_Grayscale16);
-        uint16_t *live = reinterpret_cast<uint16_t*>(image->bits());
+        const uint32_t *raw = &rawimage->at(0);
         for(unsigned int i  = 0; i < width * height; ++i) {
-            uint64_t v = *summed++ + *live++;
+            uint64_t v = *summed++ + *raw++;
             if(v > 0x100000000uLL)
                 v = 0xffffffffuL;
             *summedNext++ = v;
         }
-        assert(live == reinterpret_cast<uint16_t*>(image->bits()) + width * height);
+        assert(raw == &rawimage->at(0) + width * height);
         assert(summedNext == &summedCountsNext->at(0) + width * height);
         assert(summed == &tr[ *this].m_summedCounts[cidx]->at(0) + width * height);
         (tr[ *this].m_accumulated[cidx])++;

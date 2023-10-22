@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>746</width>
-    <height>656</height>
+    <width>755</width>
+    <height>481</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -76,33 +76,7 @@
           </property>
          </widget>
         </item>
-        <item>
-         <widget class="QToolButton" name="m_tbRefObjMenu">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="text">
-           <string>REF</string>
-          </property>
-         </widget>
-        </item>
        </layout>
-      </item>
-      <item>
-       <widget class="XQGraph" name="m_graphwidgetProcessed" native="true">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>53</width>
-          <height>53</height>
-         </size>
-        </property>
-       </widget>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_8">
@@ -179,39 +153,6 @@
         </layout>
        </item>
        <item>
-        <layout class="QHBoxLayout" name="_4">
-         <item>
-          <widget class="QLabel" name="textLabel1_2_5_3_3_15">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>RefLSQFFrames</string>
-           </property>
-           <property name="wordWrap">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="m_spbRefIntensFramesForLSQF">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="minimum">
-            <number>0</number>
-           </property>
-           <property name="maximum">
-            <number>1000</number>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
         <widget class="QCheckBox" name="m_ckbAutoGainProcessed">
          <property name="text">
           <string>Auto Gain For Processed Spectrum</string>
@@ -240,36 +181,6 @@
           <widget class="QDoubleSpinBox" name="m_dblGainProcessed">
            <property name="maximum">
             <double>1000.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <layout class="QHBoxLayout">
-         <item>
-          <widget class="QLabel" name="textLabel1_2_5_3_3_2">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Average</string>
-           </property>
-           <property name="wordWrap">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="m_spbAverage">
-           <property name="minimum">
-            <number>1</number>
-           </property>
-           <property name="maximum">
-            <number>1000</number>
            </property>
           </widget>
          </item>
@@ -319,24 +230,6 @@
            </property>
            <property name="maximum">
             <number>2</number>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_5">
-         <item>
-          <widget class="QCheckBox" name="m_ckbIncrementalAverage">
-           <property name="text">
-            <string>Incremental</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="m_btnClearAverage">
-           <property name="text">
-            <string>Clear </string>
            </property>
           </widget>
          </item>
