@@ -13,6 +13,7 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "ui_odmrfspectrumform.h"
+#include "digitalcamera.h"
 #include "odmrfspectrum.h"
 #include "signalgenerator.h"
 

@@ -31,9 +31,9 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activateAxisSelectionTool(XAxis::AxisDirection::X, label);
-        m_activeListeners.clear();
+        s_activeListeners.clear(); //cancels all the remaining selections.
         for(auto &toollist: m_lists)
-            m_activeListeners.push_back( m_graphwidget->onAxisSelectedByTool().connectWeakly(
+            s_activeListeners.push_back( m_graphwidget->onAxisSelectedByTool().connectWeakly(
                 toollist, &XGraph1DMathToolList::onAxisSelectedByTool));
     }
     if(m_actionToExisitingToolMap.count(act)) {
@@ -96,14 +96,17 @@ XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
     item->setPopupMode(QToolButton::InstantPopup);
     connect( m_menu, SIGNAL( aboutToShow() ), this, SLOT( menuOpenActionActivated() ) );
 }
+XQGraph2DMathToolConnector::XQGraph2DMathToolConnector
+(const shared_ptr<XGraph2DMathToolList> &list, QToolButton* item, XQGraph *graphwidget) :
+    XQGraph2DMathToolConnector(std::deque<shared_ptr<XGraph2DMathToolList>>{list}, item, graphwidget) {}
 
 void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
     if(m_actionToToolMap.count(act)) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, label);
-        m_activeListeners.clear();
+        s_activeListeners.clear(); //cancels all the remaining selections.
         for(auto &toollist: m_lists)
-            m_activeListeners.push_back( m_graphwidget->onPlaneSelectedByTool().connectWeakly(
+            s_activeListeners.push_back( m_graphwidget->onPlaneSelectedByTool().connectWeakly(
                 toollist, &XGraph2DMathToolList::onPlaneSelectedByTool));
     }
     if(m_actionToExisitingToolMap.count(act)) {

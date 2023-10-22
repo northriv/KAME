@@ -55,7 +55,9 @@ public:
     const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
     const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
-
+    unsigned int pixels(const Snapshot &shot) const {
+        return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
+    }
     virtual void insertEntries(Transaction &tr_meas) {}
     virtual void releaseEntries(Transaction &tr) {}
 
@@ -81,6 +83,7 @@ public:
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
     }
+    const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void insertEntries(Transaction &tr_meas) override {
         entries()->insert(tr_meas, m_entry);
     }
@@ -102,6 +105,7 @@ public:
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
     }
+    const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void insertEntries(Transaction &tr_meas) override {
         entries()->insert(tr_meas, m_entry);
     }

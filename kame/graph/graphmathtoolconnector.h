@@ -46,7 +46,7 @@ public:
 
 private:
     std::deque<shared_ptr<XGraph1DMathToolList>> m_lists;
-    std::deque<shared_ptr<Listener>> m_activeListeners;
+    std::deque<shared_ptr<Listener>> s_activeListeners;
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
@@ -56,6 +56,7 @@ class DECLSPEC_KAME XQGraph2DMathToolConnector : public QObject {
     Q_OBJECT
 public:
     XQGraph2DMathToolConnector(const std::deque<shared_ptr<XGraph2DMathToolList>> &lists, QToolButton* item, XQGraph *graphwidget);
+    XQGraph2DMathToolConnector(const shared_ptr<XGraph2DMathToolList> &lists, QToolButton* item, XQGraph *graphwidget);
     virtual ~XQGraph2DMathToolConnector();
 private:
     QToolButton *const m_pItem;
@@ -65,10 +66,9 @@ private:
     std::map<QAction *, XString> m_actionToToolMap;
     std::multimap<QAction *, std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
 public:
-
 private:
     std::deque<shared_ptr<XGraph2DMathToolList>> m_lists;
-    std::deque<shared_ptr<Listener>> m_activeListeners;
+    static std::deque<shared_ptr<Listener>> s_activeListeners;
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);

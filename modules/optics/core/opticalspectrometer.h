@@ -28,7 +28,7 @@ class XGraph;
 class XWaveNGraph;
 class XXYPlot;
 
-//! Base class for optical spectrometer.
+//! Base class for optical/multi-channel spectrometer.
 class DECLSPEC_SHARED XOpticalSpectrometer : public XPrimaryDriverWithThread {
 public:
     XOpticalSpectrometer(const char *name, bool runtime,

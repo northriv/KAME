@@ -22,6 +22,7 @@
 class XScalarEntry;
 class XGraph;
 template<class T> struct Vector4;
+class XGraph2DMathToolList;
 class QMainWindow;
 class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
@@ -58,9 +59,9 @@ public:
     const shared_ptr<XComboNode> &coloringMethod() const {return m_coloringMethod;}
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
     const shared_ptr<XUIntNode> &antiVibrationPixels() const {return m_antiVibrationPixels;}
-    const shared_ptr<XBoolNode> &autoGainForAverage() const {return m_autoGainForAverage;}
+    const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
     const shared_ptr<XUIntNode> &colorIndex() const {return m_colorIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
-    const shared_ptr<XDoubleNode> &gainForAverage() const {return m_gainForAverage;}
+    const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
 
     const shared_ptr<X2DImage> &liveImage() const {return m_liveImage;}
     const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
@@ -124,10 +125,10 @@ private:
     const shared_ptr<XComboNode> m_triggerMode;
     const shared_ptr<XComboNode> m_frameRate;
     const shared_ptr<XComboNode> m_coloringMethod;
-    const shared_ptr<XBoolNode> m_autoGainForAverage;
+    const shared_ptr<XBoolNode> m_autoGainForDisp;
     const shared_ptr<XBoolNode> m_incrementalAverage;
     const shared_ptr<XUIntNode> m_colorIndex;
-    const shared_ptr<XDoubleNode> m_gainForAverage;
+    const shared_ptr<XDoubleNode> m_gainForDisp;
 
 
     const qshared_ptr<FrmDigitalCamera> m_form;
@@ -152,6 +153,8 @@ private:
     std::deque<xqcon_ptr> m_conUIs;
 
 	shared_ptr<XGraph> m_graph;
+
+    shared_ptr<XGraph2DMathToolList> m_graphToolList;
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);

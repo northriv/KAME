@@ -359,7 +359,7 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     if(mode == TriggerMode::SINGLE){
         if(dc1394_software_trigger_set_power(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not start transmission."), __FILE__, __LINE__);
-        if(dc1394_capture_setup(interface()->camera(), 4, DC1394_CAPTURE_FLAGS_DEFAULT))
+        if(dc1394_capture_setup(interface()->camera(), 2, DC1394_CAPTURE_FLAGS_DEFAULT))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
         msecsleep(50); //exposure
         if(dc1394_video_set_one_shot(interface()->camera(), DC1394_ON))
@@ -383,7 +383,16 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
         if(dc1394_external_trigger_set_power(interface()->camera(), DC1394_ON))
             throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not set info.."), __FILE__, __LINE__);
     }
-    if(dc1394_capture_setup(interface()->camera(), 6, DC1394_CAPTURE_FLAGS_DEFAULT))
+
+    dc1394video_mode_t videomode;
+    if(dc1394_video_get_mode(interface()->camera(), &videomode))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info."), __FILE__, __LINE__);
+    unsigned int width, height;
+    if(dc1394_get_image_size_from_video_mode(interface()->camera(), videomode, &width, &height))
+        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info."), __FILE__, __LINE__);
+    unsigned int frames = std::max(6u, 80000000u / (2 *width * height));
+
+    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
     if(dc1394_video_set_transmission(interface()->camera(), DC1394_ON))

@@ -37,10 +37,10 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
     m_frameRate(create<XComboNode>("FrameRate", true)),
     m_coloringMethod(create<XComboNode>("ColoringMethod", false, true)),
-    m_autoGainForAverage(create<XBoolNode>("AutoGainForAverage", false)),
+    m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
     m_colorIndex(create<XUIntNode>("ColorIndex", true)),
-    m_gainForAverage(create<XDoubleNode>("GainForAverage", false)),
+    m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
     m_form(new FrmDigitalCamera),
     m_liveImage(create<X2DImage>("LiveImage", false,
                                    m_form->m_graphwidgetLive)),
@@ -60,14 +60,14 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(brightness(), m_form->m_spbBrightness),
         xqcon_create<XQSpinBoxUnsignedConnector>(colorIndex(), m_form->m_spbColorIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(antiVibrationPixels(), m_form->m_spbAntiVibrationPixels),
-        xqcon_create<XQDoubleSpinBoxConnector>(gainForAverage(), m_form->m_dblGainProcessed),
+        xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainProcessed),
 //        xqcon_create<XQLineEditConnector>((), m_form->m_edIntegrationTime),
         xqcon_create<XQButtonConnector>(m_clearAverage, m_form->m_btnClearAverage),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
         xqcon_create<XQButtonConnector>(m_roiSelectionTool, m_form->m_tbROI),
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
         xqcon_create<XQToggleButtonConnector>(m_incrementalAverage, m_form->m_ckbIncrementalAverage),
-        xqcon_create<XQToggleButtonConnector>(m_autoGainForAverage, m_form->m_ckbAutoGainProcessed)
+        xqcon_create<XQToggleButtonConnector>(m_autoGainForDisp, m_form->m_ckbAutoGainProcessed)
     };
 
     std::vector<shared_ptr<XNode>> runtime_ui{
@@ -85,7 +85,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         tr[ *coloringMethod()].add({"Monochrome", "RGB Wheel", "DeltaPL/PL"});
         tr[ *coloringMethod()] = 0;
         tr[ *average()] = 1;
-        tr[ *autoGainForAverage()] = true;
+        tr[ *autoGainForDisp()] = true;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
         m_lsnOnClearAverageTouched = tr[ *clearAverage()].onTouch().connectWeakly(
@@ -270,7 +270,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
     uint32_t vmin = 0xffffffffu;
     uint32_t vmax = 0u;
-    uint32_t gain_disp = lrint(0x100u * tr[ *gainForAverage()]);
+    uint32_t gain_disp = lrint(0x100u * tr[ *gainForDisp()]);
     if(mono16) {
         for(unsigned int i  = 0; i < width * height; ++i) {
              auto gray = reader.pop<uint16_t>();
@@ -339,14 +339,14 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
         tr[ *this].m_darkCounts.reset();
     }
-    if(tr[ *m_autoGainForAverage]) {
-        tr[ *gainForAverage()]  = lrint((double)0xffffu / (vmax / tr[ *this].m_accumulated[cidx]));
+    if(tr[ *m_autoGainForDisp]) {
+        tr[ *gainForDisp()]  = lrint((double)0xffffu / (vmax / tr[ *this].m_accumulated[cidx]));
     }
     switch((unsigned int)tr[ *coloringMethod()]) {
     case (unsigned int)ColoringMethod::MONO: {
         uint16_t *processed = reinterpret_cast<uint16_t*>(processedimage->bits());
         tr[ *this].m_coefficients[0] = 1.0 / tr[ *this].m_accumulated[cidx];
-        uint64_t gain_av = lrint(0x100000000uLL * tr[ *gainForAverage()] * tr[ *this].m_coefficients[cidx]);
+        uint64_t gain_av = lrint(0x100000000uLL * tr[ *gainForDisp()] * tr[ *this].m_coefficients[cidx]);
         summed = &tr[ *this].m_summedCounts[cidx]->at(0);
         if( !tr[ *this].m_darkCounts) {
             for(unsigned int i  = 0; i < width * height; ++i) {
@@ -357,7 +357,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForDisp()] * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
                 int64_t v = (int64_t)(*summed++ * gain_av - *dark++ * gain_dark)  / 0x100000000LL;
                 *processed++ = std::max((int64_t)0, std::min(v, 0xffffLL));
@@ -374,7 +374,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         const uint32_t *summed[3];
         for(unsigned int cidx: {0,1,2}) {
             tr[ *this].m_coefficients[cidx] = 1.0 / tr[ *this].m_accumulated[cidx];
-            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
+            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForDisp()] / 256.0 * tr[ *this].m_coefficients[cidx]);
             summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
         }
         if( !tr[ *this].m_darkCounts) {
@@ -389,7 +389,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForDisp()] / 256.0 * tr[ *this].m_darkCoefficient);
             for(unsigned int i  = 0; i < width * height; ++i) {
                 for(unsigned int cidx: {0,1,2}) {
                     int64_t v = (int64_t)(*(summed[cidx])++ * gain_av[cidx] - *dark * gain_dark)  / 0x100000000LL;
@@ -428,7 +428,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
 //        dpl_max /= accum[0] * accum[1];// max(PL[1] - PL[0])
 //        dpl_min /= accum[0] * accum[1];
         for(unsigned int cidx: {0,1}) {
-            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_coefficients[cidx]);
+            gain_av[cidx] = lrint(0x100000000uLL * tr[ *gainForDisp()] / 256.0 * tr[ *this].m_coefficients[cidx]);
             gain_av[cidx] /= 2;
         }
         for(unsigned int cidx: {0,1})
@@ -455,7 +455,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         else {
             const uint32_t *dark = &tr[ *this].m_darkCounts->at(0);
             tr[ *this].m_darkCoefficient = 1.0 / tr[ *this].m_darkAccumulated;
-            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForAverage()] / 256.0 * tr[ *this].m_darkCoefficient);
+            uint64_t gain_dark = lrint(0x100000000uLL * tr[ *gainForDisp()] / 256.0 * tr[ *this].m_darkCoefficient);
             gain_dark /= 2;
             for(unsigned int i  = 0; i < width * height; ++i) {
                 int64_t dpl = (int64_t)(*summed[1] * accum[0] - *summed[0] * accum[1]);

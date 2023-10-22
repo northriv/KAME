@@ -15,19 +15,18 @@
 #ifndef ODMRFSPECTRUM_H
 #define ODMRFSPECTRUM_H
 
-#include "digitalcamera.h"
 
-#include <graph.h>
-#include <graphwidget.h>
-#include <xwavengraph.h>
-#include <secondarydriver.h>
-#include <xnodeconnector.h>
+#include "graph.h"
+#include "graphwidget.h"
+#include "xwavengraph.h"
+#include "secondarydriver.h"
+#include "xnodeconnector.h"
 
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
 
-
+class XDigitalCamera;
 class XSG;
 class QMainWindow;
 class Ui_FrmODMRFSpectrum;
