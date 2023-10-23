@@ -305,7 +305,7 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		double newf = freq; //MHz
 		newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
-        if((newf - (cfreq - freq_span / 2)) / freq_step > 0.99) {
+        if(newf >= cfreq + freq_span / 2) {
             trans( *active()) = false; //finish
             return;
         }
