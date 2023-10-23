@@ -57,21 +57,24 @@ public:
 
     struct Payload : public XSecondaryDriver::Payload {
         const std::vector<double> &sampleIntensities(bool is_mw_on) const {return m_sampleIntensities[is_mw_on ? 1 : 0];}
-        const std::vector<double> &referenceIntensities() const {return m_referenceIntensities;}
+        const std::vector<double> &referenceIntensities(bool is_mw_on) const {return m_referenceIntensities[is_mw_on ? 1 : 0];}
         double pl(bool is_mw_on, unsigned int i) const {
             double pl__ = sampleIntensities(is_mw_on)[i];
             return pl__;
         }
-        double dPLoPL(unsigned int i) const {
+        double dPL(unsigned int i) const {
             double pl_off = pl(false, i);
             double pl_on = pl(true, i);
-            return (pl_on - pl_off) / pl_off;
+            return pl_on - pl_off;
+        }
+        double dPLoPL(unsigned int i) const {
+            return dPL(i) / m_pl0[i];
         }
         unsigned int numSamples() const {return m_sampleIntensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
-    private:
+    protected:
         friend class XODMRImaging;
         double m_gainForDisp;
         unsigned int m_accumulated[2];
@@ -79,7 +82,8 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[2];//MW off and on.
         double m_coefficients[2];
         std::vector<double> m_sampleIntensities[2];
-        std::vector<double> m_referenceIntensities;
+        std::vector<double> m_pl0;
+        std::vector<double> m_referenceIntensities[2];
         XTime m_timeClearRequested;
         unsigned int m_width, m_height;
         bool isCurrentImageMWOn() const {return m_accumulated[0] > m_accumulated[1];}
@@ -115,8 +119,7 @@ private:
     const shared_ptr<XComboNode> m_dispMethod;
     const shared_ptr<XUIntNode> m_refIntensFrames;
 
-    const std::deque<shared_ptr<XGraph2DMathToolList>> m_sampleToolLists, m_darkToolLists; //PL for MW off and on.
-    const shared_ptr<XGraph2DMathToolList> m_referenceToolList; //PL only for MW off
+    const std::deque<shared_ptr<XGraph2DMathToolList>> m_sampleToolLists, m_referenceToolLists, m_darkToolLists; //PL for MW off and on.
 
     const qshared_ptr<FrmODMRImaging> m_form;
     const shared_ptr<X2DImage> m_processedImage;

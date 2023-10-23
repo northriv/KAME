@@ -44,10 +44,10 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("ODMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
     iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Ch", "Freq. [MHz]", "Intens", "Weights"};
+        const char *labels[] = {"Ch", "Freq. [MHz]", "dPL", "Weights"};
         tr[ *m_spectrum].setColCount(4, labels);
         tr[ *m_spectrum].insertPlot(labels[2], 1, 2, -1, 3, 0);
-        tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens.");
+        tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL");
         tr[ *m_spectrum].clearPoints();
 
         tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
@@ -198,7 +198,7 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
                 auto &accum = tr[ *this].data[ch].m_accum;
                 auto &accum_weights = tr[ *this].data[ch].m_accum_weights;
-                accum[idx] += shot_odmr[ *odmr__].dPLoPL(ch);
+                accum[idx] += shot_odmr[ *odmr__].dPL(ch);
                 accum_weights[idx]++;
             }
         }
