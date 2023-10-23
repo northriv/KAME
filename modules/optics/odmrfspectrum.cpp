@@ -13,6 +13,7 @@
 ***************************************************************************/
 //---------------------------------------------------------------------------
 #include "ui_odmrfspectrumform.h"
+#include "odmrimaging.h"
 #include "digitalcamera.h"
 #include "odmrfspectrum.h"
 #include "signalgenerator.h"
@@ -30,7 +31,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
             4, m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))),
     m_sg1(create<XItemNode<XDriverList, XSG> >(
           "SG1", false, ref(tr_meas), meas->drivers(), true)),
-    m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
+    m_odmr(create<XItemNode<XDriverList, XODMRImaging> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
       m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
       m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
@@ -38,7 +39,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
       m_active(create<XBoolNode>("Active", true)) {
 
     connect(sg1());
-    connect(camera());
+    connect(odmr());
 
     m_form->setWindowTitle(i18n("ODMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
@@ -64,7 +65,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_freqSpan, m_form->m_edFreqSpan),
         xqcon_create<XQLineEditConnector>(m_freqStep, m_form->m_edFreqStep),
         xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas)),
-        xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_odmr, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
     };
 
@@ -107,10 +108,10 @@ bool
 XODMRFSpectrum::checkDependency(const Snapshot &shot_this,
     const Snapshot &shot_emitter, const Snapshot &shot_others,
     XDriver *emitter) const {
-    shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
-    if( !camera__) return false;
+    shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+    if( !odmr__) return false;
 //    if(emitter == this) return true;
-    if(emitter != camera__.get())
+    if(emitter != odmr__.get())
         return false;
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
     if( !sg1__) return false;
@@ -125,13 +126,13 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
     XDriver *emitter) {
     const Snapshot &shot_this(tr);
 
-    shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
-    const Snapshot &shot_camera((emitter == camera__.get()) ? shot_emitter : shot_others);
+    shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+    const Snapshot &shot_odmr((emitter == odmr__.get()) ? shot_emitter : shot_others);
 
-//    if(shot_camera[ *camera__->incrementalAverage()]) {
-//        gWarnPrint(i18n("Do NOT use incremental avg. Skipping."));
-//        throw XSkippedRecordError(__FILE__, __LINE__);
-//    }
+    if(shot_odmr[ *odmr__->incrementalAverage()]) {
+        gWarnPrint(i18n("Do NOT use incremental avg. Skipping."));
+        throw XSkippedRecordError(__FILE__, __LINE__);
+    }
 
     bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
@@ -190,15 +191,16 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
         throw XSkippedRecordError(__FILE__, __LINE__);
     }
 
-    if(emitter == camera__.get()) {
+    if(emitter == odmr__.get()) {
         shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
         double freq = shot_others[ *sg1__].freq() * 1e6;
         unsigned int idx = lrint((freq - min__) / res);
         if(idx < length) {
+            tr[ *this].data.resize(shot_odmr[ *odmr__].numSamples());
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
                 auto &accum = tr[ *this].data[ch].m_accum;
                 auto &accum_weights = tr[ *this].data[ch].m_accum_weights;
-                accum[idx] += 1;
+                accum[idx] += shot_odmr[ *odmr__].dPLoPL(ch);
                 accum_weights[idx]++;
             }
         }
@@ -309,14 +311,14 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
             trans( *active()) = false; //finish
             return;
         }
-        shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
-        Snapshot shot_camera( *camera__);
-        if(sg1__ && camera__) {
+        shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+        Snapshot shot_odmr( *odmr__);
+        if(sg1__ && odmr__) {
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
-//                unsigned int avg = shot_camera[ *camera__->average()];
-//                avg = std::max(1u, avg);
-//                tr[ *sg1__->sweepPoints()] = 2 * avg;
+                unsigned int avg = shot_odmr[ *odmr__->average()];
+                avg = std::max(1u, avg);
+                tr[ *sg1__->sweepPoints()] = 2 * avg;
             });
         }
     }

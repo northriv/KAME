@@ -66,6 +66,7 @@ public:
             double pl_on = pl(true, i);
             return (pl_on - pl_off) / pl_off;
         }
+        unsigned int numSamples() const {return m_sampleIntensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}

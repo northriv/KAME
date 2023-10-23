@@ -26,7 +26,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 
-class XDigitalCamera;
+class XODMRImaging;
 class XSG;
 class QMainWindow;
 class Ui_FrmODMRFSpectrum;
@@ -106,7 +106,7 @@ protected:
 
     //! driver specific part below
     const shared_ptr<XItemNode<XDriverList, XSG> > &sg1() const {return m_sg1;}
-    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
+    const shared_ptr<XItemNode<XDriverList, XODMRImaging> > &odmr() const {return m_odmr;}
 
     //! [MHz]
     const shared_ptr<XDoubleNode> &centerFreq() const {return m_centerFreq;}
@@ -117,7 +117,7 @@ protected:
     const shared_ptr<XBoolNode> &active() const {return m_active;}
 private:
     const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
-    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > m_camera;
+    const shared_ptr<XItemNode<XDriverList, XODMRImaging> > m_odmr;
 
     const shared_ptr<XDoubleNode> m_centerFreq;
     const shared_ptr<XDoubleNode> m_freqSpan;
