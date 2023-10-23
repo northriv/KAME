@@ -31,7 +31,7 @@ class XGraph2DMathToolList;
 class XQGraph2DMathToolConnector;
 class XScalarEntry;
 
-//! Base class for scientific/machine vision digital camera.
+//! ODMR Imaging from camera capture images.
 class DECLSPEC_SHARED XODMRImaging : public XSecondaryDriver {
 public:
     XODMRImaging(const char *name, bool runtime,

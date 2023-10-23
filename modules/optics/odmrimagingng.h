@@ -18,7 +18,7 @@
 //---------------------------------------------------------------------------
 #include "odmrimaging.h"
 
-//! Base class for scientific/machine vision digital camera.
+//! ODMR Imaging from camera capture images.
 class DECLSPEC_SHARED XODMRImagingNG : public XODMRImaging {
 public:
     XODMRImagingNG(const char *name, bool runtime,
