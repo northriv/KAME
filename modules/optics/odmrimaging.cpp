@@ -67,6 +67,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
         xqcon_create<XQSpinBoxUnsignedConnector>(wheelIndex(), m_form->m_spbWheelIndex),
+        xqcon_create<XQSpinBoxUnsignedConnector>(refIntensFrames(), m_form->m_spbRefIntensFrames),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainForDisp),
         xqcon_create<XQDoubleSpinBoxConnector>(minDPLoPLForDisp(), m_form->m_dblMinDPL),
         xqcon_create<XQDoubleSpinBoxConnector>(maxDPLoPLForDisp(), m_form->m_dblMaxDPL),
@@ -103,14 +104,6 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     });
 }
 XODMRImaging::~XODMRImaging() {
-    if(auto entries = m_entries.lock()) {
-        for(auto &&x: m_samplePLEntries) {
-            entries->release(x.second);
-        }
-        for(auto &&x: m_sampleDPLoPLEntries) {
-            entries->release(x.second);
-        }
-    }
 }
 void
 XODMRImaging::showForms() {
@@ -322,7 +315,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                         m_samplePLEntries[tool.get()] = entryPL;
                     }
                     else
-                        entryPL->value(ref(tr), shot_this[ *this].m_pl0[j]);
+//                        entryPL->value(ref(tr), shot_this[ *this].m_pl0[j]);
+                        entryPL->value(ref(tr), shot_this[ *this].m_sampleIntensities[0][j]);
                     entryDPLoPL = m_sampleDPLoPLEntries[tool.get()];
                     if( !entryDPLoPL) {
                         entryDPLoPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,dPL/PL", i).c_str(), true,
