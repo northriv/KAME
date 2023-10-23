@@ -55,7 +55,7 @@
         <item>
          <widget class="QToolButton" name="m_tbRefObjMenu">
           <property name="enabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="text">
            <string>Reference</string>

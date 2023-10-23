@@ -146,11 +146,10 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
     if(max__ <= min__) {
         throw XSkippedRecordError(i18n("Invalid min. and max."), __FILE__, __LINE__);
     }
-    if((shot_this[ *this].res() != res) || (shot_this[ *this].numChannels() != 1) ||  clear) {
-        //! todo multich
+    if((shot_this[ *this].res() != res) || (shot_this[ *this].numChannels() != shot_odmr[ *odmr__].numSamples()) ||  clear) {
         tr[ *this].m_res = res;
         tr[ *this].data.clear();
-        tr[ *this].data.resize(1);
+        tr[ *this].data.resize(shot_odmr[ *odmr__].numSamples());
     }
     else {
         //expands/shrinks the begining of buffers.
@@ -196,7 +195,6 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
         double freq = shot_others[ *sg1__].freq() * 1e6;
         unsigned int idx = lrint((freq - min__) / res);
         if(idx < length) {
-            tr[ *this].data.resize(shot_odmr[ *odmr__].numSamples());
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
                 auto &accum = tr[ *this].data[ch].m_accum;
                 auto &accum_weights = tr[ *this].data[ch].m_accum_weights;

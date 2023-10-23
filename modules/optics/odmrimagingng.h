@@ -1,0 +1,44 @@
+/***************************************************************************
+        Copyright (C) 2002-2023 Kentaro Kitagawa
+		                   kitagawa@phys.s.u-tokyo.ac.jp
+		
+		This program is free software; you can redistribute it and/or
+		modify it under the terms of the GNU Library General Public
+		License as published by the Free Software Foundation; either
+		version 2 of the License, or (at your option) any later version.
+		
+		You should have received a copy of the GNU Library General 
+		Public License and a list of authors along with this program; 
+		see the files COPYING and AUTHORS.
+***************************************************************************/
+//---------------------------------------------------------------------------
+
+#ifndef odmrImagingNGH
+#define odmrImagingNGH
+//---------------------------------------------------------------------------
+#include "odmrimaging.h"
+
+//! Base class for scientific/machine vision digital camera.
+class DECLSPEC_SHARED XODMRImagingNG : public XODMRImaging {
+public:
+    XODMRImagingNG(const char *name, bool runtime,
+                 Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XODMRImaging(name, runtime, ref(tr_meas), meas) {}
+    //! usually nothing to do.
+    virtual ~XODMRImagingNG() {}
+
+    virtual void analyzeIntensities(Transaction &tr) override {};
+
+    struct Payload : public XODMRImaging::Payload {
+
+    private:
+
+    };
+protected:
+
+private:
+
+};
+
+//---------------------------------------------------------------------------
+
+#endif

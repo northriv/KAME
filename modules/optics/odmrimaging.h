@@ -51,6 +51,7 @@ public:
     const shared_ptr<XDoubleNode> &minDPLoPLForDisp() const {return m_minDPLoPLForDisp;}//!< [%]
     const shared_ptr<XDoubleNode> &maxDPLoPLForDisp() const {return m_maxDPLoPLForDisp;}//!< [%]
     const shared_ptr<XComboNode> &dispMethod() const {return m_dispMethod;}
+    const shared_ptr<XUIntNode> &refIntensFrames() const {return m_refIntensFrames;}
 
     const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
 
@@ -99,6 +100,8 @@ protected:
         XDriver *emitter) const override;
 
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
+
+    virtual void analyzeIntensities(Transaction &tr) {};
 private:
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > m_camera;
     const shared_ptr<XUIntNode> m_average;
@@ -110,6 +113,7 @@ private:
     const shared_ptr<XDoubleNode> m_minDPLoPLForDisp; //!< [%]
     const shared_ptr<XDoubleNode> m_maxDPLoPLForDisp; //!< [%]
     const shared_ptr<XComboNode> m_dispMethod;
+    const shared_ptr<XUIntNode> m_refIntensFrames;
 
     const std::deque<shared_ptr<XGraph2DMathToolList>> m_sampleToolLists, m_darkToolLists; //PL for MW off and on.
     const shared_ptr<XGraph2DMathToolList> m_referenceToolList; //PL only for MW off

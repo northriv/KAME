@@ -23,7 +23,7 @@
 #include <QToolButton>
 #include "graphmathtoolconnector.h"
 
-REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
+//REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
 
 XODMRImaging::XODMRImaging(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -39,6 +39,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_minDPLoPLForDisp(create<XDoubleNode>("MinDPLoPLForDisp", false)),
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
+    m_refIntensFrames(create<XUIntNode>("RefIntensFrames", false)),
     m_sampleToolLists({
         create<XGraph2DMathToolList>("SmplPL", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
         create<XGraph2DMathToolList>("SmplPLMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
@@ -287,6 +288,9 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             for(unsigned int cidx: {0,1}) {
                 fn_tool_to_vector(tr[ *this].m_sampleIntensities[cidx], m_sampleToolLists[cidx], darks[cidx]);
             }
+
+            analyzeIntensities(tr);
+
             if(auto entries = m_entries.lock()) {
                 auto &list = *shot_this.list(m_sampleToolLists[0]);
                 unsigned int j = 0;
