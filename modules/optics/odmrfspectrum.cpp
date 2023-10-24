@@ -266,13 +266,15 @@ void
 XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-
-		onClear(shot_this, clear().get());
+        onClear(shot_this, clear().get());
         m_lastFreqAcquired = -1000.0;
         double cfreq = shot_this[ *centerFreq()]; //MHz
         double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
         double newf = cfreq - freq_span / 2;
-		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
+        shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+        if(odmr__)
+            trans( *odmr__->clearAverage()).touch();
+        shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
 		if(sg1__)
 			trans( *sg1__->freq()) = newf;
 	}
@@ -312,6 +314,7 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
         Snapshot shot_odmr( *odmr__);
         if(sg1__ && odmr__) {
+            trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
                 unsigned int avg = shot_odmr[ *odmr__->average()];
