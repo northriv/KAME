@@ -110,7 +110,7 @@ XODMRFSpectrum::checkDependency(const Snapshot &shot_this,
     XDriver *emitter) const {
     shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
     if( !odmr__) return false;
-//    if(emitter == this) return true;
+    if(emitter == this) return true;
     if(emitter != odmr__.get())
         return false;
     shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
@@ -327,7 +327,6 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
                 tr[ *sg1__->freq()] = newf;
             });
             sg1__->iterate_commit([=](Transaction &tr){
-                tr[ *sg1__->freq()] = newf;
                 unsigned int avg = shot_odmr[ *odmr__->average()];
                 avg = std::max(1u, avg);
                 tr[ *sg1__->sweepPoints()] = 2 * avg;
