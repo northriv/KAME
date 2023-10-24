@@ -103,7 +103,7 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
             double val = shot.at( *m_entry->value());
             iterate_commit([=](Transaction &tr){
                 m_chart->addPoint(tr, time.sec() + time.usec() * 1e-6, val);
-    //            tr[ *m_graph->osdStrings()] = time.getTimeStr();
+    //            tr[ *m_graph->onScreenStrings()] = time.getTimeStr();
             });
         }
         catch (XNode::NodeNotFoundError &e) {

@@ -241,7 +241,7 @@ XODMRFSpectrum::visualize(const Snapshot &shot) {
     m_spectrum->iterate_commit([=](Transaction &tr){
         unsigned int totlen = length * shot[ *this].numChannels();
         tr[ *m_spectrum].setRowCount(totlen);
-        std::vector<double> colf(totlen), colch(totlen), coli(totlen), colw(length);
+        std::vector<double> colf(totlen), colch(totlen), coli(totlen), colw(totlen);
         for(unsigned int ch = 0; ch < shot[ *this].numChannels(); ch++) {
             const double *wave( &shot[ *this].wave(ch)[0]);
             const double *weights( &shot[ *this].weights(ch)[0]);
@@ -266,16 +266,24 @@ void
 XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 	Snapshot shot_this( *this);
     if(shot_this[ *active()]) {
-
-		onClear(shot_this, clear().get());
+        onClear(shot_this, clear().get());
         m_lastFreqAcquired = -1000.0;
         double cfreq = shot_this[ *centerFreq()]; //MHz
         double freq_span = shot_this[ *freqSpan()] * 1e-3; //MHz
         double newf = cfreq - freq_span / 2;
 		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
-		if(sg1__)
-			trans( *sg1__->freq()) = newf;
-	}
+        shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
+        Snapshot shot_odmr( *odmr__);
+        if(sg1__ && odmr__) {
+            trans( *odmr__->clearAverage()).touch();
+            sg1__->iterate_commit([=](Transaction &tr){
+                tr[ *sg1__->freq()] = newf;
+                unsigned int avg = shot_odmr[ *odmr__->average()];
+                avg = std::max(1u, avg);
+                tr[ *sg1__->sweepPoints()] = 2 * avg;
+            });
+        }
+    }
 }
 
 void
@@ -312,6 +320,7 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
         Snapshot shot_odmr( *odmr__);
         if(sg1__ && odmr__) {
+            trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
                 unsigned int avg = shot_odmr[ *odmr__->average()];

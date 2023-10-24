@@ -52,7 +52,7 @@ XGraph::XGraph(const char *name, bool runtime) :
     m_titleColor(create<XHexNode>("TitleColor", true)),
     m_drawLegends(create<XBoolNode>("DrawLegends", true)),
     m_persistence(create<XDoubleNode>("Persistence", true)),
-    m_osdStrings(create<XStringNode>("OSDStrings", true)) {
+    m_onScreenStrings(create<XStringNode>("OnScreenStrings", true)) {
 
     iterate_commit([=](Transaction &tr){
 		m_lsnPropertyChanged = tr[ *label()].onValueChanged().connect(*this,
@@ -61,7 +61,7 @@ XGraph::XGraph(const char *name, bool runtime) :
 		tr[ *titleColor()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *drawLegends()].onValueChanged().connect(lsnPropertyChanged());
 		tr[ *persistence()].onValueChanged().connect(lsnPropertyChanged());
-        tr[ *osdStrings()].onValueChanged().connect(lsnPropertyChanged());
+        tr[ *onScreenStrings()].onValueChanged().connect(lsnPropertyChanged());
         tr[ *drawLegends()] = true;
         tr[ *persistence()] = 0.3;
 
@@ -1304,7 +1304,7 @@ X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
             XGraph::ValPoint v4(0, m_image->height());
             valToGraphFast(v4, &g);
             graphToScreenFast(g, &spt[3]);
-            texture->placeObject(spt[0], spt[1], spt[2], spt[3], OSDTexture::HowToEvade::Never, {});
+            texture->placeObject(spt[0], spt[1], spt[2], spt[3], OnScreenTexture::HowToEvade::Never, {});
         }
     }
     return XPlot::drawPlot(shot, painter);

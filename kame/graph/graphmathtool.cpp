@@ -34,6 +34,7 @@ XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &
     XNode(name, runtime),
     m_begin(create<XDoubleNode>("Begin", false)),
     m_end(create<XDoubleNode>("End", false)),
+    m_baseColor(create<XHexNode>("BaseColor", false)),
     m_entries(entries)
 {}
 
@@ -44,26 +45,27 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     m_beginY(create<XDoubleNode>("BeginY", false)),
     m_endX(create<XDoubleNode>("EndX", false)),
     m_endY(create<XDoubleNode>("EndY", false)),
+    m_baseColor(create<XHexNode>("BaseColor", false)),
     m_entries(entries) {
 
 }
 XGraph2DMathTool::~XGraph2DMathTool() {
-    for(auto &&x: m_osds) {
-        if(auto osd = x.lock())
-            osd->release(osd);
+    for(auto &&x: m_osobjs) {
+        if(auto osobj = x.lock())
+            osobj->release(osobj);
     }
 }
 void
-XGraph2DMathTool::updateOSDObjects() {
+XGraph2DMathTool::updateOnScreenObjects() {
     Snapshot shot( *this);
     double bgx = shot[ *beginX()];
     double bgy = shot[ *beginY()];
     double edx = shot[ *endX()];
     double edy = shot[ *endY()];
     XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
-    for(auto &&x: m_osds) {
-        if(auto osd = x.lock())
-            osd->placeObject(corners);
+    for(auto &&x: m_osobjs) {
+        if(auto osobj = x.lock())
+            osobj->placeObject(corners);
     }
 }
 
@@ -176,11 +178,11 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
 
 void
 XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
-    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OSDObjectWithMarker> > &res) {
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OnScreenObjectWithMarker> > &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto osd = std::get<3>(res);
+    auto osobj = std::get<3>(res);
     auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
@@ -194,5 +196,5 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
     });
-    tool->addOSDObject(osd);
+    tool->addOnScreenObject(osobj);
 }

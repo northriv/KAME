@@ -92,9 +92,9 @@ XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        if(auto roi = m_roiOSD.lock())
+        if(auto roi = m_roiOSO.lock())
             roi->release(roi);
-        m_roiOSD.reset();
+        m_roiOSO.reset();
         setVideoMode(shot[ *videoMode()]);
     }
     catch (XKameError &e) {
@@ -146,18 +146,18 @@ XDigitalCamera::onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *
 }
 void
 XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
-    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>&res) {
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>&res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto osd = std::get<3>(res);
+    auto osobj = std::get<3>(res);
     m_lsnOnROISelectionToolFinished.reset();
     try {
         setVideoMode(Snapshot( *this)[ *videoMode()], std::min(src.x, dst.x), std::min(src.y, dst.y),
                 abs(src.x - dst.x), abs(src.y - dst.y));
-        if(auto roi = m_roiOSD.lock())
+        if(auto roi = m_roiOSO.lock())
             roi->release(roi);
-        m_roiOSD = osd;
+        m_roiOSO = osobj;
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -167,7 +167,7 @@ XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
 void
 XDigitalCamera::visualize(const Snapshot &shot) {
       iterate_commit([&](Transaction &tr){
-          tr[ *m_liveImage->graph()->osdStrings()] = shot[ *this].m_status;
+          tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
           if( !!shot[ *this].time()) {
               uint32_t gain_disp = lrint(0x100u * shot[ *gainForDisp()]);
               const uint32_t *raw = &shot[ *this].m_rawCounts->at(0);
@@ -196,7 +196,7 @@ XDigitalCamera::visualize(const Snapshot &shot) {
               }
               assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
               assert(raw == &shot[ *this].m_rawCounts->at(0) + width * height);
-              m_qimage = liveimage;
+              tr[ *this].m_qimage = liveimage;
 
               std::vector<double> coeffs = {1.0};
               std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(0)};
@@ -204,7 +204,7 @@ XDigitalCamera::visualize(const Snapshot &shot) {
                   coeffs.push_back(1.0);
                   rawimages.push_back(&shot[ *this].m_darkCounts->at(0));
               }
-              m_liveImage->updateImage(tr, m_qimage, rawimages, coeffs);
+              m_liveImage->updateImage(tr, liveimage, rawimages, coeffs);
           }
       });
 }
@@ -391,7 +391,7 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_lsnOnTriggerModeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     m_lsnOnROISelectionToolTouched.reset();
-    if(auto roi = m_roiOSD.lock())
+    if(auto roi = m_roiOSO.lock())
         roi->release(roi);
     return NULL;
 }

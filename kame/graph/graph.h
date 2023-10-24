@@ -99,7 +99,7 @@ class XQGraphPainter;
 typedef XAliasListNode<XAxis> XAxisList;
 typedef XAliasListNode<XPlot> XPlotList;
 
-class OSDObject;
+class OnScreenObject;
 
 //! XGraph object can have one or more plots and two or more axes.
 //! \sa XPlot, XAxis, XQGraphPainter
@@ -138,7 +138,7 @@ public:
 
     const shared_ptr<XDoubleNode> &persistence() const {return m_persistence;}
 
-    const shared_ptr<XStringNode> &osdStrings() const {return m_osdStrings;}
+    const shared_ptr<XStringNode> &onScreenStrings() const {return m_onScreenStrings;}
 
     const shared_ptr<Listener> &lsnPropertyChanged() const {return m_lsnPropertyChanged;}
 
@@ -160,7 +160,7 @@ private:
     const shared_ptr<XHexNode> m_titleColor;
     const shared_ptr<XBoolNode> m_drawLegends;
     const shared_ptr<XDoubleNode> m_persistence;
-    const shared_ptr<XStringNode> m_osdStrings;
+    const shared_ptr<XStringNode> m_onScreenStrings;
 
     shared_ptr<Listener> m_lsnPropertyChanged;
 
@@ -434,7 +434,7 @@ protected:
 private:
 };
 
-class OSDTexture;
+class OnScreenTexture;
 //! displays pixmap as texture.
 class DECLSPEC_KAME X2DImagePlot : public XPlot {
 public:
@@ -461,7 +461,7 @@ protected:
 private:
     friend class XGraph;
     shared_ptr<QImage> m_image, m_image_textured;
-    weak_ptr<OSDTexture> m_texture;
+    weak_ptr<OnScreenTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif
