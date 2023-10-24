@@ -9,7 +9,6 @@ INCLUDEPATH += \
 HEADERS += \
     odmrfm.h \
     odmrimaging.h \
-    odmrimagingng.h \
     userlasermodule.h \
     useropticalspectrum.h \
     odmrfspectrum.h
@@ -17,10 +16,17 @@ HEADERS += \
 SOURCES += \
     odmrfm.cpp \
     odmrimaging.cpp \
-    odmrimagingng.cpp \
     userlasermodule.cpp \
     useropticalspectrum.cpp \
     odmrfspectrum.cpp
+
+exists("odmrimagingng.cpp") {
+HEADERS += \
+    odmrimagingng.h \
+
+SOURCES += \
+    odmrimagingng.cpp \
+}
 
 FORMS += \
     odmrimagingform.ui \
