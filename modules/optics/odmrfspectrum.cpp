@@ -278,6 +278,8 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
             trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
+            });
+            sg1__->iterate_commit([=](Transaction &tr){
                 unsigned int avg = shot_odmr[ *odmr__->average()];
                 avg = std::max(1u, avg);
                 tr[ *sg1__->sweepPoints()] = 2 * avg;
@@ -321,6 +323,9 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         Snapshot shot_odmr( *odmr__);
         if(sg1__ && odmr__) {
             trans( *odmr__->clearAverage()).touch();
+            sg1__->iterate_commit([=](Transaction &tr){
+                tr[ *sg1__->freq()] = newf;
+            });
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
                 unsigned int avg = shot_odmr[ *odmr__->average()];
