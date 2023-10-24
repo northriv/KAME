@@ -226,6 +226,9 @@ public:
 
 	//! \return success or not
 	bool fixScales(const Snapshot &);
+
+    void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) const;
+    void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const;
 protected:
 	const weak_ptr<XGraph> m_graph;
 	shared_ptr<XAxis> m_curAxisX, m_curAxisY, m_curAxisZ, m_curAxisW;
@@ -277,9 +280,8 @@ private:
 		XQGraphPainter *painter, shared_ptr<XAxis> &axis1, shared_ptr<XAxis> &axis2);
 
 	std::vector<tCanvasPoint> m_canvasPtsSnapped; 
+
 protected:
-    inline void graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const;
-    inline void valToGraphFast(const XGraph::ValPoint &pt, XGraph::GPoint *gr) const;
     inline unsigned int blendColor(unsigned int c1, unsigned int c2, float t) const;
 };
 

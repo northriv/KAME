@@ -18,6 +18,8 @@
 #include <QFontMetrics>
 #include <QPainter>
 
+template class OnPlotObject<OnScreenRectObject>;
+
 #define SELECT_WIDTH 0.02
 #define SELECT_DEPTH 0.1
 
@@ -757,15 +759,50 @@ OnScreenObject::release(const shared_ptr<OnScreenObject> &me) {
     painter()->removeOnScreenObject(me);
 }
 
+template <class OSO>
 void
-OnGraphObject::placeObject(const shared_ptr<XAxis> &axisx, const shared_ptr<XAxis> &axisy,
-                           const XGraph::ValPoint corners[4], unsigned int basecolor) {
-    m_axisx = axisx;
-    m_axisy = axisy;
+OnPlotObject<OSO>::placeObject(const shared_ptr<XPlot> &plot,
+                               const XGraph::ValPoint corners[4]) {
+    m_plot = plot;
     for(unsigned int i = 0; i < 4; ++i)
         m_corners[i] = corners[i];
-    m_baseColor = basecolor;
 }
+template <class OSO>
+void
+OnPlotObject<OSO>::valToScreen() {
+    if(auto plot = m_plot.lock()) {
+        XGraph::GPoint g[4];
+        std::array<XGraph::ScrPoint, 4> s;
+        for(unsigned int i = 0; i < 4; ++i) {
+            plot->valToGraphFast(m_corners[i], &g[i]);
+            plot->graphToScreenFast(g[i], &s[i]);
+        }
+        std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
+            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
+          });
+        OSO::placeObject(s[0], s[2], s[1], s[3], OSO::HowToEvade::Never, 0);
+    }
+}
+
+template <class OSO>
+void
+OnPlotObject<OSO>::drawNative() {
+    valToScreen();
+    this->OSO::drawNative();
+}
+template <class OSO>
+void
+OnPlotObject<OSO>::drawByPainter(QPainter *p) {
+    valToScreen();
+    this->OSO::drawByPainter(p);
+}
+template <class OSO>
+void
+OnPlotObject<OSO>::drawOffScreenMarker() {
+    valToScreen();
+    this->OSO::drawOffScreenMarker();
+}
+
 void
 OnScreenTextObject::drawNative() {
 }

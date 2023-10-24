@@ -396,37 +396,6 @@ OnScreenObjectWithMarker::drawOffScreenMarker() {
     painter()->endQuad();
 }
 
-shared_ptr<OnScreenRectObject>
-XQGraphPainter::createRectObject(OnScreenRectObject::Type type, bool onetime) {
-    auto p = std::make_shared<OnScreenRectObject>(this, type);
-    if(onetime)
-        m_paintedOSOs.push_back(p);
-    else
-        m_persistentOSOs.push_back(p);
-    return p;
-}
-void
-OnGraphRectObject::drawNative() {
-//    Snapshot shot_graph( *painter()->m_graph);
-////        glEnable(GL_LINE_STIPPLE);
-////        unsigned short pat = 0x0f0fu;
-//    for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
-////            painter()->beginLine(1.0, pat);
-//        painter()->beginLine(1.0);
-//        painter()->setColor(c, 0.3);
-//        painter()->setVertex(leftTop());
-//        painter()->setVertex(rightTop());
-//        painter()->setVertex(rightTop());
-//        painter()->setVertex(rightBottom());
-//        painter()->setVertex(rightBottom());
-//        painter()->setVertex(leftBottom());
-//        painter()->setVertex(leftBottom());
-//        painter()->setVertex(leftTop());
-//        painter()->endLine();
-////            pat = ~pat;
-//    }
-//        glDisable(GL_LINE_STIPPLE);
-}
 void
 OnScreenRectObject::drawNative() {
     Snapshot shot_graph( *painter()->m_graph);
