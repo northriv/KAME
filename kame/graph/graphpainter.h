@@ -40,7 +40,6 @@ public:
     virtual void drawOffScreenMarker() {}
     //! unlinks from XQGraphPainter.
     void release(const shared_ptr<OnScreenObject> &me);
-protected:
     XQGraphPainter *painter() const {return m_painter;}
 private:
     XQGraphPainter *const m_painter;
@@ -73,7 +72,6 @@ public:
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
-    void placeObject(const XGraph::ValPoint corners[4]);
 //    void evadeOnScreenObjects(const std::deque<std::weak_ptr<OnScreenObject>> &list, XGraph::SFloat space);
 //    static bool evadeMousePointer(const std::deque<std::weak_ptr<OnScreenObject>> &list);
     XGraph::ScrPoint &leftTop() {return m_leftTop;}
@@ -213,15 +211,27 @@ public:
  }
 
  //On-screen Objects
- shared_ptr<OnScreenTexture> createTexture(const shared_ptr<QImage> &image, bool onetime = false);
+ weak_ptr<OnScreenTexture> createTexture(const shared_ptr<QImage> &image);
  void drawTexture(const OnScreenTexture& texture, const XGraph::ScrPoint p[4]);
  template <class T, typename...Args>
- shared_ptr<T> createOnScreenObject(bool onetime, Args&&... args) {
+ shared_ptr<T> createOneTimeOnScreenObject(bool onetime, Args&&... args) {
      auto p = std::make_shared<T>(this, std::forward<Args>(args)...);
-     if(onetime)
-         m_paintedOSOs.push_back(p);
-     else
-         m_persistentOSOs.push_back(p);
+     assert(Transactional::isMainThread());
+     m_paintedOSOs.push_back(p);
+     return p;
+ }
+ template <class T, typename...Args>
+ weak_ptr<T> createPersistentOnScreenObject(Args&&... args) {
+     auto p = std::make_shared<T>(this, std::forward<Args>(args)...);
+     XScopedLock<XMutex> lock(m_mutexOSO);
+     m_persistentOSOs.push_back(p);
+     return p;
+ }
+ template <class T, typename...Args>
+ shared_ptr<T> createOnScreenObjectWeakly(Args&&... args) {
+     auto p = std::make_shared<T>(this, std::forward<Args>(args)...);
+     XScopedLock<XMutex> lock(m_mutexOSO);
+     m_weakptrOSOs.push_back(p);
      return p;
  }
  void removeOnScreenObject(const shared_ptr<OnScreenObject> &p);
@@ -351,7 +361,9 @@ Snapshot startDrawing();
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
 
+    XMutex m_mutexOSO;
     std::deque<shared_ptr<OnScreenObject>> m_persistentOSOs;
+    std::deque<weak_ptr<OnScreenObject>> m_weakptrOSOs;
     std::deque<shared_ptr<OnScreenObject>> m_paintedOSOs;
 
     int m_minX, m_maxX, m_minY, m_maxY; //!< to determin window size by secureWinwdow().

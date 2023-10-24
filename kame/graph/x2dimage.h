@@ -46,6 +46,7 @@ protected:
 private:
     shared_ptr<X2DImagePlot> m_plot;
 
+    XQGraph *m_graphwidget;
     QToolButton *m_btnMathTool = nullptr;
     std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
     unique_ptr<XQGraph2DMathToolConnector> m_conTools;

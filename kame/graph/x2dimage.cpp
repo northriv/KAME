@@ -41,7 +41,8 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 }
 
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump),
+    m_graphwidget(graphwidget) {
     iterate_commit([=](Transaction &tr){
         tr[ *graph()->label()] = getLabel();
         tr[ *graph()->persistence()] = 0;
@@ -72,6 +73,7 @@ X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
     if(m_toolLists.size())
         for(unsigned int cidx = 0; cidx < rawimages.size(); ++cidx) {
             unsigned int stride = image->width();
-            m_toolLists[cidx]->update(tr, rawimages[cidx], stride, stride, image->height(), coefficients[cidx]);
+            m_toolLists[cidx]->update(tr, graphwidget,
+                rawimages[cidx], stride, stride, image->height(), coefficients[cidx]);
         }
 }

@@ -50,6 +50,8 @@ public:
     Talker<std::tuple<XString, XGraph::VFloat, XGraph::VFloat>> &onAxisSelectedByTool() {return m_onAxisSelectedByTool;}
     Talker<std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>> &onPlaneSelectedByTool() {return m_onPlaneSelectedByTool;}
 
+    weak_ptr<XQGraphPainter> painter() const {return m_painter;}
+    const shared_ptr<XGraph> &graph() const {return m_graph;}
 protected:
     virtual void mousePressEvent ( QMouseEvent*) override;
     virtual void mouseReleaseEvent ( QMouseEvent*) override;

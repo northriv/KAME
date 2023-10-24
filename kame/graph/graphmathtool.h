@@ -19,6 +19,8 @@
 
 #include "graph.h"
 #include "analyzer.h"
+
+class XQGraph;
 class OnScreenObjectWithMarker;
 
 class DECLSPEC_KAME XGraph1DMathTool: public XNode {
@@ -48,10 +50,11 @@ private:
 class DECLSPEC_KAME XGraph2DMathTool: public XNode {
 public:
     XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
-                     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver);
+                     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+                     const shared_ptr<XPlot> &plot);
     virtual ~XGraph2DMathTool();
 
-    virtual void update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
+    virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) = 0;
 
     const shared_ptr<XDoubleNode> &beginX() const {return m_beginX;}
@@ -64,15 +67,15 @@ public:
     }
     virtual void releaseEntries(Transaction &tr) {}
 
-    void addOnScreenObject(weak_ptr<OnScreenObjectWithMarker> osobj) {m_osobjs.push_back(osobj);}
-    void updateOnScreenObjects();
+    void updateOnScreenObjects(XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
     const weak_ptr<XScalarEntryList> m_entries;
     const shared_ptr<XHexNode> m_baseColor;
-    std::deque<weak_ptr<OnScreenObjectWithMarker>> m_osobjs;
+    shared_ptr<OnScreenObjectWithMarker> m_oso;
+    const weak_ptr<XPlot> m_plot;
 };
 
 template <class F>
@@ -99,16 +102,18 @@ template <class F>
 class XGraph2DMathToolX: public XGraph2DMathTool {
 public:
     XGraph2DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
-                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
-        XGraph2DMathTool(name, runtime, ref(tr_meas), entries, driver) {
+                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+                      const shared_ptr<XPlot> &plot) :
+        XGraph2DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
         m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
         entries->insert(tr_meas, m_entry);
     }
     virtual ~XGraph2DMathToolX() {}
-    virtual void update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
+    virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) override {
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
+        updateOnScreenObjects(graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
@@ -262,9 +267,11 @@ class XQGraph2DMathToolConnector;
 class XGraph2DMathToolList : public XCustomTypeListNode<XGraph2DMathTool> {
 public:
     XGraph2DMathToolList(const char *name, bool runtime,
-        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot);
 
-    virtual void update(Transaction &tr, const uint32_t *leftupper,
+    virtual void update(Transaction &tr, XQGraph *graphwidget,
+        const uint32_t *leftupper,
         unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
 
     DEFINE_TYPE_HOLDER(
@@ -275,6 +282,7 @@ private:
     friend class XQGraph2DMathToolConnector;
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XDriver> m_driver;
+    const weak_ptr<XPlot> m_plot;
     void onPlaneSelectedByTool(const Snapshot &shot,
         const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>&);
 };

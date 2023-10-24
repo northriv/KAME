@@ -39,33 +39,47 @@ XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &
 {}
 
 XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
-    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
+    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+    const shared_ptr<XPlot> &plot) :
     XNode(name, runtime),
     m_beginX(create<XDoubleNode>("BeginX", false)),
     m_beginY(create<XDoubleNode>("BeginY", false)),
     m_endX(create<XDoubleNode>("EndX", false)),
     m_endY(create<XDoubleNode>("EndY", false)),
     m_baseColor(create<XHexNode>("BaseColor", false)),
-    m_entries(entries) {
+    m_entries(entries),
+    m_plot(plot) {
 
 }
 XGraph2DMathTool::~XGraph2DMathTool() {
-    for(auto &&x: m_osobjs) {
-        if(auto osobj = x.lock())
-            osobj->release(osobj);
-    }
 }
 void
-XGraph2DMathTool::updateOnScreenObjects() {
-    Snapshot shot( *this);
-    double bgx = shot[ *beginX()];
-    double bgy = shot[ *beginY()];
-    double edx = shot[ *endX()];
-    double edy = shot[ *endY()];
+XGraph2DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
+    auto painter = graphwidget->painter().lock();
+    if( !painter) {
+        m_oso.reset();
+        return;
+    }
+    if(painter.get() == m_oso->painter())
+        return; //painter unchanged unless the same address is recycled.
+    m_oso.reset();
+
+    Snapshot shot_this( *this);
+    double bgx = shot_this[ *beginX()];
+    double bgy = shot_this[ *beginY()];
+    double edx = shot_this[ *endX()];
+    double edy = shot_this[ *endY()];
+    unsigned int color = shot_this[ *baseColor()];
     XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
-    for(auto &&x: m_osobjs) {
-        if(auto osobj = x.lock())
-            osobj->placeObject(corners);
+
+    auto oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
+    m_oso = oso;
+    auto graph = graphwidget->graph();
+    Snapshot shot( *graph);
+    if(shot.size(graph->plots())) {
+        const auto &plots_list( *shot.list(graph->plots()));
+        shared_ptr<XPlot> plot = static_pointer_cast<XPlot>(plots_list[0]);
+        oso->placeObject(plot, corners);
     }
 }
 
@@ -116,9 +130,10 @@ XGraph1DMathToolList::update(Transaction &tr,
 }
 
 XGraph2DMathToolList::XGraph2DMathToolList(const char *name, bool runtime,
-    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
+    const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
+    const shared_ptr<XPlot> &plot) :
     XCustomTypeListNode<XGraph2DMathTool>(name, runtime),
-    m_measure(meas), m_driver(driver) {
+    m_measure(meas), m_driver(driver), m_plot(plot) {
 }
 
 shared_ptr<XNode>
@@ -136,7 +151,8 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     return ptr;
 }
 void
-XGraph2DMathToolList::update(Transaction &tr, const uint32_t *leftupper, unsigned int width,
+XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
+    const uint32_t *leftupper, unsigned int width,
     unsigned int stride, unsigned int numlines, double coefficient) {
     if(tr.size(shared_from_this())) {
         for(auto &x: *tr.list(shared_from_this())) {
@@ -153,7 +169,7 @@ XGraph2DMathToolList::update(Transaction &tr, const uint32_t *leftupper, unsigne
 //            ssize_t y1 = std::min((long)stride - 1, lrint(ymax));
             ssize_t y1 = lrint(numlines - 1 - ymin); //mirror y
             if((x0 >= 0) && (y0 >= 0) && (x0 < stride) && (y0 < numlines) && (x1 >= x0)) {
-                tool->update(tr, leftupper + x0 + y0 * stride, x1 - x0 + 1,
+                tool->update(tr, graphwidget, leftupper + x0 + y0 * stride, x1 - x0 + 1,
                     stride, y1 - y0 + 1, coefficient);
             }
         }
@@ -196,5 +212,4 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
     });
-    tool->addOnScreenObject(osobj);
 }

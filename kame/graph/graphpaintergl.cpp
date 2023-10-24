@@ -318,8 +318,8 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-shared_ptr<OnScreenTexture>
-XQGraphPainter::createTexture(const shared_ptr<QImage> &image, bool onetime) {
+weak_ptr<OnScreenTexture>
+XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
@@ -342,10 +342,8 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image, bool onetime) {
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
     auto p = std::make_shared<OnScreenTexture>(this, id, image);
-    if(onetime)
-        m_paintedOSOs.push_back(p);
-    else
-        m_persistentOSOs.push_back(p);
+    XScopedLock<XMutex> lock(m_mutexOSO);
+    m_persistentOSOs.push_back(p);
     return p;
 }
 void
@@ -446,10 +444,7 @@ OnScreenTextObject::drawOffScreenMarker() {
     }
 }
 
-void
-OnScreenObjectWithMarker::placeObject(const XGraph::ValPoint corners[4]) {
 
-}
 void
 OnScreenObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
                                  const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
@@ -859,11 +854,18 @@ XQGraphPainter::paintGL () {
         QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
-    for(auto &&osobj: m_paintedOSOs) {
-        osobj->drawNative();
-    }
-    for(auto &&osobj: m_persistentOSOs) {
-        osobj->drawNative();
+    {
+        XScopedLock<XMutex> lock(m_mutexOSO);
+        for(auto &&osobj: m_paintedOSOs) {
+            osobj->drawNative();
+        }
+        for(auto &&osobj: m_persistentOSOs) {
+            osobj->drawNative();
+        }
+        for(auto &&osobj: m_weakptrOSOs) {
+            if(auto o = osobj.lock())
+                o->drawNative();
+        }
     }
     checkGLError();
 
@@ -900,12 +902,19 @@ XQGraphPainter::paintGL () {
 #else
     QPainter qpainter(m_pItem);
 #endif
-    for(auto &&osobj: m_paintedOSOs) {
-        osobj->drawNative();
-    }
-    m_paintedOSOs.clear();
-    for(auto &&osobj: m_persistentOSOs) {
-        osobj->drawByPainter( &qpainter);
+    {
+        XScopedLock<XMutex> lock(m_mutexOSO);
+        for(auto &&osobj: m_paintedOSOs) {
+            osobj->drawByPainter( &qpainter);
+        }
+        m_paintedOSOs.clear();
+        for(auto &&osobj: m_persistentOSOs) {
+            osobj->drawByPainter( &qpainter);
+        }
+        for(auto &&osobj: m_weakptrOSOs) {
+            if(auto o = osobj.lock())
+                o->drawByPainter( &qpainter);
+        }
     }
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {
