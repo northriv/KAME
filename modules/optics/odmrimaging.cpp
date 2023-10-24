@@ -1,15 +1,15 @@
 /***************************************************************************
         Copyright (C) 2002-2023 Kentaro Kitagawa
-		                   kitagawa@phys.s.u-tokyo.ac.jp
-		
-		This program is free software; you can redistribute it and/or
-		modify it under the terms of the GNU Library General Public
-		License as published by the Free Software Foundation; either
-		version 2 of the License, or (at your option) any later version.
-		
-		You should have received a copy of the GNU Library General 
-		Public License and a list of authors along with this program; 
-		see the files COPYING and AUTHORS.
+                           kitagawa@phys.s.u-tokyo.ac.jp
+
+        This program is free software; you can redistribute it and/or
+        modify it under the terms of the GNU Library General Public
+        License as published by the Free Software Foundation; either
+        version 2 of the License, or (at your option) any later version.
+
+        You should have received a copy of the GNU Library General
+        Public License and a list of authors along with this program;
+        see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "digitalcamera.h"
 #include "odmrimaging.h"
@@ -26,7 +26,7 @@
 //REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
 
 XODMRImaging::XODMRImaging(const char *name, bool runtime,
-	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
     m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
@@ -403,7 +403,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
         return;
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
-    m_qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA8888);
+    auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA8888);
 
     {
         uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] / 256.0 * shot[ *this].m_coefficients[0]);
@@ -430,23 +430,23 @@ XODMRImaging::visualize(const Snapshot &shot) {
             gain_av = 0;
             break;
         }
-        uint8_t *processed = reinterpret_cast<uint8_t*>(m_qimage->bits());
+        uint8_t *processed = reinterpret_cast<uint8_t*>(qimage->bits());
         const uint32_t *summed[2];
         for(unsigned int cidx: {0,1})
             summed[cidx] = &shot[ *this].m_summedCounts[cidx]->at(0);
 
         for(unsigned int i  = 0; i < width * height; ++i) {
-            int64_t dpl = (int64_t)*summed[1] - (int64_t)*summed[0];
+            int32_t dpl = *summed[1] - *summed[0];
             const int64_t *dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
             for(unsigned int cidx: {0,1,2}) {
-                int64_t v = (*summed[0] * gain_av + dpl * dpl_gain[cidx])  / 0x100000000LL;
+                int64_t v = ((int64_t)(*summed[0] * gain_av) + dpl * dpl_gain[cidx])  / 0x100000000LL;
                 *processed++ = std::max(0LL, std::min(v, 0xffLL));
             }
             *processed++ = 0xffu;
             for(unsigned int cidx: {0,1})
                 (summed[cidx])++;
         }
-        assert(processed == m_qimage->constBits() + width * height * 4);
+        assert(processed == qimage->constBits() + width * height * 4);
         assert(summed[0] == &shot[ *this].m_summedCounts[0]->at(0) + width * height);
         assert(summed[1] == &shot[ *this].m_summedCounts[1]->at(0) + width * height);
     }
@@ -459,8 +459,9 @@ XODMRImaging::visualize(const Snapshot &shot) {
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
     }
     iterate_commit([&](Transaction &tr){
-        tr[ *m_processedImage->graph()->osdStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
-        m_processedImage->updateImage(tr, m_qimage, rawimages, coeffs);
+        tr[ *this].m_qimage = qimage;
+        tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
+        m_processedImage->updateImage(tr, qimage, rawimages, coeffs);
     });
 }
 

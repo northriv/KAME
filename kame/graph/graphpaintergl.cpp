@@ -283,7 +283,7 @@ XQGraphPainter::drawText(const XGraph::ScrPoint &p, QString &&str) {
     m_textOverpaint.push_back(std::move(txt));
 }
 
-OSDTexture::~OSDTexture() {
+OnScreenTexture::~OnScreenTexture() {
     painter()->glDeleteTextures(1, &id);
 }
 
@@ -297,7 +297,7 @@ static const std::map<QImage::Format, GLenum> s_texture_data_fmts = {{QImage::Fo
                                               {QImage::Format_BGR888, GL_UNSIGNED_BYTE}, {QImage::Format_RGBA8888, GL_UNSIGNED_BYTE}, {QImage::Format_ARGB32, GL_UNSIGNED_INT_8_8_8_8_REV}};
 
 void
-OSDTexture::repaint(const shared_ptr<QImage> &image) {
+OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
 //    auto image = std::make_shared<QImage>(256, 256, QImage::Format_RGB888);
 //    QRgb value;
 //    value = qRgb(0, 0x40, 0x40);
@@ -318,7 +318,7 @@ OSDTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-shared_ptr<OSDTexture>
+shared_ptr<OnScreenTexture>
 XQGraphPainter::createTexture(const shared_ptr<QImage> &image, bool onetime) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -341,15 +341,15 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image, bool onetime) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    auto p = std::make_shared<OSDTexture>(this, id, image);
+    auto p = std::make_shared<OnScreenTexture>(this, id, image);
     if(onetime)
-        m_paintedOSDs.push_back(p);
+        m_paintedOSOs.push_back(p);
     else
-        m_persistentOSDs.push_back(p);
+        m_persistentOSOs.push_back(p);
     return p;
 }
 void
-OSDTexture::drawNative() {
+OnScreenTexture::drawNative() {
 //    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
 //    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -387,7 +387,7 @@ OSDTexture::drawNative() {
 }
 
 void
-OSDObjectWithMarker::drawOffScreenMarker() {
+OnScreenObjectWithMarker::drawOffScreenMarker() {
     painter()->beginQuad(true);
     painter()->setVertex(leftTop());
     painter()->setVertex(rightTop());
@@ -396,18 +396,39 @@ OSDObjectWithMarker::drawOffScreenMarker() {
     painter()->endQuad();
 }
 
-shared_ptr<OSDRectObject>
-XQGraphPainter::createRectObject(OSDRectObject::Type type, bool onetime) {
-    auto p = std::make_shared<OSDRectObject>(this, type);
+shared_ptr<OnScreenRectObject>
+XQGraphPainter::createRectObject(OnScreenRectObject::Type type, bool onetime) {
+    auto p = std::make_shared<OnScreenRectObject>(this, type);
     if(onetime)
-        m_paintedOSDs.push_back(p);
+        m_paintedOSOs.push_back(p);
     else
-        m_persistentOSDs.push_back(p);
+        m_persistentOSOs.push_back(p);
     return p;
 }
-
 void
-OSDRectObject::drawNative() {
+OnGraphRectObject::drawNative() {
+//    Snapshot shot_graph( *painter()->m_graph);
+////        glEnable(GL_LINE_STIPPLE);
+////        unsigned short pat = 0x0f0fu;
+//    for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
+////            painter()->beginLine(1.0, pat);
+//        painter()->beginLine(1.0);
+//        painter()->setColor(c, 0.3);
+//        painter()->setVertex(leftTop());
+//        painter()->setVertex(rightTop());
+//        painter()->setVertex(rightTop());
+//        painter()->setVertex(rightBottom());
+//        painter()->setVertex(rightBottom());
+//        painter()->setVertex(leftBottom());
+//        painter()->setVertex(leftBottom());
+//        painter()->setVertex(leftTop());
+//        painter()->endLine();
+////            pat = ~pat;
+//    }
+//        glDisable(GL_LINE_STIPPLE);
+}
+void
+OnScreenRectObject::drawNative() {
     Snapshot shot_graph( *painter()->m_graph);
     switch(m_type) {
     case Type::Selection:
@@ -445,7 +466,7 @@ OSDRectObject::drawNative() {
 }
 
 void
-OSDTextObject::drawOffScreenMarker() {
+OnScreenTextObject::drawOffScreenMarker() {
     for(auto &&txt: m_textOverpaint) {
         painter()->beginQuad(true);
         painter()->setVertex(txt.corners[0]);
@@ -457,11 +478,11 @@ OSDTextObject::drawOffScreenMarker() {
 }
 
 void
-OSDObjectWithMarker::placeObject(const XGraph::ValPoint corners[4]) {
+OnScreenObjectWithMarker::placeObject(const XGraph::ValPoint corners[4]) {
 
 }
 void
-OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
+OnScreenObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
                                  const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
                                  HowToEvade direction, XGraph::SFloat space) {
     m_leftTop = init_lefttop;
@@ -481,8 +502,8 @@ OSDObjectWithMarker::placeObject(const XGraph::ScrPoint &init_lefttop, const XGr
         break;
     case HowToEvade::ToRight:
         break;
-    case HowToEvade::ByCorner:
-        break;
+//    case HowToEvade::ByCorner:
+//        break;
     case HowToEvade::Hide:
         break;
     default:
@@ -834,9 +855,9 @@ XQGraphPainter::paintGL () {
 
         checkGLError();
 
-//        for(auto &&osd_w: m_persistentOSDs) {
-//            if(auto osd = osd_w.lock()) {
-//                osd->drawOffScreenMarker();
+//        for(auto &&osobj_w: m_persistentOSOs) {
+//            if(auto osobj = osobj_w.lock()) {
+//                osobj->drawOffScreenMarker();
 //            }
 //        }
 //        checkGLError();
@@ -869,11 +890,11 @@ XQGraphPainter::paintGL () {
         QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
-    for(auto &&osd: m_paintedOSDs) {
-        osd->drawNative();
+    for(auto &&osobj: m_paintedOSOs) {
+        osobj->drawNative();
     }
-    for(auto &&osd: m_persistentOSDs) {
-        osd->drawNative();
+    for(auto &&osobj: m_persistentOSOs) {
+        osobj->drawNative();
     }
     checkGLError();
 
@@ -910,12 +931,12 @@ XQGraphPainter::paintGL () {
 #else
     QPainter qpainter(m_pItem);
 #endif
-    for(auto &&osd: m_paintedOSDs) {
-        osd->drawNative();
+    for(auto &&osobj: m_paintedOSOs) {
+        osobj->drawNative();
     }
-    m_paintedOSDs.clear();
-    for(auto &&osd: m_persistentOSDs) {
-        osd->drawByPainter( &qpainter);
+    m_paintedOSOs.clear();
+    for(auto &&osobj: m_persistentOSOs) {
+        osobj->drawByPainter( &qpainter);
     }
     drawTextOverpaint(qpainter);
     if(m_bReqHelp) {

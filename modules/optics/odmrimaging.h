@@ -25,7 +25,7 @@ class Ui_FrmODMRImaging;
 typedef QForm<QMainWindow, Ui_FrmODMRImaging> FrmODMRImaging;
 
 class X2DImage;
-class OSDObjectWithMarker;
+class OnScreenObjectWithMarker;
 class XGraph2DMathTool;
 class XGraph2DMathToolList;
 class XQGraph2DMathToolConnector;
@@ -88,6 +88,7 @@ public:
         unsigned int m_width, m_height;
         bool isCurrentImageMWOn() const {return m_accumulated[0] > m_accumulated[1];}
         unsigned int currentIndex() const {return isCurrentImageMWOn() ? 1 : 0;}
+        shared_ptr<QImage> m_qimage;
     };
 protected:
     //! This function is called when a connected driver emit a signal
@@ -125,7 +126,6 @@ private:
     const shared_ptr<X2DImage> m_processedImage;
 
     shared_ptr<Listener> m_lsnOnClearAverageTouched, m_lsnOnCondChanged;
-    shared_ptr<QImage> m_qimage;
 
     std::map<XNode*, shared_ptr<XScalarEntry>> m_samplePLEntries, m_sampleDPLoPLEntries;
     weak_ptr<XScalarEntryList> m_entries;

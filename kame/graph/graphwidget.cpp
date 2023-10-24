@@ -164,19 +164,19 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 //        src2.z += 0.01;
 //        dst1.z += 0.01;
 //        dst2.z += 0.01;
-        auto osd = m_painter->createRectObject(OSDRectObject::Type::AreaTool, false);
-//        auto osd = m_painter->createRectObject(OSDRectObject::Type::Selection, false);
-        osd->placeObject(src1, src2, dst1, dst2, OSDTexture::HowToEvade::Never, {});
+        auto osobj = m_painter->createRectObject(OnScreenRectObject::Type::AreaTool, false);
+//        auto osobj = m_painter->createRectObject(OnScreenRectObject::Type::Selection, false);
+        osobj->placeObject(src1, src2, dst1, dst2, OnScreenTexture::HowToEvade::Never, {});
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {
              //swaps 1 and 2.
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>
-                                         {m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, osd});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>
+                                         {m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, osobj});
         }
         else if((axis1->direction() == m_toolDirX) && (axis2->direction() == m_toolDirY)) {
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OSDObjectWithMarker>>
-                                         {m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, osd});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>
+                                         {m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, osobj});
         }
     }
     m_isPlaneSelectionByTool = false;

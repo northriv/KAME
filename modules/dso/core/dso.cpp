@@ -228,7 +228,7 @@ XDSO::visualize(const Snapshot &shot) {
             std::copy(shot[ *this].waveDisp(i), shot[ *this].waveDisp(i) + length, wave.begin());
             tr[ *m_waveForm].setColumn(i + 1, std::move(wave), 6);
 		}
-        tr[ *m_waveForm->graph()->osdStrings()] = shot[ *this].shortDescription();
+        tr[ *m_waveForm->graph()->onScreenStrings()] = shot[ *this].shortDescription();
         m_waveForm->drawGraph(tr);
     });
 }

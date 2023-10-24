@@ -518,8 +518,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 	setColor(shot[ *m_graph->titleColor()]);
 	defaultFont();
 	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
-    if(shot[ *m_graph->osdStrings()].to_str().length()) {
-        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()].to_str() + " " + shot[ *m_graph->osdStrings()].to_str());
+    if(shot[ *m_graph->onScreenStrings()].to_str().length()) {
+        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()].to_str() + " " + shot[ *m_graph->onScreenStrings()].to_str());
     }
     else {
         drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
@@ -743,24 +743,34 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 }
 
 void
-XQGraphPainter::removeOSDObject(const shared_ptr<OSDObject> &p) {
-    for(auto it = m_persistentOSDs.begin(); it != m_persistentOSDs.end();) {
+XQGraphPainter::removeOnScreenObject(const shared_ptr<OnScreenObject> &p) {
+    for(auto it = m_persistentOSOs.begin(); it != m_persistentOSOs.end();) {
         if( *it == p)
-            it = m_persistentOSDs.erase(it);
+            it = m_persistentOSOs.erase(it);
         else
             it++;
     }
 }
 
 void
-OSDObject::release(const shared_ptr<OSDObject> &me) {
-    painter()->removeOSDObject(me);
+OnScreenObject::release(const shared_ptr<OnScreenObject> &me) {
+    painter()->removeOnScreenObject(me);
+}
+
+void
+OnGraphObject::placeObject(const shared_ptr<XAxis> &axisx, const shared_ptr<XAxis> &axisy,
+                           const XGraph::ValPoint corners[4], unsigned int basecolor) {
+    m_axisx = axisx;
+    m_axisy = axisy;
+    for(unsigned int i = 0; i < 4; ++i)
+        m_corners[i] = corners[i];
+    m_baseColor = basecolor;
 }
 void
-OSDTextObject::drawNative() {
+OnScreenTextObject::drawNative() {
 }
 void
-OSDTextObject::drawByPainter(QPainter *qpainter) {
+OnScreenTextObject::drawByPainter(QPainter *qpainter) {
     bool firsttime = true;
     QFont font(qpainter->font());
     font.setPointSize(m_curFontSize);
@@ -785,7 +795,7 @@ OSDTextObject::drawByPainter(QPainter *qpainter) {
 }
 
 void
-OSDTextObject::updateText(const XString &text) {
+OnScreenTextObject::updateText(const XString &text) {
     assert(m_textOverpaint.size() == 1);
     auto &txt(m_textOverpaint[0]);
     m_text = text;
@@ -793,12 +803,12 @@ OSDTextObject::updateText(const XString &text) {
     txt.strpos = 0;
 }
 void
-OSDTextObject::clear() {
+OnScreenTextObject::clear() {
     m_text.clear();
     m_textOverpaint.clear();
 }
 void
-OSDTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
+OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     Text txt;
     txt.strpos = m_text.length();
     m_text.append(str);
@@ -828,7 +838,7 @@ OSDTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
 }
 
 void
-OSDTextObject::defaultFont() {
+OnScreenTextObject::defaultFont() {
     m_curAlign = 0;
     QFont font(painter()->m_pItem->font());
     m_curFontSize = std::min(14L, std::max(9L,
@@ -836,7 +846,7 @@ OSDTextObject::defaultFont() {
 }
 
 int
-OSDTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start,
+OnScreenTextObject::selectFont(const XString &str, const XGraph::ScrPoint &start,
                           const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint) {
     XGraph::ScrPoint d = dir;
     d.normalize();

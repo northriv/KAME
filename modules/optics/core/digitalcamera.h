@@ -28,7 +28,7 @@ class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 
 class X2DImage;
-class OSDObjectWithMarker;
+class OnScreenObjectWithMarker;
 
 //! Base class for scientific/machine vision digital camera.
 class DECLSPEC_SHARED XDigitalCamera : public XPrimaryDriverWithThread {
@@ -78,6 +78,7 @@ public:
         unsigned int m_width, m_height;
         local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
+        shared_ptr<QImage> m_qimage;
     };
 protected:
 
@@ -114,7 +115,6 @@ private:
 
     const qshared_ptr<FrmDigitalCamera> m_form;
     const shared_ptr<X2DImage> m_liveImage;
-    shared_ptr<QImage> m_qimage;
 
     shared_ptr<Listener> m_lsnOnVideoModeChanged;
     shared_ptr<Listener> m_lsnOnTriggerModeChanged;
@@ -141,8 +141,8 @@ private:
 
     void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
     void onROISelectionToolFinished(const Snapshot &shot,
-        const std::tuple<XString, Vector4<double>, Vector4<double>, weak_ptr<OSDObjectWithMarker>>&);
-    weak_ptr<OSDObjectWithMarker> m_roiOSD;
+        const std::tuple<XString, Vector4<double>, Vector4<double>, weak_ptr<OnScreenObjectWithMarker>>&);
+    weak_ptr<OnScreenObjectWithMarker> m_roiOSO;
 
     atomic<bool> m_storeDarkInvoked;
     constexpr static unsigned int NumSummedCountsPool = 2;

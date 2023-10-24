@@ -288,8 +288,8 @@ void
 XIIDCCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XDC1394Interface> lock( *interface());
 //    stopTransmission();
-    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
-        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
+//    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
+//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
 
     Snapshot shot( *this);
     dc1394video_mode_t video_mode;

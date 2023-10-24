@@ -29,34 +29,57 @@
     #define USE_PBO
 #endif
 
-class OSDObject {
+class OnScreenObject {
 public:
-    OSDObject(XQGraphPainter* p) : m_painter(p) {}
-    virtual ~OSDObject() {}
+    OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
+    virtual ~OnScreenObject() {}
     //! draws in OpenGL.
     virtual void drawNative() = 0;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) = 0;
     virtual void drawOffScreenMarker() {}
     //! unlinks from XQGraphPainter.
-    void release(const shared_ptr<OSDObject> &me);
+    void release(const shared_ptr<OnScreenObject> &me);
 protected:
     XQGraphPainter *painter() const {return m_painter;}
 private:
     XQGraphPainter *const m_painter;
 };
 
-class OSDObjectWithMarker : public OSDObject {
+class OnGraphObject : public OnScreenObject {
 public:
-    OSDObjectWithMarker(XQGraphPainter* p) : OSDObject(p) {}
+    OnGraphObject(XQGraphPainter* p) : OnScreenObject(p) {}
+
+    enum class HowToEvade {Never, ByCorner, Hide};
+    void placeObject(const shared_ptr<XAxis> &axisx, const shared_ptr<XAxis> &axisy,
+        const XGraph::ValPoint corners[4], unsigned int basecolor);
+    //todo same tool? template class?
+protected:
+    weak_ptr<XAxis> m_axisx, m_axisy;
+    unsigned int m_baseColor;
+    XGraph::ValPoint m_corners[4];
+};
+class OnGraphRectObject : public OnGraphObject {
+public:
+    OnGraphRectObject(XQGraphPainter* p) : OnGraphObject(p) {}
+    //! draws in OpenGL.
+    virtual void drawNative() override;
+    //! draws by QPainter.
+    virtual void drawByPainter(QPainter *) override {}
+private:
+};
+
+class OnScreenObjectWithMarker : public OnScreenObject {
+public:
+    OnScreenObjectWithMarker(XQGraphPainter* p) : OnScreenObject(p) {}
     //draws objects/bounding box for GL_SELECT
     virtual void drawOffScreenMarker() override;
-    enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, ByCorner, Hide};
+    enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
         const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
     void placeObject(const XGraph::ValPoint corners[4]);
-//    void evadeOSDObjects(const std::deque<std::weak_ptr<OSDObject>> &list, XGraph::SFloat space);
-//    static bool evadeMousePointer(const std::deque<std::weak_ptr<OSDObject>> &list);
+//    void evadeOnScreenObjects(const std::deque<std::weak_ptr<OnScreenObject>> &list, XGraph::SFloat space);
+//    static bool evadeMousePointer(const std::deque<std::weak_ptr<OnScreenObject>> &list);
     XGraph::ScrPoint &leftTop() {return m_leftTop;}
     XGraph::ScrPoint &rightTop() {return m_rightTop;}
     XGraph::ScrPoint &rightBottom() {return m_rightBottom;}
@@ -67,10 +90,10 @@ private:
     HowToEvade m_direction;
 };
 
-class OSDRectObject : public OSDObjectWithMarker {
+class OnScreenRectObject : public OnScreenObjectWithMarker {
 public:
     enum class Type {Selection, AreaTool};
-    OSDRectObject(XQGraphPainter* p, Type type) : OSDObjectWithMarker(p), m_type(type) {}
+    OnScreenRectObject(XQGraphPainter* p, Type type) : OnScreenObjectWithMarker(p), m_type(type) {}
     //! draws in OpenGL.
     virtual void drawNative() override;
     //! draws by QPainter.
@@ -80,22 +103,23 @@ private:
 };
 
 #include <QImage>
-class OSDTexture : public OSDObjectWithMarker {
+class OnScreenTexture : public OnScreenObjectWithMarker {
 public:
-   OSDTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
-       : OSDObjectWithMarker(item), id(tid), qimage(image) {}
-   virtual ~OSDTexture();
+   OnScreenTexture(XQGraphPainter *const item, GLuint tid, const shared_ptr<QImage> &image)
+       : OnScreenObjectWithMarker(item), id(tid), qimage(image) {}
+   virtual ~OnScreenTexture();
    //! update texture by new image.
    void repaint(const shared_ptr<QImage> &image);
    //! draws in OpenGL.
    virtual void drawNative() override;
    //! draws by QPainter.
    virtual void drawByPainter(QPainter *) override {}
+private:
    const GLuint id;
    shared_ptr<QImage> qimage;
 };
 
-class OSDTextObject : public OSDObjectWithMarker {
+class OnScreenTextObject : public OnScreenObjectWithMarker {
 public:
     virtual void drawNative() override;
     virtual void drawByPainter(QPainter *) override;
@@ -132,7 +156,7 @@ class XQGraphPainter : public enable_shared_from_this<XQGraphPainter>
         , protected QOpenGLFunctions
 #endif
 {
- friend class OSDTexture;
+ friend class OnScreenTexture;
 public:
 	XQGraphPainter(const shared_ptr<XGraph> &graph, XQGraph* item);
  virtual ~XQGraphPainter();
@@ -188,11 +212,11 @@ public:
      drawText(p, QString(str));
  }
 
- //OSD Objects
- shared_ptr<OSDTexture> createTexture(const shared_ptr<QImage> &image, bool onetime = false);
- void drawTexture(const OSDTexture& texture, const XGraph::ScrPoint p[4]);
- shared_ptr<OSDRectObject> createRectObject(OSDRectObject::Type type, bool onetime = false);
- void removeOSDObject(const shared_ptr<OSDObject> &p);
+ //On-screen Objects
+ shared_ptr<OnScreenTexture> createTexture(const shared_ptr<QImage> &image, bool onetime = false);
+ void drawTexture(const OnScreenTexture& texture, const XGraph::ScrPoint p[4]);
+ shared_ptr<OnScreenRectObject> createRectObject(OnScreenRectObject::Type type, bool onetime = false);
+ void removeOnScreenObject(const shared_ptr<OnScreenObject> &p);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -216,9 +240,9 @@ public:
  //for retina support.
  double m_pixel_ratio;
 private:
- friend class OSDObject;
- friend class OSDRectObject;
- friend class OSDTextObject;
+ friend class OnScreenObject;
+ friend class OnScreenRectObject;
+ friend class OnScreenTextObject;
 
  //! coordinate conversions
  //! \ret zero for success
@@ -319,8 +343,8 @@ Snapshot startDrawing();
     QRgb m_curTextColor;
     void drawTextOverpaint(QPainter &qpainter);
 
-    std::deque<shared_ptr<OSDObject>> m_persistentOSDs;
-    std::deque<shared_ptr<OSDObject>> m_paintedOSDs;
+    std::deque<shared_ptr<OnScreenObject>> m_persistentOSOs;
+    std::deque<shared_ptr<OnScreenObject>> m_paintedOSOs;
 
     int m_minX, m_maxX, m_minY, m_maxY; //!< to determin window size by secureWinwdow().
 };
