@@ -29,6 +29,9 @@
     #define USE_PBO
 #endif
 
+class XGraph1DMathTool;
+class XGraph2DMathTool;
+class X2DImagePlot;
 class OnScreenObject {
 public:
     OnScreenObject(XQGraphPainter* p) : m_painter(p) {}
@@ -38,11 +41,17 @@ public:
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) = 0;
     virtual void drawOffScreenMarker() {}
-    //! unlinks from XQGraphPainter.
-    void release(const shared_ptr<OnScreenObject> &me);
-    XQGraphPainter *painter() const {return m_painter;}
+
+    unsigned int baseColor() const { return m_baseColor;}
+    void setBaseColor(unsigned int basecolor) {m_baseColor = basecolor;}
+protected:
+    friend class XGraph1DMathTool;
+    friend class XGraph2DMathTool;
+    friend class X2DImagePlot;
+    XQGraphPainter *painter() const {return m_painter;}//valid if painter is alive (visible)
 private:
     XQGraphPainter *const m_painter;
+    atomic<unsigned int> m_baseColor = 0x0000ffu;
 };
 
 template <class OSO>
@@ -52,15 +61,23 @@ public:
     OnPlotObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
 
     void placeObject(const shared_ptr<XPlot> &plot,
-                     const XGraph::ValPoint corners[4]);
+                     const XGraph::ValPoint corners[4], XGraph::ScrPoint offset = {}) {
+        XScopedLock<XMutex> lock( m_mutex);
+        m_plot = plot;
+        for(unsigned int i = 0; i < 4; ++i)
+            m_corners[i] = corners[i];
+        m_offset = offset;
+    }
 
     virtual void drawNative() override;
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
 private:
     void valToScreen();
+    XMutex m_mutex;
     weak_ptr<XPlot> m_plot;
     XGraph::ValPoint m_corners[4];
+    XGraph::ScrPoint m_offset;
 };
 
 
@@ -87,15 +104,14 @@ protected:
 class OnScreenRectObject : public OnScreenObjectWithMarker {
 public:
     enum class Type {Selection, AreaTool};
-    OnScreenRectObject(XQGraphPainter* p, Type type, unsigned int basecolor = 0x0000ffu) :
-        OnScreenObjectWithMarker(p), m_type(type), m_baseColor(basecolor) {}
+    OnScreenRectObject(XQGraphPainter* p, Type type) :
+        OnScreenObjectWithMarker(p), m_type(type) {}
     //! draws in OpenGL.
     virtual void drawNative() override;
     //! draws by QPainter.
     virtual void drawByPainter(QPainter *) override {}
 private:
     Type m_type;
-    unsigned int m_baseColor;
 };
 
 using OnPlotRectObject = OnPlotObject<OnScreenRectObject>;
@@ -211,7 +227,7 @@ public:
  }
 
  //On-screen Objects
- weak_ptr<OnScreenTexture> createTexture(const shared_ptr<QImage> &image);
+ shared_ptr<OnScreenTexture> createTextureWeakly(const shared_ptr<QImage> &image);
  void drawTexture(const OnScreenTexture& texture, const XGraph::ScrPoint p[4]);
  template <class T, typename...Args>
  shared_ptr<T> createOneTimeOnScreenObject(bool onetime, Args&&... args) {

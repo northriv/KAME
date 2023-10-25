@@ -35,7 +35,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     X2DImage(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
     for(unsigned int i = 0; i < max_color_index; ++i)
-        m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("CH%u", i).c_str(), false, meas, driver));
+        m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("CH%u", i).c_str(), false, meas, driver, plot()));
 
     m_conTools = std::make_unique<XQGraph2DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }
@@ -73,7 +73,7 @@ X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
     if(m_toolLists.size())
         for(unsigned int cidx = 0; cidx < rawimages.size(); ++cidx) {
             unsigned int stride = image->width();
-            m_toolLists[cidx]->update(tr, graphwidget,
+            m_toolLists[cidx]->update(tr, m_graphwidget,
                 rawimages[cidx], stride, stride, image->height(), coefficients[cidx]);
         }
 }

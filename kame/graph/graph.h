@@ -463,7 +463,7 @@ protected:
 private:
     friend class XGraph;
     shared_ptr<QImage> m_image, m_image_textured;
-    weak_ptr<OnScreenTexture> m_texture;
+    shared_ptr<OnScreenTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif

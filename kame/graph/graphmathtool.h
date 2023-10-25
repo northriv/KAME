@@ -248,6 +248,8 @@ public:
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
 
     using cv_iterator = XGraph1DMathTool::cv_iterator;
+
+    void setBaseColor(unsigned int color) {m_basecolor = color;}
     virtual void update(Transaction &tr,
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
 
@@ -259,6 +261,7 @@ private:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
+    unsigned int m_basecolor = 0x0000ffu;
     friend class XQGraph1DMathToolConnector;
     void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat>&);
 };
@@ -270,12 +273,14 @@ public:
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
 
+    void setBaseColor(unsigned int color) {m_basecolor = color;}
     virtual void update(Transaction &tr, XQGraph *graphwidget,
         const uint32_t *leftupper,
         unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
 
     DEFINE_TYPE_HOLDER(
-        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &, const shared_ptr<XDriver> &
+        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 private:
@@ -283,8 +288,9 @@ private:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XDriver> m_driver;
     const weak_ptr<XPlot> m_plot;
+    unsigned int m_basecolor = 0x0000ffu;
     void onPlaneSelectedByTool(const Snapshot &shot,
-        const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>&);
+        const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);
 };
 
 #endif

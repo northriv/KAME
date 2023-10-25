@@ -18,8 +18,6 @@
 #include <QFontMetrics>
 #include <QPainter>
 
-template class OnPlotObject<OnScreenRectObject>;
-
 #define SELECT_WIDTH 0.02
 #define SELECT_DEPTH 0.1
 
@@ -754,22 +752,10 @@ XQGraphPainter::removeOnScreenObject(const shared_ptr<OnScreenObject> &p) {
     }
 }
 
-void
-OnScreenObject::release(const shared_ptr<OnScreenObject> &me) {
-    painter()->removeOnScreenObject(me);
-}
-
-template <class OSO>
-void
-OnPlotObject<OSO>::placeObject(const shared_ptr<XPlot> &plot,
-                               const XGraph::ValPoint corners[4]) {
-    m_plot = plot;
-    for(unsigned int i = 0; i < 4; ++i)
-        m_corners[i] = corners[i];
-}
 template <class OSO>
 void
 OnPlotObject<OSO>::valToScreen() {
+    XScopedLock<XMutex> lock( m_mutex);
     if(auto plot = m_plot.lock()) {
         XGraph::GPoint g[4];
         std::array<XGraph::ScrPoint, 4> s;
@@ -780,7 +766,9 @@ OnPlotObject<OSO>::valToScreen() {
         std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
             return std::tie(a.x, a.y) < std::tie(b.x, b.y);
           });
-        OSO::placeObject(s[0], s[2], s[1], s[3], OSO::HowToEvade::Never, 0);
+        for(auto p: s)
+            p += m_offset;
+        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
     }
 }
 
@@ -802,6 +790,8 @@ OnPlotObject<OSO>::drawOffScreenMarker() {
     valToScreen();
     this->OSO::drawOffScreenMarker();
 }
+
+template class OnPlotObject<OnScreenRectObject>;
 
 void
 OnScreenTextObject::drawNative() {

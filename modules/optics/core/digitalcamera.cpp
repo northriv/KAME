@@ -92,9 +92,6 @@ XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
 void
 XDigitalCamera::onVideoModeChanged(const Snapshot &shot, XValueNodeBase *) {
     try {
-        if(auto roi = m_roiOSO.lock())
-            roi->release(roi);
-        m_roiOSO.reset();
         setVideoMode(shot[ *videoMode()]);
     }
     catch (XKameError &e) {
@@ -146,18 +143,15 @@ XDigitalCamera::onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *
 }
 void
 XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
-    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>&res) {
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto osobj = std::get<3>(res);
+    auto widget = std::get<3>(res);
     m_lsnOnROISelectionToolFinished.reset();
     try {
         setVideoMode(Snapshot( *this)[ *videoMode()], std::min(src.x, dst.x), std::min(src.y, dst.y),
                 abs(src.x - dst.x), abs(src.y - dst.y));
-        if(auto roi = m_roiOSO.lock())
-            roi->release(roi);
-        m_roiOSO = osobj;
     }
     catch (XKameError &e) {
         e.print(getLabel() + " " + i18n(" Error"));
@@ -391,7 +385,5 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
     m_lsnOnTriggerModeChanged.reset();
     m_lsnOnVideoModeChanged.reset();
     m_lsnOnROISelectionToolTouched.reset();
-    if(auto roi = m_roiOSO.lock())
-        roi->release(roi);
     return NULL;
 }

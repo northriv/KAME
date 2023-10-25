@@ -46,10 +46,9 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
     m_beginY(create<XDoubleNode>("BeginY", false)),
     m_endX(create<XDoubleNode>("EndX", false)),
     m_endY(create<XDoubleNode>("EndY", false)),
-    m_baseColor(create<XHexNode>("BaseColor", false)),
     m_entries(entries),
+    m_baseColor(create<XHexNode>("BaseColor", false)),
     m_plot(plot) {
-
 }
 XGraph2DMathTool::~XGraph2DMathTool() {
 }
@@ -60,27 +59,24 @@ XGraph2DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
         m_oso.reset();
         return;
     }
-    if(painter.get() == m_oso->painter())
+    Snapshot shot_this( *this);
+    if(m_oso && (painter.get() == m_oso->painter())) {
+        m_oso->setBaseColor(shot_this[ *m_baseColor]);
         return; //painter unchanged unless the same address is recycled.
+    }
     m_oso.reset();
 
-    Snapshot shot_this( *this);
     double bgx = shot_this[ *beginX()];
     double bgy = shot_this[ *beginY()];
     double edx = shot_this[ *endX()];
     double edy = shot_this[ *endY()];
-    unsigned int color = shot_this[ *baseColor()];
     XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
 
     auto oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
     m_oso = oso;
-    auto graph = graphwidget->graph();
-    Snapshot shot( *graph);
-    if(shot.size(graph->plots())) {
-        const auto &plots_list( *shot.list(graph->plots()));
-        shared_ptr<XPlot> plot = static_pointer_cast<XPlot>(plots_list[0]);
-        oso->placeObject(plot, corners);
-    }
+    oso->setBaseColor(shot_this[ *m_baseColor]);
+    if(auto plot = m_plot.lock())
+        oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
 }
 
 XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
@@ -140,9 +136,10 @@ shared_ptr<XNode>
 XGraph2DMathToolList::createByTypename(const XString &type, const XString& name) {
     shared_ptr<XMeasure> meas(m_measure.lock());
     shared_ptr<XNode> ptr;
+    auto plot = m_plot.lock();
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock());
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot);
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -189,16 +186,17 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot, const std::tupl
             std::swap(src, dst);
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
+        tr[ *tool->baseColor()] = m_basecolor;
     });
 }
 
 void
 XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
-    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, std::weak_ptr<OnScreenObjectWithMarker> > &res) {
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph* > &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
-    auto osobj = std::get<3>(res);
+    auto widget = std::get<3>(res);
     auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
@@ -211,5 +209,7 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->endX()] = dst.x;
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
+        tr[ *tool->baseColor()] = m_basecolor;
     });
+    tool->updateOnScreenObjects(widget);
 }

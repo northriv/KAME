@@ -318,8 +318,8 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-weak_ptr<OnScreenTexture>
-XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
+shared_ptr<OnScreenTexture>
+XQGraphPainter::createTextureWeakly(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
@@ -341,10 +341,7 @@ XQGraphPainter::createTexture(const shared_ptr<QImage> &image) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    auto p = std::make_shared<OnScreenTexture>(this, id, image);
-    XScopedLock<XMutex> lock(m_mutexOSO);
-    m_persistentOSOs.push_back(p);
-    return p;
+    return createOnScreenObjectWeakly<OnScreenTexture>(id, image);
 }
 void
 OnScreenTexture::drawNative() {
@@ -399,7 +396,7 @@ OnScreenRectObject::drawNative() {
     Snapshot shot_graph( *painter()->m_graph);
     switch(m_type) {
     case Type::Selection:
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
             painter()->beginQuad(true);
             painter()->setColor(c, 0.1);
             painter()->setVertex(leftTop());
@@ -412,7 +409,7 @@ OnScreenRectObject::drawNative() {
     case Type::AreaTool:
 //        glEnable(GL_LINE_STIPPLE);
 //        unsigned short pat = 0x0f0fu;
-        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], clBlue}) {
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
 //            painter()->beginLine(1.0, pat);
             painter()->beginLine(1.0);
             painter()->setColor(c, 0.3);

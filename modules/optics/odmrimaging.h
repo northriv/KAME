@@ -120,10 +120,9 @@ private:
     const shared_ptr<XComboNode> m_dispMethod;
     const shared_ptr<XUIntNode> m_refIntensFrames;
 
-    const std::deque<shared_ptr<XGraph2DMathToolList>> m_sampleToolLists, m_referenceToolLists, m_darkToolLists; //PL for MW off and on.
-
     const qshared_ptr<FrmODMRImaging> m_form;
     const shared_ptr<X2DImage> m_processedImage;
+    std::deque<shared_ptr<XGraph2DMathToolList>> m_sampleToolLists, m_referenceToolLists, m_darkToolLists; //PL for MW off and on.
 
     shared_ptr<Listener> m_lsnOnClearAverageTouched, m_lsnOnCondChanged;
 

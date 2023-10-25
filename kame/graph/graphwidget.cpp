@@ -160,22 +160,16 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
         XGraph::VFloat vsrc2 = axis2->screenToVal(shot, src1);
         XGraph::VFloat vdst1 = axis1->screenToVal(shot, dst1);
         XGraph::VFloat vdst2 = axis2->screenToVal(shot, dst1);
-//        src1.z += 0.01;
-//        src2.z += 0.01;
-//        dst1.z += 0.01;
-//        dst2.z += 0.01;
-//        auto osobj = m_painter->createOnScreenObject<OnScreenRectObject>(false, OnScreenRectObject::Type::AreaTool);
-//        osobj->placeObject(src1, src2, dst1, dst2, OnScreenTexture::HowToEvade::Never, {});
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {
              //swaps 1 and 2.
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>
-                                         {m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, {}});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, XQGraph*>
+                                         {m_toolDesc, {vsrc2, vsrc1}, {vdst2, vdst1}, this});
         }
         else if((axis1->direction() == m_toolDirX) && (axis2->direction() == m_toolDirY)) {
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
-                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, weak_ptr<OnScreenObjectWithMarker>>
-                                         {m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, {}});
+                std::tuple<XString, XGraph::ValPoint,XGraph::ValPoint, XQGraph*>
+                                         {m_toolDesc, {vsrc1, vsrc2}, {vdst1, vdst2}, this});
         }
     }
     m_isPlaneSelectionByTool = false;

@@ -40,23 +40,25 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
     m_refIntensFrames(create<XUIntNode>("RefIntensFrames", false)),
-    m_sampleToolLists({
-        create<XGraph2DMathToolList>("SmplPL", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-        create<XGraph2DMathToolList>("SmplPLMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-                      }),
-    m_referenceToolLists({
-        create<XGraph2DMathToolList>("Reference", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-        create<XGraph2DMathToolList>("ReferenceMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-                       }),
-    m_darkToolLists({
-        create<XGraph2DMathToolList>("Dark", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-        create<XGraph2DMathToolList>("DarkMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this())),
-                        }),
     m_form(new FrmODMRImaging),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
                                    2,
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
+
+    auto plot = m_processedImage->plot();
+    m_sampleToolLists = {
+        create<XGraph2DMathToolList>("SmplPL", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("SmplPLMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+                      };
+    m_referenceToolLists = {
+        create<XGraph2DMathToolList>("Reference", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("ReferenceMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+                       };
+    m_darkToolLists = {
+        create<XGraph2DMathToolList>("Dark", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("DarkMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+                        };
 
     connect(camera());
     m_entries = meas->scalarEntries();
@@ -85,6 +87,10 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     };
 
     iterate_commit([=](Transaction &tr){
+        for(auto &&x: m_sampleToolLists)
+            x->setBaseColor(0xffff00u);
+        for(auto &&x: m_referenceToolLists)
+            x->setBaseColor(0x00ffffu);
         tr[ *average()] = 1;
         tr[ *autoGainForDisp()] = true;
         tr[ *dispMethod()].add({"PL colored by dPL/PL", "dPL"});
@@ -243,9 +249,9 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         }
         unsigned int stride = width;
         for(unsigned int cidx: {0,1}) {
-            m_sampleToolLists[cidx]->update(tr, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_referenceToolLists[cidx]->update(tr, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_darkToolLists[cidx]->update(tr, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_sampleToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_referenceToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_darkToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
         }
         auto fn_tool_to_vector = [&](std::vector<double>&vec, const shared_ptr<XGraph2DMathToolList> &toollist, double dark = 0) {
             vec.clear();

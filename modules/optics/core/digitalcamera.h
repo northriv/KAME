@@ -26,7 +26,7 @@ class XGraph2DMathToolList;
 class QMainWindow;
 class Ui_FrmDigitalCamera;
 typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
-
+class XQGraph;
 class X2DImage;
 class OnScreenObjectWithMarker;
 
@@ -141,8 +141,7 @@ private:
 
     void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
     void onROISelectionToolFinished(const Snapshot &shot,
-        const std::tuple<XString, Vector4<double>, Vector4<double>, weak_ptr<OnScreenObjectWithMarker>>&);
-    weak_ptr<OnScreenObjectWithMarker> m_roiOSO;
+        const std::tuple<XString, Vector4<double>, Vector4<double>, XQGraph*>&);
 
     atomic<bool> m_storeDarkInvoked;
     constexpr static unsigned int NumSummedCountsPool = 2;
