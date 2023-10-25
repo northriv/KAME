@@ -267,6 +267,7 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
                         XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
                         XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
                         if(tool_desc.length()) {
+                            //todo return val.
                             XGraph::ScrPoint offdiag1, offdiag2, dst;
                             m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(src1),
                                 m_foundPlaneAxis2->valToAxis(dst2)), &offdiag1);

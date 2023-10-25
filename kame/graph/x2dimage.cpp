@@ -20,6 +20,7 @@
 #include "graphmathtool.h"
 #include <QToolButton>
 #include "graphmathtoolconnector.h"
+#include <QBuffer>
 
 X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
     X2DImage(name, runtime, item->m_graphwidget, item->m_edUrl,
@@ -62,8 +63,18 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 
 void
 X2DImage::dumpToFileThreaded(std::fstream &stream) {
-    Snapshot shot( *this);
-
+    Snapshot shot( *plot());
+    QByteArray ba;
+    QBuffer buffer(&ba);
+    buffer.open(QIODevice::WriteOnly);
+    shot[ *plot()].image()->save( &buffer, "PNG");
+    try {
+        stream.write(ba.constData(), ba.size());
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
+    }
+    catch(const std::ios_base::failure& e) {
+        gErrPrint(e.what());
+    }
 }
 
 void
