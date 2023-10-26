@@ -32,7 +32,6 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     m_btnMathTool = btnmath;
     m_meas = meas;
     m_driver = driver;
-    m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
@@ -205,9 +204,11 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 
     auto &wave{static_cast<XWaveNGraph&>(node())};
     if(auto meas = wave.m_meas.lock())
-        if(auto driver = wave.m_driver.lock())
+        if(auto driver = wave.m_driver.lock()) {
             wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr(),
                 plot->getLabel().c_str(), false, meas, driver, plot));
+            wave.m_conTools = std::make_unique<XQGraph1DMathToolConnector>(wave.m_toolLists, wave.m_btnMathTool, wave.m_graphwidget);
+        }
 }
 
 void
