@@ -26,25 +26,30 @@ class OnScreenObjectWithMarker;
 class DECLSPEC_KAME XGraph1DMathTool: public XNode {
 public:
     XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
-        const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver);
+        const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot);
     virtual ~XGraph1DMathTool() {}
 
 //    enum class MathTool1D {Sum, Average, CoG, Moment2nd, MaxValue, MinValue};
 //    enum class MathTool2D {Sum, Average, CoG, Moment2nd, MaxValue, MinValue};
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
-    virtual void update(Transaction &tr, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
+    virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
 
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
     const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
 
     virtual void releaseEntries(Transaction &tr) {}
+
+    void updateOnScreenObjects(XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
-    const shared_ptr<XHexNode> m_baseColor;
     const weak_ptr<XScalarEntryList> m_entries;
+    const shared_ptr<XHexNode> m_baseColor;
+    shared_ptr<OnScreenObjectWithMarker> m_oso;
+    const weak_ptr<XPlot> m_plot;
 };
 
 class DECLSPEC_KAME XGraph2DMathTool: public XNode {
@@ -82,15 +87,17 @@ template <class F>
 class XGraph1DMathToolX: public XGraph1DMathTool {
 public:
     XGraph1DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
-                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver) :
-        XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver) {
+                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+                      const shared_ptr<XPlot> &plot) :
+        XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
          m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
          entries->insert(tr_meas, m_entry);
     }
     virtual ~XGraph1DMathToolX() {}
-    virtual void update(Transaction &tr, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
+    virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
+        updateOnScreenObjects(graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
@@ -245,25 +252,28 @@ class XMeasure;
 class XGraph1DMathToolList : public XCustomTypeListNode<XGraph1DMathTool> {
 public:
     XGraph1DMathToolList(const char *name, bool runtime,
-        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot);
 
     using cv_iterator = XGraph1DMathTool::cv_iterator;
 
     void setBaseColor(unsigned int color) {m_basecolor = color;}
-    virtual void update(Transaction &tr,
+    virtual void update(Transaction &tr, XQGraph *graphwidget,
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
 
     DEFINE_TYPE_HOLDER(
-        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &, const shared_ptr<XDriver> &
+        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 private:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
+    const weak_ptr<XPlot> m_plot;
     unsigned int m_basecolor = 0x0000ffu;
     friend class XQGraph1DMathToolConnector;
-    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat>&);
+    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
 };
 
 class XQGraph2DMathToolConnector;

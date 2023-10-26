@@ -30,13 +30,17 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
     XWaveNGraph(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
+    //todo in insertPlot
     for(unsigned int i = 0; i < max_wave_index; ++i)
-        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Plot%u", i).c_str(), false, meas, driver));
+        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Plot%u", i).c_str(), false,
+            meas, driver, shared_ptr<XPlot>{}));
 
     m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
+    XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump),
+    m_graphwidget(graphwidget) {
     iterate_commit([=](Transaction &tr){
         tr[ *dump()].setUIEnabled(false);
         tr[ *graph()->persistence()] = 0.4;
@@ -274,6 +278,6 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
         std::vector<XGraph::VFloat> colx, coly;
         shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx);
         shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
-        m_toolLists[j]->update(tr, colx.begin(), colx.end(), coly.begin(), coly.end());
+        m_toolLists[j]->update(tr, m_graphwidget, colx.begin(), colx.end(), coly.begin(), coly.end());
     }
 }

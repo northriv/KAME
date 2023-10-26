@@ -151,7 +151,7 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
     Snapshot shot( *m_graph);
     if(m_isAxisSelectionByTool
         && axis1 && (axis1->direction() == m_toolDirX)) {
-        onAxisSelectedByTool().talk(Snapshot( *m_graph), std::tuple<XString, XGraph::VFloat, XGraph::VFloat>{m_toolDesc, vsrc1, vdst1});
+        onAxisSelectedByTool().talk(Snapshot( *m_graph), std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>{m_toolDesc, vsrc1, vdst1, this});
     }
     if(m_isPlaneSelectionByTool && axis1 && axis2) {
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {

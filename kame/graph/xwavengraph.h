@@ -129,6 +129,7 @@ protected:
     virtual void dumpToFileThreaded(std::fstream &) override;
 private:
     QToolButton *m_btnMathTool = nullptr;
+    XQGraph *m_graphwidget;
     std::deque<shared_ptr<XGraph1DMathToolList>> m_toolLists;
     unique_ptr<XQGraph1DMathToolConnector> m_conTools;
 };
