@@ -206,7 +206,7 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
     auto &wave{static_cast<XWaveNGraph&>(node())};
     if(auto meas = wave.m_meas.lock())
         if(auto driver = wave.m_driver.lock())
-            wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(
+            wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr(),
                 plot->getLabel().c_str(), false, meas, driver, plot));
 }
 
