@@ -280,7 +280,10 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
         auto plot = shot[ *this].m_plots[j];
         std::vector<XGraph::VFloat> colx, coly;
         shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx);
-        shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
+        if(plot->m_coly1 > 0)
+            shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
+        if(plot->m_coly2 > 0)
+            shot[ *this].m_cols[plot->m_coly2]->fillOrPointToGraphPoints(coly);
         m_toolLists[j]->update(tr, m_graphwidget, colx.begin(), colx.end(), coly.begin(), coly.end());
     }
 }
