@@ -267,16 +267,8 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
                         XGraph::VFloat dst1 = m_foundPlaneAxis1->screenToVal(tr, m_finishScrPos);
                         XGraph::VFloat dst2 = m_foundPlaneAxis2->screenToVal(tr, m_finishScrPos);
                         if(tool_desc.length()) {
-                            //todo return val.
-                            XGraph::ScrPoint offdiag1, offdiag2, dst;
-                            m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(src1),
-                                m_foundPlaneAxis2->valToAxis(dst2)), &offdiag1);
-                            m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(dst1),
-                                m_foundPlaneAxis2->valToAxis(src2)), &offdiag2);
-                            m_foundPlane->graphToScreen(tr, XGraph::GPoint(m_foundPlaneAxis1->valToAxis(dst1),
-                                m_foundPlaneAxis2->valToAxis(dst2)), &dst);
-                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundPlaneAxis1, m_startScrPos, dst},
-                                {m_foundPlaneAxis2, offdiag1, offdiag2}};
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundPlaneAxis1, src1, dst1},
+                                {m_foundPlaneAxis2, src2, dst2}};
                             return;
                         }
 
@@ -297,12 +289,12 @@ std::pair<XQGraphPainter::SelectedResult, XQGraphPainter::SelectedResult> XQGrap
 					break;
                 case SelectionMode::SelAxis:
 					if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
-                        if(tool_desc.length()) {
-                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundAxis, m_startScrPos, m_finishScrPos}, {}};
-                            return;
-                        }
                         XGraph::VFloat src = m_foundAxis->screenToVal(tr, m_startScrPos);
                         XGraph::VFloat dst = m_foundAxis->screenToVal(tr, m_finishScrPos);
+                        if(tool_desc.length()) {
+                            ret = std::pair<SelectedResult, SelectedResult>{{m_foundAxis, src, dst}, {}};
+                            return;
+                        }
                         double _min = std::min(src, dst);
 						double _max = std::max(src, dst);
                         if(tr[ *m_foundAxis->minValue()].isUIEnabled())

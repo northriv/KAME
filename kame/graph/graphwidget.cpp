@@ -146,20 +146,14 @@ XQGraph::mouseReleaseEvent ( QMouseEvent* e) {
 	if( !m_painter ) return;
 //    makeCurrent();
     auto [r1, r2] = m_painter->selectObjs(e->pos().x(), e->pos().y(), XQGraphPainter::SelectionState::SelFinish, XQGraphPainter::SelectionMode::SelNone, m_toolDesc);
-    auto [axis1, src1, dst1] = r1;
-    auto [axis2, src2, dst2] = r2;
+    auto [axis1, vsrc1, vdst1] = r1;
+    auto [axis2, vsrc2, vdst2] = r2;
     Snapshot shot( *m_graph);
     if(m_isAxisSelectionByTool
         && axis1 && (axis1->direction() == m_toolDirX)) {
-        XGraph::VFloat vsrc1 = axis1->screenToVal(shot, src1);
-        XGraph::VFloat vdst1 = axis1->screenToVal(shot, dst1);
         onAxisSelectedByTool().talk(Snapshot( *m_graph), std::tuple<XString, XGraph::VFloat, XGraph::VFloat>{m_toolDesc, vsrc1, vdst1});
     }
     if(m_isPlaneSelectionByTool && axis1 && axis2) {
-        XGraph::VFloat vsrc1 = axis1->screenToVal(shot, src1);
-        XGraph::VFloat vsrc2 = axis2->screenToVal(shot, src1);
-        XGraph::VFloat vdst1 = axis1->screenToVal(shot, dst1);
-        XGraph::VFloat vdst2 = axis2->screenToVal(shot, dst1);
         if((axis1->direction() == m_toolDirY) && (axis2->direction() == m_toolDirX)) {
              //swaps 1 and 2.
             onPlaneSelectedByTool().talk(Snapshot( *m_graph),
