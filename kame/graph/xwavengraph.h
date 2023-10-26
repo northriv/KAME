@@ -36,7 +36,7 @@ public:
     XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item);
     XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-        unsigned int max_wave_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
     XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump);
     virtual ~XWaveNGraph();
@@ -128,7 +128,9 @@ public:
 protected:
     virtual void dumpToFileThreaded(std::fstream &) override;
 private:
-    QToolButton *m_btnMathTool = nullptr;
+    weak_ptr<XMeasure> m_meas;
+    weak_ptr<XDriver> m_driver;
+    QToolButton *m_btnMathTool = nullptr;    
     XQGraph *m_graphwidget;
     std::deque<shared_ptr<XGraph1DMathToolList>> m_toolLists;
     unique_ptr<XQGraph1DMathToolConnector> m_conTools;

@@ -42,7 +42,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
     m_form(new FRM),
 	m_statusPrinter(XStatusPrinter::create(m_form.get())),
     m_spectrum(create<XWaveNGraph>("Spectrum", true, m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-            4, m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
+            m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
     m_form->m_btnClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
     
 	connect(pulse());

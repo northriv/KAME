@@ -26,15 +26,12 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-    unsigned int max_wave_index, QToolButton *btnmath,
+    QToolButton *btnmath,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
     XWaveNGraph(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
-    //todo in insertPlot
-    for(unsigned int i = 0; i < max_wave_index; ++i)
-        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Plot%u", i).c_str(), false,
-            meas, driver, shared_ptr<XPlot>{}));
-
+    m_meas = meas;
+    m_driver = driver;
     m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
@@ -205,6 +202,12 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	m_plots.push_back(plot);
 
     graph->applyTheme(tr(), true);
+
+    auto &wave{static_cast<XWaveNGraph&>(node())};
+    if(auto meas = wave.m_meas.lock())
+        if(auto driver = wave.m_driver.lock())
+            wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(
+                plot->getLabel().c_str(), false, meas, driver, plot));
 }
 
 void
