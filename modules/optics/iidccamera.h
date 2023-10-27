@@ -136,7 +136,7 @@ protected:
 private:
     void stopTransmission();
     std::deque<std::pair<dc1394video_mode_t, dc1394color_coding_t>> m_availableVideoModes;
-    bool m_isTrasmitting;
+    atomic<bool> m_isTrasmitting;
 };
 #endif //USE_LIBDC1394
 

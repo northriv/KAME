@@ -292,7 +292,7 @@ XIIDCCamera::stopTransmission() {
 //            if(dc1394_capture_enqueue(interface()->camera(), frame))
 //                throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
 //        }
-        msecsleep(10);
+        msecsleep(300);
     //    if(interface()->camera()->has_vmode_error_status != DC1394_TRUE)
         dc1394_capture_stop(interface()->camera());
     }
@@ -403,12 +403,12 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     if(dc1394_get_image_size_from_video_mode(interface()->camera(), videomode, &width, &height))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info."), __FILE__, __LINE__);
 
-    unsigned int frames = lrint(2.0 / (double)Snapshot( *this)[ *exposureTime()]);
+    unsigned int frames = lrint(2.0 / Snapshot( *this)[ *exposureTime()]);
     frames = std::min(frames, 80000000u / (2 *width * height));
     frames = std::max(4u, frames);
     fprintf(stderr, "c1\n");
     //may freeze here
-    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT))
+    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT & ~DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
     fprintf(stderr, "c2\n");
@@ -427,10 +427,11 @@ XIIDCCamera::setBrightness(unsigned int brightness) {
 void
 XIIDCCamera::setExposureTime(double shutter) {
     XScopedLock<XDC1394Interface> lock( *interface());
-//    stopTransmission();
+    stopTransmission();
     if(dc1394_feature_set_absolute_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
 //    if(dc1394_feature_set_value(interface()->camera(), DC1394_FEATURE_SHUTTER, shutter))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not get info.."), __FILE__, __LINE__);
+    setTriggerMode(static_cast<TriggerMode>((unsigned int)Snapshot( *this)[ *triggerMode()]));
 }
 void
 XIIDCCamera::setCameraGain(double db) {
@@ -482,10 +483,10 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
 
 XTime
 XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
-    XScopedLock<XDC1394Interface> lock( *interface());
-    Snapshot shot( *this);
     if( !m_isTrasmitting)
         throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+    XScopedLock<XDC1394Interface> lock( *interface());
+    Snapshot shot( *this);
 
     dc1394video_frame_t *frame = nullptr;
     auto ret = dc1394_capture_dequeue(interface()->camera(), DC1394_CAPTURE_POLICY_POLL, &frame);
