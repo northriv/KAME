@@ -61,7 +61,8 @@ public:
     OnPlotObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
 
     void placeObject(const shared_ptr<XPlot> &plot,
-                     const XGraph::ValPoint corners[4], XGraph::ScrPoint offset = {}) {
+                     const XGraph::ValPoint corners[4],
+                    XGraph::ScrPoint offset = {}) {
         XScopedLock<XMutex> lock( m_mutex);
         m_plot = plot;
         for(unsigned int i = 0; i < 4; ++i)
@@ -77,6 +78,33 @@ private:
     XMutex m_mutex;
     weak_ptr<XPlot> m_plot;
     XGraph::ValPoint m_corners[4];
+    XGraph::ScrPoint m_offset;
+};
+template <class OSO, bool IsXAxis>
+class OnAxisObject : public OSO {
+public:
+    template <typename... Args>
+    OnAxisObject(XQGraphPainter* p, Args&&... args) : OSO(p, std::forward<Args>(args)...) {}
+
+    void placeObject(const shared_ptr<XPlot> &plot,
+                     const XGraph::VFloat &bg1, const XGraph::VFloat &ed1,
+                     const XGraph::GFloat &bg2, const XGraph::GFloat &ed2,
+                     XGraph::ScrPoint offset = {}) {
+        XScopedLock<XMutex> lock( m_mutex);
+        m_plot = plot;
+        m_bg1 = bg1; m_ed1 = ed1; m_bg2 = bg2; m_ed2 = ed2;
+        m_offset = offset;
+    }
+
+    virtual void drawNative() override;
+    virtual void drawByPainter(QPainter *) override;
+    virtual void drawOffScreenMarker() override;
+private:
+    void toScreen();
+    XMutex m_mutex;
+    weak_ptr<XPlot> m_plot;
+    XGraph::VFloat m_bg1, m_ed1;
+    XGraph::GFloat m_bg2, m_ed2;
     XGraph::ScrPoint m_offset;
 };
 
@@ -114,6 +142,8 @@ private:
     Type m_type;
 };
 
+using OnXAxisRectObject = OnAxisObject<OnScreenRectObject, true>;
+using OnYAxisRectObject = OnAxisObject<OnScreenRectObject, false>;
 using OnPlotRectObject = OnPlotObject<OnScreenRectObject>;
 
 #include <QImage>

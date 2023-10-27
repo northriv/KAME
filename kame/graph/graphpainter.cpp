@@ -786,6 +786,63 @@ OnPlotObject<OSO>::drawOffScreenMarker() {
 
 template class OnPlotObject<OnScreenRectObject>;
 
+template <class OSO, bool IsXAxis>
+void
+OnAxisObject<OSO, IsXAxis>::toScreen() {
+    XScopedLock<XMutex> lock( m_mutex);
+    if(auto plot = m_plot.lock()) {
+        XGraph::GFloat bgx, bgy, edx, edy;
+        Snapshot shot( *plot);
+        shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
+        shared_ptr<XAxis> axisy = shot[ *plot->axisY()];
+        if(IsXAxis) {
+            bgx = axisx->valToAxis(m_bg1);
+            edx = axisx->valToAxis(m_ed1);
+            bgy = m_bg2;
+            edy = m_ed2;
+        }
+        else {
+            bgy = axisy->valToAxis(m_bg1);
+            edy = axisy->valToAxis(m_ed1);
+            bgx = m_bg2;
+            edx = m_ed2;
+        }
+        XGraph::GPoint g[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
+        std::array<XGraph::ScrPoint, 4> s;
+        for(unsigned int i = 0; i < 4; ++i) {
+            plot->graphToScreenFast(g[i], &s[i]);
+        }
+        std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
+            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
+          });
+        for(auto p: s)
+            p += m_offset;
+        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
+    }
+}
+
+template <class OSO, bool IsXAxis>
+void
+OnAxisObject<OSO, IsXAxis>::drawNative() {
+    toScreen();
+    this->OSO::drawNative();
+}
+template <class OSO, bool IsXAxis>
+void
+OnAxisObject<OSO, IsXAxis>::drawByPainter(QPainter *p) {
+    toScreen();
+    this->OSO::drawByPainter(p);
+}
+template <class OSO, bool IsXAxis>
+void
+OnAxisObject<OSO, IsXAxis>::drawOffScreenMarker() {
+    toScreen();
+    this->OSO::drawOffScreenMarker();
+}
+
+template class OnAxisObject<OnScreenRectObject, true>;
+template class OnAxisObject<OnScreenRectObject, false>;
+
 void
 OnScreenTextObject::drawNative() {
 }

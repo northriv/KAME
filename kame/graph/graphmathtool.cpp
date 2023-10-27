@@ -69,15 +69,16 @@ XGraph1DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
 
     double bgx = shot_this[ *begin()];
     double edx = shot_this[ *end()];
+    double bgy = 0.0;
+    double edy = 1.0;
 
-    //finds default plot if needed
-    //if( !plot)
-//    ...
-//    auto oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
-//    m_oso = oso;
-//    oso->setBaseColor(shot_this[ *m_baseColor]);
-//    if(auto plot = m_plot.lock())
-//        oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
+    if(auto plot = m_plot.lock()) {
+        auto oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::AreaTool);
+        m_oso = oso;
+        oso->setBaseColor(shot_this[ *m_baseColor]);
+        if(auto plot = m_plot.lock())
+            oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+    }
 }
 void
 XGraph2DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
