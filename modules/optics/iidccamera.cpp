@@ -472,7 +472,7 @@ XIIDCCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     auto data_in_padding = static_cast<dc1394bool_t>(reader.pop<uint32_t>());       /* DC1394_TRUE if data is present in the padding bytes in IIDC 1.32 format,
                                                        DC1394_FALSE otherwise */
     unsigned int bpp = image_bytes / (width * height);
-    tr[ *this].m_status = formatString("%ux%u @(%u,%u)", width, height, xpos, ypos)+  tr[ *this].time().getTimeStr() + formatString(" behind:%u", frames_behind);
+    tr[ *this].m_status = formatString("%ux%u @(%u,%u)", width, height, xpos, ypos) + formatString(" behind:%u", frames_behind);
 
     XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
 

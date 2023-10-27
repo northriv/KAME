@@ -178,7 +178,7 @@ public:
  //! Selections  
  enum class SelectionMode {SelNone, SelPoint, SelAxis, SelPlane, TiltTracking};
  enum class SelectionState {SelStart, SelFinish, SelFinishByTool, Selecting};
- using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::ScrPoint, XGraph::ScrPoint>;
+ using SelectedResult = std::tuple<shared_ptr<XAxis>, XGraph::VFloat, XGraph::VFloat>;
  std::pair<SelectedResult, SelectedResult> selectObjs(int x, int y, SelectionState state, SelectionMode mode = SelectionMode::SelNone,
     const XString &tool_desc = {});
  

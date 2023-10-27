@@ -26,17 +26,17 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, FrmGraphNURL *item) :
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-    unsigned int max_wave_index, QToolButton *btnmath,
+    QToolButton *btnmath,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
     XWaveNGraph(name, runtime, graphwidget, ed, btn, btndump) {
     m_btnMathTool = btnmath;
-    for(unsigned int i = 0; i < max_wave_index; ++i)
-        m_toolLists.push_back(create<XGraph1DMathToolList>(formatString("Plot%u", i).c_str(), false, meas, driver));
-
-    m_conTools = std::make_unique<XQGraph1DMathToolConnector>(m_toolLists, m_btnMathTool, graphwidget);
+    m_meas = meas;
+    m_driver = driver;
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump) {
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
+    XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump),
+    m_graphwidget(graphwidget) {
     iterate_commit([=](Transaction &tr){
         tr[ *dump()].setUIEnabled(false);
         tr[ *graph()->persistence()] = 0.4;
@@ -201,6 +201,14 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	m_plots.push_back(plot);
 
     graph->applyTheme(tr(), true);
+
+    auto &wave{static_cast<XWaveNGraph&>(node())};
+    if(auto meas = wave.m_meas.lock())
+        if(auto driver = wave.m_driver.lock()) {
+            wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr(),
+                plot->getLabel().c_str(), false, meas, driver, plot));
+            wave.m_conTools = std::make_unique<XQGraph1DMathToolConnector>(wave.m_toolLists, wave.m_btnMathTool, wave.m_graphwidget);
+        }
 }
 
 void
@@ -273,7 +281,10 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
         auto plot = shot[ *this].m_plots[j];
         std::vector<XGraph::VFloat> colx, coly;
         shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx);
-        shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
-        m_toolLists[j]->update(tr, colx.begin(), colx.end(), coly.begin(), coly.end());
+        if(plot->m_coly1 > 0)
+            shot[ *this].m_cols[plot->m_coly1]->fillOrPointToGraphPoints(coly);
+        if(plot->m_coly2 > 0)
+            shot[ *this].m_cols[plot->m_coly2]->fillOrPointToGraphPoints(coly);
+        m_toolLists[j]->update(tr, m_graphwidget, colx.begin(), colx.end(), coly.begin(), coly.end());
     }
 }

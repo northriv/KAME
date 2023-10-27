@@ -61,10 +61,10 @@ XNMRPulseAnalyzer::XNMRPulseAnalyzer(const char *name, bool runtime,
         m_spectrumForm(new FrmGraphNURL(m_form.get(), Qt::Window)),
         m_waveGraph(create<XWaveNGraph>("Wave", true,
             m_form->m_graph, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-            4, m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))),
+            m_form->m_tlbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))),
         m_ftWaveGraph(create<XWaveNGraph>("Spectrum", true, m_spectrumForm->m_graphwidget,
             m_spectrumForm->m_edUrl, m_spectrumForm->m_btnUrl, m_spectrumForm->m_btnDump,
-            4, m_spectrumForm->m_btnMathTool, meas, static_pointer_cast<XDriver>(shared_from_this()))),
+            m_spectrumForm->m_btnMathTool, meas, static_pointer_cast<XDriver>(shared_from_this()))),
         m_solver(create<SpectrumSolverWrapper>("SpectrumSolverWrapper", true, m_solverList, m_windowFunc, m_windowWidth)),
         m_solverPNR(create<SpectrumSolverWrapper>("PNRSpectrumSolverWrapper", true, m_pnrSolverList, shared_ptr<XComboNode>(), shared_ptr<XDoubleNode>(), true)) {
     m_form->m_btnAvgClear->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogResetButton));
