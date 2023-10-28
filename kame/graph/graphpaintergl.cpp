@@ -395,16 +395,19 @@ void
 OnScreenRectObject::drawNative() {
     Snapshot shot_graph( *painter()->m_graph);
     switch(m_type) {
-    case Type::Selection:
+    case Type::Selection: {
+        double w = 0.1;
         for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
             painter()->beginQuad(true);
-            painter()->setColor(c, 0.1);
+            painter()->setColor(c, w);
             painter()->setVertex(leftTop());
             painter()->setVertex(rightTop());
             painter()->setVertex(rightBottom());
             painter()->setVertex(leftBottom());
             painter()->endQuad();
+            w = 0.3;
         }
+    }
         break;
     case Type::AreaTool:
 //        glEnable(GL_LINE_STIPPLE);
@@ -867,25 +870,6 @@ XQGraphPainter::paintGL () {
         QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
-    {
-        XScopedLock<XMutex> lock(m_mutexOSO);
-        for(auto &&osobj: m_paintedOSOs) {
-            osobj->drawNative();
-        }
-        for(auto &&osobj: m_persistentOSOs) {
-            osobj->drawNative();
-        }
-        for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
-            if(auto o = it->lock()) {
-                o->drawNative();
-                it++;
-            }
-            else
-                it = m_weakptrOSOs.erase(it);
-        }
-    }
-    checkGLError();
-
     drawOnScreenObj(shot);
 
 //    glMatrixMode(GL_PROJECTION);
@@ -896,6 +880,44 @@ XQGraphPainter::paintGL () {
 //    glMatrixMode(GL_MODELVIEW);
     
     drawOnScreenViewObj(shot);
+
+    {
+        XScopedLock<XMutex> lock(m_mutexOSO);
+        //texture objects
+        for(auto &&oso: m_weakptrOSOs) {
+            if(auto o = oso.lock()) {
+                if(o->hasTexture())
+                    o->drawNative();
+            }
+        }
+        for(auto &&osobj: m_paintedOSOs) {
+            if(osobj->hasTexture())
+                osobj->drawNative();
+        }
+        for(auto &&osobj: m_persistentOSOs) {
+            if(osobj->hasTexture())
+                osobj->drawNative();
+        }
+        //better to be drawn after textures
+        for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
+            if(auto o = it->lock()) {
+                if( !o->hasTexture())
+                    o->drawNative();
+                it++;
+            }
+            else
+                it = m_weakptrOSOs.erase(it);
+        }
+        for(auto &&osobj: m_paintedOSOs) {
+            if( !osobj->hasTexture())
+                osobj->drawNative();
+        }
+        for(auto &&osobj: m_persistentOSOs) {
+            if( !osobj->hasTexture())
+                osobj->drawNative();
+        }
+    }
+    checkGLError();
 
     glDisable(GL_DEPTH_TEST);
     glMatrixMode(GL_PROJECTION);

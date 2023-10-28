@@ -426,21 +426,10 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			ss1 -= ss2;
 			ss1 += m_startScrPos;
 
-            beginQuad(true);
-            setColor(shot[ *m_graph->backGround()], 0.1);
-            setVertex(m_startScrPos);
-            setVertex(sd1);
-            setVertex(m_finishScrPos);
-            setVertex(ss1);
-            endQuad();
-            beginQuad(true);
-            setColor(clBlue, 0.3);
-			setVertex(m_startScrPos);
-			setVertex(sd1);
-			setVertex(m_finishScrPos);
-			setVertex(ss1);
-			endQuad();
-		}
+            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection);
+            oso->setBaseColor(clBlue);
+            oso->placeObject(m_startScrPos, sd1, m_finishScrPos, ss1);
+        }
 		break;
     case SelectionMode::SelAxis:
 		if(m_foundAxis && !(m_startScrPos == m_finishScrPos) ) {
@@ -460,8 +449,6 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 		
 			XGraph::GFloat src1 = m_foundAxis->valToAxis(src);
 			XGraph::GFloat dst1 = m_foundAxis->valToAxis(dst);		
-			beginQuad(true);
-			setColor( clRed, 0.4 );
 			XGraph::ScrPoint s1, s2, s3, s4;
 			m_foundAxis->axisToScreen(shot, src1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.02);
@@ -471,27 +458,21 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
 			posOffAxis(m_foundAxis->dirVector(), &s3, +0.02);
 			m_foundAxis->axisToScreen(shot, dst1, &s4);
 			posOffAxis(m_foundAxis->dirVector(), &s4, -0.02);
-			setVertex(s1);
-			setVertex(s2);
-			setVertex(s3);
-			setVertex(s4);
-			endQuad();
-			beginLine();
-			setColor( clBlue, 1.0 );
+            auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection);
+            oso->setBaseColor(clRed);
+            oso->placeObject(s1, s2, s3, s4);
 			m_foundAxis->axisToScreen(shot, src1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.1);
-			m_foundAxis->axisToScreen(shot, src1, &s2);
-			posOffAxis(m_foundAxis->dirVector(), &s2, 0.05);
-			setVertex(s1);
-			setVertex(s2);
-			m_foundAxis->axisToScreen(shot, dst1, &s1);
-			posOffAxis(m_foundAxis->dirVector(), &s1, -0.1);
-			m_foundAxis->axisToScreen(shot, dst1, &s2);
-			posOffAxis(m_foundAxis->dirVector(), &s2, 0.05);
-			setVertex(s1);
-			setVertex(s2);
-			endLine();
-		}
+            m_foundAxis->axisToScreen(shot, src1, &s4);
+            posOffAxis(m_foundAxis->dirVector(), &s4, 0.05);
+            m_foundAxis->axisToScreen(shot, dst1, &s2);
+            posOffAxis(m_foundAxis->dirVector(), &s2, -0.1);
+            m_foundAxis->axisToScreen(shot, dst1, &s3);
+            posOffAxis(m_foundAxis->dirVector(), &s3, 0.05);
+            oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::BorderLines);
+            oso->setBaseColor(clBlue);
+            oso->placeObject(s1, s2, s3, s4);
+        }
 		break;
     case SelectionMode::TiltTracking:
 		break;

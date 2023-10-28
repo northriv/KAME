@@ -45,6 +45,7 @@ public:
     unsigned int baseColor() const { return m_baseColor;}
     void setBaseColor(unsigned int basecolor) {m_baseColor = basecolor;}
     bool isValid(XQGraphPainter *currentPainter) const {return painter() == currentPainter;}
+    virtual bool hasTexture() const {return false;}
 protected:
     friend class XGraph1DMathTool;
     friend class XGraph2DMathTool;
@@ -117,7 +118,8 @@ public:
     virtual void drawOffScreenMarker() override;
     enum class HowToEvade {Never, ByAscent, ByDescent, ToLeft, ToRight, Hide};
     void placeObject(const XGraph::ScrPoint &init_lefttop, const XGraph::ScrPoint &init_righttop,
-        const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom, HowToEvade direction, XGraph::SFloat space);
+        const XGraph::ScrPoint &init_rightbottom, const XGraph::ScrPoint &init_leftbottom,
+        HowToEvade direction = HowToEvade::Never, XGraph::SFloat space = 0.0);
 //    void evadeOnScreenObjects(const std::deque<std::weak_ptr<OnScreenObject>> &list, XGraph::SFloat space);
 //    static bool evadeMousePointer(const std::deque<std::weak_ptr<OnScreenObject>> &list);
     XGraph::ScrPoint &leftTop() {return m_leftTop;}
@@ -159,6 +161,7 @@ public:
    virtual void drawNative() override;
    //! draws by QPainter.
    virtual void drawByPainter(QPainter *) override {}
+   virtual bool hasTexture() const override {return true;}
 private:
    const GLuint id;
    shared_ptr<QImage> qimage;
@@ -181,6 +184,7 @@ public:
     //! \return return 0 if succeeded
     int selectFont(const XString &str, const XGraph::ScrPoint &start,
                    const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
+    virtual bool hasTexture() const override {return true;}
 private:
     QString m_text;
     int m_curFontSize;
@@ -261,7 +265,7 @@ public:
  shared_ptr<OnScreenTexture> createTextureWeakly(const shared_ptr<QImage> &image);
  void drawTexture(const OnScreenTexture& texture, const XGraph::ScrPoint p[4]);
  template <class T, typename...Args>
- shared_ptr<T> createOneTimeOnScreenObject(bool onetime, Args&&... args) {
+ shared_ptr<T> createOneTimeOnScreenObject(Args&&... args) {
      auto p = std::make_shared<T>(this, std::forward<Args>(args)...);
      assert(Transactional::isMainThread());
      m_paintedOSOs.push_back(p);
