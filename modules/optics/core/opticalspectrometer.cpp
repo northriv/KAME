@@ -166,18 +166,6 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     tr[ *this].markers().emplace_back(tr[ *this].waveLengths()[idx], *it);
     m_marker1X->value(tr, tr[ *this].waveLengths()[idx]);
     m_marker1Y->value(tr, *it);
-    //ugly hack
-    double sum = 0.0;
-    int cnt = 0;
-    for(unsigned int i = 0; i < length; ++i) {
-        double lambda = tr[ *this].waveLengths()[i];
-        if((lambda >= tr[ *startWavelen()]) && (lambda <= tr[ *stopWavelen()])) {
-            sum += tr[ *this].counts()[i];
-            cnt++;
-        }
-    }
-    if(cnt)
-        m_marker1Y->value(tr, sum);
 }
 void
 XOpticalSpectrometer::visualize(const Snapshot &shot) {
