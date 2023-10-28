@@ -36,7 +36,8 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_form(new FrmOpticalSpectrometer),
 	m_waveForm(create<XWaveNGraph>("WaveForm", false, 
-                                   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump)) {
+                                   m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
+                                   m_form->m_tbMath, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
 	meas->scalarEntries()->insert(tr_meas, m_marker1X);
 	meas->scalarEntries()->insert(tr_meas, m_marker1Y);

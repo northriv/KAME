@@ -43,6 +43,8 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
                                    2, //w/dark
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
+
+    m_form->setWindowTitle(i18n("Digital Camera - ") + getLabel() );
     m_conUIs = {
         xqcon_create<XQComboBoxConnector>(videoMode(), m_form->m_cmbVideomode, Snapshot( *videoMode())),
         xqcon_create<XQComboBoxConnector>(frameRate(), m_form->m_cmbFrameRate, Snapshot( *frameRate())),
