@@ -57,6 +57,13 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QToolButton" name="m_tbMath">
+          <property name="text">
+           <string>MATH</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>
