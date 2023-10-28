@@ -44,6 +44,7 @@ public:
 
     unsigned int baseColor() const { return m_baseColor;}
     void setBaseColor(unsigned int basecolor) {m_baseColor = basecolor;}
+    bool isValid(XQGraphPainter *currentPainter) const {return painter() == currentPainter;}
 protected:
     friend class XGraph1DMathTool;
     friend class XGraph2DMathTool;
@@ -131,7 +132,7 @@ protected:
 
 class OnScreenRectObject : public OnScreenObjectWithMarker {
 public:
-    enum class Type {Selection, AreaTool};
+    enum class Type {Selection, AreaTool, BorderLines};
     OnScreenRectObject(XQGraphPainter* p, Type type) :
         OnScreenObjectWithMarker(p), m_type(type) {}
     //! draws in OpenGL.

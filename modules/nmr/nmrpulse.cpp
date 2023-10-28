@@ -22,6 +22,7 @@
 #include "ui_graphnurlform.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
+#include "graphpainter.h"
 
 REGISTER_TYPE(XDriverList, NMRPulseAnalyzer, "NMR FID/echo analyzer");
 
@@ -682,7 +683,6 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
             });
         }
     }
-
     iterate_commit([=](Transaction &tr){
         Snapshot &shot(tr);
         const SpectrumSolver &solver(shot[ *m_solver].solver());
@@ -759,6 +759,41 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         tr[ *waveGraph()].setColumn(2, std::move(colfi), 5);
         tr[ *waveGraph()].setColumn(3, std::move(colrr), 4);
         tr[ *waveGraph()].setColumn(4, std::move(colri), 4);
+
+        //OnScreenObjects
+        if(auto painter = m_form->m_graph->painter().lock()) {
+            //painter unchanged unless the same address is recycled.
+            if( !m_osoEcho || !m_osoEcho->isValid(painter.get())) {
+                m_osoEcho = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
+                m_osoBackground = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
+            }
+            auto plot = shot[ *waveGraph()].plot(0);
+            {
+//                double bgx = starttime * 1e3;
+//                double edx = bgx + interval * shot[ *this].waveWidth() * 1e3;
+                double bgx = shot[ *fromTrig()];
+                double edx =bgx + shot[ *echoPeriod()];
+                double bgy = 0.0;
+                double edy = 1.0;
+                auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoEcho);
+                oso->setBaseColor(0x00ff00u);
+                oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+            }
+            {
+                double bgx = shot[ *bgPos()];
+                double edx = bgx + shot[ *bgWidth()];
+                double bgy = 0.0;
+                double edy = 1.0;
+                auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoBackground);
+                oso->setBaseColor(0xffff00u);
+                oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+            }
+        }
+        else {
+            m_osoEcho.reset();
+            m_osoBackground.reset();
+        }
+
         waveGraph()->drawGraph(tr);
     });
 }

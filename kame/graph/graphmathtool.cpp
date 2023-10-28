@@ -61,23 +61,19 @@ XGraph1DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
         return;
     }
     Snapshot shot_this( *this);
-    if(m_oso && (painter.get() == m_oso->painter())) {
-        m_oso->setBaseColor(shot_this[ *m_baseColor]);
-        return; //painter unchanged unless the same address is recycled.
+     //painter unchanged unless the same address is recycled.
+    if( !m_oso || !m_oso->isValid(painter.get())) {
+        m_oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
     }
-    m_oso.reset();
-
-    double bgx = shot_this[ *begin()];
-    double edx = shot_this[ *end()];
-    double bgy = 0.0;
-    double edy = 1.0;
 
     if(auto plot = m_plot.lock()) {
-        auto oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::AreaTool);
-        m_oso = oso;
+        double bgx = shot_this[ *begin()];
+        double edx = shot_this[ *end()];
+        double bgy = 0.0;
+        double edy = 1.0;
+        auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso);
         oso->setBaseColor(shot_this[ *m_baseColor]);
-        if(auto plot = m_plot.lock())
-            oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+        oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
     }
 }
 void
@@ -87,24 +83,22 @@ XGraph2DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
         m_oso.reset();
         return;
     }
+    //painter unchanged unless the same address is recycled.
     Snapshot shot_this( *this);
-    if(m_oso && (painter.get() == m_oso->painter())) {
-        m_oso->setBaseColor(shot_this[ *m_baseColor]);
-        return; //painter unchanged unless the same address is recycled.
+    if( !m_oso || !m_oso->isValid(painter.get())) {
+        m_oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
     }
-    m_oso.reset();
 
-    double bgx = shot_this[ *beginX()];
-    double bgy = shot_this[ *beginY()];
-    double edx = shot_this[ *endX()];
-    double edy = shot_this[ *endY()];
-    XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
-
-    auto oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
-    m_oso = oso;
-    oso->setBaseColor(shot_this[ *m_baseColor]);
-    if(auto plot = m_plot.lock())
+    if(auto plot = m_plot.lock()) {
+        double bgx = shot_this[ *beginX()];
+        double bgy = shot_this[ *beginY()];
+        double edx = shot_this[ *endX()];
+        double edy = shot_this[ *endY()];
+        XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
+        auto oso = static_pointer_cast<OnPlotRectObject>(m_oso);
+        oso->setBaseColor(shot_this[ *m_baseColor]);
         oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
+    }
 }
 
 XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,

@@ -807,17 +807,18 @@ OnAxisObject<OSO, IsXAxis>::toScreen() {
             bgx = m_bg2;
             edx = m_ed2;
         }
-        XGraph::GPoint g[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
+        XGraph::GPoint g[4] = {{bgx, edy}, {edx, edy}, {edx, bgy}, {bgx, bgy}};
         std::array<XGraph::ScrPoint, 4> s;
         for(unsigned int i = 0; i < 4; ++i) {
             plot->graphToScreenFast(g[i], &s[i]);
         }
-        std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
-            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
-          });
+//        std::sort(s.begin(), s.end(), [](const XGraph::ScrPoint &a, const XGraph::ScrPoint &b) {
+//            return std::tie(a.x, a.y) < std::tie(b.x, b.y);
+//          });
         for(auto p: s)
             p += m_offset;
-        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
+//        OSO::placeObject(s[1], s[3], s[2], s[0], OSO::HowToEvade::Never, 0);
+        OSO::placeObject(s[0], s[1], s[2], s[3], OSO::HowToEvade::Never, 0);
     }
 }
 

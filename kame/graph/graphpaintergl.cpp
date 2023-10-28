@@ -426,6 +426,22 @@ OnScreenRectObject::drawNative() {
         }
 //        glDisable(GL_LINE_STIPPLE);
         break;
+    case Type::BorderLines:
+//        glEnable(GL_LINE_STIPPLE);
+//        unsigned short pat = 0x0f0fu;
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+//            painter()->beginLine(1.0, pat);
+            painter()->beginLine(1.0);
+            painter()->setColor(c, 0.3);
+            painter()->setVertex(leftTop());
+            painter()->setVertex(leftBottom());
+            painter()->setVertex(rightTop());
+            painter()->setVertex(rightBottom());
+            painter()->endLine();
+//            pat = ~pat;
+        }
+//        glDisable(GL_LINE_STIPPLE);
+        break;
     }
 }
 
