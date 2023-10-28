@@ -875,9 +875,13 @@ XQGraphPainter::paintGL () {
         for(auto &&osobj: m_persistentOSOs) {
             osobj->drawNative();
         }
-        for(auto &&osobj: m_weakptrOSOs) {
-            if(auto o = osobj.lock())
+        for(auto it = m_weakptrOSOs.begin(); it != m_weakptrOSOs.end();) {
+            if(auto o = it->lock()) {
                 o->drawNative();
+                it++;
+            }
+            else
+                it = m_weakptrOSOs.erase(it);
         }
     }
     checkGLError();

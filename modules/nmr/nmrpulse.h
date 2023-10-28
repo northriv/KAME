@@ -215,7 +215,7 @@ private:
 	shared_ptr<SpectrumSolverWrapper> m_solverPNR;
 	shared_ptr<XXYPlot> m_peakPlot;
 
-    shared_ptr<OnScreenObjectWithMarker> m_osoEcho, m_osoBackground;
+    std::deque<shared_ptr<OnScreenObjectWithMarker>> m_osos;
 
 	void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 	void onSpectrumShow(const Snapshot &shot, XTouchableNode *);

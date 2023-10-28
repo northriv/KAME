@@ -763,35 +763,33 @@ void XNMRPulseAnalyzer::visualize(const Snapshot &shot) {
         //OnScreenObjects
         if(auto painter = m_form->m_graph->painter().lock()) {
             //painter unchanged unless the same address is recycled.
-            if( !m_osoEcho || !m_osoEcho->isValid(painter.get())) {
-                m_osoEcho = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
-                m_osoBackground = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
+            unsigned int n = 1 + std::max(1u, (unsigned int)shot[ *numEcho()]);
+            if((m_osos.size() != n) || !m_osos[0]->isValid(painter.get())) {
+                m_osos.clear();
+                for(unsigned int i = 0; i < n; ++i)
+                    m_osos.push_back(
+                        painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines));
             }
             auto plot = shot[ *waveGraph()].plot(0);
-            {
+            for(unsigned int i = 0; i < n; ++i) {
+                auto oso = static_pointer_cast<OnXAxisRectObject>(m_osos[i]);
 //                double bgx = starttime * 1e3;
 //                double edx = bgx + interval * shot[ *this].waveWidth() * 1e3;
-                double bgx = shot[ *fromTrig()];
-                double edx =bgx + shot[ *echoPeriod()];
                 double bgy = 0.0;
                 double edy = 1.0;
-                auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoEcho);
+                double bgx = shot[ *fromTrig()] + i * shot[ *echoPeriod()];
+                double edx = bgx + shot[ *width()];
                 oso->setBaseColor(0x00ff00u);
-                oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
-            }
-            {
-                double bgx = shot[ *bgPos()];
-                double edx = bgx + shot[ *bgWidth()];
-                double bgy = 0.0;
-                double edy = 1.0;
-                auto oso = static_pointer_cast<OnXAxisRectObject>(m_osoBackground);
-                oso->setBaseColor(0xffff00u);
+                if(i == n - 1) {
+                    bgx = shot[ *bgPos()];
+                    edx = bgx + shot[ *bgWidth()];
+                    oso->setBaseColor(0xffff00u);
+                }
                 oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
             }
         }
         else {
-            m_osoEcho.reset();
-            m_osoBackground.reset();
+            m_osos.clear();
         }
 
         waveGraph()->drawGraph(tr);
