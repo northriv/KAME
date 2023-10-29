@@ -195,6 +195,7 @@ private:
         XGraph::ScrPoint pos, corners[4];
         QRgb rgba;
         ssize_t strpos, length;
+        int x, y;
     };
     std::vector<Text> m_textOverpaint; //stores text to be overpainted.
 };

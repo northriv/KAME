@@ -60,13 +60,11 @@ public:
  
  void setColor(float r, float g, float b, float a = 1.0f) {
     glColor4f(r, g, b, a );
-    m_curTextColor = QColor(lrintf(r * 256.0), lrintf(g * 256.0), lrintf(b * 256.0), a).rgba();
 }
  void setColor(unsigned int rgb, float a = 1.0f) {
     QColor qc = QRgb(rgb);
     glColor4f(qc.red() / 256.0, qc.green() / 256.0, qc.blue() / 256.0, a );
     qc.setAlpha(lrintf(a * 255));
-    m_curTextColor = qc.rgba();
 }
  void setVertex(const XGraph::ScrPoint &p) {
     glVertex3f(p.x, p.y, p.z);
@@ -82,13 +80,6 @@ public:
  void endQuad();
 
  void secureWindow(const XGraph::ScrPoint &p);
-
- //obsolete
- void drawText(const XGraph::ScrPoint &p, QString &&str);
- //obsolete
- void drawText(const XGraph::ScrPoint &p, const XString &str) {
-     drawText(p, QString(str));
- }
 
  //On-screen Objects
  shared_ptr<OnScreenTexture> createTextureWeakly(const shared_ptr<QImage> &image);
@@ -119,14 +110,6 @@ public:
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
  void posOffAxis(const XGraph::ScrPoint &dir, XGraph::ScrPoint *src, XGraph::SFloat offset);
- void defaultFont();
- //! \param start where text be aligned
- //! \param dir a direction where text be aligned
- //! \param width perp. to \a dir, restricting font size
- //! \return return 0 if succeeded
- //obsolete
- int selectFont(const XString &str, const XGraph::ScrPoint &start,
-				const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
  
  //! minimum resolution of screen coordinate.
  float resScreen();
@@ -226,20 +209,8 @@ Snapshot startDrawing();
     XTime m_modifiedTime;
 	XTime m_updatedTime;
 //   XGraph::ScrPoint DirProj; //direction vector of z of window coord.
-	int m_curFontSize;
-	int m_curAlign;
     GLuint m_persistentPBO = 0;
     std::vector<GLubyte> m_persistentFrame;
-
-    struct Text {
-        QString text;
-        int x; int y;
-        int fontsize;
-        QRgb rgba;
-    };
-    std::vector<Text> m_textOverpaint; //stores text to be overpainted.
-    QRgb m_curTextColor;
-    void drawTextOverpaint(QPainter &qpainter);
 
     XMutex m_mutexOSO;
     std::deque<shared_ptr<OnScreenObject>> m_persistentOSOs;

@@ -566,36 +566,37 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
     cl = QColor(QRgb((unsigned int)shot[ *m_graph->titleColor()]));
     cl.setAlpha(lrint(0.55 * 255));
     qpainter->fillRect(QRect(0, 0, m_pItem->width(), m_pItem->height()), cl);
-    m_curTextColor = QRgb(shot[ *m_graph->backGround()]);
 
-    defaultFont();
-	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
-	drawText(XGraph::ScrPoint(0.5, y, z), i18n("QUICK HELP!"));
-	m_curAlign = Qt::AlignVCenter | Qt::AlignLeft;
-	y -= 0.1;
+    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+    oso->setBaseColor(shot[ *m_graph->backGround()]);
+    oso->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    y -= 0.1;
 	double x = 0.1;
 	double dy = -y/10;
-	selectFont(i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
-	
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Left Button on Plot : Manual Scale"));
+    oso->selectFont(i18n("Single Click Right Button on Axis : Auto-scale"), XGraph::ScrPoint(x,y,z), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, dy, 0), 0);
+    oso->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    oso->drawText(XGraph::ScrPoint(0.5, 1.0, z), i18n("QUICK HELP!"));
+    oso->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Press Left Button on Plot : Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Right Button along Axis: Manual Scale"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Press Right Button along Axis: Manual Scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button on Axis : Auto-scale"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button on Axis : Auto-scale"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button elsewhere : Auto-scale all"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Right Button elsewhere : Auto-scale all"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Press Middle Button : Tilt plots"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Press Middle Button : Tilt plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Middle Button : Reset tilting"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Single Click Middle Button : Reset tilting"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel around Center : (Un)Zoom all Plots"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel around Center : (Un)Zoom all Plots"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel at Side : Tilt by 30deg."));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Wheel at Side : Tilt by 30deg."));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Left Button : Show Dialog"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Left Button : Show Dialog"));
 	y += dy;
-	drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help"));
+    oso->drawText(XGraph::ScrPoint(x, y, z), i18n("Double Click Right Button : This Help"));
 }
 
 Snapshot

@@ -393,19 +393,11 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
     QFontMetrics fm(font);
     for(auto &&text: m_textOverpaint) {
         auto str = m_text.mid(text.strpos, text.length);
-        double x,y,z;
-        painter()->screenToWindow(text.pos, &x, &y, &z);
-        QRect bb = fm.boundingRect(str);
-        if( (m_curAlign & Qt::AlignBottom) ) y -= bb.bottom();
-        if( (m_curAlign & Qt::AlignVCenter) ) y += -bb.bottom() + bb.height() / 2;
-        if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
-        if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
-        if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
 
         if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
             qpainter->setPen(QColor(text.rgba));
         firsttime = false;
-        qpainter->drawText(x, y, str);
+        qpainter->drawText(text.x, text.y, str);
     }
 }
 
@@ -444,6 +436,8 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
     if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
 
+    txt.x = lrint(x);
+    txt.y = lrint(y);
     m_minX = std::min(m_minX, x);
     m_maxX = std::max(m_maxX, x);
     m_minY = std::min(m_minY, y);

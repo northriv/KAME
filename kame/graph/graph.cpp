@@ -1089,9 +1089,10 @@ XAxis::queryTic(int len, int pos, XGraph::VFloat *ticnum) {
 void
 XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     if(m_direction == AxisDirection::Weight) return;
-  
+    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>();
+    oso->setBaseColor(shot[ *labelColor()]);
+
 	const int sizehint = 2;
-	painter->setColor(shot[ *labelColor()]);
 	XGraph::ScrPoint s1, s2, s3;
     axisToScreen(shot, 0.5, &s1);
     s2 = s1;
@@ -1100,8 +1101,8 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     painter->posOffAxis(m_dirVector, &s1, AxisToLabel);
     s2 -= s1;
     s2 *= -1;
-    if( !painter->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
-        painter->drawText(s1, shot[ *label()]);
+    if( !oso->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
+        oso->drawText(s1, shot[ *label()]);
         return;
     }
     
@@ -1111,8 +1112,8 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     s3 = s1;
     painter->posOffAxis(m_dirVector, &s3, 0.7);
     s3 -= s1;
-    if( !painter->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
-        painter->drawText(s1, shot[ *label()]);
+    if( !oso->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
+        oso->drawText(s1, shot[ *label()]);
         return;
     }
     
@@ -1123,8 +1124,8 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
     painter->posOffAxis(m_dirVector, &s1, -AxisToLabel);
     s2 -= s1;
     s2 *= -1;
-    if( !painter->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
-        painter->drawText(s1, shot[ *label()]);
+    if( !oso->selectFont(shot[ *label()], s1, s2, s3, sizehint)) {
+        oso->drawText(s1, shot[ *label()]);
         return;
     }
 }
@@ -1153,9 +1154,11 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 	}
 	if(m_bLogscaleFixed && (m_minFixed < 0)) return -1;
 	if(m_maxFixed <= m_minFixed) return -1;
-  
+
+    auto oso = painter->createOneTimeOnScreenObject<OnScreenTextObject>();
+    oso->setBaseColor(shot[ *ticColor()]);
+
     int len = std::lrint(shot[ *length()] / painter->resScreen());
-	painter->defaultFont();
 	XGraph::GFloat mindx = 2, lastg = -1;
 	//dry-running to determine a font
 	for(int i = 0; i < len; ++i) {
@@ -1174,7 +1177,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 				s2 *= -1;
             
 				double var = setprec(z, m_bLogscaleFixed ? (XGraph::VFloat)z :  m_minorFixed);
-				painter->selectFont(valToString(var), s1, s2, s3, 0);
+                oso->selectFont(valToString(var), s1, s2, s3, 0);
             
 				mindx = x - lastg;
 			}
@@ -1202,7 +1205,7 @@ XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
 				axisToScreen(shot, x, &s1);
 				painter->posOffAxis(m_dirVector, &s1, AxisToTicLabel);
 				double var = setprec(z, m_bLogscaleFixed ? (XGraph::VFloat)z : m_minorFixed);
-                painter->drawText(s1,
+                oso->drawText(s1,
                     formatDouble(shot[ *ticLabelFormat()].to_str().c_str(), var)); //valToString(var)
 			}
 			break;
