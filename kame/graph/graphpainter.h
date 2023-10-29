@@ -92,10 +92,10 @@ public:
      return p;
  }
  template <class T, typename...Args>
- weak_ptr<T> createPersistentOnScreenObject(Args&&... args) {
+ weak_ptr<T> createListedOnScreenObject(Args&&... args) {
      auto p = std::make_shared<T>(this, std::forward<Args>(args)...);
      XScopedLock<XMutex> lock(m_mutexOSO);
-     m_persistentOSOs.push_back(p);
+     m_listedOSOs.push_back(p);
      return p;
  }
  template <class T, typename...Args>
@@ -105,7 +105,6 @@ public:
      m_weakptrOSOs.push_back(p);
      return p;
  }
- void removeOnScreenObject(const shared_ptr<OnScreenObject> &p);
 
  //! make point outer perpendicular to \a dir by offset
  //! \param offset > 0 for outer, < 0 for inner. unit is of screen coord.
@@ -213,9 +212,9 @@ Snapshot startDrawing();
     std::vector<GLubyte> m_persistentFrame;
 
     XMutex m_mutexOSO;
-    std::deque<shared_ptr<OnScreenObject>> m_persistentOSOs;
+    std::deque<shared_ptr<OnScreenObject>> m_listedOSOs;
     std::deque<weak_ptr<OnScreenObject>> m_weakptrOSOs;
-    std::deque<shared_ptr<OnScreenObject>> m_paintedOSOs;
+    std::vector<shared_ptr<OnScreenObject>> m_paintedOSOs;
 
     int m_minX, m_maxX, m_minY, m_maxY; //!< to determin window size by secureWinwdow().
 };

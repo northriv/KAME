@@ -710,13 +710,3 @@ XQGraphPainter::drawOffScreenAxes(const Snapshot &shot) {
 		}
 	}
 }
-
-void
-XQGraphPainter::removeOnScreenObject(const shared_ptr<OnScreenObject> &p) {
-    for(auto it = m_persistentOSOs.begin(); it != m_persistentOSOs.end();) {
-        if( *it == p)
-            it = m_persistentOSOs.erase(it);
-        else
-            it++;
-    }
-}

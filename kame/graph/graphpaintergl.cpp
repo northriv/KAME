@@ -469,6 +469,7 @@ XQGraphPainter::paintGL () {
     if(m_bIsRedrawNeeded.compare_set_strong(true, false)) {// || m_bAvoidCallingLists
         shot = startDrawing();
 
+        m_listedOSOs.clear();
 //        //For stupid OpenGL implementations.
 //        if(m_listplanemarkers) glDeleteLists(m_listplanemarkers, 1);
 //        if(m_listaxismarkers) glDeleteLists(m_listaxismarkers, 1);
@@ -576,7 +577,7 @@ XQGraphPainter::paintGL () {
             if(osobj->hasTexture())
                 osobj->drawNative();
         }
-        for(auto &&osobj: m_persistentOSOs) {
+        for(auto &&osobj: m_listedOSOs) {
             if(osobj->hasTexture())
                 osobj->drawNative();
         }
@@ -594,7 +595,7 @@ XQGraphPainter::paintGL () {
             if( !osobj->hasTexture())
                 osobj->drawNative();
         }
-        for(auto &&osobj: m_persistentOSOs) {
+        for(auto &&osobj: m_listedOSOs) {
             if( !osobj->hasTexture())
                 osobj->drawNative();
         }
@@ -629,7 +630,7 @@ XQGraphPainter::paintGL () {
             osobj->drawByPainter( &qpainter);
         }
         m_paintedOSOs.clear();
-        for(auto &&osobj: m_persistentOSOs) {
+        for(auto &&osobj: m_listedOSOs) {
             osobj->drawByPainter( &qpainter);
         }
         for(auto &&osobj: m_weakptrOSOs) {
@@ -638,8 +639,8 @@ XQGraphPainter::paintGL () {
         }
     }
     if(m_bReqHelp) {
+        //native drawing is not supported here.
         drawOnScreenHelp(shot, &qpainter);
-//        drawTextOverpaint(qpainter);
         XScopedLock<XMutex> lock(m_mutexOSO);
         for(auto &&osobj: m_paintedOSOs) {
             osobj->drawByPainter( &qpainter);
