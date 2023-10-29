@@ -30,6 +30,7 @@ HEADERS += \
     graph/graphmathtool.h \
     graph/graphmathtoolconnector.h \
     graph/graphntoolbox.h \
+    graph/onscreenobject.h \
     graph/x2dimage.h \
     kame.h \
     threadlocal.h \
@@ -98,6 +99,7 @@ SOURCES += icons/icon.cpp \
     graph/graphmathtool.cpp \
     graph/graphmathtoolconnector.cpp \
     graph/graphntoolbox.cpp \
+    graph/onscreenobject.cpp \
     graph/x2dimage.cpp \
     xthread.cpp \
     xtime.cpp \
