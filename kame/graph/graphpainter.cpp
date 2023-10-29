@@ -461,7 +461,7 @@ XQGraphPainter::drawOnScreenObj(const Snapshot &shot) {
             auto oso = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Selection);
             oso->setBaseColor(clRed);
             oso->placeObject(s1, s2, s3, s4);
-			m_foundAxis->axisToScreen(shot, src1, &s1);
+            m_foundAxis->axisToScreen(shot, src1, &s1);
 			posOffAxis(m_foundAxis->dirVector(), &s1, -0.1);
             m_foundAxis->axisToScreen(shot, src1, &s4);
             posOffAxis(m_foundAxis->dirVector(), &s4, 0.05);
@@ -488,23 +488,24 @@ XQGraphPainter::showHelp() {
 }
 void
 XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
-    //Draw Title
-	setColor(shot[ *m_graph->titleColor()]);
-	defaultFont();
-	m_curAlign = Qt::AlignTop | Qt::AlignHCenter;
+    //Draws Title
+    auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+    oso->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    oso->setBaseColor(shot[ *m_graph->titleColor()]);
     if(shot[ *m_graph->onScreenStrings()].to_str().length()) {
-        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()].to_str() + " " + shot[ *m_graph->onScreenStrings()].to_str());
+        oso->drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()].to_str() + " " + shot[ *m_graph->onScreenStrings()].to_str());
     }
     else {
-        drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
+        oso->drawText(XGraph::ScrPoint(0.5, 0.99, 0.01), shot[ *m_graph->label()]);
     }
-  
 	if(m_onScreenMsg.length() ) {
-		selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
-	 	setColor(shot[ *m_graph->titleColor()]);
-		m_curAlign = Qt::AlignBottom | Qt::AlignLeft;
-  		drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
-	}
+        //Draws message at the bottom left corner
+        auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+        oso->selectFont(m_onScreenMsg, XGraph::ScrPoint(0.6, 0.05, 0.01), XGraph::ScrPoint(1, 0, 0), XGraph::ScrPoint(0, 0.05, 0), 0);
+        oso->setAlignment(Qt::AlignBottom | Qt::AlignLeft);
+        oso->setBaseColor(shot[ *m_graph->titleColor()]);
+        oso->drawText(XGraph::ScrPoint(0.01, 0.01, 0.01), m_onScreenMsg);
+    }
 	//Legends
 	if(shot[ *m_graph->drawLegends()] &&
             (m_selectionModeNow == SelectionMode::SelNone)) {
@@ -516,9 +517,8 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
                 if(XString(shot[ *plot->label()]).length() > longest_label.length())
                     longest_label = shot[ *plot->label()];
             }
-            float text_width = 0.15;
+            float text_width = 0.13;
             float dy = 0.05; //height of each legend.
-            float z = 0.97;
 
             float x1 = 0.77;
 			float y1 = 0.81;
@@ -527,38 +527,32 @@ XQGraphPainter::drawOnScreenViewObj(const Snapshot &shot) {
 			if(m_pointerLastPos[1] < m_pItem->height() / 2)
 				y1 = 1.0f - y1 + plots_list.size() * dy;
             float x2 = x1 - 0.01; //right edge of text field.
-            defaultFont();
-            m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
-            selectFont(longest_label, XGraph::ScrPoint(text_width * 0.9, y1, z), XGraph::ScrPoint(-1, 0, 0), XGraph::ScrPoint(0, dy * 0.85, 0), 0);
+
+            auto oso = createOneTimeOnScreenObject<OnScreenTextObject>();
+            oso->setBaseColor(shot[ *m_graph->titleColor()]);
+            oso->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+            float z = 0.97;
+            oso->selectFont(longest_label, XGraph::ScrPoint(text_width * 0.9, y1, z), XGraph::ScrPoint(-1, 0, 0), XGraph::ScrPoint(0, dy * 0.85, 0), 0);
 			float x3 = x1 + 0.08;
             float y2 = y1 - plots_list.size() * dy;
-            setColor(shot[ *m_graph->backGround()], 0.85);
-			beginQuad(true);
-            setVertex(XGraph::ScrPoint(x1 - text_width, y1 + dy/2, z));
-            setVertex(XGraph::ScrPoint(x1 - text_width, y2 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
-			endQuad();
-			setColor(shot[ *m_graph->titleColor()], 0.05);
-            z = 0.98;
-            beginQuad(true);
-            setVertex(XGraph::ScrPoint(x1 - text_width, y1 + dy/2, z));
-            setVertex(XGraph::ScrPoint(x1 - text_width, y2 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x3, y2 + dy/2, z));
-			setVertex(XGraph::ScrPoint(x3, y1 + dy/2, z));
-			endQuad();
-			m_curAlign = Qt::AlignVCenter | Qt::AlignRight;
 			float y = y1;
             z = 0.99;
             for(auto it = plots_list.begin(); it != plots_list.end(); it++) {
 				setColor(shot[ *m_graph->titleColor()], 1.0);
-				auto plot = static_pointer_cast<XPlot>( *it);
-				drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
+                auto plot = static_pointer_cast<XPlot>( *it);
+                oso->drawText(XGraph::ScrPoint(x2,y,z), shot[ *plot->label()]);
                 plot->drawLegend(shot, this, XGraph::ScrPoint((x3 + x1)/2, y, z),
                                  (x3 - x1)/1.5f, dy/1.2f);
 				y -= dy;
 			}
-		}
+            z = 0.97;
+            float minx = x1 - text_width;
+            auto oso_rect = createOneTimeOnScreenObject<OnScreenRectObject>(OnScreenRectObject::Type::Legends);
+            oso_rect->setBaseColor(shot[ *m_graph->titleColor()]);
+            oso_rect->placeObject(
+                {minx, y1 + dy/2, z}, {minx, y2 + dy/2, z},
+                {x3, y2 + dy/2, z}, {x3, y1 + dy/2, z});
+        }
 	}
 }
 void

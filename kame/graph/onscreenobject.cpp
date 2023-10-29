@@ -77,6 +77,20 @@ OnScreenRectObject::drawNative() {
         }
     }
         break;
+    case Type::Legends: {
+        double w = 0.85;
+        for(auto c: {(unsigned int)shot_graph[ *painter()->m_graph->backGround()], baseColor()}) {
+            painter()->beginQuad(true);
+            painter()->setColor(c, w);
+            painter()->setVertex(leftTop());
+            painter()->setVertex(rightTop());
+            painter()->setVertex(rightBottom());
+            painter()->setVertex(leftBottom());
+            painter()->endQuad();
+            w = 0.05;
+        }
+    }
+        break;
     case Type::AreaTool:
 //        glEnable(GL_LINE_STIPPLE);
 //        unsigned short pat = 0x0f0fu;
@@ -362,6 +376,11 @@ OnAxisObject<OSO, IsXAxis>::drawOffScreenMarker() {
 template class OnAxisObject<OnScreenRectObject, true>;
 template class OnAxisObject<OnScreenRectObject, false>;
 
+OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p) : OnScreenObjectWithMarker(p),
+    m_minX(0xffff), m_minY(0xffff), m_maxX(-0xffff), m_maxY(-0xffff) {
+    defaultFont();
+}
+
 void
 OnScreenTextObject::drawNative() {
 }
@@ -410,7 +429,7 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     m_text.append(str);
     txt.length = str.length();
     txt.pos = p;
-    txt.rgba = painter()->m_curTextColor;
+    txt.rgba = baseColor();
 
     QFont font(painter()->m_pItem->font());
     font.setPointSize(m_curFontSize);
@@ -424,6 +443,11 @@ OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     if( (m_curAlign & Qt::AlignTop) ) y -= bb.top();
     if( (m_curAlign & Qt::AlignHCenter) ) x -= bb.left() + bb.width() / 2;
     if( (m_curAlign & Qt::AlignRight) ) x -= bb.right();
+
+    m_minX = std::min(m_minX, x);
+    m_maxX = std::max(m_maxX, x);
+    m_minY = std::min(m_minY, y);
+    m_maxY = std::max(m_maxY, y);
     //todo min/max xy -> placeobj
     painter()->windowToScreen(x, y, z, &txt.corners[0]);
     painter()->windowToScreen(x + bb.width(), y, z, &txt.corners[1]);

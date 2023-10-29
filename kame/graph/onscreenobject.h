@@ -124,7 +124,7 @@ protected:
 
 class OnScreenRectObject : public OnScreenObjectWithMarker {
 public:
-    enum class Type {Selection, AreaTool, BorderLines};
+    enum class Type {Selection, AreaTool, BorderLines, Legends};
     OnScreenRectObject(XQGraphPainter* p, Type type) :
         OnScreenObjectWithMarker(p), m_type(type) {}
     //! draws in OpenGL.
@@ -159,6 +159,8 @@ private:
 
 class OnScreenTextObject : public OnScreenObjectWithMarker {
 public:
+    OnScreenTextObject(XQGraphPainter* p);
+
     virtual void drawNative() override;
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
@@ -168,6 +170,9 @@ public:
     void clear();
     void drawText(const XGraph::ScrPoint &p, const XString &str);
     void defaultFont();
+    void setAlignment(int align) {
+        m_curAlign = align;
+    }
     //! \param start where text be aligned
     //! \param dir a direction where text be aligned
     //! \param width perp. to \a dir, restricting font size
@@ -175,10 +180,17 @@ public:
     int selectFont(const XString &str, const XGraph::ScrPoint &start,
                    const XGraph::ScrPoint &dir, const XGraph::ScrPoint &width, int sizehint = 0);
     virtual bool hasTexture() const override {return true;}
+
+    //! in window coordinate, effective after drawText().
+    double minXOfBB() const {return m_minX;}
+    double minYOfBB() const {return m_minY;}
+    double maxXOfBB() const {return m_maxX;}
+    double maxYOfBB() const {return m_maxY;}
 private:
     QString m_text;
     int m_curFontSize;
     int m_curAlign;
+    double m_minX, m_minY, m_maxX, m_maxY;
     struct Text {
         XGraph::ScrPoint pos, corners[4];
         QRgb rgba;
