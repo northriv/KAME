@@ -29,7 +29,7 @@ class XGraph2DMathToolList;
 class XQGraph;
 
 //Q_OBJECT cannot be used in template class!!!!
-
+//todo XQConnector
 class DECLSPEC_KAME XQGraph1DMathToolConnector : public QObject {
     Q_OBJECT
 public:

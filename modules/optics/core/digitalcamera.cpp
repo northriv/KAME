@@ -318,14 +318,46 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     tr[ *this].m_height = height - antishake_pixels * 2;
     if(antishake_pixels) {
         //finds the pixels shifts
-        int shift_x = lrint((double)cogx / toti - tr[ *this].m_cogXOrig);
-        int shift_y = lrint((double)cogy / toti - tr[ *this].m_cogYOrig);
-        shift_x = std::min(shift_x, antishake_pixels);
+        double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
+        int shift_x = floor(shift_dx);
+        shift_dx -= shift_x;
+        double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
+        int shift_y = floor(shift_dy);
+        shift_dy -= shift_y;
+        shift_x = std::min(shift_x, antishake_pixels - 1);
         shift_x = std::max(shift_x, -antishake_pixels);
-        shift_y = std::min(shift_y, antishake_pixels);
+        shift_y = std::min(shift_y, antishake_pixels - 1);
         shift_y = std::max(shift_y, -antishake_pixels);
 //        fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
         tr[ *this].m_firstPixel = (shift_y + antishake_pixels) * width + shift_x + antishake_pixels;
+        {
+            //bi-linear interpolation.
+            uint32_t *raw = &tr[ *this].m_rawCounts->at(tr[ *this].firstPixel());
+            unsigned int stride = tr[ *this].stride();
+            unsigned int width = tr[ *this].width();
+            unsigned int height = tr[ *this].height();
+            std::vector<uint32_t> line(width);
+            std::copy(raw, raw + width, &line[0]);
+            raw += stride;
+            uint64_t a00 = lrint(0x100000000uLL * (1 - shift_dx) * (1 - shift_dy));
+            uint64_t a10 = lrint(0x100000000uLL * shift_dx * (1 - shift_dy));
+            uint64_t a01 = lrint(0x100000000uLL * (1 - shift_dx) * shift_dy);
+            uint64_t a11 = 0x100000000uLL - a00 - a10 - a01;
+            for(unsigned int y  = 1; y < height + 1; ++y) {
+                uint32_t *raw_ym1 = &line[0];
+                uint32_t w_xym1 = *raw_ym1++;
+                uint32_t w_xm1 = *raw++;
+                for(unsigned int x  = 1; x < width + 1; ++x) {
+                     uint32_t w_ym1 = *raw_ym1;
+                     uint32_t w = *raw;
+                     *raw_ym1++ = w; //stores original value.
+                     *raw++ = (w * a11 + w_ym1 * a10 + w_xm1 * a01 + w_xym1 * a00) / 0x100000000uLL;
+                     w_xym1 = w_ym1;
+                     w_xm1 = w;
+                }
+                raw += stride - width;
+            }
+        }
     }
     else {
          tr[ *this].m_firstPixel = 0;
