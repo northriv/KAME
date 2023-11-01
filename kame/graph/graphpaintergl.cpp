@@ -100,6 +100,8 @@ XQGraphPainter::~XQGraphPainter() {
     if(m_listaxes) glDeleteLists(m_listaxes, 1);
     if(m_listpoints) glDeleteLists(m_listpoints, 1);
 
+    m_listedOSOs.clear();
+    m_paintedOSOs.clear();
 #ifdef USE_PBO
     glBindBuffer(GL_ARRAY_BUFFER, m_persistentPBO);
     glDeleteBuffers(1, &m_persistentPBO);

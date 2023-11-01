@@ -28,7 +28,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
     m_storeDark(create<XTouchableNode>("StoreDark", true)),
     m_roiSelectionTool(create<XTouchableNode>("ROISelectionTool", true)),
-    m_antiVibrationPixels(create<XUIntNode>("AntiVibrationPixels", false)),
+    m_antiShakePixels(create<XUIntNode>("AntiShakePixels", false)),
     m_subtractDark(create<XBoolNode>("SubtractDark", false)),
     m_videoMode(create<XComboNode>("VideoMode", true)),
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
@@ -53,7 +53,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQDoubleSpinBoxConnector>(cameraGain(), m_form->m_dblCameraGain),
         xqcon_create<XQSpinBoxUnsignedConnector>(brightness(), m_form->m_spbBrightness),
         xqcon_create<XQSpinBoxUnsignedConnector>(colorIndex(), m_form->m_spbColorIndex),
-        xqcon_create<XQSpinBoxUnsignedConnector>(antiVibrationPixels(), m_form->m_spbAntiVibrationPixels),
+        xqcon_create<XQSpinBoxUnsignedConnector>(antiShakePixels(), m_form->m_spbAntiVibrationPixels),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainProcessed),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
         xqcon_create<XQButtonConnector>(m_roiSelectionTool, m_form->m_tbROI),
@@ -77,7 +77,9 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
         m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
-            shared_from_this(), &XDigitalCamera::onStoreDarkTouched, Listener::FLAG_MAIN_THREAD_CALL);
+            shared_from_this(), &XDigitalCamera::onStoreDarkTouched);
+        m_lsnOnAntiShakeChanged = tr[ *antiShakePixels()].onValueChanged().connectWeakly(
+            shared_from_this(), &XDigitalCamera::onAntiShakeChanged);
     });
 }
 void
@@ -87,6 +89,11 @@ XDigitalCamera::showForms() {
     m_form->raise();
 }
 
+void
+XDigitalCamera::onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *) {
+    if(shot[ *m_antiShakePixels] > 0)
+        m_storeAntiShakeInvoked = true;
+}
 void
 XDigitalCamera::onStoreDarkTouched(const Snapshot &shot, XTouchableNode *) {
     m_storeDarkInvoked = true;
@@ -166,41 +173,48 @@ XDigitalCamera::visualize(const Snapshot &shot) {
           tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
           if( !!shot[ *this].time()) {
               uint32_t gain_disp = lrint(0x100u * shot[ *gainForDisp()]);
-              const uint32_t *raw = &shot[ *this].m_rawCounts->at(0);
+              const uint32_t *raw = &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel());
+              unsigned int stride = shot[ *this].stride();
               unsigned int width = shot[ *this].width();
               unsigned int height = shot[ *this].height();
               auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
               uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
               if( !tr[ *this].m_darkCounts) {
-                  for(unsigned int i  = 0; i < width * height; ++i) {
-                       uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
-                       if(w >= 0x10000u)
-                           w = 0xffffu;
-                       *words++ = w;
+                  for(unsigned int y  = 0; y < height; ++y) {
+                      for(unsigned int x  = 0; x < width; ++x) {
+                           uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
+                           if(w >= 0x10000u)
+                               w = 0xffffu;
+                           *words++ = w;
+                      }
+                      raw += stride - width;
                   }
               }
               else {
-                  const uint32_t *dark = &shot[ *this].m_darkCounts->at(0);
-                  for(unsigned int i  = 0; i < width * height; ++i) {
-                      int32_t v = *raw++ - *dark++;
-                      if(v < 0) v = 0;
-                      uint32_t w = v * gain_disp / 0x100u; //16bitFS if G=1
-                      if(w >= 0x10000u)
-                          w = 0xffffu;
-                      *words++ = w;
+                  const uint32_t *dark = &shot[ *this].m_darkCounts->at(shot[ *this].firstPixel());
+                  for(unsigned int y  = 0; y < height; ++y) {
+                      for(unsigned int x  = 0; x < width; ++x) {
+                          int32_t v = *raw++ - *dark++;
+                          if(v < 0) v = 0;
+                          uint32_t w = v * gain_disp / 0x100u; //16bitFS if G=1
+                          if(w >= 0x10000u)
+                              w = 0xffffu;
+                          *words++ = w;
+                      }
+                      raw += stride - width;
+                      dark += stride - width;
                   }
               }
               assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
-              assert(raw == &shot[ *this].m_rawCounts->at(0) + width * height);
               tr[ *this].m_qimage = liveimage;
 
               std::vector<double> coeffs = {1.0};
-              std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(0)};
+              std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
               if(tr[ *this].m_darkCounts) {
                   coeffs.push_back(1.0);
-                  rawimages.push_back(&shot[ *this].m_darkCounts->at(0));
+                  rawimages.push_back(&shot[ *this].m_darkCounts->at(shot[ *this].firstPixel()));
               }
-              m_liveImage->updateImage(tr, liveimage, rawimages, coeffs);
+              m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
           }
       });
 }
@@ -224,6 +238,12 @@ XDigitalCamera::rawCountsFromPool(int imagesize) {
 
 void
 XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian, bool mono16) {
+    int32_t antishake_pixels = tr[ *m_antiShakePixels];
+    if(antishake_pixels > 0) {
+        if(std::min(width, height) < tr[ *m_antiShakePixels] * 10)
+            throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
+    }
+
     auto rawCountsNext = rawCountsFromPool(width * height);
     unsigned int cidx = tr[ *colorIndex()];
     tr[ *this].m_colorIndex = cidx;
@@ -236,34 +256,45 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *rawNext = &rawCountsNext->at(0);
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
+    uint64_t cogx = 0u, cogy = 0u, toti = 0u;
     if(mono16) {
-        for(unsigned int i  = 0; i < width * height; ++i) {
-             auto gray = reader.pop<uint16_t>();
-    #ifdef __BIG_ENDIAN__
-             if( !big_endian) {
-    #else
-             if(big_endian) {
-    #endif
-                 uint8_t *b = reinterpret_cast<uint8_t *>( &gray);
-                 uint8_t b0 = b[0];
-                 b[0] = b[1];
-                 b[1] = b0;
-             }             
-             *rawNext++ = gray;
-             if(gray > vmax)
-                 vmax = gray;
-             if(gray < vmin)
-                 vmin = gray;
+        for(unsigned int y  = 0; y < height; ++y) {
+            for(unsigned int x  = 0; x < width; ++x) {
+                 auto gray = reader.pop<uint16_t>();
+        #ifdef __BIG_ENDIAN__
+                 if( !big_endian) {
+        #else
+                 if(big_endian) {
+        #endif
+                     uint8_t *b = reinterpret_cast<uint8_t *>( &gray);
+                     uint8_t b0 = b[0];
+                     b[0] = b[1];
+                     b[1] = b0;
+                 }
+                 *rawNext++ = gray;
+                 if(gray > vmax)
+                     vmax = gray;
+                 if(gray < vmin)
+                     vmin = gray;
+                 toti += gray;
+                 cogx += gray * x;
+                 cogy += gray * y;
+            }
         }
     }
     else {
-        for(unsigned int i  = 0; i < width * height; ++i) {
-             auto gray = reader.pop<uint8_t>();
-             *rawNext++ = gray;
-             if(gray > vmax)
-                 vmax = gray;
-             if(gray < vmin)
-                 vmin = gray;
+        for(unsigned int y  = 0; y < height; ++y) {
+            for(unsigned int x  = 0; x < width; ++x) {
+                 auto gray = reader.pop<uint8_t>();
+                 *rawNext++ = gray;
+                 if(gray > vmax)
+                     vmax = gray;
+                 if(gray < vmin)
+                     vmin = gray;
+                 toti += gray;
+                 cogx += gray * x;
+                 cogy += gray * y;
+            }
         }
     }
     if(tr[ *m_autoGainForDisp]) {
@@ -272,15 +303,33 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     assert(rawNext == &rawCountsNext->at(0) + width * height);
 //    fprintf(stderr, "gain %u vmin:vmax %u %u\n", gain_disp, vmin, vmax);
     tr[ *this].m_rawCounts = rawCountsNext;
-    if(m_storeDarkInvoked) { // && (cidx == 0)
+    if(m_storeDarkInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
         tr[ *this].m_darkCounts = make_local_shared<std::vector<uint32_t>>( *rawCountsNext);
-        m_storeDarkInvoked = false;
     }
     if( !tr[ *subtractDark()] || !tr[ *this].m_darkCounts || (tr[ *this].m_darkCounts->size() != width * height)) {
         tr[ *this].m_darkCounts.reset();
     }
-    tr[ *this].m_width = width;
-    tr[ *this].m_height = height;
+    if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
+        tr[ *this].m_cogXOrig = (double)cogx / toti;
+        tr[ *this].m_cogYOrig = (double)cogy / toti;
+    }
+    tr[ *this].m_stride = width;
+    tr[ *this].m_width = width - antishake_pixels * 2;
+    tr[ *this].m_height = height - antishake_pixels * 2;
+    if(antishake_pixels) {
+        //finds the pixels shifts
+        int shift_x = lrint((double)cogx / toti - tr[ *this].m_cogXOrig);
+        int shift_y = lrint((double)cogy / toti - tr[ *this].m_cogYOrig);
+        shift_x = std::min(shift_x, antishake_pixels);
+        shift_x = std::max(shift_x, -antishake_pixels);
+        shift_y = std::min(shift_y, antishake_pixels);
+        shift_y = std::max(shift_y, -antishake_pixels);
+//        fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
+        tr[ *this].m_firstPixel = (shift_y + antishake_pixels) * width + shift_x + antishake_pixels;
+    }
+    else {
+         tr[ *this].m_firstPixel = 0;
+    }
 
 //    case (unsigned int)ColoringMethod::RGBWHEEL: {
 //        uint8_t *processed = reinterpret_cast<uint8_t*>(processedimage->bits());

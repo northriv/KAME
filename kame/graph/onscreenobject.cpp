@@ -209,8 +209,8 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
     checkGLError();
     qimage = image;
 }
-shared_ptr<OnScreenTexture>
-XQGraphPainter::createTextureWeakly(const shared_ptr<QImage> &image) {
+weak_ptr<OnScreenTexture>
+XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
@@ -232,7 +232,7 @@ XQGraphPainter::createTextureWeakly(const shared_ptr<QImage> &image) {
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
-    return createOnScreenObjectWeakly<OnScreenTexture>(id, image);
+    return createListedOnScreenObject<OnScreenTexture>(id, image);
 }
 
 OnScreenTexture::~OnScreenTexture() {

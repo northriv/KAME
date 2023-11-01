@@ -462,8 +462,8 @@ protected:
     virtual void snapshot(const Snapshot &shot) override;
 private:
     friend class XGraph;
-    shared_ptr<QImage> m_image, m_image_textured;
-    shared_ptr<OnScreenTexture> m_texture;
+    shared_ptr<QImage> m_image; //, m_image_textured;
+//    shared_ptr<OnScreenTexture> m_texture;
 };
 //---------------------------------------------------------------------------
 #endif

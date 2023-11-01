@@ -39,7 +39,7 @@ public:
     virtual ~X2DImage();
 
     void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
-        const std::vector<const uint32_t *> &rawimages = {}, const std::vector<double> coefficients = {});
+        const std::vector<const uint32_t *> &rawimages = {}, unsigned int raw_stride = 0, const std::vector<double> coefficients = {});
 
     const shared_ptr<X2DImagePlot> &plot() const {return m_plot;}
 protected:

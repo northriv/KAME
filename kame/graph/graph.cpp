@@ -1275,19 +1275,20 @@ X2DImagePlot::snapshot(const Snapshot &shot) {
 int
 X2DImagePlot::drawPlot(const Snapshot &shot, XQGraphPainter *painter) {
     if(m_image) {
-        auto texture = m_texture;
-        if(texture && (painter != texture->painter()))
-            texture.reset(); //not valid anymore.
-        if(!texture || (m_image != m_image_textured)) {
-            if(texture && m_image_textured && (m_image_textured->width() == m_image->width())
-                    && (m_image_textured->height() == m_image->height())
-                    && (m_image_textured->format() == m_image->format()))
-                texture->repaint(m_image);
-            else {
-                m_texture = painter->createTextureWeakly(m_image);
-            }
-            m_image_textured = m_image;
-        }
+//        auto texture = m_texture;
+//        if(texture && (painter != texture->painter()))
+//            texture.reset(); //not valid anymore.
+//        if(!texture || (m_image != m_image_textured)) {
+//            if(texture && m_image_textured && (m_image_textured->width() == m_image->width())
+//                    && (m_image_textured->height() == m_image->height())
+//                    && (m_image_textured->format() == m_image->format()))
+//                texture->repaint(m_image);
+//            else {
+//                m_texture = painter->createTextureWeakly(m_image);
+//            }
+//            m_image_textured = m_image;
+//        }
+        auto texture = painter->createTextureDuringListing(m_image).lock();
         if(texture && fixScales(shot)) {
             XGraph::ScrPoint spt[4];
             XGraph::ValPoint v1(0, 0);

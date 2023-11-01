@@ -52,7 +52,7 @@ public:
     enum class TriggerMode {CONTINUEOUS = 0, SINGLE = 1, EXT_POS_EDGE = 2, EXT_NEG_EDGE = 3, EXT_POS_EXPOSURE = 4, EXT_NEG_EXPOSURE = 5};
     const shared_ptr<XComboNode> &triggerMode() const {return m_triggerMode;}
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
-    const shared_ptr<XUIntNode> &antiVibrationPixels() const {return m_antiVibrationPixels;}
+    const shared_ptr<XUIntNode> &antiShakePixels() const {return m_antiShakePixels;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
     const shared_ptr<XUIntNode> &colorIndex() const {return m_colorIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
@@ -64,11 +64,15 @@ public:
         double electricDark() const {return m_electric_dark;} //dark count
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
+        unsigned int stride() const {return m_stride;} //stride != width when antishake is on.
+        unsigned int firstPixel() const {return m_firstPixel;} //not zero when antishake is on.
         local_shared_ptr<std::vector<uint32_t>> rawCounts() const {return m_rawCounts;}
         local_shared_ptr<std::vector<uint32_t>> darkCounts() const {return m_darkCounts;}
 //    private:
 //        friend class XDigitalCamera;
 //        double m_cameraGain;
+        unsigned int m_stride;
+        unsigned int m_firstPixel;
         unsigned int m_brightness;
         double m_exposureTime;
         XString m_status;
@@ -79,6 +83,7 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
         shared_ptr<QImage> m_qimage;
+        double m_cogXOrig, m_cogYOrig; //for antishake.
     };
 protected:
 
@@ -103,7 +108,7 @@ private:
     const shared_ptr<XDoubleNode> m_exposureTime;
     const shared_ptr<XTouchableNode> m_storeDark;
     const shared_ptr<XTouchableNode> m_roiSelectionTool;
-    const shared_ptr<XUIntNode> m_antiVibrationPixels;
+    const shared_ptr<XUIntNode> m_antiShakePixels;
     const shared_ptr<XBoolNode> m_subtractDark;
     const shared_ptr<XComboNode> m_videoMode;
     const shared_ptr<XComboNode> m_triggerMode;
@@ -124,6 +129,7 @@ private:
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
     shared_ptr<Listener> m_lsnOnROISelectionToolTouched;
     shared_ptr<Listener> m_lsnOnROISelectionToolFinished;
+    shared_ptr<Listener> m_lsnOnAntiShakeChanged;
 
     void onVideoModeChanged(const Snapshot &shot, XValueNodeBase *);
     void onTriggerModeChanged(const Snapshot &shot, XValueNodeBase *);
@@ -138,12 +144,13 @@ private:
     shared_ptr<XGraph2DMathToolList> m_graphToolList;
 
     void onStoreDarkTouched(const Snapshot &shot, XTouchableNode *);
+    void onAntiShakeChanged(const Snapshot &shot, XValueNodeBase *);
 
     void onROISelectionToolTouched(const Snapshot &shot, XTouchableNode *);
     void onROISelectionToolFinished(const Snapshot &shot,
         const std::tuple<XString, Vector4<double>, Vector4<double>, XQGraph*>&);
 
-    atomic<bool> m_storeDarkInvoked;
+    atomic<bool> m_storeDarkInvoked, m_storeAntiShakeInvoked;
     constexpr static unsigned int NumSummedCountsPool = 2;
     atomic_shared_ptr<std::vector<uint32_t>> m_rawCountsPool[NumSummedCountsPool];
     local_shared_ptr<std::vector<uint32_t>> rawCountsFromPool(int imagebytes);

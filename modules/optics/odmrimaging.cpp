@@ -159,6 +159,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     const auto rawimage = shot_camera[ *camera__].rawCounts();
     unsigned int width = shot_camera[ *camera__].width();
     unsigned int height = shot_camera[ *camera__].height();
+    unsigned int raw_stride = shot_camera[ *camera__].stride();
     if( !tr[ *incrementalAverage()] && !clear && (emitter == camera__.get())) {
         clear = true;
         for(unsigned int i: {0, 1}) {
@@ -186,14 +187,16 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         uint32_t *summedNext = &summedCountsNext->at(0);
         const uint32_t *summed = &tr[ *this].m_summedCounts[cidx]->at(0);
 
-        const uint32_t *raw = &rawimage->at(0);
-        for(unsigned int i  = 0; i < width * height; ++i) {
-            uint64_t v = *summed++ + *raw++;
-            if(v > 0x100000000uLL)
-                v = 0xffffffffuL;
-            *summedNext++ = v;
+        const uint32_t *raw = &rawimage->at(shot_camera[ *camera__].firstPixel());
+        for(unsigned int y  = 0; y < height; ++y) {
+            for(unsigned int x  = 0; x < width; ++x) {
+                uint64_t v = *summed++ + *raw++;
+                if(v > 0x100000000uLL)
+                    v = 0xffffffffuL;
+                *summedNext++ = v;
+            }
+            raw += raw_stride - width;
         }
-        assert(raw == &rawimage->at(0) + width * height);
         assert(summedNext == &summedCountsNext->at(0) + width * height);
         assert(summed == &tr[ *this].m_summedCounts[cidx]->at(0) + width * height);
         (tr[ *this].m_accumulated[cidx])++;
@@ -467,7 +470,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
-        m_processedImage->updateImage(tr, qimage, rawimages, coeffs);
+        m_processedImage->updateImage(tr, qimage, rawimages, width, coeffs);
     });
 }
 

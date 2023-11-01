@@ -82,7 +82,7 @@ public:
  void secureWindow(const XGraph::ScrPoint &p);
 
  //On-screen Objects
- shared_ptr<OnScreenTexture> createTextureWeakly(const shared_ptr<QImage> &image);
+ std::weak_ptr<OnScreenTexture> createTextureDuringListing(const shared_ptr<QImage> &image);
  void drawTexture(const OnScreenTexture& texture, const XGraph::ScrPoint p[4]);
  template <class T, typename...Args>
  shared_ptr<T> createOneTimeOnScreenObject(Args&&... args) {

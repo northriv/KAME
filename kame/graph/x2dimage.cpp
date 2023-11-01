@@ -79,12 +79,11 @@ X2DImage::dumpToFileThreaded(std::fstream &stream) {
 
 void
 X2DImage::updateImage(Transaction &tr, const shared_ptr<QImage> &image,
-    const std::vector<const uint32_t *> &rawimages, const std::vector<double> coefficients) {
+    const std::vector<const uint32_t *> &rawimages, unsigned int raw_stride, const std::vector<double> coefficients) {
     m_plot->setImage(tr, image);
     if(m_toolLists.size())
         for(unsigned int cidx = 0; cidx < rawimages.size(); ++cidx) {
-            unsigned int stride = image->width();
             m_toolLists[cidx]->update(tr, m_graphwidget,
-                rawimages[cidx], stride, stride, image->height(), coefficients[cidx]);
+                rawimages[cidx], image->width(), raw_stride, image->height(), coefficients[cidx]);
         }
 }
