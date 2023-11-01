@@ -325,7 +325,7 @@ XPlot::graphToScreen(const Snapshot &shot, const XGraph::GPoint &pt, XGraph::Scr
 		graphToScreenFast(pt, scr);
     }
 }
-inline void
+void
 XPlot::graphToScreenFast(const XGraph::GPoint &pt, XGraph::ScrPoint *scr) const {
 	scr->x = m_scr0.x + m_len.x * pt.x;
 	scr->y = m_scr0.y + m_len.y * pt.y;
