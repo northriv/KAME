@@ -24,10 +24,10 @@ public:
     using Vector = Eigen::VectorXd;
     using Matrix = Eigen::MatrixXd;
     //! Regular(identity), Second derivartive op.
-    enum class TikhonovMatrix {I = 0, D2 = 1};
+    enum class TikhonovMatrix {I = 0, D2 = 1, NONE = 2};
     //! y = A x.
     //! \arg sv_cond_cutoff cutoff value for truncated SVD inside regular Tikhonov problem (\a matStype = I).
-    TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype = TikhonovMatrix::I, double sv_cond_cutoff = 2000.0);
+    TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype = TikhonovMatrix::I, double sv_cond_cutoff = 2000.0, unsigned int max_rank = 100);
     ~TikhonovRegular() {}
     //! Criteria for lambda selection.
     //! L-curve criterion, Genererized cross validation, Known error level for <dy^2>, All Non-negative values for x.

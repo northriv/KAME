@@ -257,8 +257,77 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint16_t vmin = 0xffffu;
     uint16_t vmax = 0u;
     uint64_t cogx = 0u, cogy = 0u, toti = 0u;
+    constexpr unsigned int num_conv = 2;
+    std::vector<uint32_t> dummy_lines(width + num_conv, 0); //for y < num_comv. results will not be used.
+    uint32_t *raw_prevlines[num_conv];
+    constexpr unsigned int num_conv_tsvd = 5;
+    constexpr unsigned int num_edges = 20;
+    struct Edge {
+        unsigned int x, y; //center position.
+        uint64_t sobel_norm; //norm2 of sobel filter.
+    };
+    std::deque<Edge> edges = {{0,0,0}};
+    const Edge *edge_min = &edges.front();
+    //stores prominent edge, which does not overwraps each other.
+    auto fn_detect_edge = [&edges, &edge_min, &rawNext, &raw_prevlines](unsigned int x, unsigned int y) {
+// kernel
+//        sobel_x = [-1 0 1; -2 0 2; -1 0 1];
+//        sobel_y = [-1 -2 -1; 0 0 0; 1 2 1];
+        int64_t sobel_x = -(int64_t)*(raw_prevlines[0] - 2) + (int64_t)*raw_prevlines[0];
+        sobel_x += 2 * (-(int64_t)*(raw_prevlines[1] - 2) + (int64_t)*raw_prevlines[1]);
+        sobel_x += -(int64_t)*(rawNext - 2) + (int64_t)*rawNext;
+        int64_t sobel_y = -(int64_t)*(raw_prevlines[0] - 2) - 2 * (int64_t)*(raw_prevlines[0] - 1) - (int64_t)*raw_prevlines[0];
+        sobel_y += *(rawNext - 2) + 2 * *(rawNext - 1) + *rawNext;
+//        //For kernel calc., caches x - 2 values into previous lines.
+//        *(raw_prevlines[0] - 2) = *(raw_prevlines[1] - 2);
+//        *(raw_prevlines[1] - 2) = *(rawNext - 2);
+        uint64_t sobel_norm = sobel_x * sobel_x + sobel_y * sobel_y;
+        if((edge_min->sobel_norm < sobel_norm) &&
+            (x >= num_conv) && (y >= num_conv + 1)) {
+            if(edge_min->sobel_norm == 0)
+                edges.clear(); //erases dummy edge.
+            //abandon overwrapping edges.
+            auto it = std::find_if(edges.begin(), edges.end(), [x, y](const auto &v){
+                return ((v.x - (x - 1)) <= num_conv_tsvd) && ((v.y - (y - 1)) <= num_conv_tsvd);});
+            bool isvalid = true;
+            if(it != edges.end()) {
+                if(it->sobel_norm < sobel_norm)
+                    edges.erase(it);
+                else
+                    isvalid = false; //new edge is overwrapped and useless.
+            }
+            if(isvalid) {
+                //edges be ascending in terms of sobel_norm.
+                auto it = std::find_if(edges.begin(), edges.end(), [sobel_norm](const auto &x){return x.sobel_norm > sobel_norm;});
+                edges.insert(it, {x - 1, y - 1, sobel_norm});
+            }
+            if(edges.size() > num_edges)
+                edges.pop_front();
+            edge_min = &edges.front();
+        }
+    };
+    auto fn_prepare_prevlines = [&raw_prevlines, &dummy_lines, &rawCountsNext, width](unsigned int y) {
+        if(y >= num_conv + 1) {
+            raw_prevlines[0] = &rawCountsNext->at(width * (y - 2));
+            raw_prevlines[1] = &rawCountsNext->at(width * (y - 1));
+        }
+        else {
+            for(auto &&x : raw_prevlines)
+                x = &dummy_lines[num_conv];
+        }
+    };
+    auto fn_detect_min_max_cog = [&cogx, &cogy, &vmin, &vmax, &toti](uint16_t v, unsigned int x, unsigned int y) {
+        if(v > vmax)
+            vmax = v;
+        if(v < vmin)
+            vmin = v;
+        toti += v;
+        cogx += v * x;
+        cogy += v * y;
+    };
     if(mono16) {
         for(unsigned int y  = 0; y < height; ++y) {
+            fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
                  auto gray = reader.pop<uint16_t>();
         #ifdef __BIG_ENDIAN__
@@ -271,29 +340,22 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                      b[0] = b[1];
                      b[1] = b0;
                  }
-                 *rawNext++ = gray;
-                 if(gray > vmax)
-                     vmax = gray;
-                 if(gray < vmin)
-                     vmin = gray;
-                 toti += gray;
-                 cogx += gray * x;
-                 cogy += gray * y;
+                 *rawNext = gray;
+                 fn_detect_min_max_cog(gray, x, y);
+                 fn_detect_edge(x, y);
+                 rawNext++;
             }
         }
     }
     else {
         for(unsigned int y  = 0; y < height; ++y) {
+            fn_prepare_prevlines(y);
             for(unsigned int x  = 0; x < width; ++x) {
                  auto gray = reader.pop<uint8_t>();
-                 *rawNext++ = gray;
-                 if(gray > vmax)
-                     vmax = gray;
-                 if(gray < vmin)
-                     vmin = gray;
-                 toti += gray;
-                 cogx += gray * x;
-                 cogy += gray * y;
+                 *rawNext = gray;
+                 fn_detect_min_max_cog(gray, x, y);
+                 fn_detect_edge(x, y);
+                 rawNext++;
             }
         }
     }
