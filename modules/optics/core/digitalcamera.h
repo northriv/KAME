@@ -29,6 +29,7 @@ typedef QForm<QMainWindow, Ui_FrmDigitalCamera> FrmDigitalCamera;
 class XQGraph;
 class X2DImage;
 class OnScreenObjectWithMarker;
+class TikhonovRegular;
 
 //! Base class for scientific/machine vision digital camera.
 class DECLSPEC_SHARED XDigitalCamera : public XPrimaryDriverWithThread {
@@ -84,6 +85,7 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
         shared_ptr<QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
+        shared_ptr<TikhonovRegular> m_tsvd; //Image reconstruction by TSVD
     };
 protected:
 
