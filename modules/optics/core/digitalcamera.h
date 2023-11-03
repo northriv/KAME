@@ -84,6 +84,11 @@ public:
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
         shared_ptr<QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
+        struct Edge {
+            unsigned int x, y; //center position.
+            uint64_t sobel_norm; //norm2 of sobel filter.
+        };
+        std::deque<Edge> m_edgesOrig;
     };
 protected:
 

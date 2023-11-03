@@ -262,12 +262,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *raw_prevlines[num_conv];
     constexpr unsigned int num_conv_tsvd = 5;
     constexpr unsigned int num_edges = 20;
-    struct Edge {
-        unsigned int x, y; //center position.
-        uint64_t sobel_norm; //norm2 of sobel filter.
-    };
-    std::deque<Edge> edges = {{0,0,0}};
-    const Edge *edge_min = &edges.front();
+
+    std::deque<Payload::Edge> edges = {{0,0,0}};
+    const Payload::Edge *edge_min = &edges.front();
     //stores prominent edge, which does not overwraps each other.
     auto fn_detect_edge = [&edges, &edge_min, &rawNext, &raw_prevlines](unsigned int x, unsigned int y) {
 // kernel
@@ -374,6 +371,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
         tr[ *this].m_cogXOrig = (double)cogx / toti;
         tr[ *this].m_cogYOrig = (double)cogy / toti;
+        tr[ *this].m_edgesOrig = edges;
     }
     tr[ *this].m_stride = width;
     tr[ *this].m_width = width - antishake_pixels * 2;
