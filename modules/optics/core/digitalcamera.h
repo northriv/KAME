@@ -86,6 +86,11 @@ public:
         shared_ptr<QImage> m_qimage;
         double m_cogXOrig, m_cogYOrig; //for antishake.
         shared_ptr<TikhonovRegular> m_tsvd; //Image reconstruction by TSVD
+        struct Edge {
+            unsigned int x, y; //center position.
+            uint64_t sobel_norm; //norm2 of sobel filter.
+        };
+        std::deque<Edge> m_edgesOrig;
     };
 protected:
 

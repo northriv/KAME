@@ -263,12 +263,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     uint32_t *raw_prevlines[num_conv - 1];
     constexpr unsigned int num_conv_tsvd = 5;
     constexpr unsigned int num_edges = 20;
-    struct Edge {
-        unsigned int x, y; //center position.
-        uint64_t sobel_norm; //norm2 of sobel filter.
-    };
-    std::deque<Edge> edges = {{0,0,0}};
-    const Edge *edge_min = &edges.front();
+
+    std::deque<Payload::Edge> edges = {{0,0,0}};
+    const Payload::Edge *edge_min = &edges.front();
     //stores prominent edge, which does not overwraps each other.
     auto fn_detect_edge = [&edges, &edge_min, &rawNext, &raw_prevlines, antishake_pixels](unsigned int x, unsigned int y) {
 // kernel
@@ -376,7 +373,6 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         //stores original image info. before shake.
         tr[ *this].m_cogXOrig = (double)cogx / toti;
         tr[ *this].m_cogYOrig = (double)cogy / toti;
-
 //        N x N kernel, p-th M x M image around the edge.
 //        I^p(m, n) = I^p_orig(m + a - N/2 - M/2, n + b - N/2 - M/2) kab
 //        y_i = I^{i / M^2}((i % M^2) / M - M/2, (i % M^2) % M - M/2), i < M^2
@@ -396,6 +392,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             }
         }
         tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::NONE, 10000, max_rank);
+        tr[ *this].m_edgesOrig = edges;
     }
     tr[ *this].m_stride = width;
     tr[ *this].m_width = width - antishake_pixels * 2;
