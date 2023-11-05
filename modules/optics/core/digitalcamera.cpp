@@ -254,14 +254,13 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     constexpr unsigned int num_conv = 3;
     std::vector<uint32_t> dummy_lines(width + num_conv, 0); //for y < num_comv. results will not be used.
     uint32_t *raw_lines[num_conv];
-    constexpr unsigned int num_conv_tsvd = 5;
-    constexpr unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
-
-    std::deque<Payload::Edge> edges = {{0,0,0}};
+    std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
     const Payload::Edge *edge_min = &edges.front();
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
+    const unsigned int num_conv_tsvd = std::min(7, antishake_pixels / 3 * 2 + 1);
+    const unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
     //stores prominent edge, which does not overwraps each other.
-    auto fn_detect_edge = [&edges, &edge_min, &raw_lines, antishake_pixels](unsigned int x, unsigned int y) {
+    auto fn_detect_edge = [&edges, &edge_min, &raw_lines, antishake_pixels, num_conv_tsvd, num_edges](unsigned int x, unsigned int y) {
 // kernel
 //        sobel_x = [-1 0 1; -2 0 2; -1 0 1];
 //        sobel_y = [-1 -2 -1; 0 0 0; 1 2 1];
@@ -279,7 +278,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
             if(edge_min->sobel_norm == 0)
                 edges.clear(); //erases dummy edge.
             //abandon overwrapping edges.
-            auto it = std::find_if(edges.begin(), edges.end(), [x, y](const auto &v){
+            auto it = std::find_if(edges.begin(), edges.end(), [x, y, num_conv_tsvd](const auto &v){
                 return ((v.x - (x - 1)) <= num_conv_tsvd) && ((v.y - (y - 1)) <= num_conv_tsvd);});
             bool isvalid = true;
             if(it != edges.end()) {
@@ -377,9 +376,9 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     //        y_i = I^{i / M^2}((i % M^2) / M, (i % M^2) % M), i < M^2
     //        x_j = k(j / N, j % N), j < N^2
     //        A_ij = I^{i / M^2}_orig((i % M^2) / M + j / N - N/2 - M/2, (i % M^2) % M + j % N - N/2 - M/2)
-            constexpr unsigned int max_rank = num_conv_tsvd * num_conv_tsvd;
-            constexpr unsigned int n = num_conv_tsvd;
-            unsigned int m = 2 * antishake_pixels + 1;
+            const unsigned int max_rank = num_conv_tsvd * num_conv_tsvd;
+            const unsigned int n = num_conv_tsvd;
+            const unsigned int m = 2 * antishake_pixels + 1;
             Eigen::MatrixXd matA = Eigen::MatrixXd::Zero(m * m * edges.size(), n * n);
             const uint32_t *raw = &rawCountsNext->at(0);
             for(unsigned int i = 0; i < matA.rows(); ++i) {
@@ -396,8 +395,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
     antishake_pixels = tr[ *this].m_antishake_pixels;
     tr[ *this].m_stride = width;
-    tr[ *this].m_width = width - antishake_pixels * 2;
-    tr[ *this].m_height = height - antishake_pixels * 2;
+    tr[ *this].m_width = width - antishake_pixels * 4;
+    tr[ *this].m_height = height - antishake_pixels * 4;
     if(antishake_pixels) {
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
@@ -409,11 +408,11 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         shift_y = std::min(shift_y, antishake_pixels);
         shift_y = std::max(shift_y, -antishake_pixels);
         fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
-        tr[ *this].m_firstPixel = (shift_y + antishake_pixels) * width + shift_x + antishake_pixels; //(0,0) origin for the secondary drivers.
+        tr[ *this].m_firstPixel = (shift_y + antishake_pixels * 2) * width + shift_x + antishake_pixels * 2; //(0,0) origin for the secondary drivers.
         const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
-            constexpr unsigned int n = num_conv_tsvd;
-            unsigned int m = 2 * antishake_pixels + 1;
+            const unsigned int n = num_conv_tsvd;
+            const unsigned int m = 2 * antishake_pixels + 1;
             Eigen::VectorXd vecY = Eigen::VectorXd::Zero(m * m * edge_orig.size());
             const uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
             for(unsigned int p = 0; p < edge_orig.size(); ++p) {
