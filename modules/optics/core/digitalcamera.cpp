@@ -259,8 +259,10 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
     const unsigned int num_conv_tsvd = std::min(7, antishake_pixels / 3 * 2 + 1);
     const unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
+    const unsigned int svd_lenysqrt = 2 * antishake_pixels + 1;
+    const int max_pixelshift_bycog = antishake_pixels;
     //stores prominent edge, which does not overwraps each other.
-    auto fn_detect_edge = [&edges, &edge_min, &raw_lines, antishake_pixels, num_conv_tsvd, num_edges](unsigned int x, unsigned int y) {
+    auto fn_detect_edge = [&edges, &edge_min, &raw_lines, svd_lenysqrt, num_edges](unsigned int x, unsigned int y) {
 // kernel
 //        sobel_x = [-1 0 1; -2 0 2; -1 0 1];
 //        sobel_y = [-1 -2 -1; 0 0 0; 1 2 1];
@@ -274,12 +276,12 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
 //        *(raw_prevlines[1] - 2) = *(rawNext - 2);
         uint64_t sobel_norm = sobel_x * sobel_x + sobel_y * sobel_y;
         if((edge_min->sobel_norm < sobel_norm) &&
-            (x >= num_conv - 1 + antishake_pixels) && (y >= num_conv + 1 + antishake_pixels)) {
+            (x >= num_conv - 1 + svd_lenysqrt) && (y >= num_conv + 1 + svd_lenysqrt)) {
             if(edge_min->sobel_norm == 0)
                 edges.clear(); //erases dummy edge.
             //abandon overwrapping edges.
-            auto it = std::find_if(edges.begin(), edges.end(), [x, y, num_conv_tsvd](const auto &v){
-                return ((v.x - (x - 1)) <= num_conv_tsvd) && ((v.y - (y - 1)) <= num_conv_tsvd);});
+            auto it = std::find_if(edges.begin(), edges.end(), [x, y, svd_lenysqrt](const auto &v){
+                return ((v.x - (x - 1)) <= svd_lenysqrt) && ((v.y - (y - 1)) <= svd_lenysqrt);});
             bool isvalid = true;
             if(it != edges.end()) {
                 if(it->sobel_norm < sobel_norm)
@@ -365,7 +367,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
         tr[ *this].m_antishake_pixels = antishake_pixels;
         if(antishake_pixels > 0) {
-            if(std::min(width, height) < tr[ *m_antiShakePixels] * 10)
+            if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
                 throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
 
             //stores original image info. before shake.
@@ -378,7 +380,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     //        A_ij = I^{i / M^2}_orig((i % M^2) / M + j / N - N/2 - M/2, (i % M^2) % M + j % N - N/2 - M/2)
             const unsigned int max_rank = num_conv_tsvd * num_conv_tsvd;
             const unsigned int n = num_conv_tsvd;
-            const unsigned int m = 2 * antishake_pixels + 1;
+            const unsigned int m = svd_lenysqrt;
             Eigen::MatrixXd matA = Eigen::MatrixXd::Zero(m * m * edges.size(), n * n);
             const uint32_t *raw = &rawCountsNext->at(0);
             for(unsigned int i = 0; i < matA.rows(); ++i) {
@@ -389,30 +391,31 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     matA(i, j) = (double)raw[y * width + x];
                 }
             }
-            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 10000, max_rank);
+            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 1000, max_rank);
             tr[ *this].m_edgesOrig = edges;
         }
     }
     antishake_pixels = tr[ *this].m_antishake_pixels;
     tr[ *this].m_stride = width;
-    tr[ *this].m_width = width - antishake_pixels * 4;
-    tr[ *this].m_height = height - antishake_pixels * 4;
+    const int pixels_skip = max_pixelshift_bycog + svd_lenysqrt / 2;
+    tr[ *this].m_width = width - 2 * pixels_skip;
+    tr[ *this].m_height = height - 2 * pixels_skip;
     if(antishake_pixels) {
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
         int shift_x = lrint(shift_dx);
         double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
         int shift_y = lrint(shift_dy);
-        shift_x = std::min(shift_x, antishake_pixels);
-        shift_x = std::max(shift_x, -antishake_pixels);
-        shift_y = std::min(shift_y, antishake_pixels);
-        shift_y = std::max(shift_y, -antishake_pixels);
+        shift_x = std::min(shift_x, max_pixelshift_bycog);
+        shift_x = std::max(shift_x, -max_pixelshift_bycog);
+        shift_y = std::min(shift_y, max_pixelshift_bycog);
+        shift_y = std::max(shift_y, -max_pixelshift_bycog);
         fprintf(stderr, "shift: (%d, %d)\n", shift_x, shift_y);
-        tr[ *this].m_firstPixel = (shift_y + antishake_pixels * 2) * width + shift_x + antishake_pixels * 2; //(0,0) origin for the secondary drivers.
+        tr[ *this].m_firstPixel = (shift_y + pixels_skip) * width + shift_x + pixels_skip; //(0,0) origin for the secondary drivers.
         const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
             const unsigned int n = num_conv_tsvd;
-            const unsigned int m = 2 * antishake_pixels + 1;
+            const unsigned int m = svd_lenysqrt;
             Eigen::VectorXd vecY = Eigen::VectorXd::Zero(m * m * edge_orig.size());
             const uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
             for(unsigned int p = 0; p < edge_orig.size(); ++p) {
