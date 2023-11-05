@@ -28,7 +28,8 @@ TikhonovRegular::TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype,
     long rank = (m_sigma.array() > cutoff).count();
     rank = std::max(rank, 2L);
     rank = std::min(rank, (long)max_rank);
-    m_sigma = m_sigma.topRows(rank);
+    Vector sigma = m_sigma.topRows(rank);
+    m_sigma = sigma; //do not directly subst.
     m_sv_cutoff = cutoff;
     switch(matStype) {
     case TikhonovMatrix::I: {
@@ -49,9 +50,6 @@ TikhonovRegular::TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype,
         m_ATA = matrixA.transpose() * matrixA;
         m_AinvReg = m_ATA.inverse() * m_A.transpose();
         }
-        break;
-    case TikhonovMatrix::NONE:
-    dafault:
         break;
     }
 
@@ -75,9 +73,6 @@ TikhonovRegular::testLambda(double lambda, Method method, const Vector &vec_y, V
         m_AinvReg = lu.inverse() * m_A.transpose();
         }
         break;
-    case TikhonovMatrix::NONE:
-    dafault:
-        throw;
     }
 
     vec_x = m_AinvReg * vec_y;

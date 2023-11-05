@@ -24,7 +24,7 @@ public:
     using Vector = Eigen::VectorXd;
     using Matrix = Eigen::MatrixXd;
     //! Regular(identity), Second derivartive op.
-    enum class TikhonovMatrix {I = 0, D2 = 1, NONE = 2};
+    enum class TikhonovMatrix {I = 0, D2 = 1};
     //! y = A x.
     //! \arg sv_cond_cutoff cutoff value for truncated SVD inside regular Tikhonov problem (\a matStype = I).
     TikhonovRegular(const Matrix &matrixA, TikhonovMatrix matStype = TikhonovMatrix::I, double sv_cond_cutoff = 2000.0, unsigned int max_rank = 100);
@@ -37,7 +37,9 @@ public:
     //! \return \a x_lambda
     Vector solve(const Vector &y) const {
         assert(y.size() == m_ylen);
-        return m_AinvReg * y;
+        Vector ret = m_AinvReg * y; //direct return is buggy.
+        assert(ret.size() == m_xlen);
+        return ret;
     }
     double xlen() const {return m_xlen;}
     double ylen() const {return m_ylen;}
@@ -45,7 +47,8 @@ private:
     long m_xlen, m_ylen;
     Matrix m_A;
     TikhonovMatrix m_matStype;
-    Matrix m_UT, m_V, m_sigma; //SVD solutions during regular problem.
+    Matrix m_UT, m_V;
+    Vector m_sigma; //SVD solutions during regular problem.
     Matrix m_S, m_ATA, m_STS; //during general problem.
     Matrix m_AinvReg; //!< regularized inverse, A#lambda = (AtA + lambda^2 StS)^-1 At
     double m_lambda;

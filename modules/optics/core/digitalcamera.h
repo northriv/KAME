@@ -89,8 +89,10 @@ public:
         struct Edge {
             unsigned int x, y; //center position.
             uint64_t sobel_norm; //norm2 of sobel filter.
+            int64_t sobel_x, sobel_y;
         };
         std::deque<Edge> m_edgesOrig;
+        unsigned int m_antishake_pixels;
     };
 protected:
 
