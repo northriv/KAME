@@ -15,7 +15,7 @@
 #include "odmrimaging.h"
 #include "ui_odmrimagingform.h"
 #include "x2dimage.h"
-#include "graph.h"0
+#include "graph.h"
 #include "graphwidget.h"
 #include "analyzer.h"
 #include "xnodeconnector.h"
@@ -252,9 +252,9 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         }
         unsigned int stride = width;
         for(unsigned int cidx: {0,1}) {
-            m_sampleToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_referenceToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_darkToolLists[cidx]->update(tr, m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_sampleToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_referenceToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+            m_darkToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
         }
         auto fn_tool_to_vector = [&](std::vector<double>&vec, const shared_ptr<XGraph2DMathToolList> &toollist, double dark = 0) {
             vec.clear();
