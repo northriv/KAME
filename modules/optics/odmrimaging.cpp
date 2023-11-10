@@ -40,6 +40,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
     m_refIntensFrames(create<XUIntNode>("RefIntensFrames", false)),
+    m_sequence(create<XComboNode>("Sequence", false, true)),
     m_form(new FrmODMRImaging),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
@@ -48,15 +49,21 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
 
     auto plot = m_processedImage->plot();
     m_sampleToolLists = {
-        create<XGraph2DMathToolList>("SmplPL", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("SmplPLMWOFF-2", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("SmplPLMWOFF-1", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("SmplPLMWOFF", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
         create<XGraph2DMathToolList>("SmplPLMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
                       };
     m_referenceToolLists = {
-        create<XGraph2DMathToolList>("Reference", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("RefMWOFF-2", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("RefMWOFF-1", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("RefMWOFF", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
         create<XGraph2DMathToolList>("ReferenceMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
                        };
     m_darkToolLists = {
-        create<XGraph2DMathToolList>("Dark", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("DarkMWOFF-2", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("DarkMWOFF-1", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
+        create<XGraph2DMathToolList>("DarkMWOFF", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
         create<XGraph2DMathToolList>("DarkMWOn", false, meas, static_pointer_cast<XDriver>(shared_from_this()), plot),
                         };
 
@@ -78,6 +85,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQToggleButtonConnector>(m_incrementalAverage, m_form->m_ckbIncrementalAverage),
         xqcon_create<XQToggleButtonConnector>(m_autoGainForDisp, m_form->m_ckbAutoGainForDisp),
         xqcon_create<XQComboBoxConnector>(m_dispMethod, m_form->m_cmbDispMethod, Snapshot( *m_dispMethod)),
+        xqcon_create<XQComboBoxConnector>(m_sequence, m_form->m_cmbSequence, Snapshot( *m_sequence)),
     };
 
     m_conTools = {
@@ -94,6 +102,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *autoGainForDisp()] = true;
         tr[ *dispMethod()].add({"PL colored by dPL/PL", "dPL"});
+        tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
 
     iterate_commit([=](Transaction &tr){
@@ -107,6 +116,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *incrementalAverage()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *autoGainForDisp()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *dispMethod()].onValueChanged().connect(m_lsnOnCondChanged);
+        tr[ *sequence()].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
 XODMRImaging::~XODMRImaging() {
@@ -167,7 +177,15 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                 clear = false;
         }
     }
-    for(unsigned int i: {0, 1}) {
+    auto seq = std::map<unsigned int, Sequence>
+        {{0, Sequence::OFF_ON},{1, Sequence::OFF_OFF_ON},{0, Sequence::OFF_OFF_OFF_ON}
+        }.at(shot_this[ *sequence()]);
+    if(tr[ *this].sequence() != seq) {
+        clear = true;
+        tr[ *this].m_sequence = seq;
+    }
+    unsigned int seq_len = shot_this[ *this].sequenceLength();
+    for(unsigned int i = 0; i < seq_len; ++i) {
         if( !tr[ *this].m_summedCounts[i] || (tr[ *this].m_summedCounts[i]->size() != width * height)) {
             tr[ *this].m_summedCounts[i] = make_local_shared<std::vector<uint32_t>>(width * height, 0);
             clear = true;
@@ -176,13 +194,13 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     tr[ *this].m_width = width;
     tr[ *this].m_height = height;
     if(clear) {
-        for(unsigned int i: {0, 1}) {
+        for(unsigned int i = 0; i < seq_len; ++i) {
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
         }
     }
     if(emitter == camera__.get()) {
-        unsigned int cidx = tr[ *this].currentIndex(); //MW off: 0, on: 1
+        unsigned int cidx = shot_this[ *this].currentIndex();
         auto summedCountsNext = summedCountsFromPool(width * height);
         uint32_t *summedNext = &summedCountsNext->at(0);
         const uint32_t *summed = &tr[ *this].m_summedCounts[cidx]->at(0);
@@ -203,16 +221,16 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
 
-    if( !tr[ *this].m_accumulated[0] || (tr[ *this].m_accumulated[0] != tr[ *this].m_accumulated[1]))
+    if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
-    for(unsigned int cidx: {0,1})
-        tr[ *this].m_coefficients[cidx] = 1.0 / tr[ *this].m_accumulated[cidx]; //for math tools
+    for(unsigned int i = 0; i < seq_len; ++i)
+        tr[ *this].m_coefficients[i] = 1.0 / tr[ *this].m_accumulated[i]; //for math tools
 
     if(tr[ *m_autoGainForDisp]) {
         const uint32_t *summed[2];
         for(unsigned int cidx: {0,1}) {
-            summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
+            summed[cidx] = &tr[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0);
         }
         int32_t dpl_min = 0x7fffffffL, dpl_max = -0x7fffffffL;
         uint32_t vmin = 0xffffffffu;
@@ -246,15 +264,16 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     }
 
     {
-        const uint32_t *summed[2];
-        for(unsigned int cidx: {0,1}) {
-            summed[cidx] = &tr[ *this].m_summedCounts[cidx]->at(0);
+        const uint32_t *summed[seq_len];
+        for(unsigned int i = 0; i < seq_len; ++i) {
+            summed[i] = &tr[ *this].m_summedCounts[i]->at(0);
         }
         unsigned int stride = width;
-        for(unsigned int cidx: {0,1}) {
-            m_sampleToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_referenceToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
-            m_darkToolLists[cidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[cidx], stride, stride, height, shot_this[ *this].m_coefficients[cidx]);
+        for(unsigned int i = 0; i < seq_len; ++i) {
+            unsigned int tidx = 4 - seq_len + i;
+            m_sampleToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
+            m_referenceToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
+            m_darkToolLists[tidx]->update(ref(tr), m_form->m_graphwidgetProcessed, summed[i], stride, stride, height, shot_this[ *this].m_coefficients[i]);
         }
         auto fn_tool_to_vector = [&](std::vector<double>&vec, const shared_ptr<XGraph2DMathToolList> &toollist, double dark = 0) {
             vec.clear();
@@ -277,17 +296,19 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             return tot_pixels;
         };
         for(auto *x: {&tr[ *this].m_referenceIntensities, &tr[ *this].m_sampleIntensities}) {
-            for(unsigned int cidx: {0,1}) {
-                (*x)[cidx].clear();
+            for(unsigned int i = 0; i < seq_len; ++i) {
+                (*x)[i].clear();
             }
         }
-        double darks[2] = {};
-        if(shot_this.size(m_darkToolLists[0]) &&
-                shot_this.size(m_darkToolLists[0]) == shot_this.size(m_darkToolLists[1])) {
-            for(unsigned int cidx: {0,1}) {
+        double darks[4] = {};
+        if(shot_this.size(m_darkToolLists[0])) {
+            for(unsigned int i = 0; i < seq_len; ++i) {
+                unsigned int tidx = 4 - seq_len + i;
+                if(shot_this.size(m_darkToolLists[0]) != shot_this.size(m_darkToolLists[tidx]))
+                    continue;
                 std::vector<double> vec;
-                unsigned int pixels = fn_tool_to_vector(vec, m_darkToolLists[cidx]);
-                darks[cidx] = std::accumulate(vec.begin(), vec.end(), 0) / pixels;
+                unsigned int pixels = fn_tool_to_vector(vec, m_darkToolLists[tidx]);
+                darks[i] = std::accumulate(vec.begin(), vec.end(), 0) / pixels;
             }
         }
         if(shot_this.size(m_referenceToolLists[0]) &&
@@ -296,13 +317,14 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                 fn_tool_to_vector(tr[ *this].m_referenceIntensities[cidx], m_referenceToolLists[cidx], darks[cidx]);
             }
         }
-        if(shot_this.size(m_sampleToolLists[0]) &&
-                shot_this.size(m_sampleToolLists[0]) == shot_this.size(m_sampleToolLists[1])) {
-            for(unsigned int cidx: {0,1}) {
-                fn_tool_to_vector(tr[ *this].m_sampleIntensities[cidx], m_sampleToolLists[cidx], darks[cidx]);
+        if(shot_this.size(m_sampleToolLists[0])) {
+            for(unsigned int i = 0; i < seq_len; ++i) {
+                unsigned int tidx = 4 - seq_len + i;
+                if(shot_this.size(m_sampleToolLists[0]) != shot_this.size(m_sampleToolLists[tidx]))
+                    continue;
+                fn_tool_to_vector(tr[ *this].m_sampleIntensities[i], m_sampleToolLists[tidx], darks[i]);
+                tr[ *this].m_sampleIntensitiesCorrected[i] = shot_this[ *this].m_sampleIntensities[i]; //copy
             }
-
-            tr[ *this].m_pl0 = shot_this[ *this].m_sampleIntensities[0]; //stores orig.
             analyzeIntensities(tr);
 
             if(auto entries = m_entries.lock()) {
@@ -324,8 +346,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                         m_samplePLEntries[tool.get()] = entryPL;
                     }
                     else
-//                        entryPL->value(ref(tr), shot_this[ *this].m_pl0[j]);
-                        entryPL->value(ref(tr), shot_this[ *this].m_sampleIntensities[0][j]);
+                        entryPL->value(ref(tr), shot_this[ *this].pl0(j));
                     entryDPLoPL = m_sampleDPLoPLEntries[tool.get()];
                     if( !entryDPLoPL) {
                         entryDPLoPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,dPL/PL", i).c_str(), true,

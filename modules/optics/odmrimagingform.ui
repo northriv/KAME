@@ -123,6 +123,9 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>
+        <widget class="QComboBox" name="m_cmbSequence"/>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="_4">
          <item>
           <widget class="QLabel" name="textLabel1_2_5_3_3_15">

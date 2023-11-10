@@ -52,42 +52,66 @@ public:
     const shared_ptr<XDoubleNode> &maxDPLoPLForDisp() const {return m_maxDPLoPLForDisp;}//!< [%]
     const shared_ptr<XComboNode> &dispMethod() const {return m_dispMethod;}
     const shared_ptr<XUIntNode> &refIntensFrames() const {return m_refIntensFrames;}
+    const shared_ptr<XComboNode> &sequence() const {return m_sequence;}
 
     const shared_ptr<X2DImage> &processedImage() const {return m_processedImage;}
 
+    enum class Sequence {OFF_ON = 2, OFF_OFF_ON = 3, OFF_OFF_OFF_ON = 4};
     struct Payload : public XSecondaryDriver::Payload {
-        const std::vector<double> &sampleIntensities(bool is_mw_on) const {return m_sampleIntensities[is_mw_on ? 1 : 0];}
-        const std::vector<double> &referenceIntensities(bool is_mw_on) const {return m_referenceIntensities[is_mw_on ? 1 : 0];}
-        double pl(bool is_mw_on, unsigned int i) const {
-            double pl__ = sampleIntensities(is_mw_on)[i];
+        const std::vector<double> &sampleIntensities(unsigned int i) const {
+            assert(i < sequenceLength()); return m_sampleIntensities[i];
+        }
+        const std::vector<double> &sampleIntensitiesCorrected(unsigned int i) const {
+            assert(i < sequenceLength()); return m_sampleIntensitiesCorrected[i];
+        }
+        const std::vector<double> &referenceIntensities(unsigned int i) const {
+            assert(i < sequenceLength()); return m_referenceIntensities[i];
+        }
+        double plRaw(unsigned int idx_in_seq, unsigned int i) const {
+            double pl__ = sampleIntensities(idx_in_seq)[i];
             return pl__;
         }
+        double plCorr(unsigned int idx_in_seq, unsigned int i) const {
+            double pl__ = sampleIntensitiesCorrected(idx_in_seq)[i];
+            return pl__;
+        }
+        double pl0(unsigned int i) const {
+            return plRaw(sequenceLength() - 2, i);
+        }
         double dPL(unsigned int i) const {
-            double pl_off = pl(false, i);
-            double pl_on = pl(true, i);
+            double pl_off = plCorr(sequenceLength() - 2, i);
+            double pl_on = plCorr(sequenceLength() - 1, i);
             return pl_on - pl_off;
         }
         double dPLoPL(unsigned int i) const {
-            return dPL(i) / m_pl0[i];
+            return dPL(i) / pl0(i);
         }
         unsigned int numSamples() const {return m_sampleIntensities[0].size();}
         double gainForDisp() const {return m_gainForDisp;}
         unsigned int width() const {return m_width;}
         unsigned int height() const {return m_height;}
+        unsigned int sequenceLength() const {return (unsigned int)m_sequence;}
+        Sequence sequence() const {return m_sequence;}
     protected:
         friend class XODMRImaging;
+        Sequence m_sequence;
         double m_gainForDisp;
-        unsigned int m_accumulated[2];
+        unsigned int m_accumulated[4];
         unsigned int m_wheelIndex;
-        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[2];//MW off and on.
-        double m_coefficients[2];
-        std::vector<double> m_sampleIntensities[2];
-        std::vector<double> m_pl0;
-        std::vector<double> m_referenceIntensities[2];
+        local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
+        double m_coefficients[4];
+        std::vector<double> m_sampleIntensities[4];
+        std::vector<double> m_sampleIntensitiesCorrected[4];
+        std::vector<double> m_referenceIntensities[4];
         XTime m_timeClearRequested;
         unsigned int m_width, m_height;
-        bool isCurrentImageMWOn() const {return m_accumulated[0] > m_accumulated[1];}
-        unsigned int currentIndex() const {return isCurrentImageMWOn() ? 1 : 0;}
+        unsigned int currentIndex() const {
+            for(unsigned int i = 1; i < sequenceLength(); ++i) {
+                if(m_accumulated[i] < m_accumulated[0])
+                    return i;
+            }
+            return 0;
+        }
         shared_ptr<QImage> m_qimage;
     };
 protected:
@@ -119,6 +143,7 @@ private:
     const shared_ptr<XDoubleNode> m_maxDPLoPLForDisp; //!< [%]
     const shared_ptr<XComboNode> m_dispMethod;
     const shared_ptr<XUIntNode> m_refIntensFrames;
+    const shared_ptr<XComboNode> m_sequence;
 
     const qshared_ptr<FrmODMRImaging> m_form;
     const shared_ptr<X2DImage> m_processedImage;
@@ -136,7 +161,7 @@ private:
     void onClearAverageTouched(const Snapshot &shot, XTouchableNode *);
     void onCondChanged(const Snapshot &shot, XValueNodeBase *);
 
-    constexpr static unsigned int NumSummedCountsPool = 3;
+    constexpr static unsigned int NumSummedCountsPool = 5;
     atomic_shared_ptr<std::vector<uint32_t>> m_summedCountsPool[NumSummedCountsPool];
     local_shared_ptr<std::vector<uint32_t>> summedCountsFromPool(int imagebytes);
 };
