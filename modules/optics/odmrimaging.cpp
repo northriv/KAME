@@ -170,21 +170,21 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     unsigned int width = shot_camera[ *camera__].width();
     unsigned int height = shot_camera[ *camera__].height();
     unsigned int raw_stride = shot_camera[ *camera__].stride();
-    if( !tr[ *incrementalAverage()] && !clear && (emitter == camera__.get())) {
-        clear = true;
-        for(unsigned int i: {0, 1}) {
-            if(std::max(1u, (unsigned int)tr[ *average()]) > tr[ *this].m_accumulated[i])
-                clear = false;
-        }
-    }
     auto seq = std::map<unsigned int, Sequence>
-        {{0, Sequence::OFF_ON},{1, Sequence::OFF_OFF_ON},{0, Sequence::OFF_OFF_OFF_ON}
+        {{0, Sequence::OFF_ON},{1, Sequence::OFF_OFF_ON},{2, Sequence::OFF_OFF_OFF_ON}
         }.at(shot_this[ *sequence()]);
     if(tr[ *this].sequence() != seq) {
         clear = true;
         tr[ *this].m_sequence = seq;
     }
     unsigned int seq_len = shot_this[ *this].sequenceLength();
+    if( !tr[ *incrementalAverage()] && !clear && (emitter == camera__.get())) {
+        clear = true;
+        for(unsigned int i = 0; i < seq_len; ++i) {
+            if(std::max(1u, (unsigned int)tr[ *average()]) > tr[ *this].m_accumulated[i])
+                clear = false;
+        }
+    }
     for(unsigned int i = 0; i < seq_len; ++i) {
         if( !tr[ *this].m_summedCounts[i] || (tr[ *this].m_summedCounts[i]->size() != width * height)) {
             tr[ *this].m_summedCounts[i] = make_local_shared<std::vector<uint32_t>>(width * height, 0);
@@ -252,8 +252,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                 dplopl_min = (double)dpl / v;
             }
         }
-        assert(summed[0] == &tr[ *this].m_summedCounts[0]->at(0) + width * height);
-        assert(summed[1] == &tr[ *this].m_summedCounts[1]->at(0) + width * height);
+        assert(summed[0] == &tr[ *this].m_summedCounts[seq_len - 2 + 0]->at(0) + width * height);
+        assert(summed[1] == &tr[ *this].m_summedCounts[seq_len - 2 + 1]->at(0) + width * height);
 
         if(vmax > 0) {
             tr[ *gainForDisp()]  = lrint((double)0xffffu / (vmax / tr[ *this].m_accumulated[0]));
@@ -311,10 +311,12 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                 darks[i] = std::accumulate(vec.begin(), vec.end(), 0) / pixels;
             }
         }
-        if(shot_this.size(m_referenceToolLists[0]) &&
-            shot_this.size(m_referenceToolLists[0]) == shot_this.size(m_referenceToolLists[1])) {
-            for(unsigned int cidx: {0,1}) {
-                fn_tool_to_vector(tr[ *this].m_referenceIntensities[cidx], m_referenceToolLists[cidx], darks[cidx]);
+        if(shot_this.size(m_referenceToolLists[0])) {
+            for(unsigned int i = 0; i < seq_len; ++i) {
+                unsigned int tidx = 4 - seq_len + i;
+                if(shot_this.size(m_referenceToolLists[0]) != shot_this.size(m_referenceToolLists[tidx]))
+                    continue;
+                fn_tool_to_vector(tr[ *this].m_referenceIntensities[i], m_referenceToolLists[tidx], darks[i]);
             }
         }
         if(shot_this.size(m_sampleToolLists[0])) {
@@ -362,12 +364,12 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     }
 
     if(tr[ *incrementalAverage()]) {
-        tr[ *average()] = tr[ *this].m_accumulated[1];
+        tr[ *average()] = tr[ *this].m_accumulated[seq_len - 1];
         tr.unmark(m_lsnOnCondChanged);
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     else {
-        if(tr[ *average()] > tr[ *this].m_accumulated[1])
+        if(tr[ *average()] > tr[ *this].m_accumulated[seq_len - 1])
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
 }

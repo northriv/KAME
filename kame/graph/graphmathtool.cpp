@@ -54,49 +54,47 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 XGraph2DMathTool::~XGraph2DMathTool() {
 }
 void
-XGraph1DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
+XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
         return;
     }
-    Snapshot shot_this( *this);
      //painter unchanged unless the same address is recycled.
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
     }
 
     if(auto plot = m_plot.lock()) {
-        double bgx = shot_this[ *begin()];
-        double edx = shot_this[ *end()];
+        double bgx = shot[ *begin()];
+        double edx = shot[ *end()];
         double bgy = 0.0;
         double edy = 1.0;
         auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso);
-        oso->setBaseColor(shot_this[ *m_baseColor]);
+        oso->setBaseColor(shot[ *m_baseColor]);
         oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
     }
 }
 void
-XGraph2DMathTool::updateOnScreenObjects(XQGraph *graphwidget) {
+XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
         return;
     }
     //painter unchanged unless the same address is recycled.
-    Snapshot shot_this( *this);
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
     }
 
     if(auto plot = m_plot.lock()) {
-        double bgx = shot_this[ *beginX()];
-        double bgy = shot_this[ *beginY()];
-        double edx = shot_this[ *endX()];
-        double edy = shot_this[ *endY()];
+        double bgx = shot[ *beginX()];
+        double bgy = shot[ *beginY()];
+        double edx = shot[ *endX()];
+        double edy = shot[ *endY()];
         XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
         auto oso = static_pointer_cast<OnPlotRectObject>(m_oso);
-        oso->setBaseColor(shot_this[ *m_baseColor]);
+        oso->setBaseColor(shot[ *m_baseColor]);
         oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
     }
 }
@@ -206,14 +204,14 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
     auto node = createByTypename("Graph1DMathTool" + label, formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
         label.c_str(), src, dst));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
-    tool->iterate_commit([&](Transaction &tr){
+    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src > dst)
             std::swap(src, dst);
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
         tr[ *tool->baseColor()] = m_basecolor;
     });
-    tool->updateOnScreenObjects(widget);
+    tool->updateOnScreenObjects(shot_tool, widget);
 }
 
 void
@@ -226,7 +224,7 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
     auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
-    tool->iterate_commit([&](Transaction &tr){
+    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)
             std::swap(src.x, dst.x);
         if(src.y > dst.y)
@@ -237,5 +235,5 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->endY()] = dst.y;
         tr[ *tool->baseColor()] = m_basecolor;
     });
-    tool->updateOnScreenObjects(widget);
+    tool->updateOnScreenObjects(shot_tool, widget);
 }

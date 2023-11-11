@@ -41,7 +41,7 @@ public:
 
     virtual void releaseEntries(Transaction &tr) {}
 
-    void updateOnScreenObjects(XQGraph *graphwidget);
+    void updateOnScreenObjects(const Snapshot &shot,XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
@@ -72,7 +72,7 @@ public:
     }
     virtual void releaseEntries(Transaction &tr) {}
 
-    void updateOnScreenObjects(XQGraph *graphwidget);
+    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
@@ -97,7 +97,7 @@ public:
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
-        updateOnScreenObjects(graphwidget);
+        updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
@@ -120,7 +120,7 @@ public:
         unsigned int stride, unsigned int numlines, double coefficient) override {
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
-        updateOnScreenObjects(graphwidget);
+        updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
