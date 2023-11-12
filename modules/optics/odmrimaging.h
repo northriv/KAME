@@ -80,6 +80,11 @@ public:
         }
         double dPL(unsigned int i) const {
             double pl_off = plCorr(sequenceLength() - 2, i);
+//            pl_off = 0;
+//            for(unsigned int j = 0; j < sequenceLength() - 1; ++j) {
+//                pl_off += plCorr(j, i);
+//            }
+//            pl_off /= sequenceLength() - 1;
             double pl_on = plCorr(sequenceLength() - 1, i);
             return pl_on - pl_off;
         }

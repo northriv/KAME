@@ -274,6 +274,7 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
 		shared_ptr<XSG> sg1__ = shot_this[ *sg1()];
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
         Snapshot shot_odmr( *odmr__);
+        unsigned int seq_len = shot_odmr[ *odmr__].sequenceLength();
         if(sg1__ && odmr__) {
             trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
@@ -282,7 +283,7 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
             sg1__->iterate_commit([=](Transaction &tr){
                 unsigned int avg = shot_odmr[ *odmr__->average()];
                 avg = std::max(1u, avg);
-                tr[ *sg1__->sweepPoints()] = 2 * avg;
+                tr[ *sg1__->sweepPoints()] = seq_len * avg;
             });
         }
     }
@@ -327,9 +328,9 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
                 tr[ *sg1__->freq()] = newf;
             });
             sg1__->iterate_commit([=](Transaction &tr){
-                unsigned int avg = shot_odmr[ *odmr__->average()];
-                avg = std::max(1u, avg);
-                tr[ *sg1__->sweepPoints()] = 2 * avg;
+//                unsigned int avg = shot_odmr[ *odmr__->average()];
+//                avg = std::max(1u, avg);
+                tr[ *sg1__->sweepPoints()] = (unsigned int)shot_sg[ *sg1__->sweepPoints()]; //initiates one sweep.
             });
         }
     }
