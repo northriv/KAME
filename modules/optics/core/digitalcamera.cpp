@@ -257,7 +257,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
     const Payload::Edge *edge_min = &edges.front();
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
-    const unsigned int num_conv_tsvd = std::min(7, antishake_pixels / 3 * 2 + 1);
+    const unsigned int num_conv_tsvd = std::min(9, antishake_pixels / 2 * 2 + 1);
     const unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
     const int max_pixelshift_bycog = antishake_pixels;
     unsigned int svd_lenysqrt = 2 * antishake_pixels + 1;
@@ -391,8 +391,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     matA(i, j) = (double)raw[y * width + x];
                 }
             }
-            //100, max_pixels - 1 was good for >5
-            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 500, max_rank - 1);
+            //100, max_pixels - 1 was good? for >5
+            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 500, max_rank);
             tr[ *this].m_edgesOrig = edges;
         }
         else {
