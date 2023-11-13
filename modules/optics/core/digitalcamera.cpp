@@ -259,8 +259,8 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
     const unsigned int num_conv_tsvd = std::min(7, antishake_pixels / 3 * 2 + 1);
     const unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
-    const unsigned int svd_lenysqrt = 2 * antishake_pixels + 1;
     const int max_pixelshift_bycog = antishake_pixels;
+    unsigned int svd_lenysqrt = 2 * antishake_pixels + 1;
     //stores prominent edge, which does not overwraps each other.
     auto fn_detect_edge = [&edges, &edge_min, &raw_lines, svd_lenysqrt, num_edges](unsigned int x, unsigned int y) {
 // kernel
@@ -366,7 +366,7 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
     if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
         tr[ *this].m_antishake_pixels = antishake_pixels;
-        if(antishake_pixels > 0) {
+        if((antishake_pixels > 0) && (num_conv_tsvd >= 3)) {
             if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
                 throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
 
@@ -391,16 +391,21 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                     matA(i, j) = (double)raw[y * width + x];
                 }
             }
-            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 1000, max_rank);
+            //100, max_pixels - 1 was good for >5
+            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 500, max_rank - 1);
             tr[ *this].m_edgesOrig = edges;
+        }
+        else {
+            tr[ *this].m_tsvd.reset();
         }
     }
     antishake_pixels = tr[ *this].m_antishake_pixels;
+    svd_lenysqrt = 2 * antishake_pixels + 1; //antishake_pixels may be older than the preset value.
     tr[ *this].m_stride = width;
     const int pixels_skip = max_pixelshift_bycog + svd_lenysqrt / 2;
     tr[ *this].m_width = width - 2 * pixels_skip;
     tr[ *this].m_height = height - 2 * pixels_skip;
-    if(antishake_pixels) {
+    if(antishake_pixels && tr[ *this].m_tsvd) {
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
         int shift_x = lrint(shift_dx);
