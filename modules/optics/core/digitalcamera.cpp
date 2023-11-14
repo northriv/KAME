@@ -19,7 +19,6 @@
 #include "graphpainter.h"
 #include "xnodeconnector.h"
 #include "graphmathtool.h"
-#include "tikhonovreg.h"
 
 XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -257,12 +256,11 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     std::deque<Payload::Edge> edges = {{0,0,0,0,0}};
     const Payload::Edge *edge_min = &edges.front();
     int32_t antishake_pixels = tr[ *m_antiShakePixels];
-    const unsigned int num_conv_tsvd = std::min(9, antishake_pixels / 2 * 2 + 1);
-    const unsigned int num_edges = num_conv_tsvd * num_conv_tsvd * 2;
+    constexpr unsigned int num_edges = 10;
+    constexpr unsigned int kernel_len = 4; //cubic
     const int max_pixelshift_bycog = antishake_pixels;
-    unsigned int svd_lenysqrt = 2 * antishake_pixels + 1;
     //stores prominent edge, which does not overwraps each other.
-    auto fn_detect_edge = [&edges, &edge_min, &raw_lines, svd_lenysqrt, num_edges](unsigned int x, unsigned int y) {
+    auto fn_detect_edge = [&edges, &edge_min, &raw_lines](unsigned int x, unsigned int y) {
 // kernel
 //        sobel_x = [-1 0 1; -2 0 2; -1 0 1];
 //        sobel_y = [-1 -2 -1; 0 0 0; 1 2 1];
@@ -276,12 +274,12 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
 //        *(raw_prevlines[1] - 2) = *(rawNext - 2);
         uint64_t sobel_norm = sobel_x * sobel_x + sobel_y * sobel_y;
         if((edge_min->sobel_norm < sobel_norm) &&
-            (x >= num_conv - 1 + svd_lenysqrt) && (y >= num_conv + 1 + svd_lenysqrt)) {
+            (x >= num_conv - 1 + kernel_len) && (y >= num_conv + 1 + kernel_len)) {
             if(edge_min->sobel_norm == 0)
                 edges.clear(); //erases dummy edge.
             //abandon overwrapping edges.
-            auto it = std::find_if(edges.begin(), edges.end(), [x, y, svd_lenysqrt](const auto &v){
-                return ((v.x - (x - 1)) <= svd_lenysqrt) && ((v.y - (y - 1)) <= svd_lenysqrt);});
+            auto it = std::find_if(edges.begin(), edges.end(), [x, y](const auto &v){
+                return ((v.x - (x - 1)) <= kernel_len) && ((v.y - (y - 1)) <= kernel_len);});
             bool isvalid = true;
             if(it != edges.end()) {
                 if(it->sobel_norm < sobel_norm)
@@ -366,51 +364,29 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     }
     if(m_storeAntiShakeInvoked.compare_set_strong(true, false)) { // && (cidx == 0)
         tr[ *this].m_antishake_pixels = antishake_pixels;
-        if((antishake_pixels > 0) && (num_conv_tsvd >= 3)) {
+        if(antishake_pixels > 0) {
             if(std::min(width, height) < tr[ *m_antiShakePixels] * 16)
                 throw XSkippedRecordError(i18n("Too many pixels for antishaking."), __FILE__, __LINE__);
 
             //stores original image info. before shake.
             tr[ *this].m_cogXOrig = (double)cogx / toti;
             tr[ *this].m_cogYOrig = (double)cogy / toti;
-    //        N x N kernel, p-th M x M image around the edge.
-    //        I^p(m, n) = I^p_orig(x0 + m + a - N/2 - M/2, y0 + n + b - N/2 - M/2) kab
-    //        y_i = I^{i / M^2}((i % M^2) / M, (i % M^2) % M), i < M^2
-    //        x_j = k(j / N, j % N), j < N^2
-    //        A_ij = I^{i / M^2}_orig((i % M^2) / M + j / N - N/2 - M/2, (i % M^2) % M + j % N - N/2 - M/2)
-            const unsigned int max_rank = num_conv_tsvd * num_conv_tsvd;
-            const unsigned int n = num_conv_tsvd;
-            const unsigned int m = svd_lenysqrt;
-            Eigen::MatrixXd matA = Eigen::MatrixXd::Zero(m * m * edges.size(), n * n);
-            const uint32_t *raw = &rawCountsNext->at(0);
-            for(unsigned int i = 0; i < matA.rows(); ++i) {
-                unsigned int p = i / m / m;
-                for(unsigned int j = 0; j < matA.cols(); ++j) {
-                    unsigned int y = (i % (m * m)) / m + j / n + edges[p].y - n / 2 - m / 2;
-                    unsigned int x = (i % (m * m)) % m + j % n + edges[p].x - n / 2 - m / 2;
-                    matA(i, j) = (double)raw[y * width + x];
-                }
-            }
-            //100, max_pixels - 1 was good? for >5
-            tr[ *this].m_tsvd = std::make_shared<TikhonovRegular>(matA, TikhonovRegular::TikhonovMatrix::I, 500, max_rank);
             tr[ *this].m_edgesOrig = edges;
-        }
-        else {
-            tr[ *this].m_tsvd.reset();
         }
     }
     antishake_pixels = tr[ *this].m_antishake_pixels;
-    svd_lenysqrt = 2 * antishake_pixels + 1; //antishake_pixels may be older than the preset value.
     tr[ *this].m_stride = width;
-    const int pixels_skip = max_pixelshift_bycog + svd_lenysqrt / 2;
+    const int pixels_skip = max_pixelshift_bycog + (kernel_len - 1) / 2;
     tr[ *this].m_width = width - 2 * pixels_skip;
     tr[ *this].m_height = height - 2 * pixels_skip;
-    if(antishake_pixels && tr[ *this].m_tsvd) {
+    if(antishake_pixels) {
         //finds the pixels shifts
         double shift_dx = (double)cogx / toti - tr[ *this].m_cogXOrig;
-        int shift_x = lrint(shift_dx);
+        int shift_x = floor(shift_dx);
+        shift_dx -= shift_x;
         double shift_dy = (double)cogy / toti - tr[ *this].m_cogYOrig;
-        int shift_y = lrint(shift_dy);
+        int shift_y = floor(shift_dy);
+        shift_dy -= shift_y;
         shift_x = std::min(shift_x, max_pixelshift_bycog);
         shift_x = std::max(shift_x, -max_pixelshift_bycog);
         shift_y = std::min(shift_y, max_pixelshift_bycog);
@@ -419,36 +395,25 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
         tr[ *this].m_firstPixel = (shift_y + pixels_skip) * width + shift_x + pixels_skip; //(0,0) origin for the secondary drivers.
         const auto &edge_orig = tr[ *this].m_edgesOrig;
         {
-            const unsigned int n = num_conv_tsvd;
-            const unsigned int m = svd_lenysqrt;
-            Eigen::VectorXd vecY = Eigen::VectorXd::Zero(m * m * edge_orig.size());
-            const uint32_t *raw = &tr[ *this].m_rawCounts->at(0);
-            for(unsigned int p = 0; p < edge_orig.size(); ++p) {
-                unsigned int x0 =  edge_orig[p].x - m / 2 + shift_x;
-                unsigned int y0 =  edge_orig[p].y - m / 2 + shift_y;
-                assert(x0 + m < width);
-                assert(y0 + m < height);
-                for(unsigned int i = 0; i < m * m; ++i) {
-                    unsigned int y = i / m + y0;
-                    unsigned int x = i % m + x0;
-                    vecY(p * m * m + i) = (double)raw[y * width + x];
+            //bi-cubic interpolation
+            std::vector<int64_t> kernel(kernel_len * kernel_len);
+            constexpr double a = -0.2;
+            for(unsigned int ky = 0; ky < kernel_len; ++ky) {
+                for(unsigned int kx = 0; kx < kernel_len; ++kx) {
+                    double x = pow(kx - shift_dx - (kernel_len - 1)/2, 2.0) + pow(ky - shift_dy - (kernel_len - 1)/2, 2.0);
+                    x = sqrt(x);
+                    if(x < 1.0)
+                        x = (a+2)*x*x*x - (a+3)*x*x + 1;
+                    else if(x < 2)
+                        x = a*x*x*x -5*a*x*x + 8*a*x - 4*a;
+                    else
+                        x = 0.0;
+                    kernel[ky * kernel_len + kx] = llrint(x * 0x100000000LL * 0x100LL);
                 }
             }
-            for(unsigned int i = 0; i < vecY.size(); ++i) {
-                unsigned int p = i / m / m;
-                unsigned int y = (i % (m * m)) / m + edge_orig[p].y - m / 2;
-                unsigned int x = (i % (m * m)) % m + edge_orig[p].x - m / 2;
-                vecY(i) = (double)raw[y * width + x];
-            }
-
-            Eigen::VectorXd vecX = tr[ *this].m_tsvd->solve(vecY); //kernel
-            vecX *= 0x100000000LL;
-            vecX = vecX.array().round();
-            vecX /= (vecX.sum() / 0x100000000LL);
-            std::vector<int64_t> kernel(vecX.size()); //mult. by 0x100000000LL
-            for(unsigned int i = 0; i < vecX.size(); ++i) {
-                kernel[i] = llrint(vecX(i));
-            }
+            double frac = (double)0x100000000LL / std::accumulate(kernel.begin(), kernel.end(), 0LL);
+            for(auto &&x: kernel)
+                x = llrint(x * frac);
             {
                 //convolution.
                 uint32_t *raw = &tr[ *this].m_rawCounts->at(tr[ *this].firstPixel());
@@ -456,20 +421,21 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                 unsigned int width = tr[ *this].width();
                 unsigned int height = tr[ *this].height();
                 //copies (-N/2, -N/2) to (width + N/2, N/2) pixels for convolution, not to be overwritten by new values.
-                std::vector<uint32_t> cache_orig_lines[num_conv_tsvd];
-                for(int k = 0; k < num_conv_tsvd; ++k) {
-                    cache_orig_lines[k].resize(width + num_conv_tsvd);
-                    const uint32_t *bg = raw - num_conv_tsvd/2 + (k - (int)num_conv_tsvd/2) * (int)stride;
+                std::vector<uint32_t> cache_orig_lines[kernel_len];
+                for(int k = 0; k < kernel_len; ++k) {
+                    cache_orig_lines[k].resize(width + kernel_len);
+                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (k - (int)(kernel_len - 1)/2) * (int)stride;
                     assert(bg >= &tr[ *this].m_rawCounts->at(0));
-                    std::copy(bg, bg + width + num_conv_tsvd, &cache_orig_lines[k][0]);
+                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[k][0]);
                 }
                 int64_t sum = 0;
-                for(unsigned int y  = 0; y < height; ++y) {
+                uint32_t *raw_x0 = raw;
+                for(unsigned int y = 0; y < height; ++y) {
                     for(unsigned int x  = 0; x < width; ++x) {
                         const int64_t *pk = &kernel[0];
-                        for(unsigned int ky = 0; ky < num_conv_tsvd; ++ky) {
+                        for(unsigned int ky = 0; ky < kernel_len; ++ky) {
                             const uint32_t *v = &cache_orig_lines[ky][x];
-                            for(unsigned int kx = 0; kx < num_conv_tsvd; ++kx) {
+                            for(unsigned int kx = 0; kx < kernel_len; ++kx) {
                                 sum += (uint64_t)*v++ * *pk++;
                             }
                         }
@@ -477,12 +443,14 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
                         sum = sum % 0x100000000uLL; //leaves residual.
                         *raw++ = w;
                     }
+                    raw_x0 += stride;
+                    raw = raw_x0;
                     //slides cached values and retrieves original values.
-                    for(unsigned int k = 0; k < num_conv_tsvd - 1; ++k) {
+                    for(unsigned int k = 0; k < kernel_len - 1; ++k) {
                         std::copy(cache_orig_lines[k + 1].begin(), cache_orig_lines[k + 1].end(), &cache_orig_lines[k][0]);
                     }
-                    const uint32_t *bg = raw - num_conv_tsvd/2 + (num_conv_tsvd/2) * stride;
-                    std::copy(bg, bg + width + num_conv_tsvd, &cache_orig_lines[num_conv_tsvd - 1][0]);
+                    const uint32_t *bg = raw - (kernel_len - 1)/2 + (kernel_len - 1 - (int)(kernel_len - 1)/2) * stride;
+                    std::copy(bg, bg + width + kernel_len, &cache_orig_lines[kernel_len - 1][0]);
                 }
             }
         }
