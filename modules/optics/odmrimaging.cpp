@@ -187,7 +187,6 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     }
     for(unsigned int i = 0; i < seq_len; ++i) {
         if( !tr[ *this].m_summedCounts[i] || (tr[ *this].m_summedCounts[i]->size() != width * height)) {
-            tr[ *this].m_summedCounts[i] = make_local_shared<std::vector<uint32_t>>(width * height, 0);
             clear = true;
         }
     }
@@ -195,6 +194,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     tr[ *this].m_height = height;
     if(clear) {
         for(unsigned int i = 0; i < seq_len; ++i) {
+            tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
         }
