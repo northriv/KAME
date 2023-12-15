@@ -168,54 +168,54 @@ XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
 
 void
 XDigitalCamera::visualize(const Snapshot &shot) {
-      iterate_commit([&](Transaction &tr){
-          tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
-          if( !!shot[ *this].time()) {
-              uint32_t gain_disp = lrint(0x100u * shot[ *gainForDisp()]);
-              const uint32_t *raw = &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel());
-              unsigned int stride = shot[ *this].stride();
-              unsigned int width = shot[ *this].width();
-              unsigned int height = shot[ *this].height();
-              auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
-              uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
-              if( !tr[ *this].m_darkCounts) {
-                  for(unsigned int y  = 0; y < height; ++y) {
-                      for(unsigned int x  = 0; x < width; ++x) {
-                           uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
-                           if(w >= 0x10000u)
-                               w = 0xffffu;
-                           *words++ = w;
-                      }
-                      raw += stride - width;
-                  }
-              }
-              else {
-                  const uint32_t *dark = &shot[ *this].m_darkCounts->at(shot[ *this].firstPixel());
-                  for(unsigned int y  = 0; y < height; ++y) {
-                      for(unsigned int x  = 0; x < width; ++x) {
-                          int32_t v = *raw++ - *dark++;
-                          if(v < 0) v = 0;
-                          uint32_t w = v * gain_disp / 0x100u; //16bitFS if G=1
-                          if(w >= 0x10000u)
-                              w = 0xffffu;
-                          *words++ = w;
-                      }
-                      raw += stride - width;
-                      dark += stride - width;
-                  }
-              }
-              assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
-              tr[ *this].m_qimage = liveimage;
+    if( !shot[ *this].time())
+        return;
+    uint32_t gain_disp = lrint(0x100u * shot[ *gainForDisp()]);
+    const uint32_t *raw = &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel());
+    unsigned int stride = shot[ *this].stride();
+    unsigned int width = shot[ *this].width();
+    unsigned int height = shot[ *this].height();
+    auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
+    uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
+    if( !shot[ *this].m_darkCounts) {
+        for(unsigned int y  = 0; y < height; ++y) {
+            for(unsigned int x  = 0; x < width; ++x) {
+                 uint32_t w = *raw++ * gain_disp / 0x100u; //16bitFS if G=1
+                 if(w >= 0x10000u)
+                     w = 0xffffu;
+                 *words++ = w;
+            }
+            raw += stride - width;
+        }
+    }
+    else {
+        const uint32_t *dark = &shot[ *this].m_darkCounts->at(shot[ *this].firstPixel());
+        for(unsigned int y  = 0; y < height; ++y) {
+            for(unsigned int x  = 0; x < width; ++x) {
+                int32_t v = *raw++ - *dark++;
+                if(v < 0) v = 0;
+                uint32_t w = v * gain_disp / 0x100u; //16bitFS if G=1
+                if(w >= 0x10000u)
+                    w = 0xffffu;
+                *words++ = w;
+            }
+            raw += stride - width;
+            dark += stride - width;
+        }
+    }
+    assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
 
-              std::vector<double> coeffs = {1.0};
-              std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
-              if(tr[ *this].m_darkCounts) {
-                  coeffs.push_back(1.0);
-                  rawimages.push_back(&shot[ *this].m_darkCounts->at(shot[ *this].firstPixel()));
-              }
-              m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
-          }
-      });
+    std::vector<double> coeffs = {1.0};
+    std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
+    if(shot[ *this].m_darkCounts) {
+        coeffs.push_back(1.0);
+        rawimages.push_back(&shot[ *this].m_darkCounts->at(shot[ *this].firstPixel()));
+    }
+    iterate_commit([&](Transaction &tr){
+      tr[ *m_liveImage->graph()->onScreenStrings()] = shot[ *this].m_status;
+      tr[ *this].m_qimage = liveimage;
+      m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
+    });
 }
 
 local_shared_ptr<std::vector<uint32_t>>
