@@ -382,6 +382,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
             auto &list = *shot_entries.list();
             for(auto &&x: m_samplePLEntries) {
                 if(std::find(list.begin(), list.end(), x.second) == list.end()) {
+                    //todo using tr = shot
                     entries->insert(x.second);
                 }
             }
@@ -431,11 +432,14 @@ XODMRImaging::visualize(const Snapshot &shot) {
         }
     }
 
-    if( !shot[ *this].m_accumulated[0] || (shot[ *this].m_accumulated[0] != shot[ *this].m_accumulated[1]))
+    if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))
         return;
+
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
     auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA8888);
+
+    unsigned int seq_len = shot[ *this].sequenceLength();
 
     {
         uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] / 256.0 * shot[ *this].m_coefficients[0]);
@@ -465,7 +469,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
         uint8_t *processed = reinterpret_cast<uint8_t*>(qimage->bits());
         const uint32_t *summed[2];
         for(unsigned int cidx: {0,1})
-            summed[cidx] = &shot[ *this].m_summedCounts[cidx]->at(0);
+            summed[cidx] = &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0);
 
         for(unsigned int i  = 0; i < width * height; ++i) {
             int32_t dpl = *summed[1] - *summed[0];
@@ -479,16 +483,16 @@ XODMRImaging::visualize(const Snapshot &shot) {
                 (summed[cidx])++;
         }
         assert(processed == qimage->constBits() + width * height * 4);
-        assert(summed[0] == &shot[ *this].m_summedCounts[0]->at(0) + width * height);
-        assert(summed[1] == &shot[ *this].m_summedCounts[1]->at(0) + width * height);
+        assert(summed[0] == &shot[ *this].m_summedCounts[seq_len - 2]->at(0) + width * height);
+        assert(summed[1] == &shot[ *this].m_summedCounts[seq_len - 1]->at(0) + width * height);
     }
 
 
     std::vector<double> coeffs;
     std::vector<const uint32_t *> rawimages;
     for(unsigned int cidx: {0,1}) {
-        coeffs.push_back(shot[ *this].m_coefficients[cidx]);
-        rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
+        coeffs.push_back(shot[ *this].m_coefficients[seq_len - 2 + cidx]);
+        rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
     }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
