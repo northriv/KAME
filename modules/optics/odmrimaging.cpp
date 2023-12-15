@@ -107,7 +107,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
 
     iterate_commit([=](Transaction &tr){
         m_lsnOnClearAverageTouched = tr[ *clearAverage()].onTouch().connectWeakly(
-            shared_from_this(), &XODMRImaging::onClearAverageTouched, Listener::FLAG_MAIN_THREAD_CALL);
+            shared_from_this(), &XODMRImaging::onClearAverageTouched);
         m_lsnOnCondChanged = tr[ *average()].onValueChanged().connectWeakly(
             shared_from_this(), &XODMRImaging::onCondChanged);
         tr[ *gainForDisp()].onValueChanged().connect(m_lsnOnCondChanged);
