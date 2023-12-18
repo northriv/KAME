@@ -14,16 +14,15 @@ public:
     Ruby(const char *scriptname);
     ~Ruby();
 
-    static const int Nil;
-    static const int False;
-    static const int True;
-
     //! \return state.
     int evalProtect(const char* str);
 
     void printErrorInfo();
 
-    typedef uintptr_t Value; //has to be identical to VALUE
+    using Value = uintptr_t; //has to be identical to VALUE
+    static const Value Nil;
+    static const Value False;
+    static const Value True;
 
     void defineGlobalConst(const char *rbname, Value obj);
 

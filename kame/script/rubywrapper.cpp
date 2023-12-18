@@ -8,9 +8,9 @@
 
 static_assert(sizeof(VALUE) == sizeof(Ruby::Value), "Size mismatch for VALUE.");
 
-const int Ruby::Nil = Qnil;
-const int Ruby::False = Qfalse;
-const int Ruby::True = Qtrue;
+const Ruby::Value Ruby::Nil = Qnil;
+const Ruby::Value Ruby::False = Qfalse;
+const Ruby::Value Ruby::True = Qtrue;
 
 Ruby::Ruby(const char *scriptname) {
 	ruby_init();
