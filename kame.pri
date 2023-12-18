@@ -79,7 +79,12 @@ win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
     LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl/.libs
     LIBS += -lgsl #-lgslcblas
-    LIBS += -lfftw3-3
+    contains(QMAKE_HOST.arch, x86_64) {
+        LIBS += -lfftw3
+    }
+    else {
+        LIBS += -lfftw3-3
+    }
 }
 win32-msvc* {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../gsl
@@ -113,8 +118,6 @@ else {
             win32-g++ {
             #workaround for movaps alignment problem
                 QMAKE_CXXFLAGS += -mstackrealign
-            #workaround for section shortage
-                QMAKE_CXXFLAGS_DEBUG += -Os
             #increases stack size to 8MB, the same as Linux/OS X.
                 QMAKE_CXXFLAGS += -Wl,--stack,8388608
             }
@@ -123,5 +126,7 @@ else {
     win32-g++ {
         #for stupid mingw32
         QMAKE_CXXFLAGS += -fpermissive
+        #workaround for section shortage
+        QMAKE_CXXFLAGS_DEBUG += -Os
     }
 }

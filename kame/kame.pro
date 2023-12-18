@@ -222,12 +222,13 @@ else:unix {
 win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
-    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/libmsvcrt-ruby*[0-9].dll.a)
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw64
+    LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/lib*msvcrt-ruby*[0-9].dll.a)
     RUBYH = $$files(c:/msys64/mingw64/include/ruby-*[.0-9]/ruby.h)
     exists(RUBYH): INCLUDEPATH += $$dirname($$RUBYH)
-    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
-    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
-    LIBS += $$files(c:/msys64/usr/lib/libruby*[0-9].dll.a)
+#    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0
+#    INCLUDEPATH += c:/msys64/mingw64/include/ruby-3.1.0/x64-mingw32
+#    LIBS += $$files(c:/msys64/mingw64/lib/libx64-msvcrt-ruby*[0-9].dll.a)
     LIBS += -lopengl32 -lglu32
 }
 win32-msvc* {
@@ -241,9 +242,14 @@ win32-msvc* {
 }
 
 win32 {
-    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
-    LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
-    LIBS += -lzdll
+    contains(QMAKE_HOST.arch, x86_64) {
+        LIBS += -lz
+    }
+    else {
+        INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/include
+        LIBS += -L$${_PRO_FILE_PWD_}/$${PRI_DIR}../zlib/lib
+        LIBS += -lzdll
+    }
 }
 win32-msvc* {
     QMAKE_PRE_LINK += lib /machine:x86 /def:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.def /out:$${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3/libfftw3-3.lib
