@@ -270,14 +270,14 @@ XRuby::getValueOfNode(const shared_ptr<XValueNodeBase> &node) {
 shared_ptr<XRubyThread>
 XRuby::findRubyThread(const shared_ptr<XNode> &, Ruby::Value threadid)
 {
-    long id = Ruby::convert<long>(threadid);
+    XString id = Ruby::convert<const char*>(threadid);
 	shared_ptr<XRubyThread> rubythread;
     Snapshot shot(*this);
 	if(shot.size()) {
 		for(XNode::const_iterator it = shot.list()->begin(); it != shot.list()->end(); ++it) {
 			auto th = dynamic_pointer_cast<XRubyThread>( *it);
 			assert(th);
-			if(id == shot[ *th->threadID()])
+            if(id == shot[ *th->threadID()].to_str())
 				rubythread = th;
 		}
 	}

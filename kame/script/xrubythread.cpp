@@ -19,10 +19,10 @@ XRubyThread::XRubyThread(const char *name, bool runtime, const XString &filename
 	  m_status(create<XStringNode>("Status", true)),
 	  m_action(create<XStringNode>("Action", true)),
 	  m_lineinput(create<XStringNode>("LineInput", true)),
-	  m_threadID(create<XLongNode>("ThreadID", true)) {
+      m_threadID(create<XStringNode>("ThreadID", true)) {
 
 	iterate_commit([=](Transaction &tr){
-	    tr[ *m_threadID] = -1;
+        tr[ *m_threadID] = "-1";
 	    tr[ *m_filename] = filename;
 	    tr[ *m_action] = RUBY_THREAD_ACTION_STARTING;
 	    tr[ *m_status] = RUBY_THREAD_STATUS_STARTING;

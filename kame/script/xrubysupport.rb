@@ -17,7 +17,7 @@ class << $stdout
 			line = line.gsub(/^/, "<font color=#008800>")
 			line = line.gsub(/$/, "</font>")
 		end
-		XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+		XRubyThreads.my_rbdefout(line, Thread.current.object_id.to_s)
 	}
   end
 end
@@ -32,7 +32,7 @@ class << $stderr
         line = line.gsub(/\n/, "")
         line = line.gsub(/^/, "<font color=#ff0000>")
         line = line.gsub(/$/, "</font>")
-        XRubyThreads.my_rbdefout(line, Thread.current.object_id)
+        XRubyThreads.my_rbdefout(line, Thread.current.object_id.to_s)
     }
   end
 end
@@ -42,7 +42,7 @@ class Mystdin
 	end
 	def gets()
 		while(1)
-			line = XRubyThreads.my_rbdefin(Thread.current.object_id)
+			line = XRubyThreads.my_rbdefin(Thread.current.object_id.to_s)
 			if !line then
 				sleep(0.15)
 				next
@@ -253,7 +253,7 @@ begin
 	   xrbthread_action = xrbthread["Action"]
 	   xrbthread_threadid = xrbthread["ThreadID"]
 	   xrbthread_filename = xrbthread["Filename"]
-	   thread = Thread.list.find {|x| x.object_id == xrbthread_threadid.value }
+	   thread = Thread.list.find {|x| x.object_id.to_s == xrbthread_threadid.value }
 	   action = xrbthread_action.value
 	   if thread then
 	     if thread.status == "starting" then
@@ -310,7 +310,7 @@ begin
 				  Thread.current[:logfile].close() if Thread.current[:logfile]
 		       }
 		       if thread then
-		            xrbthread_threadid.value = thread.object_id
+		            xrbthread_threadid.value = thread.object_id.to_s
 			        xrbthread_status.value = thread.status
 		       else
 		            xrbthread_action.value = "failure"

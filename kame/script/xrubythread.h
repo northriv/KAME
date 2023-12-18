@@ -46,7 +46,7 @@ public:
 	const shared_ptr<XStringNode> &status() const {return m_status;}
 	const shared_ptr<XStringNode> &filename() const {return m_filename;}
 //  shared_ptr<XStringNode> &action() const {return m_action;}
-	const shared_ptr<XLongNode> &threadID() const {return m_threadID;}
+    const shared_ptr<XStringNode> &threadID() const {return m_threadID;}
 
 	struct Payload : public XNode::Payload {
         using Talker = Talker<shared_ptr<XString>>;
@@ -60,7 +60,7 @@ private:
 	shared_ptr<XStringNode> m_status;
 	shared_ptr<XStringNode> m_action;
 	shared_ptr<XStringNode> m_lineinput;
-	shared_ptr<XLongNode> m_threadID;
+    shared_ptr<XStringNode> m_threadID;
     shared_ptr<Listener> m_lsnOnLineChanged;
 	void onLineChanged(const Snapshot &shot, XValueNodeBase *);
 	std::deque<XString> m_lineBuffer;
