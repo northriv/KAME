@@ -16,6 +16,11 @@
 #include <QFontMetrics>
 #include <QPainter>
 
+#if defined(WIN32)
+    PFNGLACTIVETEXTUREPROC glActiveTexture = (PFNGLACTIVETEXTUREPROC)wglGetProcAddress("glActiveTexture");
+    PFNGLMULTITEXCOORD2FPROC glMultiTexCoord2f = (PFNGLMULTITEXCOORD2FPROC)wglGetProcAddress("glMultiTexCoord2f");
+#endif
+
 using std::min;
 using std::max;
 
@@ -418,7 +423,7 @@ void
 OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {
     Text txt;
     txt.strpos = m_text.length();
-    m_text.append(str);
+    m_text.append((QString)str);
     txt.length = str.length();
     txt.pos = p;
     txt.rgba = baseColor();

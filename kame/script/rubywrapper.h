@@ -23,7 +23,7 @@ public:
 
     void printErrorInfo();
 
-    typedef unsigned long Value; //has to be identical to VALUE
+    typedef uintptr_t Value; //has to be identical to VALUE
 
     void defineGlobalConst(const char *rbname, Value obj);
 

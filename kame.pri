@@ -54,6 +54,19 @@ macx {
 }
 
 win32 {
+    contains(QMAKE_HOST.arch, x86_64) {
+        INCLUDEPATH += c:/msys64/mingw64/include
+        INCLUDEPATH += c:/msys64/mingw64/include/eigen3
+        LIBS += -Lc:/msys64/mingw64/lib
+    }
+    else {
+        INCLUDEPATH += c:/msys64/mingw32/include
+        INCLUDEPATH += c:/msys64/mingw32/include/eigen3
+        LIBS += -Lc:/msys64/mingw32/lib
+    }
+#    INCLUDEPATH += c:/msys64/usr/include
+#    LIBS += -Lc:/msys64/usr/lib
+
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../eigen3
 
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../fftw3
@@ -92,17 +105,23 @@ win32-msvc* {
     QMAKE_LFLAGS += /opt:noref
 }
 else {
-    contains(QMAKE_HOST.arch, x86) {
-        QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+    contains(QMAKE_HOST.arch, x86_64) {
     }
-}
-win32-g++ {
-#workaround for movaps alignment problem
-    QMAKE_CXXFLAGS += -mstackrealign
-#workaround for section shortage
-    QMAKE_CXXFLAGS_DEBUG += -Os
-#increases stack size to 8MB, the same as Linux/OS X.
-    QMAKE_CXXFLAGS += -Wl,--stack,8388608
-#for stupid mingw32
-    QMAKE_CXXFLAGS += -fpermissive
+    else {
+        contains(QMAKE_HOST.arch, x86) {
+            QMAKE_CXXFLAGS += -mfpmath=sse -msse -msse2
+            win32-g++ {
+            #workaround for movaps alignment problem
+                QMAKE_CXXFLAGS += -mstackrealign
+            #workaround for section shortage
+                QMAKE_CXXFLAGS_DEBUG += -Os
+            #increases stack size to 8MB, the same as Linux/OS X.
+                QMAKE_CXXFLAGS += -Wl,--stack,8388608
+            }
+        }
+    }
+    win32-g++ {
+        #for stupid mingw32
+        QMAKE_CXXFLAGS += -fpermissive
+    }
 }
