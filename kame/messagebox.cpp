@@ -26,7 +26,10 @@ static FrmMessage *s_pFrmMessage = 0L;
 static QTimer *s_timer = 0L;
 
 XMessageBox::XMessageBox(QWidget *parent) {
-    s_pFrmMessage = new FrmMessage((QWidget*)0, Qt::Tool | Qt::WindowStaysOnBottomHint |
+    s_pFrmMessage = new FrmMessage((QWidget*)0, Qt::Tool |
+#if defined __MACOSX__ || defined __APPLE__
+        Qt::WindowStaysOnBottomHint  |   //not working with windows10
+#endif
         Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
     s_pFrmMessage->show();
 
