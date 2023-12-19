@@ -1,11 +1,11 @@
-%global qtver 5.7
+%global qtver 6.5
 %global kdever 4.3
 
 Name: kame
 
 %{!?build_nidaqmx: %define build_nidaqmx 1}
 
-Version: 5.8.6
+Version: 6.0.0
 Release: 1
 License: GPL
 Group: Applications/Engineering
@@ -19,7 +19,7 @@ BuildRequires: gcc-gfortran, atlas-sse2-devel
 BuildRequires: libidn-devel
 BuildRequires: qt-devel >= %{qtver}, kdelibs >= %{kdever}, kdelibs-devel >= %{kdever}
 BuildRequires: zlib-devel, libpng-devel, libjpeg-devel
-BuildRequires: gcc-c++ >= 4.0
+BuildRequires: gcc-c++ >= 10.0
 #BuildRequires: clang >= 2.9
 
 Source0: %{name}-%{version}.tar.bz2

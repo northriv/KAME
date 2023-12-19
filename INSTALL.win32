@@ -1,5 +1,36 @@
 KAME instllation notes on Windows systems.
+(64 bit)
+Qt 6.5 with mignw64 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
 
+To build kame:
+
+Use Qt Creator and open kame.pro.
+
+Before building kame, perform the following:
+Prepare msys2 on c:\msys64 and be up-to-date (pacman -Syuu).
+install the following:
+pacman -S make
+pacman -S mingw-w64-x86_64-zlib
+pacman -S mingw-w64-x86_64-fftw
+pacman -S mingw-w64-x86_64-gsl
+pacman -S mingw-w64-x86_64-eigen3
+
+Deflate ruby-2.6.9.tar.gz to upper folder of kame source code.
+rename ruby-2.6.9 to ruby
+build ruby like this:
+	PATH=$PATH:/c/Qt/Tools/mingw1120_64/bin
+	CFLAGS="-g0 " ./configure --enable-shared --disable-rubygems
+	make
+
+National Instruments 488.2 or DAQmx drivers are optionally required.
+
+Before executing kame,
+
+Copy libfttw3-3.dll, libgsl.dll, libgslcblas-0.dll, zlib1.dll (would be found in C:\msys64\mingw64\bin), ruby/x64-msvcrt-ruby260.dll beside the kame executable.
+
+Copy kame/script/rubylineshell.rb to ./Resources
+
+(32 bit)
 Qt 5.7 with mignw32 build is necessary. Launch kame via kame.bat (PATH environment should point to QT DLLs). 
 
 To build kame:
