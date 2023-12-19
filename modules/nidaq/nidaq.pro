@@ -31,14 +31,24 @@ DEPENDPATH += $$PWD/../dso/core
 win32 {
     exists(C:/Program Files/National Instruments/NI-DAQ/DAQmx ANSI C Dev/include/NIDAQmx.h) {
         INCLUDEPATH += "C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\include"
-        LIBS += -L"C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+        contains(QMAKE_HOST.arch, x86_64) {
+            LIBS += -L"C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\lib64\msvc" -lNIDAQmx
+        }
+        else {
+            LIBS += -L"C:\Program Files\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+        }
         DEFINES += HAVE_NI_DAQMX
     }
 
     else {
         exists(C:/Program Files (x86)/National Instruments/NI-DAQ/DAQmx ANSI C Dev/include/NIDAQmx.h) {
             INCLUDEPATH += "C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\include"
-            LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+            contains(QMAKE_HOST.arch, x86_64) {
+                LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib64\msvc" -lNIDAQmx
+            }
+            else {
+                LIBS += -L"C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\lib32\msvc" -lNIDAQmx
+            }
             DEFINES += HAVE_NI_DAQMX
         }
         else {
