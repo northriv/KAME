@@ -4,8 +4,10 @@
 - Fix for message window in win32.
 - Firewire digitalcameras in maxosx.
 - ODMR staffs.
-- 
-
+- Math tools on graphs. ex. center of gravity.
+- NMRPulse: displays areas for calculations
+- SG: more modulation features for agilent E-series SGs.
+ 
 * Tue Jun 27 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
 - (5.8.6-1)
 - foures: bug fix for multi channel simultaneous measurement
