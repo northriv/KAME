@@ -223,6 +223,7 @@ win32-g++ {
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/include
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/i386-mingw32
     INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw64
+    INCLUDEPATH += $${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/.ext/include/x64-mingw32
     LIBS += $$files($${_PRO_FILE_PWD_}/$${PRI_DIR}../ruby/lib*msvcrt-ruby*[0-9].dll.a)
     RUBYH = $$files(c:/msys64/mingw64/include/ruby-*[.0-9]/ruby.h)
     exists(RUBYH): INCLUDEPATH += $$dirname($$RUBYH)
