@@ -24,6 +24,7 @@ rsync --exclude "linux686" \
 	 --exclude ".libs" \
 	 --exclude "/html" \
 	 --exclude "CVS" \
+	 --exclude "odmrimagingng.*" \
 	 . $dir/$file -av --delete
 (cd $dir/$file/tests; make clean)
 (cd $dir/$file; cat ChangeLog >> kame.spec)

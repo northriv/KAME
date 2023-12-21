@@ -3,8 +3,8 @@
 set QTDIR=
 if not exist qtdir.txt (
  if "%QTROOT%"=="C:\QT\" (set QTROOT=E:\QT\) else if "%QTROOT%"=="E:\QT\" (set QTROOT=C:\) else (set QTROOT=C:\QT\)
- echo Searching for QT 5.7 or later DLLs in %QTROOT%....
- dir /S/B %QTROOT% | findstr /r "5.[7-9]\\mingw.*_32\\bin\\Qt5Core.dll" >qtdir.txt
+ echo Searching for QT 6.5 or later DLLs in %QTROOT%....
+ dir /S/B %QTROOT% | findstr /r "6.[5-9]\\mingw.*_64\\bin\\Qt6Core.dll" >qtdir.txt
 )
 set /p QTDIR= <qtdir.txt
 if "%QTDIR%"=="" (
@@ -17,6 +17,6 @@ if not exist %QTDIR% (
  del qtdir.txt
  goto start
 )
-set QTDIR=%QTDIR:\bin\Qt5Core.dll=%
+set QTDIR=%QTDIR:\bin\Qt6Core.dll=%
 set PATH=%QTDIR%\bin;%PATH%
 kame.exe
