@@ -203,11 +203,11 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr[ *this].m_skippedFrames = 0;
         }
     }
-    if(shot_this[ *this].m_skippedFrames < shot_this[ *precedingSkips()] * seq_len) {
-        tr[ *this].m_skippedFrames++;
-        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
-    }
     if(emitter == camera__.get()) {
+        if(shot_this[ *this].m_skippedFrames < shot_this[ *precedingSkips()] * seq_len) {
+            tr[ *this].m_skippedFrames++;
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+        }
         unsigned int cidx = shot_this[ *this].currentIndex();
         auto summedCountsNext = summedCountsFromPool(width * height);
         uint32_t *summedNext = &summedCountsNext->at(0);
