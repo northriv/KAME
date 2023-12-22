@@ -270,6 +270,15 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr.unmark(m_lsnOnCondChanged);
         }
     }
+    if(tr[ *incrementalAverage()]) {
+        tr[ *average()] = tr[ *this].m_accumulated[seq_len - 1];
+        tr.unmark(m_lsnOnCondChanged);
+        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
+    else {
+        if(tr[ *average()] > tr[ *this].m_accumulated[seq_len - 1])
+            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+    }
 
     {
         const uint32_t *summed[seq_len];
@@ -371,15 +380,6 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         }
     }
 
-    if(tr[ *incrementalAverage()]) {
-        tr[ *average()] = tr[ *this].m_accumulated[seq_len - 1];
-        tr.unmark(m_lsnOnCondChanged);
-        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
-    }
-    else {
-        if(tr[ *average()] > tr[ *this].m_accumulated[seq_len - 1])
-            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
-    }
 }
 void
 XODMRImaging::visualize(const Snapshot &shot) {
