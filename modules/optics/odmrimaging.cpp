@@ -31,6 +31,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
     m_average(create<XUIntNode>("Average", false)),
+    m_precedingSkips(create<XUIntNode>("PrecedingSkips", false)),
     m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
     m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
@@ -75,6 +76,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_conUIs = {
         xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
+        xqcon_create<XQSpinBoxUnsignedConnector>(precedingSkips(), m_form->m_spbSkipPreceding),
         xqcon_create<XQSpinBoxUnsignedConnector>(wheelIndex(), m_form->m_spbWheelIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(refIntensFrames(), m_form->m_spbRefIntensFrames),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainForDisp),
@@ -100,6 +102,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         for(auto &&x: m_referenceToolLists)
             x->setBaseColor(0x00ffffu);
         tr[ *average()] = 1;
+        tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
         tr[ *dispMethod()].add({"PL colored by dPL/PL", "dPL"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
@@ -197,7 +200,12 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
+            tr[ *this].m_skippedFrames = 0;
         }
+    }
+    if(shot_this[ *this].m_skippedFrames < shot_this[ *precedingSkips()] * seq_len) {
+        tr[ *this].m_skippedFrames++;
+        throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     if(emitter == camera__.get()) {
         unsigned int cidx = shot_this[ *this].currentIndex();

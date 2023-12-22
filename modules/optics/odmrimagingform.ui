@@ -121,11 +121,11 @@
       <property name="title">
        <string>Post Processing</string>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout_4">
-       <item>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <item row="0" column="0">
         <widget class="QComboBox" name="m_cmbSequence"/>
        </item>
-       <item>
+       <item row="1" column="0">
         <layout class="QHBoxLayout" name="_4">
          <item>
           <widget class="QLabel" name="textLabel1_2_5_3_3_15">
@@ -136,7 +136,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>RefFrames</string>
+            <string>Ref. Frames</string>
            </property>
            <property name="wordWrap">
             <bool>false</bool>
@@ -158,10 +158,10 @@
          </item>
         </layout>
        </item>
-       <item>
+       <item row="2" column="0">
         <widget class="QComboBox" name="m_cmbDispMethod"/>
        </item>
-       <item>
+       <item row="3" column="0">
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
           <widget class="QCheckBox" name="m_ckbAutoGainForDisp">
@@ -274,7 +274,7 @@
          </item>
         </layout>
        </item>
-       <item>
+       <item row="4" column="0">
         <layout class="QVBoxLayout" name="verticalLayout_3">
          <item>
           <layout class="QHBoxLayout">
@@ -301,6 +301,36 @@
              </property>
              <property name="maximum">
               <number>1000</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="_2">
+           <item>
+            <widget class="QLabel" name="textLabel1_2_5_3_3_3">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Skip preceding</string>
+             </property>
+             <property name="wordWrap">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="m_spbSkipPreceding">
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>4</number>
              </property>
             </widget>
            </item>

@@ -43,6 +43,7 @@ public:
 
     //! driver specific part below
     const shared_ptr<XUIntNode> &average() const {return m_average;} //
+    const shared_ptr<XUIntNode> &precedingSkips() const {return m_precedingSkips;} //skips some OFF/ON sequences before averaging
     const shared_ptr<XTouchableNode> &clearAverage() const {return m_clearAverage;}
     const shared_ptr<XBoolNode> &incrementalAverage() const {return m_incrementalAverage;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
@@ -102,6 +103,7 @@ public:
         Sequence m_sequence;
         double m_gainForDisp;
         unsigned int m_accumulated[4];
+        unsigned int m_skippedFrames; //sa precedingSkips()
         unsigned int m_wheelIndex;
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
         double m_coefficients[4];
@@ -139,6 +141,7 @@ protected:
 private:
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > m_camera;
     const shared_ptr<XUIntNode> m_average;
+    const shared_ptr<XUIntNode> m_precedingSkips;
     const shared_ptr<XTouchableNode> m_clearAverage;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
     const shared_ptr<XBoolNode> m_incrementalAverage;
