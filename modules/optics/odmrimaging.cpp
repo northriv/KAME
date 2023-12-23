@@ -141,18 +141,7 @@ XODMRImaging::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void
 XODMRImaging::onClearAverageTouched(const Snapshot &shot, XTouchableNode *) {
-    Snapshot shot_this( *this);
-    shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
-    if(camera__) {
-        Snapshot shot_camera( *camera__);
-        if(shot_camera[ *camera__].time().isSet() &&
-                (XTime::now() - shot_camera[ *camera__].time() > 30.0)) //reading raw binary
-            trans( *this).m_timeClearRequested = shot_camera[ *camera__].time();
-        else
-            trans( *this).m_timeClearRequested = XTime::now();
-    }
-    else
-        trans( *this).m_timeClearRequested = XTime::now();
+    trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
 
@@ -166,7 +155,8 @@ XODMRImaging::checkDependency(const Snapshot &shot_this,
     if(emitter != camera__.get())
         return false;
     //ignores old camera frames
-    if(shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested)
+    if((shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested) &&
+        shot_this[ *this].m_timeClearRequested - shot_emitter[ *camera__].time() < 60.0) //not reading raw binary
         return false;
 //    if(shot_emitter[ *camera__->colorIndex()] != shot_this[ *wheelIndex()])
 //        return false;
@@ -385,7 +375,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
                         tr[ *this].m_samplePLEntries[tool.get()] = entryPL;
                     }
-                    entryPL->value(ref(tr), shot_this[ *this].pl0(j)); //update value
+                    if(shot_this[ *this].m_sampleIntensities[seq_len - 2].size() > j) //confirms a number of mathtools is uniform.
+                        entryPL->value(ref(tr), shot_this[ *this].pl0(j)); //update value
 
                     entryDPLoPL = tr[ *this].m_sampleDPLoPLEntries[tool.get()];
                     if( !entryDPLoPL) {
@@ -393,7 +384,9 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
                         tr[ *this].m_sampleDPLoPLEntries[tool.get()] = entryDPLoPL;
                     }
-                    entryDPLoPL->value(ref(tr), shot_this[ *this].dPLoPL(j)); //update value
+                    if(shot_this[ *this].m_sampleIntensities[seq_len - 2].size() > j)
+                        if(shot_this[ *this].m_sampleIntensities[seq_len - 1].size() > j) //confirms a number of mathtools is uniform.
+                            entryDPLoPL->value(ref(tr), shot_this[ *this].dPLoPL(j)); //update value
 
                     j++;
                 }
