@@ -276,10 +276,10 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
         Snapshot shot_odmr( *odmr__);
         unsigned int seq_len = shot_odmr[ *odmr__].sequenceLength();
         if(sg1__ && odmr__) {
-            trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
             });
+            trans( *odmr__->clearAverage()).touch();
             msecsleep(200);
             sg1__->iterate_commit([=](Transaction &tr){
                 unsigned int avg = shot_odmr[ *odmr__->average()];
@@ -324,10 +324,10 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
         Snapshot shot_odmr( *odmr__);
         if(sg1__ && odmr__) {
-            trans( *odmr__->clearAverage()).touch();
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->freq()] = newf;
             });
+            trans( *odmr__->clearAverage()).touch();
             msecsleep(50);
             sg1__->iterate_commit([=](Transaction &tr){
                 tr[ *sg1__->sweepPoints()] = (unsigned int)shot_sg[ *sg1__->sweepPoints()]; //initiates one sweep.

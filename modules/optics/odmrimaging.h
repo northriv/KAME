@@ -110,7 +110,7 @@ public:
         std::vector<double> m_sampleIntensities[4];
         std::vector<double> m_sampleIntensitiesCorrected[4];
         std::vector<double> m_referenceIntensities[4];
-        XTime m_timeClearRequested;
+        XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
         unsigned int currentIndex() const {
             for(unsigned int i = 1; i < sequenceLength(); ++i) {

@@ -141,7 +141,18 @@ XODMRImaging::onCondChanged(const Snapshot &shot, XValueNodeBase *node) {
 }
 void
 XODMRImaging::onClearAverageTouched(const Snapshot &shot, XTouchableNode *) {
-    trans( *this).m_timeClearRequested = XTime::now();
+    Snapshot shot_this( *this);
+    shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
+    if(camera__) {
+        Snapshot shot_camera( *camera__);
+        if(shot_camera[ *camera__].time().isSet() &&
+                (XTime::now() - shot_camera[ *camera__].time() > 30.0)) //reading raw binary
+            trans( *this).m_timeClearRequested = shot_camera[ *camera__].time();
+        else
+            trans( *this).m_timeClearRequested = XTime::now();
+    }
+    else
+        trans( *this).m_timeClearRequested = XTime::now();
     requestAnalysis();
 }
 
@@ -153,6 +164,9 @@ XODMRImaging::checkDependency(const Snapshot &shot_this,
     if( !camera__) return false;
     if(emitter == this) return true;
     if(emitter != camera__.get())
+        return false;
+    //ignores old camera frames
+    if(shot_emitter[ *camera__].time() <= shot_this[ *this].m_timeClearRequested)
         return false;
 //    if(shot_emitter[ *camera__->colorIndex()] != shot_this[ *wheelIndex()])
 //        return false;
@@ -200,8 +214,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr[ *this].m_summedCounts[i] = summedCountsFromPool(width * height);
             std::fill(tr[ *this].m_summedCounts[i]->begin(), tr[ *this].m_summedCounts[i]->end(), 0);
             tr[ *this].m_accumulated[i] = 0;
-            tr[ *this].m_skippedFrames = 0;
         }
+        tr[ *this].m_skippedFrames = 0;
     }
     if(emitter == camera__.get()) {
         if(shot_this[ *this].m_skippedFrames < shot_this[ *precedingSkips()] * seq_len) {
