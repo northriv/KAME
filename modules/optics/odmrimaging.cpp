@@ -166,7 +166,7 @@ XODMRImaging::checkDependency(const Snapshot &shot_this,
     if(emitter != camera__.get())
         return false;
     //ignores old camera frames
-    if(shot_emitter[ *camera__].time() <= shot_this[ *this].m_timeClearRequested)
+    if(shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested)
         return false;
 //    if(shot_emitter[ *camera__->colorIndex()] != shot_this[ *wheelIndex()])
 //        return false;
@@ -175,6 +175,9 @@ XODMRImaging::checkDependency(const Snapshot &shot_this,
 void
 XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
     XDriver *emitter) {
+
+    tr[ *this].m_releasedEntries.clear();
+
     const Snapshot &shot_this(tr);
 
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
@@ -360,7 +363,11 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             }
             analyzeIntensities(tr);
 
-            if(auto entries = m_entries.lock()) {
+//            if(auto entries = m_entries.lock()) {
+            {
+                //creats new entry for each math tool which is not listed in the map.
+//                Snapshot shot_entries(*entries);
+//                auto &entry_list = *shot_entries.list();
                 auto &list = *shot_this.list(m_sampleToolLists[0]);
                 unsigned int j = 0;
                 for(unsigned int i = 0; i < list.size(); ++ i) {
@@ -372,25 +379,59 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                         tool = avgtool;
                     if( !tool)
                         continue;
-                    entryPL = m_samplePLEntries[tool.get()];
+                    entryPL = tr[ *this].m_samplePLEntries[tool.get()];
                     if( !entryPL) {
                         entryPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,PL", i).c_str(), true,
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
-                        m_samplePLEntries[tool.get()] = entryPL;
+                        tr[ *this].m_samplePLEntries[tool.get()] = entryPL;
                     }
-                    else
-                        entryPL->value(ref(tr), shot_this[ *this].pl0(j));
-                    entryDPLoPL = m_sampleDPLoPLEntries[tool.get()];
+                    entryPL->value(ref(tr), shot_this[ *this].pl0(j)); //update value
+
+                    entryDPLoPL = tr[ *this].m_sampleDPLoPLEntries[tool.get()];
                     if( !entryDPLoPL) {
                         entryDPLoPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,dPL/PL", i).c_str(), true,
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
-                        m_sampleDPLoPLEntries[tool.get()] = entryDPLoPL;
+                        tr[ *this].m_sampleDPLoPLEntries[tool.get()] = entryDPLoPL;
                     }
-                    else
-                        entryDPLoPL->value(ref(tr), shot_this[ *this].dPLoPL(j));
+                    entryDPLoPL->value(ref(tr), shot_this[ *this].dPLoPL(j)); //update value
+
                     j++;
                 }
+                //removes entry in the map which no more exists in the math tool list.
+                for(auto it = shot_this[ *this].m_samplePLEntries.begin(); it != shot_this[ *this].m_samplePLEntries.end();) {
+                    auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
+                    if(tool_it == list.end()) {
+                        release(tr, it->second);
+                        tr[ *this].m_releasedEntries.push_back(it->second);
+                        it = tr[ *this].m_samplePLEntries.erase(it); //not existing anymore.
+                    }
+                    else
+                        it++;
+                }
+                for(auto it = shot_this[ *this].m_sampleDPLoPLEntries.begin(); it != shot_this[ *this].m_sampleDPLoPLEntries.end();) {
+                    auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
+                    if(tool_it == list.end()) {
+                        release(tr, it->second);
+                        tr[ *this].m_releasedEntries.push_back(it->second);
+                        it = tr[ *this].m_sampleDPLoPLEntries.erase(it); //not existing anymore.
+                    }
+                    else
+                        it++;
+                }
             }
+        }
+        else {
+            //no sample. releases all the entries.
+            for(auto &&x: shot_this[ *this].m_samplePLEntries) {
+                release(tr, x.second);
+                tr[ *this].m_releasedEntries.push_back(x.second);
+            }
+            tr[ *this].m_samplePLEntries.clear();
+            for(auto &&x: shot_this[ *this].m_sampleDPLoPLEntries) {
+                release(tr, x.second);
+                tr[ *this].m_releasedEntries.push_back(x.second);
+            }
+            tr[ *this].m_sampleDPLoPLEntries.clear();
         }
     }
 
@@ -402,56 +443,58 @@ XODMRImaging::visualize(const Snapshot &shot) {
         Snapshot shot_entries(*entries);
         if(shot_entries.size()) {
             auto &list = *shot_entries.list();
-            for(auto &&x: m_samplePLEntries) {
-                if(std::find(list.begin(), list.end(), x.second) == list.end()) {
-                    //todo using tr = shot
-                    entries->insert(x.second);
-                }
-            }
-            for(auto &&x: m_sampleDPLoPLEntries) {
+            for(auto &&x: shot[ *this].m_samplePLEntries) {
                 if(std::find(list.begin(), list.end(), x.second) == list.end()) {
                     entries->insert(x.second);
                 }
             }
-        }
-        //releases unused entries.
-        if(shot.size(m_sampleToolLists[0])) {
-            auto &list = *shot.list(m_sampleToolLists[0]);
-            for(auto it = m_samplePLEntries.begin(); it != m_samplePLEntries.end();) {
-                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-                if(tool_it == list.end()) {
-                    entries->release(it->second);
-                    release(it->second);
-                    it = m_samplePLEntries.erase(it); //not existing anymore.
-                }
-                else {
-                    it++;
+            for(auto &&x: shot[ *this].m_sampleDPLoPLEntries) {
+                if(std::find(list.begin(), list.end(), x.second) == list.end()) {
+                    entries->insert(x.second);
                 }
             }
-            for(auto it = m_sampleDPLoPLEntries.begin(); it != m_sampleDPLoPLEntries.end();) {
-                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-                if(tool_it == list.end()) {
-                    entries->release(it->second);
-                    release(it->second);
-                    it = m_sampleDPLoPLEntries.erase(it); //not existing anymore.
-                }
-                else {
-                    it++;
-                }
+            for(auto &&x: shot[ *this].m_releasedEntries) {
+                entries->release(x);
             }
         }
-        else {
-            for(auto &&x: m_samplePLEntries) {
-                entries->release(x.second);
-                release(x.second);
-            }
-            m_samplePLEntries.clear();
-            for(auto &&x: m_sampleDPLoPLEntries) {
-                entries->release(x.second);
-                release(x.second);
-            }
-            m_sampleDPLoPLEntries.clear();
-        }
+//        //releases unused entries.
+//        if(shot.size(m_sampleToolLists[0])) {
+//            auto &list = *shot.list(m_sampleToolLists[0]);
+//            for(auto it = shot[ *this].m_samplePLEntries.begin(); it != shot[ *this].m_samplePLEntries.end();) {
+//                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
+//                if(tool_it == list.end()) {
+//                    entries->release(it->second);
+//                    release(it->second);
+//                    it = shot[ *this].m_samplePLEntries.erase(it); //not existing anymore.
+//                }
+//                else {
+//                    it++;
+//                }
+//            }
+//            for(auto it = shot[ *this].m_sampleDPLoPLEntries.begin(); it != shot[ *this].m_sampleDPLoPLEntries.end();) {
+//                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
+//                if(tool_it == list.end()) {
+//                    entries->release(it->second);
+//                    release(it->second);
+//                    it = shot[ *this].m_sampleDPLoPLEntries.erase(it); //not existing anymore.
+//                }
+//                else {
+//                    it++;
+//                }
+//            }
+//        }
+//        else {
+//            for(auto &&x: shot[ *this].m_samplePLEntries) {
+//                entries->release(x.second);
+//                release(x.second);
+//            }
+//            shot[ *this].m_samplePLEntries.clear();
+//            for(auto &&x: shot[ *this].m_sampleDPLoPLEntries) {
+//                entries->release(x.second);
+//                release(x.second);
+//            }
+//            shot[ *this].m_sampleDPLoPLEntries.clear();
+//        }
     }
 
     if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))

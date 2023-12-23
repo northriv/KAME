@@ -120,6 +120,10 @@ public:
             return 0;
         }
         shared_ptr<QImage> m_qimage;
+        //maps existing MathTools to ScalarEntries, be synced inside analyze()
+        std::map<XNode*, shared_ptr<XScalarEntry>> m_samplePLEntries, m_sampleDPLoPLEntries;
+        //to be released from entrylist.
+        std::deque<shared_ptr<XScalarEntry>> m_releasedEntries;
     };
 protected:
     //! This function is called when a connected driver emit a signal
@@ -159,7 +163,6 @@ private:
 
     shared_ptr<Listener> m_lsnOnClearAverageTouched, m_lsnOnCondChanged;
 
-    std::map<XNode*, shared_ptr<XScalarEntry>> m_samplePLEntries, m_sampleDPLoPLEntries;
     weak_ptr<XScalarEntryList> m_entries;
 
     std::deque<xqcon_ptr> m_conUIs;
