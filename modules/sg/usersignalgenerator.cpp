@@ -199,6 +199,7 @@ XAgilentSGSCPI::onFMIntSrcFreqChanged(const Snapshot &shot, XValueNodeBase *) {
 void
 XAgilentSGSCPI::onSweepCondChanged(const Snapshot &, XValueNodeBase *) {
     XScopedLock<XInterface> lock( *interface());
+    interface()->send(":ABOR");
     Snapshot shot(*this);
     switch(shot[ *sweepMode()]) {
     case 0: //OFF
