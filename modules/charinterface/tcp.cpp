@@ -221,22 +221,19 @@ XTCPSocketPort::receive() {
 	buffer().resize(len + 1);
 	buffer().at(len) = '\0';
 }
+#if defined WINDOWS || defined __WIN32__ || defined _WIN32
 void
 XTCPSocketPort::receive(unsigned int length) {
-	buffer().resize(length);
-	unsigned int len = 0;
-   
-	while(len < length) {
-        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
-		if(rlen == 0)
+    buffer().resize(length);
+    unsigned int len = 0;
+
+    while(len < length) {
+        int rlen = ::recv(m_socket, &buffer().at(len), length - len, 0);
+        if(rlen == 0)
             throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
-		if(rlen < 0) {
-#if defined WINDOWS || defined __WIN32__ || defined _WIN32
+        if(rlen < 0) {
             errno = WSAGetLastError();
             if((errno == WSAEINTR)) {
-#else
-            if((errno == EINTR) || (errno == EAGAIN)) {
-#endif
                 dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
                 continue;
             }
@@ -244,9 +241,32 @@ XTCPSocketPort::receive(unsigned int length) {
             reopen_socket();
             throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
         }
-		len += rlen;
-	}
-}    
+        len += rlen;
+    }
+}
+#else
+void
+XTCPSocketPort::receive(unsigned int length) {
+    buffer().resize(length);
+    unsigned int len = 0;
+
+    while(len < length) {
+        int rlen = ::recv(m_socket, &buffer().at(len), 1, 0);
+        if(rlen == 0)
+            throw XInterface::XCommError(i18n("read time-out"), __FILE__, __LINE__);
+        if(rlen < 0) {
+            if((errno == EINTR) || (errno == EAGAIN)) {
+                dbgPrint("TCP/IP, EINTR/EAGAIN, trying to continue.");
+                continue;
+            }
+            gErrPrint(i18n("read error, trying to reopen the socket"));
+            reopen_socket();
+            throw XInterface::XCommError(i18n("tcp reading failed"), __FILE__, __LINE__);
+        }
+        len += rlen;
+    }
+}
+#endif
 
 #endif //TCP_POSIX
 
