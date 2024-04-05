@@ -28,6 +28,7 @@ static const std::map<unsigned int, std::string> cs_oceanOpticsModels = {
     {0x1012, "HR2000+/4000"}, //tested
     {0x1016, "HR2000+"}, //tested.
     {0x101e, "USB2000+"},
+    {0x1022, "USB4000"}, //tested.
 };
 
 XOceanOpticsUSBInterface::DEVICE_STATUS
