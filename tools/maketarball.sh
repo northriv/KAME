@@ -18,6 +18,7 @@ rsync --exclude "linux686" \
 	--exclude "*.log" \
 	 --exclude "*.bin" \
 	 --exclude "*.dat" \
+	 --exclude "*.bix" \
 	 --exclude "attic" \
 	 --exclude "*.o" --exclude "*.a" --exclude "*.la"  \
 	 --exclude "*.cache" --exclude ".*" --exclude "*.log"\
