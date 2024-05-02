@@ -77,7 +77,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
         auto status = interface()->readInstrumStatus();
         uint16_t pixels = status[0] + status[1] * 0x100u;
         uint8_t packets_in_spectrum = status[9];
-        uint8_t packets_in_ep = status[11];
+        uint8_t packets_in_ep = status[11]; //always 0?
         uint8_t usb_speed = status[14]; //0x80 if highspeed
 
         uint32_t integration_time_us = status[2] + status[3] * 0x100u + status[4] * 0x10000u + status[5] * 0x1000000uL;
@@ -86,8 +86,7 @@ XOceanOpticsSpectrometer::acquireSpectrum(shared_ptr<RawData> &writer) {
 //            if(XTime::now() - start > integration_time_us * 1e-6)
 //                throw XSkippedRecordError(__FILE__, __LINE__);
             double wait = integration_time_us / packets_in_spectrum * (packets_in_spectrum - packets_in_ep) * 1e-6;
-            msecsleep(std::max(0.0, std::min(10.0, wait * 1e3 - 100.0)));
-//            continue;
+            msecsleep(std::max(10.0, wait * 1e3 - 100.0));
         }
 
         writer->push((uint8_t)status.size());
