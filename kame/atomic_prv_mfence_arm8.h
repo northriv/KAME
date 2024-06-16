@@ -1,6 +1,6 @@
 /***************************************************************************
         Copyright (C) 2002-2021 Kentaro Kitagawa
-                           kitagawa@phys.s.u-tokyo.ac.jp
+                           kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
         modify it under the terms of the GNU Library General Public
