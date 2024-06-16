@@ -44,6 +44,43 @@ private:
 	void sendStopSignal(bool wait);
 };
 
+//ORIENTAL MOTOR CVD series with RS-485.
+class XOrientalMotorCVD2B : public XModbusRTUDriver<XMotorDriver>  {
+public:
+    XOrientalMotorCVD2B(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XOrientalMotorCVD2B() {}
+
+protected:
+    virtual bool isPresetTo2Phase() const {return true;}
+protected:
+    virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) override;
+    virtual void changeConditions(const Snapshot &shot) override;
+    virtual void getConditions() override;
+    virtual void setTarget(const Snapshot &shot, double target) override;
+    virtual void setActive(bool active) override;
+    virtual void setAUXBits(unsigned int bits) override;
+    virtual void setForward() override; //!< continuous rotation.
+    virtual void setReverse() override;//!< continuous rotation.
+    virtual void stopRotation() override; //!< stops motor and waits for deceleration.
+    //! stores current settings to the NV memory of the instrumeMotornt.
+    virtual void storeToROM() override;
+    virtual void clearPosition() override;
+private:
+    void sendStopSignal(bool wait);
+
+    static const std::vector<uint32_t> s_resolutions_2B, s_resolutions_5B;
+};
+class XOrientalMotorCVD5B : public XOrientalMotorCVD2B  {
+public:
+    XOrientalMotorCVD5B(const char *name, bool runtime,
+                        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) : XOrientalMotorCVD2B(name, runtime, ref(tr_meas), meas) {}
+    virtual ~XOrientalMotorCVD5B() {}
+
+protected:
+    virtual bool isPresetTo2Phase() const override {return false;}
+};
+
 //ORIENTAL MOTOR FLEX AR/DG2 series.
 class XFlexAR : public XFlexCRK {
 public:
