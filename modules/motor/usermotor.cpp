@@ -20,6 +20,7 @@ REGISTER_TYPE(XDriverList, OrientalMotorCVD2B, "OrientalMotor CVD2B motor contro
 REGISTER_TYPE(XDriverList, OrientalMotorCVD5B, "OrientalMotor CVD5B motor controller");
 REGISTER_TYPE(XDriverList, FlexAR, "OrientalMotor FLEX AR/DG2 motor controller");
 REGISTER_TYPE(XDriverList, EMP401, "OrientalMotor EMP401 motor controller");
+REGISTER_TYPE(XDriverList, SigmaPAMC104, "SigmaOptics PAMC-104 piezo-assited motor controller");
 
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_2B = {200,400,800,1000,1600,2000,3200,5000,6400,10000,12800,20000,25000,25600,50000,51200};
 const std::vector<uint32_t> XOrientalMotorCVD2B::s_resolutions_5B = {500,1000,1250,2000,2500,4000,5000,10000,12500,20000,25000,40000,50000,62500, 100000, 125000};
@@ -832,4 +833,87 @@ XEMP401::setAUXBits(unsigned int bits) {
     interface()->queryf("OUT,%1u%1u%1u%1u%1u%1u",
         (bits / 32u) % 2u, (bits / 16u) % 2u, (bits / 8u) % 2u, (bits / 4u) % 2u, (bits / 2u) % 2u, bits % 2u);
     waitForCursor();
+}
+
+XSigmaPAMC104::XSigmaPAMC104(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XSharedSerialPortDriver<XMotorDriver>(name, runtime, ref(tr_meas), meas) {
+    interface()->setSerialBaudRate(115200);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialParity(XCharInterface::PARITY_NONE);
+    interface()->setSerialEOS("\r\n");
+
+    trans( *speed()) = 1000; //Hz
+
+    currentRunning()->disable();
+    currentStopping()->disable();
+    slipping()->disable();
+    stepMotor()->disable();
+    stepEncoder()->disable();
+    timeAcc()->disable();
+    timeDec()->disable();
+    active()->disable();
+    microStep()->disable();
+    hasEncoder()->disable();
+    pushing()->disable();
+    store()->disable();
+    roundBy()->disable();
+    round()->disable();
+    auxBits()->disable();
+    m_pulsesTotal = 0;
+}
+char
+XSigmaPAMC104::channelChar(const Snapshot &shot) {
+    return 'A' + (unsigned int)shot[ *interface()->address()];
+}
+void
+XSigmaPAMC104::clearPosition() {
+    m_pulsesTotal = 0;
+}
+void
+XSigmaPAMC104::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
+    *position = m_pulsesTotal;
+}
+void
+XSigmaPAMC104::stopRotation() {
+    XScopedLock<XInterface> lock( *interface());
+    interface()->send("S");
+    interface()->receive(); //expecting "FIN"
+//    if(interface()->toStrSimplified() != "FIN")
+//        throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XSigmaPAMC104::setForward() {
+    XScopedLock<XInterface> lock( *interface());
+//    stopRotation();
+    Snapshot shot( *this);
+    interface()->sendf("NR%4u%4u%c", (unsigned int)shot[ *speed()], 0, channelChar(shot));
+    interface()->receive(); //expecting "OK"
+    if(interface()->toStrSimplified() != "OK")
+        throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XSigmaPAMC104::setReverse() {
+    XScopedLock<XInterface> lock( *interface());
+//    stopRotation();
+    Snapshot shot( *this);
+    interface()->sendf("RR%4u%4u%c", (unsigned int)shot[ *speed()], 0, channelChar(shot));
+    interface()->receive(); //expecting "OK"
+    if(interface()->toStrSimplified() != "OK")
+        throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XSigmaPAMC104::setTarget(const Snapshot &, double target) {
+    XScopedLock<XInterface> lock( *interface());
+//    stopRotation();
+    Snapshot shot( *this);
+    long dx = lrint(target - m_pulsesTotal);
+    if(dx > 0)
+        interface()->sendf("NR%4u%4u%c", (unsigned int)shot[ *speed()], (unsigned int)dx, channelChar(shot));
+    else
+        interface()->sendf("RR%4u%4u%c", (unsigned int)shot[ *speed()], (unsigned int)(-dx), channelChar(shot));
+    m_pulsesTotal = target; //ugly hack.
+    interface()->receive(); //expecting "OK"
+    if(interface()->toStrSimplified() != "OK")
+        throw XInterface::XConvError(__FILE__, __LINE__);
 }

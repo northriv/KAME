@@ -17,6 +17,7 @@
 REGISTER_TYPE(XDriverList, YK7651, "YOKOGAWA 7651 dc source");
 REGISTER_TYPE(XDriverList, ADVR6142, "ADVANTEST TR6142/R6142/R6144 DC V/DC A source");
 REGISTER_TYPE(XDriverList, MicroTaskTCS, "MICROTASK/Leiden Triple Current Source");
+REGISTER_TYPE(XDriverList, OptotuneICC4C2000, "Optotune ICC4C-2000 current controller");
 
 XYK7651::XYK7651(const char *name, bool runtime, 
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
@@ -216,126 +217,175 @@ XADVR6142::changeRange(int /*ch*/, int ran) {
 }
 
 
-XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime, 
+XOptotuneICC4C2000::XOptotuneICC4C2000(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
    : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
-	interface()->setEOS("\n");
-	interface()->setSerialBaudRate(9600);
-	interface()->setSerialStopBits(2);
+    interface()->setEOS("\r\n");
+    interface()->setSerialBaudRate(256000);
+    interface()->setSerialStopBits(1);
 	iterate_commit([=](Transaction &tr){
 		tr[ *channel()].add("1");
 		tr[ *channel()].add("2");
 		tr[ *channel()].add("3");
-		tr[ *function()].disable();
-		tr[ *range()].add("99uA");
-		tr[ *range()].add("0.99uA");
-		tr[ *range()].add("9.9mA");
-		tr[ *range()].add("99mA");
+        tr[ *channel()].add("4");
+        tr[ *function()].add({"mA"});
+        tr[ *function()].disable();
+        tr[ *range()].add({"2000mA"});
+        tr[ *range()].disable();
+        tr[ *output()].disable();
+        tr[ *interface()->device()] = "SERIAL";
+    });
+}
+void
+XOptotuneICC4C2000::queryStatus(Transaction &tr, int ch) {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened()) return;
+    interface()->queryf("SETCHANNEL=%i", ch);
+    interface()->query("GETCURRENT");
+    tr[ *value()] = interface()->toDouble();
+}
+void
+XOptotuneICC4C2000::changeValue(int ch, double x, bool autorange) {
+	{
+		XScopedLock<XInterface> lock( *interface());
+		if(!interface()->isOpened()) return;
+        interface()->queryf("SETCHANNEL=%i", ch);
+        interface()->queryf("SETCURRENT=%g", x);
+	}
+}
+void
+XOptotuneICC4C2000::open() {
+	this->start();
+    interface()->query("GETID");
+	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
+    interface()->query("GETDEVICESN");
+    fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
+}
+double
+XOptotuneICC4C2000::max(int ch, bool autorange) const {
+    return 2000.0;
+}
+
+XMicroTaskTCS::XMicroTaskTCS(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+   : XCharDeviceDriver<XDCSource>(name, runtime, ref(tr_meas), meas) {
+    interface()->setEOS("\n");
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialStopBits(2);
+    iterate_commit([=](Transaction &tr){
+        tr[ *channel()].add("1");
+        tr[ *channel()].add("2");
+        tr[ *channel()].add("3");
+        tr[ *function()].disable();
+        tr[ *range()].add("99uA");
+        tr[ *range()].add("0.99uA");
+        tr[ *range()].add("9.9mA");
+        tr[ *range()].add("99mA");
     });
 }
 void
 XMicroTaskTCS::queryStatus(Transaction &tr, int ch) {
-	unsigned int ran[3];
-	unsigned int v[3];
-	unsigned int o[3];
-	{
-		XScopedLock<XInterface> lock( *interface());
-		if( !interface()->isOpened()) return;
-		interface()->query("STATUS?");
-		if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
-			&ran[0], &v[0], &o[0],
-			&ran[1], &v[1], &o[1],
-			&ran[2], &v[2], &o[2]) != 9)
-			throw XInterface::XConvError(__FILE__, __LINE__);
-	}
-	tr[ *value()] = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
-	tr[ *output()] = o[ch];
-	tr[ *range()] = ran[ch] - 1;
+    unsigned int ran[3];
+    unsigned int v[3];
+    unsigned int o[3];
+    {
+        XScopedLock<XInterface> lock( *interface());
+        if( !interface()->isOpened()) return;
+        interface()->query("STATUS?");
+        if(interface()->scanf("%*u%*u,%u,%u,%u,%*u,%u,%u,%u,%*u,%u,%u,%u,%*u",
+            &ran[0], &v[0], &o[0],
+            &ran[1], &v[1], &o[1],
+            &ran[2], &v[2], &o[2]) != 9)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+    }
+    tr[ *value()] = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
+    tr[ *output()] = o[ch];
+    tr[ *range()] = ran[ch] - 1;
 }
 void
 XMicroTaskTCS::changeOutput(int ch, bool x) {
-	{
-		XScopedLock<XInterface> lock( *interface());
-		if(!interface()->isOpened()) return;
-		unsigned int v[3];
-		interface()->query("STATUS?");
-		if(interface()->scanf("%*u%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
-			!= 3)
-			throw XInterface::XConvError(__FILE__, __LINE__);
-		for(int i = 0; i < 3; i++) {
-			if(ch != i)
-				v[i] = 0;
-			else
-				v[i] ^= x ? 1 : 0;
-		}
-		interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
-		interface()->receive(2);
-	}
-	updateStatus();
+    {
+        XScopedLock<XInterface> lock( *interface());
+        if(!interface()->isOpened()) return;
+        unsigned int v[3];
+        interface()->query("STATUS?");
+        if(interface()->scanf("%*u%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u", &v[0], &v[1], &v[2])
+            != 3)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        for(int i = 0; i < 3; i++) {
+            if(ch != i)
+                v[i] = 0;
+            else
+                v[i] ^= x ? 1 : 0;
+        }
+        interface()->sendf("SETUP 0,0,%u,0,0,0,%u,0,0,0,%u,0", v[0], v[1], v[2]);
+        interface()->receive(2);
+    }
+    updateStatus();
 }
 void
 XMicroTaskTCS::changeValue(int ch, double x, bool autorange) {
-	{
-		XScopedLock<XInterface> lock( *interface());
-		if(!interface()->isOpened()) return;
-		if((x >= 0.099) || (x < 0))
-			throw XInterface::XInterfaceError(i18n("Value is out of range."), __FILE__, __LINE__);
-		if(autorange) {
-			interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
-			interface()->receive(1);
-		}
-		else {
-			unsigned int ran[3];
-			interface()->query("STATUS?");
-			if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
-				&ran[0], &ran[1], &ran[2]) != 3)
-				throw XInterface::XConvError(__FILE__, __LINE__);
-			int v = lrint(x / (pow(10.0, (double)ran[ch] - 1) * 1e-6));
-			v = std::max(std::min(v, 99), 0);
-			interface()->sendf("DAC %u %u", (unsigned int)(ch + 1), (unsigned int)v);
-			interface()->receive(2);
-		}
-	}
-	updateStatus();
+    {
+        XScopedLock<XInterface> lock( *interface());
+        if(!interface()->isOpened()) return;
+        if((x >= 0.099) || (x < 0))
+            throw XInterface::XInterfaceError(i18n("Value is out of range."), __FILE__, __LINE__);
+        if(autorange) {
+            interface()->sendf("SETDAC %u 0 %u", (unsigned int)(ch + 1), (unsigned int)lrint(x * 1e6));
+            interface()->receive(1);
+        }
+        else {
+            unsigned int ran[3];
+            interface()->query("STATUS?");
+            if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
+                &ran[0], &ran[1], &ran[2]) != 3)
+                throw XInterface::XConvError(__FILE__, __LINE__);
+            int v = lrint(x / (pow(10.0, (double)ran[ch] - 1) * 1e-6));
+            v = std::max(std::min(v, 99), 0);
+            interface()->sendf("DAC %u %u", (unsigned int)(ch + 1), (unsigned int)v);
+            interface()->receive(2);
+        }
+    }
+    updateStatus();
 }
 void
 XMicroTaskTCS::changeRange(int ch, int newran) {
-	{
-		XScopedLock<XInterface> lock( *interface());
-		if(!interface()->isOpened()) return;
-		unsigned int ran[3], v[3];
-		interface()->query("STATUS?");
-		if(interface()->scanf("%*u%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u",
-			&ran[0], &v[0],
-			&ran[1], &v[1],
-			&ran[2], &v[2]) != 6)
-			throw XInterface::XConvError(__FILE__, __LINE__);
-		double x = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
-		int newv = lrint(x / (pow(10.0, (double)newran) * 1e-6));
-		newv = std::max(std::min(newv, 99), 0);
-		interface()->sendf("SETDAC %u %u %u", 
-			(unsigned int)(ch + 1), (unsigned int)(newran + 1), (unsigned int)newv);
-		interface()->receive(1);
-	}
-	updateStatus();	
+    {
+        XScopedLock<XInterface> lock( *interface());
+        if(!interface()->isOpened()) return;
+        unsigned int ran[3], v[3];
+        interface()->query("STATUS?");
+        if(interface()->scanf("%*u%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u,%u,%u,%*u,%*u",
+            &ran[0], &v[0],
+            &ran[1], &v[1],
+            &ran[2], &v[2]) != 6)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        double x = pow(10.0, (double)ran[ch] - 1) * 1e-6 * v[ch];
+        int newv = lrint(x / (pow(10.0, (double)newran) * 1e-6));
+        newv = std::max(std::min(newv, 99), 0);
+        interface()->sendf("SETDAC %u %u %u",
+            (unsigned int)(ch + 1), (unsigned int)(newran + 1), (unsigned int)newv);
+        interface()->receive(1);
+    }
+    updateStatus();
 }
 double
 XMicroTaskTCS::max(int ch, bool autorange) const {
-	if(autorange) return 0.099;
-	{
-		XScopedLock<XInterface> lock( *interface());
-		if(!interface()->isOpened()) return 0.099;
-		unsigned int ran[3];
-		interface()->query("STATUS?");
-		if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
-			&ran[0], &ran[1], &ran[2]) != 3)
-			throw XInterface::XConvError(__FILE__, __LINE__);
-		return pow(10.0, (double)(ran[ch] - 1)) * 99e-6;
-	}
+    if(autorange) return 0.099;
+    {
+        XScopedLock<XInterface> lock( *interface());
+        if(!interface()->isOpened()) return 0.099;
+        unsigned int ran[3];
+        interface()->query("STATUS?");
+        if(interface()->scanf("%*u%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u,%u,%*u,%*u,%*u",
+            &ran[0], &ran[1], &ran[2]) != 3)
+            throw XInterface::XConvError(__FILE__, __LINE__);
+        return pow(10.0, (double)(ran[ch] - 1)) * 99e-6;
+    }
 ;}
 void
 XMicroTaskTCS::open() {
-	this->start();
-	interface()->query("ID?");
-	fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
+    this->start();
+    interface()->query("ID?");
+    fprintf(stderr, "%s\n", (const char*)&interface()->buffer()[0]);
 }

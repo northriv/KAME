@@ -62,5 +62,20 @@ public:
 protected:
 	virtual void open();
 };
+
+//!Optotune Industrial Current Controller.
+class XOptotuneICC4C2000:public XCharDeviceDriver<XDCSource> {
+public:
+    XOptotuneICC4C2000(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual void changeFunction(int, int) {}
+    virtual void changeOutput(int , bool ) {}
+    virtual void changeValue(int ch, double x, bool autorange);
+    virtual void changeRange(int , int x) {}
+    virtual double max(int ch, bool autorange) const;
+    virtual void queryStatus(Transaction &tr, int ch);
+protected:
+    virtual void open();
+};
 #endif
 

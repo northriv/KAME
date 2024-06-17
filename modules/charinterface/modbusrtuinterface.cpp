@@ -9,6 +9,7 @@ XModbusRTUInterface::XModbusRTUInterface(const char *name, bool runtime, const s
     setSerialEOS("");
 	setSerialBaudRate(9600);
     setSerialStopBits(1);
+    trans( *device()) = "SERIAL";
 }
 
 XModbusRTUInterface::~XModbusRTUInterface() {
@@ -188,4 +189,16 @@ XModbusRTUInterface::diagnostics() {
 	set_word( &wrbuf[2], 0x1234);
 	std::vector<unsigned char> rdbuf(4);
 	query_unicast(0x08, wrbuf, rdbuf);
+}
+void
+XModbusRTUInterface::send(const char *str) {
+    auto port = m_openedPort;
+    XScopedLock<XMutex> portlock(port->mutex);
+    port->port->send(str);
+}
+void
+XModbusRTUInterface::receive() {
+    auto port = m_openedPort;
+    XScopedLock<XMutex> portlock(port->mutex);
+    port->port->receive();
 }

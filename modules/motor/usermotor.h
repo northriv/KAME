@@ -135,4 +135,31 @@ private:
 	void waitForCursor();
 };
 
+template <class T>
+using XSharedSerialPortDriver = XModbusRTUDriver<T>; //uses only subset of ModbusDriver.
+//Sigma optics piezo-assited motor controller PAMC-104.
+class XSigmaPAMC104 : public XSharedSerialPortDriver<XMotorDriver>  {
+public:
+    XSigmaPAMC104(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XSigmaPAMC104() {}
+protected:
+protected:
+    virtual void getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) override;
+    virtual void changeConditions(const Snapshot &shot) override {}
+    virtual void getConditions() override {}
+    virtual void setTarget(const Snapshot &shot, double target) override;
+    virtual void setActive(bool active) override {}
+    virtual void setAUXBits(unsigned int bits) override {}
+    virtual void setForward() override; //!< continuous rotation.
+    virtual void setReverse() override;//!< continuous rotation.
+    virtual void stopRotation() override; //!< stops motor and waits for deceleration.
+    //! stores current settings to the NV memory of the instrumeMotornt.
+    virtual void storeToROM() override {}
+    virtual void clearPosition() override;
+private:
+    char channelChar(const Snapshot &shot);
+    double m_pulsesTotal;
+};
+
 #endif /* USERMOTOR_H_ */

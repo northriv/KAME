@@ -49,6 +49,10 @@ public:
 	//! This can be called even if has already closed.
 	virtual void close();
 
+    //hack for Sigma, todo: mutex should be held by port, or wrapper.
+    virtual void send(const char *str);
+    virtual void receive();
+
     virtual bool isOpened() const {return !!m_openedPort;}
 
 protected:

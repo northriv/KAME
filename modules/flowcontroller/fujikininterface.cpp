@@ -9,6 +9,7 @@ XFujikinInterface::XFujikinInterface(const char *name, bool runtime, const share
     setSerialEOS("");
 	setSerialBaudRate(38400);
 	setSerialStopBits(1);
+    trans( *device()) = "SERIAL";
 }
 
 XFujikinInterface::~XFujikinInterface() {
