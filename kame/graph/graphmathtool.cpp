@@ -18,6 +18,7 @@
 DECLARE_TYPE_HOLDER(XGraph1DMathToolList)
 DECLARE_TYPE_HOLDER(XGraph2DMathToolList)
 
+//labels need to be surfix of class name.
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");
@@ -201,7 +202,13 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
     auto widget = std::get<3>(res);
-    auto node = createByTypename("Graph1DMathTool" + label, formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
+    unsigned int idx = 0;
+    for(auto &&tlabel: typelabels()) {
+        if(tlabel == label)
+            break;
+        idx++;
+    }
+    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
         label.c_str(), src, dst));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){

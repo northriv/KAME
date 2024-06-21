@@ -152,7 +152,7 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
         return pixmap;
     };
 	dlg->m_lstType->clear();
-    for(auto &&label: XDriverList::typelabels()) {
+    for(auto &&label: static_pointer_cast<XDriverList>(m_list)->typelabels()) {
         QPixmap icon;
         if(label.find("temp") != std::string::npos)
             icon = iconMaker("TEMP", 0xa00000u);
@@ -179,12 +179,12 @@ XDriverListConnector::onCreateTouched(const Snapshot &shot, XTouchableNode *) {
 	}
     int idx = dlg->m_lstType->currentRow();
 	shared_ptr<XNode> driver;
-	if((idx >= 0) && (idx < (int)XDriverList::typenames().size())) {
+    if((idx >= 0) && (idx < (int)static_pointer_cast<XDriverList>(m_list)->typenames().size())) {
 		if(m_list->getChild(dlg->m_edName->text().toUtf8().data())) {
 	        gErrPrint(i18n("Duplicated name."));
 		}
 		else {
-	       driver = m_list->createByTypename(XDriverList::typenames()[idx],
+           driver = m_list->createByTypename(static_pointer_cast<XDriverList>(m_list)->typenames()[idx],
 											  dlg->m_edName->text().toUtf8().data());
 		}
 	}

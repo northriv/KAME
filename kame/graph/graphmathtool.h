@@ -266,7 +266,7 @@ public:
         const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
-private:
+protected:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
@@ -293,7 +293,7 @@ public:
         const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
-private:
+protected:
     friend class XQGraph2DMathToolConnector;
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XDriver> m_driver;

@@ -28,8 +28,8 @@ class XGraph;
 class XWaveNGraph;
 class XXYPlot;
 
-class XQGraph2DMathToolConnector;
-class XSpectral1DMathToolList;
+class XQGraph1DMathToolConnector;
+class XGraph1DMathToolList;
 
 //! Base class for optical/multi-channel spectrometer.
 class DECLSPEC_SHARED XOpticalSpectrometer : public XPrimaryDriverWithThread {
@@ -111,7 +111,7 @@ private:
     const qshared_ptr<FrmOpticalSpectrometer> m_form;
 	const shared_ptr<XWaveNGraph> m_waveForm;
 
-    shared_ptr<XSpectral1DMathToolList> m_spectralToolLists;
+    std::deque<shared_ptr<XGraph1DMathToolList>> m_spectralToolLists;
 
     shared_ptr<Listener> m_lsnOnStartWavelenChanged;
     shared_ptr<Listener> m_lsnOnStopWavelenChanged;
@@ -120,7 +120,7 @@ private:
     shared_ptr<Listener> m_lsnOnStoreDarkTouched;
 
     std::deque<xqcon_ptr> m_conUIs;
-    std::deque<shared_ptr<XQGraph2DMathToolConnector>> m_conTools;
+    shared_ptr<XQGraph1DMathToolConnector> m_conTools;
 
 	shared_ptr<XGraph> m_graph;
 	shared_ptr<XXYPlot> m_markerPlot;

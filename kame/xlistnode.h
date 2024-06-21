@@ -158,9 +158,12 @@ struct XTypeHolder {
 #define DEFINE_TYPE_HOLDER(...) \
     typedef XTypeHolder<__VA_ARGS__> TypeHolder; \
     static TypeHolder s_types; \
-    static TypeHolder::creator_t creator(const XString &tp) {return s_types.creator(tp);} \
-    static std::deque<XString> &typenames() {return s_types.names;} \
-    static std::deque<XString> &typelabels() {return s_types.labels;}
+    static TypeHolder::creator_t creator__(const XString &tp) {return s_types.creator(tp);} \
+    virtual TypeHolder::creator_t creator(const XString &tp) {return creator__(tp);} \
+    static std::deque<XString> &typenames__() {return s_types.names;} \
+    static std::deque<XString> &typelabels__() {return s_types.labels;} \
+    virtual std::deque<XString> &typenames() {return typenames__();} \
+    virtual std::deque<XString> &typelabels() {return typelabels__();}
 
 #define DECLARE_TYPE_HOLDER(list) \
     list::TypeHolder list::s_types;

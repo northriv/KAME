@@ -12,13 +12,15 @@
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "spectralmathtool.h"
+
 //---------------------------------------------------------------------------
 DECLARE_TYPE_HOLDER(XSpectral1DMathToolList)
 
-REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniRT, "Ruby scale Piermarini RT");
-REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoRT, "Ruby scale Mao RT");
-REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArRT, "Ruby scale Mao Ar RT");
-REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeRT, "Ruby scale Mao He RT");
+//labels need to be surfix of class name.
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniRT, "RubyScalePiermariniRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoRT, "RubyScaleMaoRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArRT, "RubyScaleMaoArRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeRT, "RubyScaleMaoHeRT");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");
