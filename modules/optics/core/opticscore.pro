@@ -9,12 +9,14 @@ INCLUDEPATH += \
 HEADERS += \
     digitalcamera.h \
     lasermodule.h \
-    opticalspectrometer.h
+    opticalspectrometer.h\
+    spectralmathtool.h
 
 SOURCES += \
     digitalcamera.cpp \
     lasermodule.cpp \
-    opticalspectrometer.cpp
+    opticalspectrometer.cpp\
+    spectralmathtool.cpp
 
 FORMS += \
     digitalcameraform.ui \
