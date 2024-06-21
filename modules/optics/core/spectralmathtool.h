@@ -19,26 +19,29 @@
 
 #include "graphmathtool.h"
 
-struct FuncSpectral1DMathToolRubyScalePiermariniRT {
+template <unsigned int lambda0_pm = 694200u>
+struct FuncSpectral1DMathToolRubyScalePiermarini {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend);
-        constexpr double lambda0 = 694.35; //nm
-        return (lambda - lambda0) / 0.365; //GPa
+        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend); //nm
+        return (lambda - lambda0_pm / 1000.0) / 0.365; //GPa
     }
 };
-using XSpectral1DMathToolRubyScalePiermariniRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScalePiermariniRT>;
+using XSpectral1DMathToolRubyScalePiermariniRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScalePiermarini<>>;
 
 
-struct FuncSpectral1DMathToolRubyScaleMaoRT {
+template <unsigned int mao_exponent_1000 = 5000u, unsigned int lambda0_pm = 694200u>
+struct FuncSpectral1DMathToolRubyScaleMao {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend);
-        constexpr double lambda0 = 694.35; //nm
-        return 1904 * (std::pow(lambda / lambda0, 5) - 1) / 5; //GPa
+        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend);//nm
+        constexpr double mao_exponent = mao_exponent_1000 / 1000.0; //5 for std., 7.665 for Ar, 7.715 for He.
+        return 1904 * (std::pow(lambda / (lambda0_pm / 1000.0), mao_exponent) - 1) / mao_exponent; //GPa
     }
 };
-using XSpectral1DMathToolRubyScaleMaoRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMaoRT>;
+using XSpectral1DMathToolRubyScaleMaoRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<>>;
+using XSpectral1DMathToolRubyScaleMaoArRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7665u>>;
+using XSpectral1DMathToolRubyScaleMaoHeRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7715u>>;
 
 class XSpectral1DMathToolList : public XGraph1DMathToolList {
 public:

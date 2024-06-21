@@ -17,6 +17,8 @@ DECLARE_TYPE_HOLDER(XSpectral1DMathToolList)
 
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniRT, "Ruby scale Piermarini RT");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoRT, "Ruby scale Mao RT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArRT, "Ruby scale Mao Ar RT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeRT, "Ruby scale Mao He RT");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");

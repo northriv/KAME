@@ -16,6 +16,7 @@
 #include "xwavengraph.h"
 #include "graph.h"
 #include "graphwidget.h"
+#include "spectralmathtool.h"
 
 #include "interface.h"
 #include "analyzer.h"
@@ -50,6 +51,8 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark)
     };
+//    m_conTools =
+//        std::make_shared<XQGraph2DMathToolConnector>(m_sampleToolLists, m_form->m_tbSmplObjMenu, m_form->m_graphwidgetProcessed),
 
     m_waveForm->iterate_commit([=](Transaction &tr){
         const char *labels[] = {"Wavelength [nm]", "Count", "Averaging Count", "Dark Count"};
@@ -95,6 +98,11 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
 		tr[ *m_waveForm].clearPoints();
 
     });
+
+    auto plot = Snapshot( *m_waveForm->graph()->plots()).list()->at(0);
+    m_spectralToolLists = create<XSpectral1DMathToolList>("SpectralToolList", false, meas, static_pointer_cast<XDriver>(shared_from_this()),
+        static_pointer_cast<XXYPlot>(plot));
+
     std::vector<shared_ptr<XNode>> runtime_ui{
 //        startWavelen(),
 //        stopWavelen(),
@@ -167,6 +175,10 @@ XOpticalSpectrometer::analyzeRaw(RawDataReader &reader, Transaction &tr)  {
     tr[ *this].markers().emplace_back(tr[ *this].waveLengths()[idx], *it);
     m_marker1X->value(tr, tr[ *this].waveLengths()[idx]);
     m_marker1Y->value(tr, *it);
+    //for pressure scales
+    m_spectralToolLists->update(ref(tr), m_form->m_graphwidget,
+        tr[ *this].waveLengths_().begin(), tr[ *this].waveLengths_().end(),
+        tr[ *this].counts_().begin(), tr[ *this].counts_().end());
 }
 void
 XOpticalSpectrometer::visualize(const Snapshot &shot) {
