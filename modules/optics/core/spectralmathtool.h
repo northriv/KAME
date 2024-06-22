@@ -23,7 +23,7 @@ template <unsigned int lambda0_pm = 694200u>
 struct FuncSpectral1DMathToolRubyScalePiermarini {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend); //nm
+        double lambda = FuncGraph1DMathToolMaxPosition{}(xbegin, xend, ybegin, yend); //nm
         return (lambda - lambda0_pm / 1000.0) / 0.365; //GPa
     }
 };
@@ -34,7 +34,7 @@ template <unsigned int mao_exponent_1000 = 5000u, unsigned int lambda0_pm = 6942
 struct FuncSpectral1DMathToolRubyScaleMao {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
-        double lambda = FuncGraph1DMathToolMinPosition{}(xbegin, xend, ybegin, yend);//nm
+        double lambda = FuncGraph1DMathToolMaxPosition{}(xbegin, xend, ybegin, yend);//nm
         constexpr double mao_exponent = mao_exponent_1000 / 1000.0; //5 for std., 7.665 for Ar, 7.715 for He.
         return 1904 * (std::pow(lambda / (lambda0_pm / 1000.0), mao_exponent) - 1) / mao_exponent; //GPa
     }

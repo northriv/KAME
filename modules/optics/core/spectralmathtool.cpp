@@ -16,7 +16,6 @@
 //---------------------------------------------------------------------------
 DECLARE_TYPE_HOLDER(XSpectral1DMathToolList)
 
-//labels need to be surfix of class name.
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniRT, "RubyScalePiermariniRT");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoRT, "RubyScaleMaoRT");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArRT, "RubyScaleMaoArRT");

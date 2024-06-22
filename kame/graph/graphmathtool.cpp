@@ -18,7 +18,7 @@
 DECLARE_TYPE_HOLDER(XGraph1DMathToolList)
 DECLARE_TYPE_HOLDER(XGraph2DMathToolList)
 
-//labels need to be surfix of class name.
+
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");
