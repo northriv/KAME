@@ -228,7 +228,13 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
     auto src = std::get<1>(res);
     auto dst = std::get<2>(res);
     auto widget = std::get<3>(res);
-    auto node = createByTypename("Graph2DMathTool" + label, formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
+    unsigned int idx = 0;
+    for(auto &&tlabel: typelabels()) {
+        if(tlabel == label)
+            break;
+        idx++;
+    }
+    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
         label.c_str(), src.x, src.y, dst.x, dst.y));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){

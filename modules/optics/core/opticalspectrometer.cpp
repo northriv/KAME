@@ -99,7 +99,7 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     });
 
     auto plot = Snapshot( *m_waveForm->graph()->plots()).list()->at(0);
-    m_spectralToolLists = {create<XSpectral1DMathToolList>("SpectralToolList", false, meas, static_pointer_cast<XDriver>(shared_from_this()),
+    m_spectralToolLists = {create<XSpectral1DMathToolList>(plot->getLabel().c_str(), false, meas, static_pointer_cast<XDriver>(shared_from_this()),
         static_pointer_cast<XXYPlot>(plot))
     };
 
