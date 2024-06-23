@@ -19,7 +19,7 @@
 
 #include "graphmathtool.h"
 
-template <unsigned int lambda0_pm = 694200u>
+template <unsigned int lambda0_pm = 694210u> //290K
 struct FuncSpectral1DMathToolRubyScalePiermarini {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
@@ -28,9 +28,10 @@ struct FuncSpectral1DMathToolRubyScalePiermarini {
     }
 };
 using XSpectral1DMathToolRubyScalePiermariniRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScalePiermarini<>>;
+using XSpectral1DMathToolRubyScalePiermarini77K = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScalePiermarini<693420u>>;
 
 
-template <unsigned int mao_exponent_1000 = 5000u, unsigned int lambda0_pm = 694200u>
+template <unsigned int mao_exponent_1000 = 5000u, unsigned int lambda0_pm = 694210u> //290K
 struct FuncSpectral1DMathToolRubyScaleMao {
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     double operator()(cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend){
@@ -42,6 +43,9 @@ struct FuncSpectral1DMathToolRubyScaleMao {
 using XSpectral1DMathToolRubyScaleMaoRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<>>;
 using XSpectral1DMathToolRubyScaleMaoArRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7665u>>;
 using XSpectral1DMathToolRubyScaleMaoHeRT = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7715u>>;
+using XSpectral1DMathToolRubyScaleMao77K = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<693420u>>;
+using XSpectral1DMathToolRubyScaleMaoAr77K = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7665u,693420u>>;
+using XSpectral1DMathToolRubyScaleMaoHe77K = XGraph1DMathToolX<FuncSpectral1DMathToolRubyScaleMao<7715u,693420u>>;
 
 class XSpectral1DMathToolList : public XGraph1DMathToolList {
 public:

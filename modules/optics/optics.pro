@@ -29,6 +29,7 @@ SOURCES += \
 }
 
 FORMS += \
+    filterwheel.ui \
     odmrimagingform.ui \
     odmrfspectrumform.ui \
     odmrfmform.ui

@@ -20,6 +20,10 @@ REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermariniRT, 
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoRT, "RubyScaleMaoRT");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoArRT, "RubyScaleMaoArRT");
 REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHeRT, "RubyScaleMaoHeRT");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScalePiermarini77K, "RubyScalePiermarin77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMao77K, "RubyScaleMao77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoAr77K, "RubyScaleMaoAr77K");
+REGISTER_TYPE(XSpectral1DMathToolList, Spectral1DMathToolRubyScaleMaoHe77K, "RubyScaleMaoHe77K");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolSum, "Sum");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolAverage, "Average");
 //REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolCoG, "CoG");
