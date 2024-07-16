@@ -7,6 +7,7 @@ INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../kame/graph\
 
 HEADERS += \
+    filterwheelstmdriven.h \
     odmrfm.h \
     odmrimaging.h \
     userlasermodule.h \
@@ -14,6 +15,7 @@ HEADERS += \
     odmrfspectrum.h
 
 SOURCES += \
+    filterwheelstmdriven.cpp \
     odmrfm.cpp \
     odmrimaging.cpp \
     userlasermodule.cpp \
@@ -29,7 +31,6 @@ SOURCES += \
 }
 
 FORMS += \
-    filterwheel.ui \
     odmrimagingform.ui \
     odmrfspectrumform.ui \
     odmrfmform.ui
@@ -82,3 +83,8 @@ win32:LIBS += -lliacore
 
 INCLUDEPATH += $$PWD/../lia/core
 DEPENDPATH += $$PWD/../lia/core
+
+win32:LIBS += -lmotorcore
+
+INCLUDEPATH += $$PWD/../motor/core
+DEPENDPATH += $$PWD/../motor/core

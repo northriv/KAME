@@ -20,6 +20,7 @@
 #include "xnodeconnector.h"
 
 class XDigitalCamera;
+class XFilterWheel;
 class QMainWindow;
 class Ui_FrmODMRImaging;
 typedef QForm<QMainWindow, Ui_FrmODMRImaging> FrmODMRImaging;
@@ -47,7 +48,7 @@ public:
     const shared_ptr<XTouchableNode> &clearAverage() const {return m_clearAverage;}
     const shared_ptr<XBoolNode> &incrementalAverage() const {return m_incrementalAverage;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
-    const shared_ptr<XUIntNode> &wheelIndex() const {return m_wheelIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
+    const shared_ptr<XUIntNode> &filterIndex() const {return m_filterIndex;}
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
     const shared_ptr<XDoubleNode> &minDPLoPLForDisp() const {return m_minDPLoPLForDisp;}//!< [%]
     const shared_ptr<XDoubleNode> &maxDPLoPLForDisp() const {return m_maxDPLoPLForDisp;}//!< [%]
@@ -104,7 +105,6 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[4];
         unsigned int m_skippedFrames; //sa precedingSkips()
-        unsigned int m_wheelIndex;
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
         double m_coefficients[4];
         std::vector<double> m_sampleIntensities[4];
@@ -140,16 +140,18 @@ protected:
         XDriver *emitter) const override;
 
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
+    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > &filterWheel() const {return m_filterWheel;}
 
     virtual void analyzeIntensities(Transaction &tr) {};
 private:
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > m_camera;
+    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > m_filterWheel;
     const shared_ptr<XUIntNode> m_average;
     const shared_ptr<XUIntNode> m_precedingSkips;
     const shared_ptr<XTouchableNode> m_clearAverage;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
     const shared_ptr<XBoolNode> m_incrementalAverage;
-    const shared_ptr<XUIntNode> m_wheelIndex;
+    const shared_ptr<XUIntNode> m_filterIndex;
     const shared_ptr<XDoubleNode> m_gainForDisp;
     const shared_ptr<XDoubleNode> m_minDPLoPLForDisp; //!< [%]
     const shared_ptr<XDoubleNode> m_maxDPLoPLForDisp; //!< [%]

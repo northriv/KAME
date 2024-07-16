@@ -12,6 +12,7 @@
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "digitalcamera.h"
+#include "filterwheel.h"
 #include "odmrimaging.h"
 #include "ui_odmrimagingform.h"
 #include "x2dimage.h"
@@ -30,12 +31,14 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
     m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
+    m_filterWheel(create<XItemNode<XDriverList, XFilterWheel> >(
+          "FilterWheel", false, ref(tr_meas), meas->drivers(), true)),
     m_average(create<XUIntNode>("Average", false)),
     m_precedingSkips(create<XUIntNode>("PrecedingSkips", false)),
     m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
     m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
-    m_wheelIndex(create<XUIntNode>("WheelIndex", true)),
+    m_filterIndex(create<XUIntNode>("FilterIndex", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
     m_minDPLoPLForDisp(create<XDoubleNode>("MinDPLoPLForDisp", false)),
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
@@ -69,15 +72,17 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
                         };
 
     connect(camera());
+    connect(filterWheel());
     m_entries = meas->scalarEntries();
 
     m_form->setWindowTitle(i18n("ODMR Imaging - ") + getLabel() );
 
     m_conUIs = {
         xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),
+        xqcon_create<XQComboBoxConnector>(m_filterWheel, m_form->m_cmbFilterWheel, ref(tr_meas)),
         xqcon_create<XQSpinBoxUnsignedConnector>(average(), m_form->m_spbAverage),
         xqcon_create<XQSpinBoxUnsignedConnector>(precedingSkips(), m_form->m_spbSkipPreceding),
-        xqcon_create<XQSpinBoxUnsignedConnector>(wheelIndex(), m_form->m_spbWheelIndex),
+        xqcon_create<XQSpinBoxUnsignedConnector>(filterIndex(), m_form->m_spbFilterIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(refIntensFrames(), m_form->m_spbRefIntensFrames),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainForDisp),
         xqcon_create<XQDoubleSpinBoxConnector>(minDPLoPLForDisp(), m_form->m_dblMinDPL),
@@ -158,8 +163,10 @@ XODMRImaging::checkDependency(const Snapshot &shot_this,
     if((shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested) &&
         shot_this[ *this].m_timeClearRequested - shot_emitter[ *camera__].time() < 60.0) //not reading raw binary
         return false;
-//    if(shot_emitter[ *camera__->colorIndex()] != shot_this[ *wheelIndex()])
-//        return false;
+//    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
+//    if(wheel__)
+//        if(shot_others[ *wheel__].wheelIndex() != shot_this[ *wheelIndex()])
+//            return false;
     return true;
 }
 void
@@ -211,6 +218,13 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         tr[ *this].m_skippedFrames = 0;
     }
     if(emitter == camera__.get()) {
+        shared_ptr<XFilterWheel> wheel__ = shot_emitter[ *camera__->filterWheel()];
+        if(wheel__) {
+            unsigned int wheelidx = shot_others[ *wheel__].wheelIndex();
+            if(wheelidx != shot_this[ *filterIndex()])
+                throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
+        }
+
         if(shot_this[ *this].m_skippedFrames < shot_this[ *precedingSkips()] * seq_len) {
             tr[ *this].m_skippedFrames++;
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.

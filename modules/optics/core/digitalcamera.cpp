@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -19,10 +19,14 @@
 #include "graphpainter.h"
 #include "xnodeconnector.h"
 #include "graphmathtool.h"
+#include "filterwheel.h"
+#include <QColorSpace>
 
 XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
+    m_filterWheel(create<XItemNode<XDriverList, XFilterWheel> >(
+          "FilterWheel", false, ref(tr_meas), meas->drivers(), true)),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
     m_brightness(create<XUIntNode>("Brightness", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
@@ -34,7 +38,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_triggerMode(create<XComboNode>("TriggerMode", true)),
     m_frameRate(create<XComboNode>("FrameRate", true)),
     m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
-    m_colorIndex(create<XUIntNode>("ColorIndex", true)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
     m_form(new FrmDigitalCamera),
     m_liveImage(create<X2DImage>("LiveImage", false,
@@ -46,13 +49,13 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 
     m_form->setWindowTitle(i18n("Digital Camera - ") + getLabel() );
     m_conUIs = {
+        xqcon_create<XQComboBoxConnector>(m_filterWheel, m_form->m_cmbFilterWheel, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(videoMode(), m_form->m_cmbVideomode, Snapshot( *videoMode())),
         xqcon_create<XQComboBoxConnector>(frameRate(), m_form->m_cmbFrameRate, Snapshot( *frameRate())),
         xqcon_create<XQComboBoxConnector>(triggerMode(), m_form->m_cmbTrigger, Snapshot( *triggerMode())),
         xqcon_create<XQLineEditConnector>(exposureTime(), m_form->m_edExposure),
         xqcon_create<XQDoubleSpinBoxConnector>(cameraGain(), m_form->m_dblCameraGain),
         xqcon_create<XQSpinBoxUnsignedConnector>(brightness(), m_form->m_spbBrightness),
-        xqcon_create<XQSpinBoxUnsignedConnector>(colorIndex(), m_form->m_spbColorIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(antiShakePixels(), m_form->m_spbAntiVibrationPixels),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainProcessed),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
@@ -67,7 +70,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         exposureTime(),
         videoMode(),
         triggerMode(),
-        colorIndex(),
         frameRate(),
         m_roiSelectionTool,
     };
@@ -211,6 +213,8 @@ XDigitalCamera::visualize(const Snapshot &shot) {
         }
     }
     assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
+    liveimage->setColorSpace(QColorSpace::SRgbLinear);
+    liveimage->convertToColorSpace(QColorSpace::SRgb);
 
     std::vector<double> coeffs = {1.0};
     std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
@@ -245,8 +249,6 @@ XDigitalCamera::rawCountsFromPool(int imagesize) {
 void
 XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian, bool mono16) {
     auto rawCountsNext = rawCountsFromPool(width * height);
-    unsigned int cidx = tr[ *colorIndex()];
-    tr[ *this].m_colorIndex = cidx;
     if( !tr[ *this].m_rawCounts || (tr[ *this].m_rawCounts->size() != width * height)) {
         tr[ *this].m_rawCounts = make_local_shared<std::vector<uint32_t>>(width * height, 0);
     }
@@ -516,7 +518,6 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
         exposureTime(),
         videoMode(),
         triggerMode(),
-        colorIndex(),
         frameRate(),
         m_roiSelectionTool,
     };

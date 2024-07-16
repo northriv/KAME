@@ -416,7 +416,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Color</string>
+            <string>Filter Wheel</string>
            </property>
            <property name="wordWrap">
             <bool>false</bool>
@@ -424,33 +424,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="m_cmbColoringMethod"/>
-         </item>
-         <item>
-          <widget class="QLabel" name="textLabel1_2_5_3_3_12">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Index</string>
-           </property>
-           <property name="wordWrap">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="m_spbColorIndex">
-           <property name="minimum">
-            <number>0</number>
-           </property>
-           <property name="maximum">
-            <number>2</number>
-           </property>
-          </widget>
+          <widget class="QComboBox" name="m_cmbFilterWheel"/>
          </item>
         </layout>
        </item>

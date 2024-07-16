@@ -20,6 +20,7 @@
 #include "xnodeconnector.h"
 
 class XScalarEntry;
+class XFilterWheel;
 class XGraph;
 template<class T> struct Vector4;
 class XGraph2DMathToolList;
@@ -41,6 +42,7 @@ public:
     virtual void showForms() override;
 
     const shared_ptr<XGraph> &graph() const {return m_graph;}
+    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > filterWheel() const {return m_filterWheel;}
 
     //! driver specific part below
     const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //!< [dB]
@@ -54,7 +56,6 @@ public:
     const shared_ptr<XComboNode> &frameRate() const {return m_frameRate;}
     const shared_ptr<XUIntNode> &antiShakePixels() const {return m_antiShakePixels;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
-    const shared_ptr<XUIntNode> &colorIndex() const {return m_colorIndex;} //!< For color wheel or Delta PL/PL measurement, 0 for off-resonance.
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
 
     struct Payload : public XPrimaryDriver::Payload {
@@ -78,7 +79,6 @@ public:
         XString m_status;
         double m_electric_dark;
         unsigned int m_dark;
-        unsigned int m_colorIndex;
         unsigned int m_width, m_height;
         local_shared_ptr<std::vector<uint32_t>> m_darkCounts;
         local_shared_ptr<std::vector<uint32_t>> m_rawCounts;
@@ -110,6 +110,8 @@ protected:
 
     void setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian = false, bool mono16 = false);
 private:
+    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > m_filterWheel;
+
     const shared_ptr<XDoubleNode> m_cameraGain;
     const shared_ptr<XUIntNode> m_brightness;
     const shared_ptr<XDoubleNode> m_exposureTime;
@@ -121,9 +123,7 @@ private:
     const shared_ptr<XComboNode> m_triggerMode;
     const shared_ptr<XComboNode> m_frameRate;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
-    const shared_ptr<XUIntNode> m_colorIndex;
     const shared_ptr<XDoubleNode> m_gainForDisp;
-
 
     const qshared_ptr<FrmDigitalCamera> m_form;
     const shared_ptr<X2DImage> m_liveImage;
