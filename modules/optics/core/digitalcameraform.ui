@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>755</width>
-    <height>481</height>
+    <width>802</width>
+    <height>522</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -329,18 +329,6 @@
        <string>Post Processing</string>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_4">
-       <property name="leftMargin">
-        <number>4</number>
-       </property>
-       <property name="topMargin">
-        <number>4</number>
-       </property>
-       <property name="rightMargin">
-        <number>4</number>
-       </property>
-       <property name="bottomMargin">
-        <number>4</number>
-       </property>
        <item>
         <layout class="QHBoxLayout" name="_3">
          <item>
@@ -400,6 +388,36 @@
           <widget class="QDoubleSpinBox" name="m_dblGainProcessed">
            <property name="maximum">
             <double>4000.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="QLabel" name="textLabel1_2_5_3_3_22">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Gamma</string>
+           </property>
+           <property name="wordWrap">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="m_dblGamma">
+           <property name="maximum">
+            <double>5.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
            </property>
           </widget>
          </item>

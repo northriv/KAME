@@ -57,6 +57,7 @@ public:
     const shared_ptr<XUIntNode> &antiShakePixels() const {return m_antiShakePixels;}
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
+    const shared_ptr<XDoubleNode> &gamma() const {return m_gamma;}
 
     struct Payload : public XPrimaryDriver::Payload {
 //        double cameraGain() const {return m_cameraGain;}
@@ -91,6 +92,7 @@ public:
         };
         std::deque<Edge> m_edgesOrig;
         unsigned int m_antishake_pixels;
+        double m_gamma;
     };
 protected:
 
@@ -124,6 +126,7 @@ private:
     const shared_ptr<XComboNode> m_frameRate;
     const shared_ptr<XBoolNode> m_autoGainForDisp;
     const shared_ptr<XDoubleNode> m_gainForDisp;
+    const shared_ptr<XDoubleNode> m_gamma;
 
     const qshared_ptr<FrmDigitalCamera> m_form;
     const shared_ptr<X2DImage> m_liveImage;

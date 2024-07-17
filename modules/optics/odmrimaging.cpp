@@ -23,6 +23,7 @@
 #include "graphmathtool.h"
 #include <QToolButton>
 #include "graphmathtoolconnector.h"
+#include <QColorSpace>
 
 //REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
 
@@ -566,6 +567,8 @@ XODMRImaging::visualize(const Snapshot &shot) {
         coeffs.push_back(shot[ *this].m_coefficients[seq_len - 2 + cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
     }
+    qimage->setColorSpace(QColorSpace::SRgbLinear);
+    qimage->convertToColorSpace(QColorSpace::SRgb);
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
