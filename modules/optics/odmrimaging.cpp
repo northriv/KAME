@@ -33,7 +33,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
           "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
     m_filterWheel(create<XItemNode<XDriverList, XFilterWheel> >(
-          "FilterWheel", false, ref(tr_meas), meas->drivers(), true)),
+          "FilterWheel", false, ref(tr_meas), meas->drivers(), false)),
     m_average(create<XUIntNode>("Average", false)),
     m_precedingSkips(create<XUIntNode>("PrecedingSkips", false)),
     m_clearAverage(create<XTouchableNode>("ClearAverage", true)),
@@ -110,7 +110,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
-        tr[ *dispMethod()].add({"PL colored by dPL/PL", "dPL"});
+        tr[ *dispMethod()].add({"PL&dPL/PL(RedWhiteBlue)", "PL&dPL/PL(YellowGreenBlue)", "dPL(YellowGreenBlue)"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
 
@@ -516,27 +516,42 @@ XODMRImaging::visualize(const Snapshot &shot) {
 
     {
         uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] / 256.0 * shot[ *this].m_coefficients[0]);
+        std::array<uint64_t, 3> gains = {};
+        std::array<int64_t, 3> offsets = {};
         double dpl_min = shot[ *minDPLoPLForDisp()] / 100.0;
         double dpl_max = shot[ *maxDPLoPLForDisp()] / 100.0;
-        int64_t dpl_gain_pos[3] = {};
-        int64_t dpl_gain_neg[3] = {};
+        std::array<int64_t, 3> dpl_gain_pos = {};
+        std::array<int64_t, 3> dpl_gain_neg = {};
         switch((unsigned int)shot[ *m_dispMethod]) {
         case 0:
         default:
+            //"PL&dPL/PL(RedWhiteBlue)"
             //Colored by DPL/PL
-            gain_av /= 2; //max. 128 * 0x100000000uLL for autogain.
-            dpl_gain_pos[0] = lrint(gain_av / dpl_max);
+            gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 128 * 0x100000000uLL for autogain.
+            dpl_gain_pos[0] = lrint(gain_av / 2 / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_pos[2] = -dpl_gain_pos[0];
-            dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
+            dpl_gain_neg[2] = lrint(gain_av / 2 / dpl_min); //negative
             dpl_gain_neg[0] = -dpl_gain_neg[2];
             dpl_gain_neg[1] = -dpl_gain_neg[2];
             break;
         case 1:
-            //DPL red for positive, blue for negative
+            //"PL&dPL/PL(YellowGreenBlue)"
+            //Colored by DPL/PL
+            gains = {0, gain_av, 0}; //max. 256 * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = lrint(gain_av / dpl_max);
+            dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
-            gain_av = 0;
+            dpl_gain_neg[1] = -dpl_gain_neg[2];
+            break;
+        case 2:
+            //"dPL(YellowGreenBlue)"
+            //DPL yellow for positive, blue for negative
+            dpl_gain_pos[0] = lrint(gain_av / dpl_max);
+            dpl_gain_pos[1] = -dpl_gain_pos[0];
+            dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
+            dpl_gain_neg[1] = -dpl_gain_neg[2];
+            offsets[1] = 0x100000000LL * 255;
             break;
         }
         uint8_t *processed = reinterpret_cast<uint8_t*>(qimage->bits());
@@ -546,9 +561,9 @@ XODMRImaging::visualize(const Snapshot &shot) {
 
         for(unsigned int i  = 0; i < width * height; ++i) {
             int32_t dpl = *summed[1] - *summed[0];
-            const int64_t *dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
+            const auto &dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
             for(unsigned int cidx: {0,1,2}) {
-                int64_t v = ((int64_t)(*summed[0] * gain_av) + dpl * dpl_gain[cidx])  / 0x100000000LL;
+                int64_t v = ((int64_t)(*summed[0] * gains[cidx]) + dpl * dpl_gain[cidx] + offsets[cidx])  / 0x100000000LL;
                 *processed++ = std::max(0LL, std::min(v, 0xffLL));
             }
             *processed++ = 0xffu;

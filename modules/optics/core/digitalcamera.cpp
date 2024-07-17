@@ -26,7 +26,7 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
     m_filterWheel(create<XItemNode<XDriverList, XFilterWheel> >(
-          "FilterWheel", false, ref(tr_meas), meas->drivers(), true)),
+          "FilterWheel", false, ref(tr_meas), meas->drivers(), false)),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
     m_brightness(create<XUIntNode>("Brightness", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
