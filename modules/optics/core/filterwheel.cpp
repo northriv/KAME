@@ -14,6 +14,7 @@
 #include "filterwheel.h"
 #include "ui_filterwheelform.h"
 #include "xnodeconnector.h"
+#include "analyzer.h"
 
 //REGISTER_TYPE(XDriverList, FilterWheel, "Filter wheel manager");
 
@@ -24,6 +25,8 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     m_waitAfterMove(create<XDoubleNode>("WaitAfterMove", false)),
     m_form(new FrmFilterWheel) {
 
+    meas->scalarEntries()->insert(tr_meas, currentWheelIndex());
+
     m_conUIs = {
         xqcon_create<XQLineEditConnector>(m_waitAfterMove, m_form->m_edWaitAfterMove),
         xqcon_create<XQLineEditConnector>(m_angleErrorWithin, m_form->m_edPhaseErrWithin),
@@ -33,7 +36,7 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     QSpinBox *uidwells[] = {m_form->m_spbCounts0, m_form->m_spbCounts1, m_form->m_spbCounts2, m_form->m_spbCounts3, m_form->m_spbCounts4, m_form->m_spbCounts5};
     QLineEdit *uilabels[] = {m_form->m_edLabel0, m_form->m_edLabel1, m_form->m_edLabel2, m_form->m_edLabel3, m_form->m_edLabel4, m_form->m_edLabel5};
 
-    for(unsigned int i = 0; i < filterCount(); ++i) {
+    for(unsigned int i = 0; i < MaxFilterCount; ++i) {
         m_filterLabels.push_back(create<XStringNode>(formatString("FilterLabel%u", i).c_str(), false));
         m_dwellCounts.push_back(create<XUIntNode>(formatString("DwellCount%u", i).c_str(), false));
         m_stmAngles.push_back(create<XDoubleNode>(formatString("STMAngle%u", i).c_str(), false));

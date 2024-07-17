@@ -15,6 +15,7 @@
 #include "ui_filterwheel.h"
 #include "motor.h"
 #include "xnodeconnector.h"
+#include "analyzer.h"
 
 REGISTER_TYPE(XDriverList, FilterWheelSTMDriven, "Filter wheel driver using STM");
 
@@ -29,13 +30,53 @@ XFilterWheelSTMDriven::XFilterWheelSTMDriven(const char *name, bool runtime,
 }
 void
 XFilterWheelSTMDriven::goAround() {
-
+    Snapshot shot_this = iterate_commit([&](Transaction &tr){
+      unsigned int dwellidx = tr[ *this].m_dwellIndex;
+      unsigned int idx = tr[ *this].m_nextWheelIndex;
+      dwellidx++;
+      while(dwellidx >= tr[ *dwellCount(idx)]) {
+          dwellidx = 0;
+          idx++;
+          if(idx > filterCount())
+              idx = 0;
+          if(idx == tr[ *this].m_wheelIndex)
+              throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
+      }
+      tr[ *this].m_dwellIndex = dwellidx;
+      tr[ *this].m_nextWheelIndex = idx;
+      tr[ *this].m_timeFilterMoved = XTime::now();
+      tr[ *this].m_wheelIndex = -1;
+    });
+    shared_ptr<XMotorDriver> stm__ = shot_this[ *stm()];
+    if( !stm__)
+        throw XDriver::XRecordError(i18n("No valid STM setting."), __FILE__, __LINE__);
+    trans( *stm__->target()) = (double)shot_this[ *stmAngle(shot_this[ *this].m_nextWheelIndex)];
 }
 
 void XFilterWheelSTMDriven::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
                         XDriver *emitter) {
     Snapshot &shot_this(tr);
-
+    shared_ptr<XMotorDriver> stm__ = shot_this[ *stm()];
+    const Snapshot &shot_stm((emitter == stm__.get()) ? shot_emitter : shot_others);
+    if( !shot_stm[ *stm__->ready()]) {
+        tr[ *this].m_timeFilterMoved = XTime::now();
+        tr[ *this].m_wheelIndex = -1;
+    }
+    else {
+        for(unsigned int i = 0; i < filterCount(); ++i) {
+            if(fabs(shot_stm[ *stm__->position()->value()] - shot_this[ *stmAngle(i)]) < shot_this[ *angleErrorWithin()]) {
+                //finds filter from the current angle.
+                tr[ *this].m_wheelIndex = i;
+            }
+        }
+        if(tr[ *this].m_wheelIndex >= 0) {
+            if(XTime::now() - shot_this[ *this].m_timeFilterMoved < shot_this[ *waitAfterMove()])
+                tr[ *this].m_wheelIndex = -1; //unstable yet.
+        }
+        else
+            tr[ *this].m_timeFilterMoved = XTime::now(); //no filter found yet.
+    }
+    currentWheelIndex()->value(ref(tr), shot_this[ *this].m_wheelIndex);
 }
 
 void XFilterWheelSTMDriven::visualize(const Snapshot &shot) {

@@ -51,8 +51,8 @@ public:
     struct Payload : public XSecondaryDriver::Payload {
         unsigned int dwellIndex() const {return m_dwellIndex;}
         int wheelIndex() const {return m_wheelIndex;} //!< -1: not ready
-    protected:
-        friend class XFilterWheel;
+//    protected:
+//        friend class XFilterWheel;
         unsigned int m_dwellIndex = 0;
         unsigned int m_nextWheelIndex = 0;
         int m_wheelIndex = 0;
