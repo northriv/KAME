@@ -41,6 +41,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
     m_filterIndex(create<XUIntNode>("FilterIndex", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
+    m_gamma(create<XDoubleNode>("Gamma", false)),
     m_minDPLoPLForDisp(create<XDoubleNode>("MinDPLoPLForDisp", false)),
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
@@ -86,6 +87,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(filterIndex(), m_form->m_spbFilterIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(refIntensFrames(), m_form->m_spbRefIntensFrames),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainForDisp),
+        xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_form->m_dblGamma),
         xqcon_create<XQDoubleSpinBoxConnector>(minDPLoPLForDisp(), m_form->m_dblMinDPL),
         xqcon_create<XQDoubleSpinBoxConnector>(maxDPLoPLForDisp(), m_form->m_dblMaxDPL),
 //        xqcon_create<XQLineEditConnector>((), m_form->m_edIntegrationTime),
@@ -110,6 +112,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
+        tr[ *gamma()] = 2.2;
         tr[ *dispMethod()].add({"PL&dPL/PL(RedWhiteBlue)", "PL&dPL/PL(YellowGreenBlue)", "dPL(YellowGreenBlue)"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
@@ -250,6 +253,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         (tr[ *this].m_accumulated[cidx])++;
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
+    tr[ *this].m_gamma = shot_this[ *gamma()];
 
     if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
@@ -442,7 +446,6 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             tr[ *this].m_sampleDPLoPLEntries.clear();
         }
     }
-
 }
 void
 XODMRImaging::visualize(const Snapshot &shot) {
@@ -583,7 +586,12 @@ XODMRImaging::visualize(const Snapshot &shot) {
         rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
     }
     qimage->setColorSpace(QColorSpace::SRgbLinear);
-    qimage->convertToColorSpace(QColorSpace::SRgb);
+    if(shot[ *this].m_gamma == 2.2) {
+        qimage->convertToColorSpace(QColorSpace::SRgb);
+    }
+    else {
+        qimage->convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *this].m_gamma});
+    }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
         tr[ *m_processedImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);

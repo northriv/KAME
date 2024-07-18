@@ -203,7 +203,6 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         tr[ *this].m_colorGains[cidx] =
             std::array<double, 3>{shot_this[ *colorGainR()], shot_this[ *colorGainG()], shot_this[ *colorGainB()]}
                 [coloridx];
-        tr[ *this].m_gamma = shot_this[ *gamma()];
         tr[ *this].m_indiceForRGB[coloridx] = cidx;
 
         auto summedCountsNext = summedCountsFromPool(width * height);
@@ -225,6 +224,7 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         (tr[ *this].m_accumulated[cidx])++;
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
+    tr[ *this].m_gamma = shot_this[ *gamma()];
 
     if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
