@@ -20,8 +20,6 @@
 
 class XMotorDriver;
 class QMainWindow;
-class Ui_FrmFilterWheel;
-typedef QForm<QMainWindow, Ui_FrmFilterWheel> FrmFilterWheel;
 
 class XScalarEntry;
 

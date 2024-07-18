@@ -12,7 +12,7 @@
         see the files COPYING and AUTHORS.
 ***************************************************************************/
 #include "filterwheelstmdriven.h"
-#include "ui_filterwheel.h"
+#include "ui_filterwheelform.h"
 #include "motor.h"
 #include "xnodeconnector.h"
 #include "analyzer.h"

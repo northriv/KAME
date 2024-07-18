@@ -82,4 +82,4 @@ pumpcontroller.depends += charinterface
 arbfunc.depends += charinterface
 twoaxis.depends += motorcore
 opticscore.file = optics/core/opticscore.pro
-optics.depends += opticscore sgcore liacore charinterface
+optics.depends += opticscore sgcore liacore motorcore charinterface

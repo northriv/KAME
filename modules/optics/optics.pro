@@ -5,6 +5,7 @@ QT += widgets
 
 INCLUDEPATH += \
     $${_PRO_FILE_PWD_}/../../kame/graph\
+    $${OUT_PWD}/core\ #for ui_*.h
 
 HEADERS += \
     filterwheelstmdriven.h \
