@@ -73,26 +73,52 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 
 void
 X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const std::string &ext) {
-    QByteArray ba;
-    QBuffer buffer(&ba);
-    buffer.open(QIODevice::WriteOnly);
-    {
-        QImage image = shot[ *plot()].image()->copy();
-    //    image.setColorSpace(QColorSpace::SRgbLinear);
-        if(shot[ *m_gamma] == 2.2)
-            image.convertToColorSpace(QColorSpace::SRgb);
-        else if(shot[ *m_gamma] == 1.0)
-            image.convertToColorSpace(QColorSpace::SRgbLinear);
-        else
-            image.convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *m_gamma]});
-        image.save( &buffer, ext.c_str(), 100); //uncompressed full quality.
+    if((ext == "DAT") || (ext == "dat")) {
+        auto image = shot[ *plot()].image();
+        stream << "#at " << (XTime::now()).getTimeFmtStr(
+            "%Y/%m/%d %H:%M:%S") << std::endl;
+        stream << image->width() << KAME_DATAFILE_DELIMITER
+            << image->height() << std::endl
+            << image->depth() << std::endl;
+
+        const uint16_t* p = reinterpret_cast<const uint16_t*>(image->constBits());
+        const uint16_t* p_start = p;
+        for(unsigned int i = 0; i < image->height(); ++i) {
+            for(unsigned int j = 0; j < image->width(); ++j) {
+                stream << *p++;
+                stream << KAME_DATAFILE_DELIMITER;
+                stream << *p++;
+                stream << KAME_DATAFILE_DELIMITER;
+                stream << *p++;
+                stream << KAME_DATAFILE_DELIMITER;
+                p++; //alpha channel
+            }
+            stream << std::endl;
+        }
+        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully %ld words written into %s."), p - p_start, shot[ *filename()].to_str().c_str()));
     }
-    try {
-        stream.write(ba.constData(), ba.size());
-        gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
-    }
-    catch(const std::ios_base::failure& e) {
-        gErrPrint(e.what());
+    else {
+        QByteArray ba;
+        QBuffer buffer(&ba);
+        buffer.open(QIODevice::WriteOnly);
+        {
+            QImage image = shot[ *plot()].image()->copy();
+        //    image.setColorSpace(QColorSpace::SRgbLinear);
+            if(shot[ *m_gamma] == 2.2)
+                image.convertToColorSpace(QColorSpace::SRgb);
+            else if(shot[ *m_gamma] == 1.0)
+                image.convertToColorSpace(QColorSpace::SRgbLinear);
+            else
+                image.convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *m_gamma]});
+            image.save( &buffer, ext.c_str(), 100); //uncompressed full quality.
+        }
+        try {
+            stream.write(ba.constData(), ba.size());
+            gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));
+        }
+        catch(const std::ios_base::failure& e) {
+            gErrPrint(e.what());
+        }
     }
 }
 
