@@ -21,6 +21,7 @@
 #include <QToolButton>
 #include "graphmathtoolconnector.h"
 #include <QBuffer>
+#include <QColorSpace>
 
 X2DImage::X2DImage(const char *name, bool runtime, FrmGraphNURL *item) :
     X2DImage(name, runtime, item->m_graphwidget, item->m_edUrl,
@@ -31,9 +32,9 @@ X2DImage::~X2DImage() {}
 
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-    unsigned int max_color_index, QToolButton *btnmath,
+    unsigned int max_color_index, QDoubleSpinBox *dblgamma, QToolButton *btnmath,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver) :
-    X2DImage(name, runtime, graphwidget, ed, btn, btndump) {
+    X2DImage(name, runtime, graphwidget, ed, btn, btndump, dblgamma) {
     m_btnMathTool = btnmath;
     for(unsigned int i = 0; i < max_color_index; ++i)
         m_toolLists.push_back(create<XGraph2DMathToolList>(formatString("CH%u", i).c_str(), false, meas, driver, plot()));
@@ -42,8 +43,12 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
 }
 
 X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) : XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump),
-    m_graphwidget(graphwidget) {
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump, QDoubleSpinBox *dblgamma) :
+    XGraphNToolBox(name, runtime, graphwidget, ed, btn, btndump,
+        "Images (*.png *.jpg *.jpeg);;Data files (*.dat);;All files (*.*)"),
+    m_gamma(create<XDoubleNode>("Gamma", false)),
+    m_graphwidget(graphwidget),
+    m_dblGamma(dblgamma) {
     iterate_commit([=](Transaction &tr){
         tr[ *graph()->label()] = getLabel();
         tr[ *graph()->persistence()] = 0;
@@ -58,16 +63,30 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         tr[ *axisx->label()] = "X";
         tr[ *plot->axisY()] = axisy;
         tr[ *axisy->label()] = "Y";
+
+        tr[ *gamma()] = 2.2;
     });
+    m_conUIs = {
+        xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_dblGamma),
+    };
 }
 
 void
-X2DImage::dumpToFileThreaded(std::fstream &stream) {
-    Snapshot shot( *plot());
+X2DImage::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const std::string &ext) {
     QByteArray ba;
     QBuffer buffer(&ba);
     buffer.open(QIODevice::WriteOnly);
-    shot[ *plot()].image()->save( &buffer, "PNG");
+    {
+        QImage image = shot[ *plot()].image()->copy();
+    //    image.setColorSpace(QColorSpace::SRgbLinear);
+        if(shot[ *m_gamma] == 2.2)
+            image.convertToColorSpace(QColorSpace::SRgb);
+        else if(shot[ *m_gamma] == 1.0)
+            image.convertToColorSpace(QColorSpace::SRgbLinear);
+        else
+            image.convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *m_gamma]});
+        image.save( &buffer, ext.c_str(), 100); //uncompressed full quality.
+    }
     try {
         stream.write(ba.constData(), ba.size());
         gMessagePrint(formatString_tr(I18N_NOOP("Succesfully written into %s."), shot[ *filename()].to_str().c_str()));

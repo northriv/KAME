@@ -32,7 +32,7 @@ XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, FrmGraphNURL *ite
 
 }
 XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwidget,
-    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
+    QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump, const char *selfilter) :
     XNode(name, runtime), m_btnDump(btndump),
     m_graph(create<XGraph> (name, false)),
     m_dump(create<XTouchableNode> ("Dump", true)),
@@ -40,7 +40,7 @@ XGraphNToolBox::XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwid
     graphwidget->setGraph(m_graph);
     if(ed && btn)
         m_conFilename = xqcon_create<XFilePathConnector> (m_filename, ed, btn,
-            "Data files (*.dat);;All files (*.*)", true);
+            selfilter, true);
     if(btndump)
         m_conDump = xqcon_create<XQButtonConnector> (m_dump, btndump);
 
@@ -88,6 +88,8 @@ XGraphNToolBox::onFilenameChanged(const Snapshot &shot, XValueNodeBase *) {
 
         iterate_commit([=](Transaction &tr){
             if(m_stream.good()) {
+                auto idx = shot[ *filename()].to_str().find_last_of('.');
+                m_ext = (idx != std::string::npos) ? shot[ *filename()].to_str().substr(idx + 1) : "";
                 m_lsnOnDumpTouched = tr[ *dump()].onTouch().connectWeakly(
                     shared_from_this(), &XGraphNToolBox::onDumpTouched);
                 tr[ *dump()].setUIEnabled(true);
@@ -119,7 +121,7 @@ XGraphNToolBox::onDumpTouched(const Snapshot &, XTouchableNode *) {
         }
         Transactional::setCurrentPriorityMode(Priority::UI_DEFERRABLE);
 
-        dumpToFileThreaded(m_stream);
+        dumpToFileThreaded(m_stream, shot, m_ext);
 
         m_stream.flush();
     }, Snapshot( *this)});

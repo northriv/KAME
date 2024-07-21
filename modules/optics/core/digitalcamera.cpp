@@ -39,12 +39,11 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     m_frameRate(create<XComboNode>("FrameRate", true)),
     m_autoGainForDisp(create<XBoolNode>("AutoGainForDisp", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
-    m_gamma(create<XDoubleNode>("Gamma", false)),
     m_form(new FrmDigitalCamera),
     m_liveImage(create<X2DImage>("LiveImage", false,
                                    m_form->m_graphwidgetLive,
                                    m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                   2, //w/dark
+                                   2, m_form->m_dblGamma,//w/dark
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
 
@@ -59,7 +58,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(brightness(), m_form->m_spbBrightness),
         xqcon_create<XQSpinBoxUnsignedConnector>(antiShakePixels(), m_form->m_spbAntiVibrationPixels),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainProcessed),
-        xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_form->m_dblGamma),
         xqcon_create<XQButtonConnector>(storeDark(), m_form->m_btnStoreDark),
         xqcon_create<XQButtonConnector>(m_roiSelectionTool, m_form->m_tbROI),
         xqcon_create<XQToggleButtonConnector>(subtractDark(), m_form->m_ckbSubtractDark),
@@ -78,7 +76,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
     iterate_commit([=](Transaction &tr){
         tr[ *triggerMode()].add({"Continueous", "Single-shot", "Ext. Pos. Edge", "Ext. Neg. Edge", "Ext. Pos. Exposure", "Ext. Neg. Exposure"});
         tr[ *autoGainForDisp()] = true;
-        tr[ *gamma()] = 2.2;
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
         m_lsnOnStoreDarkTouched = tr[ *storeDark()].onTouch().connectWeakly(
@@ -188,6 +185,7 @@ XDigitalCamera::visualize(const Snapshot &shot) {
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
     auto liveimage = std::make_shared<QImage>(width, height, QImage::Format_Grayscale16);
+    liveimage->setColorSpace(QColorSpace::SRgbLinear);
     uint16_t *words = reinterpret_cast<uint16_t*>(liveimage->bits());
     if( !shot[ *this].m_darkCounts) {
         for(unsigned int y  = 0; y < height; ++y) {
@@ -216,13 +214,6 @@ XDigitalCamera::visualize(const Snapshot &shot) {
         }
     }
     assert(words == reinterpret_cast<uint16_t*>(liveimage->bits()) + width * height);
-    liveimage->setColorSpace(QColorSpace::SRgbLinear);
-    if(shot[ *this].m_gamma == 2.2) {
-        liveimage->convertToColorSpace(QColorSpace::SRgb);
-    }
-    else {
-        liveimage->convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *this].m_gamma});
-    }
     std::vector<double> coeffs = {1.0};
     std::vector<const uint32_t *> rawimages = { &shot[ *this].m_rawCounts->at(shot[ *this].firstPixel())};
     if(shot[ *this].m_darkCounts) {
@@ -474,7 +465,6 @@ XDigitalCamera::setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t wi
     else {
          tr[ *this].m_firstPixel = 0;
     }
-    tr[ *this].m_gamma = tr[ *gamma()];
 //    case (unsigned int)ColoringMethod::RGBWHEEL: {
 //        uint8_t *processed = reinterpret_cast<uint8_t*>(processedimage->bits());
 //        uint64_t gain_av[3];

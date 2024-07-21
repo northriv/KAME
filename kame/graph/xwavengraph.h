@@ -126,7 +126,7 @@ public:
 		shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
 	};
 protected:
-    virtual void dumpToFileThreaded(std::fstream &) override;
+    virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) override;
 private:
     weak_ptr<XMeasure> m_meas;
     weak_ptr<XDriver> m_driver;

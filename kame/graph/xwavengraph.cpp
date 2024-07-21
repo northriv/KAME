@@ -233,9 +233,7 @@ XWaveNGraph::Payload::setRowCount(unsigned int n) {
 
 
 void
-XWaveNGraph::dumpToFileThreaded(std::fstream &stream) {
-    Snapshot shot( *this);
-
+XWaveNGraph::dumpToFileThreaded(std::fstream &stream, const Snapshot &shot, const std::string &ext) {
     int rowcnt = shot[ *this].rowCount();
     int colcnt = shot[ *this].colCount();
 

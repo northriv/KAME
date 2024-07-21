@@ -50,7 +50,6 @@ public:
     const shared_ptr<XBoolNode> &autoGainForDisp() const {return m_autoGainForDisp;}
     const shared_ptr<XUIntNode> &filterIndex() const {return m_filterIndex;}
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
-    const shared_ptr<XDoubleNode> &gamma() const {return m_gamma;}
     const shared_ptr<XDoubleNode> &minDPLoPLForDisp() const {return m_minDPLoPLForDisp;}//!< [%]
     const shared_ptr<XDoubleNode> &maxDPLoPLForDisp() const {return m_maxDPLoPLForDisp;}//!< [%]
     const shared_ptr<XComboNode> &dispMethod() const {return m_dispMethod;}
@@ -104,7 +103,6 @@ public:
         friend class XODMRImaging;
         Sequence m_sequence;
         double m_gainForDisp;
-        double m_gamma;
         unsigned int m_accumulated[4];
         unsigned int m_skippedFrames; //sa precedingSkips()
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
@@ -155,7 +153,6 @@ private:
     const shared_ptr<XBoolNode> m_incrementalAverage;
     const shared_ptr<XUIntNode> m_filterIndex;
     const shared_ptr<XDoubleNode> m_gainForDisp;
-    const shared_ptr<XDoubleNode> m_gamma;
     const shared_ptr<XDoubleNode> m_minDPLoPLForDisp; //!< [%]
     const shared_ptr<XDoubleNode> m_maxDPLoPLForDisp; //!< [%]
     const shared_ptr<XComboNode> m_dispMethod;

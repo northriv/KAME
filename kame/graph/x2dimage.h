@@ -24,6 +24,7 @@ class XDriver;
 class XMeasure;
 class XGraph2DMathToolList;
 class XQGraph2DMathToolConnector;
+class QDoubleSpinBox;
 
 //! Graph widget with internal data sets. The data can be saved as a text file.
 //! \sa XQGraph, XGraph
@@ -32,23 +33,30 @@ public:
     X2DImage(const char *name, bool runtime, FrmGraphNURL *item);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump,
-        unsigned int max_color_index, QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
+        unsigned int max_color_index, QDoubleSpinBox *dblgamma,
+        QToolButton *m_btnmath, const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver);
     X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
-        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr);
+        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr,
+        QDoubleSpinBox *dblgamma = nullptr);
 
     virtual ~X2DImage();
+
+    const shared_ptr<XDoubleNode> &gamma() const {return m_gamma;}
 
     void updateImage(Transaction &tr, const shared_ptr<QImage> &image,
         const std::vector<const uint32_t *> &rawimages = {}, unsigned int raw_stride = 0, const std::vector<double> coefficients = {});
 
     const shared_ptr<X2DImagePlot> &plot() const {return m_plot;}
 protected:
-    virtual void dumpToFileThreaded(std::fstream &) override;
+    virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) override;
 private:
     shared_ptr<X2DImagePlot> m_plot;
+    const shared_ptr<XDoubleNode> m_gamma;
 
     XQGraph *m_graphwidget;
     QToolButton *m_btnMathTool = nullptr;
+    QDoubleSpinBox *m_dblGamma = nullptr;
+    std::deque<xqcon_ptr> m_conUIs;
     std::deque<shared_ptr<XGraph2DMathToolList>> m_toolLists;
     unique_ptr<XQGraph2DMathToolConnector> m_conTools;
 };

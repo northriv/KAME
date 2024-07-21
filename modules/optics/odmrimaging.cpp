@@ -41,7 +41,6 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_incrementalAverage(create<XBoolNode>("IncrementalAverage", false)),
     m_filterIndex(create<XUIntNode>("FilterIndex", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
-    m_gamma(create<XDoubleNode>("Gamma", false)),
     m_minDPLoPLForDisp(create<XDoubleNode>("MinDPLoPLForDisp", false)),
     m_maxDPLoPLForDisp(create<XDoubleNode>("MaxDPLoPLForDisp", false)),
     m_dispMethod(create<XComboNode>("DispMethod", false, true)),
@@ -50,7 +49,7 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
     m_form(new FrmODMRImaging),
     m_processedImage(create<X2DImage>("ProcessedImage", false,
                                    m_form->m_graphwidgetProcessed, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                   2,
+                                   2, m_form->m_dblGamma,
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
     auto plot = m_processedImage->plot();
@@ -87,7 +86,6 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         xqcon_create<XQSpinBoxUnsignedConnector>(filterIndex(), m_form->m_spbFilterIndex),
         xqcon_create<XQSpinBoxUnsignedConnector>(refIntensFrames(), m_form->m_spbRefIntensFrames),
         xqcon_create<XQDoubleSpinBoxConnector>(gainForDisp(), m_form->m_dblGainForDisp),
-        xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_form->m_dblGamma),
         xqcon_create<XQDoubleSpinBoxConnector>(minDPLoPLForDisp(), m_form->m_dblMinDPL),
         xqcon_create<XQDoubleSpinBoxConnector>(maxDPLoPLForDisp(), m_form->m_dblMaxDPL),
 //        xqcon_create<XQLineEditConnector>((), m_form->m_edIntegrationTime),
@@ -112,7 +110,6 @@ XODMRImaging::XODMRImaging(const char *name, bool runtime,
         tr[ *average()] = 1;
         tr[ *precedingSkips()] = 0;
         tr[ *autoGainForDisp()] = true;
-        tr[ *gamma()] = 2.2;
         tr[ *dispMethod()].add({"PL&dPL/PL(RedWhiteBlue)", "PL&dPL/PL(YellowGreenBlue)", "dPL(YellowGreenBlue)"});
         tr[ *sequence()].add({"OFF,ON", "OFF,OFF,ON", "OFF,OFF,OFF,ON"});
     });
@@ -253,7 +250,6 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         (tr[ *this].m_accumulated[cidx])++;
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
-    tr[ *this].m_gamma = shot_this[ *gamma()];
 
     if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
@@ -513,12 +509,13 @@ XODMRImaging::visualize(const Snapshot &shot) {
 
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
-    auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA8888);
+    auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
+    qimage->setColorSpace(QColorSpace::SRgbLinear);
 
     unsigned int seq_len = shot[ *this].sequenceLength();
 
     {
-        uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] / 256.0 * shot[ *this].m_coefficients[0]);
+        uint64_t gain_av = lrint(0x100000000uLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[0]); // /256 is needed for RGBA8888 format
         std::array<uint64_t, 3> gains = {};
         std::array<int64_t, 3> offsets = {};
         double dpl_min = shot[ *minDPLoPLForDisp()] / 100.0;
@@ -530,7 +527,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
         default:
             //"PL&dPL/PL(RedWhiteBlue)"
             //Colored by DPL/PL
-            gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 128 * 0x100000000uLL for autogain.
+            gains = {gain_av / 2, gain_av / 2, gain_av / 2}; //max. 0x7fffuL( or 0x7fu) * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = lrint(gain_av / 2 / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_pos[2] = -dpl_gain_pos[0];
@@ -541,7 +538,7 @@ XODMRImaging::visualize(const Snapshot &shot) {
         case 1:
             //"PL&dPL/PL(YellowGreenBlue)"
             //Colored by DPL/PL
-            gains = {0, gain_av, 0}; //max. 256 * 0x100000000uLL for autogain.
+            gains = {0, gain_av, 0}; //max. 0xffffuL( or 0xffu) * 0x100000000uLL for autogain.
             dpl_gain_pos[0] = lrint(gain_av / dpl_max);
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
@@ -554,10 +551,10 @@ XODMRImaging::visualize(const Snapshot &shot) {
             dpl_gain_pos[1] = -dpl_gain_pos[0];
             dpl_gain_neg[2] = lrint(gain_av / dpl_min); //negative
             dpl_gain_neg[1] = -dpl_gain_neg[2];
-            offsets[1] = 0x100000000LL * 255;
+            offsets[1] = 0x100000000LL * 0x7ffffLL; // or 0x7f
             break;
         }
-        uint8_t *processed = reinterpret_cast<uint8_t*>(qimage->bits());
+        uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits());
         const uint32_t *summed[2];
         for(unsigned int cidx: {0,1})
             summed[cidx] = &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0);
@@ -567,13 +564,14 @@ XODMRImaging::visualize(const Snapshot &shot) {
             const auto &dpl_gain = (dpl > 0) ? dpl_gain_pos : dpl_gain_neg;
             for(unsigned int cidx: {0,1,2}) {
                 int64_t v = ((int64_t)(*summed[0] * gains[cidx]) + dpl * dpl_gain[cidx] + offsets[cidx])  / 0x100000000LL;
-                *processed++ = std::max(0LL, std::min(v, 0xffLL));
+//                *processed++ = std::max(0LL, std::min(v, 0xffLL));
+                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
             }
-            *processed++ = 0xffu;
+            *processed++ = 0xffffu;
             for(unsigned int cidx: {0,1})
                 (summed[cidx])++;
         }
-        assert(processed == qimage->constBits() + width * height * 4);
+        assert(processed == (uint16_t *)qimage->constBits() + width * height * 4);
         assert(summed[0] == &shot[ *this].m_summedCounts[seq_len - 2]->at(0) + width * height);
         assert(summed[1] == &shot[ *this].m_summedCounts[seq_len - 1]->at(0) + width * height);
     }
@@ -584,13 +582,6 @@ XODMRImaging::visualize(const Snapshot &shot) {
     for(unsigned int cidx: {0,1}) {
         coeffs.push_back(shot[ *this].m_coefficients[seq_len - 2 + cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
-    }
-    qimage->setColorSpace(QColorSpace::SRgbLinear);
-    if(shot[ *this].m_gamma == 2.2) {
-        qimage->convertToColorSpace(QColorSpace::SRgb);
-    }
-    else {
-        qimage->convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *this].m_gamma});
     }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;

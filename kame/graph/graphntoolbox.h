@@ -32,7 +32,8 @@ class DECLSPEC_KAME XGraphNToolBox: public XNode {
 public:
     XGraphNToolBox(const char *name, bool runtime, FrmGraphNURL *item);
     XGraphNToolBox(const char *name, bool runtime, XQGraph *graphwidget,
-        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr);
+        QLineEdit *ed = nullptr, QAbstractButton *btn = nullptr, QPushButton *btndump = nullptr,
+        const char *selfilter = "Data files (*.dat);;All files (*.*)");
     virtual ~XGraphNToolBox();
 
     const shared_ptr<XGraph> &graph() const { return m_graph;}
@@ -48,7 +49,7 @@ public:
         Talker<bool> m_tlkOnIconChanged;
     };
 protected:
-    virtual void dumpToFileThreaded(std::fstream &) = 0;
+    virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) = 0;
 
     std::deque<xqcon_ptr> m_conUIs;
 private:
@@ -72,6 +73,7 @@ private:
 
     unique_ptr<XThread> m_threadDump;
     std::fstream m_stream;
+    std::string m_ext;
     XMutex m_filemutex;
 };
 #endif

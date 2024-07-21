@@ -50,7 +50,6 @@ public:
     const shared_ptr<XDoubleNode> &colorGainG() const {return m_colorGainG;}
     const shared_ptr<XDoubleNode> &colorGainB() const {return m_colorGainB;}
     const shared_ptr<XDoubleNode> &gainForDisp() const {return m_gainForDisp;}
-    const shared_ptr<XDoubleNode> &gamma() const {return m_gamma;}
 
     const shared_ptr<X2DImage> &rgbImage() const {return m_rgbImage;}
 
@@ -71,7 +70,6 @@ public:
         double m_gainForDisp;
         unsigned int m_accumulated[3];
         double m_colorGains[3];
-        double m_gamma;
         local_shared_ptr<std::vector<uint32_t>> m_summedCounts[4];//MW off and on.
         double m_coefficients[3];
         std::vector<double> m_intensities[3];
@@ -116,7 +114,6 @@ private:
     const shared_ptr<XUIntNode> m_filterIndexR, m_filterIndexG, m_filterIndexB;
     const shared_ptr<XDoubleNode> m_colorGainR, m_colorGainG, m_colorGainB;
     const shared_ptr<XDoubleNode> m_gainForDisp;
-    const shared_ptr<XDoubleNode> m_gamma;
 
     const qshared_ptr<FrmImageProcessor> m_form;
     const shared_ptr<X2DImage> m_rgbImage;

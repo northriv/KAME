@@ -44,11 +44,10 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
     m_colorGainG(create<XDoubleNode>("ColorGainG", false)),
     m_colorGainB(create<XDoubleNode>("ColorGainB", false)),
     m_gainForDisp(create<XDoubleNode>("GainForDisp", false)),
-    m_gamma(create<XDoubleNode>("Gamma", false)),
     m_form(new FrmImageProcessor),
     m_rgbImage(create<X2DImage>("RGBImage", false,
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                   2,
+                                   2, m_form->m_dblGamma,
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
     auto plot = m_rgbImage->plot();
@@ -65,7 +64,6 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
         xqcon_create<XQDoubleSpinBoxConnector>(colorGainR(), m_form->m_dblGainR),
         xqcon_create<XQDoubleSpinBoxConnector>(colorGainG(), m_form->m_dblGainG),
         xqcon_create<XQDoubleSpinBoxConnector>(colorGainB(), m_form->m_dblGainB),
-        xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_form->m_dblGamma),
         xqcon_create<XQSpinBoxUnsignedConnector>(filterIndexR(), m_form->m_spbFilterIdxR),
         xqcon_create<XQSpinBoxUnsignedConnector>(filterIndexG(), m_form->m_spbFilterIdxG),
         xqcon_create<XQSpinBoxUnsignedConnector>(filterIndexB(), m_form->m_spbFilterIdxB),
@@ -82,7 +80,6 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
         tr[ *colorGainR()] = 1.0;
         tr[ *colorGainG()] = 1.0;
         tr[ *colorGainB()] = 1.0;
-        tr[ *gamma()] = 2.2;
     });
 
     iterate_commit([=](Transaction &tr){
@@ -99,7 +96,6 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
         tr[ *gainForDisp()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *incrementalAverage()].onValueChanged().connect(m_lsnOnCondChanged);
         tr[ *autoGain()].onValueChanged().connect(m_lsnOnCondChanged);
-        tr[ *gamma()].onValueChanged().connect(m_lsnOnCondChanged);
     });
 }
 XImageProcessor::~XImageProcessor() {
@@ -224,7 +220,6 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         (tr[ *this].m_accumulated[cidx])++;
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
-    tr[ *this].m_gamma = shot_this[ *gamma()];
 
     if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
@@ -271,15 +266,16 @@ XImageProcessor::visualize(const Snapshot &shot) {
 
     unsigned int width = shot[ *this].width();
     unsigned int height = shot[ *this].height();
-    auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA8888);
+    auto qimage = std::make_shared<QImage>(width, height, QImage::Format_RGBA64);
+    qimage->setColorSpace(QColorSpace::SRgbLinear);
 
     unsigned int seq_len = 3; //RGB
 
     {
         uint64_t gain_av[3];
         for(unsigned int cidx = 0; cidx < seq_len; ++cidx)
-            gain_av[cidx] = lrint(0x100000000uLL * shot[ *gainForDisp()] / 256.0 * shot[ *this].m_coefficients[cidx]);
-        uint8_t *processed = reinterpret_cast<uint8_t*>(qimage->bits());
+            gain_av[cidx] = lrint(0x100000000uLL * shot[ *gainForDisp()] * shot[ *this].m_coefficients[cidx]);
+        uint16_t *processed = reinterpret_cast<uint16_t*>(qimage->bits()); //16bit color
         const uint32_t *summed[3];
         for(unsigned int cidx = 0; cidx < seq_len; ++cidx)
             summed[cidx] = &shot[ *this].m_summedCounts[cidx]->at(0);
@@ -287,19 +283,11 @@ XImageProcessor::visualize(const Snapshot &shot) {
         for(unsigned int i  = 0; i < width * height; ++i) {
             for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
                 int64_t v = ((int64_t)(*summed[cidx] * gain_av[cidx]))  / 0x100000000LL;
-                *processed++ = std::max(0LL, std::min(v, 0xffLL));
+                *processed++ = std::max(0LL, std::min(v, 0xffffLL));
                 (summed[cidx])++;
             }
-            *processed++ = 0xffu;
+            *processed++ = 0xffffu;
         }
-    }
-
-    qimage->setColorSpace(QColorSpace::SRgbLinear);
-    if(shot[ *this].m_gamma == 2.2) {
-        qimage->convertToColorSpace(QColorSpace::SRgb);
-    }
-    else {
-        qimage->convertToColorSpace(QColorSpace{QColorSpace::Primaries::SRgb, (float)(double)shot[ *this].m_gamma});
     }
 
     std::vector<double> coeffs;

@@ -23,6 +23,7 @@
 #include "measure.h"
 #include "graphdialogconnector.h"
 #include "ui_graphdialog.h"
+#include <QColorSpace>
 
 typedef QForm<QDialog, Ui_DlgGraphSetup> DlgGraphSetup;
 
@@ -39,6 +40,7 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     QSurfaceFormat format;
     format.setAlphaBufferSize(8);
     format.setDepthBufferSize(24);
+    format.setColorSpace(QColorSpace::SRgb);
 //#ifndef __APPLE__
 ////    format.setSamples(4); //osx retina cannot handle this properly.
 //#endif
