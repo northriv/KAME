@@ -38,6 +38,7 @@ public:
     //! driver specific part below
     static constexpr unsigned int MaxFilterCount = 6;
     virtual unsigned int filterCount() const {return 6;}
+    const shared_ptr<XUIntNode> &target() const {return m_target;}
     const shared_ptr<XStringNode> &filterLabel(unsigned int index) const {return m_filterLabels.at(index);}
     const shared_ptr<XUIntNode> &dwellCount(unsigned int index) const {return m_dwellCounts.at(index);}
     const shared_ptr<XDoubleNode> &stmAngle(unsigned int index) const {return m_stmAngles.at(index);}
@@ -73,6 +74,7 @@ protected:
 //        XDriver *emitter) const override;
 
 //    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm() const {return m_stm;}
+    const shared_ptr<XUIntNode> m_target;
     std::deque<shared_ptr<XStringNode>> m_filterLabels;
     std::deque<shared_ptr<XUIntNode>> m_dwellCounts;
     std::deque<shared_ptr<XDoubleNode>> m_stmAngles;
@@ -81,7 +83,10 @@ protected:
     const shared_ptr<XScalarEntry> m_currentWheelIndex;
 
     const qshared_ptr<FrmFilterWheel> m_form;
+
+    virtual void onTargetChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 private:
+    shared_ptr<Listener> m_lsnOnTargetChanged;
 
     std::deque<xqcon_ptr> m_conUIs;
 };

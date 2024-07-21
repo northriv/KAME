@@ -48,6 +48,8 @@ protected:
         XDriver *emitter) const override;
 
     const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm() const {return m_stm;}
+
+    virtual void onTargetChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
     const shared_ptr<XItemNode<XDriverList, XMotorDriver> > m_stm;
     std::deque<xqcon_ptr> m_conUIs;

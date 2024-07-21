@@ -21,6 +21,7 @@
 XFilterWheel::XFilterWheel(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
+    m_target(create<XUIntNode>("Target", true)),
     m_angleErrorWithin(create<XDoubleNode>("AngleErrorWithin", false)),
     m_waitAfterMove(create<XDoubleNode>("WaitAfterMove", false)),
     m_form(new FrmFilterWheel) {
@@ -28,8 +29,10 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     meas->scalarEntries()->insert(tr_meas, currentWheelIndex());
 
     m_conUIs = {
+        xqcon_create<XQLCDNumberConnector>(m_currentWheelIndex->value(), m_form->m_lcdCurrentPos),
         xqcon_create<XQLineEditConnector>(m_waitAfterMove, m_form->m_edWaitAfterMove),
         xqcon_create<XQLineEditConnector>(m_angleErrorWithin, m_form->m_edPhaseErrWithin),
+        xqcon_create<XQSpinBoxUnsignedConnector>(m_target, m_form->m_spbTarget),
     };
 
     QLineEdit *uiangles[] = {m_form->m_edAngle0, m_form->m_edAngle1, m_form->m_edAngle2, m_form->m_edAngle3, m_form->m_edAngle4, m_form->m_edAngle5};
@@ -47,6 +50,8 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
 
     m_form->setWindowTitle(i18n("Filter Wheel - ") + getLabel() );
     iterate_commit([=](Transaction &tr){
+        m_lsnOnTargetChanged = tr[ *target()].onValueChanged().connectWeakly(
+            shared_from_this(), &XFilterWheel::onTargetChanged);
         tr[ *this].m_timeFilterMoved = XTime::now();
     });
 }

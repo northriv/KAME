@@ -93,3 +93,16 @@ bool XFilterWheelSTMDriven::checkDependency(const Snapshot &shot_this,
         return false;
     return true;
 }
+void
+XFilterWheelSTMDriven::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
+    Snapshot shot_this = iterate_commit([&](Transaction &tr){
+      tr[ *this].m_dwellIndex = 0;
+      tr[ *this].m_nextWheelIndex = shot[ *target()];
+      tr[ *this].m_timeFilterMoved = XTime::now();
+      tr[ *this].m_wheelIndex = -1;
+    });
+    shared_ptr<XMotorDriver> stm__ = shot_this[ *stm()];
+    if( !stm__)
+        throw XDriver::XRecordError(i18n("No valid STM setting."), __FILE__, __LINE__);
+    trans( *stm__->target()) = (double)shot_this[ *stmAngle(shot_this[ *this].m_nextWheelIndex)];
+}
