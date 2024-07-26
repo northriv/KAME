@@ -145,6 +145,12 @@ XOrientalMotorCVD2B::getConditions() {
         spd = interface()->readHoldingTwoResistors(0x1804);
         tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x1802)) * 360.0 / smotor;
         atv = (interface()->readHoldingSingleResistor(0x7c) & 0x40u) == 0; //not AWC
+
+        //routing R-IN8,9 to DOUT0,1
+        interface()->presetTwoResistors(0x1210, 88); //RIN8 to R8_R
+        interface()->presetTwoResistors(0x1212, 89); //RIN9 to R9_R
+        interface()->presetTwoResistors(0x10C0, 88); //DOUT0 to R8_R
+        interface()->presetTwoResistors(0x10C2, 89); //DOUT1 to R9_R
     }
     iterate_commit([=](Transaction &tr){
         tr[ *currentRunning()] = crun;
@@ -216,6 +222,9 @@ XOrientalMotorCVD2B::setActive(bool active) {
 }
 void
 XOrientalMotorCVD2B::setAUXBits(unsigned int bits) {
+    XScopedLock<XInterface> lock( *interface());
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, (netin & ~0x70uL) | ((bits & 0x07uL) * 0x10uL)); //R8-10
 }
 
 XFlexCRK::XFlexCRK(const char *name, bool runtime,

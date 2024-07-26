@@ -38,6 +38,7 @@ XQGraph::XQGraph( QWidget* parent, Qt::WindowFlags fl ) :
     QOpenGLWidget(parent) {
 
     QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setAlphaBufferSize(8);
     format.setDepthBufferSize(24);
     format.setColorSpace(QColorSpace::SRgb);
