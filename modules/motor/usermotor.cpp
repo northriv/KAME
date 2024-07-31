@@ -31,18 +31,21 @@ XOrientalMotorCVD2B::XOrientalMotorCVD2B(const char *name, bool runtime,
     interface()->setSerialBaudRate(115200);
     interface()->setSerialStopBits(1);
     interface()->setSerialParity(XCharInterface::PARITY_EVEN);
+    pushing()->disable();
+    round()->disable();
+    roundBy()->disable();
 }
 void
 XOrientalMotorCVD2B::storeToROM() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x192, 1); //RAM to NV.
-    interface()->presetSingleResistor(0x192, 0);
+    interface()->presetTwoResistors(0x192, 1); //RAM to NV.
+    interface()->presetTwoResistors(0x192, 0);
 }
 void
 XOrientalMotorCVD2B::clearPosition() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x018a, 1); //counter clear.
-    interface()->presetSingleResistor(0x018a, 0);
+    interface()->presetTwoResistors(0x018a, 1); //counter clear.
+    interface()->presetTwoResistors(0x018a, 0);
 }
 void
 XOrientalMotorCVD2B::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
@@ -50,16 +53,18 @@ XOrientalMotorCVD2B::getStatus(const Snapshot &shot, double *position, bool *sli
     uint32_t output = interface()->readHoldingTwoResistors(0x178);
 //    *slipping = output & 0x20u;
     if(output & 0x2) { //ALM-A
-        uint16_t alarm = interface()->readHoldingSingleResistor(0x80);
+        uint16_t alarm = interface()->readHoldingTwoResistors(0x80);
         gErrPrint(getLabel() + i18n(" Alarm %1 has been emitted").arg((int)alarm));
-        interface()->presetSingleResistor(0x180, 1); //clears alarm.
-        interface()->presetSingleResistor(0x180, 0);
+        interface()->presetTwoResistors(0x180, 1); //clears alarm.
+        interface()->presetTwoResistors(0x180, 0);
     }
     if(output & 0x80) { //INFO
-        uint16_t alarm = interface()->readHoldingSingleResistor(0xf6);
-        gErrPrint(getLabel() + i18n(" Info %1 has been emitted").arg((int)alarm));
-        interface()->presetSingleResistor(0x1a6, 1); //clears info.
-        interface()->presetSingleResistor(0x1a6, 0);
+        uint16_t alarm = interface()->readHoldingTwoResistors(0xf6);
+        if(alarm) {
+            gErrPrint(getLabel() + i18n(" Info %1 has been emitted").arg((int)alarm));
+            interface()->presetTwoResistors(0x1a6, 1); //clears info.
+            interface()->presetTwoResistors(0x1a6, 0);
+        }
     }
     *ready = (output & 0x10u);
 //    if(shot[ *hasEncoder()])
@@ -72,10 +77,10 @@ XOrientalMotorCVD2B::getStatus(const Snapshot &shot, double *position, bool *sli
 void
 XOrientalMotorCVD2B::changeConditions(const Snapshot &shot) {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x24c,  lrint(shot[ *currentRunning()] * 10));
-    interface()->presetSingleResistor(0x1810,  lrint(shot[ *currentRunning()] * 10));
-    interface()->presetSingleResistor(0x250,  lrint(shot[ *currentStopping()] * 10));
-    switch(interface()->readHoldingSingleResistor(0x28e)) {
+    interface()->presetTwoResistors(0x24c,  lrint(shot[ *currentRunning()] * 10));
+    interface()->presetTwoResistors(0x180a,  lrint(shot[ *currentRunning()] * 10));
+    interface()->presetTwoResistors(0x250,  lrint(shot[ *currentStopping()] * 10));
+    switch(interface()->readHoldingTwoResistors(0x28e)) {
     case 0:
         //kHz/s
         interface()->presetTwoResistors(0x280,  lrint((1e3  / shot[ *timeAcc()]) * 1e3));
@@ -100,11 +105,13 @@ XOrientalMotorCVD2B::changeConditions(const Snapshot &shot) {
     interface()->presetTwoResistors(0x39e,  it - resolutions.begin());
     interface()->presetTwoResistors(0x1804,  lrint(shot[ *speed()]));
     unsigned int microstep = shot[ *microStep()] ? 1 : 0;
-    if(interface()->readHoldingSingleResistor(0x258) != microstep) {
+    //    if(interface()->readHoldingTwoResistors(0x258) != microstep) {
+    interface()->presetTwoResistors(0x258, microstep);
+    //    }
+    if(interface()->readHoldingSingleResistor(0x17e) & 0x4000u) { //INFO-CFG
         gWarnPrint(i18n("Store settings to NV memory and restart."));
-        interface()->presetSingleResistor(0x258, microstep);
-        interface()->presetSingleResistor(0x018c, 1); //configuration.
-        interface()->presetSingleResistor(0x018c, 0);
+        interface()->presetTwoResistors(0x018c, 1); //configuration.
+        interface()->presetTwoResistors(0x018c, 0);
     }
 }
 void
@@ -114,10 +121,10 @@ XOrientalMotorCVD2B::getConditions() {
     {
         XScopedLock<XInterface> lock( *interface());
         interface()->diagnostics();
-        crun = interface()->readHoldingSingleResistor(0x24c) * 0.1;
-        cstop = interface()->readHoldingSingleResistor(0x250) * 0.1;
-        mstep = (interface()->readHoldingSingleResistor(0x258) != 0);
-        switch(interface()->readHoldingSingleResistor(0x28e)) {
+        crun = interface()->readHoldingTwoResistors(0x24c) * 0.1;
+        cstop = interface()->readHoldingTwoResistors(0x250) * 0.1;
+        mstep = (interface()->readHoldingTwoResistors(0x258) != 0);
+        switch(interface()->readHoldingTwoResistors(0x28e)) {
         case 0:
             //kHz/s
             tacc = 1e3 / (interface()->readHoldingTwoResistors(0x280) * 1e-3);
@@ -144,13 +151,7 @@ XOrientalMotorCVD2B::getConditions() {
         }
         spd = interface()->readHoldingTwoResistors(0x1804);
         tgt = static_cast<int32_t>(interface()->readHoldingTwoResistors(0x1802)) * 360.0 / smotor;
-        atv = (interface()->readHoldingSingleResistor(0x7c) & 0x40u) == 0; //not AWC
-
-        //routing R-IN8,9 to DOUT0,1
-        interface()->presetTwoResistors(0x1210, 88); //RIN8 to R8_R
-        interface()->presetTwoResistors(0x1212, 89); //RIN9 to R9_R
-        interface()->presetTwoResistors(0x10C0, 88); //DOUT0 to R8_R
-        interface()->presetTwoResistors(0x10C2, 89); //DOUT1 to R9_R
+        atv = (interface()->readHoldingSingleResistor(0x7d) & 0x40u) == 0; //not AWC
     }
     iterate_commit([=](Transaction &tr){
         tr[ *currentRunning()] = crun;
@@ -179,8 +180,8 @@ XOrientalMotorCVD2B::sendStopSignal(bool wait) {
         bool isready = (output & 0x10u);
         if(isready) break;
         if(i ==0) {
-            interface()->presetSingleResistor(0x7c, 0x20u); //STOP
-            interface()->presetSingleResistor(0x7c, 0x00u); //
+            interface()->presetSingleResistor(0x7d, 0x20u); //STOP
+            interface()->presetSingleResistor(0x7d, 0x00u); //
             if( !wait)
                 break;
         }
@@ -193,12 +194,12 @@ XOrientalMotorCVD2B::sendStopSignal(bool wait) {
 void
 XOrientalMotorCVD2B::setForward() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x7c, 0x4000u); //FW-POS
+    interface()->presetSingleResistor(0x7d, 0x4000u); //FW-POS
 }
 void
 XOrientalMotorCVD2B::setReverse() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x7c, 0x8000u); //RV-POS
+    interface()->presetSingleResistor(0x7d, 0x8000u); //RV-POS
 }
 void
 XOrientalMotorCVD2B::setTarget(const Snapshot &shot, double target) {
@@ -206,25 +207,36 @@ XOrientalMotorCVD2B::setTarget(const Snapshot &shot, double target) {
     sendStopSignal(true);
     interface()->presetTwoResistors(0x1800, 1); //absolute pos.
     interface()->presetTwoResistors(0x1802, lrint(target / 360.0 * shot[ *stepMotor()]));
-    interface()->presetSingleResistor(0x7c, 0x80u); //C-ON, START
-    interface()->presetSingleResistor(0x7c, 0x00u); //C-ON
+    interface()->presetSingleResistor(0x7d, 0x08u); //START
+    interface()->presetSingleResistor(0x7d, 0x00u); //
 }
 void
 XOrientalMotorCVD2B::setActive(bool active) {
     XScopedLock<XInterface> lock( *interface());
     if( !active) {
         sendStopSignal(true);
-        interface()->presetSingleResistor(0x7c, 0x40u); //AWO
+        interface()->presetSingleResistor(0x7d, 0x40u); //AWO
     }
     else {
-        interface()->presetSingleResistor(0x7c, 0x0u); //
+        interface()->presetSingleResistor(0x7d, 0x0u); //
     }
 }
 void
 XOrientalMotorCVD2B::setAUXBits(unsigned int bits) {
     XScopedLock<XInterface> lock( *interface());
+
+    //routing R-IN8,9 to DOUT0,1
+    interface()->presetTwoResistors(0x1210, 80); //RIN8 to R0_R
+    interface()->presetTwoResistors(0x1212, 81); //RIN9 to R1_R
+    interface()->presetTwoResistors(0x10C0, 80); //DOUT0 to R0_R
+    interface()->presetTwoResistors(0x10C2, 81); //DOUT1 to R1_R
+    if(interface()->readHoldingSingleResistor(0x17e) & 0x4000u) { //INFO-CFG
+        gWarnPrint(i18n("Configuration issued."));
+        interface()->presetTwoResistors(0x018c, 1); //configuration.
+        interface()->presetTwoResistors(0x018c, 0);
+    }
     uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
-    interface()->presetTwoResistors(0x7c, (netin & ~0x70uL) | ((bits & 0x07uL) * 0x10uL)); //R8-10
+    interface()->presetTwoResistors(0x7c, (netin & ~0x300uL) | ((bits & 0x03uL) * 0x100uL)); //R-IN8-10 as R0,1,(2)
 }
 
 XFlexCRK::XFlexCRK(const char *name, bool runtime,
