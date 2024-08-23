@@ -24,6 +24,7 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     m_target(create<XUIntNode>("Target", true)),
     m_angleErrorWithin(create<XDoubleNode>("AngleErrorWithin", false)),
     m_waitAfterMove(create<XDoubleNode>("WaitAfterMove", false)),
+    m_currentWheelIndex(create<XScalarEntry>("CurrWheelIndex", true, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.0f")),
     m_form(new FrmFilterWheel) {
 
     meas->scalarEntries()->insert(tr_meas, currentWheelIndex());

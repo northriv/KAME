@@ -21,7 +21,9 @@ REGISTER_TYPE(XDriverList, FilterWheelSTMDriven, "Filter wheel driver using STM"
 
 XFilterWheelSTMDriven::XFilterWheelSTMDriven(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XFilterWheel(name, runtime, ref(tr_meas), meas) {
+    XFilterWheel(name, runtime, ref(tr_meas), meas),
+    m_stm(create<XItemNode < XDriverList, XMotorDriver> >(
+        "STM", false, ref(tr_meas), meas->drivers(), true)) {
 
     connect(stm());
     m_conUIs = {
