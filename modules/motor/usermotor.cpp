@@ -44,8 +44,16 @@ XOrientalMotorCVD2B::storeToROM() {
 void
 XOrientalMotorCVD2B::clearPosition() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetTwoResistors(0x018a, 1); //counter clear.
-    interface()->presetTwoResistors(0x018a, 0);
+    if(static_cast<int32_t>(interface()->readHoldingTwoResistors(0xc6)) == 0) {
+        //ugly hack
+        //already 0 pos, to HOME
+        interface()->presetSingleResistor(0x7d, 0x0010u); //HOME
+        interface()->presetSingleResistor(0x7d, 0x0000u);
+    }
+    else {
+        interface()->presetTwoResistors(0x018a, 1); //counter clear.
+        interface()->presetTwoResistors(0x018a, 0);
+    }
 }
 void
 XOrientalMotorCVD2B::getStatus(const Snapshot &shot, double *position, bool *slipping, bool *ready) {
