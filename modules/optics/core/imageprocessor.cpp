@@ -24,7 +24,7 @@
 #include <QColorSpace>
 #include "graphmathtoolconnector.h"
 
-//REGISTER_TYPE(XDriverList, ImageProcessor, "ODMR postprocessor for camera");
+REGISTER_TYPE(XDriverList, ImageProcessor, "ODMR postprocessor for camera");
 
 XImageProcessor::XImageProcessor(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -80,6 +80,9 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
         tr[ *colorGainR()] = 1.0;
         tr[ *colorGainG()] = 1.0;
         tr[ *colorGainB()] = 1.0;
+        tr[ *filterIndexR()] = 0;
+        tr[ *filterIndexG()] = 1;
+        tr[ *filterIndexB()] = 2;
     });
 
     iterate_commit([=](Transaction &tr){
@@ -302,10 +305,10 @@ XImageProcessor::visualize(const Snapshot &shot) {
         m_rgbImage->updateImage(tr, qimage, rawimages, width, coeffs);
     });
 
-    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
-    if(wheel__) {
-        wheel__->goAround();
-    }
+//    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
+//    if(wheel__) {
+//        wheel__->goAround();
+//    }
 }
 
 local_shared_ptr<std::vector<uint32_t>>

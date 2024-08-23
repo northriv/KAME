@@ -225,6 +225,11 @@ XDigitalCamera::visualize(const Snapshot &shot) {
       tr[ *this].m_qimage = liveimage;
       m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
     });
+
+    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
+    if(wheel__) {
+        wheel__->goAround();
+    }
 }
 
 local_shared_ptr<std::vector<uint32_t>>

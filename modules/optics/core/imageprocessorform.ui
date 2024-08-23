@@ -240,10 +240,10 @@
           <item>
            <widget class="QSpinBox" name="m_spbFilterIdxG">
             <property name="minimum">
-             <number>1</number>
+             <number>0</number>
             </property>
             <property name="maximum">
-             <number>1000</number>
+             <number>11</number>
             </property>
            </widget>
           </item>
@@ -280,10 +280,10 @@
           <item>
            <widget class="QSpinBox" name="m_spbFilterIdxB">
             <property name="minimum">
-             <number>1</number>
+             <number>0</number>
             </property>
             <property name="maximum">
-             <number>1000</number>
+             <number>11</number>
             </property>
            </widget>
           </item>
