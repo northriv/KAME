@@ -550,6 +550,11 @@ XDigitalCamera::execute(const atomic<bool> &terminated) {
 			e.print(getLabel());
 			continue;
 		}
+        if(time.diff_sec(time_awared) > ***exposureTime() + 0.1) {
+            //hack for ext trigger.
+            time_awared = time;
+            time_awared -= ***exposureTime() + 0.1;
+        }
         finishWritingRaw(writer, time_awared, time);
         time_awared = time;
     }

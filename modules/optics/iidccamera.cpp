@@ -522,7 +522,11 @@ XIIDCCamera::acquireRaw(shared_ptr<RawData> &writer) {
     if(dc1394_capture_enqueue(interface()->camera(), frame))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
 
+#if defined __WIN32__ || defined WINDOWS || defined _WIN32
+    return XTime::now(); //time stamp is invalid for win + libdc1394.
+#else
     return XTime{(long)(frame->timestamp / 1000000uLL), (long)(frame->timestamp % 1000000uLL)};
+#endif
 }
 
 #endif // USE_LIBDC1394

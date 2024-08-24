@@ -137,10 +137,10 @@ XImageProcessor::checkDependency(const Snapshot &shot_this,
     if((shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested) &&
         shot_this[ *this].m_timeClearRequested - shot_emitter[ *camera__].time() < 60.0) //not reading raw binary
         return false;
-//    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
-//    if(wheel__)
-//        if(shot_others[ *wheel__].wheelIndex() != shot_this[ *wheelIndex()])
-//            return false;
+    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
+    if(wheel__)
+        if(shot_emitter[ *camera__].timeAwared() < shot_others[ *wheel__].m_timeFilterMoved)
+            return false;
     return true;
 }
 void
