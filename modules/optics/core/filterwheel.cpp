@@ -81,25 +81,25 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
             throw XSkippedRecordError(__FILE__, __LINE__);
         if(tr[ *this].m_wheelIndex < 0)
             throw XSkippedRecordError(__FILE__, __LINE__);
-        if( !shot_this[ *goAroundAfterShot()])
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        //finds next wheel
-        unsigned int dwellidx = tr[ *this].m_dwellIndex;
-        unsigned int idx = tr[ *this].m_nextWheelIndex;
-        dwellidx++;
-        while(dwellidx >= tr[ *dwellCount(idx)]) {
-            dwellidx = 0;
-            idx++;
-            if(idx >= filterCount())
-                idx = 0;
-            if(idx == tr[ *this].m_wheelIndex)
-                throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
+        if(shot_this[ *goAroundAfterShot()]) {
+            //finds next wheel
+            unsigned int dwellidx = tr[ *this].m_dwellIndex;
+            unsigned int idx = tr[ *this].m_nextWheelIndex;
+            dwellidx++;
+            while(dwellidx >= tr[ *dwellCount(idx)]) {
+                dwellidx = 0;
+                idx++;
+                if(idx >= filterCount())
+                    idx = 0;
+                if(idx == tr[ *this].m_wheelIndex)
+                    throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
+            }
+            tr[ *this].m_dwellIndex = dwellidx;
+            tr[ *this].m_nextWheelIndex = idx;
+            tr[ *this].m_timeFilterMoved = XTime::now();
+            tr[ *this].m_wheelIndex = -1;
+            tr[ *target()] = idx;
         }
-        tr[ *this].m_dwellIndex = dwellidx;
-        tr[ *this].m_nextWheelIndex = idx;
-        tr[ *this].m_timeFilterMoved = XTime::now();
-        tr[ *this].m_wheelIndex = -1;
-        tr[ *target()] = idx;
     }
     else {
         tr[ *this].m_wheelIndex = currentWheelPosition(shot_this, shot_emitter);
