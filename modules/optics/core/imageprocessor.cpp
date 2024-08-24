@@ -193,16 +193,14 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 //            throw XDriver::XRecordError(i18n("Filter wheel is not specified."), __FILE__, __LINE__);
         unsigned int wheelidx = shot_others[ *wheel__].wheelIndex();
         auto it = std::find(rgb_filterIndices.begin(), rgb_filterIndices.end(),  wheelidx);
-        unsigned int coloridx = std::distance(rgb_filterIndices.begin(), it);
-        if(coloridx >= 3) //non-RGB filter
+        unsigned int cidx = std::distance(rgb_filterIndices.begin(), it);
+        if(cidx >= 3) //non-RGB filter
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
-        unsigned int cidx = shot_this[ *this].currentIndex();
-        tr[ *this].m_filterIndice[cidx] = rgb_filterIndices[coloridx];
+        tr[ *this].m_filterIndice[cidx] = rgb_filterIndices[cidx]; // = wheelidx
         tr[ *this].m_colorGains[cidx] =
             std::array<double, 3>{shot_this[ *colorGainR()], shot_this[ *colorGainG()], shot_this[ *colorGainB()]}
-                [coloridx];
-        tr[ *this].m_indiceForRGB[coloridx] = cidx;
+                [cidx];
 
         auto summedCountsNext = summedCountsFromPool(width * height);
         uint32_t *summedNext = &summedCountsNext->at(0);
@@ -224,7 +222,7 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         tr[ *this].m_summedCounts[cidx] = summedCountsNext; // = summed + live image
     }
 
-    if( !shot_this[ *this].m_accumulated[0] || (shot_this[ *this].currentIndex() > 0))
+    if(shot_this[ *this].accumulatedCountRGB() == 0)
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 
     for(unsigned int i = 0; i < seq_len; ++i)
@@ -253,18 +251,18 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
     }
     if(tr[ *incrementalAverage()]) {
-        tr[ *average()] = tr[ *this].m_accumulated[seq_len - 1];
+        tr[ *average()] = shot_this[ *this].accumulatedCountRGB();
         tr.unmark(m_lsnOnCondChanged);
         throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
     else {
-        if(tr[ *average()] > tr[ *this].m_accumulated[seq_len - 1])
+        if(tr[ *average()] > shot_this[ *this].accumulatedCountRGB())
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
     }
 }
 void
 XImageProcessor::visualize(const Snapshot &shot) {
-    if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))
+    if(shot[ *this].accumulatedCountRGB() == 0)
         return;
 
     unsigned int width = shot[ *this].width();

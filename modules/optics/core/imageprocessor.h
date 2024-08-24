@@ -75,15 +75,10 @@ public:
         std::vector<double> m_intensities[3];
         XTime m_timeClearRequested = {};
         unsigned int m_width, m_height;
-        unsigned int currentIndex() const {
-            for(unsigned int i = 1; i < 3; ++i) {
-                if(m_accumulated[i] < m_accumulated[0])
-                    return i;
-            }
-            return 0;
+        unsigned int accumulatedCountRGB() const {
+            return *std::min_element(m_accumulated, m_accumulated + 3);
         }
         unsigned int m_filterIndice[3];
-        unsigned int m_indiceForRGB[3];
         shared_ptr<QImage> m_qimage;
     };
 protected:

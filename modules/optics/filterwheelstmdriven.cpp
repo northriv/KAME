@@ -52,8 +52,8 @@ bool XFilterWheelSTMDriven::checkDependency(const Snapshot &shot_this,
     const shared_ptr<XMotorDriver> stm__ = shot_this[ *stm()];
     if(!stm__)
         return false;
-    if(emitter != stm__.get())
-        return false;
+//    if(emitter != stm__.get())
+//        return false;
     return true;
 }
 void
