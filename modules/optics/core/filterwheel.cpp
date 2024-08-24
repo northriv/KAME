@@ -77,10 +77,13 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
     Snapshot &shot_this(tr);
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     if(emitter == camera__.get()) {
-        if(shot_emitter[ *camera__].timeAwared() < shot_this[ *this].m_timeFilterMoved)
+        if(shot_this[ *this].m_timeFilterMoved.diff_sec(shot_emitter[ *camera__].timeAwared()) < - shot_this[ *waitAfterMove()])
             throw XSkippedRecordError(__FILE__, __LINE__);
         if(tr[ *this].m_wheelIndex < 0)
             throw XSkippedRecordError(__FILE__, __LINE__);
+
+        tr[ *this].m_timeLastFrame = shot_emitter[ *camera__].time();
+        tr[ *this].m_wheelIndexOfLastFrame = tr[ *this].m_wheelIndex;
         if(shot_this[ *goAroundAfterShot()]) {
             //finds next wheel
             unsigned int dwellidx = tr[ *this].m_dwellIndex;

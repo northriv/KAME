@@ -51,12 +51,16 @@ public:
 
     struct Payload : public XSecondaryDriver::Payload {
         unsigned int dwellIndex() const {return m_dwellIndex;}
-        int wheelIndex() const {return m_wheelIndex;} //!< -1: not ready
-//    protected:
-//        friend class XFilterWheel;
+        int wheelIndexOfFrame(const XTime &time) const {
+            return (time == m_timeLastFrame) ? m_wheelIndexOfLastFrame : -1;} //!< -1: unknown
+    protected:
+        friend class XFilterWheel;
         unsigned int m_dwellIndex = 0;
         unsigned int m_nextWheelIndex = 0;
+        int wheelIndex() const {return m_wheelIndex;} //!< -1: not ready
         int m_wheelIndex = 0;
+        int m_wheelIndexOfLastFrame = 0;
+        XTime m_timeLastFrame = {};
         XTime m_timeFilterMoved;
     };
 

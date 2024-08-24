@@ -137,10 +137,6 @@ XImageProcessor::checkDependency(const Snapshot &shot_this,
     if((shot_emitter[ *camera__].time() < shot_this[ *this].m_timeClearRequested) &&
         shot_this[ *this].m_timeClearRequested - shot_emitter[ *camera__].time() < 60.0) //not reading raw binary
         return false;
-    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
-    if(wheel__)
-        if(shot_emitter[ *camera__].timeAwared() < shot_others[ *wheel__].m_timeFilterMoved)
-            return false;
     return true;
 }
 void
@@ -191,7 +187,7 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         if( !wheel__)
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 //            throw XDriver::XRecordError(i18n("Filter wheel is not specified."), __FILE__, __LINE__);
-        unsigned int wheelidx = shot_others[ *wheel__].wheelIndex();
+        unsigned int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(shot_camera[ *camera__].time());
         auto it = std::find(rgb_filterIndices.begin(), rgb_filterIndices.end(),  wheelidx);
         unsigned int cidx = std::distance(rgb_filterIndices.begin(), it);
         if(cidx >= 3) //non-RGB filter
