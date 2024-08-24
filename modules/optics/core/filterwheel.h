@@ -62,6 +62,7 @@ public:
         int m_wheelIndexOfLastFrame = 0;
         XTime m_timeLastFrame = {};
         XTime m_timeFilterMoved;
+        XTime m_timeFilterStabled = {};
     };
 
     const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}

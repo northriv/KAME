@@ -24,7 +24,7 @@
 #include <QColorSpace>
 #include "graphmathtoolconnector.h"
 
-REGISTER_TYPE(XDriverList, ImageProcessor, "ODMR postprocessor for camera");
+REGISTER_TYPE(XDriverList, ImageProcessor, "RGB Image Processor for camera");
 
 XImageProcessor::XImageProcessor(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
@@ -55,7 +55,7 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
     connect(camera());
     connect(filterWheel());
 
-    m_form->setWindowTitle(i18n("ODMR Imaging - ") + getLabel() );
+    m_form->setWindowTitle(i18n("RGB Image Processor - ") + getLabel() );
 
     m_conUIs = {
         xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),

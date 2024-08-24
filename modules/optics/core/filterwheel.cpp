@@ -77,7 +77,7 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
     Snapshot &shot_this(tr);
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     if(emitter == camera__.get()) {
-        if(shot_this[ *this].m_timeFilterMoved.diff_sec(shot_emitter[ *camera__].timeAwared()) < - shot_this[ *waitAfterMove()])
+        if(tr[ *this].m_timeFilterStabled > shot_emitter[ *camera__].timeAwared())
             throw XSkippedRecordError(__FILE__, __LINE__);
         if(tr[ *this].m_wheelIndex < 0)
             throw XSkippedRecordError(__FILE__, __LINE__);
@@ -101,17 +101,22 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
             tr[ *this].m_nextWheelIndex = idx;
             tr[ *this].m_timeFilterMoved = XTime::now();
             tr[ *this].m_wheelIndex = -1;
+            tr[ *this].m_timeFilterStabled = {};
             tr[ *target()] = idx;
         }
     }
     else {
         tr[ *this].m_wheelIndex = currentWheelPosition(shot_this, shot_emitter);
         if(tr[ *this].m_wheelIndex >= 0) {
-            if(XTime::now() - shot_this[ *this].m_timeFilterMoved < shot_this[ *waitAfterMove()])
+            if(XTime::now().diff_sec(shot_this[ *this].m_timeFilterMoved) < shot_this[ *waitAfterMove()])
                 tr[ *this].m_wheelIndex = -1; //unstable yet.
+            else if( !tr[ *this].m_timeFilterStabled)
+                tr[ *this].m_timeFilterStabled = XTime::now();
         }
-        else
+        else {
+            tr[ *this].m_timeFilterStabled = {};
             tr[ *this].m_timeFilterMoved = XTime::now(); //no filter found yet.
+        }
     }
     currentWheelIndex()->value(ref(tr), shot_this[ *this].m_wheelIndex);
 }
