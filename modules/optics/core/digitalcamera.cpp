@@ -19,14 +19,11 @@
 #include "graphpainter.h"
 #include "xnodeconnector.h"
 #include "graphmathtool.h"
-#include "filterwheel.h"
 #include <QColorSpace>
 
 XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 	Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
 	XPrimaryDriverWithThread(name, runtime, ref(tr_meas), meas),
-    m_filterWheel(create<XItemNode<XDriverList, XFilterWheel> >(
-          "FilterWheel", false, ref(tr_meas), meas->drivers(), false)),
     m_cameraGain(create<XDoubleNode>("CameraGain", true)),
     m_brightness(create<XUIntNode>("Brightness", true)),
     m_exposureTime(create<XDoubleNode>("ExposureTime", true)),
@@ -49,7 +46,6 @@ XDigitalCamera::XDigitalCamera(const char *name, bool runtime,
 
     m_form->setWindowTitle(i18n("Digital Camera - ") + getLabel() );
     m_conUIs = {
-        xqcon_create<XQComboBoxConnector>(m_filterWheel, m_form->m_cmbFilterWheel, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(videoMode(), m_form->m_cmbVideomode, Snapshot( *videoMode())),
         xqcon_create<XQComboBoxConnector>(frameRate(), m_form->m_cmbFrameRate, Snapshot( *frameRate())),
         xqcon_create<XQComboBoxConnector>(triggerMode(), m_form->m_cmbTrigger, Snapshot( *triggerMode())),
@@ -225,11 +221,6 @@ XDigitalCamera::visualize(const Snapshot &shot) {
       tr[ *this].m_qimage = liveimage;
       m_liveImage->updateImage(tr, liveimage, rawimages, stride, coeffs);
     });
-
-    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
-    if(wheel__) {
-        wheel__->goAround();
-    }
 }
 
 local_shared_ptr<std::vector<uint32_t>>

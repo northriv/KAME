@@ -46,7 +46,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>Gain</string>
+             <string>Gamma</string>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -54,9 +54,12 @@
            </widget>
           </item>
           <item>
-           <widget class="QDoubleSpinBox" name="m_dblGain">
+           <widget class="QDoubleSpinBox" name="m_dblGamma">
             <property name="maximum">
-             <double>4000.000000000000000</double>
+             <double>5.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
             </property>
            </widget>
           </item>
@@ -335,7 +338,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Gamma</string>
+           <string>Gain</string>
           </property>
           <property name="wordWrap">
            <bool>false</bool>
@@ -343,12 +346,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="m_dblGamma">
+         <widget class="QDoubleSpinBox" name="m_dblGain">
           <property name="maximum">
-           <double>5.000000000000000</double>
-          </property>
-          <property name="singleStep">
-           <double>0.100000000000000</double>
+           <double>4000.000000000000000</double>
           </property>
          </widget>
         </item>

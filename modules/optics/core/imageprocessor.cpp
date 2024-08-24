@@ -187,7 +187,7 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
     }
     if(emitter == camera__.get()) {
-        shared_ptr<XFilterWheel> wheel__ = shot_emitter[ *camera__->filterWheel()];
+        shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
         if( !wheel__)
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 //            throw XDriver::XRecordError(i18n("Filter wheel is not specified."), __FILE__, __LINE__);

@@ -219,7 +219,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
         tr[ *this].m_skippedFrames = 0;
     }
     if(emitter == camera__.get()) {
-        shared_ptr<XFilterWheel> wheel__ = shot_emitter[ *camera__->filterWheel()];
+        shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
         if(wheel__) {
             unsigned int wheelidx = shot_others[ *wheel__].wheelIndex();
             if(wheelidx != shot_this[ *filterIndex()])

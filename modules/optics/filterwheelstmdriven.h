@@ -30,16 +30,7 @@ public:
 		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
 	//! usually nothing to do.
     virtual ~XFilterWheelSTMDriven() {}
-
-    //! driver specific part below
-    virtual void goAround() override;
 protected:
-    //! This function is called when a connected driver emit a signal
-    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-         XDriver *emitter) override;
-    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
-    //! This might be called even if the record is invalid (time() == false).
-    virtual void visualize(const Snapshot &shot) override;
     //! Checks if the connected drivers have valid time stamps.
     //! \return true if dependency is resolved.
     //! This function must be reentrant unlike analyze().
@@ -48,6 +39,9 @@ protected:
         XDriver *emitter) const override;
 
     const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm() const {return m_stm;}
+
+    //! \return -1 if unstable yet.
+    virtual int currentWheelPosition(const Snapshot &shot_this, const Snapshot &shot_stm) override;
 
     virtual void onTargetChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:

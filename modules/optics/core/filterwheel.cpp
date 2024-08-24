@@ -11,6 +11,7 @@
         Public License and a list of authors along with this program;
         see the files COPYING and AUTHORS.
 ***************************************************************************/
+#include "digitalcamera.h"
 #include "filterwheel.h"
 #include "ui_filterwheelform.h"
 #include "xnodeconnector.h"
@@ -21,11 +22,16 @@
 XFilterWheel::XFilterWheel(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),
+    m_camera(create<XItemNode<XDriverList, XDigitalCamera> >(
+          "DigitalCamera", false, ref(tr_meas), meas->drivers(), true)),
     m_target(create<XUIntNode>("Target", true)),
     m_angleErrorWithin(create<XDoubleNode>("AngleErrorWithin", false)),
     m_waitAfterMove(create<XDoubleNode>("WaitAfterMove", false)),
+    m_goAroundAfterShot(create<XBoolNode>("GoAroundAfterShot", true)),
     m_currentWheelIndex(create<XScalarEntry>("CurrWheelIndex", true, dynamic_pointer_cast<XDriver>(shared_from_this()), "%.0f")),
     m_form(new FrmFilterWheel) {
+
+    connect(camera());
 
     meas->scalarEntries()->insert(tr_meas, currentWheelIndex());
 
@@ -34,6 +40,7 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
         xqcon_create<XQLineEditConnector>(m_waitAfterMove, m_form->m_edWaitAfterMove),
         xqcon_create<XQLineEditConnector>(m_angleErrorWithin, m_form->m_edPhaseErrWithin),
         xqcon_create<XQSpinBoxUnsignedConnector>(m_target, m_form->m_spbTarget),
+        xqcon_create<XQToggleButtonConnector>(m_goAroundAfterShot, m_form->m_ckbGoAround),
     };
 
     QLineEdit *uiangles[] = {m_form->m_edAngle0, m_form->m_edAngle1, m_form->m_edAngle2, m_form->m_edAngle3, m_form->m_edAngle4, m_form->m_edAngle5};
@@ -64,3 +71,48 @@ XFilterWheel::showForms() {
     m_form->showNormal();
     m_form->raise();
 }
+void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+                        XDriver *emitter) {
+    Snapshot &shot_this(tr);
+    shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
+    if(emitter == camera__.get()) {
+        if(shot_emitter[ *camera__].timeAwared() > shot_this[ *this].m_timeFilterMoved)
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        if(tr[ *this].m_wheelIndex < 0)
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        if( !shot_this[ *goAroundAfterShot()])
+            throw XSkippedRecordError(__FILE__, __LINE__);
+        //finds next wheel
+        unsigned int dwellidx = tr[ *this].m_dwellIndex;
+        unsigned int idx = tr[ *this].m_nextWheelIndex;
+        dwellidx++;
+        while(dwellidx >= tr[ *dwellCount(idx)]) {
+            dwellidx = 0;
+            idx++;
+            if(idx >= filterCount())
+                idx = 0;
+            if(idx == tr[ *this].m_wheelIndex)
+                throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
+        }
+        tr[ *this].m_dwellIndex = dwellidx;
+        tr[ *this].m_nextWheelIndex = idx;
+        tr[ *this].m_timeFilterMoved = XTime::now();
+        tr[ *this].m_wheelIndex = -1;
+        tr[ *target()] = idx;
+    }
+    else {
+        tr[ *this].m_wheelIndex = currentWheelPosition(shot_this, shot_emitter);
+        if(tr[ *this].m_wheelIndex >= 0) {
+            if(XTime::now() - shot_this[ *this].m_timeFilterMoved < shot_this[ *waitAfterMove()])
+                tr[ *this].m_wheelIndex = -1; //unstable yet.
+        }
+        else
+            tr[ *this].m_timeFilterMoved = XTime::now(); //no filter found yet.
+    }
+    currentWheelIndex()->value(ref(tr), shot_this[ *this].m_wheelIndex);
+}
+
+void XFilterWheel::visualize(const Snapshot &shot) {
+
+}
+

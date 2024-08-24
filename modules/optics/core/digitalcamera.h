@@ -20,7 +20,6 @@
 #include "xnodeconnector.h"
 
 class XScalarEntry;
-class XFilterWheel;
 class XGraph;
 template<class T> struct Vector4;
 class XGraph2DMathToolList;
@@ -42,7 +41,6 @@ public:
     virtual void showForms() override;
 
     const shared_ptr<XGraph> &graph() const {return m_graph;}
-    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > filterWheel() const {return m_filterWheel;}
 
     //! driver specific part below
     const shared_ptr<XDoubleNode> &cameraGain() const {return m_cameraGain;} //!< [dB]
@@ -110,8 +108,6 @@ protected:
 
     void setGrayImage(RawDataReader &reader, Transaction &tr, uint32_t width, uint32_t height, bool big_endian = false, bool mono16 = false);
 private:
-    const shared_ptr<XItemNode<XDriverList, XFilterWheel> > m_filterWheel;
-
     const shared_ptr<XDoubleNode> m_cameraGain;
     const shared_ptr<XUIntNode> m_brightness;
     const shared_ptr<XDoubleNode> m_exposureTime;

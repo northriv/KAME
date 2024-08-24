@@ -19,6 +19,7 @@
 #include "secondarydriver.h"
 #include "xnodeconnector.h"
 
+class XDigitalCamera;
 class QMainWindow;
 class Ui_FrmFilterWheel;
 typedef QForm<QMainWindow, Ui_FrmFilterWheel> FrmFilterWheel;
@@ -44,10 +45,9 @@ public:
     const shared_ptr<XDoubleNode> &stmAngle(unsigned int index) const {return m_stmAngles.at(index);}
     const shared_ptr<XDoubleNode> &angleErrorWithin() const {return m_angleErrorWithin;} //!< [deg.]
     const shared_ptr<XDoubleNode> &waitAfterMove() const { return m_waitAfterMove;} //!< [s]
+    const shared_ptr<XBoolNode> &goAroundAfterShot() const {return m_goAroundAfterShot;}
 
     const shared_ptr<XScalarEntry> &currentWheelIndex() const {return m_currentWheelIndex;}
-
-    virtual void goAround() = 0;
 
     struct Payload : public XSecondaryDriver::Payload {
         unsigned int dwellIndex() const {return m_dwellIndex;}
@@ -59,27 +59,28 @@ public:
         int m_wheelIndex = 0;
         XTime m_timeFilterMoved;
     };
-protected:
-//    //! This function is called when a connected driver emit a signal
-//    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
-//         XDriver *emitter) override;
-//    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
-//    //! This might be called even if the record is invalid (time() == false).
-//    virtual void visualize(const Snapshot &shot) override;
-//    //! Checks if the connected drivers have valid time stamps.
-//    //! \return true if dependency is resolved.
-//    //! This function must be reentrant unlike analyze().
-//    virtual bool checkDependency(const Snapshot &shot_this,
-//        const Snapshot &shot_emitter, const Snapshot &shot_others,
-//        XDriver *emitter) const override;
 
-//    const shared_ptr<XItemNode<XDriverList, XMotorDriver> > &stm() const {return m_stm;}
+    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > &camera() const {return m_camera;}
+
+protected:
+    //! This function is called when a connected driver emit a signal
+    virtual void analyze(Transaction &tr, const Snapshot &shot_emitter, const Snapshot &shot_others,
+         XDriver *emitter) override;
+    //! This function is called after committing XPrimaryDriver::analyzeRaw() or XSecondaryDriver::analyze().
+    //! This might be called even if the record is invalid (time() == false).
+    virtual void visualize(const Snapshot &shot) override;
+
+    //! \return -1 if unstable yet.
+    virtual int currentWheelPosition(const Snapshot &shot_this, const Snapshot &shot_stm) = 0;
+
+    const shared_ptr<XItemNode<XDriverList, XDigitalCamera> > m_camera;
     const shared_ptr<XUIntNode> m_target;
     std::deque<shared_ptr<XStringNode>> m_filterLabels;
     std::deque<shared_ptr<XUIntNode>> m_dwellCounts;
     std::deque<shared_ptr<XDoubleNode>> m_stmAngles;
     const shared_ptr<XDoubleNode> m_angleErrorWithin; //!< [deg.]
     const shared_ptr<XDoubleNode> m_waitAfterMove; //!< [s]
+    const shared_ptr<XBoolNode> m_goAroundAfterShot;
     const shared_ptr<XScalarEntry> m_currentWheelIndex;
 
     const qshared_ptr<FrmFilterWheel> m_form;
