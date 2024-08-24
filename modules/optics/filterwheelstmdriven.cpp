@@ -39,7 +39,7 @@ XFilterWheelSTMDriven::goAround() {
       while(dwellidx >= tr[ *dwellCount(idx)]) {
           dwellidx = 0;
           idx++;
-          if(idx > filterCount())
+          if(idx >= filterCount())
               idx = 0;
           if(idx == tr[ *this].m_wheelIndex)
               throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
