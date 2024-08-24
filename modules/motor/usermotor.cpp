@@ -47,8 +47,8 @@ XOrientalMotorCVD2B::clearPosition() {
     if(static_cast<int32_t>(interface()->readHoldingTwoResistors(0xc6)) == 0) {
         //ugly hack
         //already 0 pos, to HOME
-        interface()->presetSingleResistor(0x7d, 0x0010u); //HOME
-        interface()->presetSingleResistor(0x7d, 0x0000u);
+//        interface()->presetSingleResistor(0x7d, 0x0010u); //HOME
+//        interface()->presetSingleResistor(0x7d, 0x0000u);
     }
     else {
         interface()->presetTwoResistors(0x018a, 1); //counter clear.

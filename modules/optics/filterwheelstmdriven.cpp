@@ -62,5 +62,5 @@ XFilterWheelSTMDriven::onTargetChanged(const Snapshot &shot, XValueNodeBase *) {
     shared_ptr<XMotorDriver> stm__ = shot_this[ *stm()];
     if( !stm__)
         throw XDriver::XRecordError(i18n("No valid STM setting."), __FILE__, __LINE__);
-    trans( *stm__->target()) = (double)shot_this[ *stmAngle(shot_this[ *this].m_nextWheelIndex)];
+    trans( *stm__->target()) = (double)shot_this[ *stmAngle(shot_this[ *target()])];
 }

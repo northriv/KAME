@@ -36,6 +36,7 @@ XFilterWheel::XFilterWheel(const char *name, bool runtime,
     meas->scalarEntries()->insert(tr_meas, currentWheelIndex());
 
     m_conUIs = {
+        xqcon_create<XQComboBoxConnector>(m_camera, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQLCDNumberConnector>(m_currentWheelIndex->value(), m_form->m_lcdCurrentPos),
         xqcon_create<XQLineEditConnector>(m_waitAfterMove, m_form->m_edWaitAfterMove),
         xqcon_create<XQLineEditConnector>(m_angleErrorWithin, m_form->m_edPhaseErrWithin),
