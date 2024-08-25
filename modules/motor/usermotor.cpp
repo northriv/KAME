@@ -187,9 +187,10 @@ XOrientalMotorCVD2B::sendStopSignal(bool wait) {
         uint32_t output = interface()->readHoldingTwoResistors(0x178);
         bool isready = (output & 0x10u);
         if(isready) break;
-        if(i ==0) {
-            interface()->presetSingleResistor(0x7d, 0x20u); //STOP
-            interface()->presetSingleResistor(0x7d, 0x00u); //
+        if(i == 0) {
+            uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+            interface()->presetTwoResistors(0x7c, (netin & ~0x20u) | 0x20u); //STOP
+            interface()->presetTwoResistors(0x7c, netin & ~0x20u);
             if( !wait)
                 break;
         }
@@ -202,12 +203,16 @@ XOrientalMotorCVD2B::sendStopSignal(bool wait) {
 void
 XOrientalMotorCVD2B::setForward() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x7d, 0x4000u); //FW-POS
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, (netin & ~0x4000u) | 0x4000u); //FW-POS
+    interface()->presetTwoResistors(0x7c, netin & ~0x4000u);
 }
 void
 XOrientalMotorCVD2B::setReverse() {
     XScopedLock<XInterface> lock( *interface());
-    interface()->presetSingleResistor(0x7d, 0x8000u); //RV-POS
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, (netin & ~0x8000u) | 0x8000u); //RV-POS
+    interface()->presetTwoResistors(0x7c, netin & ~0x8000u);
 }
 void
 XOrientalMotorCVD2B::setTarget(const Snapshot &shot, double target) {
@@ -215,18 +220,20 @@ XOrientalMotorCVD2B::setTarget(const Snapshot &shot, double target) {
     sendStopSignal(true);
     interface()->presetTwoResistors(0x1800, 1); //absolute pos.
     interface()->presetTwoResistors(0x1802, lrint(target / 360.0 * shot[ *stepMotor()]));
-    interface()->presetSingleResistor(0x7d, 0x08u); //START
-    interface()->presetSingleResistor(0x7d, 0x00u); //
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
+    interface()->presetTwoResistors(0x7c, (netin & ~0x08u) | 0x08u); //START
+    interface()->presetTwoResistors(0x7c, netin & ~0x08u);
 }
 void
 XOrientalMotorCVD2B::setActive(bool active) {
     XScopedLock<XInterface> lock( *interface());
+    uint32_t netin = interface()->readHoldingTwoResistors(0x7c);
     if( !active) {
         sendStopSignal(true);
-        interface()->presetSingleResistor(0x7d, 0x40u); //AWO
+        interface()->presetTwoResistors(0x7c, (netin & ~0x40u) | 0x40u); //AWO
     }
     else {
-        interface()->presetSingleResistor(0x7d, 0x0u); //
+        interface()->presetTwoResistors(0x7c, netin & ~0x40u);
     }
 }
 void
