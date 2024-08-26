@@ -94,7 +94,7 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
                 idx++;
                 if(idx >= filterCount())
                     idx = 0;
-                if(idx == tr[ *this].m_wheelIndex)
+                if(idx == tr[ *this].m_nextWheelIndex)
                     throw XDriver::XRecordError(i18n("No valid wheel setting."), __FILE__, __LINE__);
             }
             tr[ *this].m_dwellIndex = dwellidx;
