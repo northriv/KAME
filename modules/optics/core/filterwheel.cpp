@@ -77,7 +77,7 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
     Snapshot &shot_this(tr);
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     if(emitter == camera__.get()) {
-        if(tr[ *this].m_timeFilterStabled > shot_emitter[ *camera__].timeAwared())
+        if( !tr[ *this].m_timeFilterStabled || (tr[ *this].m_timeFilterStabled > shot_emitter[ *camera__].timeAwared()))
             throw XSkippedRecordError(__FILE__, __LINE__);
         if(tr[ *this].m_wheelIndex < 0)
             throw XSkippedRecordError(__FILE__, __LINE__);
