@@ -109,13 +109,16 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
         tr[ *this].m_wheelIndex = currentWheelPosition(shot_this, shot_emitter);
         if(tr[ *this].m_wheelIndex >= 0) {
             if(XTime::now().diff_sec(shot_this[ *this].m_timeFilterMoved) < shot_this[ *waitAfterMove()])
-                tr[ *this].m_wheelIndex = -1; //unstable yet.
-            else if( !tr[ *this].m_timeFilterStabled)
-                tr[ *this].m_timeFilterStabled = XTime::now();
+                tr[ *this].m_wheelIndex = -1; //unstable (still vibrating) yet.
+            else if( !tr[ *this].m_timeFilterStabled) {
+                tr[ *this].m_timeFilterStabled = XTime::now(); //timestamp when wheel becomes stable.
+                tr[ *this].m_wheelIndexOfLastFrame = tr[ *this].m_wheelIndex;
+                tr[ *this].m_timeLastFrame = {};
+            }
         }
         else {
             tr[ *this].m_timeFilterStabled = {};
-            tr[ *this].m_timeFilterMoved = XTime::now(); //no filter found yet.
+            tr[ *this].m_timeFilterMoved = XTime::now(); //filter is not found yet., for timestamp when filter reached.
         }
     }
     currentWheelIndex()->value(ref(tr), shot_this[ *this].m_wheelIndex);

@@ -52,9 +52,9 @@ public:
     struct Payload : public XSecondaryDriver::Payload {
         unsigned int dwellIndex() const {return m_dwellIndex;}
         int wheelIndexOfFrame(const XTime &time) const {
-            if(time == m_timeLastFrame)
+            if((time == m_timeLastFrame) && !!m_timeLastFrame)
                 return m_wheelIndexOfLastFrame; //Frame analyzed, and it's timestamp was confirmed by this driver.
-            if( !!m_timeFilterStabled && (time > m_timeLastFrame))
+            if((time > m_timeFilterStabled) && !m_timeLastFrame && !!m_timeFilterStabled)
                 return m_wheelIndexOfLastFrame; //Future frame before filter movement.
             return -1;
         }
