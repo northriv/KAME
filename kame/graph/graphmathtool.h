@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2023 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -30,8 +30,6 @@ public:
         const shared_ptr<XPlot> &plot);
     virtual ~XGraph1DMathTool() {}
 
-//    enum class MathTool1D {Sum, Average, CoG, Moment2nd, MaxValue, MinValue};
-//    enum class MathTool2D {Sum, Average, CoG, Moment2nd, MaxValue, MinValue};
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
 

@@ -27,6 +27,7 @@ INCLUDEPATH += \
 HEADERS += \
     allocator.h \
     atomic_prv_mfence_arm8.h \
+    graph/graphmathfittool.h \
     graph/graphmathtool.h \
     graph/graphmathtoolconnector.h \
     graph/graphntoolbox.h \

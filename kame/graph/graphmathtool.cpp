@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -12,6 +12,7 @@
 		see the files COPYING and AUTHORS.
  ***************************************************************************/
 #include "graphmathtool.h"
+#include "graphmathfittool.h"
 #include "measure.h"
 #include "graphpainter.h"
 //---------------------------------------------------------------------------
@@ -26,6 +27,9 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMaxValue, "MaxValue");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinValue, "MinValue");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMaxPosition, "MaxPosition");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinPosition, "MinPosition");
+
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathGaussianPositionTool, "GaussianCenter");
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathGaussianFWHMTool, "GaussianFWHM");
 
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
