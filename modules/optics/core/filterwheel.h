@@ -55,8 +55,7 @@ public:
             if((time == m_timeLastFrame) && !!m_timeLastFrame)
                 return m_wheelIndexOfLastFrame; //Frame analyzed, and it's timestamp was confirmed by this driver.
             if( !m_timeFilterStabled
-                || (m_timeFilterStabled > time_awared)
-                || (m_timeFilterStabled < time))
+                || (m_timeFilterStabled > time_awared))
                 return -1;
             if(m_wheelIndex < 0)
                 return -1;
