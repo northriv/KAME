@@ -221,7 +221,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
     if(emitter == camera__.get()) {
         shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
         if(wheel__) {
-            unsigned int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(shot_camera[ *camera__].time());
+            int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(
+                shot_camera[ *camera__].time(), shot_camera[ *camera__].timeAwared());
             if(wheelidx != shot_this[ *filterIndex()])
                 throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
         }

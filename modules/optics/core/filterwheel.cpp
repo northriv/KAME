@@ -77,13 +77,11 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
     Snapshot &shot_this(tr);
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     if(emitter == camera__.get()) {
-        if( !tr[ *this].m_timeFilterStabled || (tr[ *this].m_timeFilterStabled > shot_emitter[ *camera__].timeAwared()))
-            throw XSkippedRecordError(__FILE__, __LINE__);
-        if(tr[ *this].m_wheelIndex < 0)
-            throw XSkippedRecordError(__FILE__, __LINE__);
-
+        int wheelidx = tr[ *this].wheelIndexOfFrame(shot_emitter[ *camera__].time(),
+                shot_emitter[ *camera__].timeAwared());
+        //Records just before possible go-around, for the succeeding secondary drivers.
         tr[ *this].m_timeLastFrame = shot_emitter[ *camera__].time();
-        tr[ *this].m_wheelIndexOfLastFrame = tr[ *this].m_wheelIndex;
+        tr[ *this].m_wheelIndexOfLastFrame = wheelidx;
         if(shot_this[ *goAroundAfterShot()]) {
             //finds next wheel
             unsigned int dwellidx = tr[ *this].m_dwellIndex;
@@ -99,10 +97,12 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
             }
             tr[ *this].m_dwellIndex = dwellidx;
             tr[ *this].m_nextWheelIndex = idx;
-            tr[ *this].m_timeFilterMoved = XTime::now();
-            tr[ *this].m_wheelIndex = -1;
-            tr[ *this].m_timeFilterStabled = {};
-            tr[ *target()] = idx;
+            if(idx != tr[ *target()]) {
+                tr[ *this].m_timeFilterMoved = XTime::now();
+                tr[ *this].m_wheelIndex = -1;
+                tr[ *this].m_timeFilterStabled = {};
+                tr[ *target()] = idx;
+            }
         }
     }
     else {
@@ -112,8 +112,6 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
                 tr[ *this].m_wheelIndex = -1; //unstable (still vibrating) yet.
             else if( !tr[ *this].m_timeFilterStabled) {
                 tr[ *this].m_timeFilterStabled = XTime::now(); //timestamp when wheel becomes stable.
-                tr[ *this].m_wheelIndexOfLastFrame = tr[ *this].m_wheelIndex;
-                tr[ *this].m_timeLastFrame = {};
             }
         }
         else {

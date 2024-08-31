@@ -187,7 +187,8 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         if( !wheel__)
             throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 //            throw XDriver::XRecordError(i18n("Filter wheel is not specified."), __FILE__, __LINE__);
-        unsigned int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(shot_camera[ *camera__].time());
+        int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(
+            shot_camera[ *camera__].time(), shot_camera[ *camera__].timeAwared());
         auto it = std::find(rgb_filterIndices.begin(), rgb_filterIndices.end(),  wheelidx);
         unsigned int cidx = std::distance(rgb_filterIndices.begin(), it);
         if(cidx >= 3) //non-RGB filter
