@@ -345,7 +345,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             for(unsigned int i = 0; i < seq_len; ++i) {
                 unsigned int tidx = 4 - seq_len + i;
                 if(shot_this.size(m_darkToolLists[0]) != shot_this.size(m_darkToolLists[tidx]))
-                    continue;
+                    throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
                 std::vector<double> vec;
                 unsigned int pixels = fn_tool_to_vector(vec, m_darkToolLists[tidx]);
                 darks[i] = std::accumulate(vec.begin(), vec.end(), 0) / pixels;
@@ -355,7 +355,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             for(unsigned int i = 0; i < seq_len; ++i) {
                 unsigned int tidx = 4 - seq_len + i;
                 if(shot_this.size(m_referenceToolLists[0]) != shot_this.size(m_referenceToolLists[tidx]))
-                    continue;
+                    throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
                 fn_tool_to_vector(tr[ *this].m_referenceIntensities[i], m_referenceToolLists[tidx], darks[i]);
             }
         }
@@ -363,7 +363,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
             for(unsigned int i = 0; i < seq_len; ++i) {
                 unsigned int tidx = 4 - seq_len + i;
                 if(shot_this.size(m_sampleToolLists[0]) != shot_this.size(m_sampleToolLists[tidx]))
-                    continue;
+                    throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
                 fn_tool_to_vector(tr[ *this].m_sampleIntensities[i], m_sampleToolLists[tidx], darks[i]);
                 tr[ *this].m_sampleIntensitiesCorrected[i] = shot_this[ *this].m_sampleIntensities[i]; //copy
             }

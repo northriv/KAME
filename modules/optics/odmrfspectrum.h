@@ -115,6 +115,7 @@ protected:
     //! [kHz]
     const shared_ptr<XDoubleNode> &freqStep() const {return m_freqStep;}
     const shared_ptr<XBoolNode> &active() const {return m_active;}
+    const shared_ptr<XBoolNode> &repeatedly() const {return m_repeatedly;}
 private:
     const shared_ptr<XItemNode<XDriverList, XSG> > m_sg1;
     const shared_ptr<XItemNode<XDriverList, XODMRImaging> > m_odmr;
@@ -123,6 +124,7 @@ private:
     const shared_ptr<XDoubleNode> m_freqSpan;
     const shared_ptr<XDoubleNode> m_freqStep;
     const shared_ptr<XBoolNode> m_active;
+    const shared_ptr<XBoolNode> m_repeatedly;
 
     shared_ptr<Listener> m_lsnOnActiveChanged;
 

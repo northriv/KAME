@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>880</width>
-    <height>410</height>
+    <width>618</width>
+    <height>320</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>NMR Spectrum Averager (Frequency Sweep)</string>
   </property>
   <widget class="QWidget" name="widget">
-   <layout class="QHBoxLayout" name="horizontalLayout_6">
+   <layout class="QHBoxLayout" name="horizontalLayout_2">
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <property name="spacing">
@@ -30,6 +30,22 @@
         </property>
         <property name="text">
          <string>Acti&amp;vate Freq. Sweep</string>
+        </property>
+        <property name="shortcut">
+         <string>Alt+V</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="m_ckbRepeatedly">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Repeatedly</string>
         </property>
         <property name="shortcut">
          <string>Alt+V</string>

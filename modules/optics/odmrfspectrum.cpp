@@ -36,7 +36,8 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
       m_centerFreq(create<XDoubleNode>("CenterFreq", false)),
       m_freqSpan(create<XDoubleNode>("FreqSpan", false)),
       m_freqStep(create<XDoubleNode>("FreqStep", false)),
-      m_active(create<XBoolNode>("Active", true)) {
+      m_active(create<XBoolNode>("Active", true)),
+      m_repeatedly(create<XBoolNode>("Repeatedly", false)) {
 
     connect(sg1());
     connect(odmr());
@@ -67,6 +68,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
         xqcon_create<XQComboBoxConnector>(m_sg1, m_form->m_cmbSG1, ref(tr_meas)),
         xqcon_create<XQComboBoxConnector>(m_odmr, m_form->m_cmbCamera, ref(tr_meas)),
         xqcon_create<XQToggleButtonConnector>(m_active, m_form->m_ckbActive),
+        xqcon_create<XQToggleButtonConnector>(m_repeatedly, m_form->m_ckbRepeatedly),
     };
 
     iterate_commit([=](Transaction &tr){
@@ -319,6 +321,8 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
             trans( *active()) = false; //finish
+            if(shot_this[ *repeatedly()])
+                trans( *active()) = true;
             return;
         }
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
