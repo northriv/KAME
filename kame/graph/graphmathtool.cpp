@@ -30,6 +30,11 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathToolMinPosition, "MinPosition");
 
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathGaussianPositionTool, "GaussianCenter");
 REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathGaussianFWHMTool, "GaussianFWHM");
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathGaussianHeightTool, "GaussianHeight");
+
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathLorenzianPositionTool, "LorenzianCenter");
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathLorenzianFWHMTool, "LorenzianFWHM");
+REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathLorenzianHeightTool, "LorenzianHeight");
 
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
@@ -128,7 +133,9 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
 void
 XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
     cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) {
-    if(tr.size(shared_from_this())) {
+    if(tr.size(shared_from_this()) &&
+            (std::distance(xbegin, xend) > 0) &&
+            (std::distance(ybegin, yend) > 0)) {
         for(auto &x: *tr.list(shared_from_this())) {
             auto tool = static_pointer_cast<XGraph1DMathTool>(x);
             //limits to selected region. xmin <= x <= xmax.

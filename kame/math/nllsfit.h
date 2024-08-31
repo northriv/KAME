@@ -132,11 +132,13 @@ NonLinearLeastSquare::NonLinearLeastSquare(Func func,
     #error GSL < 2 is obsolete, because of poor fit.
     gsl_multifit_covar (s->J, 0.0, covar);
 #endif
+//    double c0 = std::max(1.0, m_chisq / (n - init_params.size()));
+    double c0 = m_chisq / n;
     m_errors.resize(init_params.size());
     for(int i = 0; i < init_params.size(); i++) {
         double c = gsl_matrix_get(covar,i,i);
 
-        m_errors[i] = (c > 0) ? sqrt(c * m_chisq / n) : -1.0;
+        m_errors[i] = (c > 0) ? sqrt(c * c0) : -1.0;
     }
     gsl_matrix_free(covar);
 #if (GSL_MAJOR_VERSION >= 2)
