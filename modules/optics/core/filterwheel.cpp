@@ -79,6 +79,8 @@ void XFilterWheel::analyze(Transaction &tr, const Snapshot &shot_emitter, const 
     if(emitter == camera__.get()) {
         int wheelidx = tr[ *this].wheelIndexOfFrame(shot_emitter[ *camera__].time(),
                 shot_emitter[ *camera__].timeAwared());
+        if(wheelidx < 0)
+            throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
         //Records just before possible go-around, for the succeeding secondary drivers.
         tr[ *this].m_timeLastFrame = shot_emitter[ *camera__].time();
         tr[ *this].m_wheelIndexOfLastFrame = wheelidx;
