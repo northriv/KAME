@@ -108,6 +108,10 @@ XValChart::onRecord(const Snapshot &shot, XDriver *driver) {
             });
         }
         catch (XNode::NodeNotFoundError &e) {
+            //Entry has been already released from the list.
+            static XMutex s_mutex;
+            XScopedLock<XMutex> lock(s_mutex);
+            m_lsnOnRecord.reset();
         }
     }
 }
@@ -123,7 +127,7 @@ XChartList::XChartList(const char *name, bool runtime, const shared_ptr<XScalarE
 	  m_entries(entries) {
     entries->iterate_commit([=](Transaction &tr){
         m_lsnOnCatchEntry = tr[ *entries].onCatch().connectWeakly(shared_from_this(), &XChartList::onCatchEntry, Listener::FLAG_MAIN_THREAD_CALL);
-        m_lsnOnReleaseEntry = tr[ *entries].onRelease().connectWeakly(shared_from_this(), &XChartList::onReleaseEntry, Listener::FLAG_MAIN_THREAD_CALL);
+        m_lsnOnReleaseEntry = tr[ *entries].onRelease().connectWeakly(shared_from_this(), &XChartList::onReleaseEntry);
     });
 }
 
