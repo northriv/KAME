@@ -32,6 +32,9 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     m_btnMathTool = btnmath;
     m_meas = meas;
     m_driver = driver;
+    m_lsnOnPlotInsertion = m_tlkOnPlotInsertion.connectWeakly(
+        shared_from_this(), &XWaveNGraph::OnPlotInsertion,
+        Listener::FLAG_MAIN_THREAD_CALL | Listener::FLAG_AVOID_DUP);
 }
 XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     QLineEdit *ed, QAbstractButton *btn, QPushButton *btndump) :
@@ -41,7 +44,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
         tr[ *dump()].setUIEnabled(false);
         tr[ *graph()->persistence()] = 0.4;
         clearPlots(tr);
-    });
+    });    
 }
 XWaveNGraph::~XWaveNGraph() {}
 
@@ -103,6 +106,8 @@ XWaveNGraph::Payload::clearPoints() {
 }
 bool
 XWaveNGraph::clearPlots(Transaction &tr) {
+    //Note: release(tr,) cannot be used inside Payload member function, due to possible payload copy-construction.
+
     for(auto &&x: tr[ *this].m_toolLists) {
         if( !release(tr, x))
             return false; //transaction has failed.
@@ -223,9 +228,13 @@ XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, i
             m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr,
                 label.c_str(), false, meas, driver, plot));
             if( !m_toolLists.back()) return false; //transaction has failed.
-            m_conTools = std::make_shared<XQGraph1DMathToolConnector>(m_toolLists, wave.m_btnMathTool, wave.m_graphwidget);
+            wave.m_tlkOnPlotInsertion.talk(tr, &wave);
         }
     return true;
+}
+void
+XWaveNGraph::OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave) {
+    m_conTools = std::make_shared<XQGraph1DMathToolConnector>(shot[ *this].m_toolLists, m_btnMathTool, m_graphwidget);
 }
 
 void

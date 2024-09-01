@@ -126,7 +126,6 @@ public:
         std::vector<shared_ptr<XPlotWrapper>> m_plots;
         shared_ptr<XAxis> m_axisx, m_axisy, m_axisy2, m_axisw, m_axisz;
         std::deque<shared_ptr<XGraph1DMathToolList>> m_toolLists;
-        shared_ptr<XQGraph1DMathToolConnector> m_conTools;
     };
 protected:
     virtual void dumpToFileThreaded(std::fstream &, const Snapshot &, const std::string &ext) override;
@@ -135,6 +134,11 @@ private:
     weak_ptr<XDriver> m_driver;
     QToolButton *m_btnMathTool = nullptr;    
     XQGraph *m_graphwidget;
+
+    TalkerOnce<XWaveNGraph*> m_tlkOnPlotInsertion;
+    shared_ptr<Listener> m_lsnOnPlotInsertion;
+    void OnPlotInsertion(const Snapshot &shot, XWaveNGraph *wave);
+    shared_ptr<XQGraph1DMathToolConnector> m_conTools;
 };
 
 template <typename VALUE>
