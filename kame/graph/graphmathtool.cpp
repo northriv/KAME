@@ -64,16 +64,30 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 XGraph2DMathTool::~XGraph2DMathTool() {
 }
 void
+XGraph1DMathTool::highlight(bool state, XQGraph *graphwidget) {
+    m_highlight = state;
+    Snapshot shot( *this);
+    updateOnScreenObjects(shot, graphwidget);
+}
+void
 XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
+        m_oso2.reset();
         return;
     }
      //painter unchanged unless the same address is recycled.
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
     }
+    if(m_highlight) {
+        if( !m_oso2 || !m_oso2->isValid(painter.get())) {
+            m_oso2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection);
+        }
+    }
+    else
+        m_oso2.reset();
 
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
@@ -83,19 +97,42 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
         auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso);
         oso->setBaseColor(shot[ *m_baseColor]);
         oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
+        if(m_oso2) {
+            auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso2);
+            QColor c = (unsigned long)***graphwidget->graph()->titleColor();
+            c.setAlphaF(0.25);
+            oso->setBaseColor(c.rgba());
+            oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.02});
+        }
     }
+    graphwidget->update();
 }
+void
+XGraph2DMathTool::highlight(bool state, XQGraph *graphwidget) {
+    m_highlight = state;
+    Snapshot shot( *this);
+    updateOnScreenObjects(shot, graphwidget);
+}
+
 void
 XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
+        m_oso2.reset();
         return;
     }
     //painter unchanged unless the same address is recycled.
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
     }
+    if(m_highlight) {
+        if( !m_oso2 || !m_oso2->isValid(painter.get())) {
+            m_oso2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection);
+        }
+    }
+    else
+        m_oso2.reset();
 
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
@@ -106,7 +143,15 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
         auto oso = static_pointer_cast<OnPlotRectObject>(m_oso);
         oso->setBaseColor(shot[ *m_baseColor]);
         oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
+        if(m_oso2) {
+            auto oso = static_pointer_cast<OnPlotRectObject>(m_oso2);
+            QColor c = (unsigned long)***graphwidget->graph()->titleColor();
+            c.setAlphaF(0.25);
+            oso->setBaseColor(c.rgba());
+            oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
+        }
     }
+    graphwidget->update();
 }
 
 XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,

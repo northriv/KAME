@@ -50,6 +50,7 @@ private:
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
+    virtual void toolHovered(QAction *);
 };
 
 class DECLSPEC_KAME XQGraph2DMathToolConnector : public QObject {
@@ -72,6 +73,7 @@ private:
 public slots:
     virtual void menuOpenActionActivated();
     virtual void toolActivated(QAction *);
+    virtual void toolHovered(QAction *);
 };
 
 

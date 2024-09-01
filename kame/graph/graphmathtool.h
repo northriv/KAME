@@ -39,15 +39,17 @@ public:
 
     virtual bool releaseEntries(Transaction &tr) {return true;}
 
-    void updateOnScreenObjects(const Snapshot &shot,XQGraph *graphwidget);
+    void highlight(bool state, XQGraph *graphwidget);
+    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
     const weak_ptr<XScalarEntryList> m_entries;
     const shared_ptr<XHexNode> m_baseColor;
-    shared_ptr<OnScreenObjectWithMarker> m_oso;
+    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
     const weak_ptr<XPlot> m_plot;
+    bool m_highlight = false;
 };
 
 class DECLSPEC_KAME XGraph2DMathTool: public XNode {
@@ -70,6 +72,7 @@ public:
     }
     virtual bool releaseEntries(Transaction &tr) {return true;}
 
+    void highlight(bool state, XQGraph *graphwidget);
     void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
 protected:
     shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
@@ -77,8 +80,9 @@ private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
     const weak_ptr<XScalarEntryList> m_entries;
     const shared_ptr<XHexNode> m_baseColor;
-    shared_ptr<OnScreenObjectWithMarker> m_oso;
+    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
     const weak_ptr<XPlot> m_plot;
+    bool m_highlight = false;
 };
 
 template <class F>

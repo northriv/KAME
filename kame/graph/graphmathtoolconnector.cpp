@@ -55,7 +55,12 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
     m_actionToToolMap.clear();
     m_actionToExisitingToolMap.clear();
 }
-
+void XQGraph1DMathToolConnector::toolHovered(QAction *act) {
+    for(auto it = m_actionToExisitingToolMap.begin(); it != m_actionToExisitingToolMap.end(); it++) {
+        auto tool = it->second.second;
+        static_pointer_cast<XGraph1DMathTool>(tool)->highlight(it->first == act, m_graphwidget);
+    }
+}
 
 void XQGraph1DMathToolConnector::menuOpenActionActivated() {
     m_menu->clear();
@@ -84,7 +89,7 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
         m_actionToToolMap.emplace(act, type);
     }
     connect( m_menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
-
+    connect( m_menu, SIGNAL( hovered(QAction*) ), this, SLOT( toolHovered(QAction*) ) );
 }
 XQGraph1DMathToolConnector::~XQGraph1DMathToolConnector() {
     m_menu->clear();
@@ -130,6 +135,12 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
     m_actionToExisitingToolMap.clear();
 }
 
+void XQGraph2DMathToolConnector::toolHovered(QAction *act) {
+    for(auto it = m_actionToExisitingToolMap.begin(); it != m_actionToExisitingToolMap.end(); it++) {
+        auto tool = it->second.second;
+        static_pointer_cast<XGraph2DMathTool>(tool)->highlight(it->first == act, m_graphwidget);
+    }
+}
 
 void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     m_menu->clear();
@@ -156,6 +167,7 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
         m_actionToToolMap.emplace(act, type);
     }
     connect( m_menu, SIGNAL( triggered(QAction*) ), this, SLOT( toolActivated(QAction*) ) );
+    connect( m_menu, SIGNAL( hovered(QAction*) ), this, SLOT( toolHovered(QAction*) ) );
 }
 XQGraph2DMathToolConnector::~XQGraph2DMathToolConnector() {
     m_menu->clear();
