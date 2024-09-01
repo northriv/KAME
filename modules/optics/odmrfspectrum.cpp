@@ -45,14 +45,7 @@ XODMRFSpectrum::XODMRFSpectrum(const char *name, bool runtime,
     m_form->setWindowTitle(i18n("ODMR Spectrum (Freq. Sweep) - ") + getLabel() );
 
     iterate_commit([=](Transaction &tr){
-        const char *labels[] = {"Ch", "Freq. [MHz]", "dPL", "Weights"};
-        tr[ *m_spectrum].setColCount(4, labels);
-        tr[ *m_spectrum].insertPlot(labels[2], 1, 2, -1, 3, 0);
-        tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL");
-        tr[ *m_spectrum].clearPoints();
-
-        tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
-        tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
+        setupGraph(tr);
 
         tr[ *centerFreq()] = 20;
         tr[ *freqSpan()] = 200;
@@ -241,23 +234,26 @@ XODMRFSpectrum::visualize(const Snapshot &shot) {
     double min__ = shot[ *this].min();
     double res = shot[ *this].res();
     m_spectrum->iterate_commit([=](Transaction &tr){
-        unsigned int totlen = length * shot[ *this].numChannels();
+        if( !setupGraph(tr))
+            return;
+        unsigned int totlen = length;
         tr[ *m_spectrum].setRowCount(totlen);
-        std::vector<double> colf(totlen), colch(totlen), coli(totlen), colw(totlen);
+        std::vector<double> colf(totlen);
+        for(int i = 0; i < length; i++) {
+            colf[i] = (min__ + i * res) * 1e-6;
+        }
+        tr[ *m_spectrum].setColumn(0, std::move(colf), 9);
         for(unsigned int ch = 0; ch < shot[ *this].numChannels(); ch++) {
+            std::vector<double> coli(totlen), colw(totlen);
             const double *wave( &shot[ *this].wave(ch)[0]);
             const double *weights( &shot[ *this].weights(ch)[0]);
             for(int i = 0; i < length; i++) {
-                colch[i + length * ch] = ch;
-                colf[i + length * ch] = (min__ + i * res) * 1e-6;
-                coli[i + length * ch] = wave[i];
-                colw[i + length * ch] = weights[i];
+                coli[i] = wave[i];
+                colw[i] = weights[i];
             }
+            tr[ *m_spectrum].setColumn(2*ch + 1, std::move(coli), 5);
+            tr[ *m_spectrum].setColumn(2*ch + 2, std::move(colw), 4);
         }
-        tr[ *m_spectrum].setColumn(0, std::move(colch), 0);
-        tr[ *m_spectrum].setColumn(1, std::move(colf), 9);
-        tr[ *m_spectrum].setColumn(2, std::move(coli), 5);
-        tr[ *m_spectrum].setColumn(3, std::move(colw), 4);
         m_spectrum->drawGraph(tr);
     });
 }
@@ -290,6 +286,35 @@ XODMRFSpectrum::onActiveChanged(const Snapshot &shot, XValueNodeBase *) {
             });
         }
     }
+}
+
+bool
+XODMRFSpectrum::setupGraph(Transaction &tr) {
+    int numch = std::max((int)Snapshot( *this)[ *this].numChannels(), 1);
+    if(numch * 2 + 1 == tr[ *m_spectrum].colCount())
+        return true;
+    std::deque<XString> strs;
+    std::vector<const char*> labels = {"Freq. [MHz]"};
+    for(int i = 0; i < numch; ++i) {
+        strs.push_back(formatString("dPL%i", i));
+        labels.push_back(strs.back().c_str());
+        strs.push_back(formatString("Weights%i", i));
+        labels.push_back(strs.back().c_str());
+    }
+    assert(labels.size() == numch * 2 + 1);
+    tr[ *m_spectrum].setColCount(labels.size(), &labels[0]);
+    if( !m_spectrum->clearPlots(tr))
+        return false;
+    for(int i = 0; i < numch; ++i) {
+        if( !tr[ *m_spectrum].insertPlot(tr, labels[1 + 2*i], 0, 1 + 2*i, -1, 2 + 2*i))
+            return false;
+    }
+    tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
+    tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
+    tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL");
+    tr[ *tr[ *m_spectrum].axisw()->label()] = i18n("Weight");
+    tr[ *m_spectrum].clearPoints();
+    return true;
 }
 
 void

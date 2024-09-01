@@ -66,7 +66,8 @@ XValChart::XValChart(const char *name, bool runtime,
     m_graphForm->m_graphwidget->setGraph(m_graph);
     
     m_graph->iterate_commit([=](Transaction &tr){
-		m_chart= m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, tr, m_graph);
+        m_chart = m_graph->plots()->create<XXYPlot>(tr, entry->getLabel().c_str(), true, tr, m_graph);
+        if( !m_chart) return; //transaction has failed.
 		tr[ *m_chart->label()] = entry->getLabel();
 		const XNode::NodeList &axes_list( *tr.list(m_graph->axes()));
 		shared_ptr<XAxis> axisx = static_pointer_cast<XAxis>(axes_list.at(0));
@@ -181,6 +182,7 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 
 		if(tr[ *this].m_graph) release(tr, tr[ *this].m_graph);
 		tr[ *this].m_graph = create<XGraph>(tr, getName().c_str(), false);
+        if( !tr[ *this].m_graph) return; //transaction has failed.
         graph = tr[ *this].m_graph;
 
 		if( !entryx || !entryy1) return;
@@ -188,10 +190,12 @@ XValGraph::onAxisChanged(const Snapshot &shot, XValueNodeBase *) {
 		tr[ *this].m_livePlot =
 			graph->plots()->create<XXYPlot>(tr,
 				(graph->getName() + "-Live").c_str(), false, tr, graph);
+        if( !tr[ *this].m_livePlot) return;
 		tr[ *shot_this[ *this].m_livePlot->label()] = graph->getLabel() + " Live";
 		tr[ *this].m_storePlot =
 			graph->plots()->create<XXYPlot>(tr,
 				(graph->getName() + "-Stored").c_str(), false, tr, graph);
+        if( !tr[ *this].m_storePlot) return;
 		tr[ *shot_this[ *this].m_storePlot->label()] = graph->getLabel() + " Stored";
 
 		const XNode::NodeList &axes_list( *tr.list(graph->axes()));

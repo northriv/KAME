@@ -54,6 +54,7 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         tr[ *graph()->persistence()] = 0;
         tr[ *graph()->drawLegends()] = false;
         auto plot = graph()->plots()->create<X2DImagePlot>(tr, "ImagePlot", true, ref(tr), graph());
+        if( !plot) return; //transaction has failed.
         tr[ *plot->label()] = getLabel();
         m_plot = plot;
         const XNode::NodeList &axes_list( *tr.list(graph()->axes()));

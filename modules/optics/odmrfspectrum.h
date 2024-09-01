@@ -128,6 +128,8 @@ private:
 
     shared_ptr<Listener> m_lsnOnActiveChanged;
 
+    bool setupGraph(Transaction &tr);
+
     void rearrangeInstrum(const Snapshot &shot_this);
 
     std::deque<xqcon_ptr> m_conUIs;

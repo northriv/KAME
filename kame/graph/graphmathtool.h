@@ -37,7 +37,7 @@ public:
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
     const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
 
-    virtual void releaseEntries(Transaction &tr) {}
+    virtual bool releaseEntries(Transaction &tr) {return true;}
 
     void updateOnScreenObjects(const Snapshot &shot,XQGraph *graphwidget);
 protected:
@@ -68,7 +68,7 @@ public:
     unsigned int pixels(const Snapshot &shot) const {
         return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
     }
-    virtual void releaseEntries(Transaction &tr) {}
+    virtual bool releaseEntries(Transaction &tr) {return true;}
 
     void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
 protected:
@@ -98,7 +98,7 @@ public:
         updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
-    virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
+    virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}
 private:
     shared_ptr<XScalarEntry> m_entry;
 };
@@ -121,7 +121,7 @@ public:
         updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
-    virtual void releaseEntries(Transaction &tr) override {entries()->release(tr, m_entry);}
+    virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}
 private:
     shared_ptr<XScalarEntry> m_entry;
 };

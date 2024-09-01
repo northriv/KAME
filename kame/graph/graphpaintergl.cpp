@@ -555,7 +555,12 @@ XQGraphPainter::paintGL () {
         QTimer::singleShot(50, m_pItem, SLOT(update()));
     }
 
-    drawOnScreenObj(shot);
+    try {
+        drawOnScreenObj(shot);
+    }
+    catch(std::domain_error &) {
+        fprintf(stderr, "Screen Object not found\n");
+    }
 
 //    glMatrixMode(GL_PROJECTION);
 //GLdouble proj_orig[16];

@@ -200,9 +200,11 @@ XDSO::visualize(const Snapshot &shot) {
     m_waveForm->iterate_commit([=](Transaction &tr){
 		tr[ *m_waveForm].setColCount(num_channels + 1, s_trace_names);
 		if(tr[ *m_waveForm].numPlots() != num_channels) {
-			tr[ *m_waveForm].clearPlots();
+            if( !m_waveForm->clearPlots(tr))
+                return;
 			for(unsigned int i = 0; i < num_channels; i++) {
-				tr[ *m_waveForm].insertPlot(s_trace_names[i + 1], 0, i + 1);
+                if( !tr[ *m_waveForm].insertPlot(tr, s_trace_names[i + 1], 0, i + 1))
+                    return;
 			}
 			tr[ *tr[ *m_waveForm].axisy()->label()] = i18n("Traces [V]");
 		}

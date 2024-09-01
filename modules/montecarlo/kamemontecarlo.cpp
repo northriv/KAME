@@ -161,7 +161,8 @@ XMonteCarloDriver::XMonteCarloDriver(const char *name, bool runtime,
 			"h or x", "k or y", "l or z", "intens.", "hx", "hy", "hz", "site"
 		};
 		tr[ *m_wave3D].setColCount(8, s_trace_names);
-		tr[ *m_wave3D].insertPlot("Intens.", 0, 1, -1, 3, 2);
+        if( !tr[ *m_wave3D].insertPlot(tr, "Intens.", 0, 1, -1, 3, 2))
+            return;
 		tr[ *tr[ *m_wave3D].plot(0)->drawLines()] = false;
 
 		tr[ *m_wave3D->graph()->backGround()] = QColor(0,0,0).rgb();

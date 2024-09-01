@@ -50,10 +50,10 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 	iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"X", "Re [V]", "Im [V]", "Weights", "Abs [V]", "Dark [V]"};
 		tr[ *m_spectrum].setColCount(6, labels);
-		tr[ *m_spectrum].insertPlot(labels[4], 0, 4, -1, 3);
-		tr[ *m_spectrum].insertPlot(labels[1], 0, 1, -1, 3);
-		tr[ *m_spectrum].insertPlot(labels[2], 0, 2, -1, 3);
-		tr[ *m_spectrum].insertPlot(labels[5], 0, 5, -1, 3);
+        if( !tr[ *m_spectrum].insertPlot(tr, labels[4], 0, 4, -1, 3)) return;
+        if( !tr[ *m_spectrum].insertPlot(tr, labels[1], 0, 1, -1, 3)) return;
+        if( !tr[ *m_spectrum].insertPlot(tr, labels[2], 0, 2, -1, 3)) return;
+        if( !tr[ *m_spectrum].insertPlot(tr, labels[5], 0, 5, -1, 3)) return;
 		tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("Intens. [V]");
 		tr[ *tr[ *m_spectrum].plot(1)->label()] = i18n("real part");
         tr[ *tr[ *m_spectrum].plot(3)->lineColor()] = clLime; //QColor(0xa0, 0xa0, 0x00).rgb();
@@ -79,6 +79,7 @@ XNMRSpectrumBase<FRM>::XNMRSpectrumBase(const char *name, bool runtime,
 		{
 			shared_ptr<XXYPlot> plot = m_spectrum->graph()->plots()->template create<XXYPlot>(
 				tr, "Peaks", true, tr, m_spectrum->graph());
+            if( !plot) return;
 			m_peakPlot = plot;
 			tr[ *plot->label()] = i18n("Peaks");
 			tr[ *plot->axisX()] = tr[ *m_spectrum].axisx();

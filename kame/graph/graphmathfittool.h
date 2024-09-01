@@ -67,9 +67,11 @@ public:
         updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
-    virtual void releaseEntries(Transaction &tr) override {
-        entries()->release(tr, m_entry_err);
-        entries()->release(tr, m_entry);}
+    virtual bool releaseEntries(Transaction &tr) override {
+        if( !entries()->release(tr, m_entry_err))
+            return false;//transaction has failed.
+        return entries()->release(tr, m_entry);
+    }
 private:
     shared_ptr<XScalarEntry> m_entry, m_entry_err;
 };

@@ -56,8 +56,10 @@ XOpticalSpectrometer::XOpticalSpectrometer(const char *name, bool runtime,
     m_waveForm->iterate_commit([=](Transaction &tr){
         const char *labels[] = {"Wavelength [nm]", "Count", "Averaging Count", "Dark Count"};
         tr[ *m_waveForm].setColCount(4, labels);
-		tr[ *m_waveForm].insertPlot(labels[1], 0, 1);
-        tr[ *m_waveForm].insertPlot(labels[2], 0, 2);
+        if( !tr[ *m_waveForm].insertPlot(tr, labels[1], 0, 1))
+            return;
+        if( !tr[ *m_waveForm].insertPlot(tr, labels[2], 0, 2))
+            return;
 
 		m_graph = m_waveForm->graph();
 //		tr[ *m_graph->backGround()] = QColor(0x0A, 0x05, 0x34).rgb();

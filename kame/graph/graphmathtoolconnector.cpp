@@ -46,7 +46,8 @@ void XQGraph1DMathToolConnector::toolActivated(QAction *act) {
             auto toollist = it->second.first;
             auto tool = it->second.second;
             toollist->m_measure.lock()->iterate_commit([&](Transaction &tr){
-                static_pointer_cast<XGraph1DMathTool>(tool)->releaseEntries(tr);
+                if( !static_pointer_cast<XGraph1DMathTool>(tool)->releaseEntries(tr))
+                    return;
                 toollist->release(tr, tool);
             });
         }
@@ -119,7 +120,8 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
             auto toollist = it->second.first;
             auto tool = it->second.second;
             toollist->m_measure.lock()->iterate_commit([&](Transaction &tr){
-                static_pointer_cast<XGraph2DMathTool>(tool)->releaseEntries(tr);
+                if( !static_pointer_cast<XGraph2DMathTool>(tool)->releaseEntries(tr))
+                    return;
                 toollist->release(tr, tool);
             });
         }

@@ -243,7 +243,10 @@ template <class T, typename... Args>
 shared_ptr<T>
 XNode::create(Transaction &tr, const char *name, bool runtime, Args&&... args) {
     shared_ptr<T> ptr(createOrphan<T>(name, runtime, std::forward<Args>(args)...));
-    if(ptr) insert(tr, ptr, true);
+    if(ptr) {
+        if( !insert(tr, ptr, true))
+            ptr = nullptr; //online insertion has failed.
+    }
     return ptr;
 }
 

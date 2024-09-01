@@ -142,6 +142,7 @@ XPulser::XPulser(const char *name, bool runtime,
 		{
 			for(unsigned int i = 0; i < NUM_DO_PORTS; i++) {
 				m_portSel[i] = create<XComboNode>(tr, formatString("PortSel%u", i).c_str(), false);
+                if( !m_portSel[i]) return;
                 tr[ *m_portSel[i]].add({
                        "Gate", "PreGate", "Gate3", "Trig1", "Trig2", "ASW",
                        "QSW", "Pulse1", "Pulse2", "Comb", "CombFM",

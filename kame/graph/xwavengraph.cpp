@@ -40,7 +40,7 @@ XWaveNGraph::XWaveNGraph(const char *name, bool runtime, XQGraph *graphwidget,
     iterate_commit([=](Transaction &tr){
         tr[ *dump()].setUIEnabled(false);
         tr[ *graph()->persistence()] = 0.4;
-        tr[ *this].clearPlots();
+        clearPlots(tr);
     });
 }
 XWaveNGraph::~XWaveNGraph() {}
@@ -101,31 +101,42 @@ XWaveNGraph::Payload::clearPoints() {
 	shared_ptr<XGraph> graph(static_cast<XWaveNGraph*>( &node())->graph());
 	tr().mark(tr()[ *graph].onUpdate(), graph.get());
 }
-void
-XWaveNGraph::Payload::clearPlots() {
-    const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
-    for(auto &&x: m_plots) {
-        graph->plots()->release(tr(), x);
-	}
-	if(m_axisw)
-		graph->axes()->release(tr(), m_axisw);
-	if(m_axisz)
-		graph->axes()->release(tr(), m_axisz);
-	if(m_axisy2)
-		graph->axes()->release(tr(), m_axisy2);
+bool
+XWaveNGraph::clearPlots(Transaction &tr) {
+    for(auto &&x: tr[ *this].m_toolLists) {
+        if( !release(tr, x))
+            return false; //transaction has failed.
+    }
+    tr[ *this].m_toolLists.clear();
 
-	if(m_axisx)
-		tr()[ *m_axisx->label()] = "";
-	if(m_axisy)
-		tr()[ *m_axisy->label()] = "";
-	m_plots.clear();
-	m_axisy2.reset();
-	m_axisz.reset();
-	m_axisw.reset();
-    m_colw = -1;
+    for(auto &&x: tr[ *this].m_plots) {
+        if( !graph()->plots()->release(tr, x))
+            return false;
+	}
+    if(tr[ *this].m_axisw)
+        if( !graph()->axes()->release(tr, tr[ *this].m_axisw))
+            return false;
+    if(tr[ *this].m_axisz)
+        if( !graph()->axes()->release(tr, tr[ *this].m_axisz))
+            return false;
+    if(tr[ *this].m_axisy2)
+        if( !graph()->axes()->release(tr, tr[ *this].m_axisy2))
+            return false;
+
+    if(tr[ *this].m_axisx)
+        tr[ *tr[ *this].m_axisx->label()] = "";
+    if(tr[ *this].m_axisy)
+        tr[ *tr[ *this].m_axisy->label()] = "";
+
+    tr[ *this].m_plots.clear();
+    tr[ *this].m_axisy2.reset();
+    tr[ *this].m_axisz.reset();
+    tr[ *this].m_axisw.reset();
+    tr[ *this].m_colw = -1;
+    return true;
 }
-void
-XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
+bool
+XWaveNGraph::Payload::insertPlot(Transaction &tr, const XString &label, int x, int y1, int y2,
 	int weight, int z) {
     const auto &graph(static_cast<XWaveNGraph &>(node()).graph());
 	assert( (y1 < 0) || (y2 < 0) );
@@ -138,11 +149,12 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 	}
 
 	// graph->setName(getName());
-	tr()[ *graph->label()] = node().getLabel();
+    tr[ *graph->label()] = node().getLabel();
 
 	unsigned int plotnum = m_plots.size() + 1;
-    auto plot = graph->plots()->create<XPlotWrapper>(tr(), formatString("Plot%u",
-		plotnum).c_str(), true, ref(tr()), graph);
+    auto plot = graph->plots()->create<XPlotWrapper>(tr, formatString("Plot%u",
+        plotnum).c_str(), true, ref(tr), graph);
+    if( !plot) return false; //transaction has faield.
     plot->m_parent = static_pointer_cast<XWaveNGraph>(node().shared_from_this());
     plot->m_colx = x;
     plot->m_coly1 = y1;
@@ -150,20 +162,20 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
     plot->m_colweight = weight;
     plot->m_colz = z;
 
-    tr()[ *plot->label()] = label;
-	const XNode::NodeList &axes_list( *tr().list(graph->axes()));
+    tr[ *plot->label()] = label;
+    const XNode::NodeList &axes_list( *tr.list(graph->axes()));
 	m_axisx = static_pointer_cast<XAxis>(axes_list.at(0));
 	m_axisy = static_pointer_cast<XAxis>(axes_list.at(1));
-    tr()[ *plot->axisX()] = m_axisx;
-    tr()[ *m_axisx->label()] = m_labels[plot->m_colx];
+    tr[ *plot->axisX()] = m_axisx;
+    tr[ *m_axisx->label()] = m_labels[plot->m_colx];
     if(plot->m_coly1 >= 0) {
-        tr()[ *plot->axisY()] = m_axisy;
-        tr()[ *m_axisy->label()] = m_labels[plot->m_coly1];
+        tr[ *plot->axisY()] = m_axisy;
+        tr[ *m_axisy->label()] = m_labels[plot->m_coly1];
 	}
-    tr()[ *plot->maxCount()] = rowCount();
-    tr()[ *plot->maxCount()].setUIEnabled(false);
-    tr()[ *plot->clearPoints()].setUIEnabled(false);
-    tr()[ *plot->intensity()] = 1.0;
+    tr[ *plot->maxCount()] = rowCount();
+    tr[ *plot->maxCount()].setUIEnabled(false);
+    tr[ *plot->clearPoints()].setUIEnabled(false);
+    tr[ *plot->intensity()] = 1.0;
 //	if(m_plots.size()) {
 //        tr()[ *plot.xyplot->pointColor()] = clAqua; //Green;
 //        tr()[ *plot.xyplot->lineColor()] = clAqua; //Green;
@@ -173,42 +185,47 @@ XWaveNGraph::Payload::insertPlot(const XString &label, int x, int y1, int y2,
 
     if(plot->m_colz >= 0) {
 		if( !m_axisz) {
-			m_axisz = graph->axes()->create<XAxis>(tr(), "Z Axis", true,
-                XAxis::AxisDirection::Z, true, ref(tr()), graph);
+            m_axisz = graph->axes()->create<XAxis>(tr, "Z Axis", true,
+                XAxis::AxisDirection::Z, true, ref(tr), graph);
 		}
-        tr()[ *plot->axisZ()] = m_axisz;
-        tr()[ *m_axisz->label()] = m_labels[plot->m_colz];
+        if( !m_axisz) return false; //transaction has failed.
+        tr[ *plot->axisZ()] = m_axisz;
+        tr[ *m_axisz->label()] = m_labels[plot->m_colz];
 	}
     if(plot->m_colweight >= 0) {
 		if( !m_axisw) {
-			m_axisw = graph->axes()->create<XAxis>(tr(), "Weight", true,
-                XAxis::AxisDirection::Weight, true, ref(tr()), graph);
+            m_axisw = graph->axes()->create<XAxis>(tr, "Weight", true,
+                XAxis::AxisDirection::Weight, true, ref(tr), graph);
 		}
-		tr()[ *m_axisw->autoScale()] = false;
-		tr()[ *m_axisw->autoScale()].setUIEnabled(false);
-        tr()[ *plot->axisW()] = m_axisw;
-        tr()[ *m_axisw->label()] = m_labels[plot->m_colweight];
+        if( !m_axisw) return false; //transaction has failed.
+        tr[ *m_axisw->autoScale()] = false;
+        tr[ *m_axisw->autoScale()].setUIEnabled(false);
+        tr[ *plot->axisW()] = m_axisw;
+        tr[ *m_axisw->label()] = m_labels[plot->m_colweight];
 	}
     if(plot->m_coly2 >= 0) {
 		if( !m_axisy2) {
-			m_axisy2 = graph->axes()->create<XAxis>(tr(), "Y2 Axis", true,
-                XAxis::AxisDirection::Y, true, ref(tr()), graph);
+            m_axisy2 = graph->axes()->create<XAxis>(tr, "Y2 Axis", true,
+                XAxis::AxisDirection::Y, true, ref(tr), graph);
 		}
-        tr()[ *plot->axisY()] = m_axisy2;
-        tr()[ *m_axisy2->label()] = m_labels[plot->m_coly2];
+        if( !m_axisy2) return false; //transaction has failed.
+        tr[ *plot->axisY()] = m_axisy2;
+        tr[ *m_axisy2->label()] = m_labels[plot->m_coly2];
 	}
 
 	m_plots.push_back(plot);
 
-    graph->applyTheme(tr(), true);
+    graph->applyTheme(tr, true);
 
     auto &wave{static_cast<XWaveNGraph&>(node())};
     if(auto meas = wave.m_meas.lock())
         if(auto driver = wave.m_driver.lock()) {
-            wave.m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr(),
+            m_toolLists.push_back(wave.create<XGraph1DMathToolList>(tr,
                 label.c_str(), false, meas, driver, plot));
-            wave.m_conTools = std::make_unique<XQGraph1DMathToolConnector>(wave.m_toolLists, wave.m_btnMathTool, wave.m_graphwidget);
+            if( !m_toolLists.back()) return false; //transaction has failed.
+            m_conTools = std::make_shared<XQGraph1DMathToolConnector>(m_toolLists, wave.m_btnMathTool, wave.m_graphwidget);
         }
+    return true;
 }
 
 void
@@ -274,7 +291,7 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
     tr.mark(tr[ *graph()].onUpdate(), graph().get());
 
     int cnt = shot[ *this].m_plots.size();
-    cnt = std::min(cnt, (int)m_toolLists.size());
+    cnt = std::min(cnt, (int)shot[ *this].m_toolLists.size());
     for(unsigned int j = 0; j < cnt; j++) {
         auto plot = shot[ *this].m_plots[j];
         std::vector<XGraph::VFloat> colx, coly;
@@ -282,7 +299,7 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
         if(std::max(plot->m_coly1, plot->m_coly2) > 0) {
             auto colycref =
                 shot[ *this].m_cols[(plot->m_coly1 > 0) ? plot->m_coly1 : plot->m_coly2]->fillOrPointToGraphPoints(coly);
-            m_toolLists[j]->update(tr, m_graphwidget, colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
+            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget, colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
         }
     }
 }

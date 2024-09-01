@@ -376,7 +376,7 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
 //                auto &entry_list = *shot_entries.list();
                 auto &list = *shot_this.list(m_sampleToolLists[0]);
                 unsigned int j = 0;
-                for(unsigned int i = 0; i < list.size(); ++ i) {
+                for(unsigned int i = 0; i < list.size(); ++i) {
                     shared_ptr<XScalarEntry> entryPL, entryDPLoPL;
                     shared_ptr<XNode> tool;
                     if(auto sumtool = dynamic_pointer_cast<XGraph2DMathToolSum>(list.at(i)))
@@ -389,6 +389,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                     if( !entryPL) {
                         entryPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,PL", i).c_str(), true,
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
+                        if( !entryPL)
+                            return;
                         tr[ *this].m_samplePLEntries[tool.get()] = entryPL;
                     }
                     if(shot_this[ *this].m_sampleIntensities[seq_len - 2].size() > j) //confirms a number of mathtools is uniform.
@@ -398,6 +400,8 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
                     if( !entryDPLoPL) {
                         entryDPLoPL = create<XScalarEntry>(ref(tr), formatString("Smpl%u,dPL/PL", i).c_str(), true,
                             dynamic_pointer_cast<XDriver>(shared_from_this()));
+                        if( !entryDPLoPL)
+                            return;
                         tr[ *this].m_sampleDPLoPLEntries[tool.get()] = entryDPLoPL;
                     }
                     if(shot_this[ *this].m_sampleIntensities[seq_len - 2].size() > j)
@@ -406,42 +410,37 @@ XODMRImaging::analyze(Transaction &tr, const Snapshot &shot_emitter, const Snaps
 
                     j++;
                 }
+
                 //removes entry in the map which no more exists in the math tool list.
-                for(auto it = shot_this[ *this].m_samplePLEntries.begin(); it != shot_this[ *this].m_samplePLEntries.end();) {
-                    auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-                    if(tool_it == list.end()) {
-                        release(tr, it->second);
-                        tr[ *this].m_releasedEntries.push_back(it->second);
-                        it = tr[ *this].m_samplePLEntries.erase(it); //not existing anymore.
+                for(auto &&e :
+                    {ref(tr[ *this].m_samplePLEntries), ref(tr[ *this].m_sampleDPLoPLEntries)}) {
+                    for(auto it = e.get().begin(); it != e.get().end();) {
+                        auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
+                        if(tool_it == list.end()) {
+                            tr[ *this].m_releasedEntries.push_back(it->second);
+                            it = e.get().erase(it); //not existing anymore.
+                        }
+                        else
+                            it++;
                     }
-                    else
-                        it++;
-                }
-                for(auto it = shot_this[ *this].m_sampleDPLoPLEntries.begin(); it != shot_this[ *this].m_sampleDPLoPLEntries.end();) {
-                    auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-                    if(tool_it == list.end()) {
-                        release(tr, it->second);
-                        tr[ *this].m_releasedEntries.push_back(it->second);
-                        it = tr[ *this].m_sampleDPLoPLEntries.erase(it); //not existing anymore.
-                    }
-                    else
-                        it++;
                 }
             }
         }
         else {
             //no sample. releases all the entries.
-            for(auto &&x: shot_this[ *this].m_samplePLEntries) {
-                release(tr, x.second);
+            for(auto &&x: tr[ *this].m_samplePLEntries) {
                 tr[ *this].m_releasedEntries.push_back(x.second);
             }
             tr[ *this].m_samplePLEntries.clear();
-            for(auto &&x: shot_this[ *this].m_sampleDPLoPLEntries) {
-                release(tr, x.second);
+            for(auto &&x: tr[ *this].m_sampleDPLoPLEntries) {
                 tr[ *this].m_releasedEntries.push_back(x.second);
             }
             tr[ *this].m_sampleDPLoPLEntries.clear();
         }
+        //iterating/erasing map should be separated.
+        for(auto &&x: tr[ *this].m_releasedEntries)
+            if( !release(tr, x)) //map may be copy-constructed after release()., losing iterator.
+                return;
     }
 }
 void
@@ -465,44 +464,6 @@ XODMRImaging::visualize(const Snapshot &shot) {
                 entries->release(x);
             }
         }
-//        //releases unused entries.
-//        if(shot.size(m_sampleToolLists[0])) {
-//            auto &list = *shot.list(m_sampleToolLists[0]);
-//            for(auto it = shot[ *this].m_samplePLEntries.begin(); it != shot[ *this].m_samplePLEntries.end();) {
-//                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-//                if(tool_it == list.end()) {
-//                    entries->release(it->second);
-//                    release(it->second);
-//                    it = shot[ *this].m_samplePLEntries.erase(it); //not existing anymore.
-//                }
-//                else {
-//                    it++;
-//                }
-//            }
-//            for(auto it = shot[ *this].m_sampleDPLoPLEntries.begin(); it != shot[ *this].m_sampleDPLoPLEntries.end();) {
-//                auto tool_it = std::find_if(list.begin(), list.end(), [&it](const shared_ptr<XNode> &x){return it->first == x.get();});
-//                if(tool_it == list.end()) {
-//                    entries->release(it->second);
-//                    release(it->second);
-//                    it = shot[ *this].m_sampleDPLoPLEntries.erase(it); //not existing anymore.
-//                }
-//                else {
-//                    it++;
-//                }
-//            }
-//        }
-//        else {
-//            for(auto &&x: shot[ *this].m_samplePLEntries) {
-//                entries->release(x.second);
-//                release(x.second);
-//            }
-//            shot[ *this].m_samplePLEntries.clear();
-//            for(auto &&x: shot[ *this].m_sampleDPLoPLEntries) {
-//                entries->release(x.second);
-//                release(x.second);
-//            }
-//            shot[ *this].m_sampleDPLoPLEntries.clear();
-//        }
     }
 
     if( !shot[ *this].m_accumulated[0] || (shot[ *this].currentIndex() > 0))

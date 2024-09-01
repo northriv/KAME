@@ -140,8 +140,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         const char *labels[] = {"P1 [ms] or 2Tau [us]", "Intens [V]",
                                 "Weight [1/V]", "Abs [V]", "Re [V]", "Im [V]"};
         tr[ *m_wave].setColCount(6, labels);
-        tr[ *m_wave].insertPlot(i18n("Relaxation"), 0, 1, -1, 2);
-        tr[ *m_wave].insertPlot(i18n("Out-of-Phase"), 0, 5, -1, 2);
+        if( !tr[ *m_wave].insertPlot(tr, i18n("Relaxation"), 0, 1, -1, 2)) return;
+        if( !tr[ *m_wave].insertPlot(tr, i18n("Out-of-Phase"), 0, 5, -1, 2)) return;
         shared_ptr<XAxis> axisx = tr[ *m_wave].axisx();
         shared_ptr<XAxis> axisy = tr[ *m_wave].axisy();
         tr[ *axisx->logScale()] = true;
@@ -152,6 +152,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         shared_ptr<XFuncPlot> plot3 = m_wave->graph()->plots()->create<XRelaxFuncPlot>(
             tr, "FittedCurve", true, tr, m_wave->graph(),
             relaxFunc(), static_pointer_cast<XNMRT1>(shared_from_this()));
+        if( !plot3) return;
         tr[ *plot3->label()] = i18n("Fitted Curve");
         tr[ *plot3->axisX()] = axisx;
         tr[ *plot3->axisY()] = axisy;
@@ -189,8 +190,8 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         {
             const char *labels[] = {"Freq [kHz]", "P1 [ms] or 2Tau [us]", "Re [V]", "Im [V]", "Weight [1/V]"};
             tr[ *m_waveAllRelaxCurves].setColCount(5, labels);
-            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Relaxation"), 0, 2, -1, 4, 1);
-            tr[ *m_waveAllRelaxCurves].insertPlot(i18n("Out-of-Phase"), 0, 3, -1, 4, 1);
+            if( !tr[ *m_waveAllRelaxCurves].insertPlot(tr, i18n("Relaxation"), 0, 2, -1, 4, 1)) return;
+            if( !tr[ *m_waveAllRelaxCurves].insertPlot(tr, i18n("Out-of-Phase"), 0, 3, -1, 4, 1)) return;
 //            tr[ *m_waveAllRelaxCurves].insertPlot(labels[4], 0, 4, -1, 4, 1);
             shared_ptr<XAxis> axisx = tr[ *m_waveAllRelaxCurves].axisx();
             shared_ptr<XAxis> axisy = tr[ *m_waveAllRelaxCurves].axisy();
@@ -208,7 +209,7 @@ XNMRT1::XNMRT1(const char *name, bool runtime,
         {
             const char *labels[] = {"Freq [kHz]", "T1 [ms] or T2 [us]", "Density"};
             tr[ *m_waveMap].setColCount(3, labels);
-            tr[ *m_waveMap].insertPlot(i18n("Density"), 0, 1, -1, -1, 2);
+            if( !tr[ *m_waveMap].insertPlot(tr, i18n("Density"), 0, 1, -1, -1, 2)) return;
             shared_ptr<XAxis> axisx = tr[ *m_waveMap].axisx();
             shared_ptr<XAxis> axisy = tr[ *m_waveMap].axisy();
             tr[ *axisy->logScale()] = true;

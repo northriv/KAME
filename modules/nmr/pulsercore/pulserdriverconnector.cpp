@@ -93,6 +93,7 @@ XQPulserDriverConnector::XQPulserDriverConnector(
 			tr[ *plot->maxCount()].setUIEnabled(false);
 		}
 		m_barPlot = m_graph->plots()->create<XXYPlot>(tr, "Bars", true, tr, m_graph);
+        if( !m_barPlot) return;
 		tr[ *m_barPlot->label()] = i18n("Bars");
 		tr[ *m_barPlot->axisX()] = axisx;
 		tr[ *m_barPlot->axisY()] = axisy;

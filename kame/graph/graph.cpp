@@ -69,10 +69,12 @@ XGraph::XGraph(const char *name, bool runtime) :
 
         auto xaxis = axes()->create<XAxis>(tr, "XAxis", true, XAxis::AxisDirection::X
                                , false, tr, static_pointer_cast<XGraph>(shared_from_this()));
+        if( !xaxis) return; //transaction has failed.
 	    tr[ *xaxis->label()] = i18n("X Axis");
         auto yaxis = axes()->create<XAxis>(tr, "YAxis", true, XAxis::AxisDirection::Y
                                , false, tr, static_pointer_cast<XGraph>(shared_from_this()));
-	    tr[ *yaxis->label()] = i18n("Y Axis");
+        if( !yaxis) return; //transaction has failed.
+        tr[ *yaxis->label()] = i18n("Y Axis");
 
         applyTheme(tr, true);
     });

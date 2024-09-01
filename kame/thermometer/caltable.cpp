@@ -66,8 +66,8 @@ XConCalTable::XConCalTable
     m_wave->iterate_commit([=](Transaction &tr){
 		const char *labels[] = {"Temp. [K]", "Value", "T(v(T))-T [K]"};
 		tr[ *m_wave].setColCount(3, labels);
-		tr[ *m_wave].insertPlot(labels[1], 0, 1);
-		tr[ *m_wave].insertPlot(labels[2], 0, -1, 2);
+        if( !tr[ *m_wave].insertPlot(tr, labels[1], 0, 1)) return;
+        if( !tr[ *m_wave].insertPlot(tr, labels[2], 0, -1, 2)) return;
 		tr[ *tr[ *m_wave].plot(0)->label()] = i18n("Curve");
 		tr[ *tr[ *m_wave].plot(0)->drawPoints()] = false;
 		tr[ *tr[ *m_wave].plot(1)->label()] = i18n("Error");
