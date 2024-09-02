@@ -193,7 +193,8 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
             for(unsigned int ch = 0; ch < shot_this[ *this].numChannels(); ch++) {
                 auto &accum = tr[ *this].data[ch].m_accum;
                 auto &accum_weights = tr[ *this].data[ch].m_accum_weights;
-                accum[idx] += shot_odmr[ *odmr__].dPL(ch);
+//                accum[idx] += shot_odmr[ *odmr__].dPL(ch);
+                accum[idx] += shot_odmr[ *odmr__].dPLoPL(ch);
                 accum_weights[idx]++;
             }
         }
@@ -296,7 +297,8 @@ XODMRFSpectrum::setupGraph(Transaction &tr) {
     std::deque<XString> strs;
     std::vector<const char*> labels = {"Freq. [MHz]"};
     for(int i = 0; i < numch; ++i) {
-        strs.push_back(formatString("dPL%i", i));
+//        strs.push_back(formatString("dPL%i", i));
+        strs.push_back(formatString("dPL/PL%i", i));
         labels.push_back(strs.back().c_str());
         strs.push_back(formatString("Weights%i", i));
         labels.push_back(strs.back().c_str());
@@ -311,7 +313,8 @@ XODMRFSpectrum::setupGraph(Transaction &tr) {
     }
     tr[ *m_spectrum].setLabel(0, "Freq [MHz]");
     tr[ *tr[ *m_spectrum].axisx()->label()] = i18n("Freq [MHz]");
-    tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL");
+//    tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL");
+    tr[ *tr[ *m_spectrum].axisy()->label()] = i18n("dPL/PL");
     tr[ *tr[ *m_spectrum].axisw()->label()] = i18n("Weight");
     tr[ *m_spectrum].clearPoints();
     return true;
