@@ -348,9 +348,10 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
-            trans( *active()) = false; //finish
             if(shot_this[ *repeatedly()])
-                trans( *active()) = true;
+                XODMRFSpectrum::onActiveChanged(shot_this, m_repeatedly.get());
+            else
+                trans( *active()) = false; //finish
             return;
         }
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
