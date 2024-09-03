@@ -194,6 +194,10 @@ XODMRFSpectrum::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sna
                 auto &accum = tr[ *this].data[ch].m_accum;
                 auto &accum_weights = tr[ *this].data[ch].m_accum_weights;
 //                accum[idx] += shot_odmr[ *odmr__].dPL(ch);
+                if(shot_this[ *repeatedly()]) {
+                    accum[idx] = 0;
+                    accum_weights[idx] = 0;
+                }
                 accum[idx] += shot_odmr[ *odmr__].dPLoPL(ch);
                 accum_weights[idx]++;
             }
@@ -348,11 +352,14 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
 		newf += freq_step;
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
-            if(shot_this[ *repeatedly()])
+            if(shot_this[ *repeatedly()]) {
                 XODMRFSpectrum::onActiveChanged(shot_this, m_repeatedly.get());
-            else
+                newf = cfreq - freq_span / 2; //restarts
+            }
+            else {
                 trans( *active()) = false; //finish
-            return;
+                return;
+            }
         }
         shared_ptr<XODMRImaging> odmr__ = shot_this[ *odmr()];
         Snapshot shot_odmr( *odmr__);
