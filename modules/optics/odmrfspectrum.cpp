@@ -353,7 +353,6 @@ XODMRFSpectrum::rearrangeInstrum(const Snapshot &shot_this) {
         newf = round(newf * 1e8) / 1e8; //rounds
         if(newf >= cfreq + freq_span / 2) {
             if(shot_this[ *repeatedly()]) {
-                XODMRFSpectrum::onActiveChanged(shot_this, m_repeatedly.get());
                 newf = cfreq - freq_span / 2; //restarts
             }
             else {
