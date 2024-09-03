@@ -303,12 +303,21 @@ void XWaveNGraph::drawGraph(Transaction &tr) {
     cnt = std::min(cnt, (int)shot[ *this].m_toolLists.size());
     for(unsigned int j = 0; j < cnt; j++) {
         auto plot = shot[ *this].m_plots[j];
-        std::vector<XGraph::VFloat> colx, coly;
+        std::vector<XGraph::VFloat> colx, coly, colw;
         auto colxcref = shot[ *this].m_cols[plot->m_colx]->fillOrPointToGraphPoints(colx);
         if(std::max(plot->m_coly1, plot->m_coly2) > 0) {
             auto colycref =
                 shot[ *this].m_cols[(plot->m_coly1 > 0) ? plot->m_coly1 : plot->m_coly2]->fillOrPointToGraphPoints(coly);
-            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget, colxcref.begin(), colxcref.end(), colycref.begin(), colycref.end());
+            ssize_t offset_begin = 0, offset_end = 0;
+            if(plot->m_colweight > 0) {
+                auto colwcref = shot[ *this].m_cols[plot->m_colweight]->fillOrPointToGraphPoints(colw);
+                auto it = std::find_if(colwcref.begin(), colwcref.end(), [](XGraph::VFloat x){return x > 0.0;});
+                offset_begin = std::distance(colwcref.begin(), it);
+                it = std::find_if(it, colwcref.end(), [](XGraph::VFloat x){return x <= 0.0;});
+                offset_end = std::distance(colwcref.begin(), it);
+            }
+            shot[ *this].m_toolLists[j]->update(tr, m_graphwidget, colxcref.begin() + offset_begin, colxcref.end() + offset_end,
+                colycref.begin() + offset_begin, colycref.end() + offset_end);
         }
     }
 }
