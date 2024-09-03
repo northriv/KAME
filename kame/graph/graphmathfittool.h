@@ -38,6 +38,10 @@ public:
         using namespace std::placeholders;
         auto func = std::bind(&F::fitFunc, xbegin, xend, ybegin, yend, _1, _4, _5);
 
+        for(auto it = ybegin; it != yend; ++it)
+            if(std::isnan( *it))
+                return; //gsl may crash if nan included.
+
         XTime firsttime = XTime::now();
         NonLinearLeastSquare nlls;
         double v = 0.0;
@@ -47,6 +51,9 @@ public:
             std::valarray<double> init_params
                     = F::initParams(xbegin, xend, ybegin, yend);
             if( !init_params.size()) return;
+            for(auto x: init_params)
+                if(std::isnan(x))
+                    return;
             auto nllsnew = NonLinearLeastSquare(func, init_params, std::distance(xbegin, xend), 100);
             if(nllsnew.isSuccessful()) {
                 if(cost_min > nllsnew.chiSquare()) {
