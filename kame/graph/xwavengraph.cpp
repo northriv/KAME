@@ -109,6 +109,12 @@ XWaveNGraph::clearPlots(Transaction &tr) {
     //Note: release(tr,) cannot be used inside Payload member function, due to possible payload copy-construction.
 
     for(auto &&x: tr[ *this].m_toolLists) {
+        //releases entries associated to tools.
+        if(tr.size(x)) {
+            auto list = tr.list(x);
+            for(auto &&y: *list)
+                x->release(tr, y); //action to entryList cannot be rolled back. anyway.
+        }
         if( !release(tr, x))
             return false; //transaction has failed.
     }

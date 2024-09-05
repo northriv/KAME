@@ -62,6 +62,8 @@ XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &
     m_end(create<XDoubleNode>("End", false)) {
 
 }
+XGraph1DMathTool::~XGraph1DMathTool() {
+}
 XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot) :
@@ -156,6 +158,12 @@ XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
                          const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, const shared_ptr<XPlot> &plot) :
     XCustomTypeListNode<XGraph1DMathTool>(name, runtime),
     m_measure(meas), m_driver(driver), m_plot(plot) {
+    iterate_commit([=](Transaction &tr){
+        m_lsnRelease = tr[ *this].onRelease().connectWeakly(shared_from_this(), &XGraph1DMathToolList::onRelease);
+    });
+}
+XGraph1DMathToolList::~XGraph1DMathToolList() {
+    releaseAll();
 }
 
 shared_ptr<XNode>
@@ -201,14 +209,26 @@ XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
         }
     }
 }
+void
+XGraph1DMathToolList::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+    m_measure.lock()->iterate_commit([&](Transaction &tr){
+        if( !static_pointer_cast<XGraph1DMathTool>(e.released)->releaseEntries(tr))
+            return;
+    });
 
+}
 XGraph2DMathToolList::XGraph2DMathToolList(const char *name, bool runtime,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot) :
     XCustomTypeListNode<XGraph2DMathTool>(name, runtime),
     m_measure(meas), m_driver(driver), m_plot(plot) {
+    iterate_commit([=](Transaction &tr){
+        m_lsnRelease = tr[ *this].onRelease().connectWeakly(shared_from_this(), &XGraph2DMathToolList::onRelease);
+    });
 }
-
+XGraph2DMathToolList::~XGraph2DMathToolList() {
+    releaseAll();
+}
 shared_ptr<XNode>
 XGraph2DMathToolList::createByTypename(const XString &type, const XString& name) {
     shared_ptr<XMeasure> meas(m_measure.lock());
@@ -309,4 +329,12 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
     });
     tool->updateOnScreenObjects(shot_tool, widget);
+}
+void
+XGraph2DMathToolList::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
+    m_measure.lock()->iterate_commit([&](Transaction &tr){
+        if( !static_pointer_cast<XGraph2DMathTool>(e.released)->releaseEntries(tr))
+            return;
+    });
+
 }
