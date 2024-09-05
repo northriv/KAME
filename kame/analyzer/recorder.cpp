@@ -206,13 +206,18 @@ XTextWriter::onRecord(const Snapshot &shot, XDriver *driver) {
 				bool triggered = false;
 				for(auto it = entries_list.begin(); it != entries_list.end(); it++) {
 					auto entry = static_pointer_cast<XScalarEntry>( *it);
-					if( !shot_entries[ *entry->store()]) continue;
-					shared_ptr<XDriver> d(entry->driver());
-					if( !d) continue;
-					if((d.get() == driver) && shot[ *entry].isTriggered()) {
-						triggered = true;
-						break;
-					}
+                    if( !shot_entries[ *entry->store()]) continue;
+                    shared_ptr<XDriver> d(entry->driver());
+                    if( !d) continue;
+                    try {
+                        if((d.get() == driver) && shot.at( *entry).isTriggered()) {
+                            triggered = true;
+                            break;
+                        }
+                    }
+                    catch (NodeNotFoundError &) {
+                        fprintf(stderr, "Entry freed from driver was selected!\n");
+                    }
 				}
 				if( !triggered)
 					break;

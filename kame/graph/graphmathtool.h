@@ -28,7 +28,7 @@ public:
     XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
         const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
-    virtual ~XGraph1DMathTool() {}
+    virtual ~XGraph1DMathTool();
 
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
@@ -256,6 +256,7 @@ public:
     XGraph1DMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
+    virtual ~XGraph1DMathToolList();
 
     using cv_iterator = XGraph1DMathTool::cv_iterator;
 
@@ -275,7 +276,9 @@ protected:
     const weak_ptr<XPlot> m_plot;
     unsigned int m_basecolor = 0x0000ffu;
     friend class XQGraph1DMathToolConnector;
+    void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
     void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
+    shared_ptr<Listener> m_lsnRelease;
 };
 
 class XQGraph2DMathToolConnector;
@@ -284,6 +287,7 @@ public:
     XGraph2DMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
+    virtual ~XGraph2DMathToolList();
 
     void setBaseColor(unsigned int color) {m_basecolor = color;}
     virtual void update(Transaction &tr, XQGraph *graphwidget,
@@ -301,8 +305,10 @@ protected:
     const weak_ptr<XDriver> m_driver;
     const weak_ptr<XPlot> m_plot;
     unsigned int m_basecolor = 0x0000ffu;
+    void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
     void onPlaneSelectedByTool(const Snapshot &shot,
         const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);
+    shared_ptr<Listener> m_lsnRelease;
 };
 
 #endif
