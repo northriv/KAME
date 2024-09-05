@@ -26,10 +26,12 @@ class XGraph1DMathFitToolX: public XGraph1DMathTool {
 public:
     XGraph1DMathFitToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot) :
+                      const shared_ptr<XPlot> &plot, const char *entryname) :
         XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
-         m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
-         m_entry_err = create<XScalarEntry>((getName() + "_err").c_str(), false, driver);
+         m_entry = create<XScalarEntry>(
+            entryname, false, driver);
+         m_entry_err = create<XScalarEntry>(
+            (XString(entryname) + "_err").c_str(), false, driver);
          entries->insert(tr_meas, m_entry);
          entries->insert(tr_meas, m_entry_err);
     }

@@ -39,36 +39,40 @@ REGISTER_TYPE(XGraph1DMathToolList, Graph1DMathLorenzianHeightTool, "LorenzianHe
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolSum, "Sum");
 REGISTER_TYPE(XGraph2DMathToolList, Graph2DMathToolAverage, "Average");
 
-XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
+XGraphMathTool::XGraphMathTool(const char *name, bool runtime, Transaction &tr_meas,
     const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot) :
     XNode(name, runtime),
-    m_begin(create<XDoubleNode>("Begin", false)),
-    m_end(create<XDoubleNode>("End", false)),
+    m_plot(plot),
     m_entries(entries),
-    m_baseColor(create<XHexNode>("BaseColor", false)),
-    m_plot(plot) {
-}
-XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
-    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-    const shared_ptr<XPlot> &plot) :
-    XNode(name, runtime),
-    m_beginX(create<XDoubleNode>("BeginX", false)),
-    m_beginY(create<XDoubleNode>("BeginY", false)),
-    m_endX(create<XDoubleNode>("EndX", false)),
-    m_endY(create<XDoubleNode>("EndY", false)),
-    m_entries(entries),
-    m_baseColor(create<XHexNode>("BaseColor", false)),
-    m_plot(plot) {
-}
-XGraph2DMathTool::~XGraph2DMathTool() {
+    m_baseColor(create<XHexNode>("BaseColor", false)) {
 }
 void
-XGraph1DMathTool::highlight(bool state, XQGraph *graphwidget) {
+XGraphMathTool::highlight(bool state, XQGraph *graphwidget) {
     m_highlight = state;
     Snapshot shot( *this);
     updateOnScreenObjects(shot, graphwidget);
 }
+
+XGraph1DMathTool::XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
+    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+    const shared_ptr<XPlot> &plot) :
+    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot),
+    m_begin(create<XDoubleNode>("Begin", false)),
+    m_end(create<XDoubleNode>("End", false)) {
+
+}
+XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
+    const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+    const shared_ptr<XPlot> &plot) :
+    XGraphMathTool(name, runtime, ref(tr_meas), entries, driver, plot),
+    m_beginX(create<XDoubleNode>("BeginX", false)),
+    m_beginY(create<XDoubleNode>("BeginY", false)),
+    m_endX(create<XDoubleNode>("EndX", false)),
+    m_endY(create<XDoubleNode>("EndY", false)) {
+
+}
+
 void
 XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();
@@ -81,7 +85,7 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::BorderLines);
     }
-    if(m_highlight) {
+    if(isHighLighted()) {
         if( !m_oso2 || !m_oso2->isValid(painter.get())) {
             m_oso2 = painter->createOnScreenObjectWeakly<OnXAxisRectObject>(OnScreenRectObject::Type::Selection);
         }
@@ -95,7 +99,7 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
         double bgy = 0.0;
         double edy = 1.0;
         auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso);
-        oso->setBaseColor(shot[ *m_baseColor]);
+        oso->setBaseColor(shot[ *baseColor()]);
         oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.01});
         if(m_oso2) {
             auto oso = static_pointer_cast<OnXAxisRectObject>(m_oso2);
@@ -106,12 +110,6 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
         }
     }
     graphwidget->update();
-}
-void
-XGraph2DMathTool::highlight(bool state, XQGraph *graphwidget) {
-    m_highlight = state;
-    Snapshot shot( *this);
-    updateOnScreenObjects(shot, graphwidget);
 }
 
 void
@@ -126,7 +124,7 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     if( !m_oso || !m_oso->isValid(painter.get())) {
         m_oso = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::AreaTool);
     }
-    if(m_highlight) {
+    if(isHighLighted()) {
         if( !m_oso2 || !m_oso2->isValid(painter.get())) {
             m_oso2 = painter->createOnScreenObjectWeakly<OnPlotRectObject>(OnScreenRectObject::Type::Selection);
         }
@@ -141,7 +139,7 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
         double edy = shot[ *endY()];
         XGraph::ValPoint corners[4] = {{bgx, bgy}, {edx, bgy}, {edx, edy}, {bgx, edy}};
         auto oso = static_pointer_cast<OnPlotRectObject>(m_oso);
-        oso->setBaseColor(shot[ *m_baseColor]);
+        oso->setBaseColor(shot[ *baseColor()]);
         oso->placeObject(plot, corners, {0.0, 0.0, 0.01});
         if(m_oso2) {
             auto oso = static_pointer_cast<OnPlotRectObject>(m_oso2);
@@ -167,7 +165,8 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     auto plot = m_plot.lock();
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot);
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
+            (getName() + "-" + name).c_str());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -217,7 +216,8 @@ XGraph2DMathToolList::createByTypename(const XString &type, const XString& name)
     auto plot = m_plot.lock();
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot);
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
+             (getName() + "-" + name).c_str());
         if(ptr)
             if( !insert(tr, ptr))
                 return false;
@@ -264,8 +264,10 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
             break;
         idx++;
     }
-    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
-        label.c_str(), src, dst));
+//    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
+//        label.c_str(), src, dst));
+    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(),
+        Snapshot( *this).size()));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src > dst)
@@ -290,8 +292,10 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
             break;
         idx++;
     }
-    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
-        label.c_str(), src.x, src.y, dst.x, dst.y));
+//    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
+//        label.c_str(), src.x, src.y, dst.x, dst.y));
+    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(),
+        Snapshot( *this).size()));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)

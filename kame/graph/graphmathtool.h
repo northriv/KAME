@@ -23,41 +23,56 @@
 class XQGraph;
 class OnScreenObjectWithMarker;
 
-class DECLSPEC_KAME XGraph1DMathTool: public XNode {
+class DECLSPEC_KAME XGraphMathTool: public XNode {
+public:
+    XGraphMathTool(const char *name, bool runtime, Transaction &tr_meas,
+        const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot);
+    virtual ~XGraphMathTool() {}
+
+    using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
+
+    const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
+
+    virtual bool releaseEntries(Transaction &tr) {return true;}
+
+    void highlight(bool state, XQGraph *graphwidget);
+    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) = 0;
+protected:
+    shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
+    const weak_ptr<XPlot> m_plot;
+    bool isHighLighted() const {return m_highlight;}
+private:
+    const shared_ptr<XDoubleNode> m_begin, m_end;
+    const weak_ptr<XScalarEntryList> m_entries;
+    const shared_ptr<XHexNode> m_baseColor;
+    bool m_highlight = false;
+};
+
+class DECLSPEC_KAME XGraph1DMathTool: public XGraphMathTool {
 public:
     XGraph1DMathTool(const char *name, bool runtime, Transaction &tr_meas,
         const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
     virtual ~XGraph1DMathTool() {}
 
-    using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) = 0;
 
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
-    const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
 
-    virtual bool releaseEntries(Transaction &tr) {return true;}
-
-    void highlight(bool state, XQGraph *graphwidget);
-    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
-protected:
-    shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
+    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
-    const weak_ptr<XScalarEntryList> m_entries;
-    const shared_ptr<XHexNode> m_baseColor;
     shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
-    const weak_ptr<XPlot> m_plot;
-    bool m_highlight = false;
 };
 
-class DECLSPEC_KAME XGraph2DMathTool: public XNode {
+class DECLSPEC_KAME XGraph2DMathTool: public XGraphMathTool {
 public:
     XGraph2DMathTool(const char *name, bool runtime, Transaction &tr_meas,
                      const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
                      const shared_ptr<XPlot> &plot);
-    virtual ~XGraph2DMathTool();
+    virtual ~XGraph2DMathTool() {}
 
     virtual void update(Transaction &tr, XQGraph *graphwidget, const uint32_t *leftupper, unsigned int width,
         unsigned int stride, unsigned int numlines, double coefficient) = 0;
@@ -66,23 +81,15 @@ public:
     const shared_ptr<XDoubleNode> &beginY() const {return m_beginY;}
     const shared_ptr<XDoubleNode> &endX() const {return m_endX;}
     const shared_ptr<XDoubleNode> &endY() const {return m_endY;}
-    const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
     unsigned int pixels(const Snapshot &shot) const {
         return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
     }
-    virtual bool releaseEntries(Transaction &tr) {return true;}
 
-    void highlight(bool state, XQGraph *graphwidget);
-    void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget);
+    virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 protected:
-    shared_ptr<XScalarEntryList> entries() const {return m_entries.lock();}
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
-    const weak_ptr<XScalarEntryList> m_entries;
-    const shared_ptr<XHexNode> m_baseColor;
     shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
-    const weak_ptr<XPlot> m_plot;
-    bool m_highlight = false;
 };
 
 template <class F>
@@ -90,9 +97,10 @@ class XGraph1DMathToolX: public XGraph1DMathTool {
 public:
     XGraph1DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot) :
+                      const shared_ptr<XPlot> &plot, const char *entryname) :
         XGraph1DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
-         m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
+         m_entry = create<XScalarEntry>(
+            entryname, false, driver);
          entries->insert(tr_meas, m_entry);
     }
     virtual ~XGraph1DMathToolX() {}
@@ -112,9 +120,10 @@ class XGraph2DMathToolX: public XGraph2DMathTool {
 public:
     XGraph2DMathToolX(const char *name, bool runtime, Transaction &tr_meas,
                       const shared_ptr<XScalarEntryList> &entries, const shared_ptr<XDriver> &driver,
-                      const shared_ptr<XPlot> &plot) :
+                      const shared_ptr<XPlot> &plot, const char *entryname) :
         XGraph2DMathTool(name, runtime, ref(tr_meas), entries, driver, plot) {
-        m_entry = create<XScalarEntry>(getName().c_str(), false, driver);
+        m_entry = create<XScalarEntry>(
+            entryname, false, driver);
         entries->insert(tr_meas, m_entry);
     }
     virtual ~XGraph2DMathToolX() {}
@@ -265,7 +274,7 @@ public:
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 protected:
@@ -292,7 +301,7 @@ public:
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 protected:

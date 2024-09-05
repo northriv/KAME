@@ -78,7 +78,6 @@ public:
     XString getTypename() const;
 
     shared_ptr<XNode> getChild(const XString &var) const;
-    shared_ptr<XNode> getParent() const;
 
     //! Enables/disables controls over scripting/GUI.
     void setUIEnabled(bool v);
