@@ -417,8 +417,9 @@ XQGraphPainter::paintGL () {
 
     glGetError(); // flush error
     //stores states
+    bool texen = glIsEnabled(GL_TEXTURE_2D);
     GLint depth_func_org, blend_func_org;
-//    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
     GLint texwraps, texwrapt, texmagfil, texminfil;
@@ -635,9 +636,11 @@ XQGraphPainter::paintGL () {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
     glDepthFunc(depth_func_org);
-    glDepthMask(false);
+    glDepthMask(false);//might be important
     glBlendFunc(GL_SRC_ALPHA,blend_func_org);
-//    glPopAttrib();
+    glPopAttrib(); //important
+    if(texen)
+        glEnable(GL_TEXTURE_2D);
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
     qpainter.endNativePainting();
