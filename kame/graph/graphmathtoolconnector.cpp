@@ -113,9 +113,11 @@ void XQGraph2DMathToolConnector::toolActivated(QAction *act) {
         auto label = m_actionToToolMap.at(act);
         m_graphwidget->activatePlaneSelectionTool(XAxis::AxisDirection::X, XAxis::AxisDirection::Y, label);
         s_activeListeners.clear(); //cancels all the remaining selections.
-        for(auto &toollist: m_lists)
+        for(auto &toollist: m_lists) {
+            toollist->setUIEnabled(toollist == m_lists.front()); //The front tools can have OSOs.
             s_activeListeners.push_back( m_graphwidget->onPlaneSelectedByTool().connectWeakly(
                 toollist, &XGraph2DMathToolList::onPlaneSelectedByTool));
+        }
     }
     if(m_actionToExisitingToolMap.count(act)) {
         auto [begin, end] = m_actionToExisitingToolMap.equal_range(act);

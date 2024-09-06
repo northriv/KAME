@@ -286,8 +286,8 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
     }
 //    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
 //        label.c_str(), src, dst));
-    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(),
-        Snapshot( *this).size()));
+    Snapshot shot_this( *this);
+    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src > dst)
@@ -295,8 +295,10 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
         tr[ *tool->baseColor()] = m_basecolor;
+        tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    tool->updateOnScreenObjects(shot_tool, widget);
+    if(shot_tool[ *tool].isUIEnabled())
+        tool->updateOnScreenObjects(shot_tool, widget);
 }
 
 void
@@ -314,8 +316,8 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
     }
 //    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
 //        label.c_str(), src.x, src.y, dst.x, dst.y));
-    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(),
-        Snapshot( *this).size()));
+    Snapshot shot_this( *this);
+    auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
     Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
         if(src.x > dst.x)
@@ -327,8 +329,10 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
         tr[ *tool->baseColor()] = m_basecolor;
+        tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    tool->updateOnScreenObjects(shot_tool, widget);
+    if(shot_tool[ *tool].isUIEnabled())
+        tool->updateOnScreenObjects(shot_tool, widget);
 }
 void
 XGraph2DMathToolList::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
