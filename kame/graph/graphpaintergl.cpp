@@ -396,7 +396,38 @@ XQGraphPainter::storePersistentFrame() {
     }
     checkGLError();
 }
+static void qt_save_gl_state()
+{
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
 
+    glShadeModel(GL_FLAT);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+}
+static void qt_restore_gl_state()
+{
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glPopAttrib();
+    glPopClientAttrib();
+}
+#define QOPENGLWIDGET_QPAINTER_ATEND
 void
 XQGraphPainter::paintGL () {
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
@@ -670,7 +701,7 @@ XQGraphPainter::paintGL () {
         }
         m_paintedOSOs.clear();
     }
-    qpainter.end();
+//    qpainter.end();
 
 //    memcpy(m_proj, proj_orig, sizeof(proj_orig));
 }
