@@ -396,38 +396,7 @@ XQGraphPainter::storePersistentFrame() {
     }
     checkGLError();
 }
-static void qt_save_gl_state()
-{
-    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glMatrixMode(GL_TEXTURE);
-    glPushMatrix();
-    glLoadIdentity();
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
 
-    glShadeModel(GL_FLAT);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_LIGHTING);
-    glDisable(GL_STENCIL_TEST);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-}
-static void qt_restore_gl_state()
-{
-    glMatrixMode(GL_TEXTURE);
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glPopAttrib();
-    glPopClientAttrib();
-}
-#define QOPENGLWIDGET_QPAINTER_ATEND
 void
 XQGraphPainter::paintGL () {
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
@@ -444,7 +413,7 @@ XQGraphPainter::paintGL () {
     glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
+    //stores states
     glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glMatrixMode(GL_TEXTURE);
@@ -459,7 +428,7 @@ XQGraphPainter::paintGL () {
     glMatrixMode(GL_PROJECTION);
 
     glGetError(); // flush error
-    //stores states
+
     bool texen = glIsEnabled(GL_TEXTURE_2D);
     GLint depth_func_org, blend_func_org;
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
