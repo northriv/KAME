@@ -16,6 +16,9 @@
 #include <QFontMetrics>
 #include <QPainter>
 
+XMutex OnScreenTexture::garbagemutex;
+std::deque<GLuint> OnScreenTexture::unusedIDs;
+
 #if defined(WIN32)
     PFNGLACTIVETEXTUREPROC glActiveTexture = (PFNGLACTIVETEXTUREPROC)wglGetProcAddress("glActiveTexture");
     PFNGLMULTITEXCOORD2FPROC glMultiTexCoord2f = (PFNGLMULTITEXCOORD2FPROC)wglGetProcAddress("glMultiTexCoord2f");
@@ -208,11 +211,16 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
 //    for(int x = 0; x < 2; ++x)
 //        for(int y = 40; y < 100; ++y)
 //            image->setPixel(x, y, value);
-    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
+
+    glEnable(GL_TEXTURE_2D);
+
     glBindTexture(GL_TEXTURE_2D, id);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image->width(), image->height(),
         s_texture_fmts.at(image->format()), s_texture_data_fmts.at(image->format()), image->constBits());
+
+    glDisable(GL_TEXTURE_2D);
+
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
@@ -221,8 +229,8 @@ OnScreenTexture::repaint(const shared_ptr<QImage> &image) {
 weak_ptr<OnScreenTexture>
 XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
 //    m_bAvoidCallingLists = true; //bindTexture cannot be called inside list.
-    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
+    glEnable(GL_TEXTURE_2D);
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
@@ -232,12 +240,19 @@ XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
     glTexImage2D(GL_TEXTURE_2D, 0, s_texture_int_fmts.at(image->format()), image->width(), image->height(),
                0, s_texture_fmts.at(image->format()), s_texture_data_fmts.at(image->format()), image->constBits());
 //    glGenerateMipmap(GL_TEXTURE_2D);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //GL_LINEAR
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
 //    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+    glDisable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
@@ -245,17 +260,25 @@ XQGraphPainter::createTextureDuringListing(const shared_ptr<QImage> &image) {
 }
 
 OnScreenTexture::~OnScreenTexture() {
-    painter()->glDeleteTextures(1, &id);
+    XScopedLock<XMutex> lock(garbagemutex);
+    if(id) {
+        unusedIDs.push_back(id); //glDeleteTexture needs to be called during the context.
+    }
 }
 
 void
 OnScreenTexture::drawNative() {
+    {
+        XScopedLock<XMutex> lock(garbagemutex);
+        while(unusedIDs.size()) {
+            painter()->glDeleteTextures(1, &unusedIDs.front());
+            unusedIDs.pop_front();
+        }
+    }
 //    static const GLfloat color[] = {1.0, 1.0, 1.0, 1.0};
 //    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, color);
-    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1);
-    glEnable(GL_TEXTURE_2D);
-
+    glEnable(GL_TEXTURE_2D); //be called just before binding.
     glBindTexture(GL_TEXTURE_2D, id);
     painter()->beginQuad(true);
 //    glNormal3f(0, 0, 1);
@@ -280,8 +303,9 @@ OnScreenTexture::drawNative() {
     pt += XGraph::ScrPoint(0, 0, -0.01, 0);
     painter()->setVertex(pt);
     painter()->endQuad();
-    glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_TEXTURE_2D);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     checkGLError();
 }
@@ -326,6 +350,7 @@ OnPlotObject<OSO>::drawOffScreenMarker() {
 }
 
 template class OnPlotObject<OnScreenRectObject>;
+template class OnPlotObject<OnScreenTextObject>;
 
 template <class OSO, bool IsXAxis>
 void
@@ -384,6 +409,8 @@ OnAxisObject<OSO, IsXAxis>::drawOffScreenMarker() {
 
 template class OnAxisObject<OnScreenRectObject, true>;
 template class OnAxisObject<OnScreenRectObject, false>;
+template class OnAxisObject<OnScreenTextObject, true>;
+template class OnAxisObject<OnScreenTextObject, false>;
 
 OnScreenTextObject::OnScreenTextObject(XQGraphPainter* p) : OnScreenObjectWithMarker(p),
     m_minX(0xffff), m_minY(0xffff), m_maxX(-0xffff), m_maxY(-0xffff) {
@@ -406,7 +433,13 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
         if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
             qpainter->setPen(QColor(text.rgba));
         firsttime = false;
-        qpainter->drawText(text.x, text.y, str);
+        if(leftTop().x || leftTop().y || leftTop().z) {
+            double x,y,z;
+            painter()->screenToWindow(leftTop(), &x, &y, &z);
+            qpainter->drawText(x, y, str);
+        }
+        else
+            qpainter->drawText(text.x, text.y, str);
     }
 }
 
@@ -422,6 +455,14 @@ void
 OnScreenTextObject::clear() {
     m_text.clear();
     m_textOverpaint.clear();
+}
+void
+OnScreenTextObject::drawTextAtPlacedPosition(const XString &str) {
+    XGraph::ScrPoint p = {};
+    clear();
+    defaultFont();
+    m_curFontSize--;
+    drawText(p, str);
 }
 void
 OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {

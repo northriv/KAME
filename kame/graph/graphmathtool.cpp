@@ -81,6 +81,7 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     if( !painter) {
         m_oso.reset();
         m_oso2.reset();
+        m_osolbl.reset();
         return;
     }
      //painter unchanged unless the same address is recycled.
@@ -94,6 +95,9 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     }
     else
         m_oso2.reset();
+    if( !m_osolbl || !m_osolbl->isValid(painter.get())) {
+        m_osolbl = painter->createOnScreenObjectWeakly<OnXAxisTextObject>();
+    }
 
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *begin()];
@@ -110,6 +114,13 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, bgx, edx, bgy, edy, {0.0, 0.0, 0.02});
         }
+        {
+            auto oso = static_pointer_cast<OnXAxisTextObject>(m_osolbl);
+            oso->setBaseColor(shot[ *baseColor()]);
+            oso->placeObject(plot, bgx, edx, bgy, edy, {0.01, 0.01, 0.01});
+            oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+            oso->drawTextAtPlacedPosition(getLabel());
+        }
     }
     graphwidget->update();
 }
@@ -120,6 +131,7 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     if( !painter) {
         m_oso.reset();
         m_oso2.reset();
+        m_osolbl.reset();
         return;
     }
     //painter unchanged unless the same address is recycled.
@@ -133,6 +145,9 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     }
     else
         m_oso2.reset();
+    if( !m_osolbl || !m_osolbl->isValid(painter.get())) {
+        m_osolbl = painter->createOnScreenObjectWeakly<OnPlotTextObject>();
+    }
 
     if(auto plot = m_plot.lock()) {
         double bgx = shot[ *beginX()];
@@ -149,6 +164,13 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
             c.setAlphaF(0.25);
             oso->setBaseColor(c.rgba());
             oso->placeObject(plot, corners, {0.0, 0.0, 0.02});
+        }
+        {
+            auto oso = static_pointer_cast<OnPlotTextObject>(m_osolbl);
+            oso->setBaseColor(shot[ *baseColor()]);
+            oso->placeObject(plot, corners, {0.01, 0.01, 0.01});
+            oso->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+            oso->drawTextAtPlacedPosition(getLabel());
         }
     }
     graphwidget->update();

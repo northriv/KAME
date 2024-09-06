@@ -64,7 +64,7 @@ public:
     virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
-    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
+    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
 };
 
 class DECLSPEC_KAME XGraph2DMathTool: public XGraphMathTool {
@@ -89,7 +89,7 @@ public:
 protected:
 private:
     const shared_ptr<XDoubleNode> m_beginX, m_beginY, m_endX, m_endY;
-    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2;
+    shared_ptr<OnScreenObjectWithMarker> m_oso, m_oso2, m_osolbl;
 };
 
 template <class F>

@@ -153,8 +153,10 @@ public:
    virtual void drawByPainter(QPainter *) override {}
    virtual bool hasTexture() const override {return true;}
 private:
-   const GLuint id;
+   const GLuint id = {};
    shared_ptr<QImage> qimage;
+   static XMutex garbagemutex;
+   static std::deque<GLuint> unusedIDs;
 };
 
 class OnScreenTextObject : public OnScreenObjectWithMarker {
@@ -168,6 +170,8 @@ public:
     void updateText(const XString &text);
 
     void clear();
+    //! using OnScreenObjectWithMarker::placeObject().
+    void drawTextAtPlacedPosition(const XString &str);
     void drawText(const XGraph::ScrPoint &p, const XString &str);
     void defaultFont();
     void setAlignment(int align) {
@@ -200,4 +204,7 @@ private:
     std::vector<Text> m_textOverpaint; //stores text to be overpainted.
 };
 
+using OnXAxisTextObject = OnAxisObject<OnScreenTextObject, true>;
+using OnYAxisTextObject = OnAxisObject<OnScreenTextObject, false>;
+using OnPlotTextObject = OnPlotObject<OnScreenTextObject>;
 #endif

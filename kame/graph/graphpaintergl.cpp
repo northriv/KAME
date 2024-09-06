@@ -421,6 +421,14 @@ XQGraphPainter::paintGL () {
 //    glPushAttrib(GL_ALL_ATTRIB_BITS);
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
+    GLint texwraps, texwrapt, texmagfil, texminfil;
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &texwraps);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &texwrapt);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &texmagfil);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &texminfil);
+    GLint boundTexture;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTexture);
+
 
     glMatrixMode(GL_MODELVIEW);
 //    glPushMatrix();
@@ -568,7 +576,7 @@ XQGraphPainter::paintGL () {
 //    setInitView();
 //    glGetDoublev(GL_PROJECTION_MATRIX, m_proj);
 //    glMatrixMode(GL_MODELVIEW);
-    
+
     drawOnScreenViewObj(shot);
 
     {
@@ -617,6 +625,11 @@ XQGraphPainter::paintGL () {
 //    glPopMatrix(); //original state for Qt.
 
     //restores states
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texwraps); //not necessary
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texwrapt); //not necessary
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texmagfil); //not necessary
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texminfil); //not necessary
+    glBindTexture(GL_TEXTURE_2D, boundTexture); //might be important
     glShadeModel(GL_FLAT);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
