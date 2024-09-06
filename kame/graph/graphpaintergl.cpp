@@ -444,13 +444,24 @@ XQGraphPainter::paintGL () {
     glClearColor(bgc.redF(), bgc.greenF(), bgc.blueF(), bgc.alphaF());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity(); //QOpenGLWidget may collapse modelview matrix?
+    glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
     glMatrixMode(GL_PROJECTION);
 
     glGetError(); // flush error
     //stores states
     bool texen = glIsEnabled(GL_TEXTURE_2D);
     GLint depth_func_org, blend_func_org;
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
     GLint texwraps, texwrapt, texmagfil, texminfil;
@@ -461,16 +472,8 @@ XQGraphPainter::paintGL () {
     GLint boundTexture;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTexture);
 
-
-    glMatrixMode(GL_MODELVIEW);
-//    glPushMatrix();
-    glLoadIdentity(); //QOpenGLWidget may collapse modelview matrix?
-    glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
-
     glDepthFunc(GL_LEQUAL);
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
 
     // be aware of retina display.
     glViewport( 0, 0, (GLint)(m_pItem->width() * m_pixel_ratio),
@@ -650,11 +653,6 @@ XQGraphPainter::paintGL () {
     checkGLError();
 
     glDisable(GL_DEPTH_TEST);
-    glMatrixMode(GL_PROJECTION);
-    //    glFlush();
-    glPopMatrix(); //original state for Qt.
-    glMatrixMode(GL_MODELVIEW);
-//    glPopMatrix(); //original state for Qt.
 
     //restores states
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texwraps); //not necessary
@@ -669,7 +667,14 @@ XQGraphPainter::paintGL () {
     glDepthFunc(depth_func_org);
     glDepthMask(false);//might be important
     glBlendFunc(GL_SRC_ALPHA,blend_func_org);
-    glPopAttrib(); //important
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glPopAttrib();
+    glPopClientAttrib();
     if(texen)
         glEnable(GL_TEXTURE_2D);
 
