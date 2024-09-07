@@ -429,17 +429,17 @@ XQGraphPainter::paintGL () {
 
     glGetError(); // flush error
 
-    bool texen = glIsEnabled(GL_TEXTURE_2D);
     GLint depth_func_org, blend_func_org;
     glGetIntegerv(GL_DEPTH_FUNC, &depth_func_org);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_func_org);
-    GLint texwraps, texwrapt, texmagfil, texminfil;
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &texwraps);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &texwrapt);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &texmagfil);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &texminfil);
-    GLint boundTexture;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTexture);
+//    bool texen = glIsEnabled(GL_TEXTURE_2D);
+//    GLint texwraps, texwrapt, texmagfil, texminfil;
+//    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &texwraps);
+//    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &texwrapt);
+//    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &texmagfil);
+//    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &texminfil);
+//    GLint boundTexture;
+//    glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTexture);
 
     glDepthFunc(GL_LEQUAL);
 
@@ -624,11 +624,13 @@ XQGraphPainter::paintGL () {
     glDisable(GL_DEPTH_TEST);
 
     //restores states
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texwraps); //not necessary
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texwrapt); //not necessary
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texmagfil); //not necessary
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texminfil); //not necessary
-    glBindTexture(GL_TEXTURE_2D, boundTexture); //might be important
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texwraps); //not necessary
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texwrapt); //not necessary
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texmagfil); //not necessary
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texminfil); //not necessary
+    glBindTexture(GL_TEXTURE_2D, 0);
+//    glBindTexture(GL_TEXTURE_2D, boundTexture); //might be important
+
     glShadeModel(GL_FLAT);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
@@ -644,8 +646,8 @@ XQGraphPainter::paintGL () {
 //    glPopMatrix();
     glPopAttrib();
     glPopClientAttrib();
-    if(texen)
-        glEnable(GL_TEXTURE_2D);
+//    if(texen)
+//        glEnable(GL_TEXTURE_2D);
 
 #if !defined USE_QGLWIDGET && !defined QOPENGLWIDGET_QPAINTER_ATEND
     qpainter.endNativePainting();
