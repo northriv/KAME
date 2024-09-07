@@ -422,8 +422,8 @@ XQGraphPainter::paintGL () {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity(); //QOpenGLWidget may collapse modelview matrix?
+//    glPushMatrix(); //cannot push for future selectGL.
+    glLoadIdentity();
     glGetDoublev(GL_MODELVIEW_MATRIX, m_model); //stores model-view matrix for gluUnproject().
     glMatrixMode(GL_PROJECTION);
 
@@ -641,7 +641,7 @@ XQGraphPainter::paintGL () {
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
+//    glPopMatrix();
     glPopAttrib();
     glPopClientAttrib();
     if(texen)
