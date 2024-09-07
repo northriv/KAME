@@ -263,64 +263,74 @@ struct FuncGraph2DMathToolAverage{
 using XGraph2DMathToolAverage = XGraph2DMathToolX<FuncGraph2DMathToolAverage>;
 
 class XMeasure;
-class XGraph1DMathToolList : public XCustomTypeListNode<XGraph1DMathTool> {
+
+template <class X, class XQC>
+class XGraphMathToolList : public XCustomTypeListNode<X> {
 public:
-    XGraph1DMathToolList(const char *name, bool runtime,
+    XGraphMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
-    virtual ~XGraph1DMathToolList();
+    virtual ~XGraphMathToolList();
 
-    using cv_iterator = XGraph1DMathTool::cv_iterator;
+    using cv_iterator = typename X::cv_iterator;
 
     void setBaseColor(unsigned int color) {m_basecolor = color;}
-    virtual void update(Transaction &tr, XQGraph *graphwidget,
-        cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
-
-    DEFINE_TYPE_HOLDER(
-        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
-        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
-        )
-    virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
 protected:
     const weak_ptr<XMeasure> m_measure;
     const weak_ptr<XScalarEntryList> m_entries;
     const weak_ptr<XDriver> m_driver;
     const weak_ptr<XPlot> m_plot;
     unsigned int m_basecolor = 0x0000ffu;
-    friend class XQGraph1DMathToolConnector;
+
+    friend XQC;
+
     void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
-    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
+
     shared_ptr<Listener> m_lsnRelease;
 };
 
-class XQGraph2DMathToolConnector;
-class XGraph2DMathToolList : public XCustomTypeListNode<XGraph2DMathTool> {
+class XQGraph1DMathToolConnector;
+class XGraph1DMathToolList : public XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector> {
 public:
-    XGraph2DMathToolList(const char *name, bool runtime,
+    XGraph1DMathToolList(const char *name, bool runtime,
         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
         const shared_ptr<XPlot> &plot);
-    virtual ~XGraph2DMathToolList();
-
-    void setBaseColor(unsigned int color) {m_basecolor = color;}
-    virtual void update(Transaction &tr, XQGraph *graphwidget,
-        const uint32_t *leftupper,
-        unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
+    virtual ~XGraph1DMathToolList() {}
 
     DEFINE_TYPE_HOLDER(
         std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
         const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
         )
     virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
+
+    virtual void update(Transaction &tr, XQGraph *graphwidget,
+        cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
+
+    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
 protected:
-    friend class XQGraph2DMathToolConnector;
-    const weak_ptr<XMeasure> m_measure;
-    const weak_ptr<XDriver> m_driver;
-    const weak_ptr<XPlot> m_plot;
-    unsigned int m_basecolor = 0x0000ffu;
-    void onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e);
+};
+
+class XQGraph2DMathToolConnector;
+class XGraph2DMathToolList : public XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector> {
+public:
+    XGraph2DMathToolList(const char *name, bool runtime,
+        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
+        const shared_ptr<XPlot> &plot);
+    virtual ~XGraph2DMathToolList() {}
+
+    DEFINE_TYPE_HOLDER(
+        std::reference_wrapper<Transaction>, const shared_ptr<XScalarEntryList> &,
+        const shared_ptr<XDriver> &, const shared_ptr<XPlot> &, const char*
+        )
+    virtual shared_ptr<XNode> createByTypename(const XString &, const XString& name);
+
+    virtual void update(Transaction &tr, XQGraph *graphwidget,
+        const uint32_t *leftupper,
+        unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
+
     void onPlaneSelectedByTool(const Snapshot &shot,
         const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);
-    shared_ptr<Listener> m_lsnRelease;
+protected:
 };
 
 #endif

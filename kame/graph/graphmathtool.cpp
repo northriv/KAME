@@ -191,17 +191,31 @@ XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     graphwidget->update();
 }
 
-XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
-                         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, const shared_ptr<XPlot> &plot) :
-    XCustomTypeListNode<XGraph1DMathTool>(name, runtime),
-    m_measure(meas), m_driver(driver), m_plot(plot) {
-    iterate_commit([=](Transaction &tr){
-        m_lsnRelease = tr[ *this].onRelease().connectWeakly(shared_from_this(), &XGraph1DMathToolList::onRelease);
+
+template <class X, class XQC>
+XGraphMathToolList<X, XQC>::XGraphMathToolList(const char *name, bool runtime,
+        const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, const shared_ptr<XPlot> &plot) :
+      XCustomTypeListNode<X>(name, runtime),
+      m_measure(meas), m_driver(driver), m_plot(plot) {
+      this->iterate_commit([=](Transaction &tr){
+          m_lsnRelease = tr[ *this].onRelease().connectWeakly(this->shared_from_this(), &XGraphMathToolList::onRelease);
+      });
+}
+template <class X, class XQC>
+XGraphMathToolList<X, XQC>::~XGraphMathToolList() {
+    this->releaseAll();
+}
+template <class X, class XQC>
+void
+XGraphMathToolList<X, XQC>::onRelease(const Snapshot &, const XListNodeBase::Payload::ReleaseEvent &e) {
+    m_measure.lock()->iterate_commit([&](Transaction &tr){
+        if( !static_pointer_cast<X>(e.released)->releaseEntries(tr))
+            return;
     });
 }
-XGraph1DMathToolList::~XGraph1DMathToolList() {
-    releaseAll();
-}
+
+template class XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector>;
+template class XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector>;
 
 shared_ptr<XNode>
 XGraph1DMathToolList::createByTypename(const XString &type, const XString& name) {
@@ -211,14 +225,37 @@ XGraph1DMathToolList::createByTypename(const XString &type, const XString& name)
     meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
         ptr = creator(type)
             (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
-            (getName() + "-" + name).c_str());
+            (this->getName() + "-" + name).c_str());
         if(ptr)
-            if( !insert(tr, ptr))
+            if( !this->insert(tr, ptr))
                 return false;
         return true;
     });
     return ptr;
 }
+
+shared_ptr<XNode>
+XGraph2DMathToolList::createByTypename(const XString &type, const XString& name) {
+    shared_ptr<XMeasure> meas(m_measure.lock());
+    shared_ptr<XNode> ptr;
+    auto plot = m_plot.lock();
+    meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
+        ptr = creator(type)
+            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
+            (this->getName() + "-" + name).c_str());
+        if(ptr)
+            if( !this->insert(tr, ptr))
+                return false;
+        return true;
+    });
+    return ptr;
+}
+
+XGraph1DMathToolList::XGraph1DMathToolList(const char *name, bool runtime,
+                         const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver, const shared_ptr<XPlot> &plot) :
+    XGraphMathToolList<XGraph1DMathTool, XQGraph1DMathToolConnector>(name, runtime, meas, driver, plot) {
+}
+
 void
 XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
     cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) {
@@ -246,41 +283,10 @@ XGraph1DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
         }
     }
 }
-void
-XGraph1DMathToolList::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-    m_measure.lock()->iterate_commit([&](Transaction &tr){
-        if( !static_pointer_cast<XGraph1DMathTool>(e.released)->releaseEntries(tr))
-            return;
-    });
-
-}
 XGraph2DMathToolList::XGraph2DMathToolList(const char *name, bool runtime,
     const shared_ptr<XMeasure> &meas, const shared_ptr<XDriver> &driver,
     const shared_ptr<XPlot> &plot) :
-    XCustomTypeListNode<XGraph2DMathTool>(name, runtime),
-    m_measure(meas), m_driver(driver), m_plot(plot) {
-    iterate_commit([=](Transaction &tr){
-        m_lsnRelease = tr[ *this].onRelease().connectWeakly(shared_from_this(), &XGraph2DMathToolList::onRelease);
-    });
-}
-XGraph2DMathToolList::~XGraph2DMathToolList() {
-    releaseAll();
-}
-shared_ptr<XNode>
-XGraph2DMathToolList::createByTypename(const XString &type, const XString& name) {
-    shared_ptr<XMeasure> meas(m_measure.lock());
-    shared_ptr<XNode> ptr;
-    auto plot = m_plot.lock();
-    meas->iterate_commit_if([=, &ptr](Transaction &tr)->bool{
-        ptr = creator(type)
-            (name.c_str(), false, ref(tr), meas->scalarEntries(), m_driver.lock(), plot,
-             (getName() + "-" + name).c_str());
-        if(ptr)
-            if( !insert(tr, ptr))
-                return false;
-        return true;
-    });
-    return ptr;
+    XGraphMathToolList<XGraph2DMathTool, XQGraph2DMathToolConnector>(name, runtime, meas, driver, plot) {
 }
 void
 XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
@@ -321,8 +327,6 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
             break;
         idx++;
     }
-//    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.4g)-(%.4g)", getLabel().c_str(),
-//        label.c_str(), src, dst));
     Snapshot shot_this( *this);
     auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
     auto tool = static_pointer_cast<XGraph1DMathTool>(node);
@@ -351,8 +355,6 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
             break;
         idx++;
     }
-//    auto node = createByTypename(typenames().at(idx), formatString("%s-%s (%.0f,%.0f)-(%.0f,%.0f)", getLabel().c_str(),
-//        label.c_str(), src.x, src.y, dst.x, dst.y));
     Snapshot shot_this( *this);
     auto node = createByTypename(typenames().at(idx), formatString("%s%u", label.c_str(), shot_this.size()));
     auto tool = static_pointer_cast<XGraph2DMathTool>(node);
@@ -371,11 +373,4 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
     if(shot_tool[ *tool].isUIEnabled())
         tool->updateOnScreenObjects(shot_tool, widget);
 }
-void
-XGraph2DMathToolList::onRelease(const Snapshot &shot, const XListNodeBase::Payload::ReleaseEvent &e) {
-    m_measure.lock()->iterate_commit([&](Transaction &tr){
-        if( !static_pointer_cast<XGraph2DMathTool>(e.released)->releaseEntries(tr))
-            return;
-    });
 
-}
