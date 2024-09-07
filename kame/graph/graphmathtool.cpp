@@ -124,7 +124,22 @@ XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidg
     }
     graphwidget->update();
 }
-
+XString
+XGraph1DMathTool::getMenuLabel() const {
+    Snapshot shot( *this);
+    double bgx = shot[ *begin()];
+    double edx = shot[ *end()];
+    return getLabel() + formatString(" (%.4g)-(%.4g)", bgx, edx);
+}
+XString
+XGraph2DMathTool::getMenuLabel() const {
+    Snapshot shot( *this);
+    double bgx = shot[ *beginX()];
+    double bgy = shot[ *beginY()];
+    double edx = shot[ *endX()];
+    double edy = shot[ *endY()];
+    return getLabel() + formatString(" (%.0f,%.0f)-(%.0f,%.0f)",bgx, bgy, edx, edy);
+}
 void
 XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
     auto painter = graphwidget->painter().lock();

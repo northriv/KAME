@@ -71,7 +71,8 @@ void XQGraph1DMathToolConnector::menuOpenActionActivated() {
     auto &list = m_lists[0];
     Snapshot shot( *list);
     for(unsigned int i = 0; i < shot.size(); ++i) {
-        QMenu *menuoftool = m_menu->addMenu(shot.list()->at(i)->getLabel());
+        QMenu *menuoftool = m_menu->addMenu(
+            static_pointer_cast<XGraphMathTool>(shot.list()->at(i))->getMenuLabel());
         QAction *act = new QAction(i18n("Delete Tool"), menuoftool);
         menuoftool->addAction(act);
         for(auto &toollist: m_lists) {
@@ -149,7 +150,8 @@ void XQGraph2DMathToolConnector::menuOpenActionActivated() {
     auto &list = m_lists[0];
     Snapshot shot( *list);
     for(unsigned int i = 0; i < shot.size(); ++i) {
-        QMenu *menuoftool = m_menu->addMenu(shot.list()->at(i)->getLabel());
+        QMenu *menuoftool = m_menu->addMenu(
+            static_pointer_cast<XGraphMathTool>(shot.list()->at(i))->getMenuLabel());
         QAction *act = new QAction(i18n("Delete Tool"), menuoftool);
         menuoftool->addAction(act);
         for(auto &toollist: m_lists) {

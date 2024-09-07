@@ -33,6 +33,7 @@ public:
     using cv_iterator = std::vector<XGraph::VFloat>::const_iterator;
 
     const shared_ptr<XHexNode> &baseColor() const {return m_baseColor;}
+    virtual XString getMenuLabel() const {return getLabel();}
 
     virtual bool releaseEntries(Transaction &tr) {return true;}
 
@@ -61,6 +62,7 @@ public:
     const shared_ptr<XDoubleNode> &begin() const {return m_begin;}
     const shared_ptr<XDoubleNode> &end() const {return m_end;}
 
+    virtual XString getMenuLabel() const override;
     virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 private:
     const shared_ptr<XDoubleNode> m_begin, m_end;
@@ -85,6 +87,7 @@ public:
         return std::abs((shot[ *endX()] - shot[ *beginX()]) * (shot[ *endY()] - shot[ *beginY()]));
     }
 
+    virtual XString getMenuLabel() const override;
     virtual void updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) override;
 protected:
 private:
