@@ -130,6 +130,8 @@ XImageProcessor::checkDependency(const Snapshot &shot_this,
     XDriver *emitter) const {
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     if( !camera__) return false;
+    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
+    if( !wheel__) return false;
     if(emitter == this) return true;
     if(emitter != camera__.get())
         return false;
@@ -146,6 +148,8 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
 
     shared_ptr<XDigitalCamera> camera__ = shot_this[ *camera()];
     const Snapshot &shot_camera((emitter == camera__.get()) ? shot_emitter : shot_others);
+
+    shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
 
     bool clear = (shot_this[ *this].m_timeClearRequested.isSet());
     tr[ *this].m_timeClearRequested = {};
@@ -183,9 +187,6 @@ XImageProcessor::analyze(Transaction &tr, const Snapshot &shot_emitter, const Sn
         }
     }
     if(emitter == camera__.get()) {
-        shared_ptr<XFilterWheel> wheel__ = shot_this[ *filterWheel()];
-        if( !wheel__)
-            throw XSkippedRecordError(__FILE__, __LINE__); //visualize() will be called.
 //            throw XDriver::XRecordError(i18n("Filter wheel is not specified."), __FILE__, __LINE__);
         int wheelidx = shot_others[ *wheel__].wheelIndexOfFrame(
             shot_camera[ *camera__].time(), shot_camera[ *camera__].timeAwared());
@@ -290,13 +291,22 @@ XImageProcessor::visualize(const Snapshot &shot) {
 
     std::vector<double> coeffs;
     std::vector<const uint32_t *> rawimages;
-    for(unsigned int cidx: {0,1}) {
-        coeffs.push_back(shot[ *this].m_coefficients[seq_len - 2 + cidx]);
-        rawimages.push_back( &shot[ *this].m_summedCounts[seq_len - 2 + cidx]->at(0));
+    XString msg;
+    const XString rgbstr[] = {"R", "G", "B"};
+    shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
+    std::array<unsigned int, 3> rgb_filterIndices = {shot[ *filterIndexR()], shot[ *filterIndexG()], shot[ *filterIndexB()]};
+    for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
+        coeffs.push_back(shot[ *this].m_coefficients[cidx]);
+        rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
+        if(wheel__)
+            msg += rgbstr[cidx] +
+                (XString)Snapshot( *wheel__)[ *wheel__->filterLabel(rgb_filterIndices[cidx])] +
+                    formatString("x%.1f avgx%u", (double)shot[ *this].m_colorGains[cidx], (unsigned int)shot[ *this].m_accumulated[cidx]);
     }
-        iterate_commit([&](Transaction &tr){
+    iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
-        tr[ *m_rgbImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
+//        tr[ *m_rgbImage->graph()->onScreenStrings()] = formatString("Avg:%u", (unsigned int)shot[ *this].m_accumulated[0]);
+        tr[ *m_rgbImage->graph()->onScreenStrings()] = msg;
         m_rgbImage->updateImage(tr, qimage, rawimages, width, coeffs);
     });
 
