@@ -292,16 +292,15 @@ XImageProcessor::visualize(const Snapshot &shot) {
     std::vector<double> coeffs;
     std::vector<const uint32_t *> rawimages;
     XString msg;
-    const XString rgbstr[] = {"R", "G", "B"};
     shared_ptr<XFilterWheel> wheel__ = shot[ *filterWheel()];
     std::array<unsigned int, 3> rgb_filterIndices = {shot[ *filterIndexR()], shot[ *filterIndexG()], shot[ *filterIndexB()]};
     for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
         coeffs.push_back(shot[ *this].m_coefficients[cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
         if(wheel__ && (rgb_filterIndices[cidx] < wheel__->filterCount()))
-            msg += rgbstr[cidx] +
+            msg +=
                 (XString)Snapshot( *wheel__)[ *wheel__->filterLabel(rgb_filterIndices[cidx])] +
-                    formatString("x%.1f avgx%u", (double)shot[ *this].m_colorGains[cidx], (unsigned int)shot[ *this].m_accumulated[cidx]);
+                    formatString("x%.1f avg%u; ", (double)shot[ *this].m_colorGains[cidx], (unsigned int)shot[ *this].m_accumulated[cidx]);
     }
     iterate_commit([&](Transaction &tr){
         tr[ *this].m_qimage = qimage;
