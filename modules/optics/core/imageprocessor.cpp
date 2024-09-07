@@ -47,7 +47,7 @@ XImageProcessor::XImageProcessor(const char *name, bool runtime,
     m_form(new FrmImageProcessor),
     m_rgbImage(create<X2DImage>("RGBImage", false,
                                    m_form->m_graphwidget, m_form->m_edDump, m_form->m_tbDump, m_form->m_btnDump,
-                                   2, m_form->m_dblGamma,
+                                   3, m_form->m_dblGamma,
                                    m_form->m_tbMathMenu, meas, static_pointer_cast<XDriver>(shared_from_this()))) {
 
     auto plot = m_rgbImage->plot();
@@ -298,7 +298,7 @@ XImageProcessor::visualize(const Snapshot &shot) {
     for(unsigned int cidx = 0; cidx < seq_len; ++cidx) {
         coeffs.push_back(shot[ *this].m_coefficients[cidx]);
         rawimages.push_back( &shot[ *this].m_summedCounts[cidx]->at(0));
-        if(wheel__)
+        if(wheel__ && (rgb_filterIndices[cidx] < wheel__->filterCount()))
             msg += rgbstr[cidx] +
                 (XString)Snapshot( *wheel__)[ *wheel__->filterLabel(rgb_filterIndices[cidx])] +
                     formatString("x%.1f avgx%u", (double)shot[ *this].m_colorGains[cidx], (unsigned int)shot[ *this].m_accumulated[cidx]);
