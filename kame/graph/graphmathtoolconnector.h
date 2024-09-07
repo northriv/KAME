@@ -41,7 +41,8 @@ private:
     XQGraph *m_graphwidget;
 
     std::map<QAction *, XString> m_actionToToolMap;
-    std::multimap<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
+    std::multimap<QAction *, std::pair<shared_ptr<XGraph1DMathToolList>, shared_ptr<XNode>>>
+        m_actionToExisitingToolMap, m_deleteActions, m_reselectActions;
 public:
 
 private:
@@ -65,7 +66,8 @@ private:
     XQGraph *m_graphwidget;
 
     std::map<QAction *, XString> m_actionToToolMap;
-    std::multimap<QAction *, std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>> m_actionToExisitingToolMap;
+    std::multimap<QAction *, std::pair<shared_ptr<XGraph2DMathToolList>, shared_ptr<XNode>>>
+        m_actionToExisitingToolMap, m_deleteActions, m_reselectActions;
 public:
 private:
     std::deque<shared_ptr<XGraph2DMathToolList>> m_lists;

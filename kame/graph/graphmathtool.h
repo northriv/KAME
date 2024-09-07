@@ -306,7 +306,8 @@ public:
     virtual void update(Transaction &tr, XQGraph *graphwidget,
         cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend);
 
-    void onAxisSelectedByTool(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
+    void onAxisSelectedByToolForCreate(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
+    void onAxisSelectedByToolForReselect(const Snapshot &shot, const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>&);
 protected:
 };
 
@@ -328,7 +329,9 @@ public:
         const uint32_t *leftupper,
         unsigned int width, unsigned int stride, unsigned int numlines, double coefficient);
 
-    void onPlaneSelectedByTool(const Snapshot &shot,
+    void onPlaneSelectedByToolForCreate(const Snapshot &shot,
+        const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);
+    void onPlaneSelectedByToolForReselect(const Snapshot &shot,
         const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph*>&);
 protected:
 };

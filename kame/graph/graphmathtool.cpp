@@ -315,7 +315,7 @@ XGraph2DMathToolList::update(Transaction &tr, XQGraph *graphwidget,
 }
 
 void
-XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
+XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
     const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>& res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
@@ -340,10 +340,11 @@ XGraph1DMathToolList::onAxisSelectedByTool(const Snapshot &shot,
     });
     if(shot_tool[ *tool].isUIEnabled())
         tool->updateOnScreenObjects(shot_tool, widget);
+    widget->repaint();
 }
 
 void
-XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
+XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
     const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph* > &res) {
     auto label = std::get<0>(res);
     auto src = std::get<1>(res);
@@ -372,5 +373,66 @@ XGraph2DMathToolList::onPlaneSelectedByTool(const Snapshot &shot,
     });
     if(shot_tool[ *tool].isUIEnabled())
         tool->updateOnScreenObjects(shot_tool, widget);
+    widget->repaint();
+}
+
+void
+XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
+    const std::tuple<XString, XGraph::VFloat, XGraph::VFloat, XQGraph*>& res) {
+    auto label = std::get<0>(res);
+    auto src = std::get<1>(res);
+    auto dst = std::get<2>(res);
+    auto widget = std::get<3>(res);
+    unsigned int idx = 0;
+    Snapshot shot_this( *this);
+    auto list = shot_this.list();
+    if(list->size())
+        for(auto x: *list) {
+            if(x->getLabel() == label)
+                break;
+            idx++;
+        }
+    auto tool = static_pointer_cast<XGraph1DMathTool>(list->at(idx));
+    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
+        if(src > dst)
+            std::swap(src, dst);
+        tr[ *tool->begin()] = src;
+        tr[ *tool->end()] = dst;
+    });
+    if(shot_tool[ *tool].isUIEnabled())
+        tool->updateOnScreenObjects(shot_tool, widget);
+    widget->repaint();
+}
+
+void
+XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
+    const std::tuple<XString, XGraph::ValPoint, XGraph::ValPoint, XQGraph* > &res) {
+    auto label = std::get<0>(res);
+    auto src = std::get<1>(res);
+    auto dst = std::get<2>(res);
+    auto widget = std::get<3>(res);
+    unsigned int idx = 0;
+    Snapshot shot_this( *this);
+    auto list = shot_this.list();
+    if(list->size())
+        for(auto x: *list) {
+            if(x->getLabel() == label)
+                break;
+            idx++;
+        }
+    auto tool = static_pointer_cast<XGraph2DMathTool>(list->at(idx));
+    Snapshot shot_tool = tool->iterate_commit([&](Transaction &tr){
+        if(src.x > dst.x)
+            std::swap(src.x, dst.x);
+        if(src.y > dst.y)
+            std::swap(src.y, dst.y);
+        tr[ *tool->beginX()] = src.x;
+        tr[ *tool->endX()] = dst.x;
+        tr[ *tool->beginY()] = src.y;
+        tr[ *tool->endY()] = dst.y;
+    });
+    if(shot_tool[ *tool].isUIEnabled())
+        tool->updateOnScreenObjects(shot_tool, widget);
+    widget->repaint();
 }
 
