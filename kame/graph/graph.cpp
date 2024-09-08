@@ -172,7 +172,7 @@ XGraph::setupRedraw(Transaction &tr, float resolution, float screenaspectratio) 
         const XNode::NodeList &plots_list( *shot.list(plots()));
         for(auto it = plots_list.begin(); it != plots_list.end(); ++it) {
             auto plot = static_pointer_cast<XPlot>( *it);
-            if(plot->keepXYAspectRatioToOne()) {
+            if(shot[ *plot->keepXYAspectRatioToOne()]) {
                 shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
                 shared_ptr<XAxis> axisy = shot[ *plot->axisY()];
                 double pxaspectratio_org = shot[ *axisx->length()] / shot[ *axisy->length()];
