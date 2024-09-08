@@ -284,22 +284,26 @@ OnScreenTexture::drawNative() {
 //    glNormal3f(0, 0, 1);
 //    glTexCoord2f(0.0, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 1.0);
-    auto pt = leftTop();
+//    auto pt = leftTop();
+    auto pt = leftBottom(); //inverted Y
     pt += XGraph::ScrPoint(0, 0, -0.01, 0); //drawing at the same Z-order is buggy.
     painter()->setVertex(pt);
 //    glTexCoord2f(1, 0.0);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 1.0);
-    pt = rightTop();
+//    pt = rightTop();
+    pt = rightBottom(); //inverted Y
     pt += XGraph::ScrPoint(0, 0, -0.01, 0);
     painter()->setVertex(pt);
 //    glTexCoord2f(1, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 1.0, 0.0);
-    pt = rightBottom();
+//    pt = rightBottom();
+    pt = rightTop(); //inverted Y
     pt += XGraph::ScrPoint(0, 0, -0.01, 0);
     painter()->setVertex(pt);
 //    glTexCoord2f(0.0, 1);
     glMultiTexCoord2f(GL_TEXTURE1, 0.0, 0.0);
-    pt = leftBottom();
+//    pt = leftBottom();
+    pt = leftTop(); //inveted Y
     pt += XGraph::ScrPoint(0, 0, -0.01, 0);
     painter()->setVertex(pt);
     painter()->endQuad();

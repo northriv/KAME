@@ -117,7 +117,7 @@ public:
 
     //! Fixes axes and performs autoscaling of the axes.
     //! Call this function before redrawal of the graph.
-    void setupRedraw(Transaction &tr, float resolution);
+    void setupRedraw(Transaction &tr, float resolution, float screenaspectratio);
 
     void zoomAxes(Transaction &tr, float resolution, XGraph::SFloat zoomscale,
                   const XGraph::ScrPoint &zoomcenter);
@@ -207,6 +207,7 @@ public:
 	//! z value without AxisZ
 	const shared_ptr<XDoubleNode> &zwoAxisZ() const {return m_zwoAxisZ;}
 	const shared_ptr<XDoubleNode> &intensity() const {return m_intensity;}
+    const shared_ptr<XBoolNode> &keepXYAspectRatioToOne() const {return m_keepXYAspectRatioToOne;}
 
 	//! auto-scale
 	virtual int validateAutoScale(const Snapshot &shot);
@@ -266,6 +267,7 @@ private:
 	//! z value without AxisZ
 	const shared_ptr<XDoubleNode> m_zwoAxisZ;
 	const shared_ptr<XDoubleNode> m_intensity;
+    const shared_ptr<XBoolNode> m_keepXYAspectRatioToOne;
 
 	shared_ptr<Listener> m_lsnClearPoints;
   
@@ -326,6 +328,8 @@ public:
 	const shared_ptr<XDoubleNode> &maxValue() const {return m_max;}
 	const shared_ptr<XDoubleNode> &minValue() const {return m_min;}
 	const shared_ptr<XBoolNode> &rightOrTopSided() const {return m_rightOrTopSided;} //sit on right, top
+    const shared_ptr<XBoolNode> &invertAxis() const {return m_invertAxis;}
+    const shared_ptr<XBoolNode> &invisible() const {return m_invisible;}
 
 	const shared_ptr<XStringNode> &ticLabelFormat() const {return m_ticLabelFormat;}
 	const shared_ptr<XBoolNode> &displayLabel() const {return m_displayLabel;}
@@ -381,6 +385,8 @@ private:
 	const shared_ptr<XDoubleNode> m_max;
 	const shared_ptr<XDoubleNode> m_min;
 	const shared_ptr<XBoolNode> m_rightOrTopSided; //sit on right, top
+    const shared_ptr<XBoolNode> m_invertAxis;
+    const shared_ptr<XBoolNode> m_invisible;
 
 	const shared_ptr<XStringNode> m_ticLabelFormat;
 	const shared_ptr<XBoolNode> m_displayLabel;
@@ -398,6 +404,7 @@ private:
 	XGraph::VFloat m_invLogMaxOverMinFixed, m_invMaxMinusMinFixed;
 	bool m_bLogscaleFixed;
 	bool m_bAutoscaleFixed;
+    bool m_bInverted;
 };
 
 class DECLSPEC_KAME XXYPlot : public XPlot {

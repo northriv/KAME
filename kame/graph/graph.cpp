@@ -140,7 +140,7 @@ XGraph::onPropertyChanged(const Snapshot &shot, XValueNodeBase *) {
 }
 
 void
-XGraph::setupRedraw(Transaction &tr, float resolution) {
+XGraph::setupRedraw(Transaction &tr, float resolution, float screenaspectratio) {
 	const Snapshot &shot(tr);
 	if(shot.size(axes())) {
 		const XNode::NodeList &axes_list( *shot.list(axes()));
@@ -168,6 +168,28 @@ XGraph::setupRedraw(Transaction &tr, float resolution) {
 			axis->fixScale(tr, resolution, true);
 		}
 	}
+    if(shot.size(plots())) {
+        const XNode::NodeList &plots_list( *shot.list(plots()));
+        for(auto it = plots_list.begin(); it != plots_list.end(); ++it) {
+            auto plot = static_pointer_cast<XPlot>( *it);
+            if(plot->keepXYAspectRatioToOne()) {
+                shared_ptr<XAxis> axisx = shot[ *plot->axisX()];
+                shared_ptr<XAxis> axisy = shot[ *plot->axisY()];
+                double pxaspectratio_org = shot[ *axisx->length()] / shot[ *axisy->length()];
+                pxaspectratio_org /= axisx->fixedMax() - axisx->fixedMin(); //todo log scale
+                pxaspectratio_org *= axisy->fixedMax() - axisy->fixedMin();
+                pxaspectratio_org *= screenaspectratio;
+                if(pxaspectratio_org > 1.0) {
+                    axisx->zoom(true, true, 1 / pxaspectratio_org);
+                    axisx->fixScale(tr, resolution, true);
+                }
+                else {
+                    axisy->zoom(true, true, pxaspectratio_org);
+                    axisy->fixScale(tr, resolution, true);
+                }
+            }
+        }
+    }
 }
 
 void
@@ -217,7 +239,8 @@ XPlot::XPlot(const char *name, bool runtime, Transaction &tr_graph, const shared
 	  m_axisW(create<XItemNode<XAxisList, XAxis> >("AxisW", true, ref(tr_graph), graph->axes())),
 	  //! z value without AxisZ
 	  m_zwoAxisZ(create<XDoubleNode>("ZwoAxisZ", true)),
-	  m_intensity(create<XDoubleNode>("Intensity", true)) {
+      m_intensity(create<XDoubleNode>("Intensity", true)),
+      m_keepXYAspectRatioToOne(create<XBoolNode>("KeepXYAspectRatioToOne", true)) {
 
     iterate_commit([=](Transaction &tr){
 	//  MaxCount.value(0);
@@ -798,7 +821,8 @@ XAxis::XAxis(const char *name, bool runtime,
 	XNode(name, runtime),
 	m_direction(dir),
     m_dirVector( (dir == AxisDirection::X) ? 1.0 : 0.0,
-                 (dir == AxisDirection::Y) ? 1.0 : 0.0, (dir == AxisDirection::Z) ? 1.0 : 0.0),
+                 (dir == AxisDirection::Y) ? 1.0 : 0.0,
+                 (dir == AxisDirection::Z) ? 1.0 : 0.0),
 	m_graph(graph),
 	m_label(create<XStringNode>("Label", true)),
 	m_x(create<XDoubleNode>("X", true)),
@@ -812,7 +836,9 @@ XAxis::XAxis(const char *name, bool runtime,
 	m_max(create<XDoubleNode>("Max", true)),
 	m_min(create<XDoubleNode>("Min", true)),
 	m_rightOrTopSided(create<XBoolNode>("RightOrTopSided", true)), //sit on right, top
-	m_ticLabelFormat(create<XStringNode>("TicLabelFormat", true)),
+    m_invertAxis(create<XBoolNode>("InvertAxis", true)),
+    m_invisible(create<XBoolNode>("Invisible", true)),
+    m_ticLabelFormat(create<XStringNode>("TicLabelFormat", true)),
 	m_displayLabel(create<XBoolNode>("DisplayLabel", true)),
 	m_displayTicLabels(create<XBoolNode>("DisplayTicLabels", true)),
 	m_ticColor(create<XHexNode>("TicColor", true)),
@@ -924,6 +950,7 @@ XAxis::fixScale(Transaction &tr, float resolution, bool suppressupdate) {
         tr.unmark(graph->lsnPropertyChanged());
     }
     performAutoFreq(shot, resolution);
+    m_bInverted = shot[ *m_invertAxis];
 }
 void
 XAxis::performAutoFreq(const Snapshot &shot, float resolution) {
@@ -970,10 +997,10 @@ XAxis::zoom(bool minchange, bool maxchange, XGraph::GFloat prop, XGraph::GFloat 
     if(direction() == AxisDirection::Weight) return;
 	
 	if(maxchange) {
-		m_maxFixed = axisToVal(center + (XGraph::GFloat)0.5 / prop);
+        m_maxFixed = axisToVal(center + (XGraph::GFloat)0.5 / prop * (m_bInverted ? -1 : 1));
 	}
 	if(minchange) {
-		m_minFixed = axisToVal(center - (XGraph::GFloat)0.5 / prop);
+        m_minFixed = axisToVal(center - (XGraph::GFloat)0.5 / prop * (m_bInverted ? -1 : 1));
 	}
 	m_invMaxMinusMinFixed = -1; //undef
 	m_invLogMaxOverMinFixed = -1; //undef
@@ -995,13 +1022,15 @@ XAxis::valToAxis(XGraph::VFloat x) {
 			m_invMaxMinusMinFixed = 1 / (m_maxFixed - m_minFixed);
 		pos = (x - m_minFixed) * m_invMaxMinusMinFixed;
 	}
+    if(m_bInverted) pos = 1.0f - pos;
 	return pos;
 }
 
 XGraph::VFloat
 XAxis::axisToVal(XGraph::GFloat pos, XGraph::GFloat axis_prec) const {
 	XGraph::VFloat x = 0;
-	if(axis_prec <= 0) {
+    if(m_bInverted) pos = 1.0f - pos;
+    if(axis_prec <= 0) {
 		if(m_bLogscaleFixed) {
 			if((m_minFixed <= 0) || (m_maxFixed < m_minFixed)) return 0;
             x = m_minFixed * std::exp(std::log(m_maxFixed / m_minFixed) * pos);
@@ -1032,9 +1061,16 @@ XAxis::screenToAxis(const Snapshot &shot, const XGraph::ScrPoint &scr) const {
 	XGraph::SFloat _x = scr.x - shot[ *x()];
 	XGraph::SFloat _y = scr.y - shot[ *y()];
 	XGraph::SFloat _z = scr.z - shot[ *z()];
-    XGraph::GFloat pos = ((m_direction == AxisDirection::X) ? _x :
-                          ((m_direction == AxisDirection::Y) ? _y : _z)) / (XGraph::SFloat)shot[ *length()];
-	return pos;
+    switch(m_direction) {
+    case AxisDirection::X:
+        return _x / (XGraph::SFloat)shot[ *length()];
+    case AxisDirection::Y:
+        return _y / (XGraph::SFloat)shot[ *length()];
+    case AxisDirection::Z:
+        return _z / (XGraph::SFloat)shot[ *length()];
+    case AxisDirection::Weight:
+        return 0;
+    }
 }
 XGraph::VFloat
 XAxis::screenToVal(const Snapshot &shot, const XGraph::ScrPoint &scr) const {
@@ -1136,6 +1172,7 @@ XAxis::drawLabel(const Snapshot &shot, XQGraphPainter *painter) {
 int
 XAxis::drawAxis(const Snapshot &shot, XQGraphPainter *painter) {
     if(m_direction == AxisDirection::Weight) return -1;
+    if(shot[ *invisible()]) return -1;
   
 	XGraph::SFloat LenMajorTicL = 0.01;
 	XGraph::SFloat LenMinorTicL = 0.005;

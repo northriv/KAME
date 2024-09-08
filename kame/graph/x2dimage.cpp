@@ -59,13 +59,26 @@ X2DImage::X2DImage(const char *name, bool runtime, XQGraph *graphwidget,
         m_plot = plot;
         const XNode::NodeList &axes_list( *tr.list(graph()->axes()));
         auto axisx = static_pointer_cast<XAxis>(axes_list.at(0));
-        auto axisy = static_pointer_cast<XAxis>(axes_list.at(1));
+        auto axisy = static_pointer_cast<XAxis>(axes_list.at(1)); //new yaxis
         tr[ *plot->axisX()] = axisx;
         tr[ *axisx->label()] = "X";
         tr[ *plot->axisY()] = axisy;
         tr[ *axisy->label()] = "Y";
+        tr[ *plot->keepXYAspectRatioToOne()] = true;
+        tr[ *axisx->invisible()] = true;
+        tr[ *axisy->invisible()] = true;
+        tr[ *axisy->invertAxis()] = true;
+        tr[ *axisx->x()] = 0.02; //0.15 was default
+        tr[ *axisx->y()] = 0.055; //0.15 was default
+        tr[ *axisx->length()] = 1.0 - tr[ *axisx->x()] * 2; //0.7 was default
+        tr[ *axisy->x()] = (double)tr[ *axisx->x()];
+        tr[ *axisy->y()] = (double)tr[ *axisx->y()];
+        tr[ *axisy->length()] = 1.0 - tr[ *axisx->y()] * 2; //0.7 was default
+        tr[ *axisx->marginDuringAutoScale()] = 0.0;
+        tr[ *axisy->marginDuringAutoScale()] = 0.0;
 
         tr[ *gamma()] = 2.2;
+        graph()->applyTheme(tr, true);
     });
     m_conUIs = {
         xqcon_create<XQDoubleSpinBoxConnector>(gamma(), m_dblGamma),

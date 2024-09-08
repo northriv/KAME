@@ -602,7 +602,7 @@ XQGraphPainter::drawOnScreenHelp(const Snapshot &shot, QPainter *qpainter) {
 Snapshot
 XQGraphPainter::startDrawing() {
     return m_graph->iterate_commit([=](Transaction &tr){
-		m_graph->setupRedraw(tr, resScreen());
+        m_graph->setupRedraw(tr, resScreen(), (double)m_pItem->widthMM() / m_pItem->heightMM());
     });
 }
 void
