@@ -338,9 +338,11 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    if(shot_tool[ *tool].isUIEnabled())
+    if(shot_tool[ *tool].isUIEnabled()) {
         tool->updateOnScreenObjects(shot_tool, widget);
-    widget->repaint();
+        tool->highlight(false, widget);
+        widget->repaint();
+    }
 }
 
 void
@@ -371,9 +373,11 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    if(shot_tool[ *tool].isUIEnabled())
+    if(shot_tool[ *tool].isUIEnabled()) {
         tool->updateOnScreenObjects(shot_tool, widget);
-    widget->repaint();
+        tool->highlight(false, widget);
+        widget->repaint();
+    }
 }
 
 void
@@ -399,9 +403,11 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
     });
-    if(shot_tool[ *tool].isUIEnabled())
+    if(shot_tool[ *tool].isUIEnabled()) {
         tool->updateOnScreenObjects(shot_tool, widget);
-    widget->repaint();
+        tool->highlight(false, widget);
+        widget->repaint();
+    }
 }
 
 void
@@ -431,8 +437,10 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
     });
-    if(shot_tool[ *tool].isUIEnabled())
+    if(shot_tool[ *tool].isUIEnabled()) {
         tool->updateOnScreenObjects(shot_tool, widget);
-    widget->repaint();
+        tool->highlight(false, widget);
+        widget->repaint();
+    }
 }
 
