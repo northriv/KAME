@@ -292,7 +292,7 @@ XIIDCCamera::stopTransmission() {
 //            if(dc1394_capture_enqueue(interface()->camera(), frame))
 //                throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not release frame."), __FILE__, __LINE__);
 //        }
-        msecsleep(300);
+//        msecsleep(300);
     //    if(interface()->camera()->has_vmode_error_status != DC1394_TRUE)
         dc1394_capture_stop(interface()->camera());
     }
@@ -408,7 +408,8 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     frames = std::max(4u, frames);
     fprintf(stderr, "c1\n");
     //may freeze here
-    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT & ~DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC))
+//    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT & ~DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC))
+    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT))
         throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not setup capture."), __FILE__, __LINE__);
 
     fprintf(stderr, "c2\n");
