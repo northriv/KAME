@@ -110,7 +110,7 @@ public:
     virtual void update(Transaction &tr, XQGraph *graphwidget, cv_iterator xbegin, cv_iterator xend, cv_iterator ybegin, cv_iterator yend) override {
         double v = F()(xbegin, xend, ybegin, yend);
         m_entry->value(tr, v);
-        updateOnScreenObjects(tr, graphwidget);
+//        updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}
@@ -134,7 +134,7 @@ public:
         unsigned int stride, unsigned int numlines, double coefficient) override {
         double v = F()(leftupper, width, stride, numlines, coefficient);
         m_entry->value(tr, v);
-        updateOnScreenObjects(tr, graphwidget);
+//        updateOnScreenObjects(tr, graphwidget);
     }
     const shared_ptr<XScalarEntry> entry() const {return m_entry;}
     virtual bool releaseEntries(Transaction &tr) override {return entries()->release(tr, m_entry);}

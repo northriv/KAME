@@ -77,6 +77,8 @@ XGraph2DMathTool::XGraph2DMathTool(const char *name, bool runtime, Transaction &
 
 void
 XGraph1DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+    if( !shot[ *this].isUIEnabled())
+        return;
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
@@ -142,6 +144,8 @@ XGraph2DMathTool::getMenuLabel() const {
 }
 void
 XGraph2DMathTool::updateOnScreenObjects(const Snapshot &shot, XQGraph *graphwidget) {
+    if( !shot[ *this].isUIEnabled())
+        return;
     auto painter = graphwidget->painter().lock();
     if( !painter) {
         m_oso.reset();
@@ -338,11 +342,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    if(shot_tool[ *tool].isUIEnabled()) {
-        tool->updateOnScreenObjects(shot_tool, widget);
-        tool->highlight(false, widget);
-        widget->repaint();
-    }
+    tool->highlight(false, widget);
 }
 
 void
@@ -373,11 +373,7 @@ XGraph2DMathToolList::onPlaneSelectedByToolForCreate(const Snapshot &shot,
         tr[ *tool->baseColor()] = m_basecolor;
         tr[ *tool].setUIEnabled(shot_this[ *this].isUIEnabled());
     });
-    if(shot_tool[ *tool].isUIEnabled()) {
-        tool->updateOnScreenObjects(shot_tool, widget);
-        tool->highlight(false, widget);
-        widget->repaint();
-    }
+    tool->highlight(false, widget);
 }
 
 void
@@ -403,11 +399,7 @@ XGraph1DMathToolList::onAxisSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->begin()] = src;
         tr[ *tool->end()] = dst;
     });
-    if(shot_tool[ *tool].isUIEnabled()) {
-        tool->updateOnScreenObjects(shot_tool, widget);
-        tool->highlight(false, widget);
-        widget->repaint();
-    }
+    tool->highlight(false, widget);
 }
 
 void
@@ -437,10 +429,6 @@ XGraph2DMathToolList::onPlaneSelectedByToolForReselect(const Snapshot &shot,
         tr[ *tool->beginY()] = src.y;
         tr[ *tool->endY()] = dst.y;
     });
-    if(shot_tool[ *tool].isUIEnabled()) {
-        tool->updateOnScreenObjects(shot_tool, widget);
-        tool->highlight(false, widget);
-        widget->repaint();
-    }
+    tool->highlight(false, widget);
 }
 
