@@ -44,7 +44,7 @@ public:
 private:
     std::valarray<double> m_params, m_errors;
     double m_chisq;
-    int m_status;
+    int m_status = -1;
 };
 
 

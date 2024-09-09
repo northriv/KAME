@@ -59,10 +59,10 @@ public:
             auto nllsnew = NonLinearLeastSquare(func, init_params, std::distance(xbegin, xend), 100);
             if(nllsnew.isSuccessful()) {
                 if(cost_min > nllsnew.chiSquare()) {
+                    cost_min = nllsnew.chiSquare();
                     nlls = std::move(nllsnew);
                     if((retry > 2) && (cost_min / nlls.chiSquare() < 1.01))
                         break; //enough good
-                    cost_min = nllsnew.chiSquare();
                 }
             }
             if(XTime::now() - firsttime < 0.01) continue;
