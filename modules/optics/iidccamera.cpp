@@ -407,6 +407,7 @@ XIIDCCamera::setTriggerMode(TriggerMode mode) {
     frames = std::min(frames, 80000000u / (2 *width * height));
     frames = std::max(4u, frames);
     fprintf(stderr, "c1\n");
+    msecsleep(20);
     //may freeze here
 //    if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT & ~DC1394_CAPTURE_FLAGS_BANDWIDTH_ALLOC))
     if(dc1394_capture_setup(interface()->camera(), frames, DC1394_CAPTURE_FLAGS_DEFAULT))

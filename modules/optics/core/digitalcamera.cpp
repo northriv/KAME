@@ -157,10 +157,10 @@ XDigitalCamera::onROISelectionToolFinished(const Snapshot &shot,
     m_lsnOnROISelectionToolFinished.reset();
 
     //upside down for y axis. //todo fix yscale.
-    const XNode::NodeList &axes_list( *shot.list(widget->graph()->axes()));
-    auto axisy = static_pointer_cast<XAxis>(axes_list.at(1));
-    src.y = axisy->axisToVal(1.0 - axisy->valToAxis(src.y));
-    dst.y = axisy->axisToVal(1.0 - axisy->valToAxis(dst.y));
+//    const XNode::NodeList &axes_list( *shot.list(widget->graph()->axes()));
+//    auto axisy = static_pointer_cast<XAxis>(axes_list.at(1));
+//    src.y = axisy->axisToVal(1.0 - axisy->valToAxis(src.y));
+//    dst.y = axisy->axisToVal(1.0 - axisy->valToAxis(dst.y));
 
     try {
         setVideoMode(Snapshot( *this)[ *videoMode()], std::min(src.x, dst.x), std::min(src.y, dst.y),
