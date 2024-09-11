@@ -431,42 +431,35 @@ OnScreenTextObject::drawByPainter(QPainter *qpainter) {
     font.setPointSize(m_curFontSize);
     qpainter->setFont(font);
     QFontMetrics fm(font);
-    for(auto &&text: m_textOverpaint) {
-        auto str = m_text.mid(text.strpos, text.length);
+    if(m_text.length() && m_textOverpaint.empty()) {
+        //OSO treated as marker, text stored by drawTextAtPlacedPosition().
+        qpainter->setPen(QColor(baseColor()));
+        double x,y,z;
+        painter()->screenToWindow(leftTop(), &x, &y, &z);
+        qpainter->drawText(x, y, m_text);
+    }
+    else {
+        //text stored by drawText().
+        for(auto &&text: m_textOverpaint) {
+            auto str = m_text.mid(text.strpos, text.length);
 
-        if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
-            qpainter->setPen(QColor(text.rgba));
-        firsttime = false;
-        if(leftTop().x || leftTop().y || leftTop().z) {
-            double x,y,z;
-            painter()->screenToWindow(leftTop(), &x, &y, &z);
-            qpainter->drawText(x, y, str);
-        }
-        else
+            if((QColor(text.rgba) != qpainter->pen().color()) || firsttime)
+                qpainter->setPen(QColor(text.rgba));
+            firsttime = false;
             qpainter->drawText(text.x, text.y, str);
+        }
     }
 }
 
-void
-OnScreenTextObject::updateText(const XString &text) {
-    assert(m_textOverpaint.size() == 1);
-    auto &txt(m_textOverpaint[0]);
-    m_text = text;
-    txt.length = text.length();
-    txt.strpos = 0;
-}
 void
 OnScreenTextObject::clear() {
     m_text.clear();
     m_textOverpaint.clear();
 }
 void
-OnScreenTextObject::drawTextAtPlacedPosition(const XString &str) {
-    XGraph::ScrPoint p = {};
-    clear();
-    defaultFont();
-    m_curFontSize--;
-    drawText(p, str);
+OnScreenTextObject::drawTextAtPlacedPosition(const XString &str, int sizehint) {
+    m_text = str;
+    m_curFontSize += sizehint;
 }
 void
 OnScreenTextObject::drawText(const XGraph::ScrPoint &p, const XString &str) {

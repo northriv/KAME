@@ -167,11 +167,10 @@ public:
     virtual void drawByPainter(QPainter *) override;
     virtual void drawOffScreenMarker() override;
 
-    void updateText(const XString &text);
-
     void clear();
     //! using OnScreenObjectWithMarker::placeObject().
-    void drawTextAtPlacedPosition(const XString &str);
+    void drawTextAtPlacedPosition(const XString &str, int sizehint = 0);
+    //! not thread safe, be called within paintGL().
     void drawText(const XGraph::ScrPoint &p, const XString &str);
     void defaultFont();
     void setAlignment(int align) {
