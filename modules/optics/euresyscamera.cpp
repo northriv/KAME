@@ -106,6 +106,12 @@ XEGrabberCamera::open() {
     try {
         using namespace Euresys;
 
+        std::vector<std::string> allfeatures = camera->getStringList<RemoteModule>(query::features());
+        fprintf(stderr, "Features:\n");
+        for(auto &f: allfeatures)
+            fprintf(stderr, "%s ", f.c_str());
+        fprintf(stderr, "\n");
+
         auto videomodes = camera->getStringList<RemoteModule>(
                     query::enumEntries("PixelFormat"));
         auto triggersources = camera->getStringList<RemoteModule>(
@@ -227,7 +233,7 @@ XEGrabberCamera::setTriggerMode(TriggerMode mode) {
              camera->setString<RemoteModule>("TriggerMode", "ON");
              camera->setString<RemoteModule>("ExposureMode", modes.at(mode).first);
              camera->setString<RemoteModule>("TriggerActivation", modes.at(mode).second);
-             camera->reallocBuffers(3);
+             camera->reallocBuffers(1);
              camera->start(GENTL_INFINITE);
          }
          catch (const std::exception &e) {
@@ -238,7 +244,7 @@ XEGrabberCamera::setTriggerMode(TriggerMode mode) {
         try {
             using namespace Euresys;
             camera->setString<RemoteModule>("TriggerMode", "OFF");
-            camera->reallocBuffers(3);
+            camera->reallocBuffers(1);
             camera->start(GENTL_INFINITE);
         }
         catch (const std::exception &e) {
@@ -313,6 +319,14 @@ XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     uint64_t timestamp = reader.pop<uint64_t>();
     uint64_t image_bytes = reader.pop<uint64_t>();
     XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
+    uint64_t pixelformat = reader.pop<uint64_t>();
+    width = reader.pop<uint64_t>();
+    height = reader.pop<uint64_t>();
+    size_t imagesize = reader.pop<uint64_t>();
+    size_t imgpitch = reader.pop<uint64_t>();
+    size_t delivered = reader.pop<uint64_t>();
+    uint64_t fr = reader.pop<uint64_t>();
+    uint64_t dr = reader.pop<uint64_t>();
     reader.pop<uint64_t>();
     reader.pop<uint64_t>();
 
@@ -321,8 +335,9 @@ XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     setGrayImage(reader, tr, width, height, false, bpp == 2);
     reader.popIterator() += padding_bytes;
 
-    tr[ *this].m_status = formatString("%ux%u @(%u,%u)",
-        (unsigned int)width, (unsigned int)height, (unsigned int)xpos, (unsigned int)ypos);
+    tr[ *this].m_status = formatString("%ux%u @(%u,%u), %u MB/s, %u fps",
+        (unsigned int)width, (unsigned int)height, (unsigned int)xpos, (unsigned int)ypos,
+        (unsigned int)fr, (unsigned int)dr);
 }
 
 XTime
@@ -356,14 +371,6 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
     try {
         using namespace Euresys;
 
-        ScopedBuffer buf( *camera, 10); //10 ms timeout
-
-        void *ptr = buf.getInfo<void *>(GenTL::BUFFER_INFO_BASE);
-        uint64_t ts = buf.getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP);
-        ssize_t size = buf.getInfo<ssize_t>(GenTL::BUFFER_INFO_SIZE);
-        size_t width = buf.getInfo<size_t>(GenTL::BUFFER_INFO_WIDTH); //GigE only?
-        size_t height= buf.getInfo<size_t>(GenTL::BUFFER_INFO_HEIGHT); //GigE only?
-
         writer->push<uint32_t>(int_features.size());
         for(auto &feat: int_features) {
             int64_t v = camera->getInteger<RemoteModule>(feat);
@@ -386,10 +393,32 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         }
         writer->push<int64_t>(0); //for future use.
 
+        ScopedBuffer buf( *camera, 10); //10 ms timeout
+
+        void *ptr = buf.getInfo<void *>(GenTL::BUFFER_INFO_BASE);
+        uint64_t ts = buf.getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP);
+        size_t size = buf.getInfo<size_t>(GenTL::BUFFER_INFO_SIZE);
+        uint64_t pixelFormat = buf.getInfo<uint64_t>(gc::BUFFER_INFO_PIXELFORMAT);
+        size_t width = buf.getInfo<size_t>(gc::BUFFER_INFO_WIDTH);
+        size_t height = buf.getInfo<size_t>(gc::BUFFER_INFO_DELIVERED_IMAGEHEIGHT);
+        size_t imagesize = buf.getInfo<size_t>(ge::BUFFER_INFO_CUSTOM_PART_SIZE);
+        size_t imgpitch = buf.getInfo<size_t>(ge::BUFFER_INFO_CUSTOM_LINE_PITCH);
+        size_t delivered = buf.getInfo<size_t>(ge::BUFFER_INFO_CUSTOM_NUM_DELIVERED_PARTS);
+        uint64_t fr = camera->getInteger<StreamModule>("StatisticsFrameRate");
+        uint64_t dr = camera->getInteger<StreamModule>("StatisticsDataRate");
+
         writer->push<uint64_t>(ts);
         writer->push<uint64_t>(size);
+        writer->push<uint64_t>(pixelFormat);
         writer->push<uint64_t>(width);
         writer->push<uint64_t>(height);
+        writer->push<uint64_t>(imagesize);
+        writer->push<uint64_t>(imgpitch);
+        writer->push<uint64_t>(delivered);
+        writer->push<uint64_t>(fr);
+        writer->push<uint64_t>(dr);
+        writer->push<int64_t>(0); //for future use.
+        writer->push<int64_t>(0); //for future use.
 
         writer->insert(writer->end(), (char*)ptr, (char*)ptr + size);
     #if defined __WIN32__ || defined WINDOWS || defined _WIN32
