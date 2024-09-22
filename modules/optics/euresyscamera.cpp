@@ -86,7 +86,7 @@ XEGrabberInterface::open() {
 void
 XEGrabberInterface::close() {
     if(m_camera) {
-        m_camera->stop();
+//        m_camera->stop();
         m_camera.reset();
     }
 }
@@ -105,41 +105,42 @@ XEGrabberCamera::open() {
         throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
     m_isTrasmitting = false;
 
-    using namespace Euresys;
-
     try {
+        using namespace Euresys;
+
         auto videomodes = camera->getStringList<RemoteModule>(
                     query::enumEntries("PixelFormat"));
         auto triggersources = camera->getStringList<RemoteModule>(
                     query::enumEntries("TriggerSource"));
+
+
         bool trigon = camera->getString<RemoteModule>("TriggerMode") == "On";
-        TriggerMode trigmode = TriggerMode::CONTINUEOUS;
         std::string expmode = camera->getString<RemoteModule>("ExposureMode");
         std::string trigact = camera->getString<RemoteModule>("TriggerActivation");
-        if(expmode == "Timed") {
-            if(trigon) {
-                if(trigact == "RisingEdge")
-                    trigmode = TriggerMode::EXT_POS_EDGE;
-                else if(trigact == "FallingEdge")
-                    trigmode = TriggerMode::EXT_NEG_EDGE;
-            }
-        }
-        else if(expmode == "TriggerWidth") {
-            if(trigon) {
-                if(trigact == "RisingEdge")
-                    trigmode = TriggerMode::EXT_POS_EXPOSURE;
-                else if(trigact == "FallingEdge")
-                    trigmode = TriggerMode::EXT_NEG_EXPOSURE;
-            }
-        }
-        else if(expmode == "TriggerControlled") {
+        std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
+            {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
+            {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
+            {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
+            {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
+        };
+        auto tmit = std::find_if(modes.begin(), modes.end(),
+            [&](auto&x){return (x.second.first == expmode) && (x.second.second == trigact);});
+        TriggerMode trigmode = TriggerMode::CONTINUEOUS;
+        if(trigon && (tmit != modes.end())) {
+            trigmode = tmit->first;
         }
 
+        double blacklvl = camera->getFloat<RemoteModule>("Blacklevel");
+        double exp_time = camera->getFloat<RemoteModule>("ExposureTime") * 1e-3; //to ms
+        double gain_db = camera->getFloat<RemoteModule>("Gain"); //dB
+
 //        grabber.setString<Euresys::DeviceModule>("CameraControlMethod", "RG");              // 4
-//        grabber.setString<Euresys::DeviceModule>("CycleTriggerSource", "Immediate");        // 5
 //        grabber.setFloat<Euresys::DeviceModule>("CycleTargetPeriod", 1e6 / FPS);
 
         iterate_commit([=](Transaction &tr){
+            tr[ *brightness()] = blacklvl;
+            tr[ *exposureTime()] = exp_time;
+            tr[ *cameraGain()] = gain_db;
             tr[ *videoMode()] = -1;
             tr[ *videoMode()].clear();
             for(auto &s: videomodes)
@@ -149,14 +150,10 @@ XEGrabberCamera::open() {
             for(double rate = 240.0; rate > 1.7; rate /= 2) {
                 tr[ *frameRate()].add(formatString("%f fps", rate));
             }
-    //        for(double rate = 1.0; rate > 0.001; rate /= 2) {
-    //            tr[ *frameRate()].add(formatString("%f fps", rate));
-    //        }
         });
     }
-    catch (const std::exception &e) {                                                 // 7
-        gErrPrint(XString("error: ") + e.what());
-        return;
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(XString("error: ") + e.what(), __FILE__, __LINE__);
     }
 
 
@@ -176,42 +173,142 @@ void
 XEGrabberCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     stopTransmission();
-//    if(dc1394_video_set_transmission(interface()->camera(), DC1394_OFF))
-//        throw XInterface::XInterfaceError(getLabel() + " " + i18n("Could not stop transmission."), __FILE__, __LINE__);
     Snapshot shot( *this);
 
-
+    auto camera = interface()->camera();
+    try {
+        using namespace Euresys;
+        camera->setString<RemoteModule>("PixelFormat", shot[ *videoMode()].to_str());
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
     setTriggerMode(static_cast<TriggerMode>((unsigned int)shot[ *triggerMode()]));
 }
 void
 XEGrabberCamera::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     stopTransmission();
+    auto camera = interface()->camera();
+    if(mode == TriggerMode::SINGLE){
+        try {
+            using namespace Euresys;
+            camera->reallocBuffers(1);
+            camera->start(1);
+            camera->execute<Euresys::RemoteModule>("TriggerSoftware");
+        }
+        catch (const std::exception &e) {
+            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+        }
+        m_isTrasmitting = true;
+        return;
+    }
 
-
+    if(mode != TriggerMode::CONTINUEOUS) {
+         std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
+             {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
+             {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
+             {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
+             {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
+         };
+         try {
+             using namespace Euresys;
+             camera->setString<RemoteModule>("TriggerMode", "ON");
+             camera->setString<RemoteModule>("ExposureMode", modes.at(mode).first);
+             camera->setString<RemoteModule>("TriggerActivation", modes.at(mode).second);
+             camera->reallocBuffers(3);
+             camera->start(GENTL_INFINITE);
+         }
+         catch (const std::exception &e) {
+             throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+         }
+    }
+    else {
+        try {
+            using namespace Euresys;
+            camera->setString<RemoteModule>("TriggerMode", "OFF");
+            camera->reallocBuffers(3);
+            camera->start(GENTL_INFINITE);
+        }
+        catch (const std::exception &e) {
+            throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+        }
+    }
     m_isTrasmitting = true;
 }
 void
 XEGrabberCamera::setBrightness(unsigned int brightness) {
     XScopedLock<XEGrabberInterface> lock( *interface());
 //    stopTransmission();
+    auto camera = interface()->camera();
+    try {
+        using namespace Euresys;
+        camera->setFloat<RemoteModule>("Blacklevel", brightness);
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
 }
 void
 XEGrabberCamera::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    stopTransmission();
-    setTriggerMode(static_cast<TriggerMode>((unsigned int)Snapshot( *this)[ *triggerMode()]));
+//    stopTransmission();
+//    setTriggerMode(static_cast<TriggerMode>((unsigned int)Snapshot( *this)[ *triggerMode()]));
+    auto camera = interface()->camera();
+    try {
+        using namespace Euresys;
+        camera->setFloat<RemoteModule>("ExposureTime", shutter * 1e3); //us
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
 }
 void
 XEGrabberCamera::setCameraGain(double db) {
     XScopedLock<XEGrabberInterface> lock( *interface());
-    int gain = lrint(255.0 * db / 20.0);
-    gain = std::min(std::max(0, gain), 255);
+    auto camera = interface()->camera();
+    try {
+        using namespace Euresys;
+        camera->setFloat<RemoteModule>("Gain", db);
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
 }
 
 void
 XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
+    int64_t width = reader.pop<int64_t>();
+    int64_t height = reader.pop<int64_t>();
+    int64_t xpos = reader.pop<int64_t>();
+    int64_t ypos = reader.pop<int64_t>();
+    int64_t payloadsize = reader.pop<int64_t>();
+    int feat_size = reader.pop<uint32_t>();
+    feat_size -= 5;
+    for(int i = 0; i < feat_size; ++i)
+        reader.pop<int64_t>(); //remaining Integer features.
+    feat_size = reader.pop<uint32_t>();
+    for(int i = 0; i < feat_size; ++i)
+        reader.pop<int32_t>(); //remaining enum features.
+    feat_size = reader.pop<uint32_t>();
+    for(int i = 0; i < feat_size; ++i)
+        reader.pop<int16_t>(); //remaining Boolean features.
+    feat_size = reader.pop<uint32_t>();
+    for(int i = 0; i < feat_size; ++i)
+        reader.pop<double>(); //remaining Float features.
+    feat_size = reader.pop<uint32_t>();
+    reader.pop<int32_t>();
+    reader.popIterator() += feat_size; //for future use.
+    uint64_t timestamp = reader.pop<uint64_t>();
+    uint64_t image_bytes = reader.pop<uint64_t>();
+    XTime time = {(long)(timestamp / 1000000uLL), (long)(timestamp % 1000000uLL)};
+    reader.pop<uint64_t>();
+    reader.pop<uint64_t>();
 
+    unsigned int bpp = image_bytes / (width * height);
+    unsigned int padding_bytes = image_bytes - bpp * (width * height);
+    setGrayImage(reader, tr, width, height, false, bpp == 2);
+    reader.popIterator() += padding_bytes;
 }
 
 XTime
@@ -220,10 +317,81 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
         throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
     XScopedLock<XEGrabberInterface> lock( *interface());
     Snapshot shot( *this);
+    auto camera = interface()->camera();
 
+    auto int_features = {
+        "Width", "Height", "OffsetX", "OffsetY",
+        "PayloadSize",
+        "SensorWidth", "SensorHeight", "BinningHorizontal", "BinningVertical",
+        "DecimationHorizontal", "DecimationVertical",
+        "AcquisitionFrameCount",
+        "GainRaw"};
+    auto enum_features = {"SensorDigitizationTaps",
+        "PixelFormat", "PixelColorFilter",
+        "AcquisitionMode",
+        "TriggerSelector", "TriggerMode", "TriggerSource", "TriggerActivation",
+        "ExposureMode",
+        "GainSelector",
+        "BalanceRatioSelector"};
+    auto bool_features = {"ReverseX", "ReverseY"};
+    auto float_features = {"AcquisitionFrameRate", "TriggerDelay",
+        "ExposureTime", //[us]
+        "Gain",//[dB]
+        "Balcklevel", "Gamma"
+        };
+    try {
+        using namespace Euresys;
 
-    return XTime::now(); //time stamp is invalid for win + libdc1394.
+        ScopedBuffer buf( *camera, 10); //10 ms timeout
 
+        void *ptr = buf.getInfo<void *>(GenTL::BUFFER_INFO_BASE);
+        uint64_t ts = buf.getInfo<uint64_t>(GenTL::BUFFER_INFO_TIMESTAMP);
+        ssize_t size = buf.getInfo<ssize_t>(GenTL::BUFFER_INFO_SIZE);
+        size_t width = buf.getInfo<size_t>(GenTL::BUFFER_INFO_WIDTH); //GigE only?
+        size_t height= buf.getInfo<size_t>(GenTL::BUFFER_INFO_HEIGHT); //GigE only?
+
+        writer->push<uint32_t>(int_features.size());
+        for(auto &feat: int_features) {
+            int64_t v = camera->getInteger<RemoteModule>(feat);
+            writer->push<int64_t>(v);
+        }
+        writer->push<uint32_t>(enum_features.size());
+        for(auto &feat: enum_features) {
+            int32_t v = camera->getInteger<RemoteModule>(feat);
+            writer->push<int32_t>(v);
+        }
+        writer->push<uint32_t>(bool_features.size());
+        for(auto &feat: bool_features) {
+            int16_t v = camera->getInteger<RemoteModule>(feat);
+            writer->push<int16_t>(v);
+        }
+        writer->push<uint32_t>(float_features.size());
+        for(auto &feat: float_features) {
+            double v = camera->getFloat<RemoteModule>(feat);
+            writer->push<double>(v);
+        }
+        writer->push<int64_t>(0); //for future use.
+
+        writer->push<uint64_t>(ts);
+        writer->push<uint64_t>(size);
+        writer->push<uint64_t>(width);
+        writer->push<uint64_t>(height);
+
+        writer->insert(writer->end(), (char*)ptr, (char*)ptr + size);
+    #if defined __WIN32__ || defined WINDOWS || defined _WIN32
+        return XTime::now(); //time stamp is invalid for win
+    #else
+        return XTime(ts / 1000000uLL, ts % 1000000uLL);
+    #endif
+    }
+    catch(const Euresys::gentl_error &e) {
+        if(e.gc_err == GenTL::GC_ERR_TIMEOUT)
+            throw XDriver::XSkippedRecordError(__FILE__, __LINE__);
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
+    catch(const std::exception &e) {
+        throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
+    }
 }
 
 #endif // USE_LIBDC1394
