@@ -94,8 +94,6 @@ XEGrabberInterface::close() {
 XEGrabberCamera::XEGrabberCamera(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XEGrabberDriver<XDigitalCamera>(name, runtime, ref(tr_meas), meas) {
-//    startWavelen()->disable();
-//    stopWavelen()->disable();
 }
 
 void
@@ -179,6 +177,19 @@ XEGrabberCamera::setVideoMode(unsigned int mode, unsigned int roix, unsigned int
     try {
         using namespace Euresys;
         camera->setString<RemoteModule>("PixelFormat", shot[ *videoMode()].to_str());
+        unsigned int w = camera->getInteger<RemoteModule>("WidthMax");
+        unsigned int h = camera->getInteger<RemoteModule>("HeightMax");
+        roix = roix / 4 * 4;
+        roiy = roiy / 4 * 4;
+        roiw = (roiw + 3) / 4 * 4;
+        roih = (roih + 3) / 4 * 4;
+        if( !roiw || !roih || (roix + roiw >= w) || (roiy + roih >= h) || (roiw > w) || (roih > h)) {
+            roix = 0; roiy = 0; roiw = w; roih = h;
+        }
+        camera->setInteger<RemoteModule>("Width", roiw);
+        camera->setInteger<RemoteModule>("Height", roih);
+        camera->setInteger<RemoteModule>("OffsetX", roix);
+        camera->setInteger<RemoteModule>("OffsetY", roiy);
     }
     catch (const std::exception &e) {
         throw XInterface::XInterfaceError(e.what(), __FILE__, __LINE__);
@@ -309,6 +320,9 @@ XEGrabberCamera::analyzeRaw(RawDataReader &reader, Transaction &tr) {
     unsigned int padding_bytes = image_bytes - bpp * (width * height);
     setGrayImage(reader, tr, width, height, false, bpp == 2);
     reader.popIterator() += padding_bytes;
+
+    tr[ *this].m_status = formatString("%ux%u @(%u,%u)",
+        (unsigned int)width, (unsigned int)height, (unsigned int)xpos, (unsigned int)ypos);
 }
 
 XTime

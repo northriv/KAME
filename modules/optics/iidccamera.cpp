@@ -91,8 +91,6 @@ XDC1394Interface::close() {
 XIIDCCamera::XIIDCCamera(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XDC1394Driver<XDigitalCamera>(name, runtime, ref(tr_meas), meas) {
-//    startWavelen()->disable();
-//    stopWavelen()->disable();
 }
 
 void
