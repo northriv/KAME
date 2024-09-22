@@ -956,7 +956,7 @@
         <item row="0" column="0">
          <widget class="QGroupBox" name="groupBox2_8">
           <property name="title">
-           <string>Main Temp. Controler</string>
+           <string>Main Temp. controller</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_2">
            <property name="horizontalSpacing">

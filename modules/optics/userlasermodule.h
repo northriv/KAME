@@ -27,6 +27,36 @@ public:
 protected:
     virtual ModuleStatus readStatus() override;
     virtual void onEnabledChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onCurrentChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override {}
+    virtual void onTempChanged(const Snapshot &shot, XValueNodeBase *) override {}
+private:
+};
+
+//! Newport/ILX LDX-3200 series precision current controller
+class XLDX3200 : public XCharDeviceDriver<XLaserModule> {
+public:
+    XLDX3200(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLDX3200() {}
+protected:
+    virtual ModuleStatus readStatus() override;
+    virtual void onEnabledChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onCurrentChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) override;
+    virtual void onTempChanged(const Snapshot &shot, XValueNodeBase *) override {}
+private:
+};
+
+//! Newport/ILX laser controller LDC-3700 series
+class XLDC3700 : public XLDX3200 {
+public:
+    XLDC3700(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XLDC3700() {}
+protected:
+    virtual ModuleStatus readStatus() override;
+    virtual void onTempChanged(const Snapshot &shot, XValueNodeBase *) override;
 private:
 };
 

@@ -64,7 +64,6 @@ XDC1394Interface::open() {
             if(camera) {
                 if( !err) {
                     if(shot[ *device()].to_str() == camera->model) {
-                        m_devname = camera->model;
                         m_camera = camera;
                     }
                     else

@@ -1,5 +1,5 @@
 /***************************************************************************
-        Copyright (C) 2002-2023 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
                            kitag@issp.u-tokyo.ac.jp
 
         This program is free software; you can redistribute it and/or
@@ -32,14 +32,16 @@ public:
     //! usually nothing to do.
     virtual ~XLaserModule() {}
     //! Shows all forms belonging to driver.
-    virtual void showForms();
+    virtual void showForms() override;
 
     struct Payload : public XPrimaryDriver::Payload {
         double temperature() const {return m_temperature;} //! [degC]
         double current() const {return m_current;} //! [mA]
+        double power() const {return m_power;} //! [mW]
+        double voltage() const {return m_voltage;} //! [V]
     private:
         friend class XLaserModule;
-        double m_temperature, m_current;
+        double m_temperature, m_current, m_power, m_voltage;
     };
 protected:
 
@@ -50,13 +52,21 @@ protected:
     //! driver specific part below
     const shared_ptr<XScalarEntry> &temperature() const {return m_temperature;}
     const shared_ptr<XScalarEntry> &current() const {return m_current;}
+    const shared_ptr<XScalarEntry> &power() const {return m_power;}
+    const shared_ptr<XScalarEntry> &voltage() const {return m_voltage;}
     const shared_ptr<XStringNode> &status() const {return m_status;}
     const shared_ptr<XBoolNode> &enabled() const {return m_enabled;}
+    const shared_ptr<XDoubleNode> &setCurrent() const {return m_setCurrent;}
+    const shared_ptr<XDoubleNode> &setPower() const {return m_setPower;}
+    const shared_ptr<XDoubleNode> &setTemp() const {return m_setTemp;}
 protected:
-    struct ModuleStatus {XString status; double temperature = 0, current = 0;};
+    struct ModuleStatus {XString status; double temperature = 0, current = 0, power = 0, voltage = 0;};
     virtual ModuleStatus readStatus() = 0;
 
     virtual void onEnabledChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onCurrentChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onPowerChanged(const Snapshot &shot, XValueNodeBase *) = 0;
+    virtual void onTempChanged(const Snapshot &shot, XValueNodeBase *) = 0;
 
     //! This function will be called when raw data are written.
     //! Implement this function to convert the raw data to the record (Payload).
@@ -65,17 +75,23 @@ protected:
 
     const shared_ptr<XScalarEntry> m_temperature;
     const shared_ptr<XScalarEntry> m_current;
+    const shared_ptr<XScalarEntry> m_power;
+    const shared_ptr<XScalarEntry> m_voltage;
 private:
     const shared_ptr<XStringNode> m_status;
     const shared_ptr<XBoolNode> m_enabled;
+    const shared_ptr<XDoubleNode> m_setCurrent;
+    const shared_ptr<XDoubleNode> m_setPower;
+    const shared_ptr<XDoubleNode> m_setTemp;
 
     const qshared_ptr<FrmLaserModule> m_form;
 
-    shared_ptr<Listener> m_lsnOnEnabledChanged;
+    shared_ptr<Listener> m_lsnOnEnabledChanged,
+        m_lsnOnCurrentChanged, m_lsnOnPowerChanged, m_lsnOnTempChanged;
 
     std::deque<xqcon_ptr> m_conUIs;
 
-    void *execute(const atomic<bool> &);
+    void *execute(const atomic<bool> &) override;
 };
 
 //---------------------------------------------------------------------------

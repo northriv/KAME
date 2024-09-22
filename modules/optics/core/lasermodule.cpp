@@ -25,26 +25,46 @@ XLaserModule::XLaserModule(const char *name, bool runtime,
                                   dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_current(create<XScalarEntry>("Current", false,
                                   dynamic_pointer_cast<XDriver>(shared_from_this()))),
+    m_power(create<XScalarEntry>("Power", false,
+                                  dynamic_pointer_cast<XDriver>(shared_from_this()))),
+    m_voltage(create<XScalarEntry>("Voltage", false,
+                                  dynamic_pointer_cast<XDriver>(shared_from_this()))),
     m_status(create<XStringNode>("Status", true)),
     m_enabled(create<XBoolNode>("Enabled", true)),
+    m_setCurrent(create<XDoubleNode>("SetCurrent", true)),
+    m_setPower(create<XDoubleNode>("SetPower", true)),
+    m_setTemp(create<XDoubleNode>("SetTemp", true)),
     m_form(new FrmLaserModule) {
 
     meas->scalarEntries()->insert(tr_meas, m_temperature);
     meas->scalarEntries()->insert(tr_meas, m_current);
+    meas->scalarEntries()->insert(tr_meas, m_power);
+    meas->scalarEntries()->insert(tr_meas, m_voltage);
 
     m_conUIs = {
         xqcon_create<XQLCDNumberConnector>(temperature()->value(), m_form->m_lcdTemperature),
         xqcon_create<XQLCDNumberConnector>(current()->value(), m_form->m_lcdCurrent),
+        xqcon_create<XQLCDNumberConnector>(power()->value(), m_form->m_lcdPower),
+        xqcon_create<XQLCDNumberConnector>(voltage()->value(), m_form->m_lcdVoltage),
         xqcon_create<XQLabelConnector>(status(), m_form->m_lblStatus),
-        xqcon_create<XQToggleButtonConnector>(enabled(), m_form->m_ckbEnabled)
+        xqcon_create<XQToggleButtonConnector>(enabled(), m_form->m_ckbEnabled),
+        xqcon_create<XQLineEditConnector>(setCurrent(), m_form->m_edCurrent),
+        xqcon_create<XQLineEditConnector>(setPower(), m_form->m_edPower),
+        xqcon_create<XQLineEditConnector>(setTemp(), m_form->m_edTemp),
     };
 
     std::vector<shared_ptr<XNode>> runtime_ui{
-        status(), enabled()
+        status(), enabled(), setCurrent(), setPower(), setTemp(),
     };
     iterate_commit([=](Transaction &tr){
         for(auto &&x: runtime_ui)
             tr[ *x].setUIEnabled(false);
+        m_lsnOnCurrentChanged = tr[ *setCurrent()].onValueChanged().connectWeakly(
+            shared_from_this(), &XLaserModule::onCurrentChanged);
+        m_lsnOnPowerChanged = tr[ *setPower()].onValueChanged().connectWeakly(
+            shared_from_this(), &XLaserModule::onPowerChanged);
+        m_lsnOnTempChanged = tr[ *setTemp()].onValueChanged().connectWeakly(
+            shared_from_this(), &XLaserModule::onTempChanged);
     });
 }
 void
@@ -71,7 +91,7 @@ void *
 XLaserModule::execute(const atomic<bool> &terminated) {
 
     std::vector<shared_ptr<XNode>> runtime_ui{
-        status(), enabled()
+        status(), enabled(), setCurrent(), setPower(), setTemp(),
         };
 
     iterate_commit([=](Transaction &tr){

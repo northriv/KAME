@@ -63,6 +63,19 @@ unix {
     else {
         message("Missing library for libusb-1.0")
     }
+    exists("/usr/local/opt/euresys/egrabber/include/EGrabber.h") {
+        INCLUDEPATH += /usr/local/opt/euresys/egrabber/include/
+        HEADERS += \
+            euresyscamera.h
+
+        SOURCES += \
+            euresyscamera.cpp \
+
+        DEFINES += USE_EURESYS_EGRABBER
+    }
+    else {
+        message("Missing library for egrabber")
+    }
 }
 
 win32:LIBS += -lcharinterface
