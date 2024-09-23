@@ -22,15 +22,18 @@ unique_ptr<Euresys::EGrabberDiscovery> XEGrabberInterface::s_discovery;
 int XEGrabberInterface::s_refcnt = 0;
 XRecursiveMutex XEGrabberInterface::s_mutex;
 
-REGISTER_TYPE(XDriverList, EGrabberCamera, "Camera via Euresys eGrabber");
+REGISTER_TYPE(XDriverList, EGrabberCamera, "Coaxpress Camera via Euresys eGrabber");
+REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabber");
 
 //---------------------------------------------------------------------------
-XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver) :
+XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
     XInterface(name, runtime, driver) {
     XScopedLock<XEGrabberInterface> lock( *this);
     if(s_refcnt++ == 0) {
         try {
-            s_gentl = std::make_unique<Euresys::EGenTL>();
+            s_gentl = grablink ?
+                        std::make_unique<Euresys::EGenTL>(Euresys::Grablink()) :
+                        std::make_unique<Euresys::EGenTL>(Euresys::Coaxlink());
             s_discovery = std::make_unique<Euresys::EGrabberDiscovery>( *s_gentl);
             for (int i = 0; i < s_discovery->cameraCount(); ++i) {
                  Euresys::EGrabber<> grabber(s_discovery->cameras(i));
@@ -53,6 +56,7 @@ XEGrabberInterface::~XEGrabberInterface() {
     }
 
 }
+
 void
 XEGrabberInterface::open() {
     XScopedLock<XEGrabberInterface> lock( *this);
@@ -92,8 +96,12 @@ XEGrabberInterface::close() {
 }
 
 XEGrabberCamera::XEGrabberCamera(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink) :
+    XEGrabberDriver<XDigitalCamera>(name, runtime, ref(tr_meas), meas, grablink) {
+}
+XGrablinkCamera::XGrablinkCamera(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-    XEGrabberDriver<XDigitalCamera>(name, runtime, ref(tr_meas), meas) {
+    XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
 }
 
 void

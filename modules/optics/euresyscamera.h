@@ -22,7 +22,7 @@
 
 class XEGrabberInterface : public XInterface {
 public:
-    XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver);
+    XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink = false);
     virtual ~XEGrabberInterface();
 
     virtual bool isOpened() const override {return !!m_camera;}
@@ -48,7 +48,7 @@ template<class tDriver>
 class XEGrabberDriver : public tDriver {
 public:
     XEGrabberDriver(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink = false);
 protected:
     const shared_ptr<XEGrabberInterface> &interface() const {return m_interface;}
     //! Be called just after opening interface. Call start() inside this routine appropriately.
@@ -66,10 +66,10 @@ private:
 };
 template<class tDriver>
 XEGrabberDriver<tDriver>::XEGrabberDriver(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink) :
     tDriver(name, runtime, tr_meas, meas),
     m_interface(XNode::create<XEGrabberInterface>("Interface", false,
-                                                 dynamic_pointer_cast<XDriver>(this->shared_from_this()))) {
+        dynamic_pointer_cast<XDriver>(this->shared_from_this()), grablink)) {
     meas->interfaces()->insert(tr_meas, m_interface);
     this->iterate_commit([=](Transaction &tr){
         m_lsnOnOpen = tr[ *interface()].onOpen().connectWeakly(
@@ -112,11 +112,11 @@ XEGrabberDriver<tDriver>::closeInterface() {
 }
 
 
-//! Camralink/coaxpress camera via Euresys egrabber
+//! Coaxpress camera via Euresys egrabber
 class XEGrabberCamera : public XEGrabberDriver<XDigitalCamera> {
 public:
     XEGrabberCamera(const char *name, bool runtime,
-		Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink = false);
     virtual ~XEGrabberCamera() {}
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
@@ -133,6 +133,13 @@ protected:
 private:
     void stopTransmission();
     atomic<bool> m_isTrasmitting;
+};
+//! Cameralink camera via Euresys egrabber
+class XGrablinkCamera : public XEGrabberCamera {
+public:
+    XGrablinkCamera(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XGrablinkCamera() {}
 };
 #endif //USE_EURESYS_EGRABBER
 
