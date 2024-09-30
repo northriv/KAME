@@ -145,7 +145,7 @@ XAgilentNetworkAnalyzer::convertRaw(RawDataReader &reader, Transaction &tr) {
 
 unsigned int
 XHP8711::acquireTraceData(unsigned int ch, unsigned int len) {
-    interface()->send("FORM:DATA REAL,32;BORD NORM");
+    interface()->send("FORM:DATA REAL,32;BORD SWAP");
 	interface()->sendf("TRAC? CH%uFDATA", ch + 1u);
     interface()->receive(2);
     unsigned int ptfield_len;
@@ -172,7 +172,7 @@ XHP8711::convertRawBlock(RawDataReader &reader, Transaction &tr,
 
 unsigned int
 XAgilentE5061::acquireTraceData(unsigned int ch, unsigned int len) {
-    interface()->send("FORM:DATA REAL32;BORD NORM"); //binary float, little endian
+    interface()->send("FORM:DATA REAL32;BORD SWAP"); //binary float, little endian
     interface()->sendf("CALC%u:FORM  SCOMPLEX", ch + 1u); //smith r+jx
     interface()->sendf("CALC%u:DATA:FDAT?", ch + 1u);
     interface()->receive(2);
@@ -195,6 +195,7 @@ XAgilentE5061::convertRawBlock(RawDataReader &reader, Transaction &tr,
 			reader.pop<float>(), reader.pop<float>());
 	}
 }
+
 XCopperMtTRVNA::XCopperMtTRVNA(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XAgilentE5061(name, runtime, ref(tr_meas), meas) {

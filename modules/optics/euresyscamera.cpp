@@ -29,6 +29,7 @@ REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabb
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
     XInterface(name, runtime, driver) {
     XScopedLock<XEGrabberInterface> lock( *this);
+    XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(s_refcnt++ == 0) {
         try {
             s_gentl = grablink ?
@@ -50,6 +51,7 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
 }
 XEGrabberInterface::~XEGrabberInterface() {
     XScopedLock<XEGrabberInterface> lock( *this);
+    XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(--s_refcnt == 0) {
         s_discovery.reset();
         s_gentl.reset();
