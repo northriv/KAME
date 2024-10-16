@@ -32,16 +32,20 @@ XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const sha
     XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(s_refcnt++ == 0) {
         try {
+            using namespace Euresys;
             s_gentl = grablink ?
-                        std::make_unique<Euresys::EGenTL>(Euresys::Grablink()) :
-                        std::make_unique<Euresys::EGenTL>(Euresys::Coaxlink());
-            s_discovery = std::make_unique<Euresys::EGrabberDiscovery>( *s_gentl);
+                        std::make_unique<EGenTL>(Grablink()) :
+                        std::make_unique<EGenTL>(Coaxlink());
+            s_discovery = std::make_unique<EGrabberDiscovery>( *s_gentl);
+            s_discovery->discover();
+            fprintf(stderr, "eGrabber count:%i; camera count:%i\n", s_discovery->egrabberCount(), s_discovery->cameraCount());
             for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-                 Euresys::EGrabber<> grabber(s_discovery->cameras(i));
-                 trans( *device()).add(
-                    formatString("%i:",
-                    (int)grabber.getInteger<Euresys::InterfaceModule>("InterfaceIndex"))
-                    + grabber.getString<Euresys::DeviceModule>("DeviceModelName"));
+                 EGrabberCameraInfo info = s_discovery->cameras(i);
+                 EGrabberInfo grabber = info.grabbers[0];
+                 if(grabber.isRemoteAvailable) {
+                     trans( *device()).add(
+                        formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName);
+                 }
             }
         }
         catch (const std::exception &e) {                                                 // 7
