@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -35,6 +35,26 @@ protected:
 	virtual void closeInterface();
 
 	int m_cCount;
+};
+
+//! Lakeshore M81-SSM LIA module
+class XLakeshoreM81LIA : public XCharDeviceDriver<XLIA> {
+public:
+    XLakeshoreM81LIA(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+protected:
+    virtual void get(double *cos, double *sin);
+    virtual void changeOutput(double volt);
+    virtual void changeFreq(double freq);
+    virtual void changeSensitivity(int);
+    virtual void changeTimeConst(int);
+
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open();
+    //! Be called for closing interfaces.
+    virtual void closeInterface();
+private:
+    int channel();
 };
 
 //! NF LI 5640 Lock-in Amplifier

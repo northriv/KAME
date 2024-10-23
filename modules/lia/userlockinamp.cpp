@@ -1,5 +1,5 @@
 /***************************************************************************
-		Copyright (C) 2002-2015 Kentaro Kitagawa
+        Copyright (C) 2002-2024 Kentaro Kitagawa
 		                   kitag@issp.u-tokyo.ac.jp
 		
 		This program is free software; you can redistribute it and/or
@@ -15,6 +15,7 @@
 #include "charinterface.h"
 
 REGISTER_TYPE(XDriverList, SR830, "Stanford Research SR830 lock-in amp.");
+REGISTER_TYPE(XDriverList, LakeshoreM81LIA, "Lakeshore M81-SSM lock-in amp. module");
 REGISTER_TYPE(XDriverList, SignalRecovery7265, "Signal Recovery/EG&G Model7265 lock-in amp.");
 REGISTER_TYPE(XDriverList, LI5640, "NF LI5640 lock-in amp.");
 REGISTER_TYPE(XDriverList, HP4284A, "Agilent/HP4284A Precision LCR Meter");
@@ -124,6 +125,98 @@ XSR830::changeTimeConst(int x) {
 void
 XSR830::changeFreq(double x) {
 	interface()->sendf("FREQ %g", x);
+}
+
+XLakeshoreM81LIA::XLakeshoreM81LIA(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas)
+    : XCharDeviceDriver<XLIA>(name, runtime, ref(tr_meas), meas) {
+
+    const char *tc[] = {"1e-5sec", "3e-5s", "1e-4s", "3e-4s", "1e-3s", "3e-3s", "1e-2s",
+                        "3e-2", "0.1s", "0.3s", "1s", "3s", "10s", "30s", "100s", "300s", "1000s",
+                        "3000s", "10000s", "30000s", ""};
+    const char *sens[] = {"2nV/fA", "5nV/fA", "10nV/fA", "20nV/fA", "50nV/fA", "100nV/fA",
+                          "200nV/fA", "500nV/fA", "1uV/pA", "2uV/pA", "5uV/pA", "10uV/pA", "20uV/pA",
+                          "50uV/pA", "100uV/pA", "200uV/pA", "500uV/pA", "1mV/nA", "2mV/nA", "5mV/nA",
+                          "10mV/nA", "20mV/nA", "50mV/nA", "100mV/nA", "200mV/nA", "500mV/nA", "1V/uA",
+                          ""};
+    iterate_commit([=](Transaction &tr){
+        for(int i = 0; strlen(tc[i]) > 0; i++) {
+            tr[ *timeConst()].add(tc[i]);
+        }
+        for(int i = 0; strlen(sens[i]) > 0; i++) {
+            tr[ *sensitivity()].add(sens[i]);
+        }
+    });
+    autoScaleY()->disable();
+    output()->disable();
+}
+int
+XLakeshoreM81LIA::channel() {
+    //todo fix this bad hack.
+    int ch;
+    if(sscanf(getName().substr(getName().length()).c_str(), "%i", &ch) != 1)
+        throw XInterface::XInterfaceError("Cannot figure out module number from driver name.", __FILE__, __LINE__);
+    return ch;
+}
+void
+XLakeshoreM81LIA::get(double *cos, double *sin) {
+    int ch = channel();
+    interface()->queryf("FETCH? MX,%i,MY,%i", ch, ch);
+    if(interface()->scanf("%lf,%lf", cos, sin) != 2)
+        throw XInterface::XConvError(__FILE__, __LINE__);
+}
+void
+XLakeshoreM81LIA::open() {
+    int ch = channel();
+    interface()->queryf("SENS%i:CURR:RANG:AUTO?", ch);
+    trans( *autoScaleX()) = interface()->toInt();
+    interface()->queryf("SENS%i:LIA:TIME?", ch);
+    double tc = interface()->toDouble();
+    trans( *timeConst()) = (log10(tc) + 5) * 2;
+    interface()->query("SENS?");
+    trans( *sensitivity()) = interface()->toInt();
+
+    interface()->queryf("SENS%i:LIA:RSOURCE?", ch);
+    int sch;
+    if(interface()->scanf("S%i", &sch) == 1) {
+        interface()->queryf("SOUR%i:FREQ?", sch);
+        trans( *frequency()) = interface()->toDouble();
+    }
+    start();
+}
+void
+XLakeshoreM81LIA::closeInterface() {
+    XScopedLock<XInterface> lock( *interface());
+    if( !interface()->isOpened())
+        return;
+    try {
+        interface()->send("LOCL 0");
+    }
+    catch (XInterface::XInterfaceError &e) {
+        e.print(getLabel());
+    }
+    close();
+}
+void
+XLakeshoreM81LIA::changeOutput(double x) {
+}
+void
+XLakeshoreM81LIA::changeSensitivity(int x) {
+}
+void
+XLakeshoreM81LIA::changeTimeConst(int x) {
+    double tc = pow(10, x * 0.5 - 5);
+    int ch = channel();
+    interface()->sendf("SENS%i:LIA:TIME %f", ch, tc);
+}
+void
+XLakeshoreM81LIA::changeFreq(double x) {
+    int ch = channel();
+    interface()->queryf("SENS%i:LIA:RSOURCE?", ch);
+    int sch;
+    if(interface()->scanf("S%i", &sch) == 1) {
+        interface()->sendf("SOUR%i:FREQ %f", sch, x);
+    }
 }
 
 XLI5640::XLI5640(const char *name, bool runtime,

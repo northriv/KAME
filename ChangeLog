@@ -1,4 +1,8 @@
-* Oct 6 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+* Thu Oct 17 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- (6.1.1-1)
+- Euresys: fix for startup
+
+* Sun Oct 6 2024 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - (6.1.0-1)
 - CopperMountain: fix for byte order issue for newer revisions.
 - Oriental Motor CVD2B/5B STM drivers
@@ -7,6 +11,7 @@
 - Fix for digital camera, text collapse issue, aspect ratio issue
 - Ruby pressure scales for optical specrometer
 - Ocean insight/optics USB4000
+- Sigma optics PAMC104 piezo motor driver
 - (experimental) LDC-37**, LDX-32**, Euresys eGrabber, Optotune ICC4C2000
 
 * Tue Dec 19 2023 Kentaro Kitagawa <kitagawa@phys.s.u-tokyo.ac.jp>
