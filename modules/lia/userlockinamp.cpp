@@ -49,7 +49,8 @@ XSR830::XSR830(const char *name, bool runtime,
 }
 void
 XSR830::get(double *cos, double *sin) {
-	double sens = 0;
+    XScopedLock<XInterface> lock( *interface());
+    double sens = 0;
 	int idx;
 	bool ovld = false;
 	Snapshot shot( *this);
@@ -149,17 +150,24 @@ XLakeshoreM81LIA::XLakeshoreM81LIA(const char *name, bool runtime,
     });
     autoScaleY()->disable();
     output()->disable();
+    interface()->setEOS("\r\n");
+    interface()->setGPIBUseSerialPollOnWrite(false);
+    interface()->setGPIBUseSerialPollOnRead(false);
+    interface()->setGPIBWaitBeforeWrite(40);
+    //    ExclusiveWaitAfterWrite = 10;
+    interface()->setGPIBWaitBeforeRead(40);
 }
 int
 XLakeshoreM81LIA::channel() {
     //todo fix this bad hack.
     int ch;
-    if(sscanf(getName().substr(getName().length()).c_str(), "%i", &ch) != 1)
+    if(sscanf(getName().substr(getName().length() - 1).c_str(), "%i", &ch) != 1)
         throw XInterface::XInterfaceError("Cannot figure out module number from driver name.", __FILE__, __LINE__);
     return ch;
 }
 void
 XLakeshoreM81LIA::get(double *cos, double *sin) {
+    XScopedLock<XInterface> lock( *interface());
     int ch = channel();
     interface()->queryf("FETCH? MX,%i,MY,%i", ch, ch);
     if(interface()->scanf("%lf,%lf", cos, sin) != 2)
@@ -168,13 +176,11 @@ XLakeshoreM81LIA::get(double *cos, double *sin) {
 void
 XLakeshoreM81LIA::open() {
     int ch = channel();
-    interface()->queryf("SENS%i:CURR:RANG:AUTO?", ch);
-    trans( *autoScaleX()) = interface()->toInt();
+//    interface()->queryf("SENS%i:VOLT:RANG:AUTO?", ch);
+//    trans( *autoScaleX()) = interface()->toInt();
     interface()->queryf("SENS%i:LIA:TIME?", ch);
     double tc = interface()->toDouble();
     trans( *timeConst()) = (log10(tc) + 5) * 2;
-    interface()->query("SENS?");
-    trans( *sensitivity()) = interface()->toInt();
 
     interface()->queryf("SENS%i:LIA:RSOURCE?", ch);
     int sch;
@@ -205,12 +211,14 @@ XLakeshoreM81LIA::changeSensitivity(int x) {
 }
 void
 XLakeshoreM81LIA::changeTimeConst(int x) {
+    XScopedLock<XInterface> lock( *interface());
     double tc = pow(10, x * 0.5 - 5);
     int ch = channel();
     interface()->sendf("SENS%i:LIA:TIME %f", ch, tc);
 }
 void
 XLakeshoreM81LIA::changeFreq(double x) {
+    XScopedLock<XInterface> lock( *interface());
     int ch = channel();
     interface()->queryf("SENS%i:LIA:RSOURCE?", ch);
     int sch;
@@ -249,7 +257,8 @@ XLI5640::XLI5640(const char *name, bool runtime,
 }
 void
 XLI5640::get(double *cos, double *sin) {
-	double sens = 0;
+    XScopedLock<XInterface> lock( *interface());
+    double sens = 0;
 	int overlevel;
 	int sidx;
 	Snapshot shot( *this);
@@ -367,6 +376,7 @@ XSignalRecovery7265::XSignalRecovery7265(const char *name, bool runtime,
 }
 void
 XSignalRecovery7265::get(double *cos, double *sin) {
+    XScopedLock<XInterface> lock( *interface());
     interface()->query("X.");
     *cos = interface()->toDouble();
     interface()->query("Y.");
