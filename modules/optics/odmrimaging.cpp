@@ -25,8 +25,6 @@
 #include "graphmathtoolconnector.h"
 #include <QColorSpace>
 
-//REGISTER_TYPE(XDriverList, ODMRImaging, "ODMR postprocessor for camera");
-
 XODMRImaging::XODMRImaging(const char *name, bool runtime,
     Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
     XSecondaryDriver(name, runtime, ref(tr_meas), meas),

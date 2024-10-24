@@ -655,6 +655,11 @@ XLakeShoreBridge::XLakeShoreBridge(const char *name, bool runtime,
 	interface()->setGPIBWaitBeforeWrite(40);
 	//    ExclusiveWaitAfterWrite = 10;
 	interface()->setGPIBWaitBeforeRead(40);
+    interface()->setSerial7Bits(true);
+    interface()->setSerialStopBits(1);
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialParity(XCharInterface::PARITY_ODD);
+    interface()->setSerialEOS("\r\n");
 }
 
 XLakeShore340::XLakeShore340(const char *name, bool runtime,
