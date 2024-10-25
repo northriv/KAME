@@ -15,12 +15,13 @@
 #define euresyscameraH
 
 #include "digitalcamera.h"
+#include "charinterface.h"
 //---------------------------------------------------------------------------
 
 #if defined USE_EURESYS_EGRABBER
 #include <EGrabber.h>
 
-class XEGrabberInterface : public XInterface {
+class XEGrabberInterface : public XCustomCharInterface {
 public:
     XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink = false);
     virtual ~XEGrabberInterface();
@@ -31,17 +32,26 @@ public:
     void unlock() {s_mutex.unlock();}
     bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
 
+    virtual void send(const char *) override;
+    virtual void receive() override;
+
     const shared_ptr<Euresys::EGrabber<>> &camera() const {return m_camera;}
 protected:
     virtual void open() override;
     //! This can be called even if has already closed.
     virtual void close() override;
+
+    void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
+    void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
 private:
     static XRecursiveMutex s_mutex;
     shared_ptr<Euresys::EGrabber<>> m_camera;
     static unique_ptr<Euresys::EGenTL> s_gentl;
     static unique_ptr<Euresys::EGrabberDiscovery> s_discovery;
     static int s_refcnt;
+
+    XString m_serialEOS;
+    unsigned int m_serialBaudRate;
 };
 
 template<class tDriver>

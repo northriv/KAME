@@ -27,7 +27,7 @@ REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabb
 
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
-    XInterface(name, runtime, driver) {
+    XCustomCharInterface(name, runtime, driver) {
     XScopedLock<XEGrabberInterface> lock( *this);
     XScopedLock<XRecursiveMutex> slock( s_mutex);
     if(s_refcnt++ == 0) {
@@ -68,24 +68,47 @@ XEGrabberInterface::open() {
     XScopedLock<XEGrabberInterface> lock( *this);
     Snapshot shot( *this);
     try {
+        using namespace Euresys;
+        s_discovery->discover();
         for (int i = 0; i < s_discovery->cameraCount(); ++i) {
-             Euresys::EGrabber<> grabber(s_discovery->cameras(i));
-             if(shot[ *device()].to_str() ==
-                 formatString("%i:",
-                 (int)grabber.getInteger<Euresys::InterfaceModule>("InterfaceIndex"))
-                 + grabber.getString<Euresys::DeviceModule>("DeviceModelName")) {
-                 m_camera = std::make_shared<Euresys::EGrabber<>>
-                    (grabber.getGenTL(),
-                     (int)grabber.getInteger<Euresys::InterfaceModule>("InterfaceIndex"),
-                     (int)grabber.getInteger<Euresys::InterfaceModule>("DeviceIndex"));
-                 break;
+             EGrabberCameraInfo info = s_discovery->cameras(i);
+             EGrabberInfo grabber = info.grabbers[0];
+             if(grabber.isRemoteAvailable) {
+                 if(shot[ *device()].to_str() ==
+                         formatString("%i:", grabber.deviceIndex) + grabber.deviceModelName) {
+                     m_camera = std::make_shared<Euresys::EGrabber<>>(s_discovery->cameras(i));
+                     break;
+                 }
              }
         }
+        if( !m_camera)
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+
         std::string str_intf = m_camera->getString<Euresys::InterfaceModule>("InterfaceID");
         std::string str_dev = m_camera->getString<Euresys::DeviceModule>("DeviceID");
         int width = m_camera->getInteger<Euresys::RemoteModule>("Width");
         int height = m_camera->getInteger<Euresys::RemoteModule>("Height");
-        fprintf(stderr, "%s:%s %ix%i", str_intf.c_str(), str_dev.c_str(), width, height);
+        fprintf(stderr, "%s:%s %ix%i\n", str_intf.c_str(), str_dev.c_str(), width, height);
+
+        using namespace Euresys;
+        //Serial comm.
+        m_camera->setString<DeviceModule>("SerialOperationSelector", "Open");
+        m_camera->execute<DeviceModule>("SerialOperationExecute");
+        std::string status = m_camera->getString<DeviceModule>("SerialOperationStatus");
+        if(status != "Success")
+            throw std::runtime_error(status);
+
+        std::vector<std::string> serialBaudRateCand =
+                m_camera->getStringList<DeviceModule>(query::enumEntries("SerialBaudRate"));
+        std::string bratestr = formatString("%u", m_serialBaudRate);
+        auto baudit = std::find_if(serialBaudRateCand.begin(), serialBaudRateCand.end(), [&bratestr](auto &x){return (x.rfind(bratestr) != std::string::npos);});
+        if(baudit == serialBaudRateCand.end())
+            throw XInterface::XOpenInterfaceError(__FILE__, __LINE__);
+        m_camera->setString<DeviceModule>("SerialBaudRate", *baudit);
+
+        m_serialEOS = "\r";
+        m_camera->setInteger<DeviceModule>("SerialTimeout", 1);
+        m_camera->setInteger<DeviceModule>("SerialAccessBufferLength", 4096);
     }
     catch (const std::exception &e) {
         gErrPrint(XString("error: ") + e.what());
@@ -96,8 +119,60 @@ XEGrabberInterface::open() {
 void
 XEGrabberInterface::close() {
     if(m_camera) {
+        using namespace Euresys;
+        m_camera->setString<DeviceModule>("SerialOperationSelector", "Close");
+        m_camera->execute<DeviceModule>("SerialOperationExecute");
 //        m_camera->stop();
         m_camera.reset();
+    }
+}
+
+void
+XEGrabberInterface::send(const char *buf) {
+    XString str = buf + m_serialEOS;
+    try {
+        using namespace Euresys;
+        m_camera->setString<DeviceModule>("SerialOperationSelector", "Write");
+        m_camera->setInteger<DeviceModule>("SerialAccessLength", str.size());
+        m_camera->setRegister<DeviceModule>("SerialAccessBuffer", str.data(), str.size());
+        m_camera->execute<DeviceModule>("SerialOperationExecute");
+        std::string status = m_camera->getString<DeviceModule>("SerialOperationStatus");
+        if(status != "Success")
+            throw std::runtime_error(status);
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(XString("error: ") + e.what(), __FILE__, __LINE__);
+    }
+}
+void
+XEGrabberInterface::receive() {
+    try {
+        using namespace Euresys;
+        buffer_receive().clear();
+        XTime time = XTime::now();
+        while(1) {
+            if(XTime::now().diff_sec(time) > 1.0)
+                throw XInterface::XCommError(i18n("Serial comm. timed out."), __FILE__, __LINE__);
+
+            char buf[256];
+            m_camera->setString<DeviceModule>("SerialOperationSelector", "Read");
+            m_camera->setInteger<DeviceModule>("SerialAccessLength", sizeof(buf));
+            m_camera->execute<DeviceModule>("SerialOperationExecute");
+            std::string status = m_camera->getString<DeviceModule>("SerialOperationStatus");
+            if(status != "Success")
+                throw std::runtime_error(status);
+            uint64_t rsize = m_camera->getInteger<DeviceModule>("SerialOperationResult");
+            m_camera->getRegister<DeviceModule>("SerialAccessBuffer", buf, rsize);
+            buffer_receive().insert(buffer_receive().end(), buf, buf + rsize);
+            auto pos = m_serialEOS.find(buf);
+            if(pos != std::string::npos) {
+                buffer_receive().resize(buffer_receive().size() - rsize + pos + m_serialEOS.size());
+                return;
+            }
+        }
+    }
+    catch (const std::exception &e) {
+        throw XInterface::XInterfaceError(XString("error: ") + e.what(), __FILE__, __LINE__);
     }
 }
 
@@ -125,45 +200,70 @@ XEGrabberCamera::open() {
         for(auto &f: allfeatures)
             fprintf(stderr, "%s ", f.c_str());
         fprintf(stderr, "\n");
+//        std::string dvn = camera->getString<DeviceModule>(query::enumEntries("DeviceVendorName"));
+//        std::string dmn = camera->getString<DeviceModule>(query::enumEntries("DeviceModelName"));
+//        fprintf(stderr, "%s %s\n", dvn.c_str(), dmn.c_str());
 
         auto videomodes = camera->getStringList<RemoteModule>(
                     query::enumEntries("PixelFormat"));
-        auto triggersources = camera->getStringList<RemoteModule>(
-                    query::enumEntries("TriggerSource"));
-
-
-        bool trigon = camera->getString<RemoteModule>("TriggerMode") == "On";
-        std::string expmode = camera->getString<RemoteModule>("ExposureMode");
-        std::string trigact = camera->getString<RemoteModule>("TriggerActivation");
-        std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
-            {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
-            {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
-            {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
-            {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
-        };
-        auto tmit = std::find_if(modes.begin(), modes.end(),
-            [&](auto&x){return (x.second.first == expmode) && (x.second.second == trigact);});
-        TriggerMode trigmode = TriggerMode::CONTINUEOUS;
-        if(trigon && (tmit != modes.end())) {
-            trigmode = tmit->first;
+        if(std::find(allfeatures.begin(), allfeatures.end(), "TriggerSource") != allfeatures.end()) {
+            auto triggersources = camera->getStringList<RemoteModule>(
+                        query::enumEntries("TriggerSource"));
         }
 
-        double blacklvl = camera->getFloat<RemoteModule>("Blacklevel");
-        double exp_time = camera->getFloat<RemoteModule>("ExposureTime") * 1e-3; //to ms
-        double gain_db = camera->getFloat<RemoteModule>("Gain"); //dB
+        bool feat_avail = true;
+        for(auto &f: {"TriggerMode", "ExposureMode", "TriggerActivation"}) {
+            if(std::find(allfeatures.begin(), allfeatures.end(), f) == allfeatures.end())
+                feat_avail = false;
+        }
+        if(feat_avail) {
+            bool trigon = camera->getString<RemoteModule>("TriggerMode") == "On";
+            std::string expmode = camera->getString<RemoteModule>("ExposureMode");
+            std::string trigact = camera->getString<RemoteModule>("TriggerActivation");
+            std::map<TriggerMode, std::pair<std::string, std::string>> modes = {
+                {TriggerMode::EXT_POS_EDGE, {"Timed", "RisingEdge"}},
+                {TriggerMode::EXT_NEG_EDGE, {"Timed", "FallingEdge"}},
+                {TriggerMode::EXT_POS_EXPOSURE, {"TriggerWidth", "RisingEdge"}},
+                {TriggerMode::EXT_NEG_EXPOSURE, {"TriggerWidth", "FallingEdge"}},
+            };
+            auto tmit = std::find_if(modes.begin(), modes.end(),
+                [&](auto&x){return (x.second.first == expmode) && (x.second.second == trigact);});
+            TriggerMode trigmode = TriggerMode::CONTINUEOUS;
+            if(trigon && (tmit != modes.end())) {
+                trigmode = tmit->first;
+            }
+            iterate_commit([=](Transaction &tr){
+                tr[ *triggerMode()] = (unsigned int)trigmode;
+            });
+        }
+
+        if(std::find(allfeatures.begin(), allfeatures.end(), "Blacklevel") != allfeatures.end()) {
+            double blacklvl = camera->getFloat<RemoteModule>("Blacklevel");
+            iterate_commit([=](Transaction &tr){
+                tr[ *brightness()] = blacklvl;
+            });
+        }
+        if(std::find(allfeatures.begin(), allfeatures.end(), "ExposureTime") != allfeatures.end()) {
+            double exp_time = camera->getFloat<RemoteModule>("ExposureTime") * 1e-3; //to ms
+            iterate_commit([=](Transaction &tr){
+                tr[ *exposureTime()] = exp_time;
+            });
+        }
+        if(std::find(allfeatures.begin(), allfeatures.end(), "Gain") != allfeatures.end()) {
+            double gain_db = camera->getFloat<RemoteModule>("Gain"); //dB
+            iterate_commit([=](Transaction &tr){
+                tr[ *cameraGain()] = gain_db;
+            });
+        }
 
 //        grabber.setString<Euresys::DeviceModule>("CameraControlMethod", "RG");              // 4
 //        grabber.setFloat<Euresys::DeviceModule>("CycleTargetPeriod", 1e6 / FPS);
 
         iterate_commit([=](Transaction &tr){
-            tr[ *brightness()] = blacklvl;
-            tr[ *exposureTime()] = exp_time;
-            tr[ *cameraGain()] = gain_db;
             tr[ *videoMode()] = -1;
             tr[ *videoMode()].clear();
             for(auto &s: videomodes)
                 tr[ *videoMode()].add(s);
-            tr[ *triggerMode()] = (unsigned int)trigmode;
             tr[ *frameRate()].clear();
             for(double rate = 240.0; rate > 1.7; rate /= 2) {
                 tr[ *frameRate()].add(formatString("%f fps", rate));
