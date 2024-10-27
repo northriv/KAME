@@ -24,6 +24,7 @@ XRecursiveMutex XEGrabberInterface::s_mutex;
 REGISTER_TYPE(XDriverList, EGrabberCamera, "Coaxpress Camera via Euresys eGrabber");
 REGISTER_TYPE(XDriverList, GrablinkCamera, "Cameralink Camera via Euresys eGrabber");
 REGISTER_TYPE(XDriverList, C9100oGrablink, "Hamamatsu C9100 Camera via Euresys grablink");
+REGISTER_TYPE(XDriverList, JAICameraOverGrablink, "JAI Camera via Euresys grablink");
 
 //---------------------------------------------------------------------------
 XEGrabberInterface::XEGrabberInterface(const char *name, bool runtime, const shared_ptr<XDriver> &driver, bool grablink) :
@@ -551,41 +552,191 @@ XEGrabberCamera::acquireRaw(shared_ptr<RawData> &writer) {
     }
 }
 
-XHamamatsuCameraOverEGrabber::XHamamatsuCameraOverEGrabber(const char *name, bool runtime,
-    Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink) :
-    XEGrabberCamera(name, runtime, ref(tr_meas), meas, grablink) {
+XHamamatsuCameraOverGrablink::XHamamatsuCameraOverGrablink(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
     interface()->setSerialBaudRate(9600);
     interface()->setSerialEOS("\r");
 }
 
 void
-XHamamatsuCameraOverEGrabber::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
+XHamamatsuCameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
     XScopedLock<XEGrabberInterface> lock( *interface());
 }
 void
-XHamamatsuCameraOverEGrabber::setTriggerMode(TriggerMode mode) {
+XHamamatsuCameraOverGrablink::setTriggerMode(TriggerMode mode) {
     XScopedLock<XEGrabberInterface> lock( *interface());
 }
 void
-XHamamatsuCameraOverEGrabber::setBrightness(unsigned int brightness) {
+XHamamatsuCameraOverGrablink::setBrightness(unsigned int brightness) {
     XScopedLock<XEGrabberInterface> lock( *interface());
 }
 void
-XHamamatsuCameraOverEGrabber::setExposureTime(double shutter) {
+XHamamatsuCameraOverGrablink::setExposureTime(double shutter) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->sendf("AET %luUS", lrint(shutter * 1e6));
 }
 void
-XHamamatsuCameraOverEGrabber::setCameraGain(double db) {
+XHamamatsuCameraOverGrablink::setCameraGain(double db) {
     XScopedLock<XEGrabberInterface> lock( *interface());
     interface()->sendf("EMG %lu", lrint(pow(10, db/10) / 100.0 * 256));
 }
 void
-XHamamatsuCameraOverEGrabber::open() {
+XHamamatsuCameraOverGrablink::open() {
     XEGrabberCamera::open();
 
-    interface()->query("?CAI T");
+    interface()->query("RES Y");
+    checkSerialError(__FILE__, __LINE__);
     fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI T");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI H");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI V");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI A");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI I");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI O");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?CAI B");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?VER");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("?INF");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+}
+void
+XHamamatsuCameraOverGrablink::checkSerialError(const char *file, unsigned int line) {
+    XString str = interface()->toStrSimplified();
+    if(str.empty())
+        throw XInterface::XConvError(file, line);
+    if(str[0] == 'E') {
+        unsigned int code;
+        if(interface()->scanf("E%u", &code) != 1)
+            throw XInterface::XConvError(file, line);
+        switch(code) {
+        case 1:
+            throw XInterface::XInterfaceError(i18n("Comm. error."), file, line);
+        case 2:
+            throw XInterface::XInterfaceError(i18n("Comm. buffer overflows."), file, line);
+        case 3:
+            throw XInterface::XInterfaceError(i18n("Unknown command or parameter."), file, line);
+        case 4:
+            throw XInterface::XInterfaceError(i18n("Command unsuitable for current condition."), file, line);
+        case 5:
+            throw XInterface::XInterfaceError(i18n("Wrong parameter."), file, line);
+        case 6:
+            throw XInterface::XInterfaceError(i18n("Parameter unsuitable for current condition."), file, line);
+        default:
+            throw XInterface::XInterfaceError(i18n("Unknown error code."), file, line);
+        }
+    }
+}
+
+XJAICameraOverGrablink::XJAICameraOverGrablink(const char *name, bool runtime,
+    Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
+    XEGrabberCamera(name, runtime, ref(tr_meas), meas, true) {
+    interface()->setSerialBaudRate(9600);
+    interface()->setSerialEOS("\r\n");
+}
+
+void
+XJAICameraOverGrablink::setVideoMode(unsigned int mode, unsigned int roix, unsigned int roiy, unsigned int roiw, unsigned int roih) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+}
+void
+XJAICameraOverGrablink::setTriggerMode(TriggerMode mode) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    unsigned int em = 1, act = 0, asc = 0;
+    switch(mode) {
+    case TriggerMode::SINGLE:
+        break;
+    case TriggerMode::CONTINUEOUS:
+        asc = 1;
+        break;
+    case TriggerMode::EXT_POS_EDGE:
+        act = 0;
+        break;
+    case TriggerMode::EXT_POS_EXPOSURE:
+        act = 2;
+        em = 2;
+        break;
+    case TriggerMode::EXT_NEG_EDGE:
+        act = 1;
+        break;
+    case TriggerMode::EXT_NEG_EXPOSURE:
+        act = 3;
+        em = 2;
+        break;
+    }
+    interface()->sendf("EM=%u", em);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->sendf("ASC=%u", asc);
+    checkSerialError(__FILE__, __LINE__);
+    interface()->sendf("TA=%u", act);
+    checkSerialError(__FILE__, __LINE__);
+    if(mode == TriggerMode::SINGLE) {
+        interface()->send("STRG=0");
+        checkSerialError(__FILE__, __LINE__);
+    }
+}
+void
+XJAICameraOverGrablink::setBrightness(unsigned int brightness) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->sendf("BL=%u", brightness);
+    checkSerialError(__FILE__, __LINE__);
+}
+void
+XJAICameraOverGrablink::setExposureTime(double shutter) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->sendf("PE=%lu", lrint(shutter * 1e6));
+    checkSerialError(__FILE__, __LINE__);
+}
+void
+XJAICameraOverGrablink::setCameraGain(double db) {
+    XScopedLock<XEGrabberInterface> lock( *interface());
+    interface()->sendf("FGA=%lu", lrint(pow(10, db/10) * 100));
+    checkSerialError(__FILE__, __LINE__);
+}
+void
+XJAICameraOverGrablink::open() {
+    XEGrabberCamera::open();
+
+    interface()->query("DVN?");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("MD?");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("DV?");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+    interface()->query("VN?");
+    checkSerialError(__FILE__, __LINE__);
+    fprintf(stderr, "%s\n", interface()->toStr().c_str());
+}
+void
+XJAICameraOverGrablink::checkSerialError(const char *file, unsigned int line) {
+    XString str = interface()->toStrSimplified();
+    if(str.empty())
+        throw XInterface::XConvError(file, line);
+    if(str[0] == '0') {
+        unsigned int code;
+        if(interface()->scanf("%2u", &code) != 1)
+            throw XInterface::XConvError(file, line);
+        throw XInterface::XInterfaceError(str, file, line);
+    }
 }
 
 #endif //USE_EURESYS_EGRABBER

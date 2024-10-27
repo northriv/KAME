@@ -32,11 +32,13 @@ public:
     void unlock() {s_mutex.unlock();}
     bool isLocked() const {return s_mutex.isLockedByCurrentThread();}
 
+    //For cameralink cameras.
     virtual void send(const char *) override;
     virtual void receive() override;
 
     const shared_ptr<Euresys::EGrabber<>> &camera() const {return m_camera;}
 
+    //For cameralink cameras.
     void setSerialBaudRate(unsigned int rate) {m_serialBaudRate = rate;}
     void setSerialEOS(const char *str) {m_serialEOS = str;} //!< be overridden by \a setEOS().
 protected:
@@ -153,11 +155,11 @@ public:
     virtual ~XGrablinkCamera() {}
 };
 
-class XHamamatsuCameraOverEGrabber : public XEGrabberCamera {
+class XHamamatsuCameraOverGrablink : public XEGrabberCamera {
 public:
-    XHamamatsuCameraOverEGrabber(const char *name, bool runtime,
-        Transaction &tr_meas, const shared_ptr<XMeasure> &meas, bool grablink = false);
-    virtual ~XHamamatsuCameraOverEGrabber() {}
+    XHamamatsuCameraOverGrablink(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XHamamatsuCameraOverGrablink() {}
 protected:
     virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
     virtual void setTriggerMode(TriggerMode mode) override;
@@ -166,15 +168,33 @@ protected:
     virtual void setExposureTime(double time) override;
     //! Be called just after opening interface. Call start() inside this routine appropriately.
     virtual void open() override;
+
+    void checkSerialError(const char *file, unsigned int line);
 };
 
-class XC9100oGrablink : public XHamamatsuCameraOverEGrabber {
+class XC9100oGrablink : public XHamamatsuCameraOverGrablink {
 public:
    XC9100oGrablink(const char *name, bool runtime,
         Transaction &tr_meas, const shared_ptr<XMeasure> &meas) :
-       XHamamatsuCameraOverEGrabber(name, runtime, ref(tr_meas), meas, true) {}
+       XHamamatsuCameraOverGrablink(name, runtime, ref(tr_meas), meas) {}
 };
 
+class XJAICameraOverGrablink : public XEGrabberCamera {
+public:
+    XJAICameraOverGrablink(const char *name, bool runtime,
+        Transaction &tr_meas, const shared_ptr<XMeasure> &meas);
+    virtual ~XJAICameraOverGrablink() {}
+protected:
+    virtual void setVideoMode(unsigned int mode, unsigned int roix = 0, unsigned int roiy = 0, unsigned int roiw = 0, unsigned int roih = 0) override;
+    virtual void setTriggerMode(TriggerMode mode) override;
+    virtual void setBrightness(unsigned int gain) override;
+    virtual void setCameraGain(double db) override;
+    virtual void setExposureTime(double time) override;
+    //! Be called just after opening interface. Call start() inside this routine appropriately.
+    virtual void open() override;
+
+    void checkSerialError(const char *file, unsigned int line);
+};
 #endif //USE_EURESYS_EGRABBER
 
 #endif
